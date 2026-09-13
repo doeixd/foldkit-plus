@@ -57,15 +57,16 @@ export const stableStringify = (value: unknown): string => {
     .join(',')}}`
 }
 
-/** `Result: Project` means a connection over `Project`; anything else is the result as given. */
-export type ResultOf<Result> = Result extends { readonly name: string; readonly ref: unknown }
-  ? ConnectionSpec
-  : Result
+/**
+ * `Result: Project` (or anything with the entity's `name`, as `Query.connection`
+ * takes) means a connection over it; a `ConnectionSpec` names its `entity`
+ * instead and is the result as given.
+ */
+export type ResultOf<Result> = Result extends { readonly name: string } ? ConnectionSpec : Result
 
 const isEntityName = (result: unknown): result is { readonly name: string } =>
   typeof result === 'object' &&
   result !== null &&
-  'ref' in result &&
   typeof (result as { readonly name?: unknown }).name === 'string'
 
 export const Query = {

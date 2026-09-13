@@ -117,6 +117,9 @@ describe('Query.make and Mutation.make take fields where a Struct is expected', 
     })
     expect(() => Schema.decodeUnknownSync(Rename.Input)({ id: 'p1' })).toThrow()
     expect(ProjectsByOwner.Result).toEqual({ entity: 'Project' })
+    expect(Query.make('ByName', { Input: {}, Result: { name: 'Project' } }).Result).toEqual({
+      entity: 'Project',
+    })
     expect(ProjectsByOwner.ref({ ownerId: 'u1' }).identity).toBe(
       Query.make('ProjectsByOwner', {
         Input: Schema.Struct({ ownerId: Schema.String }),
@@ -158,6 +161,8 @@ describe('the domain’s operations compile to the kernel’s', () => {
     })
     expect(Remote.reduces(message)).toBe(true)
     expect(Remote.reduces(Message.Ping())).toBe(false)
+    // By own tag only: an inherited name is not one of Remote's Messages.
+    expect(Remote.reduces({ _tag: 'toString' })).toBe(false)
     const reduced = Remote.reduces(message) ? Data.reduce(initial, message) : initial
     expect(reduced.remote).toEqual(Data.update(initial.remote, message as never))
     expect(reduced.route).toBe('/')
