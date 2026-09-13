@@ -24,6 +24,11 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   (`undefined` while inactive), and `projectionOf(model)` the projection for
   those params. `Requirement.live` marks a requirement the projection also
   subscribes to; `Requirement.merge` keeps the mark.
+- **Errors and hovers (#69, Phase E).** `Invalid<Message>` is a branded
+  compile-time failure that names its cause; `ActiveSurface` carries the
+  Surface's `owner`, so a domain can reject another application's Surface. A
+  Surface's Model now hovers as the projected value (`{ project:
+  RemoteData<…> }`) instead of the internal `StructValue<…>` alias.
 - **`Projection.connections` (#69, Phase D; breaking).** A Projection carries
   the query connections it reads as `ConnectionRequirement { identity, window,
   select }`, next to its requirements; `struct`, `array`, `option`, and
@@ -106,6 +111,15 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `retain` entry with every active Surface as a root (`Remote.retain`).
   `options` are the observe, live, and retain options together. The kernel
   entries now derive their requirements from a function of the Model.
+- **Errors that name the descriptor (#69, Phase E).** `Data.get`, `Data.live`,
+  `Data.query`, `Data.mutate`, and `Remote.select` reject a descriptor the
+  domain never declared with a one-line branded error at the argument
+  (`Entity "Team" is not registered with this Remote domain`; `Registered` and
+  `SelectsEntity` are the types), and at runtime with an error naming the
+  descriptor and the domain. `Data.query` rejects a selection of another entity
+  than the query lists the same way, and `Data.subscriptions` rejects a Surface
+  of another application by owner token. The README leads with the application
+  API and documents the kernel under "Advanced".
 - **Queries as Projections (#69, Phase D; breaking).** `Data.query(query,
   input, { select, first | last, after | before })` is a Projection reading a
   connection as a `RemoteData<Page<Value>>`: `Initial` until the page and every
