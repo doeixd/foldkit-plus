@@ -555,6 +555,10 @@ beyond "issued concurrently".
 - Two applications with the same Model type cannot be told apart by the types;
   `Data.subscriptions` rejects a Surface of another application at runtime by
   its owner token.
+- A refreshing policy's `maxAge` applies to entities, which the store stamps
+  with a clock; a connection has no age, so a page is re-queried only when the
+  connection is invalidated (`ConnectionInvalidated`, a live
+  `ConnectionInvalidate`, or `networkOnly`'s `force`).
 - `RemoteData` is a closed union.
 - A selection picks at least one field: `Selection.make(User, {})` throws,
   since it would require nothing and read `Ready` for any id.
