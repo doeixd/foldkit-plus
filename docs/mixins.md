@@ -42,26 +42,17 @@ The usual failure modes:
 
 ## How it fits together
 
-```text
-                 Slots contract
-                      │
-          ┌───────────┴───────────┐
-        Style                  Behavior
-     appearance              interaction
-   (pure data)          (attrs + optional Mount)
-          │                       │
-          └───────────┬──────────┘
-                      ▼
-                    Mixin
-              slot contributions
-                      │
-                      ▼
-                 Resolver
-     one class · one style · one owner per event
-        · opaque ChildAttribute · one OnMount
-                      │
-                      ▼
-               Foldkit Html
+```mermaid
+flowchart TB
+  slots["Slots contract"]
+  sty["Style<br/>appearance (pure data)"]
+  beh["Behavior<br/>interaction (attrs + optional Mount)"]
+  mixin["Mixin<br/>slot contributions"]
+  resolver["Resolver<br/>one class · one style · one owner per event<br/>opaque ChildAttribute · one OnMount"]
+  html["Foldkit Html"]
+  slots --> sty --> mixin
+  slots --> beh --> mixin
+  mixin --> resolver --> html
 ```
 
 A **`Slot`** is named metadata: a capability, the events and attributes it

@@ -39,20 +39,16 @@ one pure reducer that lives in the Model.
 
 ## How they fit together
 
-```text
-        browser / device                         server / Node
-  ┌──────────────────────────┐           ┌──────────────────────────┐
-  │  Foldkit app (update)    │           │  foldkit-remote-server   │
-  │      │                   │           │   Sources + authorize    │
-  │      ▼                   │           │          │               │
-  │  foldkit-remote          │  Effect   │  foldkit-remote-drizzle  │
-  │  entities · plan · live  │◀──RPC────▶│  (SQL, optional)         │
-  │  optimistic · mutations  │           │                          │
-  └──────────────────────────┘           └──────────────────────────┘
-                 ▲
-                 │ projection + requirements
-          foldkit-surface
-        Projection · field refs · subsets
+```mermaid
+flowchart LR
+  subgraph client["browser / device"]
+    app["Foldkit app (update)"] --> remote["foldkit-remote<br/>entities · plan · live<br/>optimistic · mutations"]
+    surface["foldkit-surface<br/>Projection · field refs · subsets"] -- "projection + requirements" --> remote
+  end
+  subgraph server["server / Node"]
+    rs["foldkit-remote-server<br/>Sources + authorize"] --> drizzle["foldkit-remote-drizzle<br/>SQL, optional"]
+  end
+  remote <-- "Effect RPC" --> rs
 ```
 
 The client half is a Foldkit Submodel. The application embeds `Remote.Model`
@@ -158,10 +154,17 @@ is no hidden suspense; the states are explicit.
 A mutation flows through the ordinary Foldkit path — UI Message → `update` →
 `Data.mutate` → Command — and returns to the Model as a `RemoteMessage`:
 
-```text
-UI → ClickedRename → update → Data.mutate → Command ──RPC──▶ server
-                                                                │
-        Data.reduce ◀── MutationSucceeded { output, entities } ◀┘
+```mermaid
+sequenceDiagram
+  participant UI
+  participant update
+  participant Data
+  participant Server as server
+  UI->>update: ClickedRename
+  update->>Data: Data.mutate
+  Data->>Server: Command (RPC)
+  Server-->>update: MutationSucceeded { output, entities }
+  update->>Data: Data.reduce
 ```
 
 `Data.mutate` applies `MutationStarted` to the Model (the request id comes from
