@@ -75,6 +75,14 @@ const setup = (count: number) => {
   return { sqlite, database, statements }
 }
 
+/** A kernel binding over a hand-built root: the definition registers the entities. */
+const boundOver = (model: RemoteModel): BoundRemote<unknown, RemoteModel> =>
+  ({
+    definition: Remote.define({ entities: [Project, Comment, User] }),
+    contract: { name: 'test' },
+    store: { get: () => model },
+  }) as unknown as BoundRemote<unknown, RemoteModel>
+
 const readCards = async (count: number) => {
   const { sqlite, database, statements } = setup(count)
   try {
@@ -82,7 +90,7 @@ const readCards = async (count: number) => {
       entities: [source(Project), source(Comment), source(User)],
     })
     const projections = Array.from({ length: count }, (_, i) =>
-      Remote.select({} as BoundRemote<unknown, RemoteModel>, ProjectCard)(`p${i + 1}`),
+      Remote.select(boundOver(initialRemoteModel), ProjectCard)(`p${i + 1}`),
     )
     const requests = projections.flatMap(projection => projection.requirements)
     const result = await Effect.runPromise(
@@ -91,9 +99,7 @@ const readCards = async (count: number) => {
         .pipe(Effect.provide(databaseLayer(database))),
     )
     const store = Remote.writeRead(emptyStore, requests, result)
-    const bound = {
-      store: { get: () => ({ ...initialRemoteModel, entities: store }) },
-    } as unknown as BoundRemote<unknown, RemoteModel>
+    const bound = boundOver({ ...initialRemoteModel, entities: store })
     return {
       statements: statements.length,
       entities: result.entities.length,
@@ -116,7 +122,7 @@ const readPaged = async (count: number) => {
   try {
     const server = RemoteServer.make({ entities: [source(Project), source(Comment)] })
     const requests = Array.from({ length: count }, (_, i) =>
-      Remote.select({} as BoundRemote<unknown, RemoteModel>, PagedCard)(`p${i + 1}`),
+      Remote.select(boundOver(initialRemoteModel), PagedCard)(`p${i + 1}`),
     ).flatMap(projection => projection.requirements)
     const result = await Effect.runPromise(
       RemoteServer.handlers(server, null)
@@ -124,9 +130,7 @@ const readPaged = async (count: number) => {
         .pipe(Effect.provide(databaseLayer(database))),
     )
     const store = Remote.writeRead(emptyStore, requests, result)
-    const bound = {
-      store: { get: () => ({ ...initialRemoteModel, entities: store }) },
-    } as unknown as BoundRemote<unknown, RemoteModel>
+    const bound = boundOver({ ...initialRemoteModel, entities: store })
     return {
       statements: statements.length,
       cards: Array.from({ length: count }, (_, i) =>

@@ -70,10 +70,11 @@ describe('RemoteDrizzle end to end', () => {
     )
 
     const store = Remote.writeRead(emptyStore, [request], result)
+    // A kernel binding over a hand-built root: the definition registers the entities.
     const bound = {
-      store: {
-        get: () => ({ ...initialRemoteModel, entities: store }),
-      },
+      definition: Remote.define({ entities: [ProjectBinding, UserBinding, CommentBinding] }),
+      contract: { name: 'test' },
+      store: { get: () => ({ ...initialRemoteModel, entities: store }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
 
     expect(Remote.select(bound, selection)('p1').read(undefined)).toEqual({
@@ -115,10 +116,11 @@ describe('RemoteDrizzle end to end', () => {
     )
 
     const store = Remote.writeRead(emptyStore, [request], result)
+    // A kernel binding over a hand-built root: the definition registers the entities.
     const bound = {
-      store: {
-        get: () => ({ ...initialRemoteModel, entities: store }),
-      },
+      definition: Remote.define({ entities: [ProjectBinding, UserBinding, CommentBinding] }),
+      contract: { name: 'test' },
+      store: { get: () => ({ ...initialRemoteModel, entities: store }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
 
     expect(Remote.select(bound, selection)('p1').read(undefined)).toEqual({
