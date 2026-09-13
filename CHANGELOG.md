@@ -15,6 +15,26 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
 
 ### `foldkit-surface` (private)
 
+- **`App.surface` and `Surface.at` (#69, Phase C).** `App.surface(name, {
+  params, model, messages })` is `Surface.make` with the mechanical wrappers
+  lifted: `params` are the fields of a `Schema.Struct` (or a schema, kept as
+  is), and `model` may return an object of Projections and field refs, which
+  becomes `Projection.struct`. `Surface.at(surface, params)` is the Surface as
+  the Model activates it: `params` is the value or a function of the Model
+  (`undefined` while inactive), and `projectionOf(model)` the projection for
+  those params. `Requirement.live` marks a requirement the projection also
+  subscribes to; `Requirement.merge` keeps the mark.
+- **Errors and hovers (#69, Phase E).** `Invalid<Message>` is a branded
+  compile-time failure that names its cause; `ActiveSurface` carries the
+  Surface's `owner`, so a domain can reject another application's Surface. A
+  Surface's Model now hovers as the projected value (`{ project:
+  RemoteData<…> }`) instead of the internal `StructValue<…>` alias.
+- **`Projection.connections` (#69, Phase D; breaking).** A Projection carries
+  the query connections it reads as `ConnectionRequirement { identity, window,
+  select }`, next to its requirements; `struct`, `array`, `option`, and
+  `fromReader` propagate them and `Requirement.mergeConnections` unions what
+  one connection and window select. A hand-written Projection literal now
+  needs `connections: []`.
 - **`Module`, the pure composition root.** `Module.make(App, [contracts])`
   collects an application's contracts as data; `Module.validate` reports a
   contract from another application, a duplicate `kind:name`, two owners of
@@ -59,6 +79,79 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
 
 ### `foldkit-remote` (private)
 
+- **The bound domain (#69, Phase B; breaking).** `Remote.make({ model, entities,
+  queries, mutations })` now binds the domain to its place in the application
+  Model in one step and returns a `RemoteDomain`: the descriptor, the binding,
+  and the application-facing operations `get`, `plan`, `storeOf`, `prefetch`,
+  `mutate`, `reduce`, and `inspect`, each compiled onto the `Remote.*` function
+  of the same name (which stay exported). The descriptor alone is
+  `Remote.define`, the binding alone `Remote.at`. `Remote.Model` and
+  `Remote.initial` are the submodel's schema and initial value, the same for
+  every domain, so the application Model embeds them before the domain is
+  bound. `Remote.messages` is Remote's Message cases for `defineMessageUnion`
+  and `Remote.reduces` narrows an application's union to them, so there is no
+  wrapper Message: `update` hands them to `Data.reduce`. `Data.mutate(model,
+  mutation, input, options?)` starts a registered mutation from `update`: the
+  request id comes from a monotonic sequence in `RemoteModel.mutations`
+  (`{ requestId }` overrides it; `tempId` derives from it), the optimistic
+  operations may be a function of those ids, and the returned Command yields
+  the `MutationSucceeded` or `MutationFailed` that settles it. An entity is
+  the receiver of its selections and patches: `Project.select({ … })` and
+  `Project.patch(id, values)` (`Selection.make` and `Entity.patch` stay).
+  `Mutation.make` and `Query.make` take the fields of a `Schema.Struct` where a
+  codec is expected, and `Query.make`'s `Result` takes the entity a connection
+  is over. `MutationState.sequence` is new.
+- **Live and subscriptions on the domain (#69, Phase C).** `Data.live(selection,
+  id)` is `Data.get` with the projection's requirements marked `live`; the
+  mark survives `Projection.struct` and never reaches the wire.
+  `Data.subscriptions({ key: Surface.at(surface, params) | surface }, options)`
+  returns the record `Subscription.make` takes: a `<key>.read` entry per
+  Surface (`Remote.observe` over the params the Model gives), a `<key>.live`
+  entry subscribing what the Surface reads live (`Remote.live`), and one
+  `retain` entry with every active Surface as a root (`Remote.retain`).
+  `options` are the observe, live, and retain options together. The kernel
+  entries now derive their requirements from a function of the Model.
+- **Page sizes are non-negative integers (#69, review).** `Data.query` rejects
+  any other `first`/`last` at the call, naming the query, and the wire's
+  `WindowSchema`/`QueryRequest` refuse one at decode (`PageSize`) instead of
+  letting the server substitute its default.
+- **Less work per Model change (#69, review).** A selection's `RemoteData`
+  and `Page` schemas are built once and shared; `Data.subscriptions` computes
+  each Surface's projection once per Model object across its read, live, and
+  retain entries; `Remote.select` and `Data.query` memoize a read's result per
+  visible store snapshot (and connection), so equal reads of one Model state
+  return one value.
+- **Errors that name the descriptor (#69, Phase E).** `Data.get`, `Data.live`,
+  `Data.query`, `Data.mutate`, and `Remote.select` reject a descriptor the
+  domain never declared with a one-line branded error at the argument
+  (`Entity "Team" is not registered with this Remote domain`; `Registered` and
+  `SelectsEntity` are the types), and at runtime with an error naming the
+  descriptor and the domain. `Data.query` rejects a selection of another entity
+  than the query lists the same way, and `Data.subscriptions` rejects a Surface
+  of another application by owner token. The README leads with the application
+  API and documents the kernel under "Advanced".
+- **Queries as Projections (#69, Phase D; breaking).** `Data.query(query,
+  input, { select, first | last, after | before })` is a Projection reading a
+  connection as a `RemoteData<Page<Value>>`: `Initial` until the page and every
+  item's selected fields are present, `Ready` once they are, `Refreshing` while
+  the connection or any item refetches, `Failed` on data that does not decode;
+  `select` is a selection of the query's entity and the window is one side or
+  the other. The projection carries the connection (`Projection.connections`),
+  so the read entry plans it like a field: an unknown or stale connection is a
+  query to run, a known one contributes its visible items' fields. The entry
+  runs the queries and the entity read concurrently; a merged page (one
+  `ConnectionMerged` with `refreshes: true`, which also clears `stale`) makes
+  its items the next plan, and a failed query yields the new `QueryFailed`
+  Message, which ends the refresh and keeps the pages. `Data.next`/`previous(model,
+  projection)` are the neighbouring page's `QueryRef` from the loaded
+  boundaries (same page size), or `undefined`; `Data.fetch(ref)` is the
+  Command that merges it. `Remote.planQueries` is the pure query plan, query
+  reads coalesce like entity reads (`coalesceQueries`, applied by
+  `Remote.clientLayer`), and the retain entry roots a projection's connections
+  by itself: a `RetentionRoots` connection is now `{ identity, select? }`, and
+  `gc` keeps what a page's `select` reaches through each item. `Data.prefetch` now runs the pending queries, then one read, and
+  returns the Model (it returned the store). `Remote.query`/`queryMessage` and
+  `Remote.visibleItems` stay for hand-driven connections.
 - **Review hardening.** One plan: `Remote.plan(bound, model, projection,
   options?)` replaces `planProjection`/`observeProjection`/`planSurface`
   (a Surface's is `surface.projection(params)`); `Remote.retain(projections,
@@ -75,6 +168,9 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   wire caps `MAX_FIELDS_PER_REQUEST` (256) and `MAX_RELATION_DEPTH` (8) with
   static nesting; `Entity.patch` takes wire-shaped values; `Selection.make`
   refuses an empty selection, which would require nothing and read `Ready`.
+  `SelectionOf` and `SelectionValue` are exported, and
+  `docs/design/DX_PROTOTYPES.md` with `test/dx.test-d.ts` prototype the #69
+  application API against the kernel types (Phase A; compile-only).
   `Remote.clientLayer` is generic in the RPC client's requirements, so
   in-process `RemoteServer.handlers` over a database become a `RemoteClient`
   with one `Layer.provide` instead of a hand-written adapter.

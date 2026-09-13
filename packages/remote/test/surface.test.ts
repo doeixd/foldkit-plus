@@ -19,7 +19,7 @@ const User = Entity.make(
   Schema.Struct({ id: Schema.String, name: Schema.String, avatarUrl: Schema.String }),
 )
 
-const Data = Remote.make({ entities: [User] })
+const Data = Remote.define({ entities: [User] })
 const Model = Schema.Struct({ remote: Data.Model, route: Schema.String })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })

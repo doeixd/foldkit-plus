@@ -16,7 +16,14 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Update from 'foldkit/update'
-import { Mutation, Query, Remote, RemoteClient, Selection, type RemoteModel } from 'foldkit-remote'
+import {
+  Mutation,
+  Query,
+  Remote,
+  RemoteClient,
+  type RemoteMessageTag,
+  type RemoteModel,
+} from 'foldkit-remote'
 import { databaseLayer, entity, returning, one, query, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -80,26 +87,26 @@ export const Project = entity('Project', projects, {
  * A nested selection: the Surface reads the owner's name through the ref, and
  * one `FoldkitRemoteRead` resolves both entities.
  */
-export const ProjectSummary = Selection.make(Project, {
+export const ProjectSummary = Project.select({
   id: true,
   name: true,
   status: true,
-  owner: Selection.make(User, { name: true }),
+  owner: User.select({ name: true }),
 })
 
 export const RenameProject = Mutation.make('RenameProject', {
-  Input: Schema.Struct({ id: Schema.String, name: Schema.String }),
-  Output: Schema.Struct({ id: Schema.String }),
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
 })
 
 export const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: Schema.Struct({ ownerId: Schema.String }),
-  Result: Query.connection({ name: 'Project' }),
+  Input: { ownerId: Schema.String },
+  Result: Project,
 })
 
 export const CreateProject = Mutation.make('CreateProject', {
-  Input: Schema.Struct({ id: Schema.String, name: Schema.String, ownerId: Schema.String }),
-  Output: Schema.Struct({ id: Schema.String }),
+  Input: { id: Schema.String, name: Schema.String, ownerId: Schema.String },
+  Output: { id: Schema.String },
 })
 
 /**
@@ -134,7 +141,7 @@ const RenameProjectSource = RemoteServer.mutation(RenameProject, ({ input }) =>
  */
 const CreateProjectSource = RemoteServer.mutation(CreateProject, ({ input }) =>
   Effect.gen(function* () {
-    const project = returning(Project, ['id', 'name', 'status'])
+    const project = returning(Project, ['id', 'name', 'status', 'owner'])
     const rows = yield* Effect.promise(() =>
       Promise.resolve(
         db
@@ -162,12 +169,6 @@ const ProjectsByOwnerSource = query(ProjectsByOwner, {
   where: input => eq(projects.ownerId, input.ownerId),
 })
 
-export const Data = Remote.make({
-  entities: [User, Project],
-  mutations: [RenameProject, CreateProject],
-  queries: [ProjectsByOwner],
-})
-
 // ---------------------------------------------------------------------------
 // The Surface application
 // ---------------------------------------------------------------------------
@@ -175,7 +176,7 @@ export const Data = Remote.make({
 const Note = Schema.Struct({ id: Schema.String, body: Schema.String })
 
 const Model = Schema.Struct({
-  remote: Data.Model,
+  remote: Remote.Model,
   projectId: Schema.String,
   notes: Schema.Array(Note),
   selectedNoteId: Schema.NullOr(Schema.String),
@@ -183,9 +184,11 @@ const Model = Schema.Struct({
 })
 export type Model = typeof Model.Type
 
+// Remote's Messages are cases of the application's own union; `update`
+// hands them to `Data.reduce` by tag, so there is no wrapper Message.
 export const Message = defineMessageUnion({
+  ...Remote.messages,
   Ping: {},
-  GotRemote: { message: Data.Message },
   RequestedCreateNote: { id: Schema.String, body: Schema.String },
   RequestedRenameNote: { id: Schema.String, body: Schema.String },
   SelectedNote: { id: Schema.String },
@@ -193,30 +196,44 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-export const update = (model: Model, message: Message): Update.Return<Model, Message> => ({
-  model: Message.match<Model>(message, {
-    Ping: () => model,
-    GotRemote: ({ message: remote }) => ({ ...model, remote: Data.update(model.remote, remote) }),
-    RequestedCreateNote: ({ id, body }) => ({
-      ...model,
-      notes: model.notes.some(note => note.id === id)
-        ? model.notes
-        : [...model.notes, { id, body }],
-    }),
-    RequestedRenameNote: ({ id, body }) => ({
-      ...model,
-      notes: model.notes.map(note => (note.id === id ? { ...note, body } : note)),
-    }),
-    SelectedNote: ({ id }) => ({ ...model, selectedNoteId: id }),
-    SelectedProject: ({ id }) => ({ ...model, projectId: id }),
-  }),
-})
+export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
+  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
+  return { model: reduceNotes(model, message) }
+}
+
+const reduceNotes = (
+  model: Model,
+  message: Exclude<Message, { readonly _tag: RemoteMessageTag }>,
+): Model => {
+  switch (message._tag) {
+    case 'Ping':
+      return model
+    case 'RequestedCreateNote':
+      return {
+        ...model,
+        notes: model.notes.some(note => note.id === message.id)
+          ? model.notes
+          : [...model.notes, { id: message.id, body: message.body }],
+      }
+    case 'RequestedRenameNote':
+      return {
+        ...model,
+        notes: model.notes.map(note =>
+          note.id === message.id ? { ...note, body: message.body } : note,
+        ),
+      }
+    case 'SelectedNote':
+      return { ...model, selectedNoteId: message.id }
+    case 'SelectedProject':
+      return { ...model, projectId: message.id }
+  }
+}
 
 export const App = Surface.application({
   Model,
   Message,
   initial: {
-    remote: Data.initial,
+    remote: Remote.initial,
     projectId: 'p1',
     notes: [],
     selectedNoteId: null,
@@ -225,16 +242,24 @@ export const App = Surface.application({
   update,
 })
 
-export const AppRemote = Remote.at(Data, App.model.remote)
+/** The Remote domain, bound to `model.remote`: the application-facing operations live here. */
+export const Data = Remote.make({
+  model: App.model.remote,
+  entities: [User, Project],
+  mutations: [RenameProject, CreateProject],
+  queries: [ProjectsByOwner],
+})
 
-/** A Surface over the server-derived project plus the replicated notes. */
-export const BoardSurface = Surface.make(App, 'Board', {
-  model: ({ model }) =>
-    Projection.struct({
-      project: Remote.select(AppRemote, ProjectSummary)('p1'),
-      notes: model.notes,
-      selectedNoteId: model.selectedNoteId,
-    }),
+/**
+ * A Surface over the server-derived project plus the replicated notes. The
+ * project is read live, so the Board's subscriptions include a live entry.
+ */
+export const BoardSurface = App.surface('Board', {
+  model: ({ model }) => ({
+    project: Data.live(ProjectSummary, 'p1'),
+    notes: model.notes,
+    selectedNoteId: model.selectedNoteId,
+  }),
   messages: [Message.SelectedNote, Message.RequestedRenameNote],
 })
 

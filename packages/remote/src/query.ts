@@ -5,6 +5,7 @@
  */
 import { Schema } from 'effect'
 import type { Cursor } from './connection.js'
+import { schemaOf, type SchemaOrFields, type TypeOf } from './mutation.js'
 
 export type LiveInsertion = 'visible' | 'boundary' | 'invalidate' | 'ignore'
 
@@ -13,8 +14,8 @@ export interface LivePolicy {
   readonly append?: LiveInsertion
 }
 
-export interface ConnectionSpec {
-  readonly entity: string
+export interface ConnectionSpec<Entity extends string = string> {
+  readonly entity: Entity
   readonly edgeKey?: Schema.Schema<unknown>
   readonly live?: LivePolicy
 }
@@ -56,30 +57,52 @@ export const stableStringify = (value: unknown): string => {
     .join(',')}}`
 }
 
+/**
+ * `Result: Project` (or anything with the entity's `name`, as `Query.connection`
+ * takes) means a connection over it; a `ConnectionSpec` names its `entity`
+ * instead and is the result as given.
+ */
+export type ResultOf<Result> = Result extends { readonly name: infer Entity extends string }
+  ? ConnectionSpec<Entity>
+  : Result
+
+const isEntityName = (result: unknown): result is { readonly name: string } =>
+  typeof result === 'object' &&
+  result !== null &&
+  typeof (result as { readonly name?: unknown }).name === 'string'
+
 export const Query = {
   /** Declares the entity and options a query's result is a connection over. */
-  connection: (
-    entity: { readonly name: string },
+  connection: <Entity extends string>(
+    entity: { readonly name: Entity },
     options?: { readonly edgeKey?: Schema.Schema<unknown>; readonly live?: LivePolicy },
-  ): ConnectionSpec => ({
+  ): ConnectionSpec<Entity> => ({
     entity: entity.name,
     ...(options?.edgeKey === undefined ? {} : { edgeKey: options.edgeKey }),
     ...(options?.live === undefined ? {} : { live: options.live }),
   }),
 
-  make: <const Name extends string, Input, Result>(
+  /**
+   * Declares a query. `Input` is a codec or the fields of the `Schema.Struct` it
+   * would be; `Result` is a `Query.connection(...)`, or the entity the result is
+   * a connection over.
+   */
+  make: <const Name extends string, Input extends SchemaOrFields, Result>(
     name: Name,
-    config: { readonly Input: Schema.Codec<Input>; readonly Result: Result },
-  ): QueryDescriptor<Name, Input, Result> => {
-    const encode = Schema.encodeSync(config.Input)
+    config: { readonly Input: Input; readonly Result: Result },
+  ): QueryDescriptor<Name, TypeOf<Input>, ResultOf<Result>> => {
+    const Input = schemaOf(config.Input)
+    const encode = Schema.encodeSync(Input)
     return {
       name,
-      Input: config.Input,
-      Result: config.Result,
+      Input,
+      Result: (isEntityName(config.Result)
+        ? Query.connection(config.Result)
+        : config.Result) as ResultOf<Result>,
       ref: input => ({
         query: name,
         input,
-        Input: config.Input,
+        Input,
         window: {},
         identity: `${name}\u0000${stableStringify(encode(input))}`,
       }),

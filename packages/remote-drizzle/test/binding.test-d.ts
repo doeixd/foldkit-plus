@@ -42,7 +42,7 @@ Selection.make(ProjectBinding, {
 })
 
 // The bindings are the Remote entities, so the domain is declared once.
-Remote.make({ entities: [UserBinding, ProjectBinding] })
+Remote.define({ entities: [UserBinding, ProjectBinding] })
 
 // @ts-expect-error `nope` is not a field of the table
 Selection.make(ProjectBinding, { nope: true })

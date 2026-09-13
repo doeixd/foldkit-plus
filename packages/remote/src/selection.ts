@@ -63,7 +63,8 @@ type NestedFor<Field> =
         ? Selection<unknown, Name, 'entity'>
         : never
 
-type SelectionOf<F extends Schema.Struct.Fields> = {
+/** What a selection of an entity with fields `F` may pick: `true` per scalar, a nested selection per relation. */
+export type SelectionOf<F extends Schema.Struct.Fields> = {
   readonly [K in keyof F]?: true | NestedFor<Schema.Schema.Type<F[K]>>
 }
 
@@ -85,18 +86,28 @@ type NestedValue<Field, Sel> =
         >
       : never
 
-type SelectionValue<F extends Schema.Struct.Fields, Sel> = Simplify<{
+/** The value a selection `Sel` of fields `F` reads. */
+export type SelectionValue<F extends Schema.Struct.Fields, Sel> = Simplify<{
   readonly [K in keyof Sel & keyof F]: Sel[K] extends true
     ? Schema.Schema.Type<F[K]>
     : NestedValue<Schema.Schema.Type<F[K]>, Sel[K]>
 }>
 
-const pageSchema = (item: AnySchema): AnySchema =>
-  Schema.Struct({
+// Built once per item schema, as `remoteDataSchema` is: a query projection is
+// rebuilt on every Model change.
+const pageSchemas = new WeakMap<object, AnySchema>()
+
+export const pageSchema = (item: AnySchema): AnySchema => {
+  const cached = pageSchemas.get(item)
+  if (cached !== undefined) return cached
+  const built = Schema.Struct({
     items: Schema.Array(item),
     hasNext: Schema.Boolean,
     hasPrevious: Schema.Boolean,
   }) as unknown as AnySchema
+  pageSchemas.set(item, built)
+  return built
+}
 
 /** The requirement a nested selection contributes for its relation's target. */
 export const relationOf = (selection: Selection<unknown>): RelationRequirement => ({

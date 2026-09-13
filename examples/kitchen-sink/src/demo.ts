@@ -5,7 +5,7 @@
  * note, a human, and an agent; the four agent adapters project one contract.
  */
 import { Effect, Fiber, Option, Stream } from 'effect'
-import { ConnectionChange, Entity, RemotePersistence } from 'foldkit-remote'
+import { ConnectionChange, RemotePersistence } from 'foldkit-remote'
 import { defineMessageUnion } from 'foldkit/message'
 import type { HtmlBuilder } from 'foldkit/html'
 import { inertHtml } from 'foldkit/html'
@@ -20,13 +20,12 @@ import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 import { view as buttonView } from '@foldkit/ui/button'
 import { Surface } from 'foldkit-surface'
-import { Remote, RemoteData, Query, type EntityStore } from 'foldkit-remote'
-import { Data } from './stack.js'
+import { Remote, RemoteData, type EntityStore } from 'foldkit-remote'
 import { layerFromPromise } from 'foldkit-sync'
 import {
   App,
-  AppRemote,
   BoardSurface,
+  Data,
   CreateProject,
   Message,
   Project,
@@ -100,16 +99,15 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // Server-derived state: Remote + remote-server + remote-drizzle
   // -------------------------------------------------------------------------
   const client = serverClient('u1')
-  const projection = Remote.select(AppRemote, ProjectSummary)('p1')
+  const projection = Data.get(ProjectSummary, 'p1')
   say(
     `plan: ${projection.requirements.map(r => `${r.entity}:${r.id} [${r.fields.join(',')}]`).join(', ')}`,
   )
   say(`before fetch: ${describeData(projection.read(App.initial))}`)
 
-  const store = await Effect.runPromise(
-    Remote.prefetch(AppRemote, App.initial, projection).pipe(Effect.provide(client)),
+  const loaded = await Effect.runPromise(
+    Data.prefetch(App.initial, projection).pipe(Effect.provide(client)),
   )
-  const loaded = withStore(App.initial, store)
   say(`after fetch (Drizzle SQLite): ${describeData(projection.read(loaded))}`)
   const fetched = projection.read(loaded)
   say(
@@ -118,27 +116,28 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   // A live subscription for the Board is registered with the server's hub
   // before the rename, so the mutation's `hub.changed` reaches it.
-  const liveEntry = Remote.live(AppRemote, BoardSurface, undefined)
-  const { renamed, liveEvent } = await Effect.runPromise(
+  // The Board's Subscription entries, as `Subscription.make` would take them;
+  // the live entry exists because the Board reads the project through `Data.live`.
+  const liveEntry = Data.subscriptions({ board: BoardSurface })['board.live']!
+  // `Data.mutate` is what `update` calls: it starts the request in the Model
+  // (the id comes from the Model's own sequence) and hands back the Command
+  // whose Message settles it; here the Command runs and reduces in place.
+  const rename = Data.mutate(loaded, RenameProject, { id: 'p1', name: 'Apollo II' })
+  const { settled, liveEvent } = await Effect.runPromise(
     Effect.gen(function* () {
       const subscription = yield* Effect.forkChild(
         Stream.runHead(liveEntry.dependenciesToStream(liveEntry.modelToDependencies(loaded))),
       )
       // The hub delivers only to registered subscribers; wait for this one.
       while ((yield* liveHub.size) === 0) yield* Effect.yieldNow
-      const renamed = yield* Remote.mutateInto(
-        AppRemote,
-        loaded,
-        RenameProject,
-        { id: 'p1', name: 'Apollo II' },
-        'req-1',
-      )
+      const settled = yield* rename.command.effect
       const head = yield* Fiber.join(subscription)
-      return { renamed, liveEvent: head._tag === 'Some' ? head.value : undefined }
+      return { settled, liveEvent: head._tag === 'Some' ? head.value : undefined }
     }).pipe(Effect.provide(client)),
   )
+  const renamed = Data.reduce(rename.model, settled)
   say(
-    `mutation: ${JSON.stringify(renamed.output)} -> ${describeData(projection.read(renamed.model))}`,
+    `mutation (${rename.requestId}): ${settled._tag} -> ${describeData(projection.read(renamed))}`,
   )
   say(
     `live (hub.changed): ${
@@ -148,54 +147,65 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     }`,
   )
 
-  const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId: 'u1' }))
-  const page = await Effect.runPromise(Remote.query(ref).pipe(Effect.provide(client)))
-  say(`query connection: ${page.edges.map(edge => edge.key).join(', ')}`)
-
-  // An optimistic insert: the new project shows in the connection at once,
-  // and the server's confirmed insert takes its place without a duplicate.
-  let remote = Data.update(renamed.model.remote, Remote.queryMessage(ref, page))
-  remote = Data.update(remote, {
-    _tag: 'MutationStarted',
-    requestId: 'req-2',
-    optimistic: [
-      Entity.patch(Project.ref('p3'), { id: 'p3', name: 'Calypso', status: 'active' }),
-      ConnectionChange.prepend(ref, Project.ref('p3')),
-    ],
-  })
-  const visible = () =>
-    Remote.visibleItems(remote, ref)
-      .map(edge => edge.ref.id)
-      .join(', ')
-  say(`optimistic insert: ${visible()}`)
-  const created = await Effect.runPromise(
-    Remote.mutate(CreateProject, { id: 'p3', name: 'Calypso', ownerId: 'u1' }, 'req-2').pipe(
-      Effect.provide(client),
-    ),
+  // A query is a Projection: the connection read as a page of the selected
+  // items. The prefetch runs the query through the Drizzle source, then one
+  // read for the page's items the store lacks (p2, with its owner).
+  const projects = Data.query(
+    ProjectsByOwner,
+    { ownerId: 'u1' },
+    { select: ProjectSummary, first: 25 },
   )
-  remote = Data.update(remote, {
-    _tag: 'MutationSucceeded',
-    requestId: 'req-2',
-    entities: created.entities,
-    connections: created.connections,
-  })
-  say(`confirmed insert: ${visible()}`)
-  say(`inspect: ${Remote.inspect(remote).entities.length} entities cached`)
+  const queried = await Effect.runPromise(
+    Data.prefetch(renamed, projects).pipe(Effect.provide(client)),
+  )
+  const pageIds = (model: typeof App.initial) =>
+    RemoteData.match(projects.read(model), {
+      Initial: () => 'Initial',
+      Loading: () => 'Loading',
+      Ready: page => page.items.map(item => item.id).join(', '),
+      Refreshing: page => `Refreshing ${page.items.map(item => item.id).join(', ')}`,
+      Failed: error => `Failed ${error._tag}`,
+      NotFound: () => 'NotFound',
+    })
+  say(`query page: ${pageIds(queried)}`)
+
+  // An optimistic insert: the new project shows in the page at once (the patch
+  // carries every field the page selects), and the server's confirmed insert
+  // takes its place without a duplicate.
+  const create = Data.mutate(
+    queried,
+    CreateProject,
+    { id: 'p3', name: 'Calypso', ownerId: 'u1' },
+    {
+      optimistic: [
+        Project.patch('p3', { id: 'p3', name: 'Calypso', status: 'active', owner: 'User:u1' }),
+        ConnectionChange.prepend(projects.ref, Project.ref('p3')),
+      ],
+    },
+  )
+  say(`optimistic insert: ${pageIds(create.model)}`)
+  const confirmed = Data.reduce(
+    create.model,
+    await Effect.runPromise(create.command.effect.pipe(Effect.provide(client))),
+  )
+  say(`confirmed insert: ${pageIds(confirmed)}`)
+  say(`inspect: ${Data.inspect(confirmed).entities.length} entities cached`)
+  const remote = confirmed.remote
 
   // Retention: the Board reaches p1 and, through its ref, u1. With the
-  // projects connection listed as a root its edges stay too; without it, the
-  // other projects are collected.
-  const retentionOf = (connections: ReadonlyArray<typeof ref>) =>
+  // projects page among the roots its items stay too; without it, the other
+  // projects are collected.
+  const retentionOf = (projections: ReadonlyArray<typeof projects>) =>
     Effect.gen(function* () {
-      const entry = Remote.retain([BoardSurface.projection(undefined)], undefined, { connections })
+      const entry = Remote.retain([BoardSurface.projection(undefined), ...projections])
       const message = yield* Stream.runHead(
-        entry.dependenciesToStream(entry.modelToDependencies({ ...renamed.model, remote })),
+        entry.dependenciesToStream(entry.modelToDependencies(confirmed)),
       )
-      return Remote.inspect(Data.update(remote, Option.getOrThrow(message)))
+      return Data.inspect(Data.reduce(confirmed, Option.getOrThrow(message)))
         .entities.map(entity => entity.key)
         .join(', ')
     })
-  say(`retained with the connection: ${await Effect.runPromise(retentionOf([ref]))}`)
+  say(`retained with the page: ${await Effect.runPromise(retentionOf([projects]))}`)
   say(`retained by the Board alone: ${await Effect.runPromise(retentionOf([]))}`)
 
   // Hydration: the store dehydrates to deterministic text (SSR would embed it)
@@ -204,7 +214,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const fresh = withStore(App.initial, RemotePersistence.hydrate(snapshot, { scope: 'u1' })!)
   say(
     `hydrated: ${describeData(projection.read(fresh))}, plan ${
-      Remote.plan(AppRemote, fresh, projection).length === 0 ? 'empty' : 'pending'
+      Data.plan(fresh, projection).length === 0 ? 'empty' : 'pending'
     }`,
   )
 
@@ -238,7 +248,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // -------------------------------------------------------------------------
   // The agent contract, driven by a human and by the agent
   // -------------------------------------------------------------------------
-  let live = { ...renamed.model, remote, notes: replicated.notes }
+  let live = { ...confirmed, notes: replicated.notes }
   const listeners = new Set<() => void>()
   const dispatch = (message: typeof Message.Type): void => {
     live = update(live, message).model

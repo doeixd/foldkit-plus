@@ -5,16 +5,35 @@
  * rather than re-requested. The planner stays pure; this is the transport
  * seam's concern, and the store is still the only cache.
  */
-import { Deferred, Duration, Effect, Request, RequestResolver, type Schema } from 'effect'
+import {
+  Deferred,
+  Duration,
+  Effect,
+  Request,
+  RequestResolver,
+  type Exit,
+  type Schema,
+} from 'effect'
 import { Requirement, type RelationRequirement } from 'foldkit-surface'
 import { stableStringify } from './query.js'
-import { REMOTE_PROTOCOL_VERSION, type ReadBatch, type ReadBatchResult } from './wire.js'
-import type { RemoteProtocolError, RemoteReadError } from './wire.js'
+import {
+  REMOTE_PROTOCOL_VERSION,
+  type QueryRequest,
+  type QueryResult,
+  type ReadBatch,
+  type ReadBatchResult,
+} from './wire.js'
+import type { RemoteProtocolError, RemoteQueryError, RemoteReadError } from './wire.js'
 
 type Batch = Schema.Schema.Type<typeof ReadBatch>
 type BatchResult = Schema.Schema.Type<typeof ReadBatchResult>
 type ReadError = RemoteReadError | RemoteProtocolError
 export type BatchRead = (batch: Batch) => Effect.Effect<BatchResult, ReadError>
+type QueryRequestValue = Schema.Schema.Type<typeof QueryRequest>
+type QueryResultValue = Schema.Schema.Type<typeof QueryResult>
+export type QueryRun = (
+  request: QueryRequestValue,
+) => Effect.Effect<QueryResultValue, RemoteQueryError>
 
 export interface CoalesceOptions {
   /**
@@ -65,6 +84,51 @@ const readsOf = (
     ...paged.map(([key, requirement]) => ({ keys: [key], requests: [requirement] })),
   ]
 }
+
+class QueryRead extends Request.Class<
+  { readonly key: string; readonly request: QueryRequestValue },
+  QueryResultValue,
+  RemoteQueryError
+> {}
+
+/**
+ * Wraps a raw query so that an identical query in flight (same query, input,
+ * and window) is joined rather than run again; distinct queries run
+ * concurrently. A page answers exactly one window, so nothing is batched.
+ */
+export const coalesceQueries = (
+  query: QueryRun,
+  options: CoalesceOptions = {},
+): Effect.Effect<QueryRun> =>
+  Effect.gen(function* () {
+    const runAll = (entries: ReadonlyArray<Request.Entry<QueryRead>>) =>
+      Effect.gen(function* () {
+        const distinct = new Map<string, QueryRequestValue>()
+        for (const entry of entries) distinct.set(entry.request.key, entry.request.request)
+        const results = new Map<string, Exit.Exit<QueryResultValue, RemoteQueryError>>()
+        yield* Effect.forEach(
+          distinct,
+          ([key, request]) =>
+            Effect.exit(query(request)).pipe(Effect.map(exit => void results.set(key, exit))),
+          { concurrency: 'unbounded', discard: true },
+        )
+        for (const entry of entries) {
+          yield* Request.completeEffect(entry, results.get(entry.request.key)!)
+        }
+      })
+    let resolver = RequestResolver.make<QueryRead>(runAll)
+    if (options.window !== undefined) {
+      resolver = RequestResolver.setDelay(resolver, Duration.fromInputUnsafe(options.window))
+    }
+    return request =>
+      Effect.request(
+        new QueryRead({
+          key: stableStringify([request.query, request.input, request.window]),
+          request,
+        }),
+        resolver,
+      )
+  })
 
 class ReadRequirement extends Request.Class<
   { readonly key: string; readonly requirement: Requirement },

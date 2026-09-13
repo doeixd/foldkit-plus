@@ -17,8 +17,15 @@ export type RemoteData<A> =
 export const remoteErrorSchema = Schema.Struct({ _tag: Schema.String, message: Schema.String })
 
 /** A `RemoteData` schema, so a projection that reads remote state is typed. */
-export const remoteDataSchema = <A>(value: Schema.Schema<A>): Schema.Schema<RemoteData<A>> =>
-  Schema.Union([
+// A projection is rebuilt on every Model change (a Surface's `model` callback
+// runs per dependency computation), so the schema for a value schema is built
+// once and shared: the value schema is a module-level constant in practice.
+const remoteDataSchemas = new WeakMap<object, Schema.Schema<unknown>>()
+
+export const remoteDataSchema = <A>(value: Schema.Schema<A>): Schema.Schema<RemoteData<A>> => {
+  const cached = remoteDataSchemas.get(value)
+  if (cached !== undefined) return cached as Schema.Schema<RemoteData<A>>
+  const built = Schema.Union([
     Schema.Struct({ _tag: Schema.Literal('Initial') }),
     Schema.Struct({ _tag: Schema.Literal('Loading') }),
     Schema.Struct({ _tag: Schema.Literal('Ready'), value }),
@@ -30,6 +37,9 @@ export const remoteDataSchema = <A>(value: Schema.Schema<A>): Schema.Schema<Remo
     }),
     Schema.Struct({ _tag: Schema.Literal('NotFound') }),
   ]) as unknown as Schema.Schema<RemoteData<A>>
+  remoteDataSchemas.set(value, built as Schema.Schema<unknown>)
+  return built
+}
 
 export const RemoteData = {
   /**

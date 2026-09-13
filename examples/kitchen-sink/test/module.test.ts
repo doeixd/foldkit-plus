@@ -2,7 +2,7 @@ import { Module, Surface } from 'foldkit-surface'
 import { documentId, forApplication } from 'foldkit-sync'
 import { describe, expect, it } from 'vitest'
 import { AppAgent } from '../src/agent.js'
-import { App, AppRemote, BoardSurface, NoteChanges, Notes } from '../src/stack.js'
+import { App, BoardSurface, Data, NoteChanges, Notes } from '../src/stack.js'
 
 // `KitchenSync` is annotated with the low-level `Sync` type for declaration
 // emit, so the contract is made again here from the same declaration.
@@ -13,7 +13,7 @@ const NotesSync = forApplication(App).make({
 })
 
 describe('the kitchen-sink application as a Module', () => {
-  const Kitchen = Module.make(App, [BoardSurface, NotesSync, AppRemote, AppAgent])
+  const Kitchen = Module.make(App, [BoardSurface, NotesSync, Data, AppAgent])
 
   it('composes every package contract and validates clean', () => {
     expect(Module.validate(Kitchen)).toEqual([])

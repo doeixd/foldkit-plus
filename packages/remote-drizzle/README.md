@@ -36,7 +36,7 @@ export const projects = pgTable('projects', {
 
 ```ts
 // remote.ts
-import { Remote, Selection } from 'foldkit-remote'
+import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { entity, one, source } from 'foldkit-remote-drizzle'
 import { projects, users } from './schema.js'
@@ -49,9 +49,10 @@ const Project = entity('Project', projects, {
 })
 
 // A Surface selects exactly these fields; a query is described separately.
-const ProjectSummary = Selection.make(Project, { id: true, name: true, owner: true })
+const ProjectSummary = Project.select({ id: true, name: true, owner: true })
 
-const Data = Remote.make({ entities: [User, Project] })
+// Unbound here; an application binds it with `Remote.make({ model, … })`.
+const Data = Remote.define({ entities: [User, Project] })
 
 const Server = RemoteServer.make({
   entities: [source(User), source(Project)],

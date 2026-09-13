@@ -230,9 +230,14 @@ function makeTree(
           dependencies,
           projection.requirements,
           root => Option.map(get(root) as Option.Option<unknown>, value => projection.read(value)),
+          projection.connections,
         )
-      : makeProjection(projection.Model, dependencies, projection.requirements, root =>
-          projection.read(get(root)),
+      : makeProjection(
+          projection.Model,
+          dependencies,
+          projection.requirements,
+          root => projection.read(get(root)),
+          projection.connections,
         )
   }
   return node
@@ -282,6 +287,49 @@ export interface RelationRequirement {
 
 export interface Requirement extends RelationRequirement {
   readonly id: string
+  /** The projection also subscribes to changes of this entity (`Data.live`). */
+  readonly live?: boolean | undefined
+}
+
+/**
+ * A query connection a projection reads: the page it first asks for and the
+ * slice it selects of each item. `identity` is the connection's (query plus
+ * canonical input, excluding the window); the packages that run queries
+ * carry what they need to run it on the same object.
+ */
+export interface ConnectionRequirement {
+  readonly identity: string
+  readonly window: Window
+  readonly select: RelationRequirement
+}
+
+const windowKey = (window: Window): string =>
+  JSON.stringify([
+    window.first ?? null,
+    window.last ?? null,
+    window.after ?? null,
+    window.before ?? null,
+  ])
+
+/**
+ * Merges connection requirements for the same connection and window into one,
+ * unioning what they select of each item; the first keeps its other properties.
+ */
+function mergeConnections(
+  connections: readonly ConnectionRequirement[],
+): readonly ConnectionRequirement[] {
+  const merged = new Map<string, ConnectionRequirement>()
+  for (const connection of connections) {
+    const key = `${connection.identity}\u0000${windowKey(connection.window)}`
+    const current = merged.get(key)
+    merged.set(
+      key,
+      current === undefined
+        ? connection
+        : { ...current, select: mergeRelation(current.select, connection.select) },
+    )
+  }
+  return [...merged.values()]
 }
 
 /** Unions two relation slices for the same target: fields, windows, and nested relations. */
@@ -327,8 +375,13 @@ function mergeRequirements(requirements: readonly Requirement[]): readonly Requi
   for (const requirement of requirements) {
     const key = `${requirement.entity}\u0000${requirement.id}`
     // Later windows win; a duplicate is a caller bug, not a merge policy.
-    const group = grouped.get(key) ?? { entity: requirement.entity, fields: [] }
-    grouped.set(key, { ...mergeRelation(group, requirement), id: requirement.id })
+    const group = grouped.get(key)
+    const live = group?.live === true || requirement.live === true
+    grouped.set(key, {
+      ...mergeRelation(group ?? { entity: requirement.entity, fields: [] }, requirement),
+      id: requirement.id,
+      ...(live ? { live } : {}),
+    })
   }
   return [...grouped.values()]
 }
@@ -341,12 +394,15 @@ function mergeRequirements(requirements: readonly Requirement[]): readonly Requi
 export const Requirement = {
   merge: mergeRequirements,
   mergeRelation,
+  mergeConnections,
 }
 
 export interface Projection<Root, Value> {
   readonly Model: Schema.Schema<Value>
   readonly dependencies: DependencyTree
   readonly requirements: readonly Requirement[]
+  /** The query connections the projection reads; `[]` for most projections. */
+  readonly connections: readonly ConnectionRequirement[]
   readonly read: (root: Root) => Value
 }
 
@@ -368,8 +424,9 @@ function makeProjection<Value>(
   dependencies: DependencyTree,
   requirements: readonly Requirement[],
   read: (root: unknown) => Value,
+  connections: readonly ConnectionRequirement[] = [],
 ): Projection<unknown, Value> {
-  return { Model, dependencies, requirements, read }
+  return { Model, dependencies, requirements, connections, read }
 }
 
 /**
@@ -414,7 +471,9 @@ type IsUnion<T, U = T> = [T] extends [never]
 
 type StructValue<Entries> = {
   readonly [K in keyof Entries]: EntryValue<Entries[K]>
-}
+} extends infer Value
+  ? { readonly [K in keyof Value]: Value[K] }
+  : never
 
 export const Projection = {
   of:
@@ -425,6 +484,7 @@ export const Projection = {
       const picked: Record<string, AnySchema> = {}
       const dependencies: (readonly string[])[] = []
       const requirements: Requirement[] = []
+      const connections: ConnectionRequirement[] = []
       const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
       for (const key of Object.keys(selection)) {
@@ -437,6 +497,7 @@ export const Projection = {
           picked[key] = nested.Model
           dependencies.push(...nested.dependencies)
           requirements.push(...nested.requirements)
+          connections.push(...nested.connections)
           readers.push([key, root => nested.read(propertyReader(root, key))])
         }
       }
@@ -451,6 +512,7 @@ export const Projection = {
         mergeDependencies(dependencies),
         mergeRequirements(requirements),
         read,
+        mergeConnections(connections),
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
@@ -460,6 +522,7 @@ export const Projection = {
     const picked: Record<string, AnySchema> = {}
     const dependencies: (readonly string[])[] = []
     const requirements: Requirement[] = []
+    const connections: ConnectionRequirement[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
     for (const key of Object.keys(entries)) {
@@ -468,6 +531,7 @@ export const Projection = {
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
         requirements.push(...entry.requirements)
+        connections.push(...entry.connections)
         readers.push([key, entry.read])
       } else {
         picked[key] = entry.Schema
@@ -486,6 +550,7 @@ export const Projection = {
       mergeDependencies(dependencies),
       mergeRequirements(requirements),
       read,
+      mergeConnections(connections),
     ) as unknown as Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>>
   },
 
@@ -500,6 +565,7 @@ export const Projection = {
     Model: Schema.Array(projection.Model),
     dependencies: projection.dependencies,
     requirements: projection.requirements,
+    connections: projection.connections,
     read: root => root.map(value => projection.read(value)),
   }),
 
@@ -510,6 +576,7 @@ export const Projection = {
     Model: Schema.Option(projection.Model),
     dependencies: projection.dependencies,
     requirements: projection.requirements,
+    connections: projection.connections,
     read: root => Option.map(root, value => projection.read(value)),
   }),
 
@@ -527,11 +594,13 @@ export const Projection = {
     options?: {
       readonly dependencies?: DependencyTree
       readonly requirements?: readonly Requirement[]
+      readonly connections?: readonly ConnectionRequirement[]
     },
   ): Projection<Root, Value> => ({
     Model,
     dependencies: options?.dependencies ?? [],
     requirements: options?.requirements ?? [],
+    connections: options?.connections ?? [],
     read,
   }),
 
@@ -652,6 +721,50 @@ export interface Surface<Root, Model, Message, Params> {
   readonly projection: (params: Params) => Projection<Root, Model>
 }
 
+/**
+ * A Surface as the Model activates it: its params are a function of the Model
+ * (`undefined` while inactive), so its requirements are too. `Surface.at`
+ * builds one; a Subscription derives what to fetch, subscribe, and retain
+ * from a list of them.
+ */
+export interface ActiveSurface<Root> {
+  readonly name: string
+  /** Identity token of the application the Surface belongs to. */
+  readonly owner: object
+  /** The projection for the params the Model gives, or `undefined` while inactive. */
+  readonly projectionOf: (model: Root) => Projection<Root, unknown> | undefined
+}
+
+declare const invalid: unique symbol
+
+/**
+ * A compile-time failure that names its cause. Intersected onto a parameter
+ * type when a type-level check fails, so the error reads as one line
+ * (`Property '[invalid]' is missing … required in type 'Invalid<"…">'`)
+ * naming the descriptor, instead of a wall of structural mismatch.
+ */
+export interface Invalid<Message extends string> {
+  readonly [invalid]: Message
+}
+
+/** The fields of a `Schema.Struct`, or a schema, where params are declared. */
+type ParamsShape = Schema.Struct.Fields | Schema.Top
+
+type ParamsOf<P> = P extends Schema.Top
+  ? Schema.Schema.Type<P>
+  : P extends Schema.Struct.Fields
+    ? Schema.Struct.Type<P>
+    : void
+
+/** What a Surface's `model` may return: a Projection, or an object of Projections and refs to lift. */
+type ModelShape<Root> =
+  Projection<Root, unknown> | Record<string, Projection<Root, any> | ModelRef<Root, any>>
+
+type ModelOf<Root, R> = R extends Projection<Root, infer M> ? M : StructValue<R>
+
+const isProjection = (value: unknown): value is Projection<unknown, unknown> =>
+  typeof value === 'object' && value !== null && 'read' in value && 'requirements' in value
+
 type MsgOf<Ms extends readonly unknown[]> = {
   readonly [K in keyof Ms]: Ms[K] extends (...args: never[]) => infer M ? M : never
 }[number]
@@ -727,6 +840,26 @@ export interface Application<
 > extends AppScope<Root, F, Cases> {
   /** Reference-based field selection: `App.fields.todos`. */
   readonly fields: RefTree<Root, F>
+  /**
+   * `Surface.make` with the mechanical wrappers lifted: `params` are the
+   * fields of a `Schema.Struct` (or a schema), and `model` may return an
+   * object of Projections and refs, which becomes `Projection.struct`.
+   */
+  readonly surface: <
+    const Params extends ParamsShape | undefined = undefined,
+    Shape extends ModelShape<Root> = Projection<Root, unknown>,
+    const Ms extends readonly MessageConstructor<Cases>[] = readonly [],
+  >(
+    name: string,
+    config: {
+      readonly params?: Params
+      readonly model: (context: {
+        readonly model: RefTree<Root, F>
+        readonly params: ParamsOf<Params>
+      }) => Shape
+      readonly messages?: Ms
+    },
+  ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>>
 }
 
 /**
@@ -837,7 +970,29 @@ function application<
 }): Application<Schema.Struct.Type<F>, F, Cases>
 function application(config: any): any {
   const scope = makeScope(config)
-  return { ...scope, initial: config.initial, fields: scope.model, update: config.update }
+  const surface = (
+    name: string,
+    surfaceConfig: {
+      readonly params?: ParamsShape | undefined
+      readonly model: (context: { readonly model: unknown; readonly params: unknown }) => unknown
+      readonly messages?: readonly unknown[]
+    },
+  ) =>
+    Surface.make(scope, name, {
+      ...(surfaceConfig.params === undefined
+        ? {}
+        : {
+            Params: Schema.isSchema(surfaceConfig.params)
+              ? surfaceConfig.params
+              : Schema.Struct(surfaceConfig.params),
+          }),
+      model: (context: { readonly model: unknown; readonly params: unknown }) => {
+        const shape = surfaceConfig.model(context)
+        return isProjection(shape) ? shape : Projection.struct(shape as never)
+      },
+      messages: surfaceConfig.messages,
+    } as never)
+  return { ...scope, initial: config.initial, fields: scope.model, update: config.update, surface }
 }
 
 type ConstructorOfSubset<S> = S extends MessageSet<any, any, any, infer Ms, any> ? Ms : never
@@ -961,6 +1116,28 @@ export const MessageSet = {
 
 export const Surface = {
   application,
+
+  /**
+   * A Surface as the Model activates it. `params` is the value, or a function
+   * of the Model returning it (`undefined` while the Surface is inactive, e.g.
+   * on another route); the Surface's requirements then follow the Model.
+   */
+  at: <Root, Model, Message, Params>(
+    surface: Surface<Root, Model, Message, Params>,
+    params: Params | ((model: Root) => Params | undefined),
+  ): ActiveSurface<Root> => ({
+    name: surface.name,
+    owner: surface.owner,
+    projectionOf: model => {
+      const resolved =
+        typeof params === 'function'
+          ? (params as (model: Root) => Params | undefined)(model)
+          : params
+      return resolved === undefined && surface.Params !== undefined
+        ? undefined
+        : surface.projection(resolved as Params)
+    },
+  }),
 
   make: <
     Root,

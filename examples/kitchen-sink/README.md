@@ -16,7 +16,7 @@ pnpm --filter foldkit-kitchen-sink-example demo
 | Layer | Package | In this example |
 | --- | --- | --- |
 | Observation | `foldkit-surface` | One `Surface.application` embeds the Remote submodel beside the client-owned `notes` slice; `BoardSurface` projects both. |
-| Server-derived state | `foldkit-remote` | The normalized cache submodel: `Remote.prefetch`, `Remote.live`, `Remote.mutateInto`, `Remote.mutate` with an optimistic `ConnectionChange`, `Remote.query`, `Remote.retain`, `RemotePersistence`, `Remote.inspect`. |
+| Server-derived state | `foldkit-remote` | The normalized cache submodel: `Remote.prefetch`, `Remote.live`, `Remote.mutateInto`, `Data.mutate` with an optimistic `ConnectionChange`, `Data.query`, `Remote.retain`, `RemotePersistence`, `Remote.inspect`. |
 | Server | `foldkit-remote-server` | `RemoteServer` sources compiled to the `RemoteRpc` handlers, served in-process through `Remote.clientLayer` over the database layer; a `liveHub` feeds the live subscription from the rename mutation. |
 | Server SQL | `foldkit-remote-drizzle` | `Project` and `User` are Drizzle bindings over in-memory SQLite tables; the nested `owner` selection, the reads, and the query compile to SQL. |
 | Client-owned state | `foldkit-durable` | A `makeJournal` over the Sync contract orders the `notes` operations. |
@@ -36,14 +36,14 @@ pnpm --filter foldkit-kitchen-sink-example demo
 surface: the board Surface projects the project and the notes
 after fetch (Drizzle SQLite): Ready Apollo      # remote read compiled to SQL
 nested selection (one read): owner Ada          # owner resolved through its ref
-mutation: {"id":"p1"} -> Ready Apollo II        # Remote.mutateInto reconciles
+mutation (remote-1): MutationSucceeded -> Ready Apollo II   # Data.mutate: id from the Model, Command settles
 live (hub.changed): EntityPatched name=Apollo II # the server's live hub re-reads for the subscriber
-query connection: Project:p2, Project:p1        # Remote.query -> a connection
-optimistic insert: p3, p2, p1                    # MutationStarted shows the pending edge
+query page: p2, p1                               # Data.query -> a page of selected items
+optimistic insert: p3, p2, p1                    # MutationStarted shows the pending item
 confirmed insert: p3, p2, p1                     # the result's insert replaces it in place
 hydrated: Ready Apollo II, plan empty            # dehydrate/hydrate, nothing left to fetch
-retained with the connection: Project:p1, User:u1, Project:p3   # Remote.retain roots
-retained by the Board alone: Project:p1, User:u1                # the rest is collected
+retained with the page: Project:p1, User:u1, Project:p2, Project:p3   # Remote.retain roots
+retained by the Board alone: Project:p1, User:u1                      # the rest is collected
 replicated (durable journal): First note        # durable + sync reconciled
 capabilities: requested_create_note, ...        # the agent contract is data
 notes after agent: First note, From the agent   # the agent drives the same update

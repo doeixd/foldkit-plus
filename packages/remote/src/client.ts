@@ -4,7 +4,7 @@
  */
 import { Context, Effect, Layer, Schema, Stream } from 'effect'
 import type { Requirement } from 'foldkit-surface'
-import { coalesceReads, type CoalesceOptions } from './coalesce.js'
+import { coalesceQueries, coalesceReads, type CoalesceOptions } from './coalesce.js'
 import type { LiveCursor, LiveEvent } from './live.js'
 import type { MutationDescriptor } from './mutation.js'
 import type { ConnectionChange } from './optimistic.js'
@@ -145,7 +145,8 @@ export const coalescedLayer = <E, R>(
     Effect.gen(function* () {
       const client = yield* RemoteClient
       const read = yield* coalesceReads(client.read, options)
-      return { ...client, read }
+      const query = yield* coalesceQueries(client.query, options)
+      return { ...client, read, query }
     }),
   ).pipe(Layer.provide(layer))
 

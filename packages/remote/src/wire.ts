@@ -33,9 +33,12 @@ export class RemoteProtocolError extends Schema.TaggedError<RemoteProtocolError>
   { message: Schema.String, expected: Schema.Number, received: Schema.Number },
 ) {}
 
+/** A page size: a non-negative integer, refused at decode otherwise rather than defaulted. */
+export const PageSize = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
+
 export const WindowSchema = Schema.Struct({
-  first: Schema.optional(Schema.Number),
-  last: Schema.optional(Schema.Number),
+  first: Schema.optional(PageSize),
+  last: Schema.optional(PageSize),
   after: Schema.optional(Schema.String),
   before: Schema.optional(Schema.String),
 })
@@ -201,12 +204,7 @@ export const WireBoundary = Schema.Union([
 export const QueryRequest = Schema.Struct({
   query: Schema.String,
   input: Schema.Unknown,
-  window: Schema.Struct({
-    first: Schema.optional(Schema.Number),
-    last: Schema.optional(Schema.Number),
-    after: Schema.optional(Schema.String),
-    before: Schema.optional(Schema.String),
-  }),
+  window: WindowSchema,
 })
 
 export const QueryEdge = Schema.Struct({

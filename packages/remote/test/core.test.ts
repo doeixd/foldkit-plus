@@ -140,7 +140,10 @@ describe('Remote core', () => {
       id: true,
       comments: Selection.connection(Comment, { first: 5 }),
     })
+    // A kernel binding over a hand-built root: the definition registers the entities.
     const bound = {
+      definition: Remote.define({ entities: [Project, Comment] }),
+      contract: { name: 'test' },
       store: { get: () => initialRemoteModel },
     } as unknown as BoundRemote<unknown, RemoteModel>
 

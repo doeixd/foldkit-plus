@@ -109,6 +109,32 @@ describe('Remote.update', () => {
     expect(invalidated.connections.c1!.stale).toBe(true)
     const refreshed = updateRemote(invalidated, { _tag: 'ConnectionRefreshed', connection: 'c1' })
     expect(refreshed.connections.c1!.stale).toBe(false)
+    // A page that answers the refresh merges and clears stale in one Message; a plain merge does not.
+    const answered = updateRemote(invalidated, {
+      _tag: 'ConnectionMerged',
+      connection: 'c1',
+      page,
+      refreshes: true,
+    })
+    expect(answered.connections.c1!.stale).toBe(false)
+    expect(
+      updateRemote(invalidated, { _tag: 'ConnectionMerged', connection: 'c1', page }).connections
+        .c1!.stale,
+    ).toBe(true)
+    // A failed refresh ends the refresh; the pages stay as they were.
+    const failed = updateRemote(invalidated, {
+      _tag: 'QueryFailed',
+      connection: 'c1',
+      error: { _tag: 'RemoteQueryError', message: 'boom' },
+    })
+    expect(failed.connections.c1).toEqual({ ...merged.connections.c1, stale: false })
+    expect(
+      updateRemote(initialRemoteModel, {
+        _tag: 'QueryFailed',
+        connection: 'c1',
+        error: { _tag: 'RemoteQueryError', message: 'boom' },
+      }).connections,
+    ).toEqual({})
   })
 
   it('applies a live entity event and records a gap for a skipped cursor', () => {
@@ -279,7 +305,7 @@ const RenameUser = Mutation.make('RenameUser', {
   Output: Schema.Struct({ id: Schema.String }),
 })
 
-const Data = Remote.make({ entities: [User], mutations: [RenameUser] })
+const Data = Remote.define({ entities: [User], mutations: [RenameUser] })
 const Model = Schema.Struct({ remote: Data.Model })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })
@@ -297,7 +323,7 @@ const FakeClient = Layer.succeed(RemoteClient, {
 })
 
 describe('Remote domain submodel', () => {
-  it('Remote.make exposes Model, initial, Message, update, and rpc', () => {
+  it('Remote.define exposes Model, initial, Message, update, and rpc', () => {
     expect(Data.initial).toEqual(initialRemoteModel)
     expect(Data.update).toBe(updateRemote)
     expect(Data.rpc).toBeDefined()
@@ -329,8 +355,10 @@ describe('Remote domain submodel', () => {
       Schema.Struct({ id: Schema.String, name: Schema.String }),
     )
     const projectSelection = Selection.make(Project, { name: true })
-    // @ts-expect-error "Project" is not one of Data's registered entities
-    Remote.select(AppRemote, projectSelection)
+    expect(() =>
+      // @ts-expect-error "Project" is not one of Data's registered entities
+      Remote.select(AppRemote, projectSelection),
+    ).toThrow('Remote: Entity "Project" is not registered with domain "remote"')
   })
 })
 

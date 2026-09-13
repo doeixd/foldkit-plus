@@ -4,17 +4,23 @@
  * the store's refs plus every pending optimistic change, and drops the rest.
  * Roots live outside the Model, so GC arrives as a Message.
  */
-import type { Requirement } from 'foldkit-surface'
+import type { RelationRequirement, Requirement } from 'foldkit-surface'
 import { refsIn } from './relation.js'
 import { entityKey, readField, type EntityKey, type EntityStore } from './store.js'
 import type { Connection } from './connection.js'
 import type { OptimisticState } from './optimistic.js'
 import type { MutationState } from './mutation.js'
 
+/** A connection to keep: its identity, and what a page of it selects of each item, if a projection reads it. */
+export interface ConnectionRoot {
+  readonly identity: string
+  readonly select?: RelationRequirement | undefined
+}
+
 export interface RetentionRoots {
   readonly requirements: ReadonlyArray<Requirement>
-  /** Connection identities (`QueryRef.identity`) to keep, with their edges' targets. */
-  readonly connections: ReadonlyArray<string>
+  /** Connections (`QueryRef.identity`) to keep, with their edges' targets and what `select` reaches through them. */
+  readonly connections: ReadonlyArray<ConnectionRoot>
 }
 
 export interface Retained {
@@ -35,6 +41,7 @@ export const reachable = (
   pending: ReadonlySet<string>,
 ): ReadonlySet<EntityKey> => {
   const kept = new Set<EntityKey>()
+  const rootConnections = new Set(roots.connections.map(root => root.identity))
   // A target is walked once per relation spec that reaches it: two specs may
   // select different nested relations of the same entity, and a spec tree is
   // finite, so this terminates on cyclic data too.
@@ -60,9 +67,15 @@ export const reachable = (
     }
   }
   for (const root of roots.requirements) visit(entityKey(root.entity, root.id), root)
-  for (const identity of roots.connections) {
+  // A connection root keeps its edges' targets, and what a page's `select`
+  // reaches through them (an item's owner, say), so the page stays readable.
+  for (const { identity, select } of roots.connections) {
     for (const segment of connections[identity]?.segments ?? []) {
-      for (const edge of segment.edges) kept.add(entityKey(edge.ref.entity, edge.ref.id))
+      for (const edge of segment.edges) {
+        const target = entityKey(edge.ref.entity, edge.ref.id)
+        if (select === undefined || edge.ref.entity !== select.entity) kept.add(target)
+        else visit(target, select)
+      }
     }
   }
   // A pending request's changes are kept whole; a settled overlay (a live or
@@ -72,7 +85,7 @@ export const reachable = (
     for (const patch of layer.patches) kept.add(entityKey(patch.entity, patch.id))
   }
   for (const overlay of optimistic.overlays) {
-    if (!pending.has(overlay.id) && !roots.connections.includes(overlay.connection)) continue
+    if (!pending.has(overlay.id) && !rootConnections.has(overlay.connection)) continue
     for (const edge of overlay.edges) kept.add(entityKey(edge.ref.entity, edge.ref.id))
   }
   return kept
@@ -93,7 +106,7 @@ export const gc = (
     Object.entries(state.entities).filter(([key]) => kept.has(key)),
   )
   const keptConnections = new Set([
-    ...roots.connections,
+    ...roots.connections.map(root => root.identity),
     ...state.optimistic.overlays
       .filter(overlay => pending.has(overlay.id))
       .map(overlay => overlay.connection),

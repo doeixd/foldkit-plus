@@ -6,6 +6,7 @@ const leaf = (requirement: Requirement): Projection<unknown, unknown> => ({
   Model: Schema.Unknown as Schema.Schema<unknown>,
   dependencies: [],
   requirements: [requirement],
+  connections: [],
   read: () => null,
 })
 

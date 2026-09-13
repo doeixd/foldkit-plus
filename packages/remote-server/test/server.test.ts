@@ -626,7 +626,7 @@ describe('RemoteServer', () => {
   })
 
   it('accepts a server whose sources the domain declares', () => {
-    const domain = Remote.make({ entities: [User], mutations: [RenameUser] })
+    const domain = Remote.define({ entities: [User], mutations: [RenameUser] })
     const server = RemoteServer.make({
       entities: [RemoteServer.entity<string>(User, { read: () => Effect.succeed([]) })],
       mutations: [
@@ -638,7 +638,7 @@ describe('RemoteServer', () => {
 
   it('refuses a source the domain never declared', () => {
     const Ghost = Entity.make('Ghost', Schema.Struct({ id: Schema.String }))
-    const domain = Remote.make({ entities: [Ghost] })
+    const domain = Remote.define({ entities: [Ghost] })
     const server = RemoteServer.make({
       entities: [RemoteServer.entity<string>(User, { read: () => Effect.succeed([]) })],
     })

@@ -47,17 +47,18 @@ const App = Surface.application({
   update,
 })
 
-const Todos = Projection.pick(App.fields.todos)
-
-const TodoList = Surface.make(App, 'TodoList', {
-  model: ({ model }) =>
-    Projection.struct({
-      todos: model.todos,
-      selectedTodoId: model.selectedTodoId,
-    }),
+const TodoList = App.surface('TodoList', {
+  model: ({ model }) => ({ todos: model.todos, selectedTodoId: model.selectedTodoId }),
   messages: [Message.ToggledTodo, Message.SelectedTodo],
 })
 ```
+
+`TodoList` is a named contract: the projection a feature reads (here the two
+fields, as `Projection.struct` lifts them) and the Messages it may send. It
+reads purely (`Surface.read(TodoList, model)`), binds a renderer
+(`Surface.view`), and is what `foldkit-remote`, `foldkit-sync`, and
+`foldkit-agent` derive their work from. `Projection.pick(App.fields.todos)` is
+a writable projection of the same field for a replicator.
 
 ## Field references
 
@@ -100,8 +101,9 @@ have.
 ## Projections
 
 A `Projection<Root, Value>` is three things: a `Model` codec for `Value`, a pure
-`read(root) => Value`, and its `dependencies`/`requirements`. Reading never
-performs I/O.
+`read(root) => Value`, and what it needs: its `dependencies` (Model paths), its
+`requirements` (remote entity fields), and its `connections` (remote query
+connections, with what they select of each item). Reading never performs I/O.
 
 ```ts
 Projection.struct({ todos: model.todos, selectedTodoId: model.selectedTodoId })
@@ -113,7 +115,8 @@ Projection.fromReader(codec, read)  // escape hatch for a non-ModelRef value
 
 `Projection.struct` accepts `ModelRef`s and nested `Projection`s, so a Surface can
 mix local fields with remote or replicated values. A nested projection
-contributes its dependencies and requirements to the parent.
+contributes its dependencies, requirements, and connections to the parent
+(`Requirement.merge` and `Requirement.mergeConnections` union them).
 
 ## Applications
 
@@ -144,24 +147,22 @@ Surface does not label a subset durable, agent-visible, or presence; `Sync` and
 
 ## Surfaces
 
-`Surface.make(app, name, { Params?, model, messages? })` binds a projection and
-the Messages a feature may use into a named, inspectable contract.
+A Surface binds a projection and the Messages a feature may use into a named,
+inspectable contract. `App.surface(name, { params?, model, messages? })` is
+the form to write: `params` are the fields of a `Schema.Struct` (or a schema,
+kept as is), and `model` returns a Projection, or an object of Projections and
+field refs that becomes `Projection.struct`.
 
 ```ts
-const TodoDetail = Surface.make(App, 'TodoDetail', {
-  model: ({ model }) =>
-    Projection.struct({
-      todos: model.todos,
-      selectedTodoId: model.selectedTodoId,
-    }),
+const TodoDetail = App.surface('TodoDetail', {
+  model: ({ model }) => ({ todos: model.todos, selectedTodoId: model.selectedTodoId }),
   messages: [Message.ToggledTodo],
 })
 
 // A parameterized Surface may read `params`; dynamic lookups are OptionalRefs.
-const ById = Surface.make(App, 'ById', {
-  Params: Schema.Struct({ id: Schema.String }),
-  model: ({ model, params }) =>
-    Projection.struct({ todo: model.todosById.at(params.id) }),
+const ById = App.surface('ById', {
+  params: { id: Schema.String },
+  model: ({ model, params }) => ({ todo: model.todosById.at(params.id) }),
 })
 
 Surface.read(TodoDetail, root)                     // project purely
@@ -170,8 +171,23 @@ Surface.view(TodoDetail, render)                   // bind a renderer
 Surface.rootView(TodoDetail, undefined, render)    // bound to the app root
 ```
 
-`Surface.make` does not evaluate `projection(undefined)` for a parameterized
-Surface, because the projection may read `params`.
+The Surface's Model is the projected value (`{ todos; selectedTodoId }`), its
+Params the fields, and its Message the union of the constructors listed; a
+constructor from another application is a compile error at the constructor.
+A parameterized Surface's projection is not evaluated until it has params.
+
+`Surface.at(surface, params)` is the Surface as the Model activates it: `params`
+is the value, or a function of the Model returning it (`undefined` while the
+Surface is inactive, on another route say). Its `projectionOf(model)` is the
+projection for those params, or `undefined`, and it carries the Surface's
+`owner`; a Subscription derives what to fetch from a list of them
+(`foldkit-remote`'s `Data.subscriptions`).
+
+### `Surface.make`, the explicit form
+
+`Surface.make(app, name, { Params?, model, messages? })` takes the wrappers
+`App.surface` lifts: `Params` as a schema and `model` returning a Projection
+(`Projection.struct({ … })` for several fields). `App.surface` compiles to it.
 
 ## Modules
 

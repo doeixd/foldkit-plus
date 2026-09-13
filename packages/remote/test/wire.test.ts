@@ -6,6 +6,7 @@ import {
   MAX_RELATION_DEPTH,
   REMOTE_PROTOCOL_VERSION,
   ReadBatch,
+  QueryRequest,
   ReadBatchResult,
   ReadRequest,
   RemoteRpc,
@@ -39,6 +40,25 @@ describe('Remote wire', () => {
     const decode = Schema.decodeUnknownSync(ReadRequest)
     expect(decode(nested(MAX_RELATION_DEPTH))).toEqual(nested(MAX_RELATION_DEPTH))
     expect(() => decode(nested(MAX_RELATION_DEPTH + 1))).toThrow()
+  })
+
+  it('refuses a page size that is not a non-negative integer, on a query and on a relation window', () => {
+    const query = Schema.decodeUnknownSync(QueryRequest)
+    const request = (window: Record<string, unknown>) => ({ query: 'Q', input: {}, window })
+    expect(query(request({ first: 0 }))).toEqual(request({ first: 0 }))
+    expect(query(request({ last: 25, before: 'c' }))).toEqual(request({ last: 25, before: 'c' }))
+    expect(() => query(request({ first: -1 }))).toThrow()
+    expect(() => query(request({ first: 1.5 }))).toThrow()
+    expect(() => query(request({ last: Number.NaN }))).toThrow()
+    const read = Schema.decodeUnknownSync(ReadRequest)
+    expect(() =>
+      read({
+        entity: 'Project',
+        id: 'p1',
+        fields: ['comments'],
+        windows: { comments: { first: -5 } },
+      }),
+    ).toThrow()
   })
 
   it('refuses a request naming more fields than MAX_FIELDS_PER_REQUEST', () => {

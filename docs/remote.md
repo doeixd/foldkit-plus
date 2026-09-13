@@ -55,9 +55,16 @@ one pure reducer that lives in the Model.
         Projection · field refs · subsets
 ```
 
-The client half is a Foldkit Submodel. `Remote.make` returns `Model`, `initial`,
-`Message`, `update`, and the Effect RPC group; the application embeds `Data.Model`
-in its Model and reduces `RemoteMessage`s with `Data.update`.
+The client half is a Foldkit Submodel. The application embeds `Remote.Model`
+in its Model, spreads `Remote.messages` into its Message union, and binds the
+domain with `Remote.make({ model: App.model.remote, entities, … })`. The bound
+`Data` is the application API: a Surface reads through `Data.get`,
+`Data.live`, and `Data.query`; `Data.subscriptions` fetches, subscribes, and
+retains for the active Surfaces; `update` starts mutations with `Data.mutate`,
+pages with `Data.next`/`Data.fetch`, and reduces Remote's Messages with
+`Data.reduce`. Each compiles to a kernel function of the same name, documented
+as the package's [Advanced](../packages/remote/README.md#advanced-the-kernel)
+section.
 
 The server half compiles Sources into the `RemoteRpc` handlers. Transport is
 Effect RPC, so HTTP, WebSocket, worker, or in-process is an Effect layer choice;
@@ -100,19 +107,30 @@ takes `now` as input (`PlanFreshness`)
 rather than reading the clock, so the same store and requirements produce the same
 plan.
 
-Fetching is a Foldkit Subscription derived from the Surface:
+Fetching is a Foldkit Subscription derived from the active Surfaces, and
+activation is a fact of the Model:
 
 ```ts
-const subscriptions = (model: Model) => [
-  Remote.observe(AppRemote, ProjectPage, { projectId: model.route.projectId }, message =>
-    GotRemote({ message }),
-  ),
-]
+Data.subscriptions({
+  page: Surface.at(ProjectPage, model => ({ projectId: model.route.projectId })),
+})
 ```
 
-`Remote.observe` plans, fetches only the missing fields through `RemoteClient`, and
-emits a `RemoteMessage`. A fully-known Surface emits nothing. SSR, route/hover
-prefetch, and tests reuse the same plan through `Remote.prefetch`.
+Each active Surface gives a read entry, which plans and fetches only the missing
+fields through `RemoteClient` and emits a `RemoteMessage` (a fully-known Surface
+emits nothing), and a live entry for what it reads through `Data.live`; one
+retain entry keeps what the active Surfaces reach. SSR, route/hover prefetch,
+and tests reuse the same plan through `Data.prefetch`.
+
+A query is a Projection too. `Data.query(ProjectsByOwner, { ownerId }, {
+select: ProjectSummary, first: 25 })` reads the connection as a `Page` of the
+selected items, and carries the connection next to its requirements. The read
+entry plans it like a field: a connection the Model does not hold (or holds
+stale) is a query to run, and once its page is known, the page's items are
+requirements like any other, read under `select`. `Data.next(model, projection)`
+is the following page's `QueryRef` from the loaded boundary, and
+`Data.fetch(ref)` the Command that merges it; the same projection then reads
+every loaded page.
 
 What a field the store already holds means is a `RemotePolicy` on `observe` and
 `prefetch`: `cacheFirst` (default) fetches only what is missing,
@@ -138,18 +156,20 @@ is no hidden suspense; the states are explicit.
 ## Mutations and live data
 
 A mutation flows through the ordinary Foldkit path — UI Message → `update` →
-Command → `Remote.mutate` — and returns to the Model as a `RemoteMessage`:
+`Data.mutate` → Command — and returns to the Model as a `RemoteMessage`:
 
 ```text
-UI → ClickedRename → update → Command → Remote.mutate ──RPC──▶ server
-                                                                  │
-        Remote.update ◀── MutationSucceeded { output, entities } ◀┘
+UI → ClickedRename → update → Data.mutate → Command ──RPC──▶ server
+                                                                │
+        Data.reduce ◀── MutationSucceeded { output, entities } ◀┘
 ```
 
-The result carries the typed `Output` **and** normalized entity patches. Settling
-is idempotent per `requestId`, so a transport retry cannot apply the same change
-twice. The application could equally reduce the patches by hand; `Remote.mutateInto`
-is the one-step form.
+`Data.mutate` applies `MutationStarted` to the Model (the request id comes from
+the Model's own sequence, so `update` stays pure) and returns the Command whose
+Message settles it. The result carries the typed `Output` **and** normalized
+entity patches. Settling is idempotent per `requestId`, so a transport retry
+cannot apply the same change twice. `Remote.mutateInto` is the one-step
+imperative form for SSR and tests.
 
 Optimistic changes belong to the mutation: `MutationStarted` carries its entity
 patches and connection changes (`ConnectionChange.prepend`/`append`/`remove`), and
@@ -219,8 +239,9 @@ there is nothing to lose.
 
 ## Worked examples and limits
 
-- `examples/remote` is a worked `make → at → select → plan → prefetch →
-  refresh → render → mutate → retain` trace against an in-process client, and
+- `examples/remote` is a worked `entity → select → Data → App.surface →
+  prefetch → refresh → query page → render → mutate → retain` trace against an
+  in-process client, and
   `examples/kitchen-sink` runs the same path over `foldkit-remote-server` and
   `foldkit-remote-drizzle` (a nested selection, the live hub, an optimistic
   insert confirmed in place, hydration, retention). Both are asserted line by
@@ -230,8 +251,8 @@ there is nothing to lose.
 - The transport is Effect RPC and nothing else; a wire change is a protocol
   version bump (`REMOTE_PROTOCOL_VERSION`), and a request is bounded in fields
   per entity, relation depth, and ids per entity.
-- Coalescing is per `RemoteClient` layer, and retention collects only what the
-  application lists in `Remote.retain`.
+- Coalescing is per `RemoteClient` layer, and retention keeps what the active
+  Surfaces reach (`Data.subscriptions`) or `Remote.retain` lists.
 - The live hub subscribes the requirements' own entities, not nested relation
   targets; a change to a target reaches a subscriber through its own
   requirement or a refetch.
