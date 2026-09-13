@@ -57,7 +57,7 @@ import { plan, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData } from './remoteData.js'
-import type { RetentionRoots } from './retain.js'
+import type { ConnectionRoot, RetentionRoots } from './retain.js'
 import { assemble, pageSchema, relationOf, type Page, type Selection } from './selection.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
 import {
@@ -589,21 +589,31 @@ const pageMessage = (
   ...(refreshes ? { refreshes } : {}),
 })
 
-/** The retention roots of some projections: their requirements, their connections, and those listed. */
+/**
+ * The retention roots of some projections: their requirements, their
+ * connections (each with the union of what the projections select of its
+ * items), and the connections listed by identity alone.
+ */
 const rootsOf = (
   projections: ReadonlyArray<Projection<any, unknown>>,
   options: RetainOptions,
-): RetentionRoots => ({
-  requirements: Requirement.merge(projections.flatMap(projection => projection.requirements)),
-  connections: [
-    ...new Set([
-      ...(options.connections ?? []).map(connectionIdentity),
-      ...projections.flatMap(projection =>
-        projection.connections.map(connection => connection.identity),
-      ),
-    ]),
-  ].sort(),
-})
+): RetentionRoots => {
+  const connections = new Map<string, ConnectionRoot>()
+  for (const identity of (options.connections ?? []).map(connectionIdentity)) {
+    connections.set(identity, { identity })
+  }
+  for (const { identity, select } of projections.flatMap(projection => projection.connections)) {
+    const current = connections.get(identity)?.select
+    connections.set(identity, {
+      identity,
+      select: current === undefined ? select : Requirement.mergeRelation(current, select),
+    })
+  }
+  return {
+    requirements: Requirement.merge(projections.flatMap(projection => projection.requirements)),
+    connections: [...connections.values()].sort((a, b) => (a.identity < b.identity ? -1 : 1)),
+  }
+}
 
 /** A query the read entry runs, as its dependencies carry it: plain data Foldkit compares. */
 const PlannedQuery = Schema.Struct({

@@ -42,7 +42,7 @@ import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
 import { gc, type RetentionRoots } from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
-import { NormalizedEntity, ReadBatchResult, ReadRequest } from './wire.js'
+import { NormalizedEntity, ReadBatchResult, ReadRequest, RelationRequest } from './wire.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import type { LivePolicy } from './query.js'
 
@@ -142,7 +142,9 @@ export type RemoteMessage =
 
 export const retentionRootsSchema = Schema.Struct({
   requirements: Schema.Array(ReadRequest),
-  connections: Schema.Array(Schema.String),
+  connections: Schema.Array(
+    Schema.Struct({ identity: Schema.String, select: Schema.optional(RelationRequest) }),
+  ),
 })
 
 /**

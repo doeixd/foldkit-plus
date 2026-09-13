@@ -138,7 +138,8 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   Command that merges it. `Remote.planQueries` is the pure query plan, query
   reads coalesce like entity reads (`coalesceQueries`, applied by
   `Remote.clientLayer`), and the retain entry roots a projection's connections
-  by itself. `Data.prefetch` now runs the pending queries, then one read, and
+  by itself: a `RetentionRoots` connection is now `{ identity, select? }`, and
+  `gc` keeps what a page's `select` reaches through each item. `Data.prefetch` now runs the pending queries, then one read, and
   returns the Model (it returned the store). `Remote.query`/`queryMessage` and
   `Remote.visibleItems` stay for hand-driven connections.
 - **Review hardening.** One plan: `Remote.plan(bound, model, projection,

@@ -428,13 +428,15 @@ changes the Model, so Foldkit recomputes the dependencies and restarts the
 stream: a merged page's items are planned by that next computation, and a
 read the restart interrupts is joined by the coalescer rather than repeated.
 A page and its refresh are one `ConnectionMerged` (`refreshes: true`), since a
-second Message could be lost to the restart. The retain entry's dependencies are the roots (the
-projections' requirements and connections, plus any `connections` listed); it
+second Message could be lost to the restart. The retain entry's dependencies
+are the roots (the projections' requirements, their connections with what
+each page selects of its items, plus any `connections` listed by identity); it
 emits `RetentionChanged` once the roots have been stable for `grace`, and
 `Remote.update` applies the pure `gc(state, roots)`: a root entity, the targets
 its retained fields refer to, the targets a nested relation selects, a retained
-connection's edges, and anything a pending request touches survive; everything
-else is dropped, settled overlays on a dropped connection included.
+connection's edges and what its `select` reaches through them, and anything a
+pending request touches survive; everything else is dropped, settled overlays
+on a dropped connection included.
 
 ### Connections by hand
 

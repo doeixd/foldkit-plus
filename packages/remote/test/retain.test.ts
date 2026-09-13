@@ -7,6 +7,7 @@ import {
   Entity,
   Remote,
   Selection,
+  type ConnectionRoot,
   addLayer,
   addOverlay,
   emptyMutationState,
@@ -77,7 +78,7 @@ const model = (): RemoteModel => ({
 const keys = (state: { readonly entities: EntityStore }) => Object.keys(state.entities).sort()
 const roots = (
   projections: ReadonlyArray<{ readonly requirements: readonly Requirement[] }>,
-  connections: string[] = [],
+  connections: ConnectionRoot[] = [],
 ) => ({
   requirements: projections.flatMap(projection => projection.requirements),
   connections,
@@ -113,9 +114,25 @@ describe('gc', () => {
   })
 
   it('a retained connection keeps its edges’ targets; another connection is dropped', () => {
-    const kept = gc(model(), roots([], ['Projects()']))
+    const kept = gc(model(), roots([], [{ identity: 'Projects()' }]))
     expect(keys(kept)).toEqual(['Project:p2'])
     expect(Object.keys(kept.connections)).toEqual(['Projects()'])
+  })
+
+  it('a connection root with a select keeps what the select reaches through each item', () => {
+    const select = {
+      entity: 'Project',
+      fields: ['owner'],
+      relations: { owner: { entity: 'User', fields: ['name'] } },
+    }
+    const kept = gc(model(), roots([], [{ identity: 'Projects()', select }]))
+    expect(keys(kept)).toEqual(['Project:p2', 'User:u3'])
+    // A select of another entity than the edges keeps the edges only.
+    const other = gc(
+      model(),
+      roots([], [{ identity: 'Projects()', select: { entity: 'User', fields: ['name'] } }]),
+    )
+    expect(keys(other)).toEqual(['Project:p2'])
   })
 
   it('a pending optimistic layer or overlay keeps what it touches', () => {
@@ -158,7 +175,7 @@ describe('gc', () => {
     const dropped = gc(settled, roots([]))
     expect(dropped.optimistic.overlays).toEqual([])
     expect(keys(dropped)).toEqual([])
-    const retained = gc(settled, roots([], ['Other()']))
+    const retained = gc(settled, roots([], [{ identity: 'Other()' }]))
     expect(retained.optimistic.overlays).toHaveLength(1)
     expect(keys(retained)).toEqual(['User:u4'])
   })
@@ -240,7 +257,7 @@ describe('Remote.retain', () => {
           relations: { owner: { entity: 'User', fields: ['id', 'name'] } },
         },
       ],
-      connections: ['Projects()'],
+      connections: [{ identity: 'Projects()' }],
     })
   })
 

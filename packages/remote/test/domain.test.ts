@@ -410,7 +410,9 @@ describe('Data.live and Data.subscriptions', () => {
       { home: Home },
       { policy: RemotePolicy.networkOnly, connections: ['Feed'], grace: '1 second' },
     )
-    expect(tuned.retain!.modelToDependencies(at(''))).toMatchObject({ connections: ['Feed'] })
+    expect(tuned.retain!.modelToDependencies(at(''))).toMatchObject({
+      connections: [{ identity: 'Feed' }],
+    })
     // networkOnly plans every field, present or not.
     const loaded = {
       ...initial,
@@ -653,10 +655,10 @@ describe('Data.query reads a connection as a page of selected items', () => {
         { identity, window: { first: 2 }, select: { entity: 'Project', fields: ['name'] } },
       ],
     })
-    // The connection is a retention root by itself.
+    // The connection is a retention root by itself, with what the page selects of each item.
     expect(subscriptions.retain!.modelToDependencies(initial)).toEqual({
       requirements: [],
-      connections: [identity],
+      connections: [{ identity, select: { entity: 'Project', fields: ['name'] } }],
     })
 
     const client = paging(['p1', 'p2', 'p3'])
@@ -947,6 +949,16 @@ describe('Data.query reads a connection as a page of selected items', () => {
       { entity: 'Project', fields: ['name', 'id'] },
     ])
     expect(Remote.planQueries(Data, initial, both)).toEqual([projects.ref])
+    // The retention root selects the union too, and a connection listed by identity
+    // keeps the select a projection gives it.
+    expect(Remote.retain([both]).modelToDependencies(initial).connections).toEqual([
+      { identity, select: { entity: 'Project', fields: ['name', 'id'] } },
+    ])
+    expect(
+      Remote.retain([projects], undefined, { connections: [identity, 'Zed'] }).modelToDependencies(
+        initial,
+      ).connections,
+    ).toEqual([{ identity, select: { entity: 'Project', fields: ['name'] } }, { identity: 'Zed' }])
     expect(Data.plan(merged(initial, ['p1']), both)).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name', 'id'] },
     ])
