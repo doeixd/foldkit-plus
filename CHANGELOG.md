@@ -75,6 +75,9 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   wire caps `MAX_FIELDS_PER_REQUEST` (256) and `MAX_RELATION_DEPTH` (8) with
   static nesting; `Entity.patch` takes wire-shaped values; `Selection.make`
   refuses an empty selection, which would require nothing and read `Ready`.
+  `SelectionOf` and `SelectionValue` are exported, and
+  `docs/design/DX_PROTOTYPES.md` with `test/dx.test-d.ts` prototype the #69
+  application API against the kernel types (Phase A; compile-only).
   `Remote.clientLayer` is generic in the RPC client's requirements, so
   in-process `RemoteServer.handlers` over a database become a `RemoteClient`
   with one `Layer.provide` instead of a hand-written adapter.
