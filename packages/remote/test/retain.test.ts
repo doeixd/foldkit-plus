@@ -127,10 +127,11 @@ describe('gc', () => {
     }
     const kept = gc(model(), roots([], [{ identity: 'Projects()', select }]))
     expect(keys(kept)).toEqual(['Project:p2', 'User:u3'])
-    // A select of another entity than the edges keeps the edges only.
+    // A select of another entity than the edges keeps the edges only: it is not
+    // walked through them, even where its field names happen to exist.
     const other = gc(
       model(),
-      roots([], [{ identity: 'Projects()', select: { entity: 'User', fields: ['name'] } }]),
+      roots([], [{ identity: 'Projects()', select: { entity: 'User', fields: ['owner'] } }]),
     )
     expect(keys(other)).toEqual(['Project:p2'])
   })

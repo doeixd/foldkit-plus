@@ -951,7 +951,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     expect(Remote.planQueries(Data, initial, both)).toEqual([projects.ref])
     // The retention root selects the union too, and a connection listed by identity
     // keeps the select a projection gives it.
-    expect(Remote.retain([both]).modelToDependencies(initial).connections).toEqual([
+    expect(Remote.retain([projects, ids]).modelToDependencies(initial).connections).toEqual([
       { identity, select: { entity: 'Project', fields: ['name', 'id'] } },
     ])
     expect(
