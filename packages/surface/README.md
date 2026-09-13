@@ -100,8 +100,9 @@ have.
 ## Projections
 
 A `Projection<Root, Value>` is three things: a `Model` codec for `Value`, a pure
-`read(root) => Value`, and its `dependencies`/`requirements`. Reading never
-performs I/O.
+`read(root) => Value`, and what it needs: its `dependencies` (Model paths), its
+`requirements` (remote entity fields), and its `connections` (remote query
+connections, with what they select of each item). Reading never performs I/O.
 
 ```ts
 Projection.struct({ todos: model.todos, selectedTodoId: model.selectedTodoId })
@@ -113,7 +114,8 @@ Projection.fromReader(codec, read)  // escape hatch for a non-ModelRef value
 
 `Projection.struct` accepts `ModelRef`s and nested `Projection`s, so a Surface can
 mix local fields with remote or replicated values. A nested projection
-contributes its dependencies and requirements to the parent.
+contributes its dependencies, requirements, and connections to the parent
+(`Requirement.merge` and `Requirement.mergeConnections` union them).
 
 ## Applications
 

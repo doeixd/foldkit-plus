@@ -2,14 +2,14 @@
 
 The application API from #69 on the five scenarios the issue names. The fixture
 is [`packages/remote/test/dx.test-d.ts`](../../packages/remote/test/dx.test-d.ts).
-Phases B and C (items 1–6, 9–12) are real there: `Remote.Model`, the bound
-`Remote.make`, `Entity.select`/`patch`, `Data.get`/`live`/`plan`/`prefetch`/
-`mutate`/`reduce`/`inspect`/`subscriptions`, `Remote.messages`/`reduces`, the
-fields sugar on `Mutation.make`/`Query.make`, `App.surface`, and `Surface.at`.
-The `Dx.*` values still `declare`d are items 7–8 (Phase D), typed over the
-real kernel types so inference, hover shape, and error placement are checked
-before they land; each is replaced as it lands and the scenario stays as the
-regression test.
+Phases B, C, and D (items 1–12) are real there: `Remote.Model`, the bound
+`Remote.make`, `Entity.select`/`patch`, `Data.get`/`live`/`query`/`next`/
+`previous`/`fetch`/`plan`/`prefetch`/`mutate`/`reduce`/`inspect`/
+`subscriptions`, `Remote.messages`/`reduces`, the fields sugar on
+`Mutation.make`/`Query.make`, `App.surface`, and `Surface.at`. Each item was
+first a `declare`d stub typed over the real kernel types, so inference, hover
+shape, and error placement were checked before it landed; the scenarios stay
+as the regression test.
 
 The hover shapes below are what the compiler reports for the fixture's
 declarations (`checker.typeToString`, no truncation), which is what an editor
@@ -57,21 +57,31 @@ const page = yield* Remote.query(ref)                          // Effect
 dispatch(GotRemote({ message: Remote.queryMessage(ref, page) }))
 Remote.visibleItems(model.remote, ref)                        // edges, not values
 
-// candidate
+// landed (Phase D)
 const projects = Data.query(ProjectsByOwner, { ownerId }, { select: ProjectSummary, first: 25 })
 Data.next(model, projects)                                    // QueryRef | undefined
+Data.fetch(next)                                              // Command: "load more"
 ```
 
-Hover: `Projection<AppModel, RemoteData<Page<{ …ProjectSummary value… }>>>`.
+Hover: `QueryProjection<AppModel, { …ProjectSummary value… }, 'ProjectsByOwner',
+{ readonly ownerId: string }>`, a `Projection<AppModel, RemoteData<Page<…>>>`
+with the `ref` `next` pages from.
 
-The window type is a union whose members carry `never` keys for the other
-side (`{ first; after?; last?: never; before?: never } | { last; before?; … }`).
-Without the `never` keys TypeScript's excess-property check runs against the
-union as a whole and `{ first: 25, last: 5 }` is accepted; with them, `first`
-+ `last` and `last` + `after` are each a one-line error. `select` is
-constrained to the query's entity through the declaration
-(`Dx.query(name, { input, entity })`), so `select: UserSummary` on a `Project`
-query is an error at the option.
+The window type is a union whose members carry `undefined`-only keys for the
+other side (`{ first?; after?; last?: undefined; before?: undefined } | { last;
+before?; … }`). Without them TypeScript's excess-property check runs against
+the union as a whole and `{ first: 25, last: 5 }` is accepted; with them,
+`first` + `last` and `last` + `after` are each a one-line error, and an
+explicit `after: undefined` still passes. `select` is constrained to the
+query's entity through `Query.make`'s `Result` (`QueryEntity<Q>`), so `select:
+UserSummary` on a `Project` query is an error at the option.
+
+The projection reads `Initial` until every visible item is assembled under
+`select`, not a partial page: an item on its way makes the page pending, so a
+view never shows a list that is silently short. The cost is on optimistic
+inserts: a patch that lacks a selected field puts the page back to `Initial`
+until the read entry fetches that field, so an optimistic insert into a page
+should carry every field the page selects.
 
 ### 3. An optimistic comment insert
 
@@ -225,16 +235,25 @@ The fixture pins that with an assignment.
   is at the selection argument and names the offending literal. A branded
   failure type (item 13) can make the message say "not registered with Data"
   outright.
-- **`Data.next` needs the projection to carry its query.** The stub types it
-  as `Projection & { query: Q }`; the real connection Projection (item 7) will
-  carry the `QueryRef` so `next` can build the following window from the
-  Model's end boundary.
+- **`Data.next` needs the projection to carry its query.** The stub typed it
+  as `Projection & { query: Q }`; the landed `QueryProjection` carries the
+  `QueryRef` (`ref`) so `next`/`previous` build the neighbouring window from
+  the Model's boundaries, keeping the page size.
+- **Connections travel on the Projection.** `Projection.connections` is the
+  fourth thing a Projection carries, next to `dependencies` and `requirements`,
+  so a Surface that reads a page needs no second registration: the read entry
+  plans a connection like a field (unknown or stale: run the query; known: the
+  visible items' fields under `select`). The surface package only knows the
+  shape (`ConnectionRequirement { identity, window, select }`); Remote adds the
+  `ref`. `Requirement.mergeConnections` unions what one connection and window
+  select, so two projections of one list plan one query.
 - **Nothing in Mixins or Agent needs to change.** Scenario 5 is a plain
   assignment.
 
-## What Phase B implements
+## Status
 
-Items 1, 2, 3, 9, 11, and 12 as decided above, replacing the `Dx` stubs in the
-fixture with the real exports one by one; Phase C then items 4–6, Phase D items
-7–8 (the kernel change: connection Projection, query requirements in the
-planner and coalescer), Phase E the polish and the docs rewrite.
+Phase B implemented items 1, 2, 3, 9, 11, and 12 as decided above, replacing
+the `Dx` stubs in the fixture with the real exports one by one; Phase C items
+4–6; Phase D items 7–8 (the kernel change: the connection Projection, query
+requirements in the planner, the read entry, the retain roots, and the
+coalescer). Phase E is the polish and the docs rewrite.

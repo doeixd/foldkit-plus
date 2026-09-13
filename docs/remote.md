@@ -118,6 +118,16 @@ emits nothing), and a live entry for what it reads through `Data.live`; one
 retain entry keeps what the active Surfaces reach. SSR, route/hover prefetch,
 and tests reuse the same plan through `Data.prefetch`.
 
+A query is a Projection too. `Data.query(ProjectsByOwner, { ownerId }, {
+select: ProjectSummary, first: 25 })` reads the connection as a `Page` of the
+selected items, and carries the connection next to its requirements. The read
+entry plans it like a field: a connection the Model does not hold (or holds
+stale) is a query to run, and once its page is known, the page's items are
+requirements like any other, read under `select`. `Data.next(model, projection)`
+is the following page's `QueryRef` from the loaded boundary, and
+`Data.fetch(ref)` the Command that merges it; the same projection then reads
+every loaded page.
+
 What a field the store already holds means is a `RemotePolicy` on `observe` and
 `prefetch`: `cacheFirst` (default) fetches only what is missing,
 `staleWhileRevalidate({ maxAge })` refetches an entry older than the window, and

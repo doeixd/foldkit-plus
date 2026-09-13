@@ -20,7 +20,7 @@ import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 import { view as buttonView } from '@foldkit/ui/button'
 import { Surface } from 'foldkit-surface'
-import { Remote, RemoteData, Query, type EntityStore } from 'foldkit-remote'
+import { Remote, RemoteData, type EntityStore } from 'foldkit-remote'
 import { layerFromPromise } from 'foldkit-sync'
 import {
   App,
@@ -147,43 +147,57 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     }`,
   )
 
-  const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId: 'u1' }))
-  const page = await Effect.runPromise(Remote.query(ref).pipe(Effect.provide(client)))
-  say(`query connection: ${page.edges.map(edge => edge.key).join(', ')}`)
+  // A query is a Projection: the connection read as a page of the selected
+  // items. The prefetch runs the query through the Drizzle source, then one
+  // read for the page's items the store lacks (p2, with its owner).
+  const projects = Data.query(
+    ProjectsByOwner,
+    { ownerId: 'u1' },
+    { select: ProjectSummary, first: 25 },
+  )
+  const queried = await Effect.runPromise(
+    Data.prefetch(renamed, projects).pipe(Effect.provide(client)),
+  )
+  const pageIds = (model: typeof App.initial) =>
+    RemoteData.match(projects.read(model), {
+      Initial: () => 'Initial',
+      Loading: () => 'Loading',
+      Ready: page => page.items.map(item => item.id).join(', '),
+      Refreshing: page => `Refreshing ${page.items.map(item => item.id).join(', ')}`,
+      Failed: error => `Failed ${error._tag}`,
+      NotFound: () => 'NotFound',
+    })
+  say(`query page: ${pageIds(queried)}`)
 
-  // An optimistic insert: the new project shows in the connection at once,
-  // and the server's confirmed insert takes its place without a duplicate.
-  const queried = Data.reduce(renamed, Remote.queryMessage(ref, page))
+  // An optimistic insert: the new project shows in the page at once (the patch
+  // carries every field the page selects), and the server's confirmed insert
+  // takes its place without a duplicate.
   const create = Data.mutate(
     queried,
     CreateProject,
     { id: 'p3', name: 'Calypso', ownerId: 'u1' },
     {
       optimistic: [
-        Project.patch('p3', { id: 'p3', name: 'Calypso', status: 'active' }),
-        ConnectionChange.prepend(ref, Project.ref('p3')),
+        Project.patch('p3', { id: 'p3', name: 'Calypso', status: 'active', owner: 'User:u1' }),
+        ConnectionChange.prepend(projects.ref, Project.ref('p3')),
       ],
     },
   )
-  const visible = (model: typeof App.initial) =>
-    Remote.visibleItems(model.remote, ref)
-      .map(edge => edge.ref.id)
-      .join(', ')
-  say(`optimistic insert: ${visible(create.model)}`)
+  say(`optimistic insert: ${pageIds(create.model)}`)
   const confirmed = Data.reduce(
     create.model,
     await Effect.runPromise(create.command.effect.pipe(Effect.provide(client))),
   )
-  say(`confirmed insert: ${visible(confirmed)}`)
+  say(`confirmed insert: ${pageIds(confirmed)}`)
   say(`inspect: ${Data.inspect(confirmed).entities.length} entities cached`)
   const remote = confirmed.remote
 
   // Retention: the Board reaches p1 and, through its ref, u1. With the
-  // projects connection listed as a root its edges stay too; without it, the
-  // other projects are collected.
-  const retentionOf = (connections: ReadonlyArray<typeof ref>) =>
+  // projects page among the roots its items stay too; without it, the other
+  // projects are collected.
+  const retentionOf = (projections: ReadonlyArray<typeof projects>) =>
     Effect.gen(function* () {
-      const entry = Remote.retain([BoardSurface.projection(undefined)], undefined, { connections })
+      const entry = Remote.retain([BoardSurface.projection(undefined), ...projections])
       const message = yield* Stream.runHead(
         entry.dependenciesToStream(entry.modelToDependencies(confirmed)),
       )
@@ -191,7 +205,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
         .entities.map(entity => entity.key)
         .join(', ')
     })
-  say(`retained with the connection: ${await Effect.runPromise(retentionOf([ref]))}`)
+  say(`retained with the page: ${await Effect.runPromise(retentionOf([projects]))}`)
   say(`retained by the Board alone: ${await Effect.runPromise(retentionOf([]))}`)
 
   // Hydration: the store dehydrates to deterministic text (SSR would embed it)

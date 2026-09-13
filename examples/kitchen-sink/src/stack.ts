@@ -141,7 +141,7 @@ const RenameProjectSource = RemoteServer.mutation(RenameProject, ({ input }) =>
  */
 const CreateProjectSource = RemoteServer.mutation(CreateProject, ({ input }) =>
   Effect.gen(function* () {
-    const project = returning(Project, ['id', 'name', 'status'])
+    const project = returning(Project, ['id', 'name', 'status', 'owner'])
     const rows = yield* Effect.promise(() =>
       Promise.resolve(
         db

@@ -3,7 +3,7 @@
 The worked `foldkit-remote` → `foldkit-surface` → `foldkit-mixins` trace that the
 [remote guide](../../docs/remote.md) points at. It runs the real path against an
 in-process `RemoteClient` — no server, but plan, prefetch, select, a
-stale-while-revalidate refresh, render, mutate, retention, and a decode failure
+stale-while-revalidate refresh, a query page, render, mutate, retention, and a decode failure
 all go through the real code.
 
 ```
@@ -16,7 +16,7 @@ plan: Project:p1 [id,name,status]
 before fetch: Initial
 after fetch: Ready {"id":"p1","name":"Apollo","status":"active"}
 stale-while-revalidate: RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
-query connection: Project:p1
+query page: Ready p1 Apollo; next page: none
 inspect: 1 entities, 1 connection, 1 registered queries
 rendered classes: project-card
 rendered status: active
@@ -40,8 +40,11 @@ Read it as:
   projection reads `Refreshing`, value still visible) and then the read result
   (`Ready` again). `toMessage` is omitted, so the entry emits `RemoteMessage`s
   that `Data.update` reduces directly.
-- **`query`** — `Remote.query(ref)` runs a list query and `Remote.queryMessage`
-  merges the page into a connection keyed by the ref's identity.
+- **`query page`** — `Data.query(ProjectsByOwner, input, { select, first })` is
+  a Projection too: the connection read as a `Page` of the selected items.
+  `Data.prefetch` runs the query and then one read for whatever the page's
+  items lack; `Data.next` is the following page's `QueryRef`, or nothing at
+  the end.
 - **`inspect`** — `Remote.inspect` summarizes the cache, and the domain's
   `registry` counts the declared queries.
 - **render** — the SurfaceView styles the card and a Behavior reads the projected

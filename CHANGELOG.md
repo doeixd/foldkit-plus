@@ -24,6 +24,12 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   (`undefined` while inactive), and `projectionOf(model)` the projection for
   those params. `Requirement.live` marks a requirement the projection also
   subscribes to; `Requirement.merge` keeps the mark.
+- **`Projection.connections` (#69, Phase D; breaking).** A Projection carries
+  the query connections it reads as `ConnectionRequirement { identity, window,
+  select }`, next to its requirements; `struct`, `array`, `option`, and
+  `fromReader` propagate them and `Requirement.mergeConnections` unions what
+  one connection and window select. A hand-written Projection literal now
+  needs `connections: []`.
 - **`Module`, the pure composition root.** `Module.make(App, [contracts])`
   collects an application's contracts as data; `Module.validate` reports a
   contract from another application, a duplicate `kind:name`, two owners of
@@ -100,6 +106,26 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `retain` entry with every active Surface as a root (`Remote.retain`).
   `options` are the observe, live, and retain options together. The kernel
   entries now derive their requirements from a function of the Model.
+- **Queries as Projections (#69, Phase D; breaking).** `Data.query(query,
+  input, { select, first | last, after | before })` is a Projection reading a
+  connection as a `RemoteData<Page<Value>>`: `Initial` until the page and every
+  item's selected fields are present, `Ready` once they are, `Refreshing` while
+  the connection or any item refetches, `Failed` on data that does not decode;
+  `select` is a selection of the query's entity and the window is one side or
+  the other. The projection carries the connection (`Projection.connections`),
+  so the read entry plans it like a field: an unknown or stale connection is a
+  query to run, a known one contributes its visible items' fields. The entry
+  runs the queries and the entity read concurrently and reads each page's
+  items as it arrives; a failed query yields the new `QueryFailed` Message,
+  which ends the refresh and keeps the pages. `Data.next`/`previous(model,
+  projection)` are the neighbouring page's `QueryRef` from the loaded
+  boundaries (same page size), or `undefined`; `Data.fetch(ref)` is the
+  Command that merges it. `Remote.planQueries` is the pure query plan, query
+  reads coalesce like entity reads (`coalesceQueries`, applied by
+  `Remote.clientLayer`), and the retain entry roots a projection's connections
+  by itself. `Data.prefetch` now runs the pending queries, then one read, and
+  returns the Model (it returned the store). `Remote.query`/`queryMessage` and
+  `Remote.visibleItems` stay for hand-driven connections.
 - **Review hardening.** One plan: `Remote.plan(bound, model, projection,
   options?)` replaces `planProjection`/`observeProjection`/`planSurface`
   (a Surface's is `surface.projection(params)`); `Remote.retain(projections,

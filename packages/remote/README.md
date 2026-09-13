@@ -216,13 +216,15 @@ it.
 `Requirement` is plain data — entity, id, fields, and per-relation windows — so a
 plan can be inspected, serialized, diffed, or shown in DevTools.
 
-`Remote.prefetch` runs the same plan through `RemoteClient` and returns the new
-store; use it for SSR, route/hover prefetch, and tests. It never runs during
-render.
+`Data.prefetch` runs the same plan through `RemoteClient` (the projection's
+pending queries first, then one read) and returns the Model with the results
+reduced in; use it for SSR, route/hover prefetch, and tests. It never runs
+during render. `Remote.prefetch` is the kernel's: entity requirements only,
+returning the new store.
 
 ```ts
-const store = await Effect.runPromise(
-  Remote.prefetch(AppRemote, model, Projection.struct({ project }), {
+const loaded = await Effect.runPromise(
+  Data.prefetch(model, Projection.struct({ project }), {
     policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }),
   }).pipe(Effect.provide(clientLayer)),
 )
@@ -372,21 +374,45 @@ adopted.
 
 ## Queries
 
-A `QueryRef` is a server list/search operation with a canonical identity (the
-descriptor plus the encoded input, excluding the window). `Remote.query` runs it
-through `RemoteClient`, and `Remote.queryMessage` turns the page into a
-`ConnectionMerged` message for `Remote.update`:
+A query is a Projection: the connection read as a `Page` of the items it lists,
+each assembled under a selection of the query's entity.
 
 ```ts
-const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId }))
-const page = yield* Remote.query(ref)
-yield* Effect.sync(() =>
-  dispatch({ _tag: 'GotRemote', message: Remote.queryMessage(ref, page) }),
-)
+const projects = Data.query(ProjectsByOwner, { ownerId }, { select: ProjectSummary, first: 25 })
+projects.read(model) // RemoteData<Page<{ id; name; status; owner: { name } }>>
+
+// In update: "load more" is a Command; the Message it yields merges the page.
+const next = Data.next(model, projects) // QueryRef | undefined, from the loaded end
+return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
 ```
 
-The connection key is `ref.identity`, so `first(25)` and `after(cursor).first(25)`
-merge into one connection.
+The projection is `Initial` until the page and every item's selected fields
+are present, `Ready` once they are, `Refreshing` while the connection or any
+item is being refetched, and `Failed` if an item does not decode. `select` is
+constrained to the query's entity; the window is `first`/`after` or
+`last`/`before`, never a mix, and no window asks for the server's default
+page.
+
+The projection carries its connection (`Projection.connections`), so a Surface
+that reads a page needs nothing more: the read entry plans a connection the
+Model does not hold, or holds stale, as a query to run, and a known one as
+its visible items' fields under `select`. The entry runs the queries and the
+entity read concurrently and reads each page's items as it arrives. A failed
+query yields `QueryFailed`, which ends the refresh and keeps the pages.
+`Data.next`/`Data.previous` are the neighbouring page's `QueryRef` from the
+loaded boundaries (same page size), or `undefined` at a terminal or unknown
+edge; `Data.fetch(ref)` is the Command that runs it and yields the
+`ConnectionMerged` (or `QueryFailed`) that reduces it, after which the same
+projection reads every loaded page. `Data.prefetch` runs the pending queries
+first, then one read for their items. Query reads coalesce like entity reads:
+an identical query in flight is joined.
+
+Under it, a `QueryRef` is a server list/search operation with a canonical
+identity (the descriptor plus the encoded input, excluding the window), so
+`first(25)` and `after(cursor).first(25)` merge into one connection.
+`Remote.query(ref)` runs one through `RemoteClient` and `Remote.queryMessage`
+turns the page into the `ConnectionMerged` message, for a connection driven by
+hand; `Remote.planQueries` is the pure query plan.
 
 ## Introspection
 
@@ -454,16 +480,19 @@ the same as once.
   the submodel; `Remote.define` returns `Message`, `update`, `rpc`, and a
   name-keyed `registry` of the declared entities, queries, and mutations
   (consumed by `RemoteServer.validate` and available to tooling); `Remote.make`
-  binds it and adds `get`, `plan`, `storeOf`, `prefetch`, `mutate`, `reduce`,
-  and `inspect`. `Remote.update` is the single reducer over reads, mutation
+  binds it and adds `get`, `live`, `query`, `next`, `previous`, `fetch`,
+  `subscriptions`, `plan`, `storeOf`, `prefetch`, `mutate`, `reduce`, and
+  `inspect`. `Remote.update` is the single reducer over reads, mutation
   results, live events, connections, and optimistic layers.
 - **Mutation reconciliation.** Idempotent per `requestId`, with a bounded
   settled-request ledger.
 - **Connections.** Segmented ordered data with explicit boundaries and overlay
   placement.
-- **Queries.** `Remote.query(ref)` encodes and runs a `QueryRef`; 
-  `Remote.queryMessage(ref, page)` merges the result into the connection keyed by
-  `ref.identity`.
+- **Queries.** `Data.query` reads a connection as a page of selected items and
+  carries the connection for the planner; `Data.next`/`previous`/`fetch` page
+  it. `Remote.query(ref)` encodes and runs a `QueryRef` by hand and
+  `Remote.queryMessage(ref, page)` merges the result into the connection keyed
+  by `ref.identity`.
 - **Live classification.** Per-stream cursor ordering, duplicate suppression, and
   gap detection; a gap clears when an in-order event applies or a `GapCleared`
   message arrives.

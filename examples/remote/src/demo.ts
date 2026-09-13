@@ -21,9 +21,9 @@ import {
   RemotePolicy,
   Selection,
   entityKey,
-  items,
   writeEntity,
   type EntityStore,
+  type Page,
 } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
@@ -118,6 +118,16 @@ const describeData = (data: RemoteData<ProjectValue>): string =>
     Loading: () => 'Loading',
     Ready: value => `Ready ${JSON.stringify(value)}`,
     Refreshing: value => `Refreshing ${JSON.stringify(value)}`,
+    Failed: error => `Failed ${error._tag}`,
+    NotFound: () => 'NotFound',
+  })
+
+const describePage = (data: RemoteData<Page<ProjectValue>>): string =>
+  RemoteData.match(data, {
+    Initial: () => 'Initial',
+    Loading: () => 'Loading',
+    Ready: page => `Ready ${page.items.map(item => `${item.id} ${item.name}`).join(', ')}`,
+    Refreshing: page => `Refreshing ${page.items.map(item => item.id).join(', ')}`,
     Failed: error => `Failed ${error._tag}`,
     NotFound: () => 'NotFound',
   })
@@ -227,14 +237,22 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `stale-while-revalidate: ${refreshMessages.map(message => message._tag).join(', ')}; ${describeData(projection.read(midRefresh))} -> ${describeData(projection.read(refreshed))}`,
   )
 
-  // A query runs through RemoteClient and merges into a connection by ref identity.
-  const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId: 'u1' }))
-  const page = await Effect.runPromise(Remote.query(ref).pipe(Effect.provide(FakeClient)))
-  const queried = Data.reduce(loaded, Remote.queryMessage(ref, page))
+  // A query is a Projection too: the connection read as a page of the selected
+  // items. The prefetch runs the query, then one read for whatever the page's
+  // items still lack (nothing here: p1 is already known), and `Data.next` is
+  // the following page, or nothing at the end.
+  const projects = Data.query(
+    ProjectsByOwner,
+    { ownerId: 'u1' },
+    { select: ProjectSummary, first: 25 },
+  )
+  const queried = await Effect.runPromise(
+    Data.prefetch(loaded, projects).pipe(Effect.provide(FakeClient)),
+  )
   lines.push(
-    `query connection: ${items(queried.remote.connections[ref.identity]!)
-      .map(edge => edge.key)
-      .join(', ')}`,
+    `query page: ${describePage(projects.read(queried))}; next page: ${
+      Data.next(queried, projects) === undefined ? 'none' : 'available'
+    }`,
   )
   const inspection = Data.inspect(queried)
   lines.push(
