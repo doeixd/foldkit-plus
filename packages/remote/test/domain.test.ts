@@ -556,6 +556,21 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
     ).toThrow('Remote: the selection is of "User", but query "ProjectsByOwner" lists "Project"')
   })
 
+  it('query rejects a page size that is not a non-negative integer', () => {
+    const summary = Project.select({ name: true })
+    expect(() =>
+      Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: -1 }),
+    ).toThrow(
+      'Remote: query "ProjectsByOwner" asks for first: -1; a page size is a non-negative integer',
+    )
+    expect(() =>
+      Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, last: 2.5 }),
+    ).toThrow('asks for last: 2.5')
+    expect(
+      Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 0 }).ref.window,
+    ).toEqual({ first: 0 })
+  })
+
   it('query rejects a query whose Result is not a connection over an entity', () => {
     const Count = Query.make('Count', { Input: {}, Result: Schema.Number })
     const Counting = Remote.make({ model: App.model.remote, entities: [Project], queries: [Count] })

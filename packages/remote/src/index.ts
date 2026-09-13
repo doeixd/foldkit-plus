@@ -1274,6 +1274,16 @@ const bindDomain = <
     ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
       assertRegistered(bound, 'Query', definition.registry.queries, query.name)
       const { select, ...window } = options
+      for (const [side, size] of [
+        ['first', window.first],
+        ['last', window.last],
+      ] as const) {
+        if (size !== undefined && !(Number.isInteger(size) && size >= 0)) {
+          throw new Error(
+            `Remote: query "${query.name}" asks for ${side}: ${String(size)}; a page size is a non-negative integer`,
+          )
+        }
+      }
       const listed = (query.Result as Partial<ConnectionSpec>).entity
       if (listed === undefined) {
         throw new Error(

@@ -111,6 +111,10 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `retain` entry with every active Surface as a root (`Remote.retain`).
   `options` are the observe, live, and retain options together. The kernel
   entries now derive their requirements from a function of the Model.
+- **Page sizes are non-negative integers (#69, review).** `Data.query` rejects
+  any other `first`/`last` at the call, naming the query, and the wire's
+  `WindowSchema`/`QueryRequest` refuse one at decode (`PageSize`) instead of
+  letting the server substitute its default.
 - **Less work per Model change (#69, review).** A selection's `RemoteData`
   and `Page` schemas are built once and shared; `Data.subscriptions` computes
   each Surface's projection once per Model object across its read, live, and

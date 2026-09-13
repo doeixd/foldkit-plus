@@ -248,7 +248,8 @@ Data.fetch(ref) // Command yielding the ConnectionMerged (or QueryFailed) that r
 
 `select` is a selection of the query's entity (another entity is an error
 naming both); the window is `first`/`after` or `last`/`before`, never a mix,
-and no window asks for the server's default page. The projection is `Initial`
+a page size is a non-negative integer (anything else is an error at the call,
+and refused by the wire), and no window asks for the server's default page. The projection is `Initial`
 until the page and every item's selected fields are present — never a partial
 page — `Ready` once they are, `Refreshing` while the connection or any item is
 being refetched, and `Failed` if an item does not decode. An optimistic insert
