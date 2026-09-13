@@ -1,8 +1,7 @@
 {
   "name": "foldkit-mixins",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Typed slot contracts and inside-out Style/Behavior attachments for Foldkit.",
-  "private": true,
   "type": "module",
   "license": "MIT",
   "author": "Patrick Glenn <doeixd@gmail.com>",

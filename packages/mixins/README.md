@@ -217,6 +217,6 @@ second update loop, mutable element handles as the default path, or an event bus
 It does not replace Foldkit Commands, Subscriptions, Mounts, ManagedResources or
 `@foldkit/ui`.
 
-Private while the API is settling (`0.0.0`). [DESIGN.md](../../docs/design/mixins-DESIGN.md) records the
+The API is still settling (`0.1.0`). [DESIGN.md](../../docs/design/mixins-DESIGN.md) records the
 substrate probes and the decisions they forced;
 [`examples/mixins`](../../examples/mixins) is a runnable trace.

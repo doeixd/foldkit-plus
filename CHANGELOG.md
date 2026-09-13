@@ -5,15 +5,26 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.3.0
+
+Every package ships. The eight packages that were `private` — `foldkit-surface`,
+`foldkit-remote`, `foldkit-remote-server`, `foldkit-remote-drizzle`,
+`foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`, and the new
+`foldkit-mirror` — publish for the first time at 0.1.0, as does
+`foldkit-agent-native`. `foldkit-sync` is 0.3.0, and `foldkit-durable`,
+`foldkit-agent`, `foldkit-agent-webmcp`, `foldkit-agent-mcp`,
+`foldkit-agent-a2a`, and `foldkit-agent-native` are 0.2.0.
 
 Correctness fixes from a review of the implementation, the `foldkit-surface`
-reference-selection work and the `foldkit-remote` submodel, and the first
-published `foldkit-agent-native`. Breaking for `foldkit-sync` (the storage and
-presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
-(`RemoteModel` and the mutation/observe signatures).
+reference-selection work and the `foldkit-remote` submodel. Breaking for
+`foldkit-sync` (the storage and presence APIs), `foldkit-durable` (`append`'s
+result), `foldkit-agent` (`define` is `make`; `Agent.context` and `Agent.pick`
+give way to a `foldkit-surface` projection), and `foldkit-remote` (`RemoteModel`
+and the mutation/observe signatures). `foldkit-agent`, `foldkit-remote`, and
+`foldkit-sync` now depend on `foldkit-surface`, which resolves from npm from
+this release on.
 
-### `foldkit-mirror` (private, new)
+### `foldkit-mirror` 0.1.0 (new)
 
 - **A Model slice kept in the URL or a key-value store.** `Mirror.url(App, {
   fields: Projection.pick(…), keys })` and `Mirror.kv(App, { key, scope, fields })`
@@ -30,7 +41,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   config. Codecs derive from the field schemas; a key may name its own.
   `MirrorStore.memory` records writes for tests. See `docs/design/MIRROR.md`.
 
-### `foldkit-surface` (private)
+### `foldkit-surface` 0.1.0
 
 - **`App.surface` and `Surface.at` (#69, Phase C).** `App.surface(name, {
   params, model, messages })` is `Surface.make` with the mechanical wrappers
@@ -94,7 +105,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `initial`/`update` and resource-carrying Commands; the runnable form is what
   `Agent.forApplication` and `Sync.forApplication` require.
 
-### `foldkit-remote` (private)
+### `foldkit-remote` 0.1.0
 
 - **The bound domain (#69, Phase B; breaking).** `Remote.make({ model, entities,
   queries, mutations })` now binds the domain to its place in the application
@@ -299,7 +310,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `LiveEvent` from the wire's `LiveChange` so the mapping is not re-invented per
   application.
 
-### `foldkit-remote-server` (private)
+### `foldkit-remote-server` 0.1.0
 
 - **Review hardening.** A request for a field the Entity does not declare
   never reaches `read` or `authorize` (`RemoteServer.entity(Project, …)`
@@ -335,14 +346,14 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
 - **Less ceremony.** `RemoteServer.make` drops its unused domain argument, and the
   server imports the canonical `NormalizedPatch` instead of duplicating it.
 
-### `foldkit-agent-native`
+### `foldkit-agent-native` 0.2.0
 
 - **Published.** The Agent Native adapter leaves prototype status at `0.1.0`.
   `AgentNative.actions` compiles an exposed contract into registry entries whose
   `run` only dispatches, and advertises the encoded input schema as a Standard
   Schema validator. It remains pinned to `@agent-native/core@0.177.1`.
 
-### `foldkit-mixins` (private)
+### `foldkit-mixins` 0.1.0
 
 - **Slot contracts.** New private package: branded Capability / Event / Attr
   tokens and `Slots.define` contracts.
@@ -392,7 +403,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   style named `__proto__` keeps its contribution instead of silently becoming
   the accumulator's prototype.
 
-### `foldkit-mixins-ui` (private)
+### `foldkit-mixins-ui` 0.1.0
 
 - **`@foldkit/ui` adapter.** New private package formalizing the attribute
   bundles of Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, and
@@ -416,7 +427,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   own their markup and expose no `toView`/attribute bundles, so there is nothing
   to resolve against.
 
-### `foldkit-mixins-surface` (private)
+### `foldkit-mixins-surface` 0.1.0
 
 - **SurfaceView bridge.** `SurfaceView.define(surface, slots, render)` binds a
   Surface's projected Model and Message subset to a core `SlotView`: the
@@ -468,7 +479,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   then `Ready`) and a `Remote.retain` pass that collects what the page does
   not reach.
 
-### `foldkit-agent`
+### `foldkit-agent` 0.2.0
 
 - **A Surface as context.** `Agent.forApplication(App).make({ context })` accepts
   a feature Surface (without params) beside a `Projection` or a writable pick,
@@ -505,7 +516,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `<Completed|Failed>: <tag>`. WebMCP, MCP, A2A, and Agent Native render it
   instead of repeating the wording four times.
 
-### `foldkit-durable`
+### `foldkit-durable` 0.2.0
 
 - **Compacted operation identity.** Compaction drops the payload but now keeps a
   SHA-256 payload hash, so a retry of a compacted `opId` with different data or
@@ -551,7 +562,7 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   successes, and stops before an operation whose intent failed or was skipped,
   returning the cursor it settled so the caller can persist it.
 
-### `foldkit-sync`
+### `foldkit-sync` 0.3.0
 
 - **`Sync.mount` routes the URL.** `mount(App, sync, { url: { init, onUrlChange, onUrlRequest? } })`
   reduces the URL into the Model before the first render, names the Message

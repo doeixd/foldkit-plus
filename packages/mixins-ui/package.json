@@ -1,8 +1,7 @@
 {
   "name": "foldkit-mixins-ui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Published slot contracts and mixin adapters for @foldkit/ui, built on foldkit-mixins.",
-  "private": true,
   "type": "module",
   "license": "MIT",
   "author": "Patrick Glenn <doeixd@gmail.com>",

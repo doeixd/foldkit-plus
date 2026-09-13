@@ -2,9 +2,8 @@
 
 ## Layout
 
-- `packages/*` — the published packages plus the in-tree packages that are still
-  `private` (`foldkit-surface`, `foldkit-remote*`, `foldkit-mixins*`).
-  `foldkit-agent` is the contract; the adapters depend on it.
+- `packages/*` — the published packages. `foldkit-agent` is the contract; the
+  adapters depend on it.
 - `examples/*` — worked examples that import the packages through their
   published entry points.
 

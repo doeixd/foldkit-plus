@@ -31,12 +31,8 @@ same Messages.
 | [`foldkit-mixins-surface`](./packages/mixins-surface) | Bridges a Surface's projected Model and Message subset to a `SlotView`. |
 | [`foldkit-mixins-ui`](./packages/mixins-ui) | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
 
-`foldkit-surface`, `foldkit-remote`, `foldkit-remote-server`,
-`foldkit-remote-drizzle`, and the `foldkit-mixins` view packages are in-tree and
-`private`; they are not published. `foldkit-agent`, its WebMCP, MCP, and A2A
-adapters, `foldkit-durable`, and `foldkit-sync` are on npm;
-`foldkit-agent-native` is publishable but not on npm yet. See the
-[release matrix](./docs/releases.md).
+Every package is on npm; the [release matrix](./docs/releases.md) lists each
+one's version.
 
 ## Install
 
@@ -47,12 +43,15 @@ pnpm add foldkit-agent foldkit-agent-mcp     # external MCP
 pnpm add foldkit-agent foldkit-agent-a2a     # A2A
 pnpm add foldkit-agent foldkit-agent-native  # Agent Native
 pnpm add foldkit-durable foldkit-sync        # offline, multiplayer, remote-agent state
+pnpm add foldkit-surface foldkit-remote      # projections; normalized server state
+pnpm add foldkit-remote-server foldkit-remote-drizzle  # the server side of Remote
+pnpm add foldkit-mirror                      # a Model slice in the URL or a key-value store
+pnpm add foldkit-mixins foldkit-mixins-surface foldkit-mixins-ui  # slot contracts for views
 ```
 
 `foldkit` and `effect` are peer dependencies. Foldkit `0.158.2` peer-depends on
 `effect@4.0.0-rc.112`, so these packages target Effect 4. `foldkit-durable`
-requires Node 22 for `node:sqlite`. The Surface and Remote packages are not on npm
-yet; use them from this repository.
+requires Node 22 for `node:sqlite`.
 
 ## How they fit together
 
@@ -152,14 +151,12 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the checks before a commit, and
 
 ## Releasing
 
-The published packages are `foldkit-agent`, `foldkit-agent-webmcp`,
-`foldkit-agent-mcp`, and `foldkit-agent-a2a` at `0.1.0`, `foldkit-durable` at
-`0.1.1`, and `foldkit-sync` at `0.2.0`. The Surface, Remote, and Mixins packages
-are `private`, and `foldkit-agent-native` is ready to publish with the next
-release; the [release matrix](./docs/releases.md) lists every package. `pnpm
-release` builds, then publishes every non-`private` package. Publishing must use
-**pnpm**, not npm: the adapters declare `foldkit-agent` as a `workspace:^` peer
-dependency, which pnpm rewrites to a real range (`^0.1.0`) when it packs.
+Every package under `packages/*` publishes; the
+[release matrix](./docs/releases.md) lists each one's version. `pnpm release`
+builds, then publishes every non-`private` package, skipping versions the
+registry already has. Publishing must use **pnpm**, not npm: the packages declare
+each other as `workspace:` dependencies, which pnpm rewrites to real ranges when
+it packs.
 
 Bump the versions, add a [CHANGELOG.md](./CHANGELOG.md) entry, run the four
 checks, then push a `vX.Y.Z` tag. The
