@@ -1202,7 +1202,9 @@ const bindDomain = <
         let current = model
         // The pages first, so their items join the one entity read below.
         for (const query of planAsked(store.get(current), projection, planOptions).queries) {
-          const page = yield* queryRequestOf(query).pipe(Effect.flatMap(client.query))
+          const page = yield* queryRequestOf(query).pipe(
+            Effect.flatMap(request => client.query(request)),
+          )
           current = reduce(current, pageMessage(query.identity, page, true))
         }
         const requirements = planAsked(store.get(current), projection, planOptions).requirements

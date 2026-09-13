@@ -292,6 +292,18 @@ describe('coalesceQueries', () => {
     expect(results.map(result => result.edges[0]!.id)).toEqual(['u1', 'u2', 'u1'])
   })
 
+  it('an identical query issued after the first completed runs again: nothing is cached', async () => {
+    const raw = recordingQuery()
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const query = yield* coalesceQueries(raw.query)
+        yield* query(q('u1'))
+        yield* query(q('u1'))
+      }),
+    )
+    expect(raw.requests).toHaveLength(2)
+  })
+
   it('a failed query fails every waiter', async () => {
     const raw = recordingQuery({ fail: true })
     const exit = await Effect.runPromiseExit(
