@@ -13,6 +13,20 @@ published `foldkit-agent-native`. Breaking for `foldkit-sync` (the storage and
 presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
 (`RemoteModel` and the mutation/observe signatures).
 
+### `foldkit-mirror` (private, new)
+
+- **A Model slice kept in the URL or a key-value store.** `Mirror.url(App, {
+  fields: Projection.pick(…), keys })` and `Mirror.kv(App, { key, scope, fields })`
+  keep a writable projection in step with the URL query string (or hash) and
+  Effect's `KeyValueStore`: `reduce(model, url | MirrorRestored)` reads a
+  store back into the Model, `encode`/`href` write it out with defaults (from
+  `App.initial`) elided, one Subscription entry per mirror writes when the
+  encoded slice changes (push or replace per key, throttled), `restore` is the
+  Command that reads a store, and `contract` (kind `mirror`, observes the
+  slice, owns nothing) joins a `Module`. Codecs derive from the field schemas;
+  a key may name its own. `MirrorStore.memory` records writes for tests. See
+  `docs/design/MIRROR.md`.
+
 ### `foldkit-surface` (private)
 
 - **`App.surface` and `Surface.at` (#69, Phase C).** `App.surface(name, {
