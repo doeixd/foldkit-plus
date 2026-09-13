@@ -50,7 +50,7 @@ const ProjectCard = Selection.make(Project, {
   comments: Selection.connection(Comment, { first: 2 }, CommentSummary),
 })
 
-const Data = Remote.make({ entities: [User, Comment, Project] })
+const Data = Remote.define({ entities: [User, Comment, Project] })
 const Model = Schema.Struct({ remote: Data.Model })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })

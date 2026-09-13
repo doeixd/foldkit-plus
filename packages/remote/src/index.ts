@@ -7,6 +7,7 @@
  */
 import { Effect, Layer, Result, Schema, Stream } from 'effect'
 import type { Duration } from 'effect'
+import type { Command } from 'foldkit/command'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
   Requirement,
@@ -25,16 +26,19 @@ import {
 } from './client.js'
 import { emptyConnection, type Edge } from './connection.js'
 import type { EntityDescriptor } from './entity.js'
-import { inspectEntity, inspectRemote } from './inspect.js'
+import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
 import type { LiveCursor } from './live.js'
 import {
   initialRemoteModel,
+  isRemoteMessage,
+  remoteMessageCases,
   remoteMessageSchema,
   remoteModelSchema,
   retentionRootsSchema,
   updateRemote,
   writeRead,
   type RemoteMessage,
+  type RemoteMessageInput,
   type RemoteModel,
 } from './model.js'
 import type { MutationDescriptor } from './mutation.js'
@@ -60,6 +64,7 @@ import {
   RemoteLiveError,
   RemoteProtocolError,
   RemoteQueryError,
+  RemoteReadError,
   RemoteRpc,
 } from './wire.js'
 import type { CoalesceOptions } from './coalesce.js'
@@ -124,6 +129,87 @@ export interface BoundRemote<AppModel, Store extends RemoteModel, Names extends 
   readonly contract: Contract
   /** Phantom: the entity names this Remote definition registers. */
   readonly [boundRemoteNames]?: Names
+}
+
+type MutationInput<M> = M extends MutationDescriptor<any, infer Input, any> ? Input : never
+
+export interface DomainMutateOptions {
+  /** Overrides the generated id, for a retry, a durable bridge, or a test. */
+  readonly requestId?: string | undefined
+  /**
+   * What the request changes before the server answers, released when it
+   * settles. A function receives the generated ids, so a created entity can
+   * carry `tempId` until the result names the real one.
+   */
+  readonly optimistic?:
+    | ReadonlyArray<OptimisticOperation>
+    | ((ids: {
+        readonly requestId: string
+        readonly tempId: string
+      }) => ReadonlyArray<OptimisticOperation>)
+    | undefined
+}
+
+/** What `RemoteDomain.mutate` hands `update`: the Model with the request started, and the Command that settles it. */
+export interface MutationStarted<AppModel> {
+  readonly model: AppModel
+  readonly requestId: string
+  readonly tempId: string
+  /** Yields `MutationSucceeded` or `MutationFailed`; never fails. */
+  readonly command: Command<RemoteMessage, never, RemoteClient>
+}
+
+/**
+ * A Remote domain bound to its place in the application Model: the descriptor
+ * (`Remote.define`), the binding (`Remote.at`), and the application-facing
+ * operations over them. Every method compiles to the `Remote.*` function of the
+ * same name, which stays exported for tooling, SSR, and tests.
+ */
+export interface RemoteDomain<
+  AppModel,
+  Store extends RemoteModel,
+  Entities extends readonly EntityDescriptor<any, any>[],
+  Queries extends readonly QueryDescriptor<any, any, any>[],
+  Mutations extends readonly MutationDescriptor<any, any, any>[],
+>
+  extends
+    BoundRemote<AppModel, Store, EntityName<Entities[number]>>,
+    RemoteDescriptor<Entities, Queries, Mutations> {
+  /** `Remote.select`: a Projection reading one entity through a selection of a registered entity. */
+  get<Value, Name extends EntityName<Entities[number]>>(
+    selection: Selection<Value, Name, 'entity'>,
+    id: string,
+  ): Projection<AppModel, RemoteData<Value>>
+  /** `Remote.plan`: the requirements the store does not satisfy. */
+  plan<Value>(
+    model: AppModel,
+    projection: Projection<AppModel, Value>,
+    options?: PlanOptions,
+  ): ReadonlyArray<Requirement>
+  /** `Remote.storeOf`: the visible store, base under the pending optimistic layers. */
+  storeOf(model: AppModel): EntityStore
+  /** `Remote.prefetch`: the plan run through `RemoteClient`, returning the new store. */
+  prefetch<Value>(
+    model: AppModel,
+    projection: Projection<AppModel, Value>,
+    options?: ObserveOptions,
+  ): Effect.Effect<EntityStore, RemoteReadError | RemoteProtocolError, RemoteClient>
+  /**
+   * Starts a registered mutation from `update`: applies `MutationStarted` (with
+   * the optimistic operations) to the Model and returns the Command that runs
+   * it and yields the settling Message. The request id comes from the model's
+   * mutation sequence unless `options.requestId` is given.
+   */
+  mutate<M extends Mutations[number]>(
+    model: AppModel,
+    mutation: M,
+    input: MutationInput<M>,
+    options?: DomainMutateOptions,
+  ): MutationStarted<AppModel>
+  /** `Remote.update` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
+  reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
+  /** `Remote.inspect` of the bound slice. */
+  inspect(model: AppModel): RemoteInspection
 }
 
 /**
@@ -195,69 +281,108 @@ const liveStreamKey = (requirements: readonly Requirement[]): string =>
     .sort()
     .join('|')
 
+/** Declares a Remote domain: its entities, queries, and mutations, plus the submodel. */
+const defineRemote = <
+  const Entities extends readonly EntityDescriptor<any, any>[],
+  const Queries extends readonly QueryDescriptor<any, any, any>[] = readonly QueryDescriptor<
+    any,
+    any,
+    any
+  >[],
+  const Mutations extends readonly MutationDescriptor<any, any, any>[] =
+    readonly MutationDescriptor<any, any, any>[],
+>(config: {
+  readonly entities: Entities
+  readonly queries?: Queries
+  readonly mutations?: Mutations
+}): RemoteDescriptor<Entities, Queries, Mutations> => ({
+  entities: config.entities,
+  queries: (config.queries ?? []) as unknown as Queries,
+  mutations: (config.mutations ?? []) as unknown as Mutations,
+  Model: remoteModelSchema(),
+  initial: initialRemoteModel,
+  Message: remoteMessageSchema,
+  update: updateRemote,
+  rpc: RemoteRpc,
+  registry: {
+    entities: new Map(config.entities.map(entity => [entity.name, entity])),
+    queries: new Map((config.queries ?? []).map(query => [query.name, query])),
+    mutations: new Map((config.mutations ?? []).map(mutation => [mutation.name, mutation])),
+  },
+})
+
+/** Binds a Remote domain to its store's location in the application Model. */
+const bindRemote = <
+  AppModel,
+  Store extends RemoteModel,
+  Entities extends readonly EntityDescriptor<any, any>[],
+  Queries extends readonly QueryDescriptor<any, any, any>[],
+  Mutations extends readonly MutationDescriptor<any, any, any>[],
+>(
+  definition: RemoteDescriptor<Entities, Queries, Mutations>,
+  store: ModelRef<AppModel, Store>,
+): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => ({
+  definition,
+  store,
+  contract: {
+    kind: 'remote',
+    name: store.dependency.join('.') || 'remote',
+    // A generated field reference knows its application and its path; a raw
+    // optic (`ModelRef.fromOptic`) knows neither, so it claims nothing.
+    owner: (store as { readonly owner?: object }).owner,
+    owns: store.dependency.length === 0 ? [] : [store.dependency],
+    observes: store.dependency.length === 0 ? [] : [store.dependency],
+    messages: [],
+    requirements: [],
+  },
+})
+
 export const Remote = {
+  /** The submodel's schema, the same for every domain; embed it in the application Model. */
+  Model: remoteModelSchema(),
+  /** The submodel's initial value. */
+  initial: initialRemoteModel,
   /**
-   * Declares a Remote domain: its entities, queries, and mutations, plus the
-   * submodel the application embeds and reduces.
+   * Remote's Message cases for `defineMessageUnion`: spread them into the
+   * application's union, and reduce the ones `Remote.reduces` recognizes with
+   * `RemoteDomain.reduce`.
+   */
+  messages: remoteMessageCases,
+  /** Whether a Message is one of Remote's, by tag. */
+  reduces: isRemoteMessage,
+
+  /**
+   * Declares a Remote domain and binds it to its place in the application Model
+   * in one step; the result carries the application-facing operations. The
+   * descriptor alone is `Remote.define`, the binding alone `Remote.at`.
    */
   make: <
+    AppModel,
+    Store extends RemoteModel,
     const Entities extends readonly EntityDescriptor<any, any>[],
-    const Queries extends readonly QueryDescriptor<any, any, any>[] = readonly QueryDescriptor<
-      any,
-      any,
-      any
-    >[],
-    const Mutations extends readonly MutationDescriptor<any, any, any>[] =
-      readonly MutationDescriptor<any, any, any>[],
+    const Queries extends readonly QueryDescriptor<any, any, any>[] = readonly [],
+    const Mutations extends readonly MutationDescriptor<any, any, any>[] = readonly [],
   >(config: {
+    readonly model: ModelRef<AppModel, Store>
     readonly entities: Entities
     readonly queries?: Queries
     readonly mutations?: Mutations
-  }): RemoteDescriptor<Entities, Queries, Mutations> => ({
-    entities: config.entities,
-    queries: (config.queries ?? []) as unknown as Queries,
-    mutations: (config.mutations ?? []) as unknown as Mutations,
-    Model: remoteModelSchema(),
-    initial: initialRemoteModel,
-    Message: remoteMessageSchema,
-    update: updateRemote,
-    rpc: RemoteRpc,
-    registry: {
-      entities: new Map(config.entities.map(entity => [entity.name, entity])),
-      queries: new Map((config.queries ?? []).map(query => [query.name, query])),
-      mutations: new Map((config.mutations ?? []).map(mutation => [mutation.name, mutation])),
-    },
-  }),
+  }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
+    bindDomain(defineRemote(config), config.model),
+
+  /**
+   * Declares a Remote domain without binding it: its entities, queries, and
+   * mutations, plus the submodel. For a domain reused across applications or
+   * bound in a test; `Remote.make` is the one-step form.
+   */
+  define: defineRemote,
 
   /**
    * Binds a Remote domain to its store's location in the application Model. The
    * registered entity names are carried on the returned value, so `Remote.select`
    * rejects a selection for an entity this domain never declared.
    */
-  at: <
-    AppModel,
-    Store extends RemoteModel,
-    Entities extends readonly EntityDescriptor<any, any>[],
-    Queries extends readonly QueryDescriptor<any, any, any>[],
-    Mutations extends readonly MutationDescriptor<any, any, any>[],
-  >(
-    definition: RemoteDescriptor<Entities, Queries, Mutations>,
-    store: ModelRef<AppModel, Store>,
-  ): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => ({
-    definition,
-    store,
-    contract: {
-      kind: 'remote',
-      name: store.dependency.join('.') || 'remote',
-      // A generated field reference knows its application and its path; a raw
-      // optic (`ModelRef.fromOptic`) knows neither, so it claims nothing.
-      owner: (store as { readonly owner?: object }).owner,
-      owns: store.dependency.length === 0 ? [] : [store.dependency],
-      observes: store.dependency.length === 0 ? [] : [store.dependency],
-      messages: [],
-      requirements: [],
-    },
-  }),
+  at: bindRemote,
 
   /**
    * A Projection node that reads a `RemoteData` value out of the store. The id
@@ -648,4 +773,69 @@ export const Remote = {
             ),
           ),
   }),
+}
+
+/** The bound domain: the descriptor, the binding, and the operations over them. */
+const bindDomain = <
+  AppModel,
+  Store extends RemoteModel,
+  Entities extends readonly EntityDescriptor<any, any>[],
+  Queries extends readonly QueryDescriptor<any, any, any>[],
+  Mutations extends readonly MutationDescriptor<any, any, any>[],
+>(
+  definition: RemoteDescriptor<Entities, Queries, Mutations>,
+  store: ModelRef<AppModel, Store>,
+): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
+  const bound = bindRemote(definition, store)
+  return {
+    ...definition,
+    ...bound,
+    get: (selection, id) => Remote.select(bound, selection)(id),
+    plan: (model, projection, options) => Remote.plan(bound, model, projection, options),
+    storeOf: model => storeOf(bound, model),
+    prefetch: (model, projection, options) => Remote.prefetch(bound, model, projection, options),
+    mutate: (model, mutation, input, options = {}) => {
+      const remote = store.get(model)
+      const requestId =
+        options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`
+      const tempId = `${requestId}.tmp`
+      const optimistic =
+        typeof options.optimistic === 'function'
+          ? options.optimistic({ requestId, tempId })
+          : options.optimistic
+      const started = updateRemote(remote, {
+        _tag: 'MutationStarted',
+        requestId,
+        ...(optimistic === undefined ? {} : { optimistic }),
+      })
+      return {
+        model: store.set(model, started as Store),
+        requestId,
+        tempId,
+        command: {
+          name: `Remote.mutate(${mutation.name})`,
+          args: { requestId },
+          effect: mutateRemote(mutation, input, requestId).pipe(
+            Effect.match({
+              onFailure: (error): RemoteMessage => ({
+                _tag: 'MutationFailed',
+                requestId,
+                error: remoteError(error),
+              }),
+              onSuccess: (outcome): RemoteMessage => ({
+                _tag: 'MutationSucceeded',
+                requestId,
+                entities: outcome.entities,
+                connections: outcome.connections,
+              }),
+            }),
+          ),
+        },
+      }
+    },
+    // An application-union case has the runtime shape of the `RemoteMessage` it names.
+    reduce: (model, message) =>
+      store.set(model, updateRemote(store.get(model), message as RemoteMessage) as Store),
+    inspect: model => inspectRemote(store.get(model)),
+  }
 }

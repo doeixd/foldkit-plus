@@ -9,7 +9,7 @@ describe('kitchen sink', () => {
     // foldkit-remote + foldkit-remote-server + foldkit-remote-drizzle
     expect(lines).toContain('after fetch (Drizzle SQLite): Ready Apollo')
     expect(lines).toContain('nested selection (one read): owner Ada')
-    expect(lines).toContain('mutation: {"id":"p1"} -> Ready Apollo II')
+    expect(lines).toContain('mutation (remote-1): MutationSucceeded -> Ready Apollo II')
     expect(lines).toContain('live (hub.changed): EntityPatched name=Apollo II')
     expect(lines).toContain('query connection: Project:p2, Project:p1')
     expect(lines).toContain('optimistic insert: p3, p2, p1')

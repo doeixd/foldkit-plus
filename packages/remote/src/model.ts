@@ -137,57 +137,72 @@ export const retentionRootsSchema = Schema.Struct({
   connections: Schema.Array(Schema.String),
 })
 
-export const remoteMessageSchema = Schema.Union([
-  Schema.Struct({
-    _tag: Schema.Literal('ReadReceived'),
+/**
+ * The Messages' fields by tag, without `_tag`: what `defineMessageUnion` takes,
+ * so an application spreads them into its own union (`Remote.messages`).
+ */
+export const remoteMessageCases = {
+  ReadReceived: {
     requests: Schema.Array(ReadRequest),
     result: ReadBatchResult,
     now: Schema.Number,
-  }),
-  Schema.Struct({
-    _tag: Schema.Literal('ReadFailed'),
-    requests: Schema.Array(ReadRequest),
-    error: remoteErrorSchema,
-  }),
-  Schema.Struct({ _tag: Schema.Literal('RefreshStarted'), requests: Schema.Array(ReadRequest) }),
-  Schema.Struct({ _tag: Schema.Literal('RetentionChanged'), roots: retentionRootsSchema }),
-  Schema.Struct({
-    _tag: Schema.Literal('Hydrated'),
+  },
+  ReadFailed: { requests: Schema.Array(ReadRequest), error: remoteErrorSchema },
+  RefreshStarted: { requests: Schema.Array(ReadRequest) },
+  RetentionChanged: { roots: retentionRootsSchema },
+  Hydrated: {
     entities: runtimeSchema,
     merge: Schema.Union([Schema.Literal('replace'), Schema.Literal('preserve-existing')]),
-  }),
-  Schema.Struct({
-    _tag: Schema.Literal('MutationStarted'),
+  },
+  MutationStarted: {
     requestId: Schema.String,
     optimistic: Schema.optional(Schema.Array(Schema.Unknown)),
-  }),
-  Schema.Struct({
-    _tag: Schema.Literal('MutationSucceeded'),
+  },
+  MutationSucceeded: {
     requestId: Schema.String,
     entities: Schema.Array(NormalizedEntity),
     connections: Schema.optional(Schema.Array(Schema.Unknown)),
-  }),
-  Schema.Struct({
-    _tag: Schema.Literal('MutationFailed'),
-    requestId: Schema.String,
-    error: remoteErrorSchema,
-  }),
-  Schema.Struct({
-    _tag: Schema.Literal('LiveReceived'),
+  },
+  MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
+  LiveReceived: {
     stream: Schema.String,
     event: Schema.Unknown,
     policy: Schema.optional(Schema.Unknown),
     now: Schema.Number,
-  }),
-  Schema.Struct({ _tag: Schema.Literal('GapCleared'), stream: Schema.String }),
-  Schema.Struct({
-    _tag: Schema.Literal('ConnectionMerged'),
-    connection: Schema.String,
-    page: Schema.Unknown,
-  }),
-  Schema.Struct({ _tag: Schema.Literal('ConnectionInvalidated'), connection: Schema.String }),
-  Schema.Struct({ _tag: Schema.Literal('ConnectionRefreshed'), connection: Schema.String }),
-]) as unknown as Schema.Schema<RemoteMessage>
+  },
+  GapCleared: { stream: Schema.String },
+  ConnectionMerged: { connection: Schema.String, page: Schema.Unknown },
+  ConnectionInvalidated: { connection: Schema.String },
+  ConnectionRefreshed: { connection: Schema.String },
+} satisfies Record<RemoteMessage['_tag'], Schema.Struct.Fields>
+
+export type RemoteMessageTag = RemoteMessage['_tag']
+
+/**
+ * A Remote Message as an application's union constructs it from
+ * `remoteMessageCases`: the same shape `RemoteMessage` names, with the runtime
+ * slots (`entities`, `event`, `page`) typed `unknown` by their schemas.
+ */
+export type RemoteMessageInput = {
+  [Tag in RemoteMessageTag]: { readonly _tag: Tag } & Schema.Struct.Type<
+    (typeof remoteMessageCases)[Tag]
+  >
+}[RemoteMessageTag]
+
+/**
+ * Whether a Message is one of Remote's, by tag. Narrows an application's union
+ * to its Remote cases, and its complement to the application's own.
+ */
+export const isRemoteMessage = <M extends { readonly _tag: string }>(
+  message: M,
+): message is Extract<M, { readonly _tag: RemoteMessageTag }> =>
+  Object.hasOwn(remoteMessageCases, message._tag)
+
+export const remoteMessageSchema = Schema.Union(
+  Object.entries(remoteMessageCases).map(([tag, fields]) =>
+    Schema.Struct({ _tag: Schema.Literal(tag), ...fields }),
+  ),
+) as unknown as Schema.Schema<RemoteMessage>
 
 const marksOf = (
   requests: ReadonlyArray<Requirement>,

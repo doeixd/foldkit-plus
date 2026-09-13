@@ -279,7 +279,7 @@ const RenameUser = Mutation.make('RenameUser', {
   Output: Schema.Struct({ id: Schema.String }),
 })
 
-const Data = Remote.make({ entities: [User], mutations: [RenameUser] })
+const Data = Remote.define({ entities: [User], mutations: [RenameUser] })
 const Model = Schema.Struct({ remote: Data.Model })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })
@@ -297,7 +297,7 @@ const FakeClient = Layer.succeed(RemoteClient, {
 })
 
 describe('Remote domain submodel', () => {
-  it('Remote.make exposes Model, initial, Message, update, and rpc', () => {
+  it('Remote.define exposes Model, initial, Message, update, and rpc', () => {
     expect(Data.initial).toEqual(initialRemoteModel)
     expect(Data.update).toBe(updateRemote)
     expect(Data.rpc).toBeDefined()

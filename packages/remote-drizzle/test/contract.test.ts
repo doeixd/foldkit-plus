@@ -49,7 +49,7 @@ const selection = Selection.make(ProjectBinding, {
 
 describe('RemoteDrizzle end to end', () => {
   it('registers the bindings as the Remote entities', () => {
-    const data = Remote.make({ entities: [UserBinding, ProjectBinding] })
+    const data = Remote.define({ entities: [UserBinding, ProjectBinding] })
 
     expect([...data.registry.entities.keys()]).toEqual(['User', 'Project'])
     expect(data.registry.entities.get('Project')).toBe(ProjectBinding)

@@ -1,13 +1,14 @@
-# DX prototypes (#69, Phase A)
+# DX prototypes (#69)
 
-The candidate application API from #69, written against the kernel as it is on
-`main` and checked by the compiler only. The fixture is
-[`packages/remote/test/dx.test-d.ts`](../../packages/remote/test/dx.test-d.ts):
-every `Dx.*` value there is a `declare`d stub over the real `Selection`,
-`Projection`, `Surface`, `RemoteData`, and `Page` types, so what it proves is
-inference, hover shape, and where errors land. Nothing behind it runs. When an
-item of #69 lands, its stub is replaced by the real export and the scenario
-stays as the regression test.
+The application API from #69 on the five scenarios the issue names. The fixture
+is [`packages/remote/test/dx.test-d.ts`](../../packages/remote/test/dx.test-d.ts).
+Phase B (items 1, 2, 3, 9, 11, 12) is real there: `Remote.Model`, the bound
+`Remote.make`, `Entity.select`/`patch`, `Data.get`/`plan`/`prefetch`/`mutate`/
+`reduce`/`inspect`, `Remote.messages`/`reduces`, and the fields sugar on
+`Mutation.make`/`Query.make`. The `Dx.*` values still `declare`d are items 4–8
+(Phases C and D), typed over the real kernel types so inference, hover shape,
+and error placement are checked before they land; each is replaced as it
+lands and the scenario stays as the regression test.
 
 The hover shapes below are what the compiler reports for the fixture's
 declarations (`checker.typeToString`, no truncation), which is what an editor
@@ -79,13 +80,18 @@ Data.update(model.remote, { _tag: 'MutationStarted', requestId, optimistic: [Ent
 Remote.mutateInto(AppRemote, model, AddComment, input, requestId)
 
 // candidate
-Data.mutate(AddComment, input, {
+const { model: started, command } = Data.mutate(model, AddComment, input, {
   optimistic: ({ tempId }) => [Comment.patch(tempId, { id: tempId, body }), ConnectionChange.prepend(…)],
 })
-Data.mutate(RenameProject, input, { requestId: 'req-1' })   // explicit, for a durable bridge or a test
+// in update: return { model: started, commands: [command] }
+Data.mutate(model, RenameProject, input, { requestId: 'req-1' })   // explicit, for a durable bridge or a test
 ```
 
-Hover: `Effect<{ readonly output: { readonly id: string }; readonly model: AppModel }, RemoteMutationError, RemoteClient>`.
+Hover: `{ readonly model: AppModel; readonly requestId: string; readonly tempId: string; readonly command: Command<RemoteMessage, never, RemoteClient> }`.
+`Data.mutate` takes the Model because it is what `update` calls: the id comes
+from the Model's mutation sequence and `MutationStarted` is applied before the
+Command runs (a Command yields exactly one Message, so the Command cannot be
+where the id is made).
 
 The mutation's input and output types come from the declaration; a wrong
 input key and an unregistered mutation are each one-line errors.
@@ -167,10 +173,12 @@ The fixture pins that with an assignment.
    lifts each infer the same types as the explicit forms, and the hover shows
    Model, Params, and Message as user concepts. `Surface.make` stays and takes
    the explicit forms. `Surface.define(App)(…)` adds nothing over a method.
-4. **Request ids** come from a monotonic sequence in `RemoteModel.mutations`,
-   taken by `Data.mutate` and advanced by the reducer, so `update` stays pure
-   and `MutationStarted` has its id before the Command runs. `{ requestId }`
-   overrides it. `tempId` comes from the same sequence.
+4. **Request ids** come from a monotonic sequence in `RemoteModel.mutations`
+   (`<binding>-<n>`, e.g. `remote-1`), taken by `Data.mutate(model, …)` and
+   advanced by the `MutationStarted` reducer, so `update` stays pure and the id
+   exists before the Command runs. `{ requestId }` overrides it; `tempId` is
+   `<requestId>.tmp`. `Data.mutate` returns `{ model, requestId, tempId,
+   command }` for `update` to return as `{ model, commands: [command] }`.
 5. **`Remote.messages`** is Remote's case record for `defineMessageUnion`
    (`{ ...Remote.messages, ArchiveProject: {…} }`); `Remote.reduces(message)`
    narrows and `Data.reduce(model, message)` updates the bound slice. No
@@ -179,6 +187,22 @@ The fixture pins that with an assignment.
    enforced by the type, not documented.
 
 ## Findings
+
+- **`update` needs a named result type.** `Data` is bound to `App.model.remote`,
+  and `App` is built from `update`, which calls `Data.reduce`; inline in
+  `Surface.application` without a return annotation TypeScript reports the
+  cycle. A standalone `update: (model: Model, message: Message) =>
+  Update.Return<Model, Message>` (the kitchen-sink) or an annotated inline
+  arrow (the remote example) resolves it. Item 4's `App.surface` does not
+  change this; a Phase C option is `Remote.make` accepting the `ModelRef`
+  before `App` exists (`Model.fields.remote`), which `foldkit-surface` does not
+  expose today.
+- **Narrowing an application's union to Remote's cases is by tag.**
+  `Remote.reduces` is `message is Extract<M, { _tag: RemoteMessageTag }>`, so
+  the else branch is the application's own cases and `switch` stays
+  exhaustive; a predicate typed `message is RemoteMessage` did not narrow the
+  complement, because the union's `Hydrated`/`LiveReceived` cases type their
+  runtime slots `unknown`. `Data.reduce` accepts either shape.
 
 - **Branded ids expand in hovers.** `type ProjectId = typeof ProjectId.Type`
   shows as `string & Brand<"ProjectId">` inside the flattened selection value,

@@ -33,7 +33,7 @@ const Project = Entity.make(
     members: Schema.Array(Entity.ref(User)),
   }),
 )
-const Data = Remote.make({ entities: [User, Project] })
+const Data = Remote.define({ entities: [User, Project] })
 const Model = Schema.Struct({ remote: Data.Model, projectId: Schema.String })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })

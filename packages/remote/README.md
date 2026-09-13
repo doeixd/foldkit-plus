@@ -35,29 +35,27 @@ const Project = Entity.make(
   }),
 )
 
-const UserSummary = Selection.make(User, { id: true, name: true })
-const ProjectSummary = Selection.make(Project, {
-  id: true,
-  name: true,
-  status: true,
-  owner: UserSummary,
-})
+const UserSummary = User.select({ id: true, name: true })
+const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
 
 const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: Schema.Struct({ ownerId: Schema.String }),
-  Result: Query.connection(Project),
+  Input: { ownerId: Schema.String },
+  Result: Project,
 })
 
 const RenameProject = Mutation.make('RenameProject', {
-  Input: Schema.Struct({ id: Schema.String, name: Schema.String }),
-  Output: Schema.Struct({ id: Schema.String }),
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
 })
 ```
 
 A relation is a reference codec (`Entity.ref(User)`), never an inline target
 schema, so a recursive relation such as `Node.parent: Entity.refTo('Node')` needs
-no inlining and the entity type stays finite. `Selection.make` infers the picked
-Struct; an unknown field is a compile error.
+no inlining and the entity type stays finite. `Project.select` (the kernel's
+`Selection.make(Project, …)`) infers the picked Struct; an unknown field is a
+compile error. `Input`, `Output`, and `Result` take a codec, or the fields of
+the `Schema.Struct` it would be; `Result: Project` is a connection over
+`Project`.
 
 A nested selection reads **through** a relation into its target, and takes the
 field's shape: a ref reads as the nested value, a nullable ref as the value or
@@ -71,40 +69,39 @@ share once and authorizing every level through its own entity source. A
 selection on a scalar field throws at construction, and a recursive relation
 stays finite because the selection, not the entity, drives traversal.
 
-### Declare the domain and embed its submodel
+### Embed the submodel and bind the domain
 
 ```ts
-const Data = Remote.make({
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-// Data.Model, Data.initial, Data.Message, Data.update, Data.rpc
+const Model = Schema.Struct({ route: Route, remote: Remote.Model })
+const Message = defineMessageUnion({ ...Remote.messages, Ping: {} })
 
-const Model = Schema.Struct({ route: Route, remote: Data.Model })
-const Message = defineMessageUnion({ Ping: {}, GotRemote: { message: Data.Message } })
+const update = (model: Model, message: Message): Update.Return<Model, Message> =>
+  Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model }
 
 const App = Surface.application({
   Model,
   Message,
-  initial: { route: Route.home(), remote: Data.initial },
-  update: (model, message) => {
-    switch (message._tag) {
-      case 'GotRemote':
-        return { model: { ...model, remote: Data.update(model.remote, message.message) } }
-      case 'Ping':
-        return { model }
-    }
-  },
+  initial: { route: Route.home(), remote: Remote.initial },
+  update,
 })
 
-const AppRemote = Remote.at(Data, App.model.remote)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [User, Project],
+  queries: [ProjectsByOwner],
+  mutations: [RenameProject],
+})
 ```
 
-`Data.update` is the one reducer for every producer of new facts: a read batch, a
-mutation result, a live event, a connection merge, or an optimistic layer. The
-application wraps `RemoteMessage`s in its own Message union rather than adding
-`ReceivedBatch` and friends to it.
+`Remote.Model` is the submodel's schema, the same for every domain, so the
+Model embeds it before the domain is bound. Remote's Messages are cases of the
+application's own union (`Remote.messages`), and `Data.reduce` is the one
+reducer for every producer of new facts: a read batch, a mutation result, a
+live event, a connection merge, or an optimistic layer. `Data` is the bound
+domain: the descriptor, its binding, and the operations below; `Remote.define`
+and `Remote.at` are the two halves for a domain reused across applications or
+bound in a test. (`update` names its result type because `Data` is bound to
+`App` and `App` is built from `update`.)
 
 ### Read in a Surface
 
@@ -113,14 +110,14 @@ const ProjectPage = Surface.make(App, 'ProjectPage', {
   Params: Schema.Struct({ projectId: Schema.String }),
   model: ({ params }) =>
     Projection.struct({
-      project: Remote.select(AppRemote, ProjectSummary)(params.projectId),
+      project: Data.get(ProjectSummary, params.projectId),
     }),
   messages: [Message.Ping],
 })
 ```
 
-`Remote.select` returns a `Projection<AppModel, RemoteData<ProjectSummary>>` that
-reads the store purely:
+`Data.get` (the kernel's `Remote.select(Data, selection)(id)`) returns a
+`Projection<AppModel, RemoteData<ProjectSummary>>` that reads the store purely:
 
 - `Initial` — some selected field is not present yet,
 - `Ready` — present,
@@ -132,7 +129,7 @@ reads the store purely:
 `RemoteData.match` is exhaustive; `RemoteData.map`, and `RemoteData.schema` for
 embedding the state in a hand-written Model, are also exported.
 
-`Remote.select` is constrained to the domain's registered entity names, so a
+`Data.get` is constrained to the domain's registered entity names, so a
 selection for an entity `Data` never declared does not compile.
 
 ## Observation
@@ -257,16 +254,27 @@ like every other cache change.
 ## Mutations
 
 ```ts
-// In update, issued as a Command:
-Remote.mutateInto(AppRemote, model, RenameProject, { id, name }, requestId)
-// Effect<{ output: { id: string }; model: Model }, RemoteMutationError, RemoteClient>
+// In update:
+case 'ClickedRename': {
+  const { model: started, command } = Data.mutate(model, RenameProject, { id, name }, {
+    optimistic: [Project.patch(id, { name })],
+  })
+  return { model: started, commands: [command] }
+}
 ```
 
-Both take a `MutateOptions` last: `{ optimistic }` lists what the request
-changes before the server answers (below); `mutateInto` applies it as the
-`MutationStarted` and settles it with the result.
+`Data.mutate` starts a registered mutation: it applies `MutationStarted` (with
+the optimistic operations) to the Model and returns the Command whose Message
+(`MutationSucceeded` or `MutationFailed`) settles it through `Data.reduce`. The
+request id comes from the Model's own mutation sequence, so `update` stays pure
+and the id exists before the Command runs; `{ requestId }` overrides it for a
+retry or a durable bridge, and `optimistic` may be a function of
+`{ requestId, tempId }` so a created entity carries `tempId` until the result
+names the real one.
 
-`Remote.mutate` is the lower-level form. It decodes the typed `Output` **and**
+`Remote.mutateInto(Data, model, mutation, input, requestId, { optimistic })` is
+the one-step imperative form (start, run, settle) for SSR and tests, and
+`Remote.mutate` the lower-level call. It decodes the typed `Output` **and**
 returns the result's normalized `entities` and confirmed `connections`, so a
 caller that manages its own Messages can reduce them through `Remote.update`:
 
@@ -303,11 +311,14 @@ Data.update(model.remote, {
   _tag: 'MutationStarted',
   requestId,
   optimistic: [
-    Entity.patch(Comment.ref(tempId), { id: tempId, body }),
+    Comment.patch(tempId, { id: tempId, body }),
     ConnectionChange.prepend(commentsRef, Comment.ref(tempId)),
   ],
 })
 ```
+
+`Data.mutate`'s `optimistic` option is the same list; `Comment.patch(id,
+values)` is `Entity.patch(Comment.ref(id), values)`.
 
 Patches are ordered layers over the base store, not inverse patches: the visible
 store (`Remote.storeOf`) is recomputed, and settling removes the layer, so
@@ -415,7 +426,8 @@ the same as once.
 ## What it owns
 
 - **Entity identity and references.** `Entity.make`, typed `EntityRef`s, and
-  reference codecs; `Entity.patch` types a patch against the entity's fields.
+  reference codecs; an entity's `select` and `patch` methods (and `Entity.patch`)
+  type a selection or a patch against its fields.
 - **Field selections.** `Selection.make` derives a Struct from the picked fields
   and rejects unknown ones; a nested selection reads through a relation, and
   the requirement carries the graph so one read resolves it.
@@ -424,11 +436,13 @@ the same as once.
   are distinct. Presence is never inferred from `value === undefined`.
 - **The requirement planner.** `Remote.plan` diffs requirements against the
   visible store and returns only missing or stale fields, deterministically.
-- **The Remote submodel.** `Remote.make` returns `Model`, `initial`, `Message`,
-  `update`, `rpc`, and a name-keyed `registry` of the declared entities, queries,
-  and mutations (consumed by `RemoteServer.validate` and available to tooling);
-  `Remote.update` is the single reducer over reads, mutation results, live
-  events, connections, and optimistic layers.
+- **The Remote submodel and the bound domain.** `Remote.Model`/`initial` are
+  the submodel; `Remote.define` returns `Message`, `update`, `rpc`, and a
+  name-keyed `registry` of the declared entities, queries, and mutations
+  (consumed by `RemoteServer.validate` and available to tooling); `Remote.make`
+  binds it and adds `get`, `plan`, `storeOf`, `prefetch`, `mutate`, `reduce`,
+  and `inspect`. `Remote.update` is the single reducer over reads, mutation
+  results, live events, connections, and optimistic layers.
 - **Mutation reconciliation.** Idempotent per `requestId`, with a bounded
   settled-request ledger.
 - **Connections.** Segmented ordered data with explicit boundaries and overlay

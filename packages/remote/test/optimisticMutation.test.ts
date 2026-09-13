@@ -37,7 +37,7 @@ const CommentsForPost = Query.make('CommentsForPost', {
   Input: Schema.Struct({ postId: Schema.String }),
   Result: Query.connection(Comment),
 })
-const Data = Remote.make({
+const Data = Remote.define({
   entities: [Comment],
   mutations: [AddComment],
   queries: [CommentsForPost],
@@ -289,7 +289,7 @@ describe('Remote.mutateInto with optimistic operations', () => {
 })
 
 describe('a Surface reads through the optimistic layers', () => {
-  const Data2 = Remote.make({ entities: [Comment] })
+  const Data2 = Remote.define({ entities: [Comment] })
   const App2 = Surface.application({
     Model: Schema.Struct({ remote: Data2.Model }),
     Message: defineMessageUnion({ Ping: {} }),

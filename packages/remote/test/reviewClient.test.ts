@@ -38,7 +38,7 @@ const Project = Entity.make(
   'Project',
   Schema.Struct({ id: Schema.String, comments: Entity.refPage(Comment) }),
 )
-const Data = Remote.make({ entities: [Reply, Comment, Project] })
+const Data = Remote.define({ entities: [Reply, Comment, Project] })
 const Model = Schema.Struct({ remote: Data.Model })
 const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })
@@ -145,7 +145,7 @@ describe('review: nested relation windows', () => {
 
 describe('review: prefetch stamps the store with its clock', () => {
   const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-  const UserData = Remote.make({ entities: [User] })
+  const UserData = Remote.define({ entities: [User] })
   const UserApp = Surface.application({
     Model: Schema.Struct({ remote: UserData.Model }),
     Message: defineMessageUnion({ Ping: {} }),
@@ -181,7 +181,7 @@ describe('review: prefetch stamps the store with its clock', () => {
 
 describe('review: a failed refresh ends', () => {
   const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-  const UserData = Remote.make({ entities: [User] })
+  const UserData = Remote.define({ entities: [User] })
   const UserApp = Surface.application({
     Model: Schema.Struct({ remote: UserData.Model }),
     Message: defineMessageUnion({ Ping: {} }),

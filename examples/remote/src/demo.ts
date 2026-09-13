@@ -32,47 +32,45 @@ const Project = Entity.make(
   Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
 )
 
-const ProjectSummary = Selection.make(Project, { id: true, name: true, status: true })
+const ProjectSummary = Project.select({ id: true, name: true, status: true })
 
 const RenameProject = Mutation.make('RenameProject', {
-  Input: Schema.Struct({ id: Schema.String, name: Schema.String }),
-  Output: Schema.Struct({ id: Schema.String }),
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
 })
 
 const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: Schema.Struct({ ownerId: Schema.String }),
-  Result: Query.connection(Project),
+  Input: { ownerId: Schema.String },
+  Result: Project,
+})
+
+// The Remote submodel's schema is the same for every domain, so the Model
+// embeds it before the domain is bound; Remote's Messages are cases of the
+// application's own union, and `update` hands them to `Data.reduce` by tag.
+const Model = Schema.Struct({ remote: Remote.Model, projectId: Schema.String })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Remote.messages, Ping: {} })
+
+// `update` names its result: `Data` is bound to `App`, and `App` is built
+// from `update`, so the annotation is what keeps the types acyclic.
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { remote: Remote.initial, projectId: 'p1' },
+  update: (model, message): { readonly model: Model } =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
 })
 
 const Data = Remote.make({
+  model: App.model.remote,
   entities: [Project],
   mutations: [RenameProject],
   queries: [ProjectsByOwner],
 })
 
-const Model = Schema.Struct({ remote: Data.Model, projectId: Schema.String })
-const Message = defineMessageUnion({ Ping: {}, GotRemote: { message: Data.Message } })
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { remote: Data.initial, projectId: 'p1' },
-  update: (model, message) => {
-    switch (message._tag) {
-      case 'Ping':
-        return { model }
-      case 'GotRemote':
-        return { model: { ...model, remote: Data.update(model.remote, message.message) } }
-    }
-  },
-})
-
-const AppRemote = Remote.at(Data, App.model.remote)
-
 const ProjectPage = Surface.make(App, 'ProjectPage', {
   Params: Schema.Struct({ projectId: Schema.String }),
-  model: ({ params }) =>
-    Projection.struct({ project: Remote.select(AppRemote, ProjectSummary)(params.projectId) }),
+  model: ({ params }) => Projection.struct({ project: Data.get(ProjectSummary, params.projectId) }),
   messages: [Message.Ping],
 })
 
@@ -194,8 +192,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = ['surface: ProjectPage']
 
   const initial = App.initial
-  const projection = Remote.select(AppRemote, ProjectSummary)('p1')
-  const requirements = Remote.plan(AppRemote, initial, ProjectPage.projection({ projectId: 'p1' }))
+  const projection = Data.get(ProjectSummary, 'p1')
+  const requirements = Data.plan(initial, ProjectPage.projection({ projectId: 'p1' }))
   lines.push(
     `plan: ${requirements.map(entry => `${entry.entity}:${entry.id} [${entry.fields.join(',')}]`).join(', ')}`,
   )
@@ -204,9 +202,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // The store stamps each write with the clock it is given, so the refresh
   // below can decide staleness without waiting.
   const store = await Effect.runPromise(
-    Remote.prefetch(AppRemote, initial, projection, { now: () => 1_000 }).pipe(
-      Effect.provide(FakeClient),
-    ),
+    Data.prefetch(initial, projection, { now: () => 1_000 }).pipe(Effect.provide(FakeClient)),
   )
   const loaded = withStore(initial, store)
   lines.push(`after fetch: ${describeData(projection.read(loaded))}`)
@@ -214,8 +210,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // A refreshing policy keeps the value visible while it refetches: the
   // Subscription emits RefreshStarted (the projection reads Refreshing) and
   // then the read result (Ready again). `toMessage` is omitted, so the entry
-  // emits `RemoteMessage`s that `Data.update` reduces directly.
-  const refreshing = Remote.observe(AppRemote, ProjectPage, { projectId: 'p1' }, undefined, {
+  // emits `RemoteMessage`s that `Data.reduce` takes directly.
+  const refreshing = Remote.observe(Data, ProjectPage, { projectId: 'p1' }, undefined, {
     policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }),
     now: () => 60_000,
   })
@@ -224,13 +220,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       Effect.provide(FakeClient),
     ),
   )
-  const midRefresh = { ...loaded, remote: Data.update(loaded.remote, refreshMessages[0]!) }
-  const refreshed = refreshMessages
-    .slice(1)
-    .reduce(
-      (model, message) => ({ ...model, remote: Data.update(model.remote, message) }),
-      midRefresh,
-    )
+  const midRefresh = Data.reduce(loaded, refreshMessages[0]!)
+  const refreshed = refreshMessages.slice(1).reduce(Data.reduce, midRefresh)
   lines.push(
     `stale-while-revalidate: ${refreshMessages.map(message => message._tag).join(', ')}; ${describeData(projection.read(midRefresh))} -> ${describeData(projection.read(refreshed))}`,
   )
@@ -238,13 +229,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // A query runs through RemoteClient and merges into a connection by ref identity.
   const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId: 'u1' }))
   const page = await Effect.runPromise(Remote.query(ref).pipe(Effect.provide(FakeClient)))
-  const queried = Data.update(loaded.remote, Remote.queryMessage(ref, page))
+  const queried = Data.reduce(loaded, Remote.queryMessage(ref, page))
   lines.push(
-    `query connection: ${items(queried.connections[ref.identity]!)
+    `query connection: ${items(queried.remote.connections[ref.identity]!)
       .map(edge => edge.key)
       .join(', ')}`,
   )
-  const inspection = Remote.inspect(queried)
+  const inspection = Data.inspect(queried)
   lines.push(
     `inspect: ${inspection.entities.length} entities, ${inspection.connections.length} connection, ${Data.registry.queries.size} registered queries`,
   )
@@ -279,33 +270,30 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   lines.push(`rendered classes: ${classTokens(view.root).join(' ')}`)
   lines.push(`rendered status: ${String(dataAttribute(view.status, 'status'))}`)
 
-  const renamed = await Effect.runPromise(
-    Remote.mutateInto(
-      AppRemote,
-      loaded,
-      RenameProject,
-      { id: 'p1', name: 'Apollo II' },
-      'req-1',
-    ).pipe(Effect.provide(FakeClient)),
-  )
-  lines.push(`mutation RenameProject: output ${JSON.stringify(renamed.output)}`)
-  lines.push(`after mutation: ${describeData(projection.read(renamed.model))}`)
+  // `Data.mutate` is what `update` calls: the request starts in the Model with
+  // an id from the Model's own sequence, and the returned Command's Message
+  // settles it. Here the Command runs and its Message is reduced in place.
+  const rename = Data.mutate(loaded, RenameProject, { id: 'p1', name: 'Apollo II' })
+  const settled = await Effect.runPromise(rename.command.effect.pipe(Effect.provide(FakeClient)))
+  const renamed = Data.reduce(rename.model, settled)
+  lines.push(`mutation RenameProject (${rename.requestId}): ${settled._tag}`)
+  lines.push(`after mutation: ${describeData(projection.read(renamed))}`)
 
   // Retention: the roots are what the active Surfaces reach. A project the page
   // does not select, and a connection nobody lists, are collected; the page's
   // project stays.
   const crowded = withStore(
-    { ...renamed.model, remote: queried },
-    writeEntity(renamed.model.remote.entities, entityKey('Project', 'p2'), { name: 'Borealis' }),
+    queried,
+    writeEntity(renamed.remote.entities, entityKey('Project', 'p2'), { name: 'Borealis' }),
   )
   const retain = Remote.retain([ProjectPage.projection({ projectId: 'p1' })])
   const retention = await Effect.runPromise(
     Stream.runHead(retain.dependenciesToStream(retain.modelToDependencies(crowded))),
   )
-  const collected = Data.update(crowded.remote, Option.getOrThrow(retention))
-  const kept = Remote.inspect(collected)
+  const kept = Data.inspect(Data.reduce(crowded, Option.getOrThrow(retention)))
+  const before = Data.inspect(crowded)
   lines.push(
-    `retained: ${kept.entities.map(entry => entry.key).join(', ')}; ${Remote.inspect(crowded.remote).entities.length - kept.entities.length} entity and ${Remote.inspect(crowded.remote).connections.length - kept.connections.length} connection collected`,
+    `retained: ${kept.entities.map(entry => entry.key).join(', ')}; ${before.entities.length - kept.entities.length} entity and ${before.connections.length - kept.connections.length} connection collected`,
   )
 
   const corrupted = withStore(

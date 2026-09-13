@@ -20,7 +20,7 @@ query connection: Project:p1
 inspect: 1 entities, 1 connection, 1 registered queries
 rendered classes: project-card
 rendered status: active
-mutation RenameProject: output {"id":"p1"}
+mutation RenameProject (remote-1): MutationSucceeded
 after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
 retained: Project:p1; 1 entity and 1 connection collected
 corrupt store: Failed DecodeError
@@ -46,8 +46,10 @@ Read it as:
   `registry` counts the declared queries.
 - **render** — the SurfaceView styles the card and a Behavior reads the projected
   `RemoteData`, both over a Surface that only exposes `Ping`.
-- **mutation** — `Remote.mutateInto` returns the typed `Output` and the new Model;
-  the renamed field is visible through the same projection.
+- **mutation** — `Data.mutate` starts the request in the Model (its id comes
+  from the Model's own sequence, so `update` stays pure) and returns the
+  Command whose Message settles it; the renamed field is visible through the
+  same projection.
 - **retained** — `Remote.retain([projection])` is the Subscription entry whose
   dependencies are the retention roots; its `RetentionChanged` keeps the page's
   project and collects an entity and a connection nothing reaches.

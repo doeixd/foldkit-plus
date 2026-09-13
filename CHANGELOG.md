@@ -59,6 +59,28 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
 
 ### `foldkit-remote` (private)
 
+- **The bound domain (#69, Phase B; breaking).** `Remote.make({ model, entities,
+  queries, mutations })` now binds the domain to its place in the application
+  Model in one step and returns a `RemoteDomain`: the descriptor, the binding,
+  and the application-facing operations `get`, `plan`, `storeOf`, `prefetch`,
+  `mutate`, `reduce`, and `inspect`, each compiled onto the `Remote.*` function
+  of the same name (which stay exported). The descriptor alone is
+  `Remote.define`, the binding alone `Remote.at`. `Remote.Model` and
+  `Remote.initial` are the submodel's schema and initial value, the same for
+  every domain, so the application Model embeds them before the domain is
+  bound. `Remote.messages` is Remote's Message cases for `defineMessageUnion`
+  and `Remote.reduces` narrows an application's union to them, so there is no
+  wrapper Message: `update` hands them to `Data.reduce`. `Data.mutate(model,
+  mutation, input, options?)` starts a registered mutation from `update`: the
+  request id comes from a monotonic sequence in `RemoteModel.mutations`
+  (`{ requestId }` overrides it; `tempId` derives from it), the optimistic
+  operations may be a function of those ids, and the returned Command yields
+  the `MutationSucceeded` or `MutationFailed` that settles it. An entity is
+  the receiver of its selections and patches: `Project.select({ … })` and
+  `Project.patch(id, values)` (`Selection.make` and `Entity.patch` stay).
+  `Mutation.make` and `Query.make` take the fields of a `Schema.Struct` where a
+  codec is expected, and `Query.make`'s `Result` takes the entity a connection
+  is over. `MutationState.sequence` is new.
 - **Review hardening.** One plan: `Remote.plan(bound, model, projection,
   options?)` replaces `planProjection`/`observeProjection`/`planSurface`
   (a Surface's is `surface.projection(params)`); `Remote.retain(projections,

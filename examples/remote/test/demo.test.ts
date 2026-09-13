@@ -15,7 +15,7 @@ describe('foldkit-remote example', () => {
     expect(lines).toContain('inspect: 1 entities, 1 connection, 1 registered queries')
     expect(lines).toContain('rendered classes: project-card')
     expect(lines).toContain('rendered status: active')
-    expect(lines).toContain('mutation RenameProject: output {"id":"p1"}')
+    expect(lines).toContain('mutation RenameProject (remote-1): MutationSucceeded')
     expect(lines).toContain(
       'after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}',
     )

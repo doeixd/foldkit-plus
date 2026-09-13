@@ -51,7 +51,7 @@ const Project = entity('Project', projects, {
   computed: { commentCount: { relation: 'comments' } },
 })
 
-const Data = Remote.make({ entities: [User, Comment, Project] })
+const Data = Remote.define({ entities: [User, Comment, Project] })
 
 // A Selection selects columns, a ref, an array of refs, and a computed count.
 const ProjectView = Selection.make(Project, {

@@ -4,6 +4,9 @@
  */
 import { Schema, SchemaGetter } from 'effect'
 import { RelationAnnotation, RelationEntityAnnotation, refParts } from './relation.js'
+// selection.ts imports this module too; both only use the other inside
+// function bodies, so the cycle is never observed at module evaluation.
+import { Selection, type SelectionOf, type SelectionValue } from './selection.js'
 import { entityKey } from './store.js'
 
 export type AnySchema = Schema.Schema<unknown>
@@ -27,10 +30,19 @@ export interface EntityDescriptor<Name extends string, F extends Schema.Struct.F
   readonly name: Name
   readonly schema: Schema.Struct<F>
   readonly fields: F
-  // A method, not a property: method signatures are bivariant, so a concrete
+  // Methods, not properties: method signatures are bivariant, so a concrete
   // descriptor stays assignable to `EntityDescriptor<any, any>` (which appears
   // in every heterogeneous collection, e.g. `Remote.make`'s entities).
   ref(id: Schema.Schema.Type<F['id']>): EntityRef<Name, F>
+  /** The fields a Surface reads of this entity; `Selection.make(entity, …)` with the entity as receiver. */
+  select<const Sel extends SelectionOf<F>>(
+    selection: Sel,
+  ): Selection<SelectionValue<F, Sel>, Name, 'entity'>
+  /** A patch of this entity's wire-shaped values; `Entity.patch(entity.ref(id), values)`. */
+  patch(
+    id: Schema.Schema.Type<F['id']>,
+    values: Partial<Schema.Struct.Encoded<F>>,
+  ): EntityPatch<Name, F>
 }
 
 /**
@@ -111,12 +123,17 @@ export const Entity = {
   >(
     name: Name,
     schema: Schema.Struct<F>,
-  ): EntityDescriptor<Name, F> => ({
-    name,
-    schema,
-    fields: schema.fields,
-    ref: id => ({ entity: name, id: String(id) }) as EntityRef<Name, F>,
-  }),
+  ): EntityDescriptor<Name, F> => {
+    const descriptor: EntityDescriptor<Name, F> = {
+      name,
+      schema,
+      fields: schema.fields,
+      ref: id => ({ entity: name, id: String(id) }) as EntityRef<Name, F>,
+      select: selection => Selection.make(descriptor, selection),
+      patch: (id, values) => ({ entity: name, id: String(id), values }),
+    }
+    return descriptor
+  },
 
   /** A relation to a known entity, decoded as a reference. */
   ref: <Name extends string, F extends Schema.Struct.Fields>(

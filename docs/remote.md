@@ -55,9 +55,12 @@ one pure reducer that lives in the Model.
         Projection · field refs · subsets
 ```
 
-The client half is a Foldkit Submodel. `Remote.make` returns `Model`, `initial`,
-`Message`, `update`, and the Effect RPC group; the application embeds `Data.Model`
-in its Model and reduces `RemoteMessage`s with `Data.update`.
+The client half is a Foldkit Submodel. The application embeds `Remote.Model`
+in its Model, spreads `Remote.messages` into its Message union, and binds the
+domain with `Remote.make({ model: App.model.remote, entities, … })`; the bound
+`Data` reads (`Data.get`), plans, prefetches, starts mutations (`Data.mutate`),
+and reduces Remote's Messages (`Data.reduce`), each compiling to the kernel
+function of the same name.
 
 The server half compiles Sources into the `RemoteRpc` handlers. Transport is
 Effect RPC, so HTTP, WebSocket, worker, or in-process is an Effect layer choice;

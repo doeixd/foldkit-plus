@@ -292,7 +292,7 @@ describe('snapshot hardening', () => {
 
   it('server-prefetched data hydrates on the client without a refetch under cache-first', async () => {
     const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-    const Data = Remote.make({ entities: [User] })
+    const Data = Remote.define({ entities: [User] })
     const App = Surface.application({
       Model: Schema.Struct({ remote: Data.Model }),
       Message: defineMessageUnion({ Ping: {} }),

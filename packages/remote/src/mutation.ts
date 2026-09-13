@@ -5,7 +5,7 @@
  * `requestId`**, so a transport retry cannot apply the same change twice. An
  * unknown or already-applied result is a no-op.
  */
-import type { Schema } from 'effect'
+import { Schema } from 'effect'
 import { entityKey, writeEntity, type EntityStore } from './store.js'
 
 export interface NormalizedPatch {
@@ -18,12 +18,19 @@ export interface MutationState {
   readonly pending: ReadonlySet<string>
   readonly applied: ReadonlySet<string>
   readonly failed: ReadonlySet<string>
+  /**
+   * How many mutations this model has started. A bound domain takes its next
+   * request id from here, so `update` stays pure and the id exists before the
+   * Command runs.
+   */
+  readonly sequence: number
 }
 
 export const emptyMutationState: MutationState = {
   pending: new Set(),
   applied: new Set(),
   failed: new Set(),
+  sequence: 0,
 }
 
 /**
@@ -47,6 +54,7 @@ const remember = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => 
 export const beginMutation = (state: MutationState, requestId: string): MutationState => ({
   ...state,
   pending: new Set([...state.pending, requestId]),
+  sequence: state.sequence + 1,
 })
 
 export const failMutation = (state: MutationState, requestId: string): MutationState => {
@@ -91,13 +99,34 @@ export interface MutationDescriptor<Name extends string, Input, Output> {
   readonly Output: Schema.Codec<Output>
 }
 
+/** A codec, or the fields of a `Schema.Struct` where one is expected. */
+export type SchemaOrFields = Schema.Codec<any, any, any, any> | Schema.Struct.Fields
+
+/** The decoded type of a codec, or of the Struct the fields describe. */
+export type TypeOf<S extends SchemaOrFields> =
+  S extends Schema.Codec<infer T, any, any, any>
+    ? T
+    : S extends Schema.Struct.Fields
+      ? Schema.Struct.Type<S>
+      : never
+
+/** The codec itself, or a `Schema.Struct` over the fields. */
+export const schemaOf = <S extends SchemaOrFields>(shape: S): Schema.Codec<TypeOf<S>> =>
+  (Schema.isSchema(shape) ? shape : Schema.Struct(shape as Schema.Struct.Fields)) as Schema.Codec<
+    TypeOf<S>
+  >
+
 export const Mutation = {
-  make: <const Name extends string, Input, Output>(
+  /**
+   * Declares a mutation. `Input` and `Output` are codecs, or the fields of the
+   * `Schema.Struct` they would be (`{ id: ProjectId, name: Schema.String }`).
+   */
+  make: <const Name extends string, Input extends SchemaOrFields, Output extends SchemaOrFields>(
     name: Name,
-    config: { readonly Input: Schema.Codec<Input>; readonly Output: Schema.Codec<Output> },
-  ): MutationDescriptor<Name, Input, Output> => ({
+    config: { readonly Input: Input; readonly Output: Output },
+  ): MutationDescriptor<Name, TypeOf<Input>, TypeOf<Output>> => ({
     name,
-    Input: config.Input,
-    Output: config.Output,
+    Input: schemaOf(config.Input),
+    Output: schemaOf(config.Output),
   }),
 }

@@ -105,7 +105,7 @@ RemoteData.match(initial, {
 
 // --- Remote.at requires the Remote model shape ------------------------------
 
-const Data = Remote.make({ entities: [User] })
+const Data = Remote.define({ entities: [User] })
 declare const goodStore: ModelRef<unknown, Schema.Schema.Type<typeof Data.Model>>
 Remote.at(Data, goodStore)
 
