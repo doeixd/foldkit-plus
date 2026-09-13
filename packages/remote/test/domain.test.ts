@@ -619,6 +619,34 @@ describe('Data.query reads a connection as a page of selected items', () => {
     expect(entry.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [] })
   })
 
+  it('a refreshing policy announces only the fields it refetches, never a bare query', async () => {
+    const List = App.surface('List', { model: () => ({ projects }) })
+    let clock = 5_000
+    const entry = Data.subscriptions(
+      { list: List },
+      { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
+    )['list.read']!
+    const messages = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
+        Effect.provide(paging(['p1']).layer),
+      ),
+    )
+    expect(messages.map(message => message._tag)).toEqual([
+      'ConnectionMerged',
+      'ConnectionRefreshed',
+      'ReadReceived',
+    ])
+    // With the page known and its items aged out, the refetch is announced.
+    const loaded = messages.reduce(Data.reduce, initial)
+    clock = 10_000
+    const refetch = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(loaded))).pipe(
+        Effect.provide(paging(['p1']).layer),
+      ),
+    )
+    expect(refetch.map(message => message._tag)).toEqual(['RefreshStarted', 'ReadReceived'])
+  })
+
   it('a failed query yields QueryFailed, which ends the refresh and keeps the pages', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
     const entry = Data.subscriptions({ list: List })['list.read']!
@@ -765,6 +793,14 @@ describe('Data.query reads a connection as a page of selected items', () => {
     expect(again).toBe(loaded)
     expect(client.queries).toHaveLength(1)
     expect(client.reads).toHaveLength(1)
+    // A stale connection is queried again and reads fresh afterwards.
+    const stale = Data.reduce(loaded, { _tag: 'ConnectionInvalidated', connection: identity })
+    expect(projects.read(stale)).toMatchObject({ _tag: 'Refreshing' })
+    const fresh = await Effect.runPromise(
+      Data.prefetch(stale, projects).pipe(Effect.provide(client.layer)),
+    )
+    expect(client.queries).toHaveLength(2)
+    expect(projects.read(fresh)).toMatchObject({ _tag: 'Ready' })
     // A query failure fails the prefetch, as a read failure does.
     const exit = await Effect.runPromiseExit(
       Data.prefetch(initial, projects).pipe(Effect.provide(paging([], { fail: true }).layer)),
