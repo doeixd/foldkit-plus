@@ -343,8 +343,10 @@ describe('Remote domain submodel', () => {
       Schema.Struct({ id: Schema.String, name: Schema.String }),
     )
     const projectSelection = Selection.make(Project, { name: true })
-    // @ts-expect-error "Project" is not one of Data's registered entities
-    Remote.select(AppRemote, projectSelection)
+    expect(() =>
+      // @ts-expect-error "Project" is not one of Data's registered entities
+      Remote.select(AppRemote, projectSelection),
+    ).toThrow('Remote: Entity "Project" is not registered with domain "remote"')
   })
 })
 

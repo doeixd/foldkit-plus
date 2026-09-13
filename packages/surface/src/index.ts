@@ -722,8 +722,22 @@ export interface Surface<Root, Model, Message, Params> {
  */
 export interface ActiveSurface<Root> {
   readonly name: string
+  /** Identity token of the application the Surface belongs to. */
+  readonly owner: object
   /** The projection for the params the Model gives, or `undefined` while inactive. */
   readonly projectionOf: (model: Root) => Projection<Root, unknown> | undefined
+}
+
+declare const invalid: unique symbol
+
+/**
+ * A compile-time failure that names its cause. Intersected onto a parameter
+ * type when a type-level check fails, so the error reads as one line
+ * (`Property '[invalid]' is missing … required in type 'Invalid<"…">'`)
+ * naming the descriptor, instead of a wall of structural mismatch.
+ */
+export interface Invalid<Message extends string> {
+  readonly [invalid]: Message
 }
 
 /** The fields of a `Schema.Struct`, or a schema, where params are declared. */
@@ -1106,6 +1120,7 @@ export const Surface = {
     params: Params | ((model: Root) => Params | undefined),
   ): ActiveSurface<Root> => ({
     name: surface.name,
+    owner: surface.owner,
     projectionOf: model => {
       const resolved =
         typeof params === 'function'

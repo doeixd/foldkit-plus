@@ -24,7 +24,13 @@ import {
   type RemoteData,
   type RemoteEntry,
   type RemoteMessage,
+  type Registered,
+  type SelectsEntity,
 } from '../src/index.js'
+import type { Invalid } from 'foldkit-surface'
+
+type Equals<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
 
 // ===========================================================================
 // Domain (shared by the scenarios) — the real API
@@ -47,6 +53,7 @@ const Project = Entity.make(
 )
 /** Declared but never registered: registration is by reference. */
 const Team = Entity.make('Team', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const TeamsByName = Query.make('TeamsByName', { Input: {}, Result: Team })
 
 // Item 3: the entity is the receiver of its selections.
 const UserSummary = User.select({ id: true, name: true })
@@ -113,6 +120,24 @@ Project.select({ owner: Comment.select({ id: true }) })
 Data.get(Team.select({ id: true }), 't1')
 // @ts-expect-error nor may it be read live
 Data.live(Team.select({ id: true }), 't1')
+// Item 13: the failure is branded and names the descriptor, in the parameter's own type.
+const _unregisteredEntity: Equals<
+  Parameters<typeof Data.get<unknown, 'Team'>>[0],
+  Selection<unknown, 'Team', 'entity'> &
+    Invalid<'Entity "Team" is not registered with this Remote domain'>
+> = true
+const _registeredEntity: Equals<
+  Parameters<typeof Data.get<unknown, 'Project'>>[0],
+  Selection<unknown, 'Project', 'entity'>
+> = true
+const _brand: Equals<
+  Registered<'Team', 'User' | 'Project', 'Entity'>,
+  Invalid<'Entity "Team" is not registered with this Remote domain'>
+> = true
+const _selects: Equals<
+  SelectsEntity<'User', 'Project'>,
+  Invalid<'the selection is of "User", but the query lists "Project"'>
+> = true
 
 // ===========================================================================
 // Scenario 2 — a paginated list with next() (items 7, 8)
@@ -146,6 +171,12 @@ const _ref: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> = Projects
 ProjectsByOwner.ref({ owner: 'u1' })
 // @ts-expect-error `select` must be of the query's entity
 Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: UserSummary, first: 25 })
+// @ts-expect-error a query not registered with Data (branded: `Query "TeamsByName" is not registered …`)
+Data.query(TeamsByName, {}, { select: Team.select({ id: true }) })
+const _unregisteredQuery: Equals<
+  Parameters<typeof Data.query<typeof TeamsByName, unknown, 'Team'>>[0],
+  typeof TeamsByName & Invalid<'Query "TeamsByName" is not registered with this Remote domain'>
+> = true
 // @ts-expect-error `first` and `last` are exclusive
 Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25, last: 5 })
 // @ts-expect-error `after` pages forward only

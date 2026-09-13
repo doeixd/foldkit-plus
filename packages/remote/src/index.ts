@@ -14,6 +14,7 @@ import {
   type ActiveSurface,
   type ConnectionRequirement,
   type Contract,
+  type Invalid,
   type ModelRef,
   type Projection,
   type Surface,
@@ -96,6 +97,24 @@ export * from './store.js'
 export * from './wire.js'
 
 type EntityName<D> = D extends EntityDescriptor<infer Name, any> ? Name : never
+type QueryName<D> = D extends QueryDescriptor<infer Name, any, any> ? Name : never
+type MutationName<D> = D extends MutationDescriptor<infer Name, any, any> ? Name : never
+
+/**
+ * Nothing when `Name` is one of the domain's registered `Names`; otherwise a
+ * branded failure naming the descriptor, so `Data.get(Team.select(…))` for an
+ * unregistered `Team` errors at the selection in one line.
+ */
+export type Registered<Name extends string, Names extends string, Kind extends string> = [
+  Name,
+] extends [Names]
+  ? unknown
+  : Invalid<`${Kind} "${Name}" is not registered with this Remote domain`>
+
+/** Nothing when a selection is of the query's entity; otherwise a branded failure naming both. */
+export type SelectsEntity<Entity extends string, Of extends string> = [Entity] extends [Of]
+  ? unknown
+  : Invalid<`the selection is of "${Entity}", but the query lists "${Of}"`>
 
 export interface RemoteDescriptor<
   Entities extends readonly EntityDescriptor<any, any>[] = readonly EntityDescriptor<any, any>[],
@@ -192,8 +211,9 @@ export interface RemoteDomain<
     BoundRemote<AppModel, Store, EntityName<Entities[number]>>,
     RemoteDescriptor<Entities, Queries, Mutations> {
   /** `Remote.select`: a Projection reading one entity through a selection of a registered entity. */
-  get<Value, Name extends EntityName<Entities[number]>>(
-    selection: Selection<Value, Name, 'entity'>,
+  get<Value, Name extends string>(
+    selection: Selection<Value, Name, 'entity'> &
+      Registered<Name, EntityName<Entities[number]>, 'Entity'>,
     id: string,
   ): Projection<AppModel, RemoteData<Value>>
   /**
@@ -201,8 +221,9 @@ export interface RemoteDomain<
    * requirements are marked `live`, so `subscriptions` derives a live entry for
    * the Surfaces that read it.
    */
-  live<Value, Name extends EntityName<Entities[number]>>(
-    selection: Selection<Value, Name, 'entity'>,
+  live<Value, Name extends string>(
+    selection: Selection<Value, Name, 'entity'> &
+      Registered<Name, EntityName<Entities[number]>, 'Entity'>,
     id: string,
   ): Projection<AppModel, RemoteData<Value>>
   /**
@@ -212,10 +233,10 @@ export interface RemoteDomain<
    * the page first asked for; the pages `next`, `previous` and `fetch` merge
    * onto the connection read through the same projection.
    */
-  query<Q extends Queries[number], Value>(
-    query: Q,
+  query<Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
+    query: Q & Registered<Q['name'], QueryName<Queries[number]>, 'Query'>,
     input: QueryInput<Q>,
-    options: QueryOptions<Value, QueryEntity<Q>>,
+    options: QueryOptions<Value, Entity, QueryEntity<Q>>,
   ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>>
   /** The `QueryRef` for the page after the loaded end (same page size), or `undefined` when there is none or its cursor is unknown. */
   next<Name extends string, Input>(
@@ -265,9 +286,9 @@ export interface RemoteDomain<
    * it and yields the settling Message. The request id comes from the model's
    * mutation sequence unless `options.requestId` is given.
    */
-  mutate<M extends Mutations[number]>(
+  mutate<M extends MutationDescriptor<any, any, any>>(
     model: AppModel,
-    mutation: M,
+    mutation: M & Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>,
     input: MutationInput<M>,
     options?: DomainMutateOptions,
   ): MutationStarted<AppModel>
@@ -297,9 +318,9 @@ export type QueryWindowOptions =
       readonly after?: undefined
     }
 
-export type QueryOptions<Value, Entity extends string> = {
-  /** What to read of each item: a selection of the query's entity. */
-  readonly select: Selection<Value, Entity, 'entity'>
+export type QueryOptions<Value, Entity extends string, Of extends string = Entity> = {
+  /** What to read of each item: a selection of the query's entity (`Of`). */
+  readonly select: Selection<Value, Entity, 'entity'> & SelectsEntity<Entity, Of>
 } & QueryWindowOptions
 
 /** A query connection read as a `Page` of selected items; `ref` is the connection with its first window. */
@@ -440,6 +461,20 @@ const bindRemote = <
     requirements: [],
   },
 })
+
+/** The runtime half of `Registered`: a descriptor the domain never declared is an error naming both. */
+const assertRegistered = (
+  bound: BoundRemote<any, any>,
+  kind: 'Entity' | 'Query' | 'Mutation',
+  registered: ReadonlyMap<string, unknown>,
+  name: string,
+): void => {
+  if (!registered.has(name)) {
+    throw new Error(
+      `Remote: ${kind} "${name}" is not registered with domain "${bound.contract.name}"`,
+    )
+  }
+}
 
 /** What a projection asks of the remote: entity requirements and query connections. */
 interface Asked {
@@ -770,12 +805,12 @@ export const Remote = {
    * as `Failed` instead of being asserted into `Value`. A present value with a
    * stale field reads as `Refreshing`: an observer is refetching it.
    */
-  select:
-    <AppModel, Store extends RemoteModel, Names extends string, Value, Name extends Names>(
-      bound: BoundRemote<AppModel, Store, Names>,
-      selection: Selection<Value, Name, 'entity'>,
-    ) =>
-    (id: string): Projection<AppModel, RemoteData<Value>> => ({
+  select: <AppModel, Store extends RemoteModel, Names extends string, Value, Name extends string>(
+    bound: BoundRemote<AppModel, Store, Names>,
+    selection: Selection<Value, Name, 'entity'> & Registered<Name, Names, 'Entity'>,
+  ) => {
+    assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
+    return (id: string): Projection<AppModel, RemoteData<Value>> => ({
       Model: remoteDataSchema(selection.schema),
       dependencies: [],
       requirements: [{ ...relationOf(selection), id }],
@@ -793,7 +828,8 @@ export const Remote = {
             ? { _tag: 'Refreshing', value: decoded.success }
             : { _tag: 'Ready', value: decoded.success }
       },
-    }),
+    })
+  },
 
   /**
    * The pure plan for a projection against a Model: the requirements its
@@ -1095,6 +1131,12 @@ const bindDomain = <
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
       for (const [key, entry] of Object.entries(active)) {
+        // Two applications can have the same Model type; the owner token tells them apart.
+        if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
+          throw new Error(
+            `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
+          )
+        }
         const asked = (model: AppModel) => askedOf(projectionOf(entry, model))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
@@ -1146,12 +1188,19 @@ const bindDomain = <
         })
         return reduce(current, { _tag: 'ReadReceived', requests: requirements, result, now: at })
       }),
-    query: <Q extends Queries[number], Value>(
+    query: <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
       query: Q,
       input: QueryInput<Q>,
-      options: QueryOptions<Value, QueryEntity<Q>>,
+      options: QueryOptions<Value, Entity, QueryEntity<Q>>,
     ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
+      assertRegistered(bound, 'Query', definition.registry.queries, query.name)
       const { select, ...window } = options
+      const listed = (query.Result as ConnectionSpec).entity
+      if (select.entity !== listed) {
+        throw new Error(
+          `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
+        )
+      }
       const ref: QueryRef<Q['name'], QueryInput<Q>> = {
         ...query.ref(input),
         window: pickWindow(window),
@@ -1236,6 +1285,7 @@ const bindDomain = <
       ),
     }),
     mutate: (model, mutation, input, options = {}) => {
+      assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
       const remote = store.get(model)
       const requestId =
         options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`

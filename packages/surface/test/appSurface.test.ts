@@ -62,6 +62,12 @@ describe('Surface.at makes activation a Model fact', () => {
     model: ({ params }) => Projection.fromReader(Schema.String, () => params.id),
   })
 
+  it('carries the Surface’s name and owner, so a domain can tell another application’s Surface', () => {
+    const active = Surface.at(Page, { id: 'p1' })
+    expect(active.name).toBe('Page')
+    expect(active.owner).toBe(App.owner)
+  })
+
   it('a value activates the Surface with those params', () => {
     expect(Surface.at(Page, { id: 'p9' }).projectionOf(root)?.read(root)).toBe('p9')
     expect(Surface.at(Page, { id: 'p9' }).name).toBe('Page')

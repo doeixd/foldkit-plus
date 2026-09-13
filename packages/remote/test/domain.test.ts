@@ -430,6 +430,56 @@ describe('Data.live and Data.subscriptions', () => {
   })
 })
 
+describe('an unregistered descriptor is an error naming it and the domain', () => {
+  const Team = Entity.make('Team', Schema.Struct({ id: Schema.String, name: Schema.String }))
+  const TeamsByName = Query.make('TeamsByName', { Input: {}, Result: Team })
+  const Archive = Mutation.make('Archive', { Input: { id: Schema.String }, Output: {} })
+
+  it('get, live, and Remote.select reject an entity the domain never declared', () => {
+    const message = 'Remote: Entity "Team" is not registered with domain "remote"'
+    // @ts-expect-error Team is not registered (branded: `Entity "Team" is not registered …`)
+    expect(() => Data.get(Team.select({ id: true }), 't1')).toThrow(message)
+    // @ts-expect-error nor for live
+    expect(() => Data.live(Team.select({ id: true }), 't1')).toThrow(message)
+    // @ts-expect-error nor for the kernel form
+    expect(() => Remote.select(Data, Team.select({ id: true }))).toThrow(message)
+    expect(Data.get(Project.select({ id: true }), 'p1').read(initial)).toEqual({ _tag: 'Initial' })
+  })
+
+  it('query rejects an unregistered query, and a selection of another entity than the query lists', () => {
+    // @ts-expect-error TeamsByName is not registered
+    expect(() => Data.query(TeamsByName, {}, { select: Team.select({ id: true }) })).toThrow(
+      'Remote: Query "TeamsByName" is not registered with domain "remote"',
+    )
+    expect(() =>
+      // @ts-expect-error the selection is of User, the query lists Project
+      Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: User.select({ name: true }) }),
+    ).toThrow('Remote: the selection is of "User", but query "ProjectsByOwner" lists "Project"')
+  })
+
+  it('mutate rejects an unregistered mutation before touching the Model', () => {
+    // @ts-expect-error Archive is not registered
+    expect(() => Data.mutate(initial, Archive, { id: 'p1' })).toThrow(
+      'Remote: Mutation "Archive" is not registered with domain "remote"',
+    )
+  })
+
+  it('subscriptions reject a Surface of another application, even with the same Model type', () => {
+    const OtherApp = Surface.application({ Model, Message })
+    const OtherData = Remote.make({ model: OtherApp.model.remote, entities: [Project] })
+    const Foreign = OtherApp.surface('Foreign', {
+      model: () => ({ project: OtherData.get(Project.select({ name: true }), 'p1') }),
+    })
+    expect(() => Data.subscriptions({ foreign: Foreign })).toThrow(
+      'Remote: Surface "Foreign" belongs to another application than domain "remote"',
+    )
+    expect(() => Data.subscriptions({ foreign: Surface.at(Foreign, undefined) })).toThrow(
+      'belongs to another application',
+    )
+    expect(Object.keys(OtherData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
+  })
+})
+
 describe('Data.query reads a connection as a page of selected items', () => {
   const summary = Project.select({ name: true })
   const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
