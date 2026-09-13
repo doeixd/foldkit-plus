@@ -111,6 +111,12 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `retain` entry with every active Surface as a root (`Remote.retain`).
   `options` are the observe, live, and retain options together. The kernel
   entries now derive their requirements from a function of the Model.
+- **Less work per Model change (#69, review).** A selection's `RemoteData`
+  and `Page` schemas are built once and shared; `Data.subscriptions` computes
+  each Surface's projection once per Model object across its read, live, and
+  retain entries; `Remote.select` and `Data.query` memoize a read's result per
+  visible store snapshot (and connection), so equal reads of one Model state
+  return one value.
 - **Errors that name the descriptor (#69, Phase E).** `Data.get`, `Data.live`,
   `Data.query`, `Data.mutate`, and `Remote.select` reject a descriptor the
   domain never declared with a one-line branded error at the argument

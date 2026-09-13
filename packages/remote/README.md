@@ -393,7 +393,9 @@ stale. `options` is a `PlanOptions`: `freshness` (`{ now, freshness }`)
 refreshes an entry older than the window, `force` plans every field;
 `RemotePolicy.toPlan(policy, now)` compiles a policy to it. `Remote.storeOf` is
 the visible store — the base under the pending optimistic layers, computed once
-per Model state so every read and plan of one render shares it — and
+per Model state so every read and plan of one render shares it; a read's
+result is memoized per that store (and, for a page, per connection), so equal
+reads of one Model state assemble and decode once and return one value — and
 `Remote.prefetch(bound, model, projection, options?)` runs the entity plan and
 returns the new store.
 
