@@ -2,10 +2,10 @@
  * The bound domain (`Remote.make({ model, … })`): the application-facing
  * operations over the kernel, and what they compile to.
  */
-import { Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Fiber, Layer, Optic, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from 'foldkit-surface'
+import { ModelRef, Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   ConnectionChange,
@@ -477,6 +477,14 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
       'belongs to another application',
     )
     expect(Object.keys(OtherData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
+    // A domain bound to a raw optic claims no application, so it takes any Surface.
+    const Unowned = Remote.at(
+      Remote.define({ entities: [Project] }),
+      ModelRef.fromOptic(Remote.Model, Optic.id<Model>().key('remote'), ['remote']),
+    )
+    expect(Unowned.contract.owner).toBeUndefined()
+    const unownedData = Remote.make({ model: Unowned.store, entities: [Project] })
+    expect(Object.keys(unownedData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
   })
 })
 

@@ -70,7 +70,7 @@ would be; `Result: Project` is a connection over `Project`.
 
 ```ts
 import { defineMessageUnion } from 'foldkit/message'
-import type { Update } from 'foldkit/update'
+import type * as Update from 'foldkit/update'
 import { Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
