@@ -87,7 +87,7 @@ const App = Surface.application({
   Model,
   Message,
   initial: { route: Route.home(), remote: Remote.initial },
-  update, // below
+  update, // step 5: a function declaration, so it may follow Data
 })
 
 const Data = Remote.make({
@@ -109,12 +109,11 @@ runtime error naming the domain.
 ### 3. Read in a Surface
 
 ```ts
+const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
+
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
-  model: ({ params }) => ({
-    project: Data.live(ProjectSummary, params.projectId),
-    projects: Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 }),
-  }),
+  model: ({ params }) => ({ project: Data.live(ProjectSummary, params.projectId), projects }),
   messages: [Message.ClickedRename, Message.ClickedMore],
 })
 ```
@@ -162,7 +161,7 @@ fetches nothing, and there is never network work during render.
 ### 5. Mutate and page from `update`
 
 ```ts
-const update = (model: Model, message: Message): Update.Return<Model, Message> => {
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
   if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
   switch (message._tag) {
     case 'ClickedRename': {
@@ -182,7 +181,9 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
 
 Every new fact — a read batch, a page, a mutation result, a live event — arrives
 as one of Remote's Messages, and `Data.reduce` is the one reducer for all of
-them. `Data.mutate` starts the request in the Model (its id comes from the
+them. The Commands run through `RemoteClient`, so `update` names it as the
+resource its Commands need (`Update.Return<Model, Message, RemoteClient>`) and
+the runtime is given the client layer (step 6). `Data.mutate` starts the request in the Model (its id comes from the
 Model's own sequence, so `update` stays pure) and returns the Command whose
 Message settles it; the optimistic patch shows until then. `Data.next` is the
 `QueryRef` of the page after the loaded end, or `undefined`, and `Data.fetch`
@@ -192,8 +193,6 @@ every loaded page.
 ### 6. Provide the client
 
 ```ts
-import { Layer } from 'effect'
-
 const clientLayer = Remote.clientLayer(rpcClient) // an Effect RPC client for RemoteRpc
 // … provide it to the Foldkit runtime; in tests or in-process, RemoteServer.handlers(…) is one.
 ```
