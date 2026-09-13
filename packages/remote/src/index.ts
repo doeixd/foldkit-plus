@@ -776,6 +776,26 @@ const projectionOf = <AppModel>(
 ): Projection<AppModel, unknown> | undefined =>
   'projectionOf' in entry ? entry.projectionOf(model) : entry.projection()
 
+/**
+ * `projectionOf` computed once per Model: the read, live, and retain entries
+ * all derive their dependencies from the same projection on the same Model
+ * change, and a Surface's `model` callback (which lifts and builds schemas)
+ * need not run three times for it. Models are objects, so the memo is weak.
+ */
+const memoizedProjectionOf = <AppModel>(
+  entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
+): ((model: AppModel) => Projection<AppModel, unknown> | undefined) => {
+  const cache = new WeakMap<object, Projection<AppModel, unknown> | undefined>()
+  return model => {
+    const key: unknown = model
+    if (typeof key !== 'object' || key === null) return projectionOf(entry, model)
+    if (cache.has(key)) return cache.get(key)
+    const projection = projectionOf(entry, model)
+    cache.set(key, projection)
+    return projection
+  }
+}
+
 export const Remote = {
   /** The submodel's schema, the same for every domain; embed it in the application Model. */
   Model: remoteModelSchema(),
@@ -1157,6 +1177,7 @@ const bindDomain = <
     subscriptions: (active, options = {}) => {
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
+      const projections: Array<(model: AppModel) => Projection<AppModel, unknown> | undefined> = []
       for (const [key, entry] of Object.entries(active)) {
         // Two applications can have the same Model type; the owner token tells them apart.
         if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
@@ -1164,7 +1185,9 @@ const bindDomain = <
             `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
           )
         }
-        const asked = (model: AppModel) => askedOf(projectionOf(entry, model))
+        const projectionAt = memoizedProjectionOf(entry)
+        projections.push(projectionAt)
+        const asked = (model: AppModel) => askedOf(projectionAt(model))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
           bound,
@@ -1177,8 +1200,8 @@ const bindDomain = <
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model =>
           rootsOf(
-            Object.values(active).flatMap(entry => {
-              const projection = projectionOf(entry, model)
+            projections.flatMap(projectionAt => {
+              const projection = projectionAt(model)
               return projection === undefined ? [] : [projection]
             }),
             options,

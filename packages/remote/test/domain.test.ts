@@ -14,6 +14,7 @@ import {
   Query,
   Remote,
   RemoteClient,
+  RemoteData,
   RemoteMutationError,
   RemotePolicy,
   RemoteQueryError,
@@ -429,6 +430,47 @@ describe('Data.live and Data.subscriptions', () => {
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
     })
+  })
+})
+
+describe('what runs on every Model change is built once', () => {
+  it('the RemoteData and Page schemas for a selection are shared across projections', () => {
+    const summary = Project.select({ name: true })
+    expect(Data.get(summary, 'p1').Model).toBe(Data.get(summary, 'p2').Model)
+    expect(Data.live(summary, 'p1').Model).toBe(Data.get(summary, 'p1').Model)
+    const page = () => Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
+    expect(page().Model).toBe(page().Model)
+    expect(RemoteData.schema(summary.schema)).toBe(RemoteData.schema(summary.schema))
+    // Another selection is another schema.
+    expect(Data.get(Project.select({ id: true }), 'p1').Model).not.toBe(
+      Data.get(summary, 'p1').Model,
+    )
+  })
+
+  it('a Surface’s model callback runs once per Model for the read, live, and retain entries', () => {
+    let built = 0
+    const Counted = App.surface('Counted', {
+      params: { projectId: Schema.String },
+      model: ({ params }) => {
+        built += 1
+        return { project: Data.live(Project.select({ name: true }), params.projectId) }
+      },
+    })
+    const subscriptions = Data.subscriptions({
+      counted: Surface.at(Counted, model =>
+        model.route === '' ? undefined : { projectId: model.route },
+      ),
+    })
+    const model: Model = { route: 'p1', remote: Remote.initial }
+    subscriptions['counted.read']!.modelToDependencies(model)
+    subscriptions['counted.live']!.modelToDependencies(model)
+    subscriptions.retain!.modelToDependencies(model)
+    expect(built).toBe(1)
+    // A new Model is a new projection; an inactive one builds nothing.
+    subscriptions['counted.read']!.modelToDependencies({ ...model })
+    expect(built).toBe(2)
+    subscriptions.retain!.modelToDependencies({ route: '', remote: Remote.initial })
+    expect(built).toBe(2)
   })
 })
 
