@@ -76,23 +76,23 @@ state machine:
   Model stays the only truth; the store is last-write-wins with no log, which is
   what separates it from Sync.
 
-```text
-                         Foldkit application
-                 Model · Message · update · Commands
-                                │
-                 observe/project│
-                                ▼
-                         foldkit-surface
-                 Projection · field refs · subsets
-                                │
-       ┌────────────────┬───────┴────────────────┬────────────────┐
-       ▼                ▼                        ▼                ▼
- foldkit-agent    foldkit-remote          foldkit-durable    foldkit-mirror
- (webmcp, mcp,    (normalized             (ordered log)      (URL, KeyValueStore)
-  a2a, native)     server cache)                │
-                        │                  foldkit-sync
-                   remote-server           (local replica)
-                   remote-drizzle
+```mermaid
+flowchart TB
+  app["Foldkit application<br/>Model · Message · update · Commands"]
+  surface["foldkit-surface<br/>Projection · field refs · subsets"]
+  agent["foldkit-agent<br/>webmcp · mcp · a2a · native"]
+  remote["foldkit-remote<br/>normalized server cache"]
+  server["foldkit-remote-server<br/>foldkit-remote-drizzle"]
+  durable["foldkit-durable<br/>ordered log"]
+  sync["foldkit-sync<br/>local replica"]
+  mirror["foldkit-mirror<br/>URL · KeyValueStore"]
+  app -- "observe / project" --> surface
+  surface --> agent
+  surface --> remote
+  surface --> durable
+  surface --> mirror
+  remote --> server
+  durable --> sync
 ```
 
 None reimplements `update`: the agent layer projects it, Remote reduces its facts

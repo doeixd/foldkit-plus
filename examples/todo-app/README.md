@@ -13,24 +13,24 @@ pnpm test   # from the repo root: pnpm vitest run examples/todo-app
 
 ## The idea in one diagram
 
-```text
-                       app.ts
-            Model + Message + update          <- the only reducer
-                       │
-         surface.ts    │    Surface.application(App)
-    ┌──────────────────┼──────────────────────┐
-    │                  │                      │
- Surfaces        sync fragments          agent contract
- Header, Composer,   Todos, ListMeta      Overview + capabilities
- Board, Footer,      (sync.ts)            (agent.ts)
- Overview                │                      │
-    │                    │                      │
- view.ts            Sync.mount             Agent.bind
- slots + styles     one reducer,           WebMCP tools
- (style.ts)         replica, journal       completion, authorize
-    │                    │                      │
-    └──────────────── module.ts ────────────────┘
-              Module.validate / manifest / toMarkdown
+```mermaid
+flowchart TB
+  app["app.ts<br/>Model + Message + update — the only reducer"]
+  surface["surface.ts<br/>Surface.application(App)"]
+  surfaces["Surfaces<br/>Header, Composer, Board, Footer, Overview"]
+  fragments["sync fragments (sync.ts)<br/>Todos, ListMeta"]
+  contract["agent contract (agent.ts)<br/>Overview + capabilities"]
+  mirrors["mirrors (surface.ts)<br/>Filters: Mirror.url · Prefs: Mirror.kv"]
+  view["view.ts<br/>slots + styles (style.ts)"]
+  mount["Sync.mount<br/>one reducer, replica, journal, URL"]
+  bind["Agent.bind<br/>WebMCP tools · completion, authorize"]
+  module["module.ts<br/>Module.validate / manifest / toMarkdown"]
+  app --> surface
+  surface --> surfaces --> view --> module
+  surface --> fragments --> mount --> module
+  surface --> mirrors --> mount
+  mirrors --> module
+  surface --> contract --> bind --> module
 ```
 
 The top is pure data: schemas, projections, Message sets, styles, rules. The

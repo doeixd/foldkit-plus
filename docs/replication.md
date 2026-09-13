@@ -31,16 +31,15 @@ and to keep a durable authoritative order on the server.
 
 ## How they fit together
 
-```text
-        browser / device                         server / Node
-  ┌──────────────────────────┐           ┌──────────────────────────┐
-  │  Foldkit app (update)    │           │   foldkit-durable        │
-  │      │ Messages          │           │   append → reduce →      │
-  │      ▼                   │ Transport │   snapshot + cursor      │
-  │  foldkit-sync replica    │◀─────────▶│   (authoritative order)  │
-  │  outbox · optimistic     │  exchange │   effect ledger          │
-  │  IndexedDB (CAS)         │           │   SQLite                 │
-  └──────────────────────────┘           └──────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph client["browser / device"]
+    app["Foldkit app (update)"] -- Messages --> replica["foldkit-sync replica<br/>outbox · optimistic<br/>IndexedDB (CAS)"]
+  end
+  subgraph server["server / Node"]
+    durable["foldkit-durable<br/>append → reduce → snapshot + cursor<br/>authoritative order · effect ledger · SQLite"]
+  end
+  replica <-- "Transport exchange" --> durable
 ```
 
 The seam is one request. The replica sends its `cursor` and `pending`
