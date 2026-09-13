@@ -11,6 +11,7 @@ import type { Command } from 'foldkit/command'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
   Requirement,
+  type ActiveSurface,
   type Contract,
   type ModelRef,
   type Projection,
@@ -150,6 +151,16 @@ export interface DomainMutateOptions {
     | undefined
 }
 
+/** A Foldkit Subscription entry of the Remote domain, emitting its Messages through `RemoteClient`. */
+export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
+  AppModel,
+  RemoteMessage,
+  Dependencies,
+  RemoteClient
+>
+
+export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
+
 /** What `RemoteDomain.mutate` hands `update`: the Model with the request started, and the Command that settles it. */
 export interface MutationStarted<AppModel> {
   readonly model: AppModel
@@ -180,6 +191,27 @@ export interface RemoteDomain<
     selection: Selection<Value, Name, 'entity'>,
     id: string,
   ): Projection<AppModel, RemoteData<Value>>
+  /**
+   * `get`, and the projection also subscribes to the entity's changes: its
+   * requirements are marked `live`, so `subscriptions` derives a live entry for
+   * the Surfaces that read it.
+   */
+  live<Value, Name extends EntityName<Entities[number]>>(
+    selection: Selection<Value, Name, 'entity'>,
+    id: string,
+  ): Projection<AppModel, RemoteData<Value>>
+  /**
+   * The Foldkit Subscription entries for the active Surfaces, keyed for
+   * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
+   * entry per Surface that reads through `live` (`Remote.live`), and one
+   * retain entry with every active Surface as a root (`Remote.retain`). A
+   * Surface's params are a function of the Model (`Surface.at`), so what is
+   * fetched, subscribed, and retained follows the Model.
+   */
+  subscriptions(
+    active: Readonly<Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>>,
+    options?: SubscriptionsOptions,
+  ): Readonly<Record<string, RemoteEntry<AppModel, any>>>
   /** `Remote.plan`: the requirements the store does not satisfy. */
   plan<Value>(
     model: AppModel,
@@ -336,6 +368,133 @@ const bindRemote = <
     requirements: [],
   },
 })
+
+/** The retention roots of some projections plus the connections listed. */
+const rootsOf = (
+  projections: ReadonlyArray<Projection<any, unknown>>,
+  options: RetainOptions,
+): RetentionRoots => ({
+  requirements: Requirement.merge(projections.flatMap(projection => projection.requirements)),
+  connections: [...new Set((options.connections ?? []).map(connectionIdentity))].sort(),
+})
+
+/** The read entry: plans `requirementsOf(model)` against the store and fetches the plan. */
+const observeEntry = <AppModel, Store extends RemoteModel, Message>(
+  bound: BoundRemote<AppModel, Store>,
+  requirementsOf: (model: AppModel) => ReadonlyArray<Requirement>,
+  toMessage: (message: RemoteMessage) => Message,
+  options: ObserveOptions,
+): EntryWithoutKeepAlive<
+  AppModel,
+  Message,
+  { readonly requirements: ReadonlyArray<Requirement> },
+  RemoteClient
+> => {
+  const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
+  const read = (requirements: ReadonlyArray<Requirement>) =>
+    Effect.gen(function* () {
+      const client = yield* RemoteClient
+      const at = now()
+      const result = yield* Effect.result(
+        client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
+      )
+      return Result.isFailure(result)
+        ? toMessage({
+            _tag: 'ReadFailed',
+            requests: requirements,
+            error: remoteError(result.failure),
+          })
+        : toMessage({
+            _tag: 'ReadReceived',
+            requests: requirements,
+            result: result.success,
+            now: at,
+          })
+    })
+  return {
+    dependenciesSchema: Schema.Struct({
+      requirements: Schema.Array(ReadRequest),
+    }),
+    modelToDependencies: model => ({
+      requirements: plan(
+        storeOf(bound, model),
+        requirementsOf(model),
+        RemotePolicy.toPlan(policy, now()),
+      ),
+    }),
+    dependenciesToStream: ({ requirements }) =>
+      requirements.length === 0
+        ? Stream.empty
+        : Stream.concat(
+            RemotePolicy.refreshes(policy)
+              ? Stream.succeed(toMessage({ _tag: 'RefreshStarted', requests: requirements }))
+              : Stream.empty,
+            Stream.fromEffect(read(requirements)),
+          ),
+  }
+}
+
+/** The live entry: subscribes to `requirementsOf(model)` from the Model's resume cursor. */
+const liveEntry = <AppModel, Store extends RemoteModel, Message>(
+  bound: BoundRemote<AppModel, Store>,
+  requirementsOf: (model: AppModel) => ReadonlyArray<Requirement>,
+  toMessage: (message: RemoteMessage) => Message,
+  options: LiveOptions,
+): EntryWithoutKeepAlive<
+  AppModel,
+  Message,
+  { readonly requirements: ReadonlyArray<Requirement>; readonly cursor: LiveCursor },
+  RemoteClient
+> => ({
+  dependenciesSchema: Schema.Struct({
+    requirements: Schema.Array(ReadRequest),
+    cursor: Schema.Number,
+  }),
+  modelToDependencies: model => {
+    const requirements = requirementsOf(model)
+    const stream = liveStreamKey(requirements)
+    return {
+      requirements,
+      cursor: bound.store.get(model).live[stream]?.cursor ?? 0,
+    }
+  },
+  dependenciesToStream: ({ requirements, cursor }) =>
+    requirements.length === 0
+      ? Stream.empty
+      : Stream.unwrap(
+          Effect.gen(function* () {
+            const client = yield* RemoteClient
+            return client.live({ requirements, after: cursor })
+          }),
+        ).pipe(
+          Stream.map(event =>
+            toMessage({
+              _tag: 'LiveReceived',
+              stream: liveStreamKey(requirements),
+              event,
+              now: (options.now ?? Date.now)(),
+            }),
+          ),
+          Stream.catchIf(
+            (_error): _error is RemoteLiveError | RemoteProtocolError => true,
+            error =>
+              Stream.succeed(
+                toMessage({
+                  _tag: 'ReadFailed',
+                  requests: requirements,
+                  error: remoteError(error),
+                }),
+              ),
+          ),
+        ),
+})
+
+/** The projection an active Surface has for this Model, if it is active. */
+const projectionOf = <AppModel>(
+  entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
+  model: AppModel,
+): Projection<AppModel, unknown> | undefined =>
+  'projectionOf' in entry ? entry.projectionOf(model) : entry.projection()
 
 export const Remote = {
   /** The submodel's schema, the same for every domain; embed it in the application Model. */
@@ -517,10 +676,7 @@ export const Remote = {
     toMessage: (message: RemoteMessage) => Message = identityMessage as never,
     options: RetainOptions = {},
   ): EntryWithoutKeepAlive<AppModel, Message, RetentionRoots, never> => {
-    const roots: RetentionRoots = {
-      requirements: Requirement.merge(projections.flatMap(projection => projection.requirements)),
-      connections: [...new Set((options.connections ?? []).map(connectionIdentity))].sort(),
-    }
+    const roots = rootsOf(projections, options)
     return {
       dependenciesSchema: retentionRootsSchema,
       modelToDependencies: () => roots,
@@ -661,48 +817,7 @@ export const Remote = {
     { readonly requirements: ReadonlyArray<Requirement> },
     RemoteClient
   > => {
-    const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
-    const read = (requirements: ReadonlyArray<Requirement>) =>
-      Effect.gen(function* () {
-        const client = yield* RemoteClient
-        const at = now()
-        const result = yield* Effect.result(
-          client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
-        )
-        return Result.isFailure(result)
-          ? toMessage({
-              _tag: 'ReadFailed',
-              requests: requirements,
-              error: remoteError(result.failure),
-            })
-          : toMessage({
-              _tag: 'ReadReceived',
-              requests: requirements,
-              result: result.success,
-              now: at,
-            })
-      })
-    return {
-      dependenciesSchema: Schema.Struct({
-        requirements: Schema.Array(ReadRequest),
-      }),
-      modelToDependencies: model => ({
-        requirements: plan(
-          storeOf(bound, model),
-          surface.projection(params).requirements,
-          RemotePolicy.toPlan(policy, now()),
-        ),
-      }),
-      dependenciesToStream: ({ requirements }) =>
-        requirements.length === 0
-          ? Stream.empty
-          : Stream.concat(
-              RemotePolicy.refreshes(policy)
-                ? Stream.succeed(toMessage({ _tag: 'RefreshStarted', requests: requirements }))
-                : Stream.empty,
-              Stream.fromEffect(read(requirements)),
-            ),
-    }
+    return observeEntry(bound, () => surface.projection(params).requirements, toMessage, options)
   },
 
   /**
@@ -730,49 +845,7 @@ export const Remote = {
     Message,
     { readonly requirements: ReadonlyArray<Requirement>; readonly cursor: LiveCursor },
     RemoteClient
-  > => ({
-    dependenciesSchema: Schema.Struct({
-      requirements: Schema.Array(ReadRequest),
-      cursor: Schema.Number,
-    }),
-    modelToDependencies: model => {
-      const requirements = surface.projection(params).requirements
-      const stream = liveStreamKey(requirements)
-      return {
-        requirements,
-        cursor: bound.store.get(model).live[stream]?.cursor ?? 0,
-      }
-    },
-    dependenciesToStream: ({ requirements, cursor }) =>
-      requirements.length === 0
-        ? Stream.empty
-        : Stream.unwrap(
-            Effect.gen(function* () {
-              const client = yield* RemoteClient
-              return client.live({ requirements, after: cursor })
-            }),
-          ).pipe(
-            Stream.map(event =>
-              toMessage({
-                _tag: 'LiveReceived',
-                stream: liveStreamKey(requirements),
-                event,
-                now: (options.now ?? Date.now)(),
-              }),
-            ),
-            Stream.catchIf(
-              (_error): _error is RemoteLiveError | RemoteProtocolError => true,
-              error =>
-                Stream.succeed(
-                  toMessage({
-                    _tag: 'ReadFailed',
-                    requests: requirements,
-                    error: remoteError(error),
-                  }),
-                ),
-            ),
-          ),
-  }),
+  > => liveEntry(bound, () => surface.projection(params).requirements, toMessage, options),
 }
 
 /** The bound domain: the descriptor, the binding, and the operations over them. */
@@ -791,6 +864,45 @@ const bindDomain = <
     ...definition,
     ...bound,
     get: (selection, id) => Remote.select(bound, selection)(id),
+    live: (selection, id) => {
+      const projection = Remote.select(bound, selection)(id)
+      return {
+        ...projection,
+        requirements: projection.requirements.map(requirement => ({ ...requirement, live: true })),
+      }
+    },
+    subscriptions: (active, options = {}) => {
+      // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
+      const entries: Record<string, RemoteEntry<AppModel, any>> = {}
+      for (const [key, entry] of Object.entries(active)) {
+        const requirementsOf = (model: AppModel) => projectionOf(entry, model)?.requirements ?? []
+        entries[`${key}.read`] = observeEntry(bound, requirementsOf, identityMessage, options)
+        entries[`${key}.live`] = liveEntry(
+          bound,
+          model => requirementsOf(model).filter(requirement => requirement.live === true),
+          identityMessage,
+          options,
+        )
+      }
+      entries.retain = {
+        dependenciesSchema: retentionRootsSchema,
+        modelToDependencies: model =>
+          rootsOf(
+            Object.values(active).flatMap(entry => {
+              const projection = projectionOf(entry, model)
+              return projection === undefined ? [] : [projection]
+            }),
+            options,
+          ),
+        dependenciesToStream: (current: RetentionRoots) =>
+          Stream.fromEffect(
+            Effect.succeed<RemoteMessage>({ _tag: 'RetentionChanged', roots: current }).pipe(
+              Effect.delay(options.grace ?? 0),
+            ),
+          ),
+      }
+      return entries
+    },
     plan: (model, projection, options) => Remote.plan(bound, model, projection, options),
     storeOf: model => storeOf(bound, model),
     prefetch: (model, projection, options) => Remote.prefetch(bound, model, projection, options),

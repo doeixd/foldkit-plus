@@ -117,7 +117,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   // A live subscription for the Board is registered with the server's hub
   // before the rename, so the mutation's `hub.changed` reaches it.
-  const liveEntry = Remote.live(Data, BoardSurface, undefined)
+  // The Board's Subscription entries, as `Subscription.make` would take them;
+  // the live entry exists because the Board reads the project through `Data.live`.
+  const liveEntry = Data.subscriptions({ board: BoardSurface })['board.live']!
   // `Data.mutate` is what `update` calls: it starts the request in the Model
   // (the id comes from the Model's own sequence) and hands back the Command
   // whose Message settles it; here the Command runs and reduces in place.

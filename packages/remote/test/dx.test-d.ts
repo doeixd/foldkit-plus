@@ -1,16 +1,16 @@
 /**
- * The application API from #69 on the five scenarios the issue names. Items 1,
- * 2, 3, 9, 11, and 12 (Phase B) are the real exports; `Dx.*` below are still
- * `declare`d stubs for items 4–8 (Phases C and D), typed over the real kernel
- * types so that inference, hover shape, and error placement are checked before
- * they land. When an item lands, its stub is replaced and the scenario stays.
+ * The application API from #69 on the five scenarios the issue names. Phases B
+ * and C (items 1–6, 9–12) are the real exports; `Dx.*` below are still
+ * `declare`d stubs for items 7–8 (Phase D), typed over the real kernel types so
+ * that inference, hover shape, and error placement are checked before they
+ * land. When an item lands, its stub is replaced and the scenario stays.
  */
 import type { Effect } from 'effect'
 import { Schema } from 'effect'
 import type { Command } from 'foldkit/command'
-import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import { defineMessageUnion } from 'foldkit/message'
-import { Surface, type Application, type Projection } from 'foldkit-surface'
+import * as Subscription from 'foldkit/subscription'
+import { Surface, type Projection } from 'foldkit-surface'
 import {
   ConnectionChange,
   Entity,
@@ -24,6 +24,7 @@ import {
   type QueryRef,
   type RemoteClient,
   type RemoteData,
+  type RemoteEntry,
   type RemoteMessage,
 } from '../src/index.js'
 
@@ -103,18 +104,7 @@ type DxWindow =
       readonly after?: never
     }
 
-/** Item 5: a Surface plus the params it is active with. */
-interface DxActive<Root> {
-  readonly surface: { readonly projection: (params: any) => Projection<Root, unknown> }
-  readonly params: unknown
-}
-
 declare const Dx: {
-  /** Item 6 */
-  live<Value, Name extends 'User' | 'Project' | 'Comment'>(
-    selection: Selection<Value, Name, 'entity'>,
-    id: string,
-  ): Projection<AppModel, RemoteData<Value>>
   /** Item 7: `select` is constrained to the query's entity (here `Project`). */
   query<Q extends typeof ProjectsByOwner, Value>(
     query: Q,
@@ -126,41 +116,7 @@ declare const Dx: {
     model: AppModel,
     projection: Projection<AppModel, RemoteData<Page<unknown>>> & { readonly query: Q },
   ): QueryRef<NameOf<Q>, QueryInput<Q>> | undefined
-  /** Item 5 */
-  subscriptions(
-    active: ReadonlyArray<DxActive<AppModel>>,
-    options?: { readonly grace?: string },
-  ): ReadonlyArray<EntryWithoutKeepAlive<AppModel, RemoteMessage, unknown, RemoteClient>>
 }
-
-/** Item 4: `App.surface` with plain params fields and an object of Projections. */
-type ProjectionValue<P> = P extends Projection<any, infer V> ? V : never
-declare const dxSurface: <
-  Root,
-  F extends Schema.Struct.Fields,
-  Cases extends Record<string, Schema.Struct.Fields>,
-  const Params extends Schema.Struct.Fields = {},
-  Fields extends Record<string, Projection<Root, unknown>> = Record<
-    string,
-    Projection<Root, unknown>
-  >,
-  const Ms extends readonly ((
-    ...args: never[]
-  ) => Schema.Schema.Type<Application<Root, F, Cases>['Message']>)[] = readonly [],
->(
-  app: Application<Root, F, Cases>,
-  name: string,
-  config: {
-    readonly params?: Params
-    readonly model: (context: { readonly params: Schema.Struct.Type<Params> }) => Fields
-    readonly messages?: Ms
-  },
-) => Surface<
-  Root,
-  { readonly [K in keyof Fields]: ProjectionValue<Fields[K]> },
-  Ms[number] extends (...args: never[]) => infer M ? M : never,
-  Schema.Struct.Type<Params>
->
 
 // ===========================================================================
 // Scenario 1 — Project with a nested owner selection
@@ -193,6 +149,8 @@ User.select({ nope: true })
 Project.select({ owner: Comment.select({ id: true }) })
 // @ts-expect-error Team is declared but not registered with Data
 Data.get(Team.select({ id: true }), 't1')
+// @ts-expect-error nor may it be read live
+Data.live(Team.select({ id: true }), 't1')
 
 // ===========================================================================
 // Scenario 2 — a paginated list with next() (stubs)
@@ -253,14 +211,29 @@ Data.mutate(model, Other, {})
 // Scenario 4 — a Surface with a Remote value and a restricted Message set
 // ===========================================================================
 
-const ProjectPage = dxSurface(App, 'ProjectPage', {
+// Item 4: plain params fields become the Params Struct; the object of
+// Projections becomes Projection.struct. Item 6: `live` where the value is declared.
+const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: ProjectId },
   model: ({ params }) => ({
-    project: Dx.live(ProjectSummary, params.projectId),
+    project: Data.live(ProjectSummary, params.projectId),
     projects: Dx.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 }),
   }),
   messages: [Message.ArchiveProject],
 })
+// A Surface without params, and one whose model is a single Projection.
+const Home = App.surface('Home', { model: () => ({ project: Data.get(ProjectSummary, 'p1') }) })
+const Bare = App.surface('Bare', {
+  params: Schema.Struct({ projectId: ProjectId }),
+  model: ({ params }) => Data.get(ProjectSummary, params.projectId),
+})
+const _home: Surface<AppModel, { readonly project: RemoteData<ProjectValue> }, never, void> = Home
+const _bare: Surface<
+  AppModel,
+  RemoteData<ProjectValue>,
+  never,
+  { readonly projectId: ProjectId }
+> = Bare
 
 // Hover target: the projected Model and Params are user concepts.
 const _page: Surface<
@@ -281,20 +254,31 @@ Surface.make(App, 'ProjectPageKernel', {
 })
 
 const OtherMessage = defineMessageUnion({ Other: {} })
-dxSurface(App, 'Wrong', {
+App.surface('Wrong', {
   model: () => ({}),
   // @ts-expect-error a Message constructor from another union
   messages: [OtherMessage.Other],
 })
 
-// Item 5: one declaration per feature; the entries are real Subscription entries.
-const subscriptions = (current: AppModel) =>
-  Dx.subscriptions([{ surface: ProjectPage, params: { projectId: current.route as ProjectId } }], {
-    grace: '5 seconds',
-  })
-const _entries: ReadonlyArray<
-  EntryWithoutKeepAlive<AppModel, RemoteMessage, unknown, RemoteClient>
-> = subscriptions(model)
+// Item 5: one declaration per feature. Activation is a Model fact: a Surface's
+// params are a function of the Model (`undefined` while inactive), and the
+// entries are what `Subscription.make` takes.
+const subscriptions = Data.subscriptions(
+  {
+    page: Surface.at(ProjectPage, current =>
+      current.route === '' ? undefined : { projectId: current.route as ProjectId },
+    ),
+    home: Home,
+  },
+  { grace: '5 seconds' },
+)
+const _entries: Readonly<Record<string, RemoteEntry<AppModel, any>>> = subscriptions
+const _foldkit = Subscription.make<AppModel, typeof Message.Type, RemoteClient>()(
+  () => subscriptions,
+)
+void _foldkit
+// @ts-expect-error a Surface with params is activated through Surface.at
+Data.subscriptions({ page: ProjectPage })
 
 // Item 11: Remote's Messages are the application's own; `update` delegates by tag.
 const update = (current: AppModel, message: typeof Message.Type): AppModel =>

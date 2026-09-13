@@ -103,19 +103,20 @@ takes `now` as input (`PlanFreshness`)
 rather than reading the clock, so the same store and requirements produce the same
 plan.
 
-Fetching is a Foldkit Subscription derived from the Surface:
+Fetching is a Foldkit Subscription derived from the active Surfaces, and
+activation is a fact of the Model:
 
 ```ts
-const subscriptions = (model: Model) => [
-  Remote.observe(AppRemote, ProjectPage, { projectId: model.route.projectId }, message =>
-    GotRemote({ message }),
-  ),
-]
+Data.subscriptions({
+  page: Surface.at(ProjectPage, model => ({ projectId: model.route.projectId })),
+})
 ```
 
-`Remote.observe` plans, fetches only the missing fields through `RemoteClient`, and
-emits a `RemoteMessage`. A fully-known Surface emits nothing. SSR, route/hover
-prefetch, and tests reuse the same plan through `Remote.prefetch`.
+Each active Surface gives a read entry, which plans and fetches only the missing
+fields through `RemoteClient` and emits a `RemoteMessage` (a fully-known Surface
+emits nothing), and a live entry for what it reads through `Data.live`; one
+retain entry keeps what the active Surfaces reach. SSR, route/hover prefetch,
+and tests reuse the same plan through `Data.prefetch`.
 
 What a field the store already holds means is a `RemotePolicy` on `observe` and
 `prefetch`: `cacheFirst` (default) fetches only what is missing,

@@ -15,6 +15,15 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
 
 ### `foldkit-surface` (private)
 
+- **`App.surface` and `Surface.at` (#69, Phase C).** `App.surface(name, {
+  params, model, messages })` is `Surface.make` with the mechanical wrappers
+  lifted: `params` are the fields of a `Schema.Struct` (or a schema, kept as
+  is), and `model` may return an object of Projections and field refs, which
+  becomes `Projection.struct`. `Surface.at(surface, params)` is the Surface as
+  the Model activates it: `params` is the value or a function of the Model
+  (`undefined` while inactive), and `projectionOf(model)` the projection for
+  those params. `Requirement.live` marks a requirement the projection also
+  subscribes to; `Requirement.merge` keeps the mark.
 - **`Module`, the pure composition root.** `Module.make(App, [contracts])`
   collects an application's contracts as data; `Module.validate` reports a
   contract from another application, a duplicate `kind:name`, two owners of
@@ -81,6 +90,16 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `Mutation.make` and `Query.make` take the fields of a `Schema.Struct` where a
   codec is expected, and `Query.make`'s `Result` takes the entity a connection
   is over. `MutationState.sequence` is new.
+- **Live and subscriptions on the domain (#69, Phase C).** `Data.live(selection,
+  id)` is `Data.get` with the projection's requirements marked `live`; the
+  mark survives `Projection.struct` and never reaches the wire.
+  `Data.subscriptions({ key: Surface.at(surface, params) | surface }, options)`
+  returns the record `Subscription.make` takes: a `<key>.read` entry per
+  Surface (`Remote.observe` over the params the Model gives), a `<key>.live`
+  entry subscribing what the Surface reads live (`Remote.live`), and one
+  `retain` entry with every active Surface as a root (`Remote.retain`).
+  `options` are the observe, live, and retain options together. The kernel
+  entries now derive their requirements from a function of the Model.
 - **Review hardening.** One plan: `Remote.plan(bound, model, projection,
   options?)` replaces `planProjection`/`observeProjection`/`planSurface`
   (a Surface's is `surface.projection(params)`); `Remote.retain(projections,

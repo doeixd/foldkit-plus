@@ -14,9 +14,12 @@ import {
   Remote,
   RemoteClient,
   RemoteMutationError,
+  RemotePolicy,
   Selection,
+  emptyStore,
   entityKey,
   readField,
+  writeEntity,
 } from '../src/index.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -261,5 +264,137 @@ describe('Data.mutate starts a mutation from update', () => {
     expect(after.remote.optimistic.layers).toEqual([])
     expect([...after.remote.mutations.failed]).toEqual(['remote-1'])
     expect(Data.get(summary, 'p1').read(after)).toEqual({ _tag: 'Initial' })
+  })
+})
+
+describe('Data.live and Data.subscriptions', () => {
+  const summary = Project.select({ name: true })
+  const Page = App.surface('Page', {
+    params: { projectId: Schema.String },
+    model: ({ params }) => ({
+      project: Data.live(summary, params.projectId),
+      owner: Data.get(User.select({ name: true }), 'u1'),
+    }),
+  })
+  const Home = App.surface('Home', { model: () => ({ project: Data.get(summary, 'p1') }) })
+  const subscriptions = Data.subscriptions({
+    page: Surface.at(Page, model => (model.route === '' ? undefined : { projectId: model.route })),
+    home: Home,
+  })
+  const at = (route: string): Model => ({ route, remote: Remote.initial })
+
+  it('live marks the projection’s requirements; get does not; the mark survives Projection.struct', () => {
+    expect(Data.live(summary, 'p1').requirements).toEqual([
+      { entity: 'Project', id: 'p1', fields: ['name'], live: true },
+    ])
+    expect(Data.get(summary, 'p1').requirements).toEqual([
+      { entity: 'Project', id: 'p1', fields: ['name'] },
+    ])
+    expect(Page.projection({ projectId: 'p1' }).requirements.map(r => [r.entity, r.live])).toEqual([
+      ['Project', true],
+      ['User', undefined],
+    ])
+    expect(Data.live(summary, 'p1').read(initial)).toEqual({ _tag: 'Initial' })
+  })
+
+  it('the plan never carries the mark to the wire', () => {
+    expect(Data.plan(initial, Data.live(summary, 'p1'))).toEqual([
+      { entity: 'Project', id: 'p1', fields: ['name'] },
+    ])
+  })
+
+  it('is a Subscriptions record: a read and a live entry per Surface, and one retain entry', () => {
+    expect(Object.keys(subscriptions).sort()).toEqual([
+      'home.live',
+      'home.read',
+      'page.live',
+      'page.read',
+      'retain',
+    ])
+  })
+
+  it('the read entry plans from the params the Model gives; an inactive Surface plans nothing', () => {
+    expect(subscriptions['page.read']!.modelToDependencies(at('p7'))).toEqual({
+      requirements: [
+        { entity: 'Project', id: 'p7', fields: ['name'] },
+        { entity: 'User', id: 'u1', fields: ['name'] },
+      ],
+    })
+    expect(subscriptions['page.read']!.modelToDependencies(at(''))).toEqual({ requirements: [] })
+    expect(subscriptions['home.read']!.modelToDependencies(at(''))).toEqual({
+      requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+    })
+  })
+
+  it('the live entry subscribes only what the Surface reads live', () => {
+    expect(subscriptions['page.live']!.modelToDependencies(at('p7'))).toEqual({
+      requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],
+      cursor: 0,
+    })
+    expect(subscriptions['home.live']!.modelToDependencies(at('p7'))).toEqual({
+      requirements: [],
+      cursor: 0,
+    })
+  })
+
+  it('the retain entry’s roots are the active Surfaces’ requirements', () => {
+    expect(subscriptions.retain!.modelToDependencies(at('p7'))).toEqual({
+      requirements: [
+        { entity: 'Project', id: 'p7', fields: ['name'], live: true },
+        { entity: 'User', id: 'u1', fields: ['name'] },
+        { entity: 'Project', id: 'p1', fields: ['name'] },
+      ],
+      connections: [],
+    })
+    expect(subscriptions.retain!.modelToDependencies(at(''))).toEqual({
+      requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+      connections: [],
+    })
+  })
+
+  it('the entries fetch, subscribe, and collect through RemoteClient like the kernel’s', async () => {
+    const read = subscriptions['page.read']!
+    const messages = await Effect.runPromise(
+      Stream.runCollect(read.dependenciesToStream(read.modelToDependencies(at('p7')))).pipe(
+        Effect.provide(client()),
+      ),
+    )
+    expect(messages.map(message => message._tag)).toEqual(['ReadReceived'])
+    const loaded = messages.reduce(Data.reduce, at('p7'))
+    expect(Data.get(summary, 'p7').read(loaded)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'name of p7' },
+    })
+    expect(read.modelToDependencies(loaded)).toEqual({ requirements: [] })
+
+    const collected = await Effect.runPromise(
+      Stream.runCollect(
+        subscriptions.retain!.dependenciesToStream(
+          subscriptions.retain!.modelToDependencies(at('')),
+        ),
+      ).pipe(Effect.provide(client())),
+    )
+    expect(collected.map(message => message._tag)).toEqual(['RetentionChanged'])
+    expect(Data.inspect(Data.reduce(loaded, collected[0]!)).entities.map(e => e.key)).toEqual([])
+  })
+
+  it('takes the observe, live, and retain options', () => {
+    const tuned = Data.subscriptions(
+      { home: Home },
+      { policy: RemotePolicy.networkOnly, connections: ['Feed'], grace: '1 second' },
+    )
+    expect(tuned.retain!.modelToDependencies(at(''))).toMatchObject({ connections: ['Feed'] })
+    // networkOnly plans every field, present or not.
+    const loaded = {
+      ...initial,
+      remote: {
+        ...initial.remote,
+        entities: writeEntity(emptyStore, entityKey('Project', 'p1'), { name: 'x' }, 0),
+      },
+    }
+    expect(subscriptions['home.read']!.modelToDependencies(loaded)).toEqual({ requirements: [] })
+    expect(tuned['home.read']!.modelToDependencies(loaded)).toEqual({
+      requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+    })
   })
 })

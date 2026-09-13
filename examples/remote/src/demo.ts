@@ -25,7 +25,7 @@ import {
   writeEntity,
   type EntityStore,
 } from 'foldkit-remote'
-import { Projection, Surface } from 'foldkit-surface'
+import { Surface } from 'foldkit-surface'
 
 const Project = Entity.make(
   'Project',
@@ -68,9 +68,11 @@ const Data = Remote.make({
   queries: [ProjectsByOwner],
 })
 
-const ProjectPage = Surface.make(App, 'ProjectPage', {
-  Params: Schema.Struct({ projectId: Schema.String }),
-  model: ({ params }) => Projection.struct({ project: Data.get(ProjectSummary, params.projectId) }),
+// Params are plain fields and the model an object of Projections; `App.surface`
+// lifts both into the Schema.Struct and Projection.struct `Surface.make` takes.
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }),
   messages: [Message.Ping],
 })
 
@@ -209,12 +211,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   // A refreshing policy keeps the value visible while it refetches: the
   // Subscription emits RefreshStarted (the projection reads Refreshing) and
-  // then the read result (Ready again). `toMessage` is omitted, so the entry
-  // emits `RemoteMessage`s that `Data.reduce` takes directly.
-  const refreshing = Remote.observe(Data, ProjectPage, { projectId: 'p1' }, undefined, {
-    policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }),
-    now: () => 60_000,
-  })
+  // then the read result (Ready again). `Data.subscriptions` derives the entry
+  // from the active Surface; it emits `RemoteMessage`s that `Data.reduce` takes.
+  const refreshing = Data.subscriptions(
+    { page: Surface.at(ProjectPage, { projectId: 'p1' }) },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), now: () => 60_000 },
+  )['page.read']!
   const refreshMessages = await Effect.runPromise(
     Stream.runCollect(refreshing.dependenciesToStream(refreshing.modelToDependencies(loaded))).pipe(
       Effect.provide(FakeClient),

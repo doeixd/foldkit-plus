@@ -250,14 +250,16 @@ export const Data = Remote.make({
   queries: [ProjectsByOwner],
 })
 
-/** A Surface over the server-derived project plus the replicated notes. */
-export const BoardSurface = Surface.make(App, 'Board', {
-  model: ({ model }) =>
-    Projection.struct({
-      project: Data.get(ProjectSummary, 'p1'),
-      notes: model.notes,
-      selectedNoteId: model.selectedNoteId,
-    }),
+/**
+ * A Surface over the server-derived project plus the replicated notes. The
+ * project is read live, so the Board's subscriptions include a live entry.
+ */
+export const BoardSurface = App.surface('Board', {
+  model: ({ model }) => ({
+    project: Data.live(ProjectSummary, 'p1'),
+    notes: model.notes,
+    selectedNoteId: model.selectedNoteId,
+  }),
   messages: [Message.SelectedNote, Message.RequestedRenameNote],
 })
 

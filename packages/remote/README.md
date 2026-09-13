@@ -134,29 +134,47 @@ selection for an entity `Data` never declared does not compile.
 
 ## Observation
 
-Reading is pure; fetching is a Foldkit Subscription derived from the Surface.
+Reading is pure; fetching is a Foldkit Subscription derived from the active
+Surfaces. Activation is a fact of the Model: `Surface.at` gives a Surface its
+params as a function of the Model (`undefined` while it is inactive, on another
+route say), and `Data.subscriptions` turns the active Surfaces into the
+entries `Subscription.make` takes:
 
 ```ts
-const subscriptions = (model: Model) => [
-  Remote.observe(AppRemote, ProjectPage, { projectId: model.route.projectId }, message =>
-    Message.GotRemote({ message }),
+const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
+  Data.subscriptions(
+    {
+      page: Surface.at(ProjectPage, model =>
+        model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+      ),
+      home: HomeSurface, // no params: always active
+    },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
   ),
-  Remote.live(AppRemote, ProjectPage, { projectId: model.route.projectId }, message =>
-    Message.GotRemote({ message }),
-  ),
-]
+)
 ```
 
-`Remote.observe` plans the Surface's missing fields against the store and fetches
-only those; a fully-known Surface emits nothing. A read failure and a live stream
-break both arrive as `RemoteMessage`s (`ReadFailed`), so one handler covers
-success and failure. `Remote.live` resumes from `RemoteModel.live`, so the
-application tracks no cursor; it stamps each `LiveReceived` with the clock in
-its `{ now }` option (default `Date.now`).
+Per Surface that gives a `<key>.read` entry, which plans the Surface's missing
+fields against the store and fetches only those (a fully-known Surface emits
+nothing), and a `<key>.live` entry, which subscribes to the entities the
+Surface reads through `Data.live` (below) from the cursor in `RemoteModel.live`;
+plus one `retain` entry whose roots are every active Surface (see Retention).
+A read failure and a live stream break both arrive as `RemoteMessage`s
+(`ReadFailed`), which `Data.reduce` takes.
 
-`toMessage` wraps the `RemoteMessage` in the application's Message union. An
-application whose union includes `RemoteMessage` itself omits it: `observe`,
-`live`, and `retain` then emit the `RemoteMessage` as is.
+```ts
+project: Data.get(ProjectSummary, params.projectId)   // read, refreshed by policy
+project: Data.live(ProjectSummary, params.projectId)  // read, then follow its changes
+```
+
+`Data.live` is `Data.get` with the projection's requirements marked `live`; the
+mark survives `Projection.struct` and never reaches the wire. The kernel
+entries are `Remote.observe(Data, surface, params, toMessage?, options?)`,
+`Remote.live(…)`, and `Remote.retain(projections, toMessage?, options?)`, each
+for one Surface with fixed params; `toMessage` wraps the `RemoteMessage` in an
+application union that does not spread `Remote.messages`. `Remote.live` stamps
+each `LiveReceived` with the clock in its `{ now }` option (default
+`Date.now`).
 
 ### Policies
 
@@ -226,22 +244,18 @@ hand-written client the same way; `window` widens the batching delay beyond
 
 ### Retention
 
-The cache keeps what the active Surfaces reach:
+The cache keeps what the active Surfaces reach. `Data.subscriptions`'s
+`retain` entry has every active Surface as a root, plus the `connections` its
+options name; the kernel form lists projections by hand:
 
 ```ts
-const subscriptions = (model: Model) => {
-  const page = ProjectPage.projection({ projectId: model.route.projectId })
-  return [
-    Remote.observe(AppRemote, ProjectPage, { projectId: model.route.projectId }, toMessage),
-    Remote.retain([page], toMessage, {
-      connections: [projectsRef],
-      grace: '5 seconds',
-    }),
-  ]
-}
+Remote.retain([ProjectPage.projection({ projectId })], undefined, {
+  connections: [projectsRef],
+  grace: '5 seconds',
+})
 ```
 
-`Remote.retain`'s dependencies are the roots (the listed projections'
+The entry's dependencies are the roots (the projections'
 requirements plus the named connections); it emits `RetentionChanged` once the
 roots have been stable for `grace`, and a root change restarts the wait, so a
 route transition that comes straight back does not thrash. `Remote.update`

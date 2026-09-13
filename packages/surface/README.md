@@ -173,6 +173,27 @@ Surface.rootView(TodoDetail, undefined, render)    // bound to the app root
 `Surface.make` does not evaluate `projection(undefined)` for a parameterized
 Surface, because the projection may read `params`.
 
+### `App.surface` and `Surface.at`
+
+`App.surface` is `Surface.make` with the mechanical wrappers lifted: `params`
+are the fields of a `Schema.Struct` (or a schema, kept as is), and `model` may
+return an object of Projections and field refs, which becomes
+`Projection.struct`:
+
+```ts
+const TodoDetail = App.surface('TodoDetail', {
+  params: { id: TodoId },
+  model: ({ model, params }) => ({ todos: model.todos, id: Projection.fromReader(TodoId, () => params.id) }),
+  messages: [Message.RenamedTodo],
+})
+```
+
+`Surface.at(surface, params)` is the Surface as the Model activates it: `params`
+is the value, or a function of the Model returning it (`undefined` while the
+Surface is inactive, on another route say). Its `projectionOf(model)` is the
+projection for those params, or `undefined`; a Subscription derives what to
+fetch from a list of them (`foldkit-remote`'s `Data.subscriptions`).
+
 ## Modules
 
 A `Module` collects an application's contracts as pure data, so their

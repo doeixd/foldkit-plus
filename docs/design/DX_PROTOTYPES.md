@@ -2,13 +2,14 @@
 
 The application API from #69 on the five scenarios the issue names. The fixture
 is [`packages/remote/test/dx.test-d.ts`](../../packages/remote/test/dx.test-d.ts).
-Phase B (items 1, 2, 3, 9, 11, 12) is real there: `Remote.Model`, the bound
-`Remote.make`, `Entity.select`/`patch`, `Data.get`/`plan`/`prefetch`/`mutate`/
-`reduce`/`inspect`, `Remote.messages`/`reduces`, and the fields sugar on
-`Mutation.make`/`Query.make`. The `Dx.*` values still `declare`d are items 4–8
-(Phases C and D), typed over the real kernel types so inference, hover shape,
-and error placement are checked before they land; each is replaced as it
-lands and the scenario stays as the regression test.
+Phases B and C (items 1–6, 9–12) are real there: `Remote.Model`, the bound
+`Remote.make`, `Entity.select`/`patch`, `Data.get`/`live`/`plan`/`prefetch`/
+`mutate`/`reduce`/`inspect`/`subscriptions`, `Remote.messages`/`reduces`, the
+fields sugar on `Mutation.make`/`Query.make`, `App.surface`, and `Surface.at`.
+The `Dx.*` values still `declare`d are items 7–8 (Phase D), typed over the
+real kernel types so inference, hover shape, and error placement are checked
+before they land; each is replaced as it lands and the scenario stays as the
+regression test.
 
 The hover shapes below are what the compiler reports for the fixture's
 declarations (`checker.typeToString`, no truncation), which is what an editor
@@ -187,6 +188,15 @@ The fixture pins that with an assignment.
    enforced by the type, not documented.
 
 ## Findings
+
+- **Foldkit subscriptions are a static record.** `Subscription.make` builds
+  entries once; each derives its dependencies from the Model on every change.
+  So item 5's "one declaration" is not `(model) => [entries]` but a record whose
+  Surfaces take their params from the Model: `Data.subscriptions({ page:
+  Surface.at(ProjectPage, model => params | undefined) })`, keyed `page.read`,
+  `page.live`, `retain`, and passed straight to `Subscription.make<Model,
+  Message, RemoteClient>()`. The fixture pins that the record is accepted with
+  the application's union as `Message`.
 
 - **`update` needs a named result type.** `Data` is bound to `App.model.remote`,
   and `App` is built from `update`, which calls `Data.reduce`; inline in
