@@ -244,6 +244,9 @@ importers:
       foldkit-durable:
         specifier: workspace:*
         version: link:../../packages/durable
+      foldkit-mirror:
+        specifier: workspace:*
+        version: link:../../packages/mirror
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins

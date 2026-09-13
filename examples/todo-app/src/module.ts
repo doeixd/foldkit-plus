@@ -10,7 +10,7 @@
  */
 import { Module } from 'foldkit-surface'
 import { AppAgent } from './agent.js'
-import { App, Board, Composer, Footer, Header, Overview } from './surface.js'
+import { App, Board, Composer, Filters, Footer, Header, Overview, Prefs } from './surface.js'
 import { contract as sync } from './sync.js'
 
 export const TodoModule = Module.make(App, [
@@ -21,6 +21,8 @@ export const TodoModule = Module.make(App, [
   Overview,
   sync,
   AppAgent,
+  Filters.contract,
+  Prefs.contract,
 ])
 
 export const validate = () => Module.validate(TodoModule)

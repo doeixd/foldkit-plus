@@ -22,7 +22,9 @@
  * principal); a refused operation comes back as a rejection and the replica
  * reverts it.
  */
+import type { Layer } from 'effect'
 import type { Document, HtmlBuilder } from 'foldkit/html'
+import type { Subscriptions } from 'foldkit/subscription'
 import { MessageSet, type Contract } from 'foldkit-surface'
 import {
   documentId,
@@ -94,11 +96,14 @@ export const journalContract = (): PolicyJournalContract<Operation, Shared, Sync
  * durable Message applied at once and persisted after, the shared slice
  * re-installed when an exchange or a rejection moves the replica.
  */
-export const mountTodos = (
+export const mountTodos = <Resources = never>(
   replica: Replica<Message, Shared>,
   options: {
     readonly container: HTMLElement
     readonly view: (model: Model, h: HtmlBuilder<Message>) => Document
+    /** Entries beside the replica's own: the mirrors' writes, say. */
+    readonly subscriptions?: Subscriptions<Model, Message, Resources> | undefined
+    readonly resources?: Layer.Layer<Resources> | undefined
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model
   },
 ): Mounted<Model, Message> => mount(App, TodoSync, { replica, ...options })

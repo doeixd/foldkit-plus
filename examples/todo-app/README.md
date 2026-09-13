@@ -50,6 +50,7 @@ value.
 | `sync.ts` | The local-first contract derived from the application: two fragments composed into one document, `authorize` rules per durable variant, and `mountTodos` over `Sync.mount`. |
 | `agent.ts` | The agent contract: capabilities are existing Messages, the context is a Surface, `add_todo` exposes the intent with a `completion` contract, `authorize` mirrors the sync policy. |
 | `module.ts` | `Module.make` over every contract: validation and the ownership manifest. |
+| `surface.ts` (mirrors) | `Mirror.url` keeps the filter in the URL (`?filter=active`, linkable, read back on navigation) and `Mirror.kv` remembers the composer's draft in Web Storage; both observe the Model and own nothing, and `update` takes their reducer so the Model stays a leaf of the import graph. |
 | `runtime.ts`, `client.ts` | Mounting in a browser: the stylesheet injected once, the replica on IndexedDB, the exchange loop, WebMCP registration with the mount as the agent's host. |
 | `journal.ts`, `server.ts` | The server: `foldkit-durable` on SQLite, spreading the contract so codecs, reducer, and policy are never written twice; a WebSocket transport that authenticates per connection. |
 | `demo.ts` | The transcript. Every section names the file it exercises; the test pins its lines. |

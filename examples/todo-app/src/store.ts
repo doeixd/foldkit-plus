@@ -10,7 +10,8 @@
  */
 import { Effect } from 'effect'
 import type { Agent } from 'foldkit-agent'
-import { type Message, type Model, initialModel, update } from './app.js'
+import { type Message, type Model, initialModel } from './app.js'
+import { update } from './surface.js'
 
 export interface Store {
   readonly host: Agent.AgentHost<Model, Message>

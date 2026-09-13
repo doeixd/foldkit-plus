@@ -21,6 +21,7 @@
  *   never leave the tab.
  */
 import { Clock, Effect, Schema } from 'effect'
+import { Mirror } from 'foldkit-mirror'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 
@@ -71,6 +72,10 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
+  // --- mirrors (surface.ts): the URL and a store read back into the Model ----
+  ...Mirror.messages,
+  /** The browser's URL changed (a link, back, forward); the filter is read from it. */
+  UrlChanged: { href: Schema.String },
   // --- effectful intents: local, and their Command emits a durable fact -----
   /** The composer was submitted. The Command mints the id and the timestamp. */
   RequestedTodo: { title: Schema.String },
@@ -117,78 +122,93 @@ const mintTodo = (title: string) => ({
 
 const nextPriority: Record<Priority, Priority> = { low: 'normal', normal: 'high', high: 'low' }
 
-export const update = (model: Model, message: Message): Return =>
-  Message.match<Return>(message, {
-    // Intents. Note that each one clears its *local* state here, in the local
-    // transition; the durable fact it causes never touches local fields.
-    RequestedTodo: ({ title }) =>
-      title.trim() === ''
-        ? { model }
-        : { model: { ...model, draft: '' }, commands: [mintTodo(title.trim())] },
-    EditingCommitted: () => {
-      const id = model.editingId
-      const title = model.editDraft.trim()
-      if (id === null) return { model }
-      const stopped = { ...model, editingId: null, editDraft: '' }
-      if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
-      return {
-        model: stopped,
-        commands: [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
-      }
-    },
+/**
+ * What the mirrors do with their two Messages. They live in `surface.ts`,
+ * beside the `App` they are declared over, so `update` takes them as an
+ * argument instead of importing them: the Model, the Message union, and the
+ * reducer stay the leaves of the import graph.
+ */
+export type MirrorReducer = (model: Model, message: Message) => Model
 
-    // Durable facts: pure over the shared slice, idempotent where a retry could
-    // deliver one twice.
-    SubmittedTodo: ({ id, title, createdAt }) => ({
-      model: {
-        ...model,
-        todos: model.todos.some(todo => todo.id === id)
-          ? model.todos
-          : [...model.todos, { id, title, completed: false, priority: 'normal', createdAt }],
+export const makeUpdate =
+  (mirrors: MirrorReducer) =>
+  (model: Model, message: Message): Return =>
+    Message.match<Return>(message, {
+      // Mirrors: the URL and the store are read back into the Model.
+      UrlChanged: () => ({ model: mirrors(model, message) }),
+      MirrorRestored: () => ({ model: mirrors(model, message) }),
+      // Intents. Note that each one clears its *local* state here, in the local
+      // transition; the durable fact it causes never touches local fields.
+      RequestedTodo: ({ title }) =>
+        title.trim() === ''
+          ? { model }
+          : { model: { ...model, draft: '' }, commands: [mintTodo(title.trim())] },
+      EditingCommitted: () => {
+        const id = model.editingId
+        const title = model.editDraft.trim()
+        if (id === null) return { model }
+        const stopped = { ...model, editingId: null, editDraft: '' }
+        if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
+        return {
+          model: stopped,
+          commands: [
+            { name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) },
+          ],
+        }
       },
-    }),
-    ToggledTodo: ({ id }) => ({
-      model: {
-        ...model,
-        todos: model.todos.map(todo =>
-          todo.id === id ? { ...todo, completed: !todo.completed } : todo,
-        ),
-      },
-    }),
-    RenamedTodo: ({ id, title }) => ({
-      model: {
-        ...model,
-        todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
-      },
-    }),
-    PrioritySet: ({ id, priority }) => ({
-      model: {
-        ...model,
-        todos: model.todos.map(todo => (todo.id === id ? { ...todo, priority } : todo)),
-      },
-    }),
-    DeletedTodo: ({ id }) => ({
-      model: { ...model, todos: model.todos.filter(todo => todo.id !== id) },
-    }),
-    ClearedCompleted: () => ({
-      model: { ...model, todos: model.todos.filter(todo => !todo.completed) },
-    }),
-    RenamedList: ({ title }) =>
-      title.trim() === '' ? { model } : { model: { ...model, listTitle: title.trim() } },
 
-    // Local.
-    DraftChanged: ({ value }) => ({ model: { ...model, draft: value } }),
-    FilterSelected: ({ filter }) => ({ model: { ...model, filter } }),
-    EditingStarted: ({ id }) => ({
-      model: {
-        ...model,
-        editingId: id,
-        editDraft: model.todos.find(todo => todo.id === id)?.title ?? '',
-      },
-    }),
-    EditDraftChanged: ({ value }) => ({ model: { ...model, editDraft: value } }),
-    EditingStopped: () => ({ model: { ...model, editingId: null, editDraft: '' } }),
-  })
+      // Durable facts: pure over the shared slice, idempotent where a retry could
+      // deliver one twice.
+      SubmittedTodo: ({ id, title, createdAt }) => ({
+        model: {
+          ...model,
+          todos: model.todos.some(todo => todo.id === id)
+            ? model.todos
+            : [...model.todos, { id, title, completed: false, priority: 'normal', createdAt }],
+        },
+      }),
+      ToggledTodo: ({ id }) => ({
+        model: {
+          ...model,
+          todos: model.todos.map(todo =>
+            todo.id === id ? { ...todo, completed: !todo.completed } : todo,
+          ),
+        },
+      }),
+      RenamedTodo: ({ id, title }) => ({
+        model: {
+          ...model,
+          todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+        },
+      }),
+      PrioritySet: ({ id, priority }) => ({
+        model: {
+          ...model,
+          todos: model.todos.map(todo => (todo.id === id ? { ...todo, priority } : todo)),
+        },
+      }),
+      DeletedTodo: ({ id }) => ({
+        model: { ...model, todos: model.todos.filter(todo => todo.id !== id) },
+      }),
+      ClearedCompleted: () => ({
+        model: { ...model, todos: model.todos.filter(todo => !todo.completed) },
+      }),
+      RenamedList: ({ title }) =>
+        title.trim() === '' ? { model } : { model: { ...model, listTitle: title.trim() } },
+
+      // Local.
+      DraftChanged: ({ value }) => ({ model: { ...model, draft: value } }),
+      FilterSelected: ({ filter }) => ({ model: { ...model, filter } }),
+      EditingStarted: ({ id }) => ({
+        model: {
+          ...model,
+          editingId: id,
+          editDraft: model.todos.find(todo => todo.id === id)?.title ?? '',
+        },
+      }),
+      EditDraftChanged: ({ value }) => ({ model: { ...model, editDraft: value } }),
+      EditingStopped: () => ({ model: { ...model, editingId: null, editDraft: '' } }),
+    })
 
 /** The priority a click on the badge moves to. Derived, so the view stays dumb. */
 export const bumpPriority = (priority: Priority): Priority => nextPriority[priority]

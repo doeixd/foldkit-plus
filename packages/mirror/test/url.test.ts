@@ -64,6 +64,19 @@ describe('MirrorStore.url', () => {
     expect(changes).toEqual([])
   })
 
+  it('a direct write of keys the location already holds touches nothing', async () => {
+    at('/todos?filter=active')
+    const before = window.history.length
+    const changes: string[] = []
+    window.addEventListener('foldkit:urlchange', () => changes.push(window.location.href))
+    const store = MirrorStore.url(['filter', 'q'], 'search')
+    await Effect.runPromise(
+      store.write({ set: { filter: 'active' }, remove: ['q'], intent: 'push' }),
+    )
+    expect(window.history.length).toBe(before)
+    expect(changes).toEqual([])
+  })
+
   it('href defaults to the current location as its base', () => {
     at('/todos?sort=asc#top')
     expect(Filters.href(initial, { filter: 'active' })).toBe('/todos?sort=asc&filter=active#top')

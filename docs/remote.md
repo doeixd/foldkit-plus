@@ -204,6 +204,7 @@ the owners; it does not erase the boundary.
 | Current route, selected item, transient errors | the local Model, plain `update` |
 | Server-derived, disposable cache | `foldkit-remote` |
 | Client-owned replicated state, offline writes, convergence | `foldkit-sync` |
+| Local state the URL shows or a store remembers (a filter, a page, a draft) | the local Model, mirrored by `foldkit-mirror` |
 
 Reaching for the wrong owner is the usual source of double-fetch bugs: a
 collaborative draft belongs to Sync, an analytics summary to Remote, and the
