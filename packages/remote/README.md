@@ -258,8 +258,9 @@ reads `Initial` until the read entry fetches the rest.
 
 The projection carries its connection, so a Surface that reads a page needs
 nothing more: the read entry runs the query when the Model does not hold the
-connection (or holds it stale) and reads the page's items as it arrives. A
-failed query yields `QueryFailed`, which ends the refresh and keeps the pages.
+connection (or holds it stale), and once the page is in the Model its items
+are planned and read like any other field. A failed query yields
+`QueryFailed`, which ends the refresh and keeps the pages.
 `Data.next` and `Data.previous` keep the page size and are `undefined` at a
 terminal or unknown boundary; the merged pages read through the same
 projection, with `hasNext`/`hasPrevious` derived from the boundaries, never
@@ -422,8 +423,12 @@ Remote.retain(projections, toMessage?, { connections?, grace? }) // roots → Re
 
 The read entry's dependencies are the plan (`{ requirements, queries }`); it
 emits nothing when both are empty, `RefreshStarted` before a refreshing read,
-and runs the entity read and the queries concurrently, reading each page's
-items as it arrives. The retain entry's dependencies are the roots (the
+and runs the entity read and the queries concurrently. Every Message it emits
+changes the Model, so Foldkit recomputes the dependencies and restarts the
+stream: a merged page's items are planned by that next computation, and a
+read the restart interrupts is joined by the coalescer rather than repeated.
+A page and its refresh are one `ConnectionMerged` (`refreshes: true`), since a
+second Message could be lost to the restart. The retain entry's dependencies are the roots (the
 projections' requirements and connections, plus any `connections` listed); it
 emits `RetentionChanged` once the roots have been stable for `grace`, and
 `Remote.update` applies the pure `gc(state, roots)`: a root entity, the targets
@@ -453,7 +458,8 @@ A merged page is newer than the settled overlays it covers: it drops a live
 insert it carries and a live removal it contradicts, and leaves a pending
 request's overlays alone; a replayed live event is a duplicate by cursor and
 changes nothing. `ConnectionInvalidated` marks a connection stale while it
-keeps showing its items; `ConnectionRefreshed` (or `QueryFailed`) clears it.
+keeps showing its items; a `ConnectionMerged` with `refreshes: true`,
+`ConnectionRefreshed`, or `QueryFailed` clears it.
 
 ### Mutations by hand
 

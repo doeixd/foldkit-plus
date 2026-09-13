@@ -129,9 +129,10 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   the other. The projection carries the connection (`Projection.connections`),
   so the read entry plans it like a field: an unknown or stale connection is a
   query to run, a known one contributes its visible items' fields. The entry
-  runs the queries and the entity read concurrently and reads each page's
-  items as it arrives; a failed query yields the new `QueryFailed` Message,
-  which ends the refresh and keeps the pages. `Data.next`/`previous(model,
+  runs the queries and the entity read concurrently; a merged page (one
+  `ConnectionMerged` with `refreshes: true`, which also clears `stale`) makes
+  its items the next plan, and a failed query yields the new `QueryFailed`
+  Message, which ends the refresh and keeps the pages. `Data.next`/`previous(model,
   projection)` are the neighbouring page's `QueryRef` from the loaded
   boundaries (same page size), or `undefined`; `Data.fetch(ref)` is the
   Command that merges it. `Remote.planQueries` is the pure query plan, query

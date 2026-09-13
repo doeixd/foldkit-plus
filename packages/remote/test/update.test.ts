@@ -109,6 +109,18 @@ describe('Remote.update', () => {
     expect(invalidated.connections.c1!.stale).toBe(true)
     const refreshed = updateRemote(invalidated, { _tag: 'ConnectionRefreshed', connection: 'c1' })
     expect(refreshed.connections.c1!.stale).toBe(false)
+    // A page that answers the refresh merges and clears stale in one Message; a plain merge does not.
+    const answered = updateRemote(invalidated, {
+      _tag: 'ConnectionMerged',
+      connection: 'c1',
+      page,
+      refreshes: true,
+    })
+    expect(answered.connections.c1!.stale).toBe(false)
+    expect(
+      updateRemote(invalidated, { _tag: 'ConnectionMerged', connection: 'c1', page }).connections
+        .c1!.stale,
+    ).toBe(true)
     // A failed refresh ends the refresh; the pages stay as they were.
     const failed = updateRemote(invalidated, {
       _tag: 'QueryFailed',

@@ -457,6 +457,14 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
     ).toThrow('Remote: the selection is of "User", but query "ProjectsByOwner" lists "Project"')
   })
 
+  it('query rejects a query whose Result is not a connection over an entity', () => {
+    const Count = Query.make('Count', { Input: {}, Result: Schema.Number })
+    const Counting = Remote.make({ model: App.model.remote, entities: [Project], queries: [Count] })
+    expect(() => Counting.query(Count, {}, { select: Project.select({ id: true }) })).toThrow(
+      'Remote: query "Count" is not a connection over an entity, so it has no page to select',
+    )
+  })
+
   it('mutate rejects an unregistered mutation before touching the Model', () => {
     // @ts-expect-error Archive is not registered
     expect(() => Data.mutate(initial, Archive, { id: 'p1' })).toThrow(
@@ -635,7 +643,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     expect(projects.read(corrupt)).toMatchObject({ _tag: 'Failed', error: { _tag: 'DecodeError' } })
   })
 
-  it('the read entry runs the query, then reads the page’s items; the Messages reduce to Ready', async () => {
+  it('the read entry runs the query; the merged page makes its items the next plan', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
     const subscriptions = Data.subscriptions({ list: List })
     const entry = subscriptions['list.read']!
@@ -657,15 +665,45 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(client.layer),
       ),
     )
-    expect(messages.map(message => message._tag)).toEqual([
-      'ConnectionMerged',
-      'ConnectionRefreshed',
-      'ReadReceived',
+    // One Message per page: the merge and the refresh together, so a stream restart
+    // between two Messages cannot leave the connection stale and re-querying.
+    expect(messages).toEqual([
+      {
+        _tag: 'ConnectionMerged',
+        connection: identity,
+        page: {
+          edges: [
+            { key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } },
+            { key: 'Project:p2', ref: { entity: 'Project', id: 'p2' } },
+          ],
+          start: terminal,
+          end: cursor('p2'),
+        },
+        refreshes: true,
+      },
     ])
     // The wire request is rebuilt from the connection identity: the canonical encoded input.
     expect(client.queries).toEqual([{ input: { ownerId: 'u1' }, window: { first: 2 } }])
+    expect(client.reads).toEqual([])
+    // The page changes the Model, so Foldkit recomputes the dependencies: the page's
+    // items, planned against the store, are what the restarted stream reads.
+    const paged = messages.reduce(Data.reduce, initial)
+    expect(projects.read(paged)).toEqual({ _tag: 'Initial' })
+    expect(entry.modelToDependencies(paged)).toEqual({
+      requirements: [
+        { entity: 'Project', id: 'p1', fields: ['name'] },
+        { entity: 'Project', id: 'p2', fields: ['name'] },
+      ],
+      queries: [],
+    })
+    const reads = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(paged))).pipe(
+        Effect.provide(client.layer),
+      ),
+    )
+    expect(reads.map(message => message._tag)).toEqual(['ReadReceived'])
     expect(client.reads).toEqual([['p1', 'p2']])
-    const loaded = messages.reduce(Data.reduce, initial)
+    const loaded = reads.reduce(Data.reduce, paged)
     expect(projects.read(loaded)).toEqual({
       _tag: 'Ready',
       value: {
@@ -689,13 +727,9 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(paging(['p1']).layer),
       ),
     )
-    expect(messages.map(message => message._tag)).toEqual([
-      'ConnectionMerged',
-      'ConnectionRefreshed',
-      'ReadReceived',
-    ])
+    expect(messages.map(message => message._tag)).toEqual(['ConnectionMerged'])
     // With the page known and its items aged out, the refetch is announced.
-    const loaded = messages.reduce(Data.reduce, initial)
+    const loaded = read(messages.reduce(Data.reduce, initial), ['p1'])
     clock = 10_000
     const refetch = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(loaded))).pipe(
@@ -703,6 +737,38 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ),
     )
     expect(refetch.map(message => message._tag)).toEqual(['RefreshStarted', 'ReadReceived'])
+  })
+
+  it('a connection invalidated before it was ever loaded still reads Initial', () => {
+    const never = Data.reduce(initial, { _tag: 'ConnectionInvalidated', connection: identity })
+    expect(projects.read(never)).toEqual({ _tag: 'Initial' })
+    expect(Remote.planQueries(Data, never, projects)).toEqual([projects.ref])
+  })
+
+  it('a hand-built connection that is not a query’s fails as a query would, without dying', async () => {
+    const literal = Projection.fromReader(Schema.Unknown, () => null, {
+      connections: [
+        { identity: 'Feed', window: {}, select: { entity: 'Project', fields: ['name'] } },
+      ],
+    })
+    const List = App.surface('List', { model: () => ({ literal }) })
+    const entry = Data.subscriptions({ list: List })['list.read']!
+    expect(Remote.planQueries(Data, initial, literal)).toEqual([])
+    const messages = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
+        Effect.provide(paging(['p1']).layer),
+      ),
+    )
+    expect(messages).toEqual([
+      {
+        _tag: 'QueryFailed',
+        connection: 'Feed',
+        error: {
+          _tag: 'RemoteQueryError',
+          message: 'connection "Feed" is not a query\'s: only a QueryRef identity can be run',
+        },
+      },
+    ])
   })
 
   it('a failed query yields QueryFailed, which ends the refresh and keeps the pages', async () => {
@@ -739,15 +805,13 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(client.layer),
       ),
     )
-    expect(messages.map(message => message._tag)).toEqual([
-      'ConnectionMerged',
-      'ConnectionRefreshed',
-    ])
-    expect(client.reads).toEqual([])
-    expect(projects.read(messages.reduce(Data.reduce, initial))).toEqual({
+    expect(messages.map(message => message._tag)).toEqual(['ConnectionMerged'])
+    const empty = messages.reduce(Data.reduce, initial)
+    expect(projects.read(empty)).toEqual({
       _tag: 'Ready',
       value: { items: [], hasNext: false, hasPrevious: false },
     })
+    expect(entry.modelToDependencies(empty)).toEqual({ requirements: [], queries: [] })
     const foreign = Data.reduce(initial, {
       _tag: 'ConnectionMerged',
       connection: identity,

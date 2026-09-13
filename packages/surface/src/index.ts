@@ -304,7 +304,12 @@ export interface ConnectionRequirement {
 }
 
 const windowKey = (window: Window): string =>
-  `${window.first ?? ''}|${window.last ?? ''}|${window.after ?? ''}|${window.before ?? ''}`
+  JSON.stringify([
+    window.first ?? null,
+    window.last ?? null,
+    window.after ?? null,
+    window.before ?? null,
+  ])
 
 /**
  * Merges connection requirements for the same connection and window into one,

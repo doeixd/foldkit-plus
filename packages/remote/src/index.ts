@@ -541,23 +541,43 @@ const itemsOf = (
 ): ReadonlyArray<Requirement> =>
   edges.filter(edge => edge.entity === select.entity).map(edge => ({ ...select, id: edge.id }))
 
-/** The wire request of a planned query; the identity carries the canonical encoded input. */
+/**
+ * The wire request of a planned query; a `QueryRef` identity carries the query
+ * name and the canonical encoded input. A connection requirement built by hand
+ * with another identity cannot be run, and fails as a query would.
+ */
 const queryRequestOf = (query: {
   readonly identity: string
   readonly window: QueryWindow
-}): Schema.Schema.Type<typeof QueryRequest> => {
+}): Effect.Effect<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> => {
   const separator = query.identity.indexOf('\u0000')
-  return {
-    query: query.identity.slice(0, separator),
-    input: JSON.parse(query.identity.slice(separator + 1)) as unknown,
-    window: query.window,
+  if (separator < 0) {
+    return Effect.fail(
+      new RemoteQueryError({
+        message: `connection "${query.identity}" is not a query's: only a QueryRef identity can be run`,
+      }),
+    )
   }
+  return Effect.try({
+    try: () => ({
+      query: query.identity.slice(0, separator),
+      input: JSON.parse(query.identity.slice(separator + 1)) as unknown,
+      window: query.window,
+    }),
+    catch: () =>
+      new RemoteQueryError({ message: `connection "${query.identity}" carries no encoded input` }),
+  })
 }
 
-/** The `ConnectionMerged` for a query result, in the client's edge shape. */
+/**
+ * The `ConnectionMerged` for a query result, in the client's edge shape.
+ * `refreshes` marks the page as answering the connection's refresh, so one
+ * Message both merges it and clears `stale`.
+ */
 const pageMessage = (
   connection: string,
   result: Schema.Schema.Type<typeof QueryResult>,
+  refreshes = false,
 ): RemoteMessage => ({
   _tag: 'ConnectionMerged',
   connection,
@@ -566,6 +586,7 @@ const pageMessage = (
     start: result.start,
     end: result.end,
   },
+  ...(refreshes ? { refreshes } : {}),
 })
 
 /** The retention roots of some projections: their requirements, their connections, and those listed. */
@@ -598,9 +619,13 @@ export interface ReadDependencies {
 }
 
 /**
- * The read entry: plans what `askedOf(model)` asks against the Model, runs the
- * entity read and the queries concurrently, and reads each page's items under
- * its selection as the page arrives.
+ * The read entry: plans what `askedOf(model)` asks against the Model and runs
+ * the entity read and the queries concurrently. Each Message it emits changes
+ * the Model, so Foldkit recomputes the dependencies and restarts the stream
+ * (`switchMap`): a merged page's items are planned by that next computation,
+ * against the store as it then is, rather than read here unplanned. Nothing
+ * the entry needs is spread over two Messages, since the second could be lost
+ * to the restart; a page and its refresh are one `ConnectionMerged`.
  */
 const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
@@ -630,29 +655,19 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
           })
     })
   const run = (query: ReadDependencies['queries'][number]) =>
-    Stream.unwrap(
-      Effect.gen(function* () {
-        const client = yield* RemoteClient
-        const result = yield* Effect.result(client.query(queryRequestOf(query)))
-        if (Result.isFailure(result)) {
-          return Stream.succeed(
-            toMessage({
-              _tag: 'QueryFailed',
-              connection: query.identity,
-              error: remoteError(result.failure),
-            }),
-          )
-        }
-        const items = itemsOf(result.success.edges, query.select)
-        return Stream.concat(
-          Stream.make(
-            toMessage(pageMessage(query.identity, result.success)),
-            toMessage({ _tag: 'ConnectionRefreshed', connection: query.identity }),
-          ),
-          items.length === 0 ? Stream.empty : Stream.fromEffect(read(items)),
-        )
-      }),
-    )
+    Effect.gen(function* () {
+      const client = yield* RemoteClient
+      const result = yield* Effect.result(
+        queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request))),
+      )
+      return Result.isFailure(result)
+        ? toMessage({
+            _tag: 'QueryFailed',
+            connection: query.identity,
+            error: remoteError(result.failure),
+          })
+        : toMessage(pageMessage(query.identity, result.success, true))
+    })
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
@@ -681,7 +696,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
         Stream.mergeAll(
           [
             ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
-            ...queries.map(run),
+            ...queries.map(query => Stream.fromEffect(run(query))),
           ],
           { concurrency: 'unbounded' },
         ),
@@ -854,7 +869,9 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<QueryRef<string, unknown>> =>
-    planAsked(bound.store.get(model), projection, options ?? {}).queries.map(query => query.ref),
+    planAsked(bound.store.get(model), projection, options ?? {}).queries.flatMap(query =>
+      query.ref === undefined ? [] : [query.ref],
+    ),
 
   /**
    * The store reads see: the base store under the pending optimistic layers.
@@ -1175,9 +1192,8 @@ const bindDomain = <
         let current = model
         // The pages first, so their items join the one entity read below.
         for (const query of planAsked(store.get(current), projection, planOptions).queries) {
-          const page = yield* client.query(queryRequestOf(query))
-          current = reduce(current, pageMessage(query.identity, page))
-          current = reduce(current, { _tag: 'ConnectionRefreshed', connection: query.identity })
+          const page = yield* queryRequestOf(query).pipe(Effect.flatMap(client.query))
+          current = reduce(current, pageMessage(query.identity, page, true))
         }
         const requirements = planAsked(store.get(current), projection, planOptions).requirements
         if (requirements.length === 0) return current
@@ -1195,7 +1211,12 @@ const bindDomain = <
     ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
       assertRegistered(bound, 'Query', definition.registry.queries, query.name)
       const { select, ...window } = options
-      const listed = (query.Result as ConnectionSpec).entity
+      const listed = (query.Result as Partial<ConnectionSpec>).entity
+      if (listed === undefined) {
+        throw new Error(
+          `Remote: query "${query.name}" is not a connection over an entity, so it has no page to select`,
+        )
+      }
       if (select.entity !== listed) {
         throw new Error(
           `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
@@ -1223,7 +1244,11 @@ const bindDomain = <
         read: (root: AppModel): RemoteData<Page<Value>> => {
           const remote = store.get(root)
           const connection = remote.connections[ref.identity]
-          if (connection === undefined) return { _tag: 'Initial' }
+          // Invalidating a connection the Model never loaded records it stale with no
+          // segments: still nothing to show. (A loaded empty page is not stale.)
+          if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
+            return { _tag: 'Initial' }
+          }
           const visible = visibleStoreOf(remote.entities, remote.optimistic)
           const items: Value[] = []
           let refreshing = connection.stale
@@ -1329,9 +1354,13 @@ const bindDomain = <
   }
 }
 
-/** The window keys of a `QueryOptions`, without the undefined ones. */
-const pickWindow = (window: QueryWindowOptions): QueryWindow =>
-  Object.fromEntries(Object.entries(window).filter(([, value]) => value !== undefined))
+/** The window keys of a `QueryOptions`, and only those, without the undefined ones. */
+const pickWindow = (window: QueryWindowOptions): QueryWindow => ({
+  ...(window.first === undefined ? {} : { first: window.first }),
+  ...(window.last === undefined ? {} : { last: window.last }),
+  ...(window.after === undefined ? {} : { after: window.after }),
+  ...(window.before === undefined ? {} : { before: window.before }),
+})
 
 /** The page size of a window, carried onto the next or previous page's window under `key`. */
 const pageSize = (window: QueryWindow, key: 'first' | 'last'): QueryWindow => {

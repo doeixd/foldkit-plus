@@ -128,7 +128,13 @@ export type RemoteMessage =
       readonly now: number
     }
   | { readonly _tag: 'GapCleared'; readonly stream: string }
-  | { readonly _tag: 'ConnectionMerged'; readonly connection: string; readonly page: Segment }
+  | {
+      readonly _tag: 'ConnectionMerged'
+      readonly connection: string
+      readonly page: Segment
+      /** The page answers the connection's refresh, so the merge also clears `stale`. */
+      readonly refreshes?: boolean | undefined
+    }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
   | { readonly _tag: 'ConnectionRefreshed'; readonly connection: string }
   /** A query for the connection failed; it reads as it did before the request. */
@@ -173,7 +179,11 @@ export const remoteMessageCases = {
     now: Schema.Number,
   },
   GapCleared: { stream: Schema.String },
-  ConnectionMerged: { connection: Schema.String, page: Schema.Unknown },
+  ConnectionMerged: {
+    connection: Schema.String,
+    page: Schema.Unknown,
+    refreshes: Schema.optional(Schema.Boolean),
+  },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
   QueryFailed: { connection: Schema.String, error: remoteErrorSchema },
@@ -314,9 +324,13 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return clearGap(model, message.stream)
     case 'ConnectionMerged': {
       const current = model.connections[message.connection] ?? emptyConnection
+      const merged = merge(current, message.page)
       return {
         ...model,
-        connections: { ...model.connections, [message.connection]: merge(current, message.page) },
+        connections: {
+          ...model.connections,
+          [message.connection]: message.refreshes === true ? { ...merged, stale: false } : merged,
+        },
         optimistic: pruneOverlays(
           model.optimistic,
           message.connection,
