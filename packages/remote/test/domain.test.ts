@@ -2,7 +2,8 @@
  * The bound domain (`Remote.make({ model, … })`): the application-facing
  * operations over the kernel, and what they compile to.
  */
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -376,6 +377,26 @@ describe('Data.live and Data.subscriptions', () => {
     )
     expect(collected.map(message => message._tag)).toEqual(['RetentionChanged'])
     expect(Data.inspect(Data.reduce(loaded, collected[0]!)).entities.map(e => e.key)).toEqual([])
+  })
+
+  it('the retain entry waits for the grace period', async () => {
+    const graced = Data.subscriptions({ home: Home }, { grace: '5 seconds' })
+    const collected: string[] = []
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          Stream.runForEach(
+            graced.retain!.dependenciesToStream(graced.retain!.modelToDependencies(at(''))),
+            message => Effect.sync(() => void collected.push(message._tag)),
+          ),
+        )
+        yield* TestClock.adjust('4 seconds')
+        expect(collected).toEqual([])
+        yield* TestClock.adjust('2 seconds')
+        yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(Layer.merge(TestClock.layer(), client()))),
+    )
+    expect(collected).toEqual(['RetentionChanged'])
   })
 
   it('takes the observe, live, and retain options', () => {

@@ -93,5 +93,12 @@ describe('Requirement.merge keeps the live mark', () => {
       { entity: 'User', id: 'u1', fields: ['name', 'id'], live: true },
     ])
     expect(Requirement.merge([plain, { ...plain, live: false }])).toEqual([plain])
+    // Whichever part carries it, first or later.
+    expect(
+      Requirement.merge([
+        { ...plain, live: true },
+        { ...plain, fields: ['id'] },
+      ]),
+    ).toEqual([{ entity: 'User', id: 'u1', fields: ['name', 'id'], live: true }])
   })
 })
