@@ -466,7 +466,9 @@ type IsUnion<T, U = T> = [T] extends [never]
 
 type StructValue<Entries> = {
   readonly [K in keyof Entries]: EntryValue<Entries[K]>
-}
+} extends infer Value
+  ? { readonly [K in keyof Value]: Value[K] }
+  : never
 
 export const Projection = {
   of:

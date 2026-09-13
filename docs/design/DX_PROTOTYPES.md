@@ -227,8 +227,9 @@ The fixture pins that with an assignment.
 - **Branded ids expand in hovers.** `type ProjectId = typeof ProjectId.Type`
   shows as `string & Brand<"ProjectId">` inside the flattened selection value,
   because `Simplify` maps over the fields. It is readable but long; keeping the
-  alias would mean not flattening branded intersections. Revisit in the hover
-  pass (item 14) if it grates.
+  alias would mean not flattening branded intersections. Decided in the hover
+  pass below: kept, since that is how Effect displays a brand everywhere else
+  and a flattened value is what a view reads.
 - **The entity name union does the registration check.** `Names` in `DxData`
   is `"User" | "Project" | "Comment"`, and `Data.get` requires
   `Selection<Value, Name extends Names>`. The error for an unregistered entity
@@ -249,6 +250,36 @@ The fixture pins that with an assignment.
   select, so two projections of one list plan one query.
 - **Nothing in Mixins or Agent needs to change.** Scenario 5 is a plain
   assignment.
+
+## Hover pass (item 14)
+
+The compiler's own hover (`checker.typeToString` with `NoTruncation` over the
+fixture's declarations, which is what an editor shows) for every public value
+the scenarios produce:
+
+| Declaration | Hover |
+| --- | --- |
+| `ProjectSummary` | `Selection<{ readonly id: string & Brand<"ProjectId">; readonly name: string; readonly owner: { readonly id: string; readonly name: string }; readonly status: string }, "Project", "entity">` |
+| `Data.get(…)` | `Projection<AppModel, RemoteData<{ …the value… }>>` |
+| `projects` | `QueryProjection<AppModel, { …the value… }, "ProjectsByOwner", { readonly ownerId: string }>` |
+| `Data.next(…)` | `QueryRef<"ProjectsByOwner", { readonly ownerId: string }> \| undefined` |
+| `Data.fetch(…)` | Foldkit's `Command<RemoteMessage, never, RemoteClient>` (displayed as its `Readonly<{ name; args?; key?; effect }>` body) |
+| `ProjectPage` | `Surface<AppModel, { readonly project: RemoteData<{ …value… }>; readonly projects: RemoteData<Page<{ …value… }>> }, { readonly _tag: "ArchiveProject"; readonly id: string & Brand<"ProjectId"> }, { readonly projectId: string & Brand<"ProjectId"> }>` |
+| `Home` | `Surface<AppModel, { readonly project: RemoteData<{ …value… }> }, never, void>` |
+| `Data.subscriptions(…)` | `Readonly<Record<string, RemoteEntry<AppModel, any>>>` |
+| `Data` | `RemoteDomain<AppModel, RemoteModel, readonly [EntityDescriptor<"User", {…fields…}>, …], readonly [QueryDescriptor<"ProjectsByOwner", …>], readonly [MutationDescriptor<…>, …]>` |
+
+One fix came out of it: a Surface's Model showed as `StructValue<{ project:
+Projection<…>; projects: QueryProjection<…> }>`, the internal alias over the
+entries rather than the projected value. `StructValue` now resolves eagerly
+(through `extends infer Value ? { [K in keyof Value]: Value[K] } : never`), so
+the hover is the object of `RemoteData` values a view reads. Everything else
+already read as user concepts: no phantom generic reaches a hover, `Invalid`
+carries the one-line error message (item 13), and the two long shapes left are
+Effect's brand display and `Data` itself, whose type arguments are the declared
+descriptors (what a reader hovering the domain would want to see). The fixture
+pins the shapes by assignment (`_page`, `_home`, `_bare`, `_projects`, `_next`,
+`_loadMore`) and the branded messages by type equality.
 
 ## Status
 
