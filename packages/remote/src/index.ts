@@ -55,6 +55,7 @@ import {
 } from './optimistic.js'
 import { plan, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
+import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
@@ -366,6 +367,30 @@ const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): Ent
     byStore.set(entities, visible)
   }
   return visible
+}
+
+// A read's result per store snapshot. `Remote.storeOf` is shared across every
+// read of one Model state, so equal reads of one render assemble and decode
+// once and return one value (a view may compare by identity). A query read
+// also depends on its connection, which changes independently of the store,
+// so it keys on that object too. Weak on both, bounded by what is read.
+const readResults = new WeakMap<object, WeakMap<object, Map<string, unknown>>>()
+
+const memoRead = <T>(snapshot: object, by: object, key: string, compute: () => T): T => {
+  let byScope = readResults.get(snapshot)
+  if (byScope === undefined) {
+    byScope = new WeakMap()
+    readResults.set(snapshot, byScope)
+  }
+  let results = byScope.get(by)
+  if (results === undefined) {
+    results = new Map()
+    byScope.set(by, results)
+  }
+  if (results.has(key)) return results.get(key) as T
+  const value = compute()
+  results.set(key, value)
+  return value
 }
 
 export interface MutateOptions {
@@ -855,23 +880,26 @@ export const Remote = {
     selection: Selection<Value, Name, 'entity'> & Registered<Name, Names, 'Entity'>,
   ) => {
     assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
+    const relation = relationOf(selection)
     return (id: string): Projection<AppModel, RemoteData<Value>> => ({
       Model: remoteDataSchema(selection.schema),
       dependencies: [],
-      requirements: [{ ...relationOf(selection), id }],
+      requirements: [{ ...relation, id }],
       connections: [],
       read: (root: AppModel): RemoteData<Value> => {
         const store = storeOf(bound, root)
         const key = entityKey(selection.entity, id)
-        if (isTombstone(store, key)) return { _tag: 'NotFound' }
-        const assembled = assemble(store, key, relationOf(selection))
-        if (assembled === undefined) return { _tag: 'Initial' }
-        const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
-        return Result.isFailure(decoded)
-          ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
-          : assembled.refreshing
-            ? { _tag: 'Refreshing', value: decoded.success }
-            : { _tag: 'Ready', value: decoded.success }
+        return memoRead(store, store, `${key}\u0000${stableStringify(relation)}`, () => {
+          if (isTombstone(store, key)) return { _tag: 'NotFound' }
+          const assembled = assemble(store, key, relation)
+          if (assembled === undefined) return { _tag: 'Initial' }
+          const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
+          return Result.isFailure(decoded)
+            ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
+            : assembled.refreshing
+              ? { _tag: 'Refreshing', value: decoded.success }
+              : { _tag: 'Ready', value: decoded.success }
+        })
       },
     })
   },
@@ -1262,6 +1290,7 @@ const bindDomain = <
         window: pickWindow(window),
       }
       const relation = relationOf(select)
+      const relationKey = stableStringify(relation)
       const requirement: QueryRequirement = {
         identity: ref.identity,
         window: ref.window,
@@ -1285,29 +1314,35 @@ const bindDomain = <
             return { _tag: 'Initial' }
           }
           const visible = visibleStoreOf(remote.entities, remote.optimistic)
-          const items: Value[] = []
-          let refreshing = connection.stale
-          const edges = visibleItems(
-            connection,
-            ref.identity,
-            remote.optimistic.overlays,
-            remote.entities,
-          )
-          for (const edge of edges) {
-            const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
-            if (assembled === undefined) return { _tag: 'Initial' }
-            const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
-            if (Result.isFailure(decoded)) {
-              return {
-                _tag: 'Failed',
-                error: { _tag: 'DecodeError', message: decoded.failure.message },
+          return memoRead(visible, connection, `${ref.identity}\u0000${relationKey}`, () => {
+            const items: Value[] = []
+            let refreshing = connection.stale
+            const edges = visibleItems(
+              connection,
+              ref.identity,
+              remote.optimistic.overlays,
+              remote.entities,
+            )
+            for (const edge of edges) {
+              const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
+              if (assembled === undefined) return { _tag: 'Initial' }
+              const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
+              if (Result.isFailure(decoded)) {
+                return {
+                  _tag: 'Failed',
+                  error: { _tag: 'DecodeError', message: decoded.failure.message },
+                }
               }
+              refreshing ||= assembled.refreshing
+              items.push(decoded.success)
             }
-            refreshing ||= assembled.refreshing
-            items.push(decoded.success)
-          }
-          const page = { items, hasNext: hasNext(connection), hasPrevious: hasPrevious(connection) }
-          return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
+            const page = {
+              items,
+              hasNext: hasNext(connection),
+              hasPrevious: hasPrevious(connection),
+            }
+            return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
+          })
         },
       }
     },

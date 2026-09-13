@@ -447,6 +447,61 @@ describe('what runs on every Model change is built once', () => {
     )
   })
 
+  it('equal reads of one Model state return one value; a changed store or connection reads anew', () => {
+    const summary = Project.select({ name: true })
+    const loaded = Data.reduce(initial, {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+      result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo' } }] },
+      now: 0,
+    })
+    const first = Data.get(summary, 'p1').read(loaded)
+    expect(first).toEqual({ _tag: 'Ready', value: { name: 'Apollo' } })
+    expect(Data.get(summary, 'p1').read(loaded)).toBe(first)
+    expect(Data.get(summary, 'p1').read({ ...loaded })).toBe(first)
+    // Another selection, id, or store is another read.
+    expect(Data.get(Project.select({ id: true }), 'p1').read(loaded)).not.toBe(first)
+    expect(Data.get(summary, 'p2').read(loaded)).toEqual({ _tag: 'Initial' })
+    const renamed = Data.reduce(loaded, {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+      result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo II' } }] },
+      now: 1,
+    })
+    expect(Data.get(summary, 'p1').read(renamed)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'Apollo II' },
+    })
+
+    const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
+    const identity = projects.ref.identity
+    const paged = Data.reduce(loaded, {
+      _tag: 'ConnectionMerged',
+      connection: identity,
+      page: {
+        edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
+        start: { _tag: 'Terminal' },
+        end: { _tag: 'Terminal' },
+      },
+    })
+    const page = projects.read(paged)
+    expect(page).toMatchObject({ _tag: 'Ready', value: { items: [{ name: 'Apollo' }] } })
+    expect(projects.read(paged)).toBe(page)
+    // The same store under an invalidated connection is another read.
+    const stale = Data.reduce(paged, { _tag: 'ConnectionInvalidated', connection: identity })
+    expect(Data.storeOf(stale)).toBe(Data.storeOf(paged))
+    expect(projects.read(stale)).toMatchObject({ _tag: 'Refreshing' })
+    // And another selection of the same connection reads its own value: `id` is
+    // not in the store, so this page is Initial while the `name` page is Ready.
+    expect(
+      Data.query(
+        ProjectsByOwner,
+        { ownerId: 'u1' },
+        { select: Project.select({ id: true }), first: 2 },
+      ).read(paged),
+    ).toEqual({ _tag: 'Initial' })
+  })
+
   it('a Surface’s model callback runs once per Model for the read, live, and retain entries', () => {
     let built = 0
     const Counted = App.surface('Counted', {
