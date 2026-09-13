@@ -23,25 +23,27 @@ export const Todos = Projection.pick(App.fields.todos)
 export const ListMeta = Projection.pick(App.fields.listTitle)
 
 // --- the read-only Surfaces the view renders -----------------------------------
+// `App.surface` lifts an object of field refs to `Projection.struct`; the
+// explicit `Surface.make(App, name, { model: () => Projection.struct(…) })` is
+// the same contract, written out.
 
-export const Header = Surface.make(App, 'Header', {
-  model: ({ model }) => Projection.struct({ listTitle: model.listTitle, todos: model.todos }),
+export const Header = App.surface('Header', {
+  model: ({ model }) => ({ listTitle: model.listTitle, todos: model.todos }),
   messages: [Message.RenamedList],
 })
 
-export const Composer = Surface.make(App, 'Composer', {
-  model: ({ model }) => Projection.struct({ draft: model.draft }),
+export const Composer = App.surface('Composer', {
+  model: ({ model }) => ({ draft: model.draft }),
   messages: [Message.DraftChanged, Message.RequestedTodo],
 })
 
-export const Board = Surface.make(App, 'Board', {
-  model: ({ model }) =>
-    Projection.struct({
-      todos: model.todos,
-      filter: model.filter,
-      editingId: model.editingId,
-      editDraft: model.editDraft,
-    }),
+export const Board = App.surface('Board', {
+  model: ({ model }) => ({
+    todos: model.todos,
+    filter: model.filter,
+    editingId: model.editingId,
+    editDraft: model.editDraft,
+  }),
   messages: [
     Message.FilterSelected,
     Message.ToggledTodo,
@@ -54,8 +56,8 @@ export const Board = Surface.make(App, 'Board', {
   ],
 })
 
-export const Footer = Surface.make(App, 'Footer', {
-  model: ({ model }) => Projection.struct({ todos: model.todos, lastError: model.lastError }),
+export const Footer = App.surface('Footer', {
+  model: ({ model }) => ({ todos: model.todos, lastError: model.lastError }),
   messages: [Message.ClearedCompleted],
 })
 
@@ -64,9 +66,8 @@ export const Footer = Surface.make(App, 'Footer', {
  * state. It is a Surface like the others, so `Agent.make({ context: Overview })`
  * and `Module` describe it the same way.
  */
-export const Overview = Surface.make(App, 'Overview', {
-  model: ({ model }) =>
-    Projection.struct({ listTitle: model.listTitle, todos: model.todos, filter: model.filter }),
+export const Overview = App.surface('Overview', {
+  model: ({ model }) => ({ listTitle: model.listTitle, todos: model.todos, filter: model.filter }),
 })
 
 /** The Messages a Surface may emit, for typing a Behavior against it. */
