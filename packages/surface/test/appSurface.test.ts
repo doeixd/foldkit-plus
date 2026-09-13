@@ -86,6 +86,53 @@ describe('Surface.at makes activation a Model fact', () => {
   })
 })
 
+describe('connections ride on Projections', () => {
+  const select = { entity: 'Project', fields: ['name'] }
+  const feed = { identity: 'Feed\u0000{}', window: { first: 10 }, select }
+  const leaf = (connections: readonly (typeof feed)[]) => ({
+    Model: Schema.Number,
+    dependencies: [],
+    requirements: [],
+    connections,
+    read: () => 1,
+  })
+
+  it('struct, array, option, and fromReader carry them', () => {
+    const other = { ...feed, window: { first: 20 } }
+    expect(Projection.struct({ a: leaf([feed]), b: leaf([other]) }).connections).toEqual([
+      feed,
+      other,
+    ])
+    expect(Projection.struct({ a: leaf([feed]), b: leaf([feed]) }).connections).toEqual([feed])
+    expect(Projection.array(leaf([feed])).connections).toEqual([feed])
+    expect(Projection.option(leaf([feed])).connections).toEqual([feed])
+    expect(
+      Projection.fromReader(Schema.String, () => 'x', { connections: [feed] }).connections,
+    ).toEqual([feed])
+    expect(Projection.fromReader(Schema.String, () => 'x').connections).toEqual([])
+  })
+
+  it('mergeConnections unions what one connection and window select, and keeps windows apart', () => {
+    expect(
+      Requirement.mergeConnections([
+        feed,
+        { ...feed, select: { entity: 'Project', fields: ['id'] } },
+        { ...feed, window: { first: 20 } },
+      ]),
+    ).toEqual([
+      { ...feed, select: { entity: 'Project', fields: ['name', 'id'] } },
+      { ...feed, window: { first: 20 } },
+    ])
+    // Whatever else the first carries (a remote ref, say) survives the merge.
+    expect(
+      Requirement.mergeConnections([
+        { ...feed, extra: 1 } as typeof feed,
+        { ...feed, extra: 2 } as typeof feed,
+      ]),
+    ).toEqual([{ ...feed, extra: 1 }])
+  })
+})
+
 describe('Requirement.merge keeps the live mark', () => {
   it('a requirement is live when any merged part is', () => {
     const plain = { entity: 'User', id: 'u1', fields: ['name'] }

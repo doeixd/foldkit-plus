@@ -12,6 +12,7 @@ import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
   Requirement,
   type ActiveSurface,
+  type ConnectionRequirement,
   type Contract,
   type ModelRef,
   type Projection,
@@ -25,7 +26,7 @@ import {
   remoteError,
   type RemoteRpcClient,
 } from './client.js'
-import { emptyConnection, type Edge } from './connection.js'
+import { emptyConnection, hasNext, hasPrevious, type Edge } from './connection.js'
 import type { EntityDescriptor } from './entity.js'
 import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
 import type { LiveCursor } from './live.js'
@@ -53,15 +54,18 @@ import {
 } from './optimistic.js'
 import { plan, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
-import type { QueryDescriptor, QueryRef } from './query.js'
+import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData } from './remoteData.js'
 import type { RetentionRoots } from './retain.js'
-import { assemble, relationOf, type Selection } from './selection.js'
+import { assemble, pageSchema, relationOf, type Page, type Selection } from './selection.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
 import {
+  QueryRequest,
   QueryResult,
   ReadRequest,
+  RelationRequest,
   REMOTE_PROTOCOL_VERSION,
+  WindowSchema,
   RemoteLiveError,
   RemoteProtocolError,
   RemoteQueryError,
@@ -69,6 +73,7 @@ import {
   RemoteRpc,
 } from './wire.js'
 import type { CoalesceOptions } from './coalesce.js'
+import type { RelationRequirement } from './plan.js'
 
 export * from './client.js'
 export * from './coalesce.js'
@@ -201,6 +206,30 @@ export interface RemoteDomain<
     id: string,
   ): Projection<AppModel, RemoteData<Value>>
   /**
+   * A query connection read as a `Page` of items selected of the query's
+   * entity: `Initial` until the page and every item's selected fields are
+   * present, `Refreshing` while any of them is being refetched. The window is
+   * the page first asked for; the pages `next`, `previous` and `fetch` merge
+   * onto the connection read through the same projection.
+   */
+  query<Q extends Queries[number], Value>(
+    query: Q,
+    input: QueryInput<Q>,
+    options: QueryOptions<Value, QueryEntity<Q>>,
+  ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>>
+  /** The `QueryRef` for the page after the loaded end (same page size), or `undefined` when there is none or its cursor is unknown. */
+  next<Name extends string, Input>(
+    model: AppModel,
+    projection: QueryProjection<AppModel, any, Name, Input>,
+  ): QueryRef<Name, Input> | undefined
+  /** The `QueryRef` for the page before the loaded start, or `undefined`. */
+  previous<Name extends string, Input>(
+    model: AppModel,
+    projection: QueryProjection<AppModel, any, Name, Input>,
+  ): QueryRef<Name, Input> | undefined
+  /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
+  fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
+  /**
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
    * entry per Surface that reads through `live` (`Remote.live`), and one
@@ -220,12 +249,16 @@ export interface RemoteDomain<
   ): ReadonlyArray<Requirement>
   /** `Remote.storeOf`: the visible store, base under the pending optimistic layers. */
   storeOf(model: AppModel): EntityStore
-  /** `Remote.prefetch`: the plan run through `RemoteClient`, returning the new store. */
+  /**
+   * The plan run through `RemoteClient` and reduced into the Model: the
+   * projection's pending queries first, then the fields it lacks (the pages'
+   * items included). For SSR, route or hover prefetch, and tests.
+   */
   prefetch<Value>(
     model: AppModel,
     projection: Projection<AppModel, Value>,
     options?: ObserveOptions,
-  ): Effect.Effect<EntityStore, RemoteReadError | RemoteProtocolError, RemoteClient>
+  ): Effect.Effect<AppModel, RemoteReadError | RemoteProtocolError | RemoteQueryError, RemoteClient>
   /**
    * Starts a registered mutation from `update`: applies `MutationStarted` (with
    * the optimistic operations) to the Model and returns the Command that runs
@@ -243,6 +276,45 @@ export interface RemoteDomain<
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
 }
+
+/** A projection's connection requirement with the `QueryRef` that runs it. */
+export interface QueryRequirement extends ConnectionRequirement {
+  readonly ref: QueryRef<string, unknown>
+}
+
+/** A page forward (`first`, `after`) or back (`last`, `before`); mixing the two is a type error. */
+export type QueryWindowOptions =
+  | {
+      readonly first?: number | undefined
+      readonly after?: string | undefined
+      readonly last?: undefined
+      readonly before?: undefined
+    }
+  | {
+      readonly last: number
+      readonly before?: string | undefined
+      readonly first?: undefined
+      readonly after?: undefined
+    }
+
+export type QueryOptions<Value, Entity extends string> = {
+  /** What to read of each item: a selection of the query's entity. */
+  readonly select: Selection<Value, Entity, 'entity'>
+} & QueryWindowOptions
+
+/** A query connection read as a `Page` of selected items; `ref` is the connection with its first window. */
+export interface QueryProjection<AppModel, Value, Name extends string, Input> extends Projection<
+  AppModel,
+  RemoteData<Page<Value>>
+> {
+  readonly ref: QueryRef<Name, Input>
+}
+
+/** The input of a query descriptor. */
+export type QueryInput<Q> = Q extends QueryDescriptor<any, infer Input, any> ? Input : never
+/** The entity a query's connection is over. */
+export type QueryEntity<Q> =
+  Q extends QueryDescriptor<any, any, ConnectionSpec<infer Entity>> ? Entity : string
 
 /**
  * The store a read or plan sees: the base with every pending optimistic layer
@@ -369,27 +441,138 @@ const bindRemote = <
   },
 })
 
-/** The retention roots of some projections plus the connections listed. */
+/** What a projection asks of the remote: entity requirements and query connections. */
+interface Asked {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly connections: ReadonlyArray<ConnectionRequirement>
+}
+
+const nothingAsked: Asked = { requirements: [], connections: [] }
+
+const askedOf = (projection: Projection<any, unknown> | undefined): Asked =>
+  projection === undefined ? nothingAsked : projection
+
+/** The plan for what a projection asks: the entity fields to read, and the queries to run. */
+interface Planned {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly queries: ReadonlyArray<QueryRequirement>
+}
+
+/**
+ * Plans what a projection asks against the Model. A connection the Model holds
+ * fresh contributes its visible items' selected fields to the entity plan; one
+ * it does not hold, or holds stale, is a query to run (its items are planned
+ * once the page arrives).
+ */
+const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Planned => {
+  const queries: QueryRequirement[] = []
+  const items: Requirement[] = []
+  const connections = Requirement.mergeConnections(
+    asked.connections,
+  ) as ReadonlyArray<QueryRequirement>
+  for (const connection of connections) {
+    const known = remote.connections[connection.identity]
+    if (known === undefined || known.stale || options.force === true) {
+      queries.push(connection)
+      continue
+    }
+    const edges = visibleItems(
+      known,
+      connection.identity,
+      remote.optimistic.overlays,
+      remote.entities,
+    )
+    items.push(
+      ...itemsOf(
+        edges.map(edge => edge.ref),
+        connection.select,
+      ),
+    )
+  }
+  return {
+    requirements: plan(
+      visibleStoreOf(remote.entities, remote.optimistic),
+      [...asked.requirements, ...items],
+      options,
+    ),
+    queries,
+  }
+}
+
+/** The entity requirements a page's edges add under a selection. */
+const itemsOf = (
+  edges: ReadonlyArray<{ readonly entity: string; readonly id: string }>,
+  select: RelationRequirement,
+): ReadonlyArray<Requirement> =>
+  edges.filter(edge => edge.entity === select.entity).map(edge => ({ ...select, id: edge.id }))
+
+/** The wire request of a planned query; the identity carries the canonical encoded input. */
+const queryRequestOf = (query: {
+  readonly identity: string
+  readonly window: QueryWindow
+}): Schema.Schema.Type<typeof QueryRequest> => {
+  const separator = query.identity.indexOf('\u0000')
+  return {
+    query: query.identity.slice(0, separator),
+    input: JSON.parse(query.identity.slice(separator + 1)) as unknown,
+    window: query.window,
+  }
+}
+
+/** The `ConnectionMerged` for a query result, in the client's edge shape. */
+const pageMessage = (
+  connection: string,
+  result: Schema.Schema.Type<typeof QueryResult>,
+): RemoteMessage => ({
+  _tag: 'ConnectionMerged',
+  connection,
+  page: {
+    edges: result.edges.map(edge => ({ key: edge.key, ref: { entity: edge.entity, id: edge.id } })),
+    start: result.start,
+    end: result.end,
+  },
+})
+
+/** The retention roots of some projections: their requirements, their connections, and those listed. */
 const rootsOf = (
   projections: ReadonlyArray<Projection<any, unknown>>,
   options: RetainOptions,
 ): RetentionRoots => ({
   requirements: Requirement.merge(projections.flatMap(projection => projection.requirements)),
-  connections: [...new Set((options.connections ?? []).map(connectionIdentity))].sort(),
+  connections: [
+    ...new Set([
+      ...(options.connections ?? []).map(connectionIdentity),
+      ...projections.flatMap(projection =>
+        projection.connections.map(connection => connection.identity),
+      ),
+    ]),
+  ].sort(),
 })
 
-/** The read entry: plans `requirementsOf(model)` against the store and fetches the plan. */
+/** A query the read entry runs, as its dependencies carry it: plain data Foldkit compares. */
+const PlannedQuery = Schema.Struct({
+  identity: Schema.String,
+  window: WindowSchema,
+  select: RelationRequest,
+})
+
+/** The dependencies of the read entry: the entity fields to read and the queries to run. */
+export interface ReadDependencies {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly queries: ReadonlyArray<Schema.Schema.Type<typeof PlannedQuery>>
+}
+
+/**
+ * The read entry: plans what `askedOf(model)` asks against the Model, runs the
+ * entity read and the queries concurrently, and reads each page's items under
+ * its selection as the page arrives.
+ */
 const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
-  requirementsOf: (model: AppModel) => ReadonlyArray<Requirement>,
+  askedOf: (model: AppModel) => Asked,
   toMessage: (message: RemoteMessage) => Message,
   options: ObserveOptions,
-): EntryWithoutKeepAlive<
-  AppModel,
-  Message,
-  { readonly requirements: ReadonlyArray<Requirement> },
-  RemoteClient
-> => {
+): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
   const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
   const read = (requirements: ReadonlyArray<Requirement>) =>
     Effect.gen(function* () {
@@ -411,26 +594,63 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
             now: at,
           })
     })
+  const run = (query: ReadDependencies['queries'][number]) =>
+    Stream.unwrap(
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        const result = yield* Effect.result(client.query(queryRequestOf(query)))
+        if (Result.isFailure(result)) {
+          return Stream.succeed(
+            toMessage({
+              _tag: 'QueryFailed',
+              connection: query.identity,
+              error: remoteError(result.failure),
+            }),
+          )
+        }
+        const items = itemsOf(result.success.edges, query.select)
+        return Stream.concat(
+          Stream.make(
+            toMessage(pageMessage(query.identity, result.success)),
+            toMessage({ _tag: 'ConnectionRefreshed', connection: query.identity }),
+          ),
+          items.length === 0 ? Stream.empty : Stream.fromEffect(read(items)),
+        )
+      }),
+    )
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
+      queries: Schema.Array(PlannedQuery),
     }),
-    modelToDependencies: model => ({
-      requirements: plan(
-        storeOf(bound, model),
-        requirementsOf(model),
+    modelToDependencies: model => {
+      const planned = planAsked(
+        bound.store.get(model),
+        askedOf(model),
         RemotePolicy.toPlan(policy, now()),
+      )
+      return {
+        requirements: planned.requirements,
+        queries: planned.queries.map(({ identity, window, select }) => ({
+          identity,
+          window,
+          select,
+        })),
+      }
+    },
+    dependenciesToStream: ({ requirements, queries }) =>
+      Stream.concat(
+        RemotePolicy.refreshes(policy) && requirements.length > 0
+          ? Stream.succeed(toMessage({ _tag: 'RefreshStarted', requests: requirements }))
+          : Stream.empty,
+        Stream.mergeAll(
+          [
+            ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
+            ...queries.map(run),
+          ],
+          { concurrency: 'unbounded' },
+        ),
       ),
-    }),
-    dependenciesToStream: ({ requirements }) =>
-      requirements.length === 0
-        ? Stream.empty
-        : Stream.concat(
-            RemotePolicy.refreshes(policy)
-              ? Stream.succeed(toMessage({ _tag: 'RefreshStarted', requests: requirements }))
-              : Stream.empty,
-            Stream.fromEffect(read(requirements)),
-          ),
   }
 }
 
@@ -559,6 +779,7 @@ export const Remote = {
       Model: remoteDataSchema(selection.schema),
       dependencies: [],
       requirements: [{ ...relationOf(selection), id }],
+      connections: [],
       read: (root: AppModel): RemoteData<Value> => {
         const store = storeOf(bound, root)
         const key = entityKey(selection.entity, id)
@@ -584,7 +805,20 @@ export const Remote = {
     model: AppModel,
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
-  ): ReadonlyArray<Requirement> => plan(storeOf(bound, model), projection.requirements, options),
+  ): ReadonlyArray<Requirement> =>
+    planAsked(bound.store.get(model), projection, options ?? {}).requirements,
+
+  /**
+   * The queries a projection needs run before its connections read: those the
+   * Model does not hold, or holds stale (every one under `force`).
+   */
+  planQueries: <AppModel, Store extends RemoteModel, Value>(
+    bound: BoundRemote<AppModel, Store>,
+    model: AppModel,
+    projection: Projection<AppModel, Value>,
+    options?: PlanOptions,
+  ): ReadonlyArray<QueryRef<string, unknown>> =>
+    planAsked(bound.store.get(model), projection, options ?? {}).queries.map(query => query.ref),
 
   /**
    * The store reads see: the base store under the pending optimistic layers.
@@ -709,18 +943,7 @@ export const Remote = {
   queryMessage: <Name extends string, Input>(
     ref: QueryRef<Name, Input>,
     result: Schema.Schema.Type<typeof QueryResult>,
-  ): RemoteMessage => ({
-    _tag: 'ConnectionMerged',
-    connection: ref.identity,
-    page: {
-      edges: result.edges.map(edge => ({
-        key: edge.key,
-        ref: { entity: edge.entity, id: edge.id },
-      })),
-      start: result.start,
-      end: result.end,
-    },
-  }),
+  ): RemoteMessage => pageMessage(ref.identity, result),
 
   /**
    * The edges a connection shows: its server-known region with pending and
@@ -811,14 +1034,8 @@ export const Remote = {
     params: Params,
     toMessage: (message: RemoteMessage) => Message = identityMessage as never,
     options: ObserveOptions = {},
-  ): EntryWithoutKeepAlive<
-    AppModel,
-    Message,
-    { readonly requirements: ReadonlyArray<Requirement> },
-    RemoteClient
-  > => {
-    return observeEntry(bound, () => surface.projection(params).requirements, toMessage, options)
-  },
+  ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> =>
+    observeEntry(bound, () => surface.projection(params), toMessage, options),
 
   /**
    * A Foldkit Subscription entry that consumes the live stream for a Surface's
@@ -860,6 +1077,9 @@ const bindDomain = <
   store: ModelRef<AppModel, Store>,
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const bound = bindRemote(definition, store)
+  // An application-union case has the runtime shape of the `RemoteMessage` it names.
+  const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel =>
+    store.set(model, updateRemote(store.get(model), message as RemoteMessage) as Store)
   return {
     ...definition,
     ...bound,
@@ -875,11 +1095,11 @@ const bindDomain = <
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
       for (const [key, entry] of Object.entries(active)) {
-        const requirementsOf = (model: AppModel) => projectionOf(entry, model)?.requirements ?? []
-        entries[`${key}.read`] = observeEntry(bound, requirementsOf, identityMessage, options)
+        const asked = (model: AppModel) => askedOf(projectionOf(entry, model))
+        entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
           bound,
-          model => requirementsOf(model).filter(requirement => requirement.live === true),
+          model => asked(model).requirements.filter(requirement => requirement.live === true),
           identityMessage,
           options,
         )
@@ -905,7 +1125,116 @@ const bindDomain = <
     },
     plan: (model, projection, options) => Remote.plan(bound, model, projection, options),
     storeOf: model => storeOf(bound, model),
-    prefetch: (model, projection, options) => Remote.prefetch(bound, model, projection, options),
+    prefetch: (model, projection, options = {}) =>
+      Effect.gen(function* () {
+        const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
+        const client = yield* RemoteClient
+        const planOptions = RemotePolicy.toPlan(policy, now())
+        let current = model
+        // The pages first, so their items join the one entity read below.
+        for (const query of planAsked(store.get(current), projection, planOptions).queries) {
+          const page = yield* client.query(queryRequestOf(query))
+          current = reduce(current, pageMessage(query.identity, page))
+          current = reduce(current, { _tag: 'ConnectionRefreshed', connection: query.identity })
+        }
+        const requirements = planAsked(store.get(current), projection, planOptions).requirements
+        if (requirements.length === 0) return current
+        const at = now()
+        const result = yield* client.read({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: requirements,
+        })
+        return reduce(current, { _tag: 'ReadReceived', requests: requirements, result, now: at })
+      }),
+    query: <Q extends Queries[number], Value>(
+      query: Q,
+      input: QueryInput<Q>,
+      options: QueryOptions<Value, QueryEntity<Q>>,
+    ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
+      const { select, ...window } = options
+      const ref: QueryRef<Q['name'], QueryInput<Q>> = {
+        ...query.ref(input),
+        window: pickWindow(window),
+      }
+      const relation = relationOf(select)
+      const requirement: QueryRequirement = {
+        identity: ref.identity,
+        window: ref.window,
+        select: relation,
+        ref,
+      }
+      return {
+        Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Schema<
+          RemoteData<Page<Value>>
+        >,
+        dependencies: [],
+        requirements: [],
+        connections: [requirement],
+        ref,
+        read: (root: AppModel): RemoteData<Page<Value>> => {
+          const remote = store.get(root)
+          const connection = remote.connections[ref.identity]
+          if (connection === undefined) return { _tag: 'Initial' }
+          const visible = visibleStoreOf(remote.entities, remote.optimistic)
+          const items: Value[] = []
+          let refreshing = connection.stale
+          const edges = visibleItems(
+            connection,
+            ref.identity,
+            remote.optimistic.overlays,
+            remote.entities,
+          )
+          for (const edge of edges) {
+            const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
+            if (assembled === undefined) return { _tag: 'Initial' }
+            const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
+            if (Result.isFailure(decoded)) {
+              return {
+                _tag: 'Failed',
+                error: { _tag: 'DecodeError', message: decoded.failure.message },
+              }
+            }
+            refreshing ||= assembled.refreshing
+            items.push(decoded.success)
+          }
+          const page = { items, hasNext: hasNext(connection), hasPrevious: hasPrevious(connection) }
+          return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
+        },
+      }
+    },
+    next: (model, projection) => {
+      const segments = store.get(model).connections[projection.ref.identity]?.segments ?? []
+      const end = segments[segments.length - 1]?.end
+      return end?._tag === 'Cursor'
+        ? {
+            ...projection.ref,
+            window: { ...pageSize(projection.ref.window, 'first'), after: end.cursor },
+          }
+        : undefined
+    },
+    previous: (model, projection) => {
+      const start = store.get(model).connections[projection.ref.identity]?.segments[0]?.start
+      return start?._tag === 'Cursor'
+        ? {
+            ...projection.ref,
+            window: { ...pageSize(projection.ref.window, 'last'), before: start.cursor },
+          }
+        : undefined
+    },
+    fetch: ref => ({
+      name: `Remote.query(${ref.query})`,
+      args: { connection: ref.identity, window: ref.window },
+      effect: Remote.query(ref).pipe(
+        Effect.match({
+          onFailure: (error): RemoteMessage => ({
+            _tag: 'QueryFailed',
+            connection: ref.identity,
+            error: remoteError(error),
+          }),
+          onSuccess: (page): RemoteMessage => pageMessage(ref.identity, page),
+        }),
+      ),
+    }),
     mutate: (model, mutation, input, options = {}) => {
       const remote = store.get(model)
       const requestId =
@@ -945,9 +1274,17 @@ const bindDomain = <
         },
       }
     },
-    // An application-union case has the runtime shape of the `RemoteMessage` it names.
-    reduce: (model, message) =>
-      store.set(model, updateRemote(store.get(model), message as RemoteMessage) as Store),
+    reduce,
     inspect: model => inspectRemote(store.get(model)),
   }
+}
+
+/** The window keys of a `QueryOptions`, without the undefined ones. */
+const pickWindow = (window: QueryWindowOptions): QueryWindow =>
+  Object.fromEntries(Object.entries(window).filter(([, value]) => value !== undefined))
+
+/** The page size of a window, carried onto the next or previous page's window under `key`. */
+const pageSize = (window: QueryWindow, key: 'first' | 'last'): QueryWindow => {
+  const size = window.first ?? window.last
+  return size === undefined ? {} : { [key]: size }
 }

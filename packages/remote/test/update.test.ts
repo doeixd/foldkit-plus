@@ -109,6 +109,20 @@ describe('Remote.update', () => {
     expect(invalidated.connections.c1!.stale).toBe(true)
     const refreshed = updateRemote(invalidated, { _tag: 'ConnectionRefreshed', connection: 'c1' })
     expect(refreshed.connections.c1!.stale).toBe(false)
+    // A failed refresh ends the refresh; the pages stay as they were.
+    const failed = updateRemote(invalidated, {
+      _tag: 'QueryFailed',
+      connection: 'c1',
+      error: { _tag: 'RemoteQueryError', message: 'boom' },
+    })
+    expect(failed.connections.c1).toEqual({ ...merged.connections.c1, stale: false })
+    expect(
+      updateRemote(initialRemoteModel, {
+        _tag: 'QueryFailed',
+        connection: 'c1',
+        error: { _tag: 'RemoteQueryError', message: 'boom' },
+      }).connections,
+    ).toEqual({})
   })
 
   it('applies a live entity event and records a gap for a skipped cursor', () => {

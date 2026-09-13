@@ -105,10 +105,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   )
   say(`before fetch: ${describeData(projection.read(App.initial))}`)
 
-  const store = await Effect.runPromise(
+  const loaded = await Effect.runPromise(
     Data.prefetch(App.initial, projection).pipe(Effect.provide(client)),
   )
-  const loaded = withStore(App.initial, store)
   say(`after fetch (Drizzle SQLite): ${describeData(projection.read(loaded))}`)
   const fetched = projection.read(loaded)
   say(

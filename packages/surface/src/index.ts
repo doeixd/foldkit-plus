@@ -230,9 +230,14 @@ function makeTree(
           dependencies,
           projection.requirements,
           root => Option.map(get(root) as Option.Option<unknown>, value => projection.read(value)),
+          projection.connections,
         )
-      : makeProjection(projection.Model, dependencies, projection.requirements, root =>
-          projection.read(get(root)),
+      : makeProjection(
+          projection.Model,
+          dependencies,
+          projection.requirements,
+          root => projection.read(get(root)),
+          projection.connections,
         )
   }
   return node
@@ -284,6 +289,42 @@ export interface Requirement extends RelationRequirement {
   readonly id: string
   /** The projection also subscribes to changes of this entity (`Data.live`). */
   readonly live?: boolean | undefined
+}
+
+/**
+ * A query connection a projection reads: the page it first asks for and the
+ * slice it selects of each item. `identity` is the connection's (query plus
+ * canonical input, excluding the window); the packages that run queries
+ * carry what they need to run it on the same object.
+ */
+export interface ConnectionRequirement {
+  readonly identity: string
+  readonly window: Window
+  readonly select: RelationRequirement
+}
+
+const windowKey = (window: Window): string =>
+  `${window.first ?? ''}|${window.last ?? ''}|${window.after ?? ''}|${window.before ?? ''}`
+
+/**
+ * Merges connection requirements for the same connection and window into one,
+ * unioning what they select of each item; the first keeps its other properties.
+ */
+function mergeConnections(
+  connections: readonly ConnectionRequirement[],
+): readonly ConnectionRequirement[] {
+  const merged = new Map<string, ConnectionRequirement>()
+  for (const connection of connections) {
+    const key = `${connection.identity}\u0000${windowKey(connection.window)}`
+    const current = merged.get(key)
+    merged.set(
+      key,
+      current === undefined
+        ? connection
+        : { ...current, select: mergeRelation(current.select, connection.select) },
+    )
+  }
+  return [...merged.values()]
 }
 
 /** Unions two relation slices for the same target: fields, windows, and nested relations. */
@@ -348,12 +389,15 @@ function mergeRequirements(requirements: readonly Requirement[]): readonly Requi
 export const Requirement = {
   merge: mergeRequirements,
   mergeRelation,
+  mergeConnections,
 }
 
 export interface Projection<Root, Value> {
   readonly Model: Schema.Schema<Value>
   readonly dependencies: DependencyTree
   readonly requirements: readonly Requirement[]
+  /** The query connections the projection reads; `[]` for most projections. */
+  readonly connections: readonly ConnectionRequirement[]
   readonly read: (root: Root) => Value
 }
 
@@ -375,8 +419,9 @@ function makeProjection<Value>(
   dependencies: DependencyTree,
   requirements: readonly Requirement[],
   read: (root: unknown) => Value,
+  connections: readonly ConnectionRequirement[] = [],
 ): Projection<unknown, Value> {
-  return { Model, dependencies, requirements, read }
+  return { Model, dependencies, requirements, connections, read }
 }
 
 /**
@@ -432,6 +477,7 @@ export const Projection = {
       const picked: Record<string, AnySchema> = {}
       const dependencies: (readonly string[])[] = []
       const requirements: Requirement[] = []
+      const connections: ConnectionRequirement[] = []
       const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
       for (const key of Object.keys(selection)) {
@@ -444,6 +490,7 @@ export const Projection = {
           picked[key] = nested.Model
           dependencies.push(...nested.dependencies)
           requirements.push(...nested.requirements)
+          connections.push(...nested.connections)
           readers.push([key, root => nested.read(propertyReader(root, key))])
         }
       }
@@ -458,6 +505,7 @@ export const Projection = {
         mergeDependencies(dependencies),
         mergeRequirements(requirements),
         read,
+        mergeConnections(connections),
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
@@ -467,6 +515,7 @@ export const Projection = {
     const picked: Record<string, AnySchema> = {}
     const dependencies: (readonly string[])[] = []
     const requirements: Requirement[] = []
+    const connections: ConnectionRequirement[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
     for (const key of Object.keys(entries)) {
@@ -475,6 +524,7 @@ export const Projection = {
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
         requirements.push(...entry.requirements)
+        connections.push(...entry.connections)
         readers.push([key, entry.read])
       } else {
         picked[key] = entry.Schema
@@ -493,6 +543,7 @@ export const Projection = {
       mergeDependencies(dependencies),
       mergeRequirements(requirements),
       read,
+      mergeConnections(connections),
     ) as unknown as Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>>
   },
 
@@ -507,6 +558,7 @@ export const Projection = {
     Model: Schema.Array(projection.Model),
     dependencies: projection.dependencies,
     requirements: projection.requirements,
+    connections: projection.connections,
     read: root => root.map(value => projection.read(value)),
   }),
 
@@ -517,6 +569,7 @@ export const Projection = {
     Model: Schema.Option(projection.Model),
     dependencies: projection.dependencies,
     requirements: projection.requirements,
+    connections: projection.connections,
     read: root => Option.map(root, value => projection.read(value)),
   }),
 
@@ -534,11 +587,13 @@ export const Projection = {
     options?: {
       readonly dependencies?: DependencyTree
       readonly requirements?: readonly Requirement[]
+      readonly connections?: readonly ConnectionRequirement[]
     },
   ): Projection<Root, Value> => ({
     Model,
     dependencies: options?.dependencies ?? [],
     requirements: options?.requirements ?? [],
+    connections: options?.connections ?? [],
     read,
   }),
 

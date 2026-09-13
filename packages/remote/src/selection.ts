@@ -93,7 +93,7 @@ export type SelectionValue<F extends Schema.Struct.Fields, Sel> = Simplify<{
     : NestedValue<Schema.Schema.Type<F[K]>, Sel[K]>
 }>
 
-const pageSchema = (item: AnySchema): AnySchema =>
+export const pageSchema = (item: AnySchema): AnySchema =>
   Schema.Struct({
     items: Schema.Array(item),
     hasNext: Schema.Boolean,

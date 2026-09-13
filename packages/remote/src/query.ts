@@ -14,8 +14,8 @@ export interface LivePolicy {
   readonly append?: LiveInsertion
 }
 
-export interface ConnectionSpec {
-  readonly entity: string
+export interface ConnectionSpec<Entity extends string = string> {
+  readonly entity: Entity
   readonly edgeKey?: Schema.Schema<unknown>
   readonly live?: LivePolicy
 }
@@ -62,7 +62,9 @@ export const stableStringify = (value: unknown): string => {
  * takes) means a connection over it; a `ConnectionSpec` names its `entity`
  * instead and is the result as given.
  */
-export type ResultOf<Result> = Result extends { readonly name: string } ? ConnectionSpec : Result
+export type ResultOf<Result> = Result extends { readonly name: infer Entity extends string }
+  ? ConnectionSpec<Entity>
+  : Result
 
 const isEntityName = (result: unknown): result is { readonly name: string } =>
   typeof result === 'object' &&
@@ -71,10 +73,10 @@ const isEntityName = (result: unknown): result is { readonly name: string } =>
 
 export const Query = {
   /** Declares the entity and options a query's result is a connection over. */
-  connection: (
-    entity: { readonly name: string },
+  connection: <Entity extends string>(
+    entity: { readonly name: Entity },
     options?: { readonly edgeKey?: Schema.Schema<unknown>; readonly live?: LivePolicy },
-  ): ConnectionSpec => ({
+  ): ConnectionSpec<Entity> => ({
     entity: entity.name,
     ...(options?.edgeKey === undefined ? {} : { edgeKey: options.edgeKey }),
     ...(options?.live === undefined ? {} : { live: options.live }),

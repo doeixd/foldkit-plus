@@ -203,10 +203,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   // The store stamps each write with the clock it is given, so the refresh
   // below can decide staleness without waiting.
-  const store = await Effect.runPromise(
+  const loaded = await Effect.runPromise(
     Data.prefetch(initial, projection, { now: () => 1_000 }).pipe(Effect.provide(FakeClient)),
   )
-  const loaded = withStore(initial, store)
   lines.push(`after fetch: ${describeData(projection.read(loaded))}`)
 
   // A refreshing policy keeps the value visible while it refetches: the
@@ -300,7 +299,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   const corrupted = withStore(
     loaded,
-    writeEntity(store, entityKey('Project', 'p1'), { status: 42 }),
+    writeEntity(Data.storeOf(loaded), entityKey('Project', 'p1'), { status: 42 }),
   )
   lines.push(`corrupt store: ${describeData(projection.read(corrupted))}`)
 

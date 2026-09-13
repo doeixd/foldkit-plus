@@ -1,9 +1,7 @@
 /**
- * The application API from #69 on the five scenarios the issue names. Phases B
- * and C (items 1–6, 9–12) are the real exports; `Dx.*` below are still
- * `declare`d stubs for items 7–8 (Phase D), typed over the real kernel types so
- * that inference, hover shape, and error placement are checked before they
- * land. When an item lands, its stub is replaced and the scenario stays.
+ * The application API from #69 on the five scenarios the issue names, checked
+ * for inference, hover shape, and error placement. Every item of Phases B–D
+ * (1–12) is the real export; this file is the compile-time contract they keep.
  */
 import type { Effect } from 'effect'
 import { Schema } from 'effect'
@@ -83,42 +81,6 @@ const Data = Remote.make({
 })
 
 // ===========================================================================
-// Candidate API still to land (stubs): items 4–8
-// ===========================================================================
-
-type NameOf<Q> = Q extends QueryDescriptor<infer N, any, any> ? N : never
-type QueryInput<Q> = Q extends QueryDescriptor<any, infer I, any> ? I : never
-
-/** Items 7/8: one side or the other, never both; `never` keys make the mix an error. */
-type DxWindow =
-  | {
-      readonly first: number
-      readonly after?: string
-      readonly last?: never
-      readonly before?: never
-    }
-  | {
-      readonly last: number
-      readonly before?: string
-      readonly first?: never
-      readonly after?: never
-    }
-
-declare const Dx: {
-  /** Item 7: `select` is constrained to the query's entity (here `Project`). */
-  query<Q extends typeof ProjectsByOwner, Value>(
-    query: Q,
-    input: QueryInput<Q>,
-    options: { readonly select: Selection<Value, 'Project', 'entity'> } & DxWindow,
-  ): Projection<AppModel, RemoteData<Page<Value>>> & { readonly query: Q }
-  /** Item 8 */
-  next<Q extends QueryDescriptor<any, any, any>>(
-    model: AppModel,
-    projection: Projection<AppModel, RemoteData<Page<unknown>>> & { readonly query: Q },
-  ): QueryRef<NameOf<Q>, QueryInput<Q>> | undefined
-}
-
-// ===========================================================================
 // Scenario 1 — Project with a nested owner selection
 // ===========================================================================
 
@@ -153,15 +115,28 @@ Data.get(Team.select({ id: true }), 't1')
 Data.live(Team.select({ id: true }), 't1')
 
 // ===========================================================================
-// Scenario 2 — a paginated list with next() (stubs)
+// Scenario 2 — a paginated list with next() (items 7, 8)
 // ===========================================================================
 
-const projects = Dx.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
+// Item 7: `select` is constrained to the query's entity (here `Project`), and
+// the projection reads a page of the selection's value.
+const projects = Data.query(
+  ProjectsByOwner,
+  { ownerId: 'u1' },
+  { select: ProjectSummary, first: 25 },
+)
 const _projects: Projection<AppModel, RemoteData<Page<ProjectValue>>> = projects
-const _next: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> | undefined = Dx.next(
+const _projectsRef: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> = projects.ref
+// Item 8: the next page is a `QueryRef` of the same query, or nothing.
+const _next: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> | undefined = Data.next(
   { route: 'p1', remote: Remote.initial },
   projects,
 )
+const _previous: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> | undefined =
+  Data.previous({ route: 'p1', remote: Remote.initial }, projects)
+const _loadMore: Command<RemoteMessage, never, RemoteClient> = Data.fetch(projects.ref)
+// @ts-expect-error the input is the query's
+Data.query(ProjectsByOwner, { owner: 'u1' }, { select: ProjectSummary })
 
 // The query's input is typed from its fields today.
 const _ref: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> = ProjectsByOwner.ref({
@@ -170,11 +145,11 @@ const _ref: QueryRef<'ProjectsByOwner', { readonly ownerId: string }> = Projects
 // @ts-expect-error the query's input is typed from its declaration
 ProjectsByOwner.ref({ owner: 'u1' })
 // @ts-expect-error `select` must be of the query's entity
-Dx.query(ProjectsByOwner, { ownerId: 'u1' }, { select: UserSummary, first: 25 })
+Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: UserSummary, first: 25 })
 // @ts-expect-error `first` and `last` are exclusive
-Dx.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25, last: 5 })
+Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25, last: 5 })
 // @ts-expect-error `after` pages forward only
-Dx.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, last: 5, after: 'c' })
+Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, last: 5, after: 'c' })
 
 // ===========================================================================
 // Scenario 3 — optimistic comment insert (items 9, 10)
@@ -217,7 +192,7 @@ const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: ProjectId },
   model: ({ params }) => ({
     project: Data.live(ProjectSummary, params.projectId),
-    projects: Dx.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 }),
+    projects: Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 }),
   }),
   messages: [Message.ArchiveProject],
 })

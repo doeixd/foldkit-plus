@@ -377,6 +377,7 @@ const build = <
       Model: shared.schema,
       dependencies: shared.dependencies,
       requirements: [],
+      connections: [],
       read: shared.get,
     }
     const surface = Surface.make(app, options.name ?? String(options.documentId), {

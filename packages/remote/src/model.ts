@@ -131,6 +131,8 @@ export type RemoteMessage =
   | { readonly _tag: 'ConnectionMerged'; readonly connection: string; readonly page: Segment }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
   | { readonly _tag: 'ConnectionRefreshed'; readonly connection: string }
+  /** A query for the connection failed; it reads as it did before the request. */
+  | { readonly _tag: 'QueryFailed'; readonly connection: string; readonly error: RemoteError }
 
 export const retentionRootsSchema = Schema.Struct({
   requirements: Schema.Array(ReadRequest),
@@ -174,6 +176,7 @@ export const remoteMessageCases = {
   ConnectionMerged: { connection: Schema.String, page: Schema.Unknown },
   ConnectionInvalidated: { connection: Schema.String },
   ConnectionRefreshed: { connection: Schema.String },
+  QueryFailed: { connection: Schema.String, error: remoteErrorSchema },
 } satisfies Record<RemoteMessage['_tag'], Schema.Struct.Fields>
 
 export type RemoteMessageTag = RemoteMessage['_tag']
@@ -327,6 +330,15 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),
       }
+    case 'QueryFailed':
+      // The refresh is over; the connection reads as it did before it started,
+      // and one the Model never held stays absent.
+      return message.connection in model.connections
+        ? {
+            ...model,
+            connections: setConnectionStale(model.connections, message.connection, false),
+          }
+        : model
     case 'ConnectionRefreshed':
       return {
         ...model,
