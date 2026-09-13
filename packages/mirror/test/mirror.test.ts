@@ -133,6 +133,12 @@ describe('encode and decode', () => {
     })
     expect(m.encode({ ...initial, page: 7 })).toEqual({})
     expect(m.encode({ ...initial, page: 1 })).toEqual({ page: '1' })
+    // Given both, the config's initial is the explicit one and wins.
+    const explicit = Mirror.make(App, MirrorStore.memory(), {
+      fields: [App.fields.page],
+      initial: { ...initial, page: 7 },
+    })
+    expect(explicit.encode({ ...initial, page: 7 })).toEqual({})
   })
 
   it('two fields on one key is an error naming both', () => {
