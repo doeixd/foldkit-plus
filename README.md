@@ -9,8 +9,8 @@ Foldkit keeps an application's behavior in one place: a Schema-typed **Model**, 
 **Message** union, and an **`update`** function. Everything here extends that one
 state machine rather than introducing a second place for application behavior to
 live — an observation boundary projected from the same Model, an agent contract,
-server-derived remote state as a Submodel, and a durable log that replicates the
-same Messages.
+server-derived remote state as a Submodel, a durable log that replicates the
+same Messages, and a Model slice mirrored into the URL or a key-value store.
 
 ## Packages
 
@@ -27,6 +27,7 @@ same Messages.
 | [`foldkit-agent-native`](./packages/agent-native) | The Agent Native adapter: compiles exposed capabilities into framework actions whose `run` only dispatches. |
 | [`foldkit-durable`](./packages/durable) | A durable, ordered operation log on `effect/unstable/sql`, with migrations, compaction, change streams, a durable effect ledger, and metrics. |
 | [`foldkit-sync`](./packages/sync) | A local-first replica: offline outbox, optimistic projection, reconciliation, presence, and a reconnecting WebSocket transport. |
+| [`foldkit-mirror`](./packages/mirror) | A Model slice kept in the URL query string or Effect's `KeyValueStore`: filter, sort, and page in the URL; preferences and drafts in storage. [Design](./docs/design/MIRROR.md). |
 | [`foldkit-mixins`](./packages/mixins) | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
 | [`foldkit-mixins-surface`](./packages/mixins-surface) | Bridges a Surface's projected Model and Message subset to a `SlotView`. |
 | [`foldkit-mixins-ui`](./packages/mixins-ui) | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
@@ -55,7 +56,7 @@ requires Node 22 for `node:sqlite`.
 
 ## How they fit together
 
-The packages fall into one observation boundary and three extensions to the same
+The packages fall into one observation boundary and four extensions to the same
 state machine:
 
 - **Observation.** `foldkit-surface` projects the Model into a pure `Projection`
@@ -70,6 +71,10 @@ state machine:
   so devices converge.
 - **Agents.** `foldkit-agent` projects *what an agent may see and do* from the
   Model and Message union; the adapters turn that contract into tools.
+- **Mirrored state.** `foldkit-mirror` keeps a slice of the Model in step with
+  the URL or a key-value store and reads it back on navigation or cold load. The
+  Model stays the only truth; the store is last-write-wins with no log, which is
+  what separates it from Sync.
 
 ```text
                          Foldkit application
@@ -79,19 +84,21 @@ state machine:
                                 ▼
                          foldkit-surface
                  Projection · field refs · subsets
-          ┌───────────┬─────────┴────────────┐
-          ▼           ▼                      ▼
-   foldkit-agent   foldkit-remote   foldkit-durable
-   (webmcp, mcp,   (normalized       (ordered log)
-    a2a, native)    server cache)         │
-                         │           foldkit-sync
-                    remote-server     (local replica)
-                    remote-drizzle
+                                │
+       ┌────────────────┬───────┴────────────────┬────────────────┐
+       ▼                ▼                        ▼                ▼
+ foldkit-agent    foldkit-remote          foldkit-durable    foldkit-mirror
+ (webmcp, mcp,    (normalized             (ordered log)      (URL, KeyValueStore)
+  a2a, native)     server cache)                │
+                        │                  foldkit-sync
+                   remote-server           (local replica)
+                   remote-drizzle
 ```
 
 None reimplements `update`: the agent layer projects it, Remote reduces its facts
-through the application's `update`, and the replication layer replays the same
-Messages through a shared reducer. Separately, `foldkit-mixins` is a view-layer
+through the application's `update`, the replication layer replays the same
+Messages through a shared reducer, and a mirror's `reduce` is a pure Model
+function the application calls from its own `update`. Separately, `foldkit-mixins` is a view-layer
 axis — it composes styles and behaviors over plain Foldkit views, and
 `foldkit-mixins-surface` over a Surface projection, without owning a second
 runtime.
@@ -104,21 +111,27 @@ runtime.
   the `foldkit-remote` Submodel.
 - [Inside-out view composition](./docs/mixins.md) — slot contracts, Style and
   Behavior, and the `@foldkit/ui` adapters.
+- [Runtime binding](./docs/sync-runtime-binding.md) — how `Sync.mount` runs an
+  application over a replica, and routes the URL.
+- [Mirror design](./docs/design/MIRROR.md) — why a mirror is not an owner, and
+  how `foldkit-mirror` fits beside Sync and Remote.
 - [Releases](./docs/releases.md) — the version and publish matrix for every
   workspace package.
 - [`foldkit-agent` design rationale](./docs/design/agent-DESIGN.md).
 - [Revision plan](./docs/design/REVISION_PLAN.md) — the full design and phase status.
 - [All guides](./docs/README.md), including the [improvement suggestions](./docs/improvements.md).
 - Each package README documents its API; [`examples/`](./examples) has runnable
-  traces, and `pnpm demo` runs them.
+  traces, and `pnpm demo` runs them. Start with the
+  [todo app](./examples/todo-app), which wires every package into one
+  application and explains each choice.
 
 ## Repository layout
 
 ```text
-packages/surface          foldkit-surface (unpublished)
-packages/remote           foldkit-remote (unpublished)
-packages/remote-server    foldkit-remote-server (unpublished)
-packages/remote-drizzle   foldkit-remote-drizzle (unpublished)
+packages/surface          foldkit-surface
+packages/remote           foldkit-remote
+packages/remote-server    foldkit-remote-server
+packages/remote-drizzle   foldkit-remote-drizzle
 packages/agent            foldkit-agent
 packages/agent-webmcp     foldkit-agent-webmcp
 packages/agent-mcp        foldkit-agent-mcp
@@ -126,10 +139,13 @@ packages/agent-a2a        foldkit-agent-a2a
 packages/agent-native     foldkit-agent-native
 packages/durable          foldkit-durable
 packages/sync             foldkit-sync
-packages/mixins           foldkit-mixins (unpublished)
-packages/mixins-surface   foldkit-mixins-surface (unpublished)
-packages/mixins-ui        foldkit-mixins-ui (unpublished)
-examples/todo             a worked example, end to end
+packages/mirror           foldkit-mirror
+packages/mixins           foldkit-mixins
+packages/mixins-surface   foldkit-mixins-surface
+packages/mixins-ui        foldkit-mixins-ui
+examples/todo-app         the todo app: every package in one local-first, agent-ready application
+examples/kitchen-sink     every package wired in-process, as a deterministic transcript
+examples/todo             foldkit-agent, driven by a human and by an agent over WebMCP
 examples/sync             durable messages and ordered replication
 examples/remote           normalized server state, end to end
 examples/mixins           view mixins, end to end
@@ -143,6 +159,7 @@ pnpm test        # vitest
 pnpm typecheck   # tsc -b
 pnpm build       # tsdown
 pnpm demo        # run the worked examples
+pnpm format      # prettier
 pnpm pack:check  # verify every package packs
 ```
 
