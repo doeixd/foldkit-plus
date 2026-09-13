@@ -519,7 +519,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         { ownerId: 'u1' },
         { select: summary, first: 2, after: undefined },
       ).ref.window,
-    ).toEqual({ first: 2 })
+    ).toStrictEqual({ first: 2 })
   })
 
   it('plans an unknown or stale connection as a query, and a known one as its items’ fields', () => {
@@ -723,6 +723,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ...projects.ref,
       window: { last: 2, before: 'before:p9' },
     })
+    const unknownStart = Data.reduce(initial, {
+      _tag: 'ConnectionMerged',
+      connection: identity,
+      page: { edges: [edge('p9')], start: { _tag: 'Unknown' }, end: terminal },
+    })
+    expect(Data.previous(unknownStart, projects)).toBeUndefined()
     const whole = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary })
     expect(Data.next(known, whole)).toEqual({ ...whole.ref, window: { after: 'after:p2' } })
     const last = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, last: 5 })
@@ -809,19 +815,25 @@ describe('Data.query reads a connection as a page of selected items', () => {
   })
 
   it('two projections of one connection plan one query and select the union of their fields', () => {
-    const both = Projection.struct({
-      names: projects,
-      ids: Data.query(
-        ProjectsByOwner,
-        { ownerId: 'u1' },
-        { select: Project.select({ id: true }), first: 2 },
-      ),
-    })
+    const ids = Data.query(
+      ProjectsByOwner,
+      { ownerId: 'u1' },
+      { select: Project.select({ id: true }), first: 2 },
+    )
+    const both = Projection.struct({ names: projects, ids })
     expect(both.connections.map(connection => connection.select)).toEqual([
       { entity: 'Project', fields: ['name', 'id'] },
     ])
     expect(Remote.planQueries(Data, initial, both)).toEqual([projects.ref])
     expect(Data.plan(merged(initial, ['p1']), both)).toEqual([
+      { entity: 'Project', id: 'p1', fields: ['name', 'id'] },
+    ])
+    // The planner merges for itself too, as it does requirements, for a hand-built projection.
+    const literal = Projection.fromReader(Schema.Unknown, () => null, {
+      connections: [...projects.connections, ...ids.connections],
+    })
+    expect(Remote.planQueries(Data, initial, literal)).toEqual([projects.ref])
+    expect(Data.plan(merged(initial, ['p1']), literal)).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name', 'id'] },
     ])
     // Another window of the same connection is another query.
