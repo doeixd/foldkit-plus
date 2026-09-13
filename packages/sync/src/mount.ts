@@ -9,11 +9,14 @@
  */
 import { Effect, Exit, Layer, Schema, Stream } from 'effect'
 import type { Document, HtmlBuilder } from 'foldkit/html'
+import * as Navigation from 'foldkit/navigation'
+import type { UrlRequest } from 'foldkit/navigation'
 import * as Port from 'foldkit/port'
 import * as Runtime from 'foldkit/runtime'
 import * as Subscription from 'foldkit/subscription'
 import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
+import * as Url from 'foldkit/url'
 import type { RunnableApplication } from 'foldkit-surface'
 import type { ReplicaError } from './errors.js'
 import type { DefinedSync } from './make.js'
@@ -22,11 +25,29 @@ import type { Replica, ReplicaStatus } from './sync.js'
 const REFRESH = 'foldkit-sync/Refresh'
 const PERSISTED = 'foldkit-sync/Persisted'
 const FAILED = 'foldkit-sync/PersistenceFailed'
+const NAVIGATE = 'foldkit-sync/Navigate'
+const NAVIGATED = 'foldkit-sync/Navigated'
 
 type Private =
   | { readonly _tag: typeof REFRESH }
   | { readonly _tag: typeof PERSISTED }
   | { readonly _tag: typeof FAILED; readonly error: ReplicaError }
+  | { readonly _tag: typeof NAVIGATE; readonly request: UrlRequest }
+  | { readonly _tag: typeof NAVIGATED }
+
+/**
+ * The URL as part of the application: `onUrlChange` names the Message the
+ * runtime sends for the current URL at start and on every navigation (so a
+ * `foldkit-mirror` URL mirror reads back in), `init` reduces the URL into the
+ * Model before the first render, and `onUrlRequest` names the Message for a
+ * link click; omitted, the mount follows the link itself (an internal one is
+ * pushed, an external one loaded).
+ */
+export interface MountUrl<Model, Message> {
+  readonly init?: ((model: Model, url: Url.Url) => Model) | undefined
+  readonly onUrlChange: (url: Url.Url) => Message
+  readonly onUrlRequest?: ((request: UrlRequest) => Message) | undefined
+}
 
 export interface MountOptions<Model, Message, Shared, Resources> {
   /** An open replica of this contract; `mount` does not close it. */
@@ -36,6 +57,8 @@ export interface MountOptions<Model, Message, Shared, Resources> {
   readonly view: (model: Model, h: HtmlBuilder<Message>) => Document
   readonly subscriptions?: Subscriptions<Model, Message, Resources> | undefined
   readonly resources?: Layer.Layer<Resources> | undefined
+  /** Route the URL through the application; without it the mount ignores the URL. */
+  readonly url?: MountUrl<Model, Message> | undefined
   /**
    * Reflects a refused or failed persist in the Model, after the durable edit
    * has been reverted. Omitted, the edit is reverted silently.
@@ -127,6 +150,26 @@ export const mount = <
         const reverted = install(model)
         return { model: options.onPersistenceFailure?.(reverted, error) ?? reverted }
       }
+      case NAVIGATE: {
+        // A link the application did not claim: follow it. The runtime then
+        // reports the new URL through `onUrlChange`.
+        const { request } = message as Extract<Private, { readonly _tag: typeof NAVIGATE }>
+        const follow =
+          request._tag === 'Internal'
+            ? Navigation.pushUrl(Url.toString(request.url))
+            : Navigation.load(request.href)
+        return {
+          model,
+          commands: [
+            {
+              name: 'foldkit-sync/navigate',
+              effect: follow.pipe(Effect.as({ _tag: NAVIGATED } as RuntimeMessage)),
+            },
+          ],
+        }
+      }
+      case NAVIGATED:
+        return { model }
       default: {
         for (const listener of messageListeners) listener(message as Message)
         const result = app.update(model, message as Message) as Update.Return<
@@ -199,16 +242,33 @@ export const mount = <
     // Sound: the view constructs only application Messages, a subset of the
     // runtime's union.
     options.view(model, h as unknown as HtmlBuilder<Message>)
-  const program = Runtime.makeApplication({
+  const common = {
     Model: app.Model as unknown as Schema.Codec<Model, any, unknown, unknown>,
     container: options.container,
     ports,
-    init: () => ({ model: latest }),
     update,
     subscriptions,
     ...(options.resources === undefined ? {} : { resources: options.resources }),
     view,
-  })
+  }
+  const url = options.url
+  const program =
+    url === undefined
+      ? Runtime.makeApplication({ ...common, init: () => ({ model: latest }) })
+      : Runtime.makeApplication({
+          ...common,
+          routing: {
+            onUrlChange: (at: Url.Url) => url.onUrlChange(at) as RuntimeMessage,
+            onUrlRequest: (request: UrlRequest): RuntimeMessage =>
+              url.onUrlRequest === undefined
+                ? { _tag: NAVIGATE, request }
+                : (url.onUrlRequest(request) as RuntimeMessage),
+          },
+          init: (at: Url.Url) => {
+            latest = url.init === undefined ? latest : url.init(latest, at)
+            return { model: latest }
+          },
+        })
   const handle = Runtime.embed(program)
 
   return {

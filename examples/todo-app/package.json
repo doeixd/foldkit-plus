@@ -20,6 +20,7 @@
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-surface": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
+    "foldkit-mirror": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",

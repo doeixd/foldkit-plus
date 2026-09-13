@@ -24,6 +24,36 @@ afterEach(() => {
 })
 
 describe('the mounted app', () => {
+  it('reads the filter from the URL at start and writes it back as the filter changes', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    window.history.replaceState({}, '', '/?filter=active&sort=asc')
+    const container = document.createElement('div')
+    container.id = 'todo-app-mirrors'
+    document.body.appendChild(container)
+    const replica = await Effect.runPromise(Sync.openReplica(replicaId('mirrors'), memoryStorage()))
+    const mounted = mountApp(replica, container)
+    try {
+      await vi.waitFor(() => expect(mounted.model().filter).toBe('active'))
+      mounted.dispatch(Message.FilterSelected({ filter: 'completed' }))
+      await vi.waitFor(() => expect(window.location.search).toBe('?filter=completed&sort=asc'))
+      // Back to the default drops the key and keeps the rest of the URL.
+      mounted.dispatch(Message.FilterSelected({ filter: 'all' }))
+      await vi.waitFor(() => expect(window.location.search).toBe('?sort=asc'))
+      // A navigation reads back in.
+      window.history.pushState({}, '', '/?filter=active')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      await vi.waitFor(() => expect(mounted.model().filter).toBe('active'))
+    } finally {
+      await mounted.dispose()
+      await Effect.runPromise(replica.close)
+      container.remove()
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
   it('applies an intent, persists the fact it minted, and renders through the slots', async () => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
       setTimeout(() => callback(performance.now()), 0),

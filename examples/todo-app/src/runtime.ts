@@ -7,19 +7,38 @@
  * `onPersistenceFailure`; the shared slice is re-installed when an exchange or
  * a rejection moves the replica. The returned `Mounted` is also the host an
  * agent binds to: `model`, `dispatch`, `subscribe`, and `observe`.
+ *
+ * The mirrors ride along: their Subscription entries write the URL and Web
+ * Storage as the Model changes; the URL is reduced into the Model at start
+ * (`url.init`) and on every navigation (`url.onUrlChange`); the store is read
+ * once at start and its Message dispatched.
  */
+import { Effect } from 'effect'
+import { KeyValueStore } from 'effect/unstable/persistence'
+import * as Subscription from 'foldkit/subscription'
 import type { Mounted, Replica } from 'foldkit-sync'
-import type { Message, Model, Shared } from './app.js'
+import { Message, type Model, type Shared } from './app.js'
+import { Filters, Prefs } from './surface.js'
 import { mountTodos } from './sync.js'
 import { view } from './view.js'
 
 export const mountApp = (
   replica: Replica<Message, Shared>,
   container: HTMLElement,
-): Mounted<Model, Message> =>
-  mountTodos(replica, {
+): Mounted<Model, Message> => {
+  const storage = KeyValueStore.layerStorage(() => window.localStorage)
+  const mounted = mountTodos(replica, {
     container,
     view,
+    subscriptions: Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(() => ({
+      ...Filters.subscriptions,
+      ...Prefs.subscriptions,
+    })),
+    resources: storage,
+    url: {
+      init: (model, url) => Filters.reduce(model, url),
+      onUrlChange: url => Message.UrlChanged({ url }),
+    },
     onPersistenceFailure: (model, error) => ({
       ...model,
       lastError:
@@ -28,3 +47,9 @@ export const mountApp = (
           : 'Could not save this change; it was reverted.',
     }),
   })
+  // Store → Model, once: the draft is restored while it is still empty.
+  void Effect.runPromise(Prefs.restore.effect.pipe(Effect.provide(storage))).then(message =>
+    mounted.dispatch(message),
+  )
+  return mounted
+}

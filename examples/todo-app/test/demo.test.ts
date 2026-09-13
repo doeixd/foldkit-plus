@@ -2,7 +2,8 @@ import { Effect } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { describe, expect, it } from 'vitest'
 import { AppAgent } from '../src/agent.js'
-import { Message, initialModel, update, visibleTodos } from '../src/app.js'
+import { Message, initialModel, visibleTodos } from '../src/app.js'
+import { update } from '../src/surface.js'
 import { runDemo } from '../src/demo.js'
 import { manifest, validate } from '../src/module.js'
 import { stylesheet } from '../src/style.js'
@@ -26,6 +27,14 @@ describe('the todo app', () => {
     expect(transcript).toContain('owner RenamedList: Team')
     expect(transcript).toContain('findings: none')
     expect(transcript).toContain('filter a11y: ok')
+    // The mirrors: the filter is linkable, a bad key is the default, the draft is remembered
+    // into a fresh Model but never over what the user is typing.
+    expect(transcript).toContain('link to the active filter: /?filter=active')
+    expect(transcript).toContain('filter from ?filter=completed: completed')
+    expect(transcript).toContain('filter from ?filter=bogus: all')
+    expect(transcript).toContain(
+      'draft restored into a fresh Model: "Buy milk"; while typing: "Call"',
+    )
   })
 
   it('exposes the intent, not the fact, plus every other durable Message', () => {

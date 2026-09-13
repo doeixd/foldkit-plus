@@ -10,10 +10,27 @@
  * `Board` cannot emit `RequestedTodo`; only `Composer` can. That is enforced by
  * the builder's type, not by convention.
  */
+import { Mirror } from 'foldkit-mirror'
 import { Projection, Surface, type Surface as SurfaceType } from 'foldkit-surface'
-import { Message, Model, initialModel, update } from './app.js'
+import { Message, Model, initialModel, makeUpdate } from './app.js'
+
+/** `update` with the mirrors' two Messages applied; `Filters` and `Prefs` are declared below, over `App`. */
+export const update = makeUpdate((model, message) =>
+  Mirror.reduces(message)
+    ? Prefs.reduce(model, message)
+    : message._tag === 'UrlChanged'
+      ? Filters.reduce(model, message.url)
+      : model,
+)
 
 export const App = Surface.application({ Model, Message, initial: initialModel, update })
+
+// --- the mirrors: local state the URL shows and a store remembers ------------
+
+/** The filter is linkable: `?filter=active`. Reduced from the URL on load and on navigation. */
+export const Filters = Mirror.url(App, { name: 'filters', fields: [App.fields.filter] })
+/** The composer's draft survives a reload; restored only while the draft is still empty. */
+export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.fields.draft] })
 
 // --- the writable projections the sync contract replicates (see sync.ts) ------
 

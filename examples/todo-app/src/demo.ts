@@ -6,7 +6,8 @@
  * what it claims to. Read it as a tour; every section names the file it
  * exercises.
  */
-import { Effect } from 'effect'
+import { Effect, Stream } from 'effect'
+import { KeyValueStore } from 'effect/unstable/persistence'
 import { Agent } from 'foldkit-agent'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-agent-webmcp'
@@ -15,13 +16,13 @@ import { SurfaceView } from 'foldkit-mixins-surface'
 import { Surface } from 'foldkit-surface'
 import { replicaId, type Storage } from 'foldkit-sync'
 import { AppAgent, bindAgent } from './agent.js'
-import { Message, counts, visibleTodos } from './app.js'
+import { Message, counts, initialModel, visibleTodos } from './app.js'
 import { openJournal } from './journal.js'
 import { toMarkdown, validate } from './module.js'
 import type { Principal, SyncPrincipal } from './principal.js'
 import { makeStore } from './store.js'
 import { FilterSlots, ItemSlots, stylesheet } from './style.js'
-import { Board } from './surface.js'
+import { Board, Filters, Prefs, update } from './surface.js'
 import { Sync } from './sync.js'
 import { BoardView } from './view.js'
 
@@ -210,6 +211,29 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`editor a11y: ${editor.length === 0 ? 'ok' : editor.map(d => d.code).join(', ')}`)
   say(
     `stylesheet: ${stylesheet.length} bytes, ${(stylesheet.match(/\.style-/g) ?? []).length} rule classes`,
+  )
+
+  // 12. surface.ts — the mirrors: the filter is linkable, the draft is remembered.
+  say('')
+  say('# mirrors: the URL and a store (surface.ts)')
+  say(`link to the active filter: ${Filters.href(initialModel, { filter: 'active' }, '/')}`)
+  say(`filter from ?filter=completed: ${Filters.reduce(initialModel, '/?filter=completed').filter}`)
+  say(`filter from ?filter=bogus: ${Filters.reduce(initialModel, '/?filter=bogus').filter}`)
+  const entry = Prefs.subscriptions['todo/prefs.mirror']!
+  const remembered = await Effect.runPromise(
+    Effect.gen(function* () {
+      // The entry writes the draft as the Model changes; a fresh Model restores it.
+      const typed = { ...initialModel, draft: 'Buy milk' }
+      yield* Stream.runDrain(entry.dependenciesToStream(entry.modelToDependencies(typed)))
+      const restored = yield* Prefs.restore.effect
+      return {
+        fresh: update(initialModel, restored).model.draft,
+        typing: update({ ...initialModel, draft: 'Call' }, restored).model.draft,
+      }
+    }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+  )
+  say(
+    `draft restored into a fresh Model: "${remembered.fresh}"; while typing: "${remembered.typing}"`,
   )
 
   return log
