@@ -26,6 +26,7 @@ export default defineConfig({
       'foldkit-durable': fileURLToPath(new URL('./packages/durable/src/index.ts', import.meta.url)),
       'foldkit-sync': fileURLToPath(new URL('./packages/sync/src/index.ts', import.meta.url)),
       'foldkit-surface': fileURLToPath(new URL('./packages/surface/src/index.ts', import.meta.url)),
+      'foldkit-mirror': fileURLToPath(new URL('./packages/mirror/src/index.ts', import.meta.url)),
       'foldkit-remote': fileURLToPath(new URL('./packages/remote/src/index.ts', import.meta.url)),
       'foldkit-remote-server': fileURLToPath(
         new URL('./packages/remote-server/src/index.ts', import.meta.url),

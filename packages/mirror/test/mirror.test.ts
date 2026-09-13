@@ -25,18 +25,27 @@ const App = Surface.application({ Model, Message, initial, update: model => ({ m
 const Filters = Projection.pick(App.fields.filter, App.fields.page, App.fields.q)
 const mirror = (store = MirrorStore.memory()) =>
   Mirror.make(App, store, { name: 'filters', fields: Filters, keys: { q: { history: 'replace' } } })
+/** The same slice in the URL; `reduce` and `href` are pure, so no DOM is needed. */
+const inUrl = (config: { readonly location?: 'search' | 'hash'; readonly name?: string } = {}) =>
+  Mirror.url(App, {
+    name: config.name ?? `filters-${config.location ?? 'search'}`,
+    fields: [App.fields.filter, App.fields.page, App.fields.q],
+    keys: { q: { history: 'replace' } },
+    ...(config.location === undefined ? {} : { location: config.location }),
+  })
 
 describe('encode and decode', () => {
   it('derives each key’s codec from the field and elides the initial value', () => {
+    // Field refs straight from `App.fields`, or a writable projection over them.
     const m = Mirror.make(App, MirrorStore.memory(), {
-      fields: Projection.pick(
+      fields: [
         App.fields.filter,
         App.fields.page,
         App.fields.q,
         App.fields.open,
         App.fields.tags,
         App.fields.editingId,
-      ),
+      ],
     })
     expect(m.encode(initial)).toEqual({})
     const changed: Model = {
@@ -113,6 +122,19 @@ describe('encode and decode', () => {
     expect(m.decode({ t: 'a,b' }).value).toEqual({ tags: ['a', 'b'] })
   })
 
+  it('reads defaults from the initial Model: the application’s, or the config’s for a bare one', () => {
+    const Bare = Surface.application({ Model, Message })
+    expect(() => Mirror.make(Bare, MirrorStore.memory(), { fields: [Bare.fields.page] })).toThrow(
+      'Mirror.memory: defaults are read from the initial Model, so build the application with `initial` or pass `initial` in the config',
+    )
+    const m = Mirror.make(Bare, MirrorStore.memory(), {
+      fields: [Bare.fields.page],
+      initial: { ...initial, page: 7 },
+    })
+    expect(m.encode({ ...initial, page: 7 })).toEqual({})
+    expect(m.encode({ ...initial, page: 1 })).toEqual({ page: '1' })
+  })
+
   it('two fields on one key is an error naming both', () => {
     expect(() =>
       Mirror.make(App, MirrorStore.memory(), {
@@ -125,7 +147,7 @@ describe('encode and decode', () => {
 
 describe('reduce and href', () => {
   it('from a URL: the whole slice, a missing or malformed key being the initial value', () => {
-    const m = mirror()
+    const m = inUrl()
     const changed = { ...initial, filter: 'done' as const, page: 4, q: 'x', open: true }
     expect(m.reduce(changed, '/todos?filter=active&page=abc&other=1#h')).toEqual({
       ...changed,
@@ -134,27 +156,42 @@ describe('reduce and href', () => {
       q: '',
     })
     expect(m.reduce(changed, '/todos')).toEqual({ ...changed, filter: 'all', page: 1, q: '' })
-    // A Foldkit Url works the same.
-    expect(
-      m.reduce(initial, {
+    // A Foldkit Url works the same; it carries the query without its `?`.
+    const url = (search: string, hash = '') =>
+      ({
         protocol: 'https:',
         host: 'x',
         port: { _tag: 'None' },
         pathname: '/todos',
-        search: { _tag: 'Some', value: '?q=apollo' },
-        hash: { _tag: 'None' },
-      } as never),
-    ).toEqual({ ...initial, q: 'apollo' })
+        search: search === '' ? { _tag: 'None' } : { _tag: 'Some', value: search },
+        hash: hash === '' ? { _tag: 'None' } : { _tag: 'Some', value: hash },
+      }) as never
+    expect(m.reduce(initial, url('q=apollo&page=2'))).toEqual({ ...initial, q: 'apollo', page: 2 })
+    expect(m.reduce(initial, url(''))).toEqual(initial)
+    expect(inUrl({ location: 'hash' }).reduce(initial, url('q=no', 'page=4'))).toEqual({
+      ...initial,
+      page: 4,
+    })
   })
 
   it('from the hash, when the mirror lives there', () => {
-    const m = Mirror.make(App, MirrorStore.memory(), { fields: Filters, location: 'hash' } as never)
+    const m = inUrl({ location: 'hash' })
     expect(m.reduce(initial, '/todos?q=ignored#page=2')).toEqual({ ...initial, page: 2 })
     expect(m.href(initial, { page: 3 }, '/todos?q=keep')).toBe('/todos?q=keep#page=3')
   })
 
-  it('href applies a patch to the current keys on a base, leaving the rest of the URL alone', () => {
+  it('the kernel reads keys as the whole slice, or only into fields still at their defaults', () => {
     const m = mirror()
+    const typed = { ...initial, q: 'typing', page: 2 }
+    expect(m.fromKeys(typed, { filter: 'active' })).toEqual({ ...initial, filter: 'active' })
+    expect(m.restoreKeys(typed, { filter: 'active', q: 'saved', page: '9' })).toEqual({
+      ...typed,
+      filter: 'active',
+    })
+  })
+
+  it('href applies a patch to the current keys on a base, leaving the rest of the URL alone', () => {
+    const m = inUrl()
     expect(m.href(initial, { page: 2 }, '/todos?sort=asc&page=9#top')).toBe(
       '/todos?sort=asc&page=2#top',
     )
@@ -264,16 +301,20 @@ describe('restore', () => {
     expect(Mirror.reduces({ _tag: 'toString' })).toBe(false)
     // The user typed before the store answered: the store's q is not applied.
     const typed = { ...initial, q: 'typing' }
-    expect(m.reduce(typed, message)).toEqual({ ...typed, filter: 'active', page: 2 })
-    // Another mirror's Message, or an empty store, changes nothing.
-    expect(m.reduce(typed, { ...message, name: 'other' })).toBe(typed)
-    expect(m.reduce(typed, { _tag: 'MirrorRestored', name: 'filters', keys: {} })).toEqual(typed)
+    expect(m.restoreKeys(typed, message.keys)).toEqual({ ...typed, filter: 'active', page: 2 })
+    // A kv mirror's reduce is restoreKeys for its own Message; another's changes nothing.
+    const Prefs = Mirror.kv(App, { key: 'filters', fields: Filters })
+    expect(Prefs.reduce(typed, message)).toEqual({ ...typed, filter: 'active', page: 2 })
+    expect(Prefs.reduce(typed, { ...message, name: 'other' })).toBe(typed)
+    expect(Prefs.reduce(typed, { _tag: 'MirrorRestored', name: 'filters', keys: {} })).toEqual(
+      typed,
+    )
     // The union's own case has the same shape.
     const viaUnion: MirrorRestored = Message.MirrorRestored({
       name: 'filters',
       keys: { page: '5' },
     })
-    expect(m.reduce(initial, viaUnion)).toEqual({ ...initial, page: 5 })
+    expect(Prefs.reduce(initial, viaUnion)).toEqual({ ...initial, page: 5 })
   })
 })
 
@@ -297,8 +338,11 @@ describe('the contract', () => {
   })
 
   it('a kv mirror names MirrorRestored, so Module reports a union that did not spread it', () => {
-    const Prefs = Mirror.kv(App, { key: 'prefs', fields: Projection.pick(App.fields.open) })
+    const Prefs = Mirror.kv(App, { key: 'prefs', fields: [App.fields.open] })
     expect(Prefs.name).toBe('prefs')
+    expect(Mirror.kv(App, { key: 'prefs', name: 'settings', fields: [App.fields.open] }).name).toBe(
+      'settings',
+    )
     expect(Prefs.kind).toBe('kv')
     expect(Prefs.contract.messages).toEqual(['MirrorRestored'])
     const Bare = Surface.application({
@@ -315,11 +359,11 @@ describe('the contract', () => {
 
   it('a URL key belongs to one mirror per application', () => {
     const A = Surface.application({ Model, Message, initial, update: model => ({ model }) })
-    const first = Mirror.url(A, { name: 'first', fields: Projection.pick(A.fields.page) })
+    const first = Mirror.url(A, { name: 'first', fields: [A.fields.page] })
     expect(first.name).toBe('first')
-    expect(Mirror.url(A, { fields: Projection.pick(A.fields.q) }).name).toBe('url(q)')
+    expect(Mirror.url(A, { fields: [A.fields.q] }).name).toBe('url(q)')
     // The same mirror declared again is fine; another taking the key is not.
-    Mirror.url(A, { name: 'first', fields: Projection.pick(A.fields.page) })
+    Mirror.url(A, { name: 'first', fields: [A.fields.page] })
     expect(() => Mirror.url(A, { name: 'second', fields: Projection.pick(A.fields.page) })).toThrow(
       'Mirror.url: key "page" in the search is already mirrored by "first"; "second" cannot mirror it too',
     )

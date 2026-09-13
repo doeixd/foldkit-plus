@@ -21,6 +21,7 @@
  *   never leave the tab.
  */
 import { Clock, Effect, Schema } from 'effect'
+import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -75,7 +76,7 @@ export const Message = defineMessageUnion({
   // --- mirrors (surface.ts): the URL and a store read back into the Model ----
   ...Mirror.messages,
   /** The browser's URL changed (a link, back, forward); the filter is read from it. */
-  UrlChanged: { href: Schema.String },
+  UrlChanged: { url: Url },
   // --- effectful intents: local, and their Command emits a durable fact -----
   /** The composer was submitted. The Command mints the id and the timestamp. */
   RequestedTodo: { title: Schema.String },

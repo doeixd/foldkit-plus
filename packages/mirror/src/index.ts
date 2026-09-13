@@ -15,7 +15,7 @@ import type { Command } from 'foldkit/command'
 import * as Navigation from 'foldkit/navigation'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import type { Url } from 'foldkit/url'
-import type { Contract, WritableProjection } from 'foldkit-surface'
+import { Projection, type Contract, type FieldRef, type WritableProjection } from 'foldkit-surface'
 
 // ---------------------------------------------------------------------------
 // Stores
@@ -135,7 +135,11 @@ const kvStore = (options: {
     read: Effect.gen(function* () {
       const kv = yield* KeyValueStore.KeyValueStore
       const raw = yield* Effect.result(kv.get(options.key))
-      if (Result.isFailure(raw) || raw.success === undefined) return undefined
+      if (Result.isFailure(raw)) {
+        yield* Effect.logWarning(`Mirror: could not read "${options.key}"`, raw.failure)
+        return undefined
+      }
+      if (raw.success === undefined) return undefined
       const document = decode(raw.success)
       // Another version, another scope, or malformed: disposable, so drop it and start clean.
       if (
@@ -156,9 +160,12 @@ const kvStore = (options: {
           ...(options.scope === undefined ? {} : { scope: options.scope }),
           keys: write.set,
         })
-        yield* Effect.result(
+        const outcome = yield* Effect.result(
           Object.keys(write.set).length === 0 ? kv.remove(options.key) : kv.set(options.key, text),
         )
+        if (Result.isFailure(outcome)) {
+          yield* Effect.logWarning(`Mirror: could not write "${options.key}"`, outcome.failure)
+        }
       }),
   }
 }
@@ -288,6 +295,39 @@ const codecFor = (
 /** The value type of a field schema. */
 type TypeOf<S> = S extends { readonly Type: infer T } ? T : never
 
+/**
+ * The slice a mirror keeps: field refs straight from `App.fields`, or a
+ * writable projection over them (`Projection.pick`, `Projection.compose`),
+ * the same object `foldkit-sync` replicates.
+ */
+export type Slice = WritableProjection<any, any> | readonly FieldRef<any, any, string>[]
+
+/** The Struct fields of a slice. */
+export type SliceFields<S extends Slice> =
+  S extends WritableProjection<any, infer Fields>
+    ? Fields
+    : S extends readonly FieldRef<any, any, string>[]
+      ? { readonly [R in S[number] as R['key']]: R['Schema'] }
+      : never
+
+/** The Model a slice is of. */
+export type SliceRoot<S extends Slice> =
+  S extends WritableProjection<infer Root, any>
+    ? Root
+    : S extends readonly FieldRef<infer Root, any, string>[]
+      ? Root
+      : never
+
+/** The value a slice reads. */
+export type SliceValue<S extends Slice> = Schema.Struct.Type<SliceFields<S>>
+
+const projectionOf = <S extends Slice>(
+  slice: S,
+): WritableProjection<SliceRoot<S>, SliceFields<S>> =>
+  (Array.isArray(slice)
+    ? Projection.pick(...(slice as readonly FieldRef<any, any, string>[]))
+    : slice) as WritableProjection<SliceRoot<S>, SliceFields<S>>
+
 /** How one field is kept: its store key, its history intent, whether its default is written, and its text codec. */
 export interface KeyOptions<Value> {
   /** The store key; default the field name. */
@@ -300,12 +340,15 @@ export interface KeyOptions<Value> {
   readonly codec?: Schema.Codec<Value, string, never, never> | undefined
 }
 
-export interface MirrorConfig<AppModel, Fields extends Schema.Struct.Fields> {
+export interface MirrorConfig<S extends Slice, Name extends string = string> {
   /** Names the mirror in its contract and its Messages; default from the kind and keys. */
-  readonly name?: string | undefined
-  /** The slice: a writable projection over field refs (`Projection.pick(App.fields.filter, …)`). */
-  readonly fields: WritableProjection<AppModel, Fields>
-  readonly keys?: { readonly [K in keyof Fields]?: KeyOptions<TypeOf<Fields[K]>> } | undefined
+  readonly name?: Name | undefined
+  /** The slice: field refs (`[App.fields.filter, App.fields.q]`) or a writable projection over them. */
+  readonly fields: S
+  readonly keys?:
+    { readonly [K in keyof SliceFields<S>]?: KeyOptions<TypeOf<SliceFields<S>[K]>> } | undefined
+  /** The Model's initial value, when the application was built without one; defaults are read from it. */
+  readonly initial?: SliceRoot<S> | undefined
   /**
    * How long a changed slice waits before it is written; a newer change
    * supersedes a pending write. Browsers rate-limit history writes, so the
@@ -315,19 +358,19 @@ export interface MirrorConfig<AppModel, Fields extends Schema.Struct.Fields> {
 }
 
 export interface UrlMirrorConfig<
-  AppModel,
-  Fields extends Schema.Struct.Fields,
-> extends MirrorConfig<AppModel, Fields> {
+  S extends Slice,
+  Name extends string = string,
+> extends MirrorConfig<S, Name> {
   /** Where in the URL the keys live; default the query string. */
   readonly location?: UrlLocation | undefined
 }
 
-export interface KvMirrorConfig<AppModel, Fields extends Schema.Struct.Fields> extends MirrorConfig<
-  AppModel,
-  Fields
+export interface KvMirrorConfig<S extends Slice, Name extends string = string> extends MirrorConfig<
+  S,
+  Name
 > {
-  /** The store key the mirror's document lives under. */
-  readonly key: string
+  /** The store key the mirror's document lives under; also the mirror's name unless one is given. */
+  readonly key: Name
   /** A user, a tenant: a document of another scope is discarded rather than restored. */
   readonly scope?: string | undefined
 }
@@ -347,10 +390,16 @@ export interface Decoded<Value> {
 /**
  * A Model slice kept in a store. `Value` is the slice's value type; the keys,
  * codecs, and intents are values on the mirror, not type parameters.
+ * `Mirror.url` and `Mirror.kv` add the `reduce` their store calls for.
  */
-export interface Mirror<AppModel, Value extends Record<string, unknown>, R = never> {
+export interface Mirror<
+  AppModel,
+  Value extends Record<string, unknown>,
+  R = never,
+  Name extends string = string,
+> {
   readonly kind: 'url' | 'kv' | 'memory'
-  readonly name: string
+  readonly name: Name
   /** Store key per field. */
   readonly keys: Readonly<Record<keyof Value & string, string>>
   /** For `Module`: observes the slice, owns nothing. */
@@ -360,21 +409,45 @@ export interface Mirror<AppModel, Value extends Record<string, unknown>, R = nev
   /** The fields a store's keys name; a key that fails to decode is an issue, not a value. */
   readonly decode: (keys: Encoded) => Decoded<Value>
   /**
-   * The Model with the store's keys applied. From a URL (`Url` or href), the
-   * whole slice: a key the URL lacks is the initial value. From a
-   * `MirrorRestored` (`restore`'s Message), only the fields the Model still
-   * holds at their initial value, so a change the user made before the store
-   * answered is kept; another mirror's Message is ignored.
+   * The Model with a store's keys as the whole slice: a key the store lacks,
+   * or one that fails to decode, is the initial value.
    */
-  readonly reduce: (model: AppModel, source: Url | string | MirrorRestored) => AppModel
+  readonly fromKeys: (model: AppModel, keys: Encoded) => AppModel
+  /**
+   * The Model with a store's keys applied to the fields it still holds at
+   * their initial value, so a change made before the store answered is kept.
+   */
+  readonly restoreKeys: (model: AppModel, keys: Encoded) => AppModel
   /** A link: the keys of `model` with `patch` applied, on `base` (default the current URL, else `/`). */
   readonly href: (model: AppModel, patch?: Partial<Value>, base?: string) => string
-  /** A Command that reads the store and yields `MirrorRestored`; `reduce` applies it. */
+  /** A Command that reads the store and yields `MirrorRestored` for this mirror. */
   readonly restore: Command<MirrorMessage, never, R>
   /** One Subscription entry, `<name>.mirror`: writes the store when the encoded slice changes. */
-  readonly subscriptions: Readonly<
-    Record<string, EntryWithoutKeepAlive<AppModel, never, MirrorDependencies, R>>
-  >
+  readonly subscriptions: {
+    readonly [K in `${Name}.mirror`]: EntryWithoutKeepAlive<AppModel, never, MirrorDependencies, R>
+  }
+}
+
+/** A slice kept in the URL. */
+export interface UrlMirror<
+  AppModel,
+  Value extends Record<string, unknown>,
+  Name extends string = string,
+> extends Mirror<AppModel, Value, never, Name> {
+  readonly kind: 'url'
+  /** The Model with the URL's keys (a Foldkit `Url` or an href) as the whole slice: `fromKeys`. */
+  readonly reduce: (model: AppModel, url: Url | string) => AppModel
+}
+
+/** A slice kept in Effect's `KeyValueStore`. */
+export interface KvMirror<
+  AppModel,
+  Value extends Record<string, unknown>,
+  Name extends string = string,
+> extends Mirror<AppModel, Value, KeyValueStore.KeyValueStore, Name> {
+  readonly kind: 'kv'
+  /** The Model with a `MirrorRestored` for this mirror applied: `restoreKeys`; another mirror's is ignored. */
+  readonly reduce: (model: AppModel, message: MirrorRestored) => AppModel
 }
 
 const nameOf = (
@@ -410,28 +483,43 @@ const claim = (
   }
 }
 
-const isRestored = (source: unknown): source is MirrorRestored =>
-  typeof source === 'object' &&
-  source !== null &&
-  (source as { readonly _tag?: unknown })._tag === 'MirrorRestored'
+/** An application a mirror is declared over: its identity token, and its initial Model when it has one. */
+export interface MirrorApp<AppModel> {
+  readonly owner: object
+  readonly initial?: AppModel | undefined
+}
 
-const isUrl = (source: unknown): source is Url =>
-  typeof source === 'object' &&
-  source !== null &&
-  typeof (source as { readonly pathname?: unknown }).pathname === 'string'
+/** A Foldkit `Url` carries `search` and `hash` without their `?` and `#`; an href has them. */
+const withPrefix = (prefix: '?' | '#', part: string): string =>
+  part === '' || part.startsWith(prefix) ? part : `${prefix}${part}`
 
-const make = <AppModel, Fields extends Schema.Struct.Fields, R>(
-  app: { readonly owner: object; readonly initial: AppModel },
+const hrefOf = (url: Url | string): string =>
+  typeof url === 'string'
+    ? url
+    : `${url.pathname}${withPrefix('?', url.search._tag === 'Some' ? url.search.value : '')}${withPrefix(
+        '#',
+        url.hash._tag === 'Some' ? url.hash.value : '',
+      )}`
+
+const make = <S extends Slice, R, Name extends string>(
+  app: MirrorApp<SliceRoot<S>>,
   kind: Mirror<unknown, Record<string, unknown>>['kind'],
   store: MirrorStore<R>,
-  config: MirrorConfig<AppModel, Fields> & { readonly location?: UrlLocation | undefined },
+  config: MirrorConfig<S, Name> & { readonly location?: UrlLocation | undefined },
   throttle: Duration.Input,
-): Mirror<AppModel, Schema.Struct.Type<Fields>, R> => {
-  type Value = Schema.Struct.Type<Fields>
-  const { fields } = config
-  const names = Object.keys(fields.schema.fields) as ReadonlyArray<keyof Fields & string>
+) => {
+  type AppModel = SliceRoot<S>
+  type Value = SliceValue<S>
+  const fields = projectionOf(config.fields)
+  const names = Object.keys(fields.schema.fields)
   const options = (config.keys ?? {}) as Readonly<Record<string, KeyOptions<unknown> | undefined>>
-  const initialSlice = fields.get(app.initial) as Readonly<Record<string, unknown>>
+  const initial = config.initial ?? app.initial
+  if (initial === undefined) {
+    throw new Error(
+      `Mirror.${kind}: defaults are read from the initial Model, so build the application with \`initial\` or pass \`initial\` in the config`,
+    )
+  }
+  const initialSlice = fields.get(initial) as Readonly<Record<string, unknown>>
   const location = config.location ?? 'search'
 
   const keyOf: Record<string, string> = {}
@@ -460,7 +548,7 @@ const make = <AppModel, Fields extends Schema.Struct.Fields, R>(
     initialText[field] = codecs[field].encode(initialSlice[field])
   }
   const owned = names.map(field => keyOf[field]!)
-  const name = nameOf(kind, owned, config.name)
+  const name = nameOf(kind, owned, config.name) as Name
   if (kind === 'url') claim(app.owner, location, owned, name)
 
   const encodeSlice = (slice: Readonly<Record<string, unknown>>): Encoded => {
@@ -490,31 +578,25 @@ const make = <AppModel, Fields extends Schema.Struct.Fields, R>(
   }
 
   const keysOfUrl = (source: Url | string): Encoded => {
-    const href =
-      typeof source === 'string'
-        ? source
-        : `${source.pathname}${source.search._tag === 'Some' ? source.search.value : ''}${
-            source.hash._tag === 'Some' ? source.hash.value : ''
-          }`
-    const parts = splitHref(href)
+    const parts = splitHref(hrefOf(source))
     return readParams(location === 'search' ? parts.search : parts.hash, owned)
   }
 
-  const reduce = (model: AppModel, source: Url | string | MirrorRestored): AppModel => {
-    if (isRestored(source)) {
-      if (source.name !== name) return model
-      const current = fields.get(model) as Readonly<Record<string, unknown>>
-      const restored = decode(source.keys).value as Readonly<Record<string, unknown>>
-      const next: Record<string, unknown> = { ...current }
-      for (const field of names) {
-        // A change the user made before the store answered wins over the store.
-        if (codecs[field]!.encode(current[field]) !== initialText[field]) continue
-        if (field in restored) next[field] = restored[field]
-      }
-      return fields.set(model, next as Value)
+  const fromKeys = (model: AppModel, keys: Encoded): AppModel => {
+    const decoded = decode(keys).value as Readonly<Record<string, unknown>>
+    return fields.set(model, { ...initialSlice, ...decoded } as never)
+  }
+
+  const restoreKeys = (model: AppModel, keys: Encoded): AppModel => {
+    const current = fields.get(model) as Readonly<Record<string, unknown>>
+    const restored = decode(keys).value as Readonly<Record<string, unknown>>
+    const next: Record<string, unknown> = { ...current }
+    for (const field of names) {
+      // A change the user made before the store answered wins over the store.
+      if (codecs[field]!.encode(current[field]) !== initialText[field]) continue
+      if (field in restored) next[field] = restored[field]
     }
-    const decoded = decode(keysOfUrl(source)).value as Readonly<Record<string, unknown>>
-    return fields.set(model, { ...initialSlice, ...decoded } as Value)
+    return fields.set(model, next as never)
   }
 
   const href = (model: AppModel, patch?: Partial<Value>, base?: string): string => {
@@ -560,18 +642,25 @@ const make = <AppModel, Fields extends Schema.Struct.Fields, R>(
       Stream.fromEffect(sync(keys).pipe(Effect.delay(throttle))).pipe(Stream.drain),
   }
 
-  return {
+  const mirror: Mirror<AppModel, Value, R, Name> = {
     kind,
     name,
     keys: keyOf as Readonly<Record<keyof Value & string, string>>,
     contract,
     encode,
     decode,
-    reduce,
+    fromKeys,
+    restoreKeys,
     href,
     restore,
-    subscriptions: { [`${name}.mirror`]: entry },
+    subscriptions: { [`${name}.mirror`]: entry } as Mirror<
+      AppModel,
+      Value,
+      R,
+      Name
+    >['subscriptions'],
   }
+  return { mirror, keysOfUrl }
 }
 
 export const Mirror = {
@@ -590,23 +679,28 @@ export const Mirror = {
    * write per Model change) and read back with `reduce(model, url)` on
    * `onUrlChange` and on cold load.
    */
-  url: <AppModel, Fields extends Schema.Struct.Fields>(
-    app: { readonly owner: object; readonly initial: AppModel },
-    config: UrlMirrorConfig<AppModel, Fields>,
-  ): Mirror<AppModel, Schema.Struct.Type<Fields>> => {
-    const owned = Object.keys(config.fields.schema.fields).map(
+  url: <S extends Slice, Name extends string = string>(
+    app: MirrorApp<SliceRoot<S>>,
+    config: UrlMirrorConfig<S, Name>,
+  ): UrlMirror<SliceRoot<S>, SliceValue<S>, Name> => {
+    const owned = Object.keys(projectionOf(config.fields).schema.fields).map(
       field =>
         (config.keys as Readonly<Record<string, KeyOptions<unknown> | undefined>> | undefined)?.[
           field
         ]?.key ?? field,
     )
-    return make(
+    const { mirror, keysOfUrl } = make(
       app,
       'url',
       MirrorStore.url(owned, config.location ?? 'search'),
       config,
       config.throttle ?? '50 millis',
     )
+    return {
+      ...mirror,
+      kind: 'url',
+      reduce: (model, url) => mirror.fromKeys(model, keysOfUrl(url)),
+    }
   },
 
   /**
@@ -614,26 +708,33 @@ export const Mirror = {
    * versioned JSON document: written when it changes, read back by the
    * `restore` Command whose `MirrorRestored` `reduce` applies.
    */
-  kv: <AppModel, Fields extends Schema.Struct.Fields>(
-    app: { readonly owner: object; readonly initial: AppModel },
-    config: KvMirrorConfig<AppModel, Fields>,
-  ): Mirror<AppModel, Schema.Struct.Type<Fields>, KeyValueStore.KeyValueStore> =>
-    make(
+  kv: <S extends Slice, Name extends string = string>(
+    app: MirrorApp<SliceRoot<S>>,
+    config: KvMirrorConfig<S, Name>,
+  ): KvMirror<SliceRoot<S>, SliceValue<S>, Name> => {
+    const { mirror } = make(
       app,
       'kv',
       MirrorStore.kv({
         key: config.key,
         ...(config.scope === undefined ? {} : { scope: config.scope }),
       }),
-      { name: config.key, ...config },
+      { ...config, name: config.name ?? config.key },
       config.throttle ?? '250 millis',
-    ),
+    )
+    return {
+      ...mirror,
+      kind: 'kv',
+      reduce: (model, message) =>
+        message.name === mirror.name ? mirror.restoreKeys(model, message.keys) : model,
+    }
+  },
 
-  /** The kernel form: a slice kept in any `MirrorStore`. */
-  make: <AppModel, Fields extends Schema.Struct.Fields, R>(
-    app: { readonly owner: object; readonly initial: AppModel },
+  /** The kernel form: a slice kept in any `MirrorStore`, read back with `fromKeys` or `restoreKeys`. */
+  make: <S extends Slice, R, Name extends string = string>(
+    app: MirrorApp<SliceRoot<S>>,
     store: MirrorStore<R>,
-    config: MirrorConfig<AppModel, Fields>,
-  ): Mirror<AppModel, Schema.Struct.Type<Fields>, R> =>
-    make(app, 'memory', store, config, config.throttle ?? 0),
+    config: MirrorConfig<S, Name>,
+  ): Mirror<SliceRoot<S>, SliceValue<S>, R, Name> =>
+    make(app, 'memory', store, config, config.throttle ?? 0).mirror,
 }

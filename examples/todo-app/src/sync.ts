@@ -30,6 +30,7 @@ import {
   documentId,
   forApplication,
   mount,
+  type MountUrl,
   type Mounted,
   type Operation,
   type PolicyJournalContract,
@@ -104,6 +105,8 @@ export const mountTodos = <Resources = never>(
     /** Entries beside the replica's own: the mirrors' writes, say. */
     readonly subscriptions?: Subscriptions<Model, Message, Resources> | undefined
     readonly resources?: Layer.Layer<Resources> | undefined
+    /** The URL as part of the application: the filter mirror reads it. */
+    readonly url?: MountUrl<Model, Message> | undefined
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model
   },
 ): Mounted<Model, Message> => mount(App, TodoSync, { replica, ...options })

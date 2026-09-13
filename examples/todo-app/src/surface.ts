@@ -19,7 +19,7 @@ export const update = makeUpdate((model, message) =>
   Mirror.reduces(message)
     ? Prefs.reduce(model, message)
     : message._tag === 'UrlChanged'
-      ? Filters.reduce(model, message.href)
+      ? Filters.reduce(model, message.url)
       : model,
 )
 
@@ -28,15 +28,9 @@ export const App = Surface.application({ Model, Message, initial: initialModel, 
 // --- the mirrors: local state the URL shows and a store remembers ------------
 
 /** The filter is linkable: `?filter=active`. Reduced from the URL on load and on navigation. */
-export const Filters = Mirror.url(App, {
-  name: 'filters',
-  fields: Projection.pick(App.fields.filter),
-})
+export const Filters = Mirror.url(App, { name: 'filters', fields: [App.fields.filter] })
 /** The composer's draft survives a reload; restored only while the draft is still empty. */
-export const Prefs = Mirror.kv(App, {
-  key: 'todo/prefs',
-  fields: Projection.pick(App.fields.draft),
-})
+export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.fields.draft] })
 
 // --- the writable projections the sync contract replicates (see sync.ts) ------
 

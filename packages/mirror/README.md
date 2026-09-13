@@ -40,7 +40,7 @@ const App = Surface.application({ Model, Message, initial, update })
 
 // The URL shows the filters, as ?filter=…&page=…&q=…; keys default to the field names.
 const Filters = Mirror.url(App, {
-  fields: Projection.pick(App.fields.filter, App.fields.page, App.fields.q),
+  fields: [App.fields.filter, App.fields.page, App.fields.q],
   keys: { q: { history: 'replace' } }, // the rest push a history entry
 })
 
@@ -48,7 +48,7 @@ const Filters = Mirror.url(App, {
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
   scope: userId,
-  fields: Projection.pick(App.fields.sidebar, App.fields.draft),
+  fields: [App.fields.sidebar, App.fields.draft],
 })
 ```
 
@@ -72,13 +72,19 @@ const subscriptions = Subscription.make<Model, Message, KeyValueStore>()(() => (
 }))
 ```
 
-`update` stays the only reducer. The URL comes in through the `onUrlChange`
-the runtime already has for routing (`Filters.reduce` takes a Foldkit `Url` or
-an href); the store comes in through one `MirrorRestored` case spread from
-`Mirror.messages`. Each mirror's `subscriptions` is one Subscription entry that
-writes the store when the encoded slice changes. Links are
-`Filters.href(model, { page: 2 })`, the mirrored keys applied to the current
-URL.
+`update` stays the only reducer. The slice is field refs straight from
+`App.fields`, or a writable projection over them (`Projection.pick`,
+`Projection.compose`), the same object `foldkit-sync` replicates. The URL comes
+in through the `onUrlChange` the runtime already has for routing
+(`Filters.reduce` takes a Foldkit `Url` or an href); the store comes in
+through one `MirrorRestored` case spread from `Mirror.messages`
+(`Prefs.reduce` takes that Message). Each mirror's `subscriptions` is one
+Subscription entry, keyed `<name>.mirror`, that writes the store when the
+encoded slice changes. Links are `Filters.href(model, { page: 2 })`, the
+mirrored keys applied to the current URL. An application built without
+`initial` passes `initial` in the mirror's config; defaults are read from it.
+Under `Sync.mount`, the `url` option (`init`, `onUrlChange`) is where the URL
+mirror plugs in.
 
 ## What the Model being the truth gives
 
@@ -98,17 +104,21 @@ URL.
 
 ## Reading back
 
-`mirror.reduce(model, source)` applies a store's keys to the Model:
+Each kind of mirror has the `reduce` its store calls for:
 
-- From a URL (a Foldkit `Url` or an href), the whole slice: a key the URL
-  lacks is the initial value, and a key that fails to decode is too, so
-  `?page=abc` shows page one rather than breaking the page.
-  `mirror.decode(keys)` returns the value and the issues for a caller that
-  wants to say so. Only the mirror's keys are read; the path, the hash, and
-  every other key are left alone.
-- From a `MirrorRestored` (the Message `mirror.restore` yields), only the
-  fields the Model still holds at their initial value, so a change the user
-  made before the store answered is kept. Another mirror's Message is ignored.
+- A URL mirror's `reduce(model, url)` takes a Foldkit `Url` or an href and
+  sets the whole slice: a key the URL lacks is the initial value, and a key
+  that fails to decode is too, so `?page=abc` shows page one rather than
+  breaking the page. `mirror.decode(keys)` returns the value and the issues
+  for a caller that wants to say so. Only the mirror's keys are read; the
+  path, the hash, and every other key are left alone.
+- A store mirror's `reduce(model, message)` takes the `MirrorRestored` its
+  `restore` Command yields and sets only the fields the Model still holds at
+  their initial value, so a change the user made before the store answered is
+  kept. Another mirror's Message is ignored.
+
+Both are the kernel's `fromKeys(model, keys)` and `restoreKeys(model, keys)`,
+which `Mirror.make` exposes for any store.
 
 `Mirror.reduces(message)` narrows the application's union to Mirror's cases.
 

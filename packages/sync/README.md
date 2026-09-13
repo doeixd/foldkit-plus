@@ -99,6 +99,14 @@ mounted.model() // the Model after the last transition
 await mounted.dispose() // waits for in-flight persists; the replica stays open
 ```
 
+`url` routes the URL through the application: `init(model, url)` reduces it
+into the Model before the first render, `onUrlChange(url)` names the Message
+for every navigation, and `onUrlRequest` the Message for a link click (omitted,
+the mount follows the link: an internal one pushed, an external one loaded).
+A `foldkit-mirror` URL mirror plugs in as `url: { init: (model, url) =>
+Filters.reduce(model, url), onUrlChange: url => Message.UrlChanged({ url }) }`;
+`subscriptions` and `resources` carry its write entry and the store layer.
+
 `mounted.model`, `mounted.dispatch`, `mounted.subscribe`, and `mounted.observe`
 are the host an agent binds to; `observe` reports every application Message the
 runtime applies, which a capability with a `completion` contract needs. See

@@ -23,9 +23,12 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   `App.initial`) elided, one Subscription entry per mirror writes when the
   encoded slice changes (push or replace per key, throttled), `restore` is the
   Command that reads a store, and `contract` (kind `mirror`, observes the
-  slice, owns nothing) joins a `Module`. Codecs derive from the field schemas;
-  a key may name its own. `MirrorStore.memory` records writes for tests. See
-  `docs/design/MIRROR.md`.
+  slice, owns nothing) joins a `Module`. A slice is field refs straight from
+  `App.fields` or a writable projection over them; a URL mirror's `reduce`
+  takes a URL and a store mirror's the Message (`fromKeys`/`restoreKeys` are
+  the kernel's); an application built without `initial` passes it in the
+  config. Codecs derive from the field schemas; a key may name its own.
+  `MirrorStore.memory` records writes for tests. See `docs/design/MIRROR.md`.
 
 ### `foldkit-surface` (private)
 
@@ -549,6 +552,12 @@ presence APIs), `foldkit-durable` (`append`'s result), and `foldkit-remote`
   returning the cursor it settled so the caller can persist it.
 
 ### `foldkit-sync`
+
+- **`Sync.mount` routes the URL.** `mount(App, sync, { url: { init, onUrlChange, onUrlRequest? } })`
+  reduces the URL into the Model before the first render, names the Message
+  for every navigation, and follows a link the application does not claim
+  (an internal one pushed, an external one loaded), so a `foldkit-mirror` URL
+  mirror plugs in without window listeners.
 
 - **Fragments.** `Sync.forApplication(App).fragment({ shared, durable })`
   declares one feature's shared fields and durable Messages, and

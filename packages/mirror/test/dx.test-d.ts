@@ -8,8 +8,15 @@ import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
+import { Url } from 'foldkit/url'
 import { Projection, Surface, type Contract } from 'foldkit-surface'
-import { Mirror, type Mirror as MirrorOf, type MirrorMessage } from '../src/index.js'
+import {
+  Mirror,
+  type KvMirror,
+  type Mirror as MirrorOf,
+  type MirrorMessage,
+  type UrlMirror,
+} from '../src/index.js'
 
 const Model = Schema.Struct({
   filter: Schema.Literals(['all', 'active', 'done']),
@@ -19,13 +26,15 @@ const Model = Schema.Struct({
   draft: Schema.String,
 })
 type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { href: Schema.String } })
+const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
 type Message = typeof Message.Type
 const initial: Model = { filter: 'all', page: 1, q: '', sidebar: 'open', draft: '' }
-const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
+const App = Surface.application({ Model, Message, initial, update })
 
+// The slice is field refs straight from `App.fields`, or a writable projection over them.
 const Filters = Mirror.url(App, {
-  fields: Projection.pick(App.fields.filter, App.fields.page, App.fields.q),
+  name: 'filters',
+  fields: [App.fields.filter, App.fields.page, App.fields.q],
   keys: { q: { history: 'replace' } },
 })
 const Prefs = Mirror.kv(App, {
@@ -33,34 +42,48 @@ const Prefs = Mirror.kv(App, {
   fields: Projection.pick(App.fields.sidebar, App.fields.draft),
 })
 
-// Hover: the slice's value type and nothing else.
-const _filters: MirrorOf<
+// Hover: the slice's value type, the store, and the name; nothing else.
+const _filters: UrlMirror<
   Model,
-  { readonly filter: 'all' | 'active' | 'done'; readonly page: number; readonly q: string }
+  { readonly filter: 'all' | 'active' | 'done'; readonly page: number; readonly q: string },
+  'filters'
 > = Filters
-const _prefs: MirrorOf<
+const _prefs: KvMirror<
   Model,
   { readonly sidebar: 'open' | 'closed'; readonly draft: string },
-  KeyValueStore.KeyValueStore
+  'todo/prefs'
 > = Prefs
+const _base: MirrorOf<
+  Model,
+  { readonly filter: 'all' | 'active' | 'done'; readonly page: number; readonly q: string },
+  never,
+  'filters'
+> = Filters
 const _contract: Contract = Filters.contract
 const _href: string = Filters.href(initial, { page: 2 })
 const _restore: Command<MirrorMessage, never, KeyValueStore.KeyValueStore> = Prefs.restore
+// The entry is keyed by the mirror's name.
+const _entry = Filters.subscriptions['filters.mirror']
+void _entry
 
 // @ts-expect-error a key the mirror does not own
 Filters.href(initial, { sidebar: 'closed' })
 // @ts-expect-error a value of the wrong type
 Filters.href(initial, { page: '2' })
 Mirror.url(App, {
-  fields: Projection.pick(App.fields.filter),
+  fields: [App.fields.filter],
   // @ts-expect-error an option for a field the slice does not have
   keys: { page: { history: 'push' } },
 })
 Mirror.url(App, {
-  fields: Projection.pick(App.fields.page),
+  fields: [App.fields.page],
   // @ts-expect-error a codec must decode from text to the field's type
   keys: { page: { codec: Schema.String } },
 })
+// @ts-expect-error a URL mirror reduces a URL, not a store's Message
+Filters.reduce(initial, Message.MirrorRestored({ name: 'filters', keys: {} }))
+// @ts-expect-error a store mirror reduces its Message, not a URL
+Prefs.reduce(initial, '/todos')
 
 // The wiring an application writes.
 function update(
@@ -70,10 +93,9 @@ function update(
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
   switch (message._tag) {
     case 'UrlChanged':
-      return { model: Filters.reduce(model, message.href) }
+      return { model: Filters.reduce(model, message.url) }
   }
 }
-void update
 const _init: Update.Return<Model, Message, KeyValueStore.KeyValueStore> = {
   model: Filters.reduce(initial, '/todos?filter=active'),
   commands: [Prefs.restore],

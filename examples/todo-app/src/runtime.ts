@@ -9,8 +9,9 @@
  * agent binds to: `model`, `dispatch`, `subscribe`, and `observe`.
  *
  * The mirrors ride along: their Subscription entries write the URL and Web
- * Storage as the Model changes, the URL is read into the Model at start and on
- * every navigation, and the store is read once at start.
+ * Storage as the Model changes; the URL is reduced into the Model at start
+ * (`url.init`) and on every navigation (`url.onUrlChange`); the store is read
+ * once at start and its Message dispatched.
  */
 import { Effect } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
@@ -20,9 +21,6 @@ import { Message, type Model, type Shared } from './app.js'
 import { Filters, Prefs } from './surface.js'
 import { mountTodos } from './sync.js'
 import { view } from './view.js'
-
-const currentHref = (): string =>
-  `${window.location.pathname}${window.location.search}${window.location.hash}`
 
 export const mountApp = (
   replica: Replica<Message, Shared>,
@@ -37,6 +35,10 @@ export const mountApp = (
       ...Prefs.subscriptions,
     })),
     resources: storage,
+    url: {
+      init: (model, url) => Filters.reduce(model, url),
+      onUrlChange: url => Message.UrlChanged({ url }),
+    },
     onPersistenceFailure: (model, error) => ({
       ...model,
       lastError:
@@ -45,24 +47,9 @@ export const mountApp = (
           : 'Could not save this change; it was reverted.',
     }),
   })
-
-  // URL → Model: at start, and on every navigation (back, forward, a link, a
-  // mirror's own write, which the runtime reduces to the same keys).
-  const onUrl = () => void mounted.dispatch(Message.UrlChanged({ href: currentHref() }))
-  onUrl()
-  window.addEventListener('popstate', onUrl)
-  window.addEventListener('foldkit:urlchange', onUrl)
   // Store → Model, once: the draft is restored while it is still empty.
   void Effect.runPromise(Prefs.restore.effect.pipe(Effect.provide(storage))).then(message =>
     mounted.dispatch(message),
   )
-
-  return {
-    ...mounted,
-    dispose: async () => {
-      window.removeEventListener('popstate', onUrl)
-      window.removeEventListener('foldkit:urlchange', onUrl)
-      await mounted.dispose()
-    },
-  }
+  return mounted
 }
