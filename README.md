@@ -20,6 +20,131 @@ reconciled by `update`. Replicas replay the same Messages through the same
 one. Views are styled from outside without forking. Each package answers one
 question, and they compose because they meet at explicit application boundaries.
 
+## Sixty seconds of code
+
+The fastest way to understand Foldkit Plus is to watch several packages reuse
+one application declaration. Assume `Model`, `Message`, `initial`, and `update`
+are an ordinary Foldkit app you already wrote. Everything below is a contract
+over those values; none of it introduces a second reducer.
+
+```ts
+import { Schema } from 'effect'
+import { Agent } from 'foldkit-agent'
+import { Mirror } from 'foldkit-mirror'
+import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+
+type Principal = { readonly role: 'owner' | 'guest' }
+const isOwner = (principal: Principal) => principal.role === 'owner'
+
+// 1. This is still the application: one Model, one Message union, one update.
+// Surface adds typed references and inspection metadata; it does not add runtime state.
+const App = Surface.application({ Model, Message, initial, update })
+
+// 2. A Surface is a public boundary for a feature: what it may observe and cause.
+// A renderer bound to Board can only construct these two Messages.
+const Board = App.surface('Board', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
+  messages: [Message.ToggledTodo, Message.DeletedTodo],
+})
+
+// A read-only Surface can be reused by something that only needs context.
+const Overview = App.surface('Overview', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
+})
+
+// 3. Sync declares ownership of one writable slice and the facts that change it.
+// Projection.pick is writable because checkpoints must install back into Model;
+// replay still runs these Messages through the application's own update.
+const TodoSync = Sync.forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    documentId: DocumentId.make('todos'),
+    shared: Projection.pick(App.fields.todos),
+    durable: MessageSet.make(App, [
+      Message.SubmittedTodo,
+      Message.ToggledTodo,
+      Message.DeletedTodo,
+    ]),
+    authorize: {
+      // Policy lives on the contract and is enforced by the server journal.
+      DeletedTodo: ({ principal }) => isOwner(principal),
+    },
+  })
+
+// The server gets codecs, empty snapshot, replay, and authorization from Sync.
+// There is no second server-side reducer to keep in agreement.
+TodoSync.journalContract()
+
+// 4. Agent exposes the same application vocabulary instead of reimplementing actions.
+const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
+const AppAgent = TodoAgent.make({
+  context: Overview,
+  messages: TodoAgent.expose(Message, {
+    RequestedTodo: Agent.variant({
+      name: 'add_todo',
+      description: 'Add a todo with the given title',
+
+      // The protocol input can be smaller than the internal Message.
+      input: Schema.Struct({ title: Schema.String }),
+      toMessage: ({ title }) => ({ title }),
+
+      // RequestedTodo is an intent. The tool call completes when update later
+      // applies the correlated durable fact produced by the application's Command.
+      completion: {
+        success: Message.SubmittedTodo,
+        correlate: (request, result) => request.title.trim() === result.title,
+      },
+    }),
+    ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },
+    DeletedTodo: {
+      name: 'delete_todo',
+      description: 'Delete a todo (owner only)',
+      // Same rule, checked early at the agent boundary; the journal still owns trust.
+      authorize: ({ principal }) => isOwner(principal),
+    },
+  }),
+})
+
+// 5. Mirrors do not own state. They are secondary representations of Model fields.
+const Filters = Mirror.url(App, {
+  name: 'filters',
+  fields: [App.fields.filter], // linkable: ?filter=active
+})
+const Prefs = Mirror.kv(App, {
+  key: 'todo/prefs',
+  fields: [App.fields.draft], // remembered on this device
+})
+
+// 6. The architecture itself is data. Validate ownership/capability relationships,
+// or turn the same declarations into documentation and tooling input.
+const Project = Module.make(App, [
+  Board,
+  Overview,
+  TodoSync,
+  AppAgent,
+  Filters.contract,
+  Prefs.contract,
+])
+
+Module.validate(Project) // []
+Module.toMermaid(Project) // architecture generated from the declarations above
+```
+
+The important part is what is **missing**: no agent reducer, sync reducer, URL
+store, persistence state machine, or server copy of the shared schema. The same
+`update` remains the transition function throughout.
+
+Two packages are deliberately not squeezed into this block. `foldkit-remote` is
+best understood with an actual server-owned entity and query; `foldkit-mixins`
+is best understood with a real view publishing slots. The
+[`todo-app`](./examples/todo-app) and [`kitchen-sink`](./examples/kitchen-sink)
+show both in context.
+
+The sample above is type-checked in
+[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
+so the front page cannot quietly drift from the API.
+
 ## Start here
 
 If the package count looks larger than the idea, start with the idea rather than
@@ -192,59 +317,6 @@ state has one authoritative owner, and `Module.validate` reports a second:
 | A cache of another system's facts | the server | `foldkit-remote` |
 | Client-authored state that must converge | the durable log | `foldkit-sync` + `foldkit-durable` |
 | What an agent may see and do | the application | `foldkit-agent` (observes, exposes) |
-
-## Sixty seconds of code
-
-From the [todo app](./examples/todo-app), which wires the main app-facing stack
-— Surface, Sync/Durable, Agent, Mirror, and Mixins — into one application.
-Remote is intentionally separate there; see [`examples/remote`](./examples/remote)
-or the [`kitchen-sink`](./examples/kitchen-sink) for server-derived state. One
-declaration; every contract below is derived from it:
-
-```ts
-import { Agent } from 'foldkit-agent'
-import { Mirror } from 'foldkit-mirror'
-import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
-
-// The application: an ordinary Model, Message union, and update.
-const App = Surface.application({ Model, Message, initial, update })
-
-// What the board renders, and the only Messages it may cause.
-const Board = App.surface('Board', {
-  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
-  messages: [Message.ToggledTodo, Message.DeletedTodo],
-})
-
-// What replicates: this slice, changed by these Messages, replayed through update.
-const TodoSync = Sync.forApplication(App).make({
-  documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),
-  durable: MessageSet.make(App, [Message.SubmittedTodo, Message.ToggledTodo, Message.DeletedTodo]),
-})
-
-// What an agent may see (a Surface) and do (Messages update already handles).
-const TodoAgent = Agent.forApplication(App)
-const AppAgent = TodoAgent.make({
-  context: Board,
-  messages: TodoAgent.expose(Message, {
-    ToggledTodo: { name: 'toggle_todo', description: 'Mark a todo done, or undo that' },
-  }),
-})
-
-// What the URL shows. Reduced back into the Model on navigation.
-const Filters = Mirror.url(App, { fields: [App.fields.filter] })
-
-// The application as data: one owner per field, every Message accounted for.
-Module.validate(Module.make(App, [Board, TodoSync, AppAgent, Filters.contract])) // []
-```
-
-The same `update` serves the view, the replica, the agent, and the journal on
-the server; `TodoSync.journalContract()` hands the server its codecs, reducer,
-and authorization rules, so nothing is declared twice. That sample is
-type-checked in
-[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
-so it cannot drift from the API.
 
 ## Install
 
