@@ -47,8 +47,8 @@ import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import type { LivePolicy } from './query.js'
 
 /**
- * The normalized cache as a Foldkit Submodel. `Remote.make` returns a schema and
- * an `update` for this shape; `Remote.update` reconciles every producer.
+ * The normalized cache as a Foldkit Submodel. `Remote.define` returns a schema
+ * and an `update` for this shape; `updateRemote` reconciles every producer.
  */
 export interface RemoteModel {
   /** Entity values, presence, staleness, tombstones, and applied windows. */
@@ -87,7 +87,7 @@ export const remoteModelSchema = (): Schema.Schema<RemoteModel> =>
     gaps: runtimeSchema,
   }) as unknown as Schema.Schema<RemoteModel>
 
-/** The submodel's Messages; each reduces to `RemoteModel` through `Remote.update`. */
+/** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
 export type RemoteMessage =
   | {
       readonly _tag: 'ReadReceived'

@@ -1,13 +1,14 @@
 /**
- * `foldkit-surface` — **Phase 0 inference spike**.
+ * `foldkit-surface` — the observation boundary for a Foldkit application.
  *
- * Minimal, deliberately non-final implementations of the Surface and Remote
- * descriptors, written only to answer the five inference questions in
- * `docs/design/REVISION_PLAN.md` §15 (Phase 0). Runtime behaviour is thin; the deliverable
- * is the type surface, pinned by `test/inference.test-d.ts`.
+ * A Surface is a pure projection of the Model: it declares which fields a
+ * feature reads and which Messages it may construct, from the application's
+ * own Schema rather than a second hand-written interface. `foldkit-remote`,
+ * `foldkit-sync`, `foldkit-agent`, and `foldkit-mirror` all read this boundary,
+ * and `Module` validates that each Model path has one owner.
  *
- * Phase 1 replaces the Surface half with the real package. Phase 3 moves the
- * Entity/Selection/Remote half into `foldkit-remote`.
+ * Nothing here runs: the deliverable is the type surface, pinned by
+ * `test/inference.test-d.ts`.
  */
 import { Optic, Option, Result, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
