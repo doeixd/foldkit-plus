@@ -1,19 +1,83 @@
 # Replicated todos
 
-One todo document replicated by [`foldkit-sync`](../../packages/sync) over a
-[`foldkit-durable`](../../packages/durable) journal on SQLite. It is the
-lower-level example of the pair: where [`examples/todo-app`](../todo-app) shows
-replication as part of a whole application, this one takes the sync and journal
-machinery apart — the outbox, reconciliation, the transport, the server's
-policy, presence, and server-authority effects — and puts a test on each piece.
+A focused `foldkit-sync` + `foldkit-durable` example that takes the local-first
+replication machinery apart and tests each failure boundary.
 
-One declaration drives both halves. `sync.ts` builds
-`Surface.application({ Model, Message, initial, update })`, picks the shared
-fields with `Projection.pick(App.fields.todos)`, and names the durable variants
-with `MessageSet.make(...)`; `Sync.forApplication(App).make(...)` derives the
-shared projection, the durable subset, the initial snapshot, and replay from
-that. `journal.ts` spreads `TodoSync.journalContract()`, so the server and the
-replica replay the same Messages through the application's own `update`.
+Where [`examples/todo-app`](../todo-app) shows Sync as one part of a whole
+application, this example is deliberately lower-level. It exposes the replica,
+outbox, server journal, transport, authorization, presence, and recovery paths so
+you can see exactly how convergence happens.
+
+The central model is:
+
+```text
+committed snapshot
+       +
+pending local operations
+       =
+optimistic shared state
+```
+
+A local durable Message is applied immediately, persisted to the outbox, and
+shown to the user before the network answers. Synchronization later advances the
+committed base to the server's authoritative order, removes acknowledged or
+rejected local operations, and replays whatever is still pending on top.
+
+```text
+submit durable Message
+        |
+        v
+persist operation in outbox
+        |
+        v
+replay through application update
+        |
+        v
+optimistic shared state
+        |
+        | synchronize
+        v
+server journal assigns authoritative order
+        |
+        v
+new committed snapshot
+        +
+remaining pending operations replayed on top
+```
+
+## One declaration drives client and server
+
+`sync.ts` starts from an ordinary Foldkit application and declares two things:
+
+```text
+shared Projection    -> which Model state replicas agree on
+durable MessageSet   -> which application Messages become operations
+```
+
+`Sync.forApplication(App).make(...)` derives replay from the application's own
+`update`; it does not introduce a second reducer.
+
+On the server, `journal.ts` spreads:
+
+```ts
+TodoSync.journalContract()
+```
+
+into `Journal.make(...)`. That gives `foldkit-durable` the same codecs, initial
+snapshot, operation semantics, and replay function the client uses.
+
+Conceptually:
+
+```text
+client                                server
+
+Foldkit Message
+      |
+      v
+Sync Replica   <---- exchange ---->   Durable Journal
+outbox                               authoritative order
+optimistic state                     snapshot + cursor
+```
 
 ## Run it
 
@@ -21,80 +85,196 @@ From the repository root:
 
 ```bash
 pnpm install && pnpm build
-pnpm --filter foldkit-example-sync demo   # the command-line walkthrough
-pnpm exec vitest run examples/sync/test         # the recovery catalogue
-pnpm --filter foldkit-example-sync dev    # the browser page
+pnpm --filter foldkit-example-sync demo
+pnpm exec vitest run examples/sync/test
+pnpm --filter foldkit-example-sync dev
 ```
 
-`demo` recovers an offline outbox, converges two replicas through a SQLite
-journal, dispatches two server-agent capabilities through that same journal as
-another producer, and expires a presence peer on a `TestClock`. It asserts as it
-goes and prints the converged document at the end; its browser storage is
-`fake-indexeddb`.
+Use the commands for different purposes:
 
-`dev` serves a small page on native IndexedDB and the real Foldkit runtime. Add
-a todo, select it, and reload: the todo survives, the selection resets — `todos`
-is the shared slice, `selectedTodoId` is not. The page talks to no server;
-`src/server.ts` fronts the journal with a local `ws` WebSocket server, and
-`test/websocket.test.ts` converges replicas over it.
-
-## The files
-
-| File | What it holds |
+| Command | What it shows |
 | --- | --- |
-| `app.ts` | The Model, the Message union, and `update`. Ids are Message inputs; `update` mints nothing and reads no clock. |
-| `sync.ts` | The contract: the shared projection, the durable subset, and `mountTodos` over `Sync.mount`. |
-| `journal.ts` | The server journal: `Journal.make` on SQLite, spreading `TodoSync.journalContract()`, plus the application policy — `authorize` against the authoritative Model, and `effects` for server-authority work settled through the durable ledger. |
-| `server.ts` | A `ws` WebSocket server fronting the journal. The principal is derived per connection from a `token` query parameter and can expire; actor identity never comes from an operation. |
-| `serverAgent.ts` | An agent host over the journal: a capability dispatch becomes one operation authored by a dedicated replica, under the caller's authenticated principal. |
-| `runtime.ts`, `browser.ts` | The dev page over `Sync.mount`. |
-| `demo.ts` | The command-line walkthrough. |
+| `demo` | one deterministic walkthrough of offline recovery, convergence, server-agent writes, and presence expiry |
+| `vitest` | the recovery/failure catalogue |
+| `dev` | a small browser app over native IndexedDB and the real Foldkit runtime |
 
-## The recovery catalogue
+## The demo walkthrough
 
-The tests are the point of this example. Each name says what it recovers from:
+The command-line demo does four important things.
 
-- Offline boot and reload: `restores the offline outbox and sequence without persisting local Model fields`.
-- Failed persistence: `publishes nothing on failed persistence and can retry without losing its sequence`.
-- Concurrent offline edits: `converges conflicting offline renames by authoritative order and clears acknowledgements`; `test/websocket.test.ts` does it over a real socket.
-- Editing during a pull: `keeps edits made during a pull and rebases them onto remote changes`.
-- Lost acknowledgement, reconnect, resend: `resends after a lost acknowledgement without duplicating a commit`.
-- Server restart: `persists app operations across restart`, with a file-backed journal closed and reopened.
-- Compaction catch-up: `catches a new replica up from a checkpoint after history is compacted` and `acknowledges a pending operation that compaction already folded in`.
-- Refusal: `refuses unauthorized writes and unauthenticated reads`, `applies the app policy against the authoritative Model`, and, over a socket, `derives a principal per connection and refuses an unknown token`.
-- Malformed response: `refuses a response with … without changing durable state`.
-- A second tab sharing an identity: `prevents simultaneous handles from overwriting one replica identity`.
-- Tab closure: `ignores retransmitted committed operations and refuses work after close`.
-- Credential expiry: `closes a connection when its credential expires and refuses the token afterwards`.
-- Server-authority effects: `runs a server-authority effect once per committed operation`, `keys server effects per document, not just per operation`, and `does not repeat an effect when a compacted operation is retransmitted`.
-- A server agent as a producer: `commits a dispatch as an operation a replica converges on` and `cannot bypass the journal policy`. `test/mcp.test.ts` drives the same host through a transport-free MCP `tools/call`.
-- Presence: `broadcasts presence between two authenticated peers over the socket` and `does not broadcast presence across document boundaries`.
-- Last-writer-wins fields: `test/lww.test.ts`, including `allocates beyond rejected and unsubmitted writes after IndexedDB reload`.
+### 1. Two replicas edit offline
 
-## What it does not cover
+Alice and Bob each open their own replica and submit a `CreatedTodo` while no
+synchronization is happening.
 
-Durable transitions must be state-only: replay rejects Commands and changes to
-local fields, which catches the illustrated mistakes but cannot prove arbitrary
-JavaScript is deterministic. Ordering is server-authoritative and
-single-writer-per-document — there is no CRDT merge and no peer-to-peer
-authority. Message-schema migration is not addressed.
+Each replica immediately has:
 
-Left to the application: verifying the connection credential (the example maps
-the `token` query parameter to a principal with an expiry and closes the socket
-when it lapses; a real deployment verifies a bearer token or session and
-refreshes it), a compaction schedule, retention or GC of the identity rows that
-keep retransmission idempotent, and stable semantic effect identities — this
-example keys effects by document, operation, and array position, so its effect
-policy must not be reordered for operations already committed. See the
-[durable recovery policy](../../packages/durable/README.md#effect-recovery)
-before wiring server-authority effects to external actions.
+```text
+committed: []
+pending:   [its local CreatedTodo]
+visible:   replay(committed + pending)
+```
 
-Startup and outbox replay grow with the outbox size
-([benchmarks](../../docs/benchmarks.md)). Browser storage eviction and abrupt
-power loss are outside the tests. LWW clocks live in a separate IndexedDB
-database from the outbox: keep it across reloads, and if it is lost, use a fresh
-replica id rather than resetting the same writer's counter — see the
-[sync README](../../packages/sync/README.md#last-writer-wins-fields-m8-experimental).
+The operations live in IndexedDB-backed storage, so Bob can close and reopen his
+replica and still recover the pending edit.
 
-[`docs/sync-runtime-binding.md`](../../docs/sync-runtime-binding.md) records the
-Foldkit 0.158.2 seams `Sync.mount` binds to.
+### 2. The journal gives both edits one order
+
+Bob synchronizes, then Alice, then Bob again. The server journal commits the
+operations once, assigns the authoritative order, and sends that history back to
+each replica.
+
+After reconciliation:
+
+```text
+alice committed == bob committed == journal snapshot
+alice pending   == []
+bob pending     == []
+```
+
+The important mechanism is rebasing, not merging two Models directly:
+
+```text
+old base + local pending
+          |
+server returns newer committed history
+          v
+new base + still-pending local operations replayed through update
+```
+
+### 3. Another producer still goes through the journal
+
+The demo binds a `foldkit-agent` runtime to a server-side host and dispatches two
+`RenamedTodo` Messages.
+
+Those agent calls do **not** mutate the server snapshot directly. The host turns
+each dispatch into another durable operation, and the journal applies the same
+policy/order/replay path as a client replica.
+
+Alice and Bob then synchronize and converge on those agent-authored operations as
+well.
+
+### 4. Presence stays ephemeral
+
+Presence uses a separate channel and TTL. Alice publishes a selected todo; Bob
+sees it as a peer value; the `TestClock` advances past the TTL and Bob prunes it.
+
+Presence is intentionally outside the durable log:
+
+```text
+shared document state   -> Sync + Durable
+presence                -> ephemeral channel + TTL
+```
+
+It is never replayed into the document snapshot.
+
+The demo ends with:
+
+```text
+Recovered an offline outbox, converged two replicas, replayed two server agent Messages, and let a presence peer expire.
+```
+
+followed by the final converged document. `test/demo.test.ts` pins that output.
+
+## Try the browser version
+
+`pnpm --filter foldkit-example-sync dev` runs a small Foldkit page over native
+IndexedDB.
+
+Add a todo, select it, and reload:
+
+```text
+todos            shared -> survives
+selectedTodoId   local  -> resets
+```
+
+That is the ownership boundary made visible. The replica persists only its shared
+slice and outbox; ordinary local Model state remains ordinary local Model state.
+
+The browser page itself talks to no remote deployment. `src/server.ts` provides a
+local `ws` WebSocket server over the SQLite journal, and
+`test/websocket.test.ts` exercises real socket convergence separately.
+
+## Files in reading order
+
+| File | What it teaches |
+| --- | --- |
+| `app.ts` | Model, Message union, and `update`; durable facts carry their nondeterministic inputs rather than minting them during replay |
+| `sync.ts` | the shared Projection, durable Message subset, Replica helpers, and `Sync.mount` integration |
+| `journal.ts` | `Journal.make(...TodoSync.journalContract())`, server authorization, and durable effect settlement |
+| `demo.ts` | the smallest end-to-end replication walkthrough |
+| `server.ts` | WebSocket exchange and connection-derived principal identity |
+| `serverAgent.ts` | another producer that must still commit through the journal |
+| `runtime.ts`, `browser.ts` | browser integration over `Sync.mount` |
+
+If the replica algorithm is what you are learning, read `app.ts` → `sync.ts` →
+`demo.ts` first. The server, presence, and recovery machinery make more sense
+after that.
+
+## Recovery catalogue
+
+The tests go much further than the demo. Grouped by the guarantee they exercise:
+
+| Failure / edge | What the suite proves |
+| --- | --- |
+| offline restart | pending operations and sequence recover without persisting unrelated local Model fields |
+| local persistence failure | an operation is not published until it is safely stored; retry keeps sequence integrity |
+| concurrent offline edits | server order converges replicas deterministically |
+| edit during pull | an operation created during synchronization is preserved and rebased over the new base |
+| lost acknowledgement / resend | the same operation id is not committed twice |
+| server restart | committed operations and snapshots survive journal reopen |
+| compaction | a far-behind replica can resume from a checkpoint; compacted acknowledged work is not re-applied |
+| rejection / policy | unauthorized operations are removed from optimistic state and the remaining pending work is rebased |
+| malformed response | invalid server data does not corrupt local durable state |
+| duplicate replica identity | simultaneous handles cannot silently overwrite one persisted replica |
+| closed replica | work after close is refused and retransmitted committed operations remain harmless |
+| credential expiry | the socket is closed/refused once the authenticated credential expires |
+| server-authority effects | a recorded successful effect is not intentionally repeated for the same committed operation |
+| agent producer | server-agent dispatch cannot bypass journal authorization/order |
+| presence | peers are scoped to the document and expire independently of durable state |
+| LWW fields | logical clocks survive reload and advance beyond rejected/unsubmitted writes |
+
+The individual test names are the executable specification; use the table above
+as the map, then read the matching test when you need a specific failure mode.
+
+## Important boundaries
+
+A durable Message must be safe to replay later on another machine. The contract
+therefore rejects Messages whose transition returns Commands or changes Model
+state outside the declared shared Projection.
+
+That catches the most important mistakes, but it cannot prove arbitrary
+JavaScript deterministic. Application code must still keep replay state-only and
+stable.
+
+Ordering is server-authoritative. This is not peer-to-peer authority and not a
+general CRDT merge system.
+
+## What the application still owns
+
+This example deliberately leaves deployment policy outside the libraries:
+
+- verifying/refreshing real bearer tokens or sessions;
+- deciding when to compact documents;
+- retention/GC strategy for identity rows whose continued existence preserves
+  retry idempotency;
+- stable semantic ids for external effects;
+- schema/message migration across deployed versions;
+- browser storage eviction / abrupt power-loss policy.
+
+The example's server-authority effects are keyed by document, operation, and
+array position. Do not reorder that effect policy for operations already
+committed. Read the [Durable effect recovery section](../../packages/durable/README.md#effect-recovery)
+before connecting those effects to real external providers.
+
+LWW clocks use a separate IndexedDB database from the normal outbox. Keep that
+clock storage across reloads; if it is lost, use a fresh replica id rather than
+resetting the same writer's counter.
+
+## See also
+
+- [Replicated state guide](../../docs/replication.md) — the conceptual model before implementation detail.
+- [`foldkit-sync`](../../packages/sync) — client replica reference.
+- [`foldkit-durable`](../../packages/durable) — authoritative server journal reference.
+- [`docs/sync-runtime-binding.md`](../../docs/sync-runtime-binding.md) — the Foldkit runtime seams `Sync.mount` binds to.
+- [`examples/todo-app`](../todo-app) — the same replication model inside a complete application.
