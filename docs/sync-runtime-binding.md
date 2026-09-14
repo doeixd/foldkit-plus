@@ -1,8 +1,9 @@
 # Binding `foldkit-sync` to a Foldkit runtime
 
-Status: `Sync.mount` ships in `foldkit-sync`; `examples/sync` runs on it. No
-upstream Foldkit change is required. This note records why, what the mount does,
-and the two conveniences an upstream handle would still add.
+Status: `Sync.mount` ships in `foldkit-sync`; `examples/sync` and
+`examples/todo-app` run on it. No upstream Foldkit change is required. This note
+records why, what the mount does, and the two conveniences an upstream handle
+would still add.
 
 ## What Foldkit `0.158.2` exposes
 
@@ -32,9 +33,17 @@ only when the replica's state actually differs from the local one.
 ## What `Sync.mount` does
 
 ```ts
-const mounted = Sync.mount(App, TodoSync, { replica, container, view })
+const mounted = Sync.mount(App, TodoSync, {
+  replica,
+  container,
+  view,
+  url: { init: (model, url) => Filters.reduce(model, url), onUrlChange: url => Message.UrlChanged({ url }) },
+  subscriptions, // the application's own entries, a mirror's among them
+  resources, // the Layer those entries need, e.g. KeyValueStore
+})
 mounted.dispatch(Message.CreatedTodo({ id, title }))
 mounted.model()
+const stop = mounted.observe(message => log(message))
 await mounted.dispose()
 ```
 
@@ -43,8 +52,16 @@ await mounted.dispose()
   re-installs the replica's shared slice, which reverts exactly that edit, then
   hands the Model and the error to `onPersistenceFailure`.
 - **Flat union.** The runtime's Message type is the application's union plus
-  three private variants (refresh, persisted, persistence failed), so Commands
-  returned by `update` already produce valid Messages. Nothing is re-wrapped.
+  five private variants (refresh, persisted, persistence failed, and the two
+  steps of following a link), so Commands returned by `update` already produce
+  valid Messages. Nothing is re-wrapped.
+- **The URL, through the application.** With `url`, `init(model, url)` reduces
+  the first URL into the Model before the first render, `onUrlChange(url)` names
+  the Message for every navigation, and `onUrlRequest` the Message for a link
+  click; omitted, the mount follows the link itself (an internal one pushed, an
+  external one loaded). A `foldkit-mirror` URL mirror is `init` plus one
+  `onUrlChange` case; its write entry rides in `subscriptions`, and `resources`
+  provides what the entries need.
 - **Reconcile on change.** The replica's `statusChanges` drive a refresh only
   when the cursor or the rejections move, which is when an exchange or a
   rejection changed the replica's state. A submit only echoes a local edit, so it
@@ -53,11 +70,14 @@ await mounted.dispose()
 - **Dispatch and Model.** `dispatch` is one inbound Port carrying the whole
   union. `model()` is read from a subscription entry whose `modelToDependencies`
   runs on every transition; the runtime does not expose the Model otherwise.
+  `subscribe` notifies on every transition, and `observe` reports every
+  application Message the runtime applies, which a capability with a
+  `completion` contract needs to see.
 - **Dispose waits.** In-flight persists are tracked and awaited before the
   runtime is disposed, so the outbox is left complete and resumable.
 
-`Mounted` is also the host shape `foldkit-agent` binds to: `model` and
-`dispatch`.
+`Mounted` is also the host shape `foldkit-agent` binds to: `model`,
+`dispatch`, `subscribe`, and `observe`; the application adds `principal`.
 
 ## What only an upstream handle would add
 

@@ -105,19 +105,20 @@ runtime.
 
 ## Guides
 
-- [Replicated state](./docs/replication.md) — what `foldkit-durable` and
-  `foldkit-sync` do, and when to reach for them.
+- [Agents](./docs/agents.md) — `foldkit-agent` and its adapters: what an agent
+  may see and do, and why a capability is a Message.
 - [Server-derived state](./docs/remote.md) — the `foldkit-surface` boundary and
   the `foldkit-remote` Submodel.
+- [Replicated state](./docs/replication.md) — what `foldkit-durable` and
+  `foldkit-sync` do, and when to reach for them.
+- [Mirrored state](./docs/mirror.md) — a Model slice in the URL or a key-value
+  store, and why a mirror is not an owner.
 - [Inside-out view composition](./docs/mixins.md) — slot contracts, Style and
   Behavior, and the `@foldkit/ui` adapters.
 - [Runtime binding](./docs/sync-runtime-binding.md) — how `Sync.mount` runs an
   application over a replica, and routes the URL.
-- [Mirror design](./docs/design/MIRROR.md) — why a mirror is not an owner, and
-  how `foldkit-mirror` fits beside Sync and Remote.
 - [Releases](./docs/releases.md) — the version and publish matrix for every
   workspace package.
-- [`foldkit-agent` design rationale](./docs/design/agent-DESIGN.md).
 - [Revision plan](./docs/design/REVISION_PLAN.md) — the full design and phase status.
 - [All guides](./docs/README.md), including the [improvement suggestions](./docs/improvements.md).
 - Each package README documents its API; [`examples/`](./examples) has runnable

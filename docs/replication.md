@@ -54,14 +54,17 @@ decodes each operation's Message and applies the same policy.
 
 ```text
 Model
- ├── shared fields   → describeSync({ shared, replay })   replicated
- └── local fields    → selectedTodoId, transient errors   never leaves the device
+ ├── shared fields   → Projection.pick(App.fields.todos)          replicated
+ └── local fields    → selectedTodoId, transient errors           never leaves the device
 ```
 
-`durable(message)` decides which Messages replicate, and `replay(shared, message)`
-is a pure reducer over the shared projection. It must not produce Commands or
-touch local fields — the bundled example throws if it does. Your `update`
-remains authoritative for the UI.
+`shared` is a writable projection that names the replicated slice, and
+`durable` is the `MessageSet` of Messages that replicate. Replay is derived from
+the application's own `update` on that slice, and it refuses a durable Message
+that returns a Command or writes outside the projection, naming the Message and
+the fields. A Message that needs an effect stays local and emits a durable fact
+once the effect settles: `RequestedTodo` runs the Command; `SubmittedTodo` is
+what replicates. Your `update` remains the only reducer.
 
 ## `foldkit-durable`
 
@@ -80,6 +83,10 @@ const journal = yield* makeJournal({
   validate, authorize,                                   // policy before commit
 })
 ```
+
+With a sync contract, `...TodoSync.journalContract()` supplies the codecs, the
+empty snapshot, the reducer, and the `authorize` rules, so none is written
+twice.
 
 It owns storage and ordering only, and gives you:
 
@@ -101,7 +108,14 @@ It owns storage and ordering only, and gives you:
   external action but before recording success can repeat the action on retry.
   Use stable document/operation/effect identities and provider idempotency;
   see the [effect recovery policy](../packages/durable/README.md#effect-recovery).
-- **Migrations**, and branded `DocumentId` / `OpId` / `ActorId`.
+- **`recover({ key, from, intents, onUnresolved })` — a recovery worker.** Runs
+  the effect intents of a document's committed operations after a cursor,
+  reusing recorded successes and stopping at the first intent that failed or
+  was skipped, and returns the cursor up to which everything settled. The
+  application owns discovery and scheduling; `unfinished()` and `clearEffect`
+  remain the primitives underneath.
+- **Migrations**, and branded `DocumentId` / `OpId` / `ActorId` / `Sequence` /
+  `Cursor`.
 
 **Use it when** a server must sequence operations from many clients, replay or
 compact them, and retain effect outcomes.
@@ -130,12 +144,27 @@ remains the protocol primitive it compiles to. `TodoSync.journalContract()` give
 the server's journal the same operation and snapshot codecs, empty snapshot, and
 reducer, so the client and server never declare the shared state twice.
 
+In a browser, `Sync.mount` runs the application over the replica with one
+reducer: a durable Message applies through `update` at once and persists
+afterwards, and the shared slice is re-installed from the replica when an
+exchange or a rejection changes it. The mount also routes the URL (`url: {
+init, onUrlChange }`, where a `foldkit-mirror` plugs in) and returns the host an
+agent binds to; [Runtime binding](./sync-runtime-binding.md) records what it
+guarantees.
+
 It owns:
 
 - **A derived contract** (`Sync.forApplication`): one application declaration
   produces the writable projection, the durable Message subset, the initial
   snapshot, and the durable journal contract. `Projection.pick` builds the
-  projection; only the declared Messages reach durable state.
+  projection; only the declared Messages reach durable state. A large
+  application declares one **fragment** per feature and composes them into one
+  document; a field declared twice with a different codec or a Message declared
+  durable twice throws.
+- **Policy on the contract.** `authorize` rules are declared per durable variant,
+  with the Message typed as that variant, and compile into the journal
+  contract, so the server enforces them inside the append transaction. A
+  refused operation is a rejection the replica rolls back.
 - **A persisted outbox and optimistic projection.** `submit` replays the Message
   first and writes it locally only if replay accepts it; `replica.shared` shows
   the change immediately without replaying the outbox again.
@@ -147,9 +176,10 @@ It owns:
 - **A pluggable transport** (`Transport`): loopback, a promise bridge, or a
   reconnecting WebSocket that re-sends in-flight frames with their original ids
   and bounds its queue.
-- **Ephemeral presence** (`createPresence`): a TTL'd peer registry for state that
-  must not be logged — cursors, "typing", selections — with a required
-  `decodeValue` at the boundary.
+- **Ephemeral presence** (`createPresence`, `createPresenceHub`): a TTL'd peer
+  registry for state that must not be logged — cursors, "typing", selections —
+  with a required `decodeValue` at the boundary, over a loopback or socket
+  channel.
 - **`lwwRegister`** for a field whose winner should be logical time, not
   reconnect order.
 
@@ -186,9 +216,10 @@ What an application does next:
   starts at cursor 0; the first exchange adopts the server's `checkpoint`. Edits
   that were only in the evicted outbox are gone, so keep anything irreplaceable
   outside replica storage and confirm before discarding it.
-- **A stale writer.** `Storage.save` compare-and-swaps on the saved revision. A
-  second replica or tab writing the same storage fails with a `StorageError`
-  ("Replica was changed by another writer"); give each tab its own storage and
+- **A stale writer.** Storage compare-and-swaps on the saved revision. A second
+  replica or tab writing the same storage fails with a `StorageError`
+  ("Replica was changed by another writer"), and storage opened for another
+  replica is a `WrongReplicaStorageError`; give each tab its own storage and
   `replicaId`.
 - **A Message replay refuses.** `submit` fails with a `ReplayError` carrying the
   replay's message (for a derived contract, the Message and the Command or local
@@ -222,7 +253,9 @@ IndexedDB replicas, a `ws` transport, an agent bound to the shared replica, and 
 demo that takes two clients offline, converges them, and replays server-authority
 effects through the durable ledger (recorded successes are reused; a crash between
 the external action and its record can repeat it — see the durable README).
-`pnpm demo` runs it.
+[`examples/todo-app`](../examples/todo-app) is the same contract mounted in a
+browser with `Sync.mount`, two fragments, owner-only `authorize` rules, and a
+WebMCP agent over the mount. `pnpm demo` runs both.
 
 The package READMEs — [`foldkit-durable`](../packages/durable) and
 [`foldkit-sync`](../packages/sync) — document the full APIs. Server-derived state
