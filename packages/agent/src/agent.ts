@@ -48,6 +48,7 @@ export type {
   Invocation,
   InvocationContext,
   MessageConstructor,
+  JsonSchemaDocument,
   MessageDescriptor,
   ResourceDescriptor,
   StateCompletion,

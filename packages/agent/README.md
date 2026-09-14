@@ -282,7 +282,7 @@ Every decision the contract makes can be recorded, refusals included:
 ```ts
 const audit = Agent.auditLog({
   capacity: 500,
-  principal: caller => caller.id, // an id, not the whole identity
+  principal: (caller: User) => caller.id, // an id, not the whole identity
 })
 
 const agentRuntime = TodoAgent.bind({ definition: AppAgent, host, audit })

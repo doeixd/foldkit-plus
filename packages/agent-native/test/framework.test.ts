@@ -60,7 +60,7 @@ beforeAll(async () => {
   )
   registerPackageActions({
     ...actions,
-    foldkit_spike_override: actions['foldkit_spike_set_limit']!,
+    foldkit_spike_override: actions.foldkit_spike_set_limit,
   })
   registry = await autoDiscoverActions(join(directory, 'actions'))
 }, 30_000)
@@ -117,7 +117,7 @@ it.each([
 )
 
 it('preserves encoded values through defineAction validation', async () => {
-  const entry = actions['foldkit_spike_set_limit']!
+  const entry = actions.foldkit_spike_set_limit
   const wrapped = defineAction({
     description: entry.tool.description,
     schema: entry.schema,

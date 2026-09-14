@@ -19,7 +19,14 @@ const _todos: ReadonlyArray<{
   readonly id: string
   readonly title: string
   readonly completed: boolean
-}> = definition.context!.read(emptyModel).todos
+}> = definition.context.read(emptyModel).todos
+
+// Without a context there is none to read unchecked.
+const contextless = TodoAgent.make({
+  messages: TodoAgent.expose(MessageUnion, { RequestedDeleteTodo: 'Delete' }),
+})
+// @ts-expect-error `context` may be undefined when none was supplied.
+contextless.context.read(emptyModel)
 
 const Other = Schema.Struct({ count: Schema.Number })
 TodoAgent.make({

@@ -1,7 +1,7 @@
 import { Agent } from 'foldkit-agent'
 import type { ActionTool } from '@agent-native/core/server'
 import { Effect, Schema } from 'effect'
-import type { StandardSchemaV1 } from 'effect/StandardSchema'
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from 'effect/StandardSchema'
 
 type AgentRuntime = Agent.AgentRuntime<any, any, any, any, any>
 
@@ -35,7 +35,8 @@ export interface ActionEntry {
     readonly parameters: NonNullable<ActionTool['parameters']>
   }
   readonly run: (args: unknown, context?: ActionRunContext) => Promise<ActionResult>
-  readonly schema: StandardSchemaV1<unknown, unknown>
+  /** Validates input and carries the JSON Schema its parameters are advertised from. */
+  readonly schema: StandardSchemaV1<unknown, unknown> & StandardJSONSchemaV1<unknown, unknown>
   readonly http: { readonly method: 'POST' }
   /** Defaults to true in the framework; stated so it is not left to a default. */
   readonly requiresAuth: boolean
@@ -64,17 +65,15 @@ export interface ActionEntry {
  * would not work: the conversion reads the Effect schema, so identity matters.
  */
 const describedSchema = (
-  schema: Parameters<typeof Schema.toStandardSchemaV1>[0],
-): StandardSchemaV1<unknown, unknown> => {
-  const described = Schema.toStandardJSONSchemaV1(schema as never)
+  schema: Schema.Codec<unknown, unknown>,
+): StandardSchemaV1<unknown, unknown> & StandardJSONSchemaV1<unknown, unknown> =>
   // Stripping fields here would hide invalid input from dispatch's strict decoder.
-  Schema.toStandardSchemaV1(schema, { parseOptions: { onExcessProperty: 'error' } })
+  Schema.toStandardSchemaV1(Schema.toStandardJSONSchemaV1(schema), {
+    parseOptions: { onExcessProperty: 'error' },
+  })
 
-  return described as unknown as StandardSchemaV1<unknown, unknown>
-}
-
-export interface ActionsOptions {
-  readonly definition: Agent.Definition<any, any, any, any, any>
+export interface ActionsOptions<ByName = Record<string, unknown>> {
+  readonly definition: Agent.Definition<any, any, any, ByName, any>
 
   /**
    * Resolves the Runtime for one request.
@@ -112,7 +111,17 @@ export interface ActionsOptions {
  * )
  * ```
  */
-export const actions = (options: ActionsOptions): Record<string, ActionEntry> => {
+/**
+ * The registry, keyed by the contract's capability names when they are known,
+ * so a registered name needs no lookup check and a mistyped one does not compile.
+ */
+export type ActionRegistry<ByName = Record<string, unknown>> = string extends keyof ByName
+  ? Record<string, ActionEntry>
+  : { readonly [Name in keyof ByName]: ActionEntry }
+
+export const actions = <ByName = Record<string, unknown>>(
+  options: ActionsOptions<ByName>,
+): ActionRegistry<ByName> => {
   const transport = options.transport ?? 'agent-native'
   const entries: Record<string, ActionEntry> = Object.create(null)
 
@@ -170,5 +179,6 @@ export const actions = (options: ActionsOptions): Record<string, ActionEntry> =>
     }
   }
 
-  return entries
+  // Keyed by exactly the exposed names, which is what ByName records.
+  return entries as ActionRegistry<ByName>
 }

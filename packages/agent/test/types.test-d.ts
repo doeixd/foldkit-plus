@@ -398,6 +398,15 @@ Agent.bind({
   host: { model: () => ({}), dispatch: (_: { _tag: 'Unrelated'; count: number }) => {} },
 })
 
+// A context schema names its `properties`, so a test can read them unchecked.
+export const contextProperties: Record<string, unknown> | undefined = Agent.contextSchema(
+  Agent.make({ context: TodoList, messages: Agent.expose(Message, {}) }),
+)?.properties
+// @ts-expect-error `properties` is a record of schemas, not a list of names.
+export const contextNames: ReadonlyArray<string> | undefined = Agent.contextSchema(
+  Agent.make({ context: TodoList, messages: Agent.expose(Message, {}) }),
+)?.properties
+
 // A contract that reads a principal requires the host to supply one.
 const Guarded = Agent.forModel<{ readonly ok: boolean }, { readonly allowed: boolean }>()
 const guarded = Guarded.make({
@@ -418,6 +427,25 @@ Guarded.bind({
 Guarded.bind({ definition: guarded, host: { model: () => ({ ok: true }), dispatch: () => {} } })
 Guarded.bind({
   definition: guarded,
+  host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
+})
+
+// An audit log projects the principal it is typed for, and binds only where the
+// host resolves that principal. A log with no projection binds anywhere.
+Guarded.bind({
+  definition: guarded,
+  audit: Agent.auditLog({ principal: (caller: { readonly allowed: boolean }) => caller.allowed }),
+  host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
+})
+Guarded.bind({
+  definition: guarded,
+  audit: Agent.auditLog(),
+  host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
+})
+Guarded.bind({
+  definition: guarded,
+  // @ts-expect-error the log projects a `user`, which this host's principal lacks.
+  audit: Agent.auditLog({ principal: (caller: { readonly user: string }) => caller.user }),
   host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
 })
 

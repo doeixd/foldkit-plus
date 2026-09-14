@@ -66,9 +66,7 @@ const makeWebHandler = () => {
     allowedOrigins: ['https://app.example'],
   })
 
-  return HttpEffect.toWebHandler(
-    AgentMcp.httpApp<Model, unknown, Principal, any, any>({ server } as never),
-  )
+  return HttpEffect.toWebHandler(AgentMcp.httpApp({ server }))
 }
 
 const url = 'http://localhost/mcp'

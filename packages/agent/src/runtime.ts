@@ -11,7 +11,7 @@ import {
 } from './errors.js'
 import type { AnyCapabilitiesByName, AnyCapabilitiesByTag, ExposedVariant } from './expose.js'
 import { resolveInvocation } from './invocation.js'
-import type { AuditDecision, AuditSink } from './audit.js'
+import type { AuditDecision, AuditRecord, AuditSink } from './audit.js'
 import { awaitCompletion, awaitState, type CompiledCompletion } from './completion.js'
 import { messageTag } from './tag.js'
 import type {
@@ -186,7 +186,7 @@ export type BindOptions<
    * A sink that throws never fails the dispatch: accountability must not be a
    * new way for a capability to break.
    */
-  readonly audit?: AuditSink | undefined
+  readonly audit?: AuditSink<Principal> | undefined
   /** The host must accept every Message the contract can construct. */
   readonly host: AgentHost<Model, Message, Principal> & {
     readonly dispatch: (
@@ -221,7 +221,7 @@ export const bind = <
     typeof target === 'function' ? byConstructor.get(target) : byName.get(String(target))
 
   /** Recording is best-effort by design; a broken sink must not break dispatch. */
-  const record = (entry: Parameters<AuditSink['record']>[0]): void => {
+  const record = (entry: AuditRecord<Principal>): void => {
     try {
       options.audit?.record(entry)
     } catch {
@@ -251,7 +251,7 @@ export const bind = <
     // differently the second time, so it runs once, during dispatch, and leaves
     // what it returned here. `delivery` is the fact a refusal and a
     // post-dispatch failure differ on, and only dispatch can observe it.
-    const progress: DispatchProgress = { delivery: 'none' }
+    const progress: DispatchProgress<Principal> = { delivery: 'none' }
     const effect = dispatchResolved(target, input, invocation, progress)
 
     return Effect.onExit(effect, exit =>
@@ -331,7 +331,7 @@ export const bind = <
     target: unknown,
     input: unknown,
     invocation: Invocation,
-    progress?: DispatchProgress,
+    progress?: DispatchProgress<Principal>,
   ) {
     {
       // Read through a function so control flow analysis cannot narrow it away:
@@ -568,15 +568,15 @@ const abortedWhile = (
  * What dispatch had managed to do when it exited, so the record can say what
  * happened rather than assuming a failure means a refusal.
  */
-interface DispatchProgress {
-  principal?: unknown
+interface DispatchProgress<Principal> {
+  principal?: Principal
   capability?: string
   tag?: string
   /** `attempted` means the host was called and raised: delivery is unknowable. */
   delivery: 'none' | 'attempted' | 'sent'
 }
 
-const decisionOf = (delivery: DispatchProgress['delivery']): AuditDecision =>
+const decisionOf = (delivery: DispatchProgress<unknown>['delivery']): AuditDecision =>
   delivery === 'sent' ? 'dispatched' : delivery === 'attempted' ? 'unknown' : 'refused'
 
 /**

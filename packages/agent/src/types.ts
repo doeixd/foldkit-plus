@@ -152,10 +152,21 @@ export interface ResourceDescriptor {
 }
 
 /** The full, data-only description of an agent contract. */
+/**
+ * A derived JSON Schema document. `properties` is named because a context
+ * projection is usually a struct; it is optional because it need not be one
+ * (an array or option projection derives no `properties`).
+ */
+export interface JsonSchemaDocument {
+  readonly type?: string | undefined
+  readonly properties?: Record<string, unknown> | undefined
+  readonly [keyword: string]: unknown
+}
+
 export interface AgentSchema {
   readonly messages: ReadonlyArray<MessageDescriptor>
   readonly resources: ReadonlyArray<ResourceDescriptor>
-  readonly context?: Record<string, unknown> | undefined
+  readonly context?: JsonSchemaDocument | undefined
 }
 
 /** The result of a successful validated dispatch. */

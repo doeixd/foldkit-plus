@@ -4,7 +4,9 @@ import { Agent } from '../src/index.js'
 import type { AnyMessage, Completion } from '../src/types.js'
 import { type Message, type Model, Message as MessageUnion, emptyModel } from './todoApp.js'
 
-const TodoAgent = Agent.forModel<Model, { readonly user: string; readonly token: string }>()
+type Principal = { readonly user: string; readonly token: string }
+
+const TodoAgent = Agent.forModel<Model, Principal>()
 
 const definition = TodoAgent.make({
   messages: TodoAgent.expose(MessageUnion, {
@@ -20,9 +22,9 @@ const definition = TodoAgent.make({
 
 let model: Model
 let dispatched: Array<Message>
-let principal: { readonly user: string; readonly token: string }
+let principal: Principal
 
-const runtimeWith = (audit: Agent.AuditSink) =>
+const runtimeWith = (audit: Agent.AuditSink<Principal>) =>
   TodoAgent.bind({
     definition,
     audit,
@@ -136,7 +138,7 @@ describe('what is never recorded', () => {
   })
 
   it('records only what the principal projection returns', async () => {
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     await run(runtimeWith(audit).messages.dispatch('create_todo', { title: 'x' }))
 
     expect(audit.entries()[0]?.principal).toBe('alice')
@@ -169,10 +171,7 @@ describe('what is never recorded', () => {
 })
 
 describe('the principal is resolved once per dispatch', () => {
-  const runtimeResolving = (
-    audit: Agent.AuditSink,
-    resolvePrincipal: () => { readonly user: string; readonly token: string },
-  ) =>
+  const runtimeResolving = (audit: Agent.AuditSink<Principal>, resolvePrincipal: () => Principal) =>
     TodoAgent.bind({
       definition,
       audit,
@@ -185,7 +184,7 @@ describe('the principal is resolved once per dispatch', () => {
 
   it('calls the resolver exactly once', async () => {
     let calls = 0
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     const runtime = runtimeResolving(audit, () => {
       calls += 1
       return principal
@@ -199,7 +198,7 @@ describe('the principal is resolved once per dispatch', () => {
   })
 
   it('records the principal that authorized the dispatch, not a later answer', async () => {
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     let calls = 0
     const runtime = runtimeResolving(audit, () => {
       calls += 1
@@ -212,7 +211,7 @@ describe('the principal is resolved once per dispatch', () => {
   })
 
   it('does not fail a dispatch whose resolver is one-shot', async () => {
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     let calls = 0
     const runtime = runtimeResolving(audit, () => {
       calls += 1

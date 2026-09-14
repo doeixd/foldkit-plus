@@ -94,14 +94,12 @@ const makeAgent = () => {
 /** Resolved per invocation, as it would be from a request context. */
 const actionsFor = () => AgentNative.actions({ definition, resolveRuntime: () => makeAgent() })
 
-const named = (name: string) => {
-  const action = actionsFor()[name]
-  if (action === undefined) throw new Error(`No action named ${name}`)
-  return action
-}
+type Name = keyof ReturnType<typeof actionsFor>
+
+const named = (name: Name) => actionsFor()[name]
 
 /** What the framework hands `run`: the Standard Schema's own parsed output. */
-const validatedInput = async (name: string, input: unknown) => {
+const validatedInput = async (name: Name, input: unknown) => {
   const result = await named(name).schema['~standard'].validate(input)
   if (result.issues !== undefined) throw new Error(`Rejected: ${JSON.stringify(result.issues)}`)
   return result.value
@@ -175,10 +173,10 @@ describe('the schema bridge', () => {
   it('carries validation and advertisement together', () => {
     // Agent Native needs both: `validate` to check input, `jsonSchema` to
     // advertise parameters. Neither Effect helper provides both on its own.
-    const standard = named('create_todo').schema['~standard'] as unknown as Record<string, unknown>
+    const standard = named('create_todo').schema['~standard']
 
-    expect(typeof standard['validate']).toBe('function')
-    expect(standard['jsonSchema']).toBeDefined()
+    expect(typeof standard.validate).toBe('function')
+    expect(standard.jsonSchema).toBeDefined()
   })
 
   it('accepts input the contract accepts', async () => {
@@ -193,7 +191,7 @@ describe('the schema bridge', () => {
     expect(result.issues?.length).toBeGreaterThan(0)
   })
 
-  it.each([
+  it.each<[Name, unknown]>([
     ['create_todo', { title: 'x', extra: true }],
     ['set_limit', { value: '42', extra: true }],
   ])('rejects undeclared fields before %s can strip them', async (name, input) => {
@@ -209,9 +207,7 @@ describe('the schema bridge', () => {
     // defineAction reads ~standard.jsonSchema for the tool's parameters. A
     // validation-only Standard Schema is accepted and advertises nothing, so an
     // agent would see a tool that takes no input.
-    const standard = named('create_todo').schema['~standard'] as unknown as {
-      jsonSchema: { input: (options: { readonly target: string }) => Record<string, unknown> }
-    }
+    const standard = named('create_todo').schema['~standard']
 
     // A converter, not a document: this is what defineAction calls to build the
     // tool's parameters, and it describes the input side. Whether the framework
@@ -308,9 +304,7 @@ describe('a transforming capability', () => {
 
   it('advertises the encoded side, which is what a caller sends', () => {
     const action = named('set_limit')
-    const standard = action.schema['~standard'] as unknown as {
-      jsonSchema: { input: (options: { readonly target: string }) => Record<string, unknown> }
-    }
+    const standard = action.schema['~standard']
 
     const advertised = { type: 'object', properties: { value: { type: 'string' } } }
     expect(action.tool.parameters).toMatchObject(advertised)
@@ -380,8 +374,8 @@ describe('the registry', () => {
     })
 
     expect(resolved).toBe(0)
-    await registry['create_todo']!.run({ title: 'a' })
-    await registry['create_todo']!.run({ title: 'b' })
+    await registry.create_todo.run({ title: 'a' })
+    await registry.create_todo.run({ title: 'b' })
 
     // Which Model a caller means depends on who is calling.
     expect(resolved).toBe(2)
@@ -397,7 +391,7 @@ describe('the registry', () => {
       },
     })
 
-    await registry['create_todo']!.run({ title: 'x' }, { userEmail: 'alice@example.com' })
+    await registry.create_todo.run({ title: 'x' }, { userEmail: 'alice@example.com' })
 
     expect(seen).toEqual([{ userEmail: 'alice@example.com' }])
   })
@@ -424,7 +418,7 @@ describe('when something throws', () => {
       throw new Error('connection to db-prod-1 failed: password=hunter2')
     })
 
-    const result = await registry['create_todo']!.run({ title: 'x' })
+    const result = await registry.create_todo.run({ title: 'x' })
 
     expect(result.ok).toBe(false)
     expect(result.message).toBe('Capability "create_todo" failed unexpectedly')
@@ -441,6 +435,6 @@ describe('when something throws', () => {
 
     // The framework surfaces this; reporting it as the capability failing would
     // hide an authentication problem behind a generic message.
-    await expect(registry['create_todo']!.run({ title: 'x' })).rejects.toThrow('Unauthorized')
+    await expect(registry.create_todo.run({ title: 'x' })).rejects.toThrow('Unauthorized')
   })
 })

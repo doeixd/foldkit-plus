@@ -100,9 +100,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`dispatched ${created.tag} as "${created.name}" over ${created.invocation.transport}`)
   say(
     `completion: ${created.completion?.status} ${
-      created.completion?.message === undefined
-        ? ''
-        : (created.completion.message as { readonly _tag: string })._tag
+      created.completion?.message === undefined ? '' : created.completion.message._tag
     }`,
   )
   const [first] = store.model().todos

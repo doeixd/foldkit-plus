@@ -52,8 +52,8 @@ describe('the example contract', () => {
   })
 
   it('projects the Model without lastError', () => {
-    const schema = Agent.contextSchema(AppAgent) as { properties: Record<string, unknown> }
-    expect(Object.keys(schema.properties).sort()).toEqual(['selectedTodoId', 'todos'])
+    const properties = Agent.contextSchema(AppAgent)?.properties ?? {}
+    expect(Object.keys(properties).sort()).toEqual(['selectedTodoId', 'todos'])
   })
 
   it('drives update through the host, whichever surface originates the Message', async () => {

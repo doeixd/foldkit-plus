@@ -7,7 +7,7 @@ import {
   type Surface,
   type WritableProjection,
 } from 'foldkit-surface'
-import { type Definition, make } from './make.js'
+import { type DefinitionOf, make } from './make.js'
 import {
   type AnyCapabilitiesByName,
   type AnyCapabilitiesByTag,
@@ -74,7 +74,7 @@ export interface ApplicationAgent<Model, Principal> extends Omit<
     readonly context?: R
     readonly messages: ExposedMessages<Model, Principal, ByName, ByTag>
     readonly resources?: ReadonlyArray<Resource<Model, any>> | undefined
-  }) => Definition<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
+  }) => DefinitionOf<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
     readonly contract: Contract
   }
   /**
@@ -105,7 +105,7 @@ const buildAgent = <Model, Principal>(
     readonly context?: R
     readonly messages: ExposedMessages<Model, Principal, ByName, ByTag>
     readonly resources?: ReadonlyArray<Resource<Model, any>> | undefined
-  }): Definition<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
+  }): DefinitionOf<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
     readonly contract: Contract
   } => {
     const context =

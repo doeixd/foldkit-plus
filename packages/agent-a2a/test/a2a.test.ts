@@ -143,7 +143,7 @@ const task = (response: Response | undefined): Task => {
   if (response === undefined || !('result' in response)) {
     throw new Error(`Expected a task, got ${JSON.stringify(response)}`)
   }
-  return response.result as Task
+  return response.result
 }
 
 const err = (response: Response | undefined): { code: number; message: string } => {

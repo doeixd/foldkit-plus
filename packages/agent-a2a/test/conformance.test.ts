@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { Agent } from 'foldkit-agent'
 import { AgentA2a } from 'foldkit-agent-a2a'
-import type { Response } from 'foldkit-agent-a2a'
+import type { Response, Task } from 'foldkit-agent-a2a'
 import { Duration, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -331,8 +331,12 @@ describe('the method set', () => {
 })
 
 describe('wire responses', () => {
-  const resultOf = (response: Response | undefined): unknown =>
-    response !== undefined && 'result' in response ? response.result : undefined
+  const resultOf = (response: Response | undefined): Task => {
+    if (response === undefined || !('result' in response)) {
+      throw new Error(`Expected a task, got ${JSON.stringify(response)}`)
+    }
+    return response.result
+  }
 
   it('answers message/send with a spec-shaped success response', async () => {
     const served = makeHandler()
@@ -356,14 +360,14 @@ describe('wire responses', () => {
 
     const states = definition_('TaskState').enum ?? []
     for (const task of [completed, rejected]) {
-      expect(states).toContain((task as { status: { state: string } }).status.state)
+      expect(states).toContain(task.status.state)
     }
   })
 
   it('answers tasks/get with the same task, still spec-shaped', async () => {
     const served = makeHandler()
     const sent = resultOf(await served.handle(sendRequest('create_todo', { title: 'x' })))
-    const id = (sent as { id: string }).id
+    const id = sent.id
 
     const response = await served.handle({
       jsonrpc: '2.0',
@@ -373,7 +377,7 @@ describe('wire responses', () => {
     })
 
     conformsTo(response, 'GetTaskSuccessResponse')
-    expect((resultOf(response) as { id: string }).id).toBe(id)
+    expect(resultOf(response).id).toBe(id)
   })
 
   it('answers tasks/cancel on a running task with a spec-shaped task', async () => {
@@ -389,7 +393,7 @@ describe('wire responses', () => {
     })
 
     conformsTo(response, 'CancelTaskSuccessResponse')
-    expect((resultOf(response) as { status: { state: string } }).status.state).toBe('canceled')
+    expect(resultOf(response).status.state).toBe('canceled')
     await pending
   })
 
@@ -401,7 +405,7 @@ describe('wire responses', () => {
       jsonrpc: '2.0',
       id: 3,
       method: methodOf('CancelTaskRequest'),
-      params: { id: (sent as { id: string }).id },
+      params: { id: sent.id },
     })
 
     conformsTo(response, 'JSONRPCErrorResponse')
