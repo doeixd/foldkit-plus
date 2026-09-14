@@ -31,6 +31,11 @@ export const LocalSequence = Schema.Number.check(
 ).pipe(Schema.brand('@foldkit-sync/LocalSequence'))
 export type LocalSequence = typeof LocalSequence.Type
 
+/**
+ * Decode-and-brand helpers. A branded schema constructs the same value with
+ * `DocumentId.make('todos')`, which is the spelling to lead with; these stay
+ * for callers that already have them.
+ */
 export const documentId = (value: string): DocumentId => Schema.decodeUnknownSync(DocumentId)(value)
 export const replicaId = (value: string): ReplicaId => Schema.decodeUnknownSync(ReplicaId)(value)
 export const opId = (value: string): OpId => Schema.decodeUnknownSync(OpId)(value)
