@@ -16,7 +16,7 @@ import {
   type Scope,
 } from 'effect'
 import { SqlClient } from 'effect/unstable/sql'
-import type { Codec } from './codec.js'
+import { resolveCodec, type Codec, type CodecInput } from './codec.js'
 import {
   actorId as toActorId,
   cursor as toCursor,
@@ -77,14 +77,21 @@ export interface AuthorizationRequest<Operation, Snapshot, Principal> {
   readonly snapshot: Snapshot
 }
 
-export interface JournalOptions<Operation, Snapshot, Principal, OperationEncoded = unknown> {
+export interface JournalOptions<
+  Operation,
+  Snapshot,
+  Principal,
+  OperationEncoded = unknown,
+  SnapshotEncoded = unknown,
+> {
   /**
    * A `node:sqlite` path, or `:memory:`. A `Config` lets an application supply
    * the path as a layer instead of a literal.
    */
   readonly file: string | Config.Config<string>
-  readonly operation: Codec<Operation, OperationEncoded>
-  readonly snapshot: Codec<Snapshot>
+  /** An Effect `Schema.Codec`, or a pair of throwing `encode`/`decode` functions. */
+  readonly operation: CodecInput<Operation, OperationEncoded>
+  readonly snapshot: CodecInput<Snapshot, SnapshotEncoded>
   readonly empty: () => Snapshot
   /** Deterministic and fast: it runs inside the append transaction. */
   readonly reduce: (snapshot: Snapshot, operation: Operation) => Snapshot
@@ -93,21 +100,32 @@ export interface JournalOptions<Operation, Snapshot, Principal, OperationEncoded
   /** The trusted actor recorded for the commit. */
   readonly actorId: (principal: Principal) => ActorId
   /**
-   * Synchronous structural checks, run inside the append transaction before
-   * `authorize`. An `Effect` cannot be used here; keep policy local to the
-   * snapshot.
+   * Structural checks, run inside the append transaction before `authorize`.
+   * Throw, or return an `Effect` that fails with `InvalidOperationError`. Like
+   * `authorize` it holds the write lock, so it has no service requirement and
+   * must stay local to the snapshot.
    */
-  readonly validate?: (request: ValidationRequest<Operation, Snapshot, Principal>) => void
+  readonly validate?: (
+    request: ValidationRequest<Operation, Snapshot, Principal>,
+  ) => void | Effect.Effect<void, InvalidOperationError>
   /**
-   * Policy decision, run inside the append transaction. Return a `boolean`, or
-   * an `Effect` when the decision needs to suspend. A service requirement is not
-   * available: the decision runs while the write lock is held, so keep it local
-   * to the snapshot and fail with `JournalError`.
+   * Policy decision, run inside the append transaction. Return a `boolean`, a
+   * refusal carrying its reason, or an `Effect` when the decision needs to
+   * suspend. A service requirement is not available: the decision runs while
+   * the write lock is held, so keep it local to the snapshot and fail with
+   * `JournalError`.
    */
   readonly authorize?: (
     request: AuthorizationRequest<Operation, Snapshot, Principal>,
-  ) => boolean | Effect.Effect<boolean, JournalError>
+  ) => AuthorizationDecision | Effect.Effect<AuthorizationDecision, JournalError>
 }
+
+/**
+ * What `authorize` answers. `true` allows and `false` refuses; the object form
+ * refuses with the rule's own reason, which reaches the caller on
+ * `OperationRejectedError.reason`.
+ */
+export type AuthorizationDecision = boolean | { readonly allowed: false; readonly reason: string }
 
 export type EffectStatus = 'pending' | 'succeeded' | 'failed'
 
@@ -201,7 +219,9 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
   readonly effect: (key: string) => Effect.Effect<Option.Option<EffectRecord>, JournalError>
   /**
    * Reuses recorded successes and shares concurrent runs within this journal
-   * instance. Pending and failed records are retried when called again.
+   * instance. Pending and failed records are retried when called again, unless
+   * `retryFailed` says otherwise — `false` for every failed record, or a
+   * predicate that decides from the record itself.
    * An external action can succeed before its result is recorded; recovery
    * requires provider idempotency or reconciliation. Use a stable key including
    * the document, operation, and semantic effect identity, and pass that same
@@ -211,7 +231,7 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
   readonly runEffect: <Result, E>(
     key: string,
     run: Effect.Effect<Result, E>,
-    options?: { readonly retryFailed?: boolean },
+    options?: { readonly retryFailed?: boolean | ((record: EffectRecord) => boolean) },
   ) => Effect.Effect<Result, E | JournalError | EffectFailedError>
   /** Removes an effect record so the next `runEffect` treats it as new work. */
   readonly clearEffect: (key: string) => Effect.Effect<void, JournalError>
@@ -283,6 +303,12 @@ const canonicalHash = (input: string): string => {
   }
 }
 
+/** `runEffect`'s `retryFailed`, in either form; a failed record is retried by default. */
+const retriesFailed = (
+  policy: boolean | ((record: EffectRecord) => boolean) | undefined,
+  record: EffectRecord,
+): boolean => (policy === undefined ? true : typeof policy === 'boolean' ? policy : policy(record))
+
 const journalError = (message: string, cause: unknown): JournalError =>
   new JournalError({ message, cause })
 
@@ -315,7 +341,8 @@ export const makeJournal = Effect.fn('Journal.make')(function* <
   Snapshot,
   Principal,
   OperationEncoded = unknown,
->(options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded>) {
+  SnapshotEncoded = unknown,
+>(options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>) {
   const file = yield* resolveFile(options.file)
   // Build the driver into the journal's own scope, not the transient scope of
   // this effect, so the connection outlives `makeJournal`.
@@ -328,6 +355,13 @@ export const makeJournal = Effect.fn('Journal.make')(function* <
  * instead of threading the shape through its own wiring. Pass the codec's
  * `Encoded` type as the fourth parameter when it is not `unknown`, and use a
  * distinct `key` if the application runs more than one journal.
+ *
+ * Prefer `Journal.define`. The type arguments here are supplied at each use
+ * site and nothing checks them against the layer that satisfied the tag, so
+ * `yield* JournalService<SomeOtherOperation, ...>('app/Journal')` compiles and
+ * hands back a journal typed as something it is not — the key is the only real
+ * identity. `Journal.define` fixes the parameters once and derives both the tag
+ * and its layer from them.
  */
 export const JournalService = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
   key = 'foldkit-durable/Journal',
@@ -338,8 +372,14 @@ export const JournalService = <Operation, Snapshot, Principal, OperationEncoded 
   >()(key)
 
 /** Provides the journal as a scoped layer, releasing the database when the layer closes. */
-export const makeJournalLayer = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
-  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded>,
+export const makeJournalLayer = <
+  Operation,
+  Snapshot,
+  Principal,
+  OperationEncoded = unknown,
+  SnapshotEncoded = unknown,
+>(
+  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
   key = 'foldkit-durable/Journal',
 ): Layer.Layer<
   Journal<Operation, Snapshot, Principal, OperationEncoded>,
@@ -350,8 +390,58 @@ export const makeJournalLayer = <Operation, Snapshot, Principal, OperationEncode
     makeJournal(options),
   )
 
-const makeShapeEffect = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
-  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded>,
+/**
+ * One journal's service tag together with the layer that satisfies it, both
+ * built from the same type parameters, so the tag cannot be read back as a
+ * journal of some other shape.
+ */
+export interface JournalDefinition<Operation, Snapshot, Principal, OperationEncoded = unknown> {
+  readonly key: string
+  readonly tag: ReturnType<typeof JournalService<Operation, Snapshot, Principal, OperationEncoded>>
+  readonly layer: <SnapshotEncoded = unknown>(
+    options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
+  ) => Layer.Layer<
+    Journal<Operation, Snapshot, Principal, OperationEncoded>,
+    JournalError | UnsupportedJournalVersionError
+  >
+}
+
+const defineJournal = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
+  key: string,
+): JournalDefinition<Operation, Snapshot, Principal, OperationEncoded> => ({
+  key,
+  tag: JournalService<Operation, Snapshot, Principal, OperationEncoded>(key),
+  layer: options => makeJournalLayer(options, key),
+})
+
+export const Journal = {
+  /** Opens a journal in the current scope. */
+  make: makeJournal,
+  /** Provides a journal as a scoped layer under the default service key. */
+  layer: makeJournalLayer,
+  /** Counters an application can scrape. */
+  metrics: journalMetrics,
+  /**
+   * Declares a journal's service key and its type parameters once, and returns
+   * the tag and the layer constructor that agree on them.
+   *
+   * ```ts
+   * const TodoJournal = Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')
+   * const layer = TodoJournal.layer(options)
+   * const journal = yield* TodoJournal.tag
+   * ```
+   */
+  define: defineJournal,
+}
+
+const makeShapeEffect = <
+  Operation,
+  Snapshot,
+  Principal,
+  OperationEncoded = unknown,
+  SnapshotEncoded = unknown,
+>(
+  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
 ): Effect.Effect<
   Journal<Operation, Snapshot, Principal, OperationEncoded>,
   JournalError | UnsupportedJournalVersionError,
@@ -471,19 +561,30 @@ interface EffectRow {
   readonly error: string | null
 }
 
-const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
+const makeShape = <
+  Operation,
+  Snapshot,
+  Principal,
+  OperationEncoded = unknown,
+  SnapshotEncoded = unknown,
+>(
   sql: SqlClient.SqlClient,
-  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded>,
+  options: JournalOptions<Operation, Snapshot, Principal, OperationEncoded, SnapshotEncoded>,
   changes: PubSub.PubSub<string>,
   inFlight: SynchronizedRef.SynchronizedRef<Map<string, Deferred.Deferred<unknown, unknown>>>,
 ): Journal<Operation, Snapshot, Principal, OperationEncoded> => {
   type Shape = Journal<Operation, Snapshot, Principal, OperationEncoded>
 
+  // Resolve a `Schema.Codec` to its function pair once, not on every append:
+  // `Schema.decodeUnknownSync` compiles the schema each time it is called.
+  const operationCodec: Codec<Operation, OperationEncoded> = resolveCodec(options.operation)
+  const snapshotCodec: Codec<Snapshot, SnapshotEncoded> = resolveCodec(options.snapshot)
+
   const decodeSnapshot = (row: DocumentRow | undefined): { snapshot: Snapshot; cursor: Cursor } =>
     row === undefined
       ? { snapshot: options.empty(), cursor: toCursor(0) }
       : {
-          snapshot: options.snapshot.decode(JSON.parse(String(row.snapshot))),
+          snapshot: snapshotCodec.decode(JSON.parse(String(row.snapshot))),
           cursor: toCursor(Number(row.cursor)),
         }
 
@@ -545,7 +646,7 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
     return yield* Effect.try({
       try: () =>
         rows.map(row => ({
-          operation: options.operation.decode(JSON.parse(String(row.input))),
+          operation: operationCodec.decode(JSON.parse(String(row.input))),
           opId: toOpId(String(row.op_id)),
           sequence: toSequence(Number(row.sequence)),
           actorId: toActorId(String(row.actor_id)),
@@ -574,7 +675,7 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
   ): Effect.Effect<PreparedOperation, InvalidOperationError> =>
     Effect.gen(function* () {
       const operation = yield* Effect.try({
-        try: () => options.operation.decode(input),
+        try: () => operationCodec.decode(input),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
       const opId = yield* Effect.try({
@@ -587,7 +688,7 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
       })
       const encoded = yield* Effect.try({
         try: () => {
-          const json = canonicalJson(options.operation.encode(operation))
+          const json = canonicalJson(operationCodec.encode(operation))
           if (json === undefined) throw new Error('operation encoded to no JSON value')
           return json
         },
@@ -622,7 +723,7 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
           if (storedJson !== encoded || priorActor !== actorId)
             return yield* Effect.fail(conflict())
           const stored = yield* Effect.try({
-            try: () => options.operation.decode(JSON.parse(String(row.input))),
+            try: () => operationCodec.decode(JSON.parse(String(row.input))),
             catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
           })
           return {
@@ -652,29 +753,39 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
         try: () => decodeSnapshot(documents[0]),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
-      yield* Effect.try({
+      const validation = yield* Effect.try({
         try: () => options.validate?.({ key, principal, operation, snapshot, cursor }),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
+      if (validation !== undefined) yield* validation
       const decision = yield* Effect.try({
         try: () => options.authorize?.({ key, principal, operation, snapshot }) ?? true,
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
-      const allowed = typeof decision === 'boolean' ? decision : yield* decision
-      if (!allowed)
+      // `allowed` distinguishes the refusal object from an Effect; a boolean
+      // and an object are the only two non-suspended answers.
+      const settled =
+        typeof decision === 'boolean' || 'allowed' in decision ? decision : yield* decision
+      if (settled !== true) {
+        const reason = settled === false ? undefined : settled.reason
         return yield* Effect.fail(
           new OperationRejectedError({
             opId,
-            message: `Operation "${opId}" was refused by authorization`,
+            message:
+              reason === undefined
+                ? `Operation "${opId}" was refused by authorization`
+                : `Operation "${opId}" was refused by authorization: ${reason}`,
+            ...(reason === undefined ? {} : { reason }),
           }),
         )
+      }
       const reduced = yield* Effect.try({
         try: () => options.reduce(snapshot, operation),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
       const sequence = toSequence(cursor + 1)
       const encodedSnapshot = yield* Effect.try({
-        try: () => JSON.stringify(options.snapshot.encode(reduced)),
+        try: () => JSON.stringify(snapshotCodec.encode(reduced)),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
       yield* sql`INSERT INTO operations (key, op_id, sequence, actor_id, input, payload_hash) VALUES (${key}, ${opId}, ${sequence}, ${actorId}, ${encoded}, ${payloadHash})`
@@ -855,7 +966,7 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
   const runEffect: Shape['runEffect'] = <Result, E>(
     key: string,
     run: Effect.Effect<Result, E>,
-    options?: { readonly retryFailed?: boolean },
+    options?: { readonly retryFailed?: boolean | ((record: EffectRecord) => boolean) },
   ) =>
     Effect.gen(function* () {
       yield* Effect.annotateCurrentSpan({ key })
@@ -889,9 +1000,9 @@ const makeShape = <Operation, Snapshot, Principal, OperationEncoded = unknown>(
           return recorded.value.result as Result
         }
         if (
-          options?.retryFailed === false &&
           Option.isSome(recorded) &&
-          recorded.value.status === 'failed'
+          recorded.value.status === 'failed' &&
+          !retriesFailed(options?.retryFailed, recorded.value)
         ) {
           return yield* Effect.fail(
             new EffectFailedError({

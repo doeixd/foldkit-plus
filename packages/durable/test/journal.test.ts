@@ -3,9 +3,12 @@ import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Config, Deferred, Effect, Fiber, Metric, Option, Stream, type Scope } from 'effect'
+import { Config, Deferred, Effect, Fiber, Metric, Option, Schema, Stream, type Scope } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  Codec,
+  InvalidOperationError,
+  Journal,
   JournalService,
   actorId,
   cursor,
@@ -16,9 +19,7 @@ import {
   opId,
   sequence,
   type AppendResult,
-  type Codec,
   type Committed,
-  type Journal,
   type JournalOptions,
 } from '../src/index.js'
 
@@ -116,7 +117,7 @@ const withJournal = <A>(
   )
 
 /** Narrows an append result that must carry the committed operation. */
-const appendCommitted = (result: AppendResult<Operation>): Committed<Operation> => {
+const appendCommitted = <Operation>(result: AppendResult<Operation>): Committed<Operation> => {
   if (result._tag !== 'Committed') throw new Error('Expected a committed operation')
   return result.committed
 }
@@ -1050,6 +1051,9 @@ describe('the effect ledger', () => {
     }))
 })
 
+// `makeJournal`, `makeJournalLayer`, and `JournalService` are the original
+// spellings the `Journal` namespace delegates to; every test above builds
+// through `makeJournal`, and this one keeps the layer and its tag exercised.
 describe('the journal layer', () => {
   it('provides the journal as a scoped service with a Config file', async () => {
     const result = await Effect.runPromise(
@@ -1069,4 +1073,283 @@ describe('the journal layer', () => {
 
     expect(result).toEqual({ snapshot: { ids: ['a'] }, cursor: 1 })
   })
+})
+
+describe('the Journal namespace', () => {
+  it('opens a journal through Journal.make and counts the append', () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const before = yield* Metric.value(Journal.metrics.appends)
+          const journal = yield* Journal.make<Operation, Snapshot, Principal>({
+            file: ':memory:',
+            ...base,
+          })
+          yield* journal.append(todos, add(1, 'a'), principal)
+
+          expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['a'] }, cursor: 1 })
+          expect((yield* Metric.value(Journal.metrics.appends)).count - before.count).toBe(1)
+          // The namespace delegates; it does not register a second set of counters.
+          expect(Journal.metrics).toBe(journalMetrics)
+        }),
+      ),
+    ))
+
+  it('provides the journal through Journal.layer under the default key', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const journal = yield* JournalService<Operation, Snapshot, Principal>()
+        yield* journal.append(todos, add(1, 'a'), principal)
+        return yield* journal.load(todos)
+      }).pipe(
+        Effect.provide(
+          Journal.layer<Operation, Snapshot, Principal>({ file: ':memory:', ...base }),
+        ),
+      ),
+    )
+
+    expect(result).toEqual({ snapshot: { ids: ['a'] }, cursor: 1 })
+  })
+
+  it("ties a definition's tag and layer to one key", async () => {
+    const Todos = Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')
+    expect(Todos.key).toBe('app/TodoJournal')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const journal = yield* Todos.tag
+        yield* journal.append(todos, add(1, 'a'), principal)
+        return yield* journal.load(todos)
+      }).pipe(Effect.provide(Todos.layer({ file: ':memory:', ...base }))),
+    )
+
+    expect(result).toEqual({ snapshot: { ids: ['a'] }, cursor: 1 })
+  })
+
+  it('keeps two definitions on separate databases', async () => {
+    const First = Journal.define<Operation, Snapshot, Principal>('app/first')
+    const Second = Journal.define<Operation, Snapshot, Principal>('app/second')
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const first = yield* First.tag
+        const second = yield* Second.tag
+        yield* first.append(todos, add(1, 'a'), principal)
+        return [(yield* first.load(todos)).cursor, (yield* second.load(todos)).cursor]
+      }).pipe(
+        Effect.provide(First.layer({ file: ':memory:', ...base })),
+        Effect.provide(Second.layer({ file: ':memory:', ...base })),
+      ),
+    )
+
+    expect(result).toEqual([1, 0])
+  })
+})
+
+const Amount = Schema.Struct({ opId: Schema.String, amount: Schema.FiniteFromString })
+const Total = Schema.Struct({ total: Schema.Number })
+type Amount = typeof Amount.Type
+type AmountEncoded = typeof Amount.Encoded
+type Total = typeof Total.Type
+
+const amountOptions = {
+  file: ':memory:' as const,
+  operation: Amount,
+  snapshot: Total,
+  empty: (): Total => ({ total: 0 }),
+  reduce: (state: Total, op: Amount): Total => ({ total: state.total + op.amount }),
+  opId: (op: Amount) => opId(op.opId),
+  actorId: (value: Principal) => actorId(value.actorId),
+}
+
+const withAmounts = <A>(
+  body: (
+    journal: Journal<Amount, Total, Principal, AmountEncoded>,
+  ) => Generator<Effect.Effect<unknown, unknown, Scope.Scope>, A, unknown>,
+): Promise<A> =>
+  Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const journal = yield* makeJournal(amountOptions)
+        return yield* Effect.gen(() => body(journal))
+      }),
+    ),
+  )
+
+describe('a Schema codec', () => {
+  it('decodes the encoded side on append and reads it back decoded', () =>
+    withAmounts(function* (journal) {
+      const committed = appendCommitted(
+        yield* journal.append(todos, { opId: 'a:1', amount: '5' }, principal),
+      )
+      expect(committed.operation).toEqual({ opId: 'a:1', amount: 5 })
+
+      // The snapshot round-trips through the schema's encoded form in SQLite.
+      expect(yield* journal.load(todos)).toEqual({ snapshot: { total: 5 }, cursor: 1 })
+      expect((yield* journal.read(todos, cursor(0))).map(entry => entry.operation)).toEqual([
+        { opId: 'a:1', amount: 5 },
+      ])
+    }))
+
+  it('reports a schema validation failure as a typed InvalidOperationError', () =>
+    withAmounts(function* (journal) {
+      const result = yield* Effect.result(
+        journal.append(todos, { opId: 'a:1', amount: 'not-a-number' }, principal),
+      )
+      expect(result).toMatchObject({ _tag: 'Failure', failure: { _tag: 'InvalidOperationError' } })
+      expect((yield* journal.load(todos)).cursor).toBe(0)
+    }))
+
+  it('stores the schema-encoded payload, so a retransmission is idempotent', () =>
+    withAmounts(function* (journal) {
+      yield* journal.append(todos, { opId: 'a:1', amount: '5' }, principal)
+      const again = appendCommitted(
+        yield* journal.append(todos, { amount: '5', opId: 'a:1' }, principal),
+      )
+      expect(again.sequence).toBe(1)
+      expect((yield* journal.load(todos)).snapshot).toEqual({ total: 5 })
+    }))
+
+  it('accepts the same schema converted with Codec.fromSchema', () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const journal = yield* makeJournal({
+            ...amountOptions,
+            operation: Codec.fromSchema(Amount),
+            snapshot: Codec.fromSchema(Total),
+          })
+          yield* journal.append(todos, { opId: 'a:1', amount: '5' }, principal)
+          expect(yield* journal.load(todos)).toEqual({ snapshot: { total: 5 }, cursor: 1 })
+        }),
+      ),
+    ))
+})
+
+describe('an authorization refusal', () => {
+  it("carries the rule's reason on the error and in its message", () =>
+    withJournal(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, remove(1, 'a'), principal))
+        expect(result).toMatchObject({
+          _tag: 'Failure',
+          failure: {
+            _tag: 'OperationRejectedError',
+            reason: 'only additions are allowed here',
+            message:
+              'Operation "a:1" was refused by authorization: only additions are allowed here',
+          },
+        })
+      },
+      {
+        authorize: ({ operation }) =>
+          operation.kind === 'add' || { allowed: false, reason: 'only additions are allowed here' },
+      },
+    ))
+
+  it('carries a reason refused from an Effect', () =>
+    withJournal(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, add(1, 'a'), principal))
+        expect(result).toMatchObject({
+          _tag: 'Failure',
+          failure: { _tag: 'OperationRejectedError', reason: 'quota exhausted' },
+        })
+      },
+      { authorize: () => Effect.succeed({ allowed: false as const, reason: 'quota exhausted' }) },
+    ))
+
+  it('leaves the reason absent and the message unchanged for a plain false', () =>
+    withJournal(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, add(1, 'a'), principal))
+        expect(result._tag).toBe('Failure')
+        if (result._tag !== 'Failure') return
+        const failure = result.failure
+        expect(failure).toMatchObject({
+          _tag: 'OperationRejectedError',
+          message: 'Operation "a:1" was refused by authorization',
+        })
+        expect((failure as { readonly reason?: string }).reason).toBeUndefined()
+      },
+      { authorize: () => false },
+    ))
+})
+
+describe('an Effect-returning validate', () => {
+  it('refuses with the InvalidOperationError it fails with', () =>
+    withJournal(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, add(1, 'a'), principal))
+        expect(result).toMatchObject({
+          _tag: 'Failure',
+          failure: { _tag: 'InvalidOperationError', message: 'title is empty' },
+        })
+        expect((yield* journal.load(todos)).cursor).toBe(0)
+      },
+      {
+        validate: () => Effect.fail(new InvalidOperationError({ message: 'title is empty' })),
+      },
+    ))
+
+  it('commits when it succeeds', () =>
+    withJournal(
+      function* (journal) {
+        const committed = appendCommitted(yield* journal.append(todos, add(1, 'a'), principal))
+        expect(committed.sequence).toBe(1)
+      },
+      { validate: () => Effect.void },
+    ))
+})
+
+describe('a retryFailed predicate', () => {
+  it('decides per record from the recorded failure', () =>
+    withJournal(function* (journal) {
+      yield* Effect.result(journal.runEffect('transient', Effect.fail(new Error('timeout'))))
+      yield* Effect.result(journal.runEffect('permanent', Effect.fail(new Error('declined'))))
+
+      const retryTransient = (record: { readonly error?: string }) =>
+        record.error?.includes('timeout') === true
+
+      expect(
+        yield* journal.runEffect('transient', Effect.succeed('retried'), {
+          retryFailed: retryTransient,
+        }),
+      ).toBe('retried')
+
+      const blocked = yield* Effect.result(
+        journal.runEffect('permanent', Effect.succeed('retried'), {
+          retryFailed: retryTransient,
+        }),
+      )
+      expect(blocked).toMatchObject({
+        _tag: 'Failure',
+        failure: { _tag: 'EffectFailedError', message: 'declined' },
+      })
+    }))
+
+  it('applies only to failed records, so a pending one is still retried', () =>
+    withJournal(function* (journal) {
+      const started = yield* Deferred.make<void>()
+      const abandoned = yield* Effect.forkScoped(
+        journal.runEffect(
+          'k',
+          Effect.gen(function* () {
+            yield* Deferred.succeed(started, undefined)
+            return yield* Effect.never
+          }),
+        ),
+      )
+      yield* Deferred.await(started)
+      // Interrupting leaves the record `pending`: the run neither settled nor
+      // failed, which is the state a crash mid-run leaves behind.
+      yield* Fiber.interrupt(abandoned)
+      expect(Option.map(yield* journal.effect('k'), record => record.status)).toEqual(
+        Option.some('pending'),
+      )
+
+      expect(yield* journal.runEffect('k', Effect.succeed('retried'), { retryFailed: false })).toBe(
+        'retried',
+      )
+    }))
 })
