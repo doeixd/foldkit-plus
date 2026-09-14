@@ -2,7 +2,7 @@
  * Compile-time Behavior contract. Type-checked, not executed.
  */
 import type { HtmlBuilder } from 'foldkit/html'
-import { Behavior } from '../src/index.js'
+import { Behavior, SlotView } from '../src/index.js'
 import { FieldSlots } from './fixture.js'
 import type { TestMessage } from './resolverFixture.js'
 
@@ -17,6 +17,15 @@ const _validation = Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>({
   }),
 })
 void _validation
+
+const FieldView = SlotView.forMessages<TestMessage>().define(
+  FieldSlots,
+  (input: FieldInput & { readonly label: string }, slots, h) =>
+    h.div(slots.root.attrs([h.Value(input.label)])),
+)
+
+// @ts-expect-error `attach` fixes Input from the behavior, so a subset of the view's input is rejected.
+FieldView.pipe(Behavior.attach(_validation))
 
 Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>({
   // @ts-expect-error unknown slot key.

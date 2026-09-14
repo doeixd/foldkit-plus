@@ -87,11 +87,46 @@ const makeView = <Slots, Input, Message>(
   }) as unknown as SlotView<Slots, Input, Message>
 }
 
+/**
+ * Defines a view over published Slots.
+ *
+ * `Message` has no anchor but the render callback's builder, so it is inferred
+ * from an explicit `h: HtmlBuilder<Message>` annotation on that parameter.
+ * Without one it resolves to `unknown`, and the first error appears later and
+ * elsewhere — an invariance mismatch at `Style.attach`/`Behavior.attach` that
+ * does not name the missing annotation. `forMessages<Message>()` fixes the
+ * Message universe up front instead, and leaves `h` contextually typed.
+ */
 export const define = <Slots, Input, Message>(
   slots: Slots,
   render: SlotViewRender<Slots, Input, Message>,
   options?: { readonly name?: string },
 ): SlotView<Slots, Input, Message> => makeView(options?.name, slots, [], render)
+
+/** The `SlotView` constructors with `Message` already fixed. */
+export interface MessageSlotView<Message> {
+  readonly define: <Slots, Input>(
+    slots: Slots,
+    render: SlotViewRender<Slots, Input, Message>,
+    options?: { readonly name?: string },
+  ) => SlotView<Slots, Input, Message>
+}
+
+/**
+ * Binds the view constructors to one Message universe, so the render callback
+ * no longer has to annotate `h` to pin it. `Input` is still inferred from the
+ * callback's own `input` annotation.
+ *
+ * @example
+ * ```ts
+ * const Field = SlotView.forMessages<Message>().define(
+ *   FieldSlots,
+ *   (input: FieldInput, slots, h) =>
+ *     h.input(slots.input.attrs([h.OnInput(value => Message.ChangedValue({ value }))])),
+ * )
+ * ```
+ */
+export const forMessages = <Message>(): MessageSlotView<Message> => ({ define })
 
 /** A transform on any view, used by Message-free static mixins such as Style. */
 export type SlotViewTransform = <Slots, Input, Message>(

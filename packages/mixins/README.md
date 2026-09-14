@@ -61,7 +61,6 @@ Surface projection, and `foldkit-mixins-ui` adapts `@foldkit/ui`.
 
 ```ts
 import { Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 
@@ -94,11 +93,10 @@ const Validation = Behavior.forSlots(FieldSlots)<FieldInput, Message>({
   }),
 })
 
-// 4. The view, and the two attachments.
-const Field = SlotView.define(
-  FieldSlots,
-  // `h`'s annotation is what pins the view's Message universe.
-  (input: FieldInput, slots, h: HtmlBuilder<Message>) =>
+// 4. The view, and the two attachments. `forMessages` fixes the Message
+// universe the view renders into, so `h` is typed without an annotation.
+const Field = SlotView.forMessages<Message>()
+  .define(FieldSlots, (input: FieldInput, slots, h) =>
     h.label(slots.root.attrs(), [
       h.input(
         slots.input.attrs([
@@ -107,7 +105,8 @@ const Field = SlotView.define(
         ]),
       ),
     ]),
-).pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
+  )
+  .pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
 ```
 
 `slots.input.attrs(base)` returns the base attributes plus every attached
@@ -205,6 +204,20 @@ Multiple mount contributions compose into **one** `OnMount` per element.
 
 `SlotView.define(slots, render)` is a pure view that publishes slots. Attach with
 `SlotView.attach`, `Style.attach` or `Behavior.attach`; each returns a new view.
+
+Nothing but the render callback's builder names the view's Message universe, so
+plain `define` infers it from an explicit `h: HtmlBuilder<Message>` annotation on
+that parameter. Without one, `Message` is `unknown` and the first error lands at
+`Style.attach`/`Behavior.attach` as a variance mismatch that never mentions the
+annotation. `SlotView.forMessages<Message>().define(slots, render)` fixes the
+universe up front instead; `Input` still comes from the callback's own `input`
+annotation.
+
+`Behavior.attach` takes the behavior's `Input` as the attached view's `Input`, so
+declare the behavior over the view's input type, not over the subset of fields it
+reads — a subset is rejected, and a superset widens what the view must be called
+with.
+
 For a component whose render payload has **per-item** groups (tabs, options,
 calendar cells), call `SlotView.buildersFor(slots, mixins, { input, h })` and map
 the items yourself — one contribution then applies to every item while each

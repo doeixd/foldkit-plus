@@ -142,6 +142,13 @@ export const forSlots =
     })
   }
 
+/**
+ * Attaches a Behavior to a view. The behavior's `Input` becomes the attached
+ * view's `Input`: a behavior declared over only the fields it reads is rejected
+ * even though those fields are a subset, and one declared over extra fields
+ * widens what the view must be called with. Declare `Input` as the view's own
+ * input type.
+ */
 export const attach =
   <BehaviorSlots, Message, Input>(behavior: NamedBehavior<BehaviorSlots, Input, Message>) =>
   <ViewSlots>(
