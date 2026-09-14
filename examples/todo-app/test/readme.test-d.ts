@@ -15,17 +15,21 @@ const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Sche
 const Model = Schema.Struct({
   todos: Schema.Array(Todo),
   filter: Schema.Literals(['all', 'active', 'done']),
+  draft: Schema.String,
 })
 const Message = defineMessageUnion({
   ...Mirror.messages,
+  RequestedTodo: { title: Schema.String },
   SubmittedTodo: { id: Schema.String, title: Schema.String },
   ToggledTodo: { id: Schema.String },
   DeletedTodo: { id: Schema.String },
 })
-const initial: typeof Model.Type = { todos: [], filter: 'all' }
+const initial: typeof Model.Type = { todos: [], filter: 'all', draft: '' }
 
 const update = (model: typeof Model.Type, message: typeof Message.Type) => {
   switch (message._tag) {
+    case 'RequestedTodo':
+      return { model }
     case 'SubmittedTodo':
       return {
         model: {
@@ -51,33 +55,98 @@ const update = (model: typeof Model.Type, message: typeof Message.Type) => {
 
 // --- the README sample ------------------------------------------------------
 
-// The application: an ordinary Model, Message union, and update.
+type Principal = { readonly role: 'owner' | 'guest' }
+const isOwner = (principal: Principal) => principal.role === 'owner'
+
+// 1. This is still the application: one Model, one Message union, one update.
+// Surface adds typed references and inspection metadata; it does not add runtime state.
 const App = Surface.application({ Model, Message, initial, update })
 
-// What the board renders, and the only Messages it may cause.
+// 2. A Surface is a public boundary for a feature: what it may observe and cause.
+// A renderer bound to Board can only construct these two Messages.
 const Board = App.surface('Board', {
   model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
   messages: [Message.ToggledTodo, Message.DeletedTodo],
 })
 
-// What replicates: this slice, changed by these Messages, replayed through update.
-const TodoSync = Sync.forApplication(App).make({
-  documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),
-  durable: MessageSet.make(App, [Message.SubmittedTodo, Message.ToggledTodo, Message.DeletedTodo]),
+// A read-only Surface can be reused by something that only needs context.
+const Overview = App.surface('Overview', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
 })
 
-// What an agent may see (a Surface) and do (Messages update already handles).
-const TodoAgent = Agent.forApplication(App)
+// 3. Sync declares ownership of one writable slice and the facts that change it.
+// Projection.pick is writable because checkpoints must install back into Model;
+// replay still runs these Messages through the application's own update.
+const TodoSync = Sync.forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    documentId: DocumentId.make('todos'),
+    shared: Projection.pick(App.fields.todos),
+    durable: MessageSet.make(App, [
+      Message.SubmittedTodo,
+      Message.ToggledTodo,
+      Message.DeletedTodo,
+    ]),
+    authorize: {
+      // Policy lives on the contract and is enforced by the server journal.
+      DeletedTodo: ({ principal }) => isOwner(principal),
+    },
+  })
+
+// The server gets codecs, empty snapshot, replay, and authorization from Sync.
+// There is no second server-side reducer to keep in agreement.
+TodoSync.journalContract()
+
+// 4. Agent exposes the same application vocabulary instead of reimplementing actions.
+const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
 const AppAgent = TodoAgent.make({
-  context: Board,
+  context: Overview,
   messages: TodoAgent.expose(Message, {
-    ToggledTodo: { name: 'toggle_todo', description: 'Mark a todo done, or undo that' },
+    RequestedTodo: Agent.variant({
+      name: 'add_todo',
+      description: 'Add a todo with the given title',
+
+      // The protocol input can be smaller than the internal Message.
+      input: Schema.Struct({ title: Schema.String }),
+      toMessage: ({ title }) => ({ title }),
+
+      // RequestedTodo is an intent. The tool call completes when update later
+      // applies the correlated durable fact produced by the application's Command.
+      completion: {
+        success: Message.SubmittedTodo,
+        correlate: (request, result) => request.title.trim() === result.title,
+      },
+    }),
+    ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },
+    DeletedTodo: {
+      name: 'delete_todo',
+      description: 'Delete a todo (owner only)',
+      // Same rule, checked early at the agent boundary; the journal still owns trust.
+      authorize: ({ principal }) => isOwner(principal),
+    },
   }),
 })
 
-// What the URL shows. Reduced back into the Model on navigation.
-const Filters = Mirror.url(App, { fields: [App.fields.filter] })
+// 5. Mirrors do not own state. They are secondary representations of Model fields.
+const Filters = Mirror.url(App, {
+  name: 'filters',
+  fields: [App.fields.filter], // linkable: ?filter=active
+})
+const Prefs = Mirror.kv(App, {
+  key: 'todo/prefs',
+  fields: [App.fields.draft], // remembered on this device
+})
 
-// The application as data: one owner per field, every Message accounted for.
-Module.validate(Module.make(App, [Board, TodoSync, AppAgent, Filters.contract])) // []
+// 6. The architecture itself is data. Validate ownership/capability relationships,
+// or turn the same declarations into documentation and tooling input.
+const Project = Module.make(App, [
+  Board,
+  Overview,
+  TodoSync,
+  AppAgent,
+  Filters.contract,
+  Prefs.contract,
+])
+
+Module.validate(Project) // []
+Module.toMermaid(Project) // architecture generated from the declarations above
