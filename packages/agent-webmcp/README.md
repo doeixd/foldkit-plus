@@ -1,24 +1,39 @@
 # `foldkit-agent-webmcp`
 
-Turns a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent)
-contract into browser tools, so an agent running **inside the page** can use the
-application the person in front of it is already using.
+Publishes a [`foldkit-agent`](../agent) runtime as browser-native WebMCP tools.
 
-[WebMCP](https://github.com/webmachinelearning/webmcp) is an experimental web
-platform proposal: a page publishes tools on `document.modelContext`, and a
-browser-resident agent calls them. Because the tool runs in the page, its
-`execute` dispatches a Message straight into the live Foldkit Runtime. There is
-no DOM automation, no scraping, no second copy of the application's logic, and
-no browser-session bridge.
+Use it when an agent runs **inside the page** and should operate the same live
+Foldkit application the person is using. This package does not define new agent
+capabilities and does not automate the DOM. It translates the capabilities your
+agent contract already exposes into `document.modelContext` tools.
 
 ```text
-browser agent -> document.modelContext -> foldkit-agent-webmcp
-              -> Foldkit AgentRuntime  -> Message -> update -> Model + Commands
+Foldkit application
+       |
+       v
+AssistantAgent              protocol-neutral contract
+       |
+       | AgentBuilder.bind(...)
+       v
+AgentRuntime                live Model + dispatch + policy
+       |
+       v
+foldkit-agent-webmcp        adapter only
+       |
+       v
+document.modelContext      browser tools
+       |
+       v
+Message -> update -> Model + Commands
 ```
 
-The agent can only do what the contract exposes, and the contract only exposes
-Messages `update` already handles. Everything an agent may see or do is decided
-in `foldkit-agent`; this package translates and nothing else.
+The authority boundary stays in `foldkit-agent`: the contract decides what the
+agent may observe and which Messages it may cause. WebMCP only makes those
+capabilities available to a browser-resident agent.
+
+[WebMCP](https://github.com/webmachinelearning/webmcp) is an experimental web
+platform proposal. No stable browser ships it today, so feature detection is
+part of the normal integration path.
 
 ## Install
 
@@ -28,92 +43,83 @@ pnpm add foldkit-agent foldkit-agent-webmcp
 
 `foldkit`, `effect`, and `foldkit-agent` are peer dependencies.
 
-## Usage
+## Sixty seconds: publish a bound runtime
 
-The whole path, from a declared contract to live tools:
+Assume the application already declared a protocol-neutral contract:
+
+```ts
+const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
+const AssistantAgent = AgentBuilder.make({ ... })
+```
+
+Bind that contract to the running application, then register its currently
+available capabilities with WebMCP:
 
 ```ts
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 
-// 1. Bind the contract to the running application. `TodoAgent` is
-//    `Agent.forApplication(App)`, or `Agent.forModel<Model>()` without one.
-const agent = TodoAgent.bind({
-  definition: AppAgent,
+const agentRuntime = AgentBuilder.bind({
+  definition: AssistantAgent,
   host: {
     model: mounted.model,
-    dispatch: (message: Message) => {
-      mounted.dispatch(message)
-    },
-    subscribe: mounted.subscribe, // lets tools appear and disappear with the Model
-    observe: mounted.observe, // required by a capability with a completion contract
+    dispatch: message => mounted.dispatch(message),
+    subscribe: mounted.subscribe,
+    observe: mounted.observe, // required only by capabilities with completion contracts
   },
 })
 
-// 2. Publish it, if this browser speaks WebMCP.
 const modelContext = AgentWebMcp.documentModelContext()
+
 if (modelContext !== undefined) {
-  const registration = AgentWebMcp.register({ agent, modelContext })
+  const registration = AgentWebMcp.register({
+    agent: agentRuntime,
+    modelContext,
+  })
+
   window.addEventListener('beforeunload', () => registration.unregister())
 }
 ```
 
-**Check for support first.** WebMCP ships in no stable browser today, so
-`document.modelContext` is usually absent. `documentModelContext()` returns it
-or `undefined`, and is safe on a server, where there is no `document` at all.
-Calling `register()` without a model context **throws**, on the grounds that
-silently registering nothing would look like a working integration. Feature-detect,
-or pass a `modelContext` of your own.
+That is the whole architecture: the contract remains protocol-neutral, the
+runtime remains the one authority for availability/authorization/dispatch, and
+this package translates it to the browser API.
 
-Registration begins immediately and in the background: `register` returns as
-soon as the reconcile is scheduled, not when the browser has accepted the tools.
-Pass `onError` to hear about a failure in that first pass, or `await
-registration.refresh()` when you want to know the tools are live.
+`documentModelContext()` is safe during SSR and returns `undefined` when no
+WebMCP producer surface exists. Calling `register()` without a model context
+throws rather than silently pretending registration succeeded.
 
-[`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo)
-registers a real contract and executes the resulting tools;
-[`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)
-does it in a real browser over a local-first replica.
+Registration starts immediately, but browser registration is asynchronous.
+`register()` returns after reconciliation is scheduled; use
+`await registration.refresh()` when the caller needs to know that the browser
+has accepted the current tool set, and `onError` for background reconcile
+failures.
 
 ## What a capability becomes
 
-Each **currently available** capability becomes one tool:
+Each **currently available** capability becomes one WebMCP tool:
 
 ```text
-capability name     -> tool name
-variant description -> description
-derived JSON Schema -> inputSchema
-Runtime dispatch    -> execute
+foldkit-agent                    WebMCP
+
+capability name          ->      tool name
+variant description      ->      description
+encoded input Schema     ->      inputSchema
+AgentRuntime dispatch    ->      execute
+completion contract      ->      resolved tool outcome
 ```
 
-No schema and no handler is written twice. `execute` decodes its input through
-the capability's own Effect Schema, runs `available` and `authorize`, and
-dispatches; a capability with a `completion` contract resolves when the
-correlated Message is applied, so the agent learns the outcome rather than that
-the call was received.
+No input schema or handler is written again. `execute` delegates to the bound
+runtime, which performs the same decode, availability check, authorization,
+dispatch, cancellation, and completion handling as every other adapter.
 
-### Options
+A capability with a completion contract resolves when its correlated success or
+failure Message is observed. Without one, validated dispatch is the completion
+boundary.
 
-| Option | Default | Purpose |
-| --- | --- | --- |
-| `agent` | — | The bound `AgentRuntime`. |
-| `modelContext` | `document.modelContext` | The WebMCP producer surface. Pass one to target a different surface, or to drive the adapter in a test. |
-| `signal` | — | Unregisters everything when aborted. An already-aborted signal unregisters at once. |
-| `followModel` | `true` | Reconcile registrations as the Model changes. Inert unless the host supports `subscribe`. |
-| `invocationId` | `crypto.randomUUID()` | Supplies the invocation id. |
-| `onError` | — | Reports a failure from a reconcile no caller is awaiting: the initial registration, or one a Model change triggered. |
+## Tools follow the Model
 
-### The returned registration
-
-```ts
-registration.refresh() // Promise: reconcile against the current Model
-registration.registered() // the capability names currently registered
-registration.unregister() // abort every registration and stop following
-```
-
-## Tools appear and disappear with the Model
-
-Availability is a projection of Model state, which falls out of the
-architecture rather than needing its own mechanism:
+Availability is Model-dependent, so the advertised WebMCP tool set may change as
+the application changes:
 
 ```ts
 RequestedDeleteTodo: {
@@ -124,40 +130,52 @@ RequestedDeleteTodo: {
 ```
 
 ```text
-Todo list          tools: create_todo
-user selects todo  -> Model changes
-                   -> tools: create_todo, delete_todo
+no selection       tools: create_todo
+       |
+user selects todo
+       v
+selected todo      tools: create_todo, delete_todo
 ```
 
-With `followModel` left on and a host that supports `subscribe`, every
-transition reconciles the registrations: capabilities that are gone have their
-registration signal aborted, and capabilities that have appeared are registered.
-Availability is stronger than visibility. A capability the Model does not
-currently offer is absent from the tool list **and** refused if called by name.
+With `followModel: true` (the default) and a host with `subscribe`, a Model
+change reconciles registrations. A capability that disappears is unregistered;
+a newly available capability is registered.
 
-The adapter holds one `AbortController` per registered tool and passes its
-signal in the options bag, where `registerTool` takes it:
+Availability is stronger than discoverability. A capability absent from the
+tool list is also refused if a caller somehow invokes its known name.
+
+Reconciliation is serialized, so overlapping Model changes cannot register the
+same capability twice. A failed browser registration is not recorded as live and
+is retried on a later reconcile.
+
+## Registration lifecycle
+
+`AgentWebMcp.register` returns:
 
 ```ts
-await document.modelContext.registerTool(tool, { signal: controller.signal })
+registration.registered()  // capability names currently registered
+await registration.refresh() // reconcile against the current Model
+registration.unregister()  // stop following and abort every registration
 ```
 
-Aborting that signal is what unregisters the tool, so it must not go on the
-descriptor. This is the registration signal, distinct from the execution signal
-passed to `execute`, which is forwarded as `Invocation.signal` so an agent can
-cancel a call in flight.
+The main options are:
 
-Reconciles are serialized, and a capability is recorded as registered only once
-`registerTool` resolves, so two overlapping reconciles cannot register one tool
-twice. A registration the browser refuses is not recorded and is retried on the
-next reconcile; `refresh()` rejects with the first failure after attempting the
-rest. Nothing is registered once `unregister()` has run, and a registration that
-was in flight when it ran is aborted.
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `agent` | — | The bound `AgentRuntime`. |
+| `modelContext` | `document.modelContext` | Producer surface to register against; pass a stand-in in tests. |
+| `followModel` | `true` | Reconcile tools as capability availability changes. |
+| `signal` | — | Unregister everything when aborted. |
+| `invocationId` | `crypto.randomUUID()` | Supplies protocol invocation ids. |
+| `onError` | — | Receives failures from background reconciliation. |
+
+Each registered tool has its own registration `AbortController`. That signal is
+for the WebMCP registration itself. It is distinct from a tool invocation's
+execution signal, which is forwarded to `AgentRuntime` as `Invocation.signal`.
 
 ## Errors
 
-A dispatch failure comes back as a tool error rather than a rejection, so the
-calling agent can read it and decide what to do:
+Application refusals become tool errors the calling agent can reason about:
 
 ```text
 No such capability: delete_todo
@@ -167,42 +185,52 @@ Invalid input for "create_todo"
 Capability "create_todo" failed unexpectedly
 ```
 
-The last covers an unexpected defect, such as the host's `dispatch` throwing.
-`execute` never rejects, and never echoes the underlying error back to the
-caller: the detail stays in the application, and the agent gets a message
-written for it.
+`execute` does not expose underlying application errors to the caller. A host or
+adapter defect is flattened to a generic failure; the detailed error stays in
+the application.
 
 ## Testing without a browser
 
-`modelContext` is the only thing this package needs from the platform, so pass
-your own object with a `registerTool` method to capture the descriptors and call
-their `execute` directly. That is how this package's own suite and
-[`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo)
-exercise the real registration path with no browser involved.
+`modelContext` is the only browser-specific seam this package needs. Pass an
+object with `registerTool` to capture descriptors and invoke their `execute`
+functions directly:
+
+```ts
+const registration = AgentWebMcp.register({
+  agent: agentRuntime,
+  modelContext: fakeModelContext,
+})
+
+await registration.refresh()
+```
+
+That is how the package test suite and [`examples/todo`](../../examples/todo)
+exercise the real adapter path without requiring browser support.
+
+[`examples/todo-app`](../../examples/todo-app) shows the same adapter attached to
+a real local-first Foldkit application.
 
 ## Choosing an adapter
+
+All four adapters serve the same `AssistantAgent` contract through a bound
+runtime. Serving more than one does not duplicate capability declarations.
 
 | Where the agent runs | Adapter |
 | --- | --- |
 | In the page, beside the user | `foldkit-agent-webmcp` |
-| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) |
-| Another agent, over A2A | [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) |
-| An Agent Native host | [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) |
-
-They share one contract, so serving two at once is two calls, not two
-definitions.
+| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](../agent-mcp) |
+| Another agent, over A2A | [`foldkit-agent-a2a`](../agent-a2a) |
+| An Agent Native host | [`foldkit-agent-native`](../agent-native) |
 
 ## Why this stays an adapter
 
-WebMCP is experimental and still changing. The types it needs are declared
-locally in `src/webmcp.ts` rather than imported, so the browser API can move
-without the Foldkit agent contract moving with it. If the proposal changes
-shape, this package changes and nothing else does.
+WebMCP is experimental and may change independently of Foldkit Plus. Its browser
+shape is intentionally isolated here. If the proposal changes, this adapter can
+change without changing the protocol-neutral `foldkit-agent` contract or the
+application's Messages.
 
 ## See also
 
-- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md)
-  — what an agent may see and do, and why a capability is a Message.
-- [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent)
-  — the contract this adapter serves.
-- [WebMCP](https://github.com/webmachinelearning/webmcp) — the proposal.
+- [Agents guide](../../docs/agents.md) — the full builder → contract → runtime mental model.
+- [`foldkit-agent`](../agent) — declares and binds the contract this package serves.
+- [WebMCP](https://github.com/webmachinelearning/webmcp) — the browser proposal.
