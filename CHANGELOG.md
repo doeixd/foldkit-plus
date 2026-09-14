@@ -82,7 +82,8 @@ casts: a cast in a test marked a gap in the API.
   subscribe }` outside it. Completed means the condition holds, not that this
   call made it true; a creation still completes on its Message with `correlate`.
   A throwing predicate fails the invocation as a defect, and a value a
-  notification left unchanged is not evaluated again.
+  notification left unchanged is not evaluated again; a `source` is re-evaluated
+  on every notification, since it may mutate its value in place.
 - `request` is inferred inline in `Agent.expose`; inside `Agent.variant` it is
   annotated and checked against `input`. Elsewhere it is `unknown`.
 - **`CompletionOutcome` is a union**, and so is `DispatchResult.completion`: a

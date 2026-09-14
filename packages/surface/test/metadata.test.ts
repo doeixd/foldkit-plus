@@ -79,17 +79,38 @@ describe('Projection metadata', () => {
   it('reaches Surface.inspect, Surface.contract, and Module.toMarkdown', () => {
     const Page = Surface.make(App, 'Page', {
       model: () =>
-        Projection.struct({ project: entity('Project', 'p1', ['name']), odd: flag('a|b') }),
+        Projection.struct({
+          project: entity('Project', 'p1', ['name']),
+          odd: flag('a\\|b\r\nc\rd'),
+        }),
     })
     const summaries = [
       { name: 'remote-like', entries: ['Project:p1 [name]'] },
-      { name: 'flags', entries: ['a|b'] },
+      { name: 'flags', entries: ['a\\|b\r\nc\rd'] },
     ]
 
     expect(Surface.inspect(Page, undefined).metadata).toEqual(summaries)
     expect(Surface.contract(Page, undefined).metadata).toEqual(summaries)
     expect(Module.toMarkdown(Module.make(App, [Page]))).toContain(
-      '| remote-like: Project:p1 [name]; flags: a\\|b |',
+      '| remote-like: Project:p1 [name]; flags: a\\\\\\|b c d |',
     )
+  })
+
+  it('treats a copy of metadata as empty, alone or beside a sibling', () => {
+    const original = flag('beta').metadata
+    for (const copy of [{ ...original }, structuredClone(original)]) {
+      expect(Flags.get(copy)).toEqual([])
+      const lone = Projection.struct({
+        a: Projection.fromReader(Schema.Boolean, () => false, { metadata: copy }),
+      })
+      expect(Flags.get(lone.metadata)).toEqual([])
+    }
+  })
+
+  it('does not mistake a model shape with read and metadata fields for a Projection', () => {
+    const Page = App.surface('Page', {
+      model: ({ model }) => ({ read: model.todos, metadata: model.selectedTodoId }),
+    })
+    expect(Page.projection(undefined).dependencies).toEqual([['todos'], ['selectedTodoId']])
   })
 })

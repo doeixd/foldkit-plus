@@ -198,7 +198,11 @@ export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
  * `retain`.
  */
 export type SubscriptionEntries<AppModel, Active> = {
-  readonly [K in keyof Active & string as `${K}.read` | `${K}.live`]: RemoteEntry<AppModel, any>
+  // `Object.entries` turns a numeric key into a string, so numeric keys have entries too.
+  readonly [K in keyof Active & (string | number) as `${K}.read` | `${K}.live`]: RemoteEntry<
+    AppModel,
+    any
+  >
 } & { readonly retain: RemoteEntry<AppModel, any> }
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}

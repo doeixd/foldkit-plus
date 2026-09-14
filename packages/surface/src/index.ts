@@ -305,10 +305,17 @@ const noValues: ReadonlyArray<never> = Object.freeze([])
 const entriesByMetadata = new WeakMap<Metadata, Entries>()
 
 const makeMetadata = (entries: Entries): Metadata => {
-  const metadata = Object.freeze({ [MetadataTypeId]: MetadataTypeId }) as Metadata
+  // Non-enumerable, so a spread or structuredClone copy is not branded: a copy
+  // has no entries and must not pass for Metadata.
+  const metadata = Object.freeze(
+    Object.defineProperty({}, MetadataTypeId, { value: MetadataTypeId }),
+  ) as Metadata
   entriesByMetadata.set(metadata, entries)
   return metadata
 }
+
+const isMetadata = (value: unknown): value is Metadata =>
+  typeof value === 'object' && value !== null && entriesByMetadata.has(value as Metadata)
 
 /** A value this module did not make has no entries. */
 const entriesOf = (metadata: Metadata): Entries => entriesByMetadata.get(metadata) ?? noEntries
@@ -316,8 +323,9 @@ const entriesOf = (metadata: Metadata): Entries => entriesByMetadata.get(metadat
 const emptyMetadata = makeMetadata(noEntries)
 
 function combineMetadata(parts: ReadonlyArray<Metadata>): Metadata {
-  // Each part is already merged, so a lone part needs no second pass.
-  if (parts.length === 1) return parts[0]!
+  // Each part is already merged, so a lone part needs no second pass. A lone
+  // foreign value reads as empty, the same as it would beside a sibling.
+  if (parts.length === 1) return isMetadata(parts[0]) ? parts[0] : emptyMetadata
   const grouped = new Map<MetadataKey<any>, unknown[]>()
   for (const part of parts)
     for (const [key, values] of entriesOf(part)) {
@@ -674,8 +682,15 @@ export interface SurfaceInspection {
 export type ParamsSchema<Params> = unknown extends Params
   ? Schema.Codec<Params, unknown> | undefined
   : [Params] extends [void]
-    ? undefined
-    : Schema.Codec<Params, unknown>
+    ? [void] extends [Params]
+      ? // Exactly `void`: no params, no schema.
+        undefined
+      : // `undefined` also extends `void`, but a Surface may still declare its schema.
+        Schema.Codec<Params, unknown> | undefined
+    : [void] extends [Params]
+      ? // `void | X`: the schema is optional.
+        Schema.Codec<Params, unknown> | undefined
+      : Schema.Codec<Params, unknown>
 
 export interface Surface<Root, Model, Message, Params> {
   readonly name: string
@@ -729,7 +744,10 @@ type ModelShape<Root> =
 type ModelOf<Root, R> = R extends Projection<Root, infer M> ? M : StructValue<R>
 
 const isProjection = (value: unknown): value is Projection<unknown, unknown> =>
-  typeof value === 'object' && value !== null && 'read' in value && 'metadata' in value
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { read?: unknown }).read === 'function' &&
+  isMetadata((value as { metadata?: unknown }).metadata)
 
 type MsgOf<Ms extends readonly unknown[]> = {
   readonly [K in keyof Ms]: Ms[K] extends (...args: never[]) => infer M ? M : never
@@ -1132,7 +1150,7 @@ export const Surface = {
     return {
       name,
       owner: app.owner,
-      // Present exactly when `Params` is not `void`, which `ParamsSchema` encodes.
+      // Absent only when `Params` is exactly `void`; `ParamsSchema` keeps it optional otherwise.
       Params: config.Params as ParamsSchema<Params>,
       Message: Schema.Never as unknown as Schema.Schema<MsgOf<Ms>>,
       messages: config.messages ?? [],
@@ -1299,7 +1317,11 @@ export type ModuleItem<Root> =
 
 const label = (contract: Contract): string => `${contract.kind}:${contract.name}`
 /** Metadata summaries are application data (a query's input), so they cannot break the table. */
-const tableCell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\n/g, ' ')
+const tableCell = (text: string): string =>
+  text
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r\n?|\n/g, ' ')
 const pathKey = (path: readonly string[]): string => path.join('.')
 const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
   prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])

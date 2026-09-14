@@ -138,7 +138,7 @@ export const RemoteRequirements = Metadata.key<Requirement>('remote', {
 /** Remote's query connections on a Projection, unioned per connection and window. */
 export const RemoteConnections = Metadata.key<ConnectionRequirement>('remote.connection', {
   merge: mergeConnections,
-  summarize: connection => connection.identity.replace('\u0000', ' '),
+  summarize: connection => connection.identity.split('\u0000').join(' '),
 })
 
 /** The entity requirements a Projection carries. */

@@ -275,13 +275,17 @@ export const awaitState = (options: {
     unsubscribe = undefined
   }
 
+  // Only a projection of an immutable Model can skip an unchanged reference; a
+  // source may mutate its value in place and notify with the same reference.
+  const skipsUnchanged = completion.subscribe === undefined
+
   const check = (): void => {
     if (settled !== undefined || released) return
     try {
       const value = completion.read(model())
       // Every Model change notifies every waiter; one that left this value
       // alone cannot change the answer, so it costs a read and no predicate.
-      if (evaluated && Object.is(value, last)) return
+      if (skipsUnchanged && evaluated && Object.is(value, last)) return
       evaluated = true
       last = value
       if (!completion.predicate(value, input)) return

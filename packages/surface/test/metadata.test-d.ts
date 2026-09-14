@@ -1,5 +1,6 @@
+import type { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Metadata } from '../src/index.js'
+import { Metadata, type ParamsSchema } from '../src/index.js'
 import { Flags, flag } from './flagsLikeFixture.js'
 import { EntityNeeds, entity, type EntityNeed } from './remoteLikeFixture.js'
 
@@ -22,3 +23,12 @@ Metadata.key<string>('mismatched', {
 
 // @ts-expect-error metadata comes from a key or from composition, never an object literal
 Flags.get({ entries: new Map() })
+
+expectTypeOf<ParamsSchema<void>>().toEqualTypeOf<undefined>()
+expectTypeOf<ParamsSchema<undefined>>().toEqualTypeOf<
+  Schema.Codec<undefined, unknown> | undefined
+>()
+expectTypeOf<ParamsSchema<void | string>>().toEqualTypeOf<
+  Schema.Codec<void | string, unknown> | undefined
+>()
+expectTypeOf<ParamsSchema<string>>().toEqualTypeOf<Schema.Codec<string, unknown>>()

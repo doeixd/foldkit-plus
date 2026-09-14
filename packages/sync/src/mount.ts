@@ -161,7 +161,16 @@ export const mount = <
   const modelListeners = new Set<() => void>()
   const committedListeners = new Set<() => void>()
   const notifyCommitted = (): void => {
-    for (const listener of [...committedListeners]) listener()
+    for (const listener of [...committedListeners]) {
+      // A throwing listener must not end the refresh stream it runs inside.
+      try {
+        listener()
+      } catch (error) {
+        queueMicrotask(() => {
+          throw error
+        })
+      }
+    }
   }
   const messageListeners = new Set<(message: Message) => void>()
 

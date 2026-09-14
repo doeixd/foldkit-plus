@@ -382,7 +382,8 @@ completes on its Message with `correlate`.
 
 The result carries `status: 'completed'` and no `message`. A predicate that
 throws fails that invocation as a defect, never the code that changed the Model,
-and a value a notification left unchanged is not evaluated again. `timeout` and
+and a projected value a notification left unchanged is not evaluated again (a
+`source` is re-evaluated on every notification, since it may mutate in place). `timeout` and
 cancellation behave as they do for a Message contract.
 
 An invocation whose signal is already aborted is refused before the Model is

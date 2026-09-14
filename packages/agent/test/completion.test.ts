@@ -681,6 +681,43 @@ describe('state completion', () => {
     expect(listeners.size).toBe(0)
   })
 
+  it('re-evaluates a source that mutates its value in place', async () => {
+    const items: string[] = []
+    const listeners = new Set<() => void>()
+    const source = {
+      get: () => items,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    }
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(MessageUnion, {
+          RequestedCreateTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            completion: Agent.when({
+              source,
+              predicate: (value, request: { readonly title: string }) =>
+                value.includes(request.title),
+              timeout: '1 second',
+            }),
+          },
+        }),
+      }),
+      host: { model: () => emptyModel, dispatch: (_: Message) => {} },
+    })
+
+    const pending = run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+    setTimeout(() => {
+      items.push('milk')
+      for (const listener of [...listeners]) listener()
+    }, 5)
+
+    expect((await pending)._tag).toBe('Success')
+  })
+
   it('does not re-evaluate a value a notification left unchanged', async () => {
     const state = makeStateHost()
     let evaluated = 0
