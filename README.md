@@ -359,7 +359,7 @@ README documents its API.
 | URL and key-value mirrors | [Mirrored state](./docs/mirror.md) |
 | Inside-out view composition | [View composition](./docs/mixins.md) |
 | Running a Foldkit app over a replica | [Runtime binding](./docs/sync-runtime-binding.md) |
-| Architectural influences and where Foldkit Plus differs | [Prior art and design lineage](./docs/prior-art.md) |
+| Design lineage and prior art | [Prior art and design lineage](./docs/prior-art.md) |
 
 The [documentation map](./docs/README.md) gives the full reading order, package
 references, design notes, and historical material. The
