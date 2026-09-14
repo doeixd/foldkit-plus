@@ -16,6 +16,7 @@ describe('the todo app', () => {
     expect(transcript).toContain('draft after submit: ""')
     expect(transcript).toContain('completion: completed SubmittedTodo')
     expect(transcript).toContain('guest clear_completed: AgentAuthorizationError')
+    expect(transcript).toContain('owner rename_list: completed on state, list "Launch"')
     expect(transcript).toContain(
       'registered tools: add_todo, toggle_todo, rename_todo, set_priority, delete_todo, clear_completed, rename_list',
     )
@@ -50,6 +51,15 @@ describe('the todo app', () => {
       'RequestedTodo',
       'ToggledTodo',
     ])
+  })
+
+  it('completes add_todo on its fact and rename_list on the state it reads', () => {
+    const completion = (name: string) =>
+      Agent.toManifest(AppAgent).capabilities.find(capability => capability.name === name)
+        ?.completion
+
+    expect(completion('add_todo')).toEqual({ success: ['SubmittedTodo'] })
+    expect(completion('rename_list')).toEqual({ state: { observes: ['listTitle'] } })
   })
 
   it('mints the fact in a Command and keeps local state out of it', () => {

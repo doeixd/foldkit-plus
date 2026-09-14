@@ -130,6 +130,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`guest clear_completed: ${refused._tag === 'Failure' ? refused.failure._tag : 'allowed'}`)
   await Effect.runPromise(agent.messages.dispatch(Message.ClearedCompleted, {}))
   say(`owner clear_completed: ${titles(store.model().todos)}`)
+  // `rename_list` completes when the list carries the title, not on a Message.
+  const renamed = await Effect.runPromise(
+    agent.messages.dispatch(Message.RenamedList, { title: '  Launch ' }),
+  )
+  say(
+    `owner rename_list: ${renamed.completion?.status} on state, list "${store.model().listTitle}"`,
+  )
 
   // 6. The same contract, reached the way a browser agent reaches it.
   say('')
