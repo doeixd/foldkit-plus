@@ -13,7 +13,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ Ping: {} 
 const example = { todos: [{ id: 'a', title: 'A' }], selectedTodoId: null }
 
 describe('Surface edge cases', () => {
-  it('Projection.fromReader carries no dependencies or requirements by default', () => {
+  it('Projection.fromReader carries no dependencies or metadata by default', () => {
     const reader = Projection.fromReader(
       Schema.Struct({ doubled: Schema.Number }),
       (model: { readonly n: number }) => ({ doubled: model.n * 2 }),
@@ -21,7 +21,7 @@ describe('Surface edge cases', () => {
 
     expect(reader.read({ n: 2 })).toEqual({ doubled: 4 })
     expect(reader.dependencies).toEqual([])
-    expect(reader.requirements).toEqual([])
+    expect(reader.metadata.entries.size).toBe(0)
   })
 
   it('Projection.array over an empty array is an empty projection', () => {

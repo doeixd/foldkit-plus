@@ -3,7 +3,7 @@
  * built from, the wire-to-client reconstructions, and the mutation call.
  */
 import { Context, Effect, Layer, Schema, Stream } from 'effect'
-import type { Requirement } from 'foldkit-surface'
+import type { Requirement } from './requirement.js'
 import { coalesceQueries, coalesceReads, type CoalesceOptions } from './coalesce.js'
 import type { LiveCursor, LiveEvent } from './live.js'
 import type { MutationDescriptor } from './mutation.js'

@@ -389,7 +389,7 @@ const build = <
       owns: shared.dependencies,
       observes: shared.dependencies,
       messages: [...durable.tags],
-      requirements: [],
+      metadata: [],
     }
     return {
       ...sync,

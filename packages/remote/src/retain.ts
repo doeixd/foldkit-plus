@@ -4,7 +4,7 @@
  * the store's refs plus every pending optimistic change, and drops the rest.
  * Roots live outside the Model, so GC arrives as a Message.
  */
-import type { RelationRequirement, Requirement } from 'foldkit-surface'
+import type { RelationRequirement, Requirement } from './requirement.js'
 import { refsIn } from './relation.js'
 import { entityKey, readField, type EntityKey, type EntityStore } from './store.js'
 import type { Connection } from './connection.js'

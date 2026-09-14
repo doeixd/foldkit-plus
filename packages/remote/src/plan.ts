@@ -10,12 +10,10 @@
  * concrete requirements for the targets. Time enters through `PlanFreshness`,
  * never from ambient state; `force` plans every field.
  */
-import { Requirement, type RelationRequirement } from 'foldkit-surface'
 import { stableStringify } from './query.js'
 import { targetsOf } from './relation.js'
+import { Requirement, type RelationRequirement } from './requirement.js'
 import { entityKey, missingFields, readField, type EntityStore } from './store.js'
-
-export type { RelationRequirement, Requirement } from 'foldkit-surface'
 
 type Window = NonNullable<Requirement['windows']>[string]
 

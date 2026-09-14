@@ -7,6 +7,7 @@ import {
   type BoundRemote,
   type RemoteModel,
   initialRemoteModel,
+  requirementsOf,
 } from '../src/index.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -147,7 +148,7 @@ describe('Remote core', () => {
       store: { get: () => initialRemoteModel },
     } as unknown as BoundRemote<unknown, RemoteModel>
 
-    expect(Remote.select(bound, selection)('p1').requirements).toEqual([
+    expect(requirementsOf(Remote.select(bound, selection)('p1'))).toEqual([
       {
         entity: 'Project',
         id: 'p1',

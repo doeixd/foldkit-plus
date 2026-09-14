@@ -16,6 +16,7 @@ import {
   plan,
   refsIn,
   relationShape,
+  requirementsOf,
   tombstone,
   writeEntity,
   type EntityStore,
@@ -220,7 +221,7 @@ describe('Remote.select over a nested selection', () => {
   const projection = Remote.select(AppRemote, ProjectCard)('p1')
 
   it('puts the whole graph on one requirement', () => {
-    expect(projection.requirements).toEqual([cardRequirement])
+    expect(requirementsOf(projection)).toEqual([cardRequirement])
   })
 
   it('assembles every level once the store holds it', () => {

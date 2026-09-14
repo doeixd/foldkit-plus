@@ -8,7 +8,7 @@
  * core attach/pipe algebra applies unchanged.
  */
 import type { HtmlBuilder } from 'foldkit/html'
-import { Surface, type Requirement, type Renderer } from 'foldkit-surface'
+import { Surface, type MetadataSummary, type Renderer } from 'foldkit-surface'
 import { Slots, SlotView, type SlotViewRender } from 'foldkit-mixins'
 
 export const define = <Root, Model, Message, Params, Slots_>(
@@ -66,7 +66,7 @@ const constructorTag = (constructor: unknown): string => {
 export interface SurfaceViewDescription {
   readonly name: string
   readonly observes: ReturnType<typeof Surface.inspect>['dependencies']
-  readonly requirements: ReadonlyArray<Requirement>
+  readonly metadata: ReadonlyArray<MetadataSummary>
   /** Emitted Message tags, not constructors, so the value stays serializable. */
   readonly emits: ReadonlyArray<string>
   readonly slots: ReturnType<typeof Slots.describe>['slots']
@@ -88,7 +88,7 @@ export const describe = <Root, Model, Message, Params, Slots_>(
   return {
     name: ui.name === '' ? inspection.name : ui.name,
     observes: inspection.dependencies,
-    requirements: inspection.requirements,
+    metadata: inspection.metadata,
     emits: inspection.emits.map(constructorTag),
     slots: ui.slots,
     mixins: ui.mixins,

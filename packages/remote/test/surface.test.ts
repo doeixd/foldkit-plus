@@ -10,6 +10,7 @@ import {
   entityKey,
   initialRemoteModel,
   plan,
+  requirementsOf,
   tombstone,
   writeEntity,
 } from '../src/index.js'
@@ -56,7 +57,7 @@ describe('Remote and Surface', () => {
   })
 
   it('exposes requirements the planner turns into a minimal fetch plan', () => {
-    const requirements = selectUser('u1').requirements
+    const requirements = requirementsOf(selectUser('u1'))
     expect(requirements).toEqual([{ entity: 'User', id: 'u1', fields: ['id', 'name'] }])
     expect(plan(emptyStore, requirements)).toEqual([
       { entity: 'User', id: 'u1', fields: ['id', 'name'] },
@@ -78,7 +79,9 @@ describe('Remote and Surface', () => {
     })
 
     const projection = UserPage.projection({ userId: 'u1' })
-    expect(projection.requirements).toEqual([{ entity: 'User', id: 'u1', fields: ['id', 'name'] }])
+    expect(requirementsOf(projection)).toEqual([
+      { entity: 'User', id: 'u1', fields: ['id', 'name'] },
+    ])
 
     const store = emptyStore
     expect(projection.read(root(store))).toEqual({

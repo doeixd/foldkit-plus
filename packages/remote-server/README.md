@@ -22,8 +22,8 @@ the Source declares, not something this package holds.
 pnpm add foldkit-remote-server
 ```
 
-`effect` is a peer dependency; `foldkit-remote` and `foldkit-surface` come with
-it. `foldkit-remote-drizzle` compiles its selections and queries to SQL.
+`effect` is a peer dependency; `foldkit-remote` comes with it.
+`foldkit-remote-drizzle` compiles its selections and queries to SQL.
 
 ## Quick start
 

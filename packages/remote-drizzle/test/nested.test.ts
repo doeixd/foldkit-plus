@@ -10,6 +10,7 @@ import {
   type BoundRemote,
   type RemoteModel,
   initialRemoteModel,
+  requirementsOf,
 } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -89,7 +90,7 @@ const readCards = async (count: number) => {
     const projections = Array.from({ length: count }, (_, i) =>
       Remote.select(boundOver(initialRemoteModel), ProjectCard)(`p${i + 1}`),
     )
-    const requests = projections.flatMap(projection => projection.requirements)
+    const requests = projections.flatMap(requirementsOf)
     const result = await Effect.runPromise(
       RemoteServer.handlers(server, null)
         .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests })
@@ -120,7 +121,7 @@ const readPaged = async (count: number) => {
     const server = RemoteServer.make({ entities: [source(Project), source(Comment)] })
     const requests = Array.from({ length: count }, (_, i) =>
       Remote.select(boundOver(initialRemoteModel), PagedCard)(`p${i + 1}`),
-    ).flatMap(projection => projection.requirements)
+    ).flatMap(requirementsOf)
     const result = await Effect.runPromise(
       RemoteServer.handlers(server, null)
         .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests })

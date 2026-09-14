@@ -5,6 +5,29 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### `foldkit-surface`, `foldkit-remote` (breaking)
+
+- **Projection metadata is open to any package.** Surface declared Remote's
+  requirement types, so no other package could attach facts to a Projection
+  without editing Surface. `Metadata.key<A>(name, { merge, summarize })` gives a
+  package its own typed slot; `Projection.metadata` carries the entries and every
+  combinator merges them per key.
+- **Remote owns its requirements.** `Requirement`, `RelationRequirement`,
+  `ConnectionRequirement` and the `Requirement.merge*` helpers move from
+  `foldkit-surface` to `foldkit-remote`, which stores them under
+  `RemoteRequirements` and `RemoteConnections`. `Window` is gone; it was
+  `QueryWindow`.
+- **Removed:** `Projection.requirements`, `Projection.connections`, and the
+  matching `Projection.fromReader` options. Read them with
+  `requirementsOf(projection)` / `connectionsOf(projection)`, and attach them
+  with `metadata: RemoteRequirements.of(...)`.
+- **`Contract.requirements` and `SurfaceInspection.requirements` are now
+  `metadata: MetadataSummary[]`**, so `Module` and DevTools show every package's
+  entries, not only Remote's. `SurfaceView.describe` follows.
+- `foldkit-remote-server` no longer depends on `foldkit-surface`.
+
 ## 0.4.1
 
 `foldkit-durable` and `foldkit-sync` take a minor for new, additive API. No other

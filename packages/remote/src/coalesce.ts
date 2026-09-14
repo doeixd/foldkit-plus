@@ -14,7 +14,7 @@ import {
   type Exit,
   type Schema,
 } from 'effect'
-import { Requirement, type RelationRequirement } from 'foldkit-surface'
+import { Requirement, type RelationRequirement } from './requirement.js'
 import { stableStringify } from './query.js'
 import {
   REMOTE_PROTOCOL_VERSION,

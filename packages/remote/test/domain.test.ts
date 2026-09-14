@@ -14,14 +14,17 @@ import {
   Query,
   Remote,
   RemoteClient,
+  RemoteConnections,
   RemoteData,
   RemoteMutationError,
   RemotePolicy,
   RemoteQueryError,
   Selection,
+  connectionsOf,
   emptyStore,
   entityKey,
   readField,
+  requirementsOf,
   writeEntity,
   type Boundary,
 } from '../src/index.js'
@@ -149,7 +152,7 @@ describe('the domain’s operations compile to the kernel’s', () => {
 
   it('get, plan, storeOf, prefetch, inspect', async () => {
     const projection = Data.get(summary, 'p1')
-    expect(projection.requirements).toEqual(Remote.select(Data, summary)('p1').requirements)
+    expect(requirementsOf(projection)).toEqual(requirementsOf(Remote.select(Data, summary)('p1')))
     expect(Data.plan(initial, projection)).toEqual(Remote.plan(Data, initial, projection))
     expect(Data.storeOf(initial)).toBe(Remote.storeOf(Data, initial))
 
@@ -287,13 +290,15 @@ describe('Data.live and Data.subscriptions', () => {
   const at = (route: string): Model => ({ route, remote: Remote.initial })
 
   it('live marks the projection’s requirements; get does not; the mark survives Projection.struct', () => {
-    expect(Data.live(summary, 'p1').requirements).toEqual([
+    expect(requirementsOf(Data.live(summary, 'p1'))).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'], live: true },
     ])
-    expect(Data.get(summary, 'p1').requirements).toEqual([
+    expect(requirementsOf(Data.get(summary, 'p1'))).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'] },
     ])
-    expect(Page.projection({ projectId: 'p1' }).requirements.map(r => [r.entity, r.live])).toEqual([
+    expect(
+      requirementsOf(Page.projection({ projectId: 'p1' })).map(r => [r.entity, r.live]),
+    ).toEqual([
       ['Project', true],
       ['User', undefined],
     ])
@@ -671,8 +676,8 @@ describe('Data.query reads a connection as a page of selected items', () => {
   }
 
   it('carries the connection and no entity requirement; it reads Initial until the page is known', () => {
-    expect(projects.requirements).toEqual([])
-    expect(projects.connections).toEqual([
+    expect(requirementsOf(projects)).toEqual([])
+    expect(connectionsOf(projects)).toEqual([
       {
         identity,
         window: { first: 2 },
@@ -865,9 +870,11 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('a hand-built connection that is not a query’s fails as a query would, without dying', async () => {
     const literal = Projection.fromReader(Schema.Unknown, () => null, {
-      connections: [
-        { identity: 'Feed', window: {}, select: { entity: 'Project', fields: ['name'] } },
-      ],
+      metadata: RemoteConnections.of({
+        identity: 'Feed',
+        window: {},
+        select: { entity: 'Project', fields: ['name'] },
+      }),
     })
     const List = App.surface('List', { model: () => ({ literal }) })
     const entry = Data.subscriptions({ list: List })['list.read']!
@@ -1061,7 +1068,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       { select: Project.select({ id: true }), first: 2 },
     )
     const both = Projection.struct({ names: projects, ids })
-    expect(both.connections.map(connection => connection.select)).toEqual([
+    expect(connectionsOf(both).map(connection => connection.select)).toEqual([
       { entity: 'Project', fields: ['name', 'id'] },
     ])
     expect(Remote.planQueries(Data, initial, both)).toEqual([projects.ref])
@@ -1080,7 +1087,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     ])
     // The planner merges for itself too, as it does requirements, for a hand-built projection.
     const literal = Projection.fromReader(Schema.Unknown, () => null, {
-      connections: [...projects.connections, ...ids.connections],
+      metadata: RemoteConnections.of(...connectionsOf(projects), ...connectionsOf(ids)),
     })
     expect(Remote.planQueries(Data, initial, literal)).toEqual([projects.ref])
     expect(Data.plan(merged(initial, ['p1']), literal)).toEqual([

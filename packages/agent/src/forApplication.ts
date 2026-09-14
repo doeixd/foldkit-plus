@@ -1,5 +1,6 @@
 import type { Schema } from 'effect'
 import {
+  Metadata,
   Projection,
   type Application,
   type Contract,
@@ -122,7 +123,7 @@ const buildAgent = <Model, Principal>(
         owns: [],
         observes: context?.dependencies ?? [],
         messages: options.messages.variants.map(variant => variant.tag),
-        requirements: context?.requirements ?? [],
+        metadata: context === undefined ? [] : Metadata.summarize(context.metadata),
       },
     }
   }

@@ -10,10 +10,7 @@ import type { Duration } from 'effect'
 import type { Command } from 'foldkit/command'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
-  Metadata,
-  Requirement,
   type ActiveSurface,
-  type ConnectionRequirement,
   type Contract,
   type Invalid,
   type ModelRef,
@@ -77,7 +74,15 @@ import {
   RemoteRpc,
 } from './wire.js'
 import type { CoalesceOptions } from './coalesce.js'
-import type { RelationRequirement } from './plan.js'
+import {
+  Requirement,
+  RemoteConnections,
+  RemoteRequirements,
+  connectionsOf,
+  requirementsOf,
+  type ConnectionRequirement,
+  type RelationRequirement,
+} from './requirement.js'
 
 export * from './client.js'
 export * from './coalesce.js'
@@ -94,6 +99,7 @@ export * from './policy.js'
 export * from './query.js'
 export * from './relation.js'
 export * from './remoteData.js'
+export * from './requirement.js'
 export * from './retain.js'
 export * from './selection.js'
 export * from './store.js'
@@ -485,7 +491,7 @@ const bindRemote = <
     owns: store.dependency.length === 0 ? [] : [store.dependency],
     observes: store.dependency.length === 0 ? [] : [store.dependency],
     messages: [],
-    requirements: [],
+    metadata: [],
   },
 })
 
@@ -512,7 +518,9 @@ interface Asked {
 const nothingAsked: Asked = { requirements: [], connections: [] }
 
 const askedOf = (projection: Projection<any, unknown> | undefined): Asked =>
-  projection === undefined ? nothingAsked : projection
+  projection === undefined
+    ? nothingAsked
+    : { requirements: requirementsOf(projection), connections: connectionsOf(projection) }
 
 /** The plan for what a projection asks: the entity fields to read, and the queries to run. */
 interface Planned {
@@ -629,7 +637,7 @@ const rootsOf = (
   for (const identity of (options.connections ?? []).map(connectionIdentity)) {
     connections.set(identity, { identity })
   }
-  for (const { identity, select } of projections.flatMap(projection => projection.connections)) {
+  for (const { identity, select } of projections.flatMap(connectionsOf)) {
     const current = connections.get(identity)?.select
     connections.set(identity, {
       identity,
@@ -637,7 +645,7 @@ const rootsOf = (
     })
   }
   return {
-    requirements: Requirement.merge(projections.flatMap(projection => projection.requirements)),
+    requirements: Requirement.merge(projections.flatMap(requirementsOf)),
     connections: [...connections.values()].sort((a, b) => (a.identity < b.identity ? -1 : 1)),
   }
 }
@@ -893,9 +901,7 @@ export const Remote = {
     return (id: string): Projection<AppModel, RemoteData<Value>> => ({
       Model: remoteDataSchema(selection.schema),
       dependencies: [],
-      requirements: [{ ...relation, id }],
-      connections: [],
-      metadata: Metadata.empty,
+      metadata: RemoteRequirements.of({ ...relation, id }),
       read: (root: AppModel): RemoteData<Value> => {
         const store = storeOf(bound, root)
         const key = entityKey(selection.entity, id)
@@ -940,7 +946,7 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<Requirement> =>
-    planAsked(bound.store.get(model), projection, options ?? {}).requirements,
+    planAsked(bound.store.get(model), askedOf(projection), options ?? {}).requirements,
 
   /**
    * The queries a projection needs run before its connections read: those the
@@ -952,7 +958,7 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<QueryRef<string, unknown>> =>
-    planAsked(bound.store.get(model), projection, options ?? {}).queries.flatMap(query =>
+    planAsked(bound.store.get(model), askedOf(projection), options ?? {}).queries.flatMap(query =>
       query.ref === undefined ? [] : [query.ref],
     ),
 
@@ -981,7 +987,7 @@ export const Remote = {
     const store = storeOf(bound, model)
     const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
     const at = now()
-    const missing = plan(store, projection.requirements, RemotePolicy.toPlan(policy, at))
+    const missing = plan(store, requirementsOf(projection), RemotePolicy.toPlan(policy, at))
     if (missing.length === 0) return store
     yield* Effect.annotateCurrentSpan('requirementCount', missing.length)
     const client = yield* RemoteClient
@@ -1171,7 +1177,7 @@ export const Remote = {
     toMessage: (message: RemoteMessage) => Message = identityMessage as never,
     options: ObserveOptions = {},
   ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> =>
-    observeEntry(bound, () => surface.projection(params), toMessage, options),
+    observeEntry(bound, () => askedOf(surface.projection(params)), toMessage, options),
 
   /**
    * A Foldkit Subscription entry that consumes the live stream for a Surface's
@@ -1198,7 +1204,7 @@ export const Remote = {
     Message,
     { readonly requirements: ReadonlyArray<Requirement>; readonly cursor: LiveCursor },
     RemoteClient
-  > => liveEntry(bound, () => surface.projection(params).requirements, toMessage, options),
+  > => liveEntry(bound, () => requirementsOf(surface.projection(params)), toMessage, options),
 }
 
 /** The bound domain: the descriptor, the binding, and the operations over them. */
@@ -1224,7 +1230,9 @@ const bindDomain = <
       const projection = Remote.select(bound, selection)(id)
       return {
         ...projection,
-        requirements: projection.requirements.map(requirement => ({ ...requirement, live: true })),
+        metadata: RemoteRequirements.of(
+          ...requirementsOf(projection).map(requirement => ({ ...requirement, live: true })),
+        ),
       }
     },
     subscriptions: (active, options = {}) => {
@@ -1277,13 +1285,18 @@ const bindDomain = <
         const planOptions = RemotePolicy.toPlan(policy, now())
         let current = model
         // The pages first, so their items join the one entity read below.
-        for (const query of planAsked(store.get(current), projection, planOptions).queries) {
+        for (const query of planAsked(store.get(current), askedOf(projection), planOptions)
+          .queries) {
           const page = yield* queryRequestOf(query).pipe(
             Effect.flatMap(request => client.query(request)),
           )
           current = reduce(current, pageMessage(query.identity, page, true))
         }
-        const requirements = planAsked(store.get(current), projection, planOptions).requirements
+        const requirements = planAsked(
+          store.get(current),
+          askedOf(projection),
+          planOptions,
+        ).requirements
         if (requirements.length === 0) return current
         const at = now()
         const result = yield* client.read({
@@ -1337,9 +1350,7 @@ const bindDomain = <
           RemoteData<Page<Value>>
         >,
         dependencies: [],
-        requirements: [],
-        connections: [requirement],
-        metadata: Metadata.empty,
+        metadata: RemoteConnections.of(requirement),
         ref,
         read: (root: AppModel): RemoteData<Page<Value>> => {
           const remote = store.get(root)

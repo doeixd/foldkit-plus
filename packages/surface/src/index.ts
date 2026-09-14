@@ -229,17 +229,13 @@ function makeTree(
       ? makeProjection(
           Schema.Option(projection.Model),
           dependencies,
-          projection.requirements,
           root => Option.map(get(root) as Option.Option<unknown>, value => projection.read(value)),
-          projection.connections,
           projection.metadata,
         )
       : makeProjection(
           projection.Model,
           dependencies,
-          projection.requirements,
           root => projection.read(get(root)),
-          projection.connections,
           projection.metadata,
         )
   }
@@ -343,147 +339,9 @@ export const Metadata = {
     })),
 }
 
-/**
- * A required slice of a remote entity, contributed by a remote `Projection`
- * node. This is dependency metadata, so it lives in Surface; Remote consumes it.
- * `windows` carries a pagination window per relation field (Remote's
- * `QueryWindow` is not visible here, so the shape is declared locally), and
- * `relations` carries the slice required of each relation's target, so one
- * requirement describes a whole selection graph.
- */
-export interface Window {
-  readonly first?: number | undefined
-  readonly last?: number | undefined
-  readonly after?: string | undefined
-  readonly before?: string | undefined
-}
-
-/** The slice required of a relation's target; its ids come from the refs. */
-export interface RelationRequirement {
-  readonly entity: string
-  readonly fields: readonly string[]
-  readonly windows?: Readonly<Record<string, Window>> | undefined
-  readonly relations?: Readonly<Record<string, RelationRequirement>> | undefined
-}
-
-export interface Requirement extends RelationRequirement {
-  readonly id: string
-  /** The projection also subscribes to changes of this entity (`Data.live`). */
-  readonly live?: boolean | undefined
-}
-
-/**
- * A query connection a projection reads: the page it first asks for and the
- * slice it selects of each item. `identity` is the connection's (query plus
- * canonical input, excluding the window); the packages that run queries
- * carry what they need to run it on the same object.
- */
-export interface ConnectionRequirement {
-  readonly identity: string
-  readonly window: Window
-  readonly select: RelationRequirement
-}
-
-const windowKey = (window: Window): string =>
-  JSON.stringify([
-    window.first ?? null,
-    window.last ?? null,
-    window.after ?? null,
-    window.before ?? null,
-  ])
-
-/**
- * Merges connection requirements for the same connection and window into one,
- * unioning what they select of each item; the first keeps its other properties.
- */
-function mergeConnections(
-  connections: readonly ConnectionRequirement[],
-): readonly ConnectionRequirement[] {
-  const merged = new Map<string, ConnectionRequirement>()
-  for (const connection of connections) {
-    const key = `${connection.identity}\u0000${windowKey(connection.window)}`
-    const current = merged.get(key)
-    merged.set(
-      key,
-      current === undefined
-        ? connection
-        : { ...current, select: mergeRelation(current.select, connection.select) },
-    )
-  }
-  return [...merged.values()]
-}
-
-/** Unions two relation slices for the same target: fields, windows, and nested relations. */
-function mergeRelation(
-  current: RelationRequirement,
-  next: RelationRequirement,
-): RelationRequirement {
-  const fields = [...current.fields]
-  const seen = new Set(fields)
-  for (const field of next.fields) {
-    if (seen.has(field)) continue
-    seen.add(field)
-    fields.push(field)
-  }
-  const windows = { ...current.windows, ...next.windows }
-  const relations = mergeRelations(current.relations, next.relations)
-  return {
-    entity: current.entity,
-    fields,
-    ...(Object.keys(windows).length === 0 ? {} : { windows }),
-    ...(relations === undefined ? {} : { relations }),
-  }
-}
-
-/** Unions two relation maps field by field; a field in both merges recursively. */
-function mergeRelations(
-  current: Readonly<Record<string, RelationRequirement>> | undefined,
-  next: Readonly<Record<string, RelationRequirement>> | undefined,
-): Readonly<Record<string, RelationRequirement>> | undefined {
-  if (current === undefined) return next
-  if (next === undefined) return current
-  const merged: Record<string, RelationRequirement> = { ...current }
-  for (const [field, relation] of Object.entries(next)) {
-    const existing = merged[field]
-    merged[field] = existing === undefined ? relation : mergeRelation(existing, relation)
-  }
-  return merged
-}
-
-/** Unions requirements for the same entity + id, dropping duplicate fields. */
-function mergeRequirements(requirements: readonly Requirement[]): readonly Requirement[] {
-  const grouped = new Map<string, Requirement>()
-  for (const requirement of requirements) {
-    const key = `${requirement.entity}\u0000${requirement.id}`
-    // Later windows win; a duplicate is a caller bug, not a merge policy.
-    const group = grouped.get(key)
-    const live = group?.live === true || requirement.live === true
-    grouped.set(key, {
-      ...mergeRelation(group ?? { entity: requirement.entity, fields: [] }, requirement),
-      id: requirement.id,
-      ...(live ? { live } : {}),
-    })
-  }
-  return [...grouped.values()]
-}
-
-/**
- * Requirement helpers, for the packages that plan and serve requirements.
- * `merge` unions same-entity+id requirements; `mergeRelation` unions two
- * slices of one target (fields, windows, nested relations).
- */
-export const Requirement = {
-  merge: mergeRequirements,
-  mergeRelation,
-  mergeConnections,
-}
-
 export interface Projection<Root, Value> {
   readonly Model: Schema.Schema<Value>
   readonly dependencies: DependencyTree
-  readonly requirements: readonly Requirement[]
-  /** The query connections the projection reads; `[]` for most projections. */
-  readonly connections: readonly ConnectionRequirement[]
   /** Interpreter-owned facts about this node and everything it composes. */
   readonly metadata: Metadata
   readonly read: (root: Root) => Value
@@ -505,12 +363,10 @@ export interface WritableProjection<Model, Fields extends Schema.Struct.Fields> 
 function makeProjection<Value>(
   Model: Schema.Schema<Value>,
   dependencies: DependencyTree,
-  requirements: readonly Requirement[],
   read: (root: unknown) => Value,
-  connections: readonly ConnectionRequirement[] = [],
   metadata: Metadata = emptyMetadata,
 ): Projection<unknown, Value> {
-  return { Model, dependencies, requirements, connections, metadata, read }
+  return { Model, dependencies, metadata, read }
 }
 
 /**
@@ -567,8 +423,6 @@ export const Projection = {
     ): Projection<Schema.Struct.Type<F>, OfValue<F, Sel>> => {
       const picked: Record<string, AnySchema> = {}
       const dependencies: (readonly string[])[] = []
-      const requirements: Requirement[] = []
-      const connections: ConnectionRequirement[] = []
       const metadata: Metadata[] = []
       const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
@@ -581,8 +435,6 @@ export const Projection = {
           const nested = choice as Projection<unknown, unknown>
           picked[key] = nested.Model
           dependencies.push(...nested.dependencies)
-          requirements.push(...nested.requirements)
-          connections.push(...nested.connections)
           metadata.push(nested.metadata)
           readers.push([key, root => nested.read(propertyReader(root, key))])
         }
@@ -596,9 +448,7 @@ export const Projection = {
       return makeProjection(
         objectSchema(picked),
         mergeDependencies(dependencies),
-        mergeRequirements(requirements),
         read,
-        mergeConnections(connections),
         combineMetadata(metadata),
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
@@ -608,8 +458,6 @@ export const Projection = {
   ): Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>> => {
     const picked: Record<string, AnySchema> = {}
     const dependencies: (readonly string[])[] = []
-    const requirements: Requirement[] = []
-    const connections: ConnectionRequirement[] = []
     const metadata: Metadata[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
@@ -618,8 +466,6 @@ export const Projection = {
       if ('dependencies' in entry) {
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
-        requirements.push(...entry.requirements)
-        connections.push(...entry.connections)
         metadata.push(entry.metadata)
         readers.push([key, entry.read])
       } else {
@@ -637,9 +483,7 @@ export const Projection = {
     return makeProjection(
       objectSchema(picked),
       mergeDependencies(dependencies),
-      mergeRequirements(requirements),
       read,
-      mergeConnections(connections),
       combineMetadata(metadata),
     ) as unknown as Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>>
   },
@@ -654,8 +498,6 @@ export const Projection = {
   ): Projection<ReadonlyArray<Root>, ReadonlyArray<Value>> => ({
     Model: Schema.Array(projection.Model),
     dependencies: projection.dependencies,
-    requirements: projection.requirements,
-    connections: projection.connections,
     metadata: projection.metadata,
     read: root => root.map(value => projection.read(value)),
   }),
@@ -666,8 +508,6 @@ export const Projection = {
   ): Projection<Option.Option<Root>, Option.Option<Value>> => ({
     Model: Schema.Option(projection.Model),
     dependencies: projection.dependencies,
-    requirements: projection.requirements,
-    connections: projection.connections,
     metadata: projection.metadata,
     read: root => Option.map(root, value => projection.read(value)),
   }),
@@ -685,15 +525,11 @@ export const Projection = {
     read: (root: Root) => Value,
     options?: {
       readonly dependencies?: DependencyTree
-      readonly requirements?: readonly Requirement[]
-      readonly connections?: readonly ConnectionRequirement[]
       readonly metadata?: Metadata
     },
   ): Projection<Root, Value> => ({
     Model,
     dependencies: options?.dependencies ?? [],
-    requirements: options?.requirements ?? [],
-    connections: options?.connections ?? [],
     metadata: options?.metadata ?? emptyMetadata,
     read,
   }),
@@ -801,7 +637,7 @@ export interface AppScope<
 export interface SurfaceInspection {
   readonly name: string
   readonly dependencies: DependencyTree
-  readonly requirements: readonly Requirement[]
+  readonly metadata: readonly MetadataSummary[]
   readonly emits: readonly unknown[]
 }
 
@@ -857,7 +693,7 @@ type ModelShape<Root> =
 type ModelOf<Root, R> = R extends Projection<Root, infer M> ? M : StructValue<R>
 
 const isProjection = (value: unknown): value is Projection<unknown, unknown> =>
-  typeof value === 'object' && value !== null && 'read' in value && 'requirements' in value
+  typeof value === 'object' && value !== null && 'read' in value && 'metadata' in value
 
 type MsgOf<Ms extends readonly unknown[]> = {
   readonly [K in keyof Ms]: Ms[K] extends (...args: never[]) => infer M ? M : never
@@ -1333,7 +1169,7 @@ export const Surface = {
       owns: [],
       observes: projection.dependencies,
       messages: surface.messages.map(messageTag).filter((tag): tag is string => tag !== undefined),
-      requirements: projection.requirements,
+      metadata: Metadata.summarize(projection.metadata),
     }
   },
 
@@ -1349,7 +1185,7 @@ export const Surface = {
     return {
       name: surface.name,
       dependencies: projection.dependencies,
-      requirements: projection.requirements,
+      metadata: Metadata.summarize(projection.metadata),
       emits: surface.messages,
     }
   },
@@ -1378,7 +1214,8 @@ export interface Contract {
   readonly observes: DependencyTree
   /** Message tags the contract may cause, expose, or record. */
   readonly messages: readonly string[]
-  readonly requirements: readonly Requirement[]
+  /** What interpreters attached to the contract's reads, as text. */
+  readonly metadata: readonly MetadataSummary[]
 }
 
 /** Contracts of one application, in declaration order. Data, not a runtime. */
@@ -1592,12 +1429,12 @@ export const Module = {
     lines.push(
       '```',
       '',
-      '| Contract | Owns | Observes | Messages | Requirements |',
+      '| Contract | Owns | Observes | Messages | Metadata |',
       '| --- | --- | --- | --- | --- |',
     )
     for (const contract of manifest.contracts)
       lines.push(
-        `| ${contract.kind}:${contract.name} | ${contract.owns.map(pathKey).join(', ')} | ${contract.observes.map(pathKey).join(', ')} | ${contract.messages.join(', ')} | ${contract.requirements.map(r => `${r.entity}:${r.id}`).join(', ')} |`,
+        `| ${contract.kind}:${contract.name} | ${contract.owns.map(pathKey).join(', ')} | ${contract.observes.map(pathKey).join(', ')} | ${contract.messages.join(', ')} | ${contract.metadata.flatMap(summary => summary.entries).join(', ')} |`,
       )
     if (manifest.findings.length > 0) {
       lines.push('', '## Findings', '')

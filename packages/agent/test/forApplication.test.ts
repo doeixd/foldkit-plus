@@ -51,7 +51,7 @@ describe('Agent.forApplication', () => {
       owns: [],
       observes: [['todos']],
       messages: ['RequestedDeleteTodo'],
-      requirements: [],
+      metadata: [],
     })
   })
 

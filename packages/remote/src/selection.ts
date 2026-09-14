@@ -4,7 +4,7 @@
  * and their assembly from the normalized store.
  */
 import { Option, Schema } from 'effect'
-import type { RelationRequirement } from 'foldkit-surface'
+import type { RelationRequirement } from './requirement.js'
 import {
   Entity,
   type AnySchema,

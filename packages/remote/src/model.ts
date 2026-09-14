@@ -4,7 +4,7 @@
  * change it, and the pure reducer over them.
  */
 import { Schema } from 'effect'
-import type { Requirement } from 'foldkit-surface'
+import type { Requirement } from './requirement.js'
 import { emptyConnection, merge, type Connection, type Segment } from './connection.js'
 import {
   beginOptimistic,

@@ -20,7 +20,7 @@ import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 import { view as buttonView } from '@foldkit/ui/button'
 import { Surface } from 'foldkit-surface'
-import { Remote, RemoteData, type EntityStore } from 'foldkit-remote'
+import { Remote, RemoteData, requirementsOf, type EntityStore } from 'foldkit-remote'
 import { Sync } from 'foldkit-sync'
 import {
   App,
@@ -101,7 +101,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const client = serverClient('u1')
   const projection = Data.get(ProjectSummary, 'p1')
   say(
-    `plan: ${projection.requirements.map(r => `${r.entity}:${r.id} [${r.fields.join(',')}]`).join(', ')}`,
+    `plan: ${requirementsOf(projection)
+      .map(r => `${r.entity}:${r.id} [${r.fields.join(',')}]`)
+      .join(', ')}`,
   )
   say(`before fetch: ${describeData(projection.read(App.initial))}`)
 

@@ -4,7 +4,7 @@
  * follows them into the store; the server follows them into the next read.
  */
 import type { Schema } from 'effect'
-import type { RelationRequirement } from 'foldkit-surface'
+import type { RelationRequirement } from './requirement.js'
 
 export interface RefParts {
   readonly entity: string

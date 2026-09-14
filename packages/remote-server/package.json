@@ -42,8 +42,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "foldkit-remote": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-remote": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.0.0-rc.112"
