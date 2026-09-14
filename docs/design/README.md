@@ -13,6 +13,7 @@ to know why the public API has the shape it does.
 | Doc | What it covers |
 | --- | --- |
 | [REVISION_PLAN.md](./REVISION_PLAN.md) | Authoritative plan and handoff for the Surface/Remote revision; phase status and decisions. Where it conflicts with older Surface notes, this wins. |
+| [async-semantics-DESIGN.md](./async-semantics-DESIGN.md) | Proposal for applying Solid 2 async lessons without weakening Foldkit's Model/Message/update architecture or duplicating Effect; covers AsyncData, Projection metadata, state-based completion, refresh, optimism, determinism, and phased adoption. |
 | [MIRROR.md](./MIRROR.md) | Why mirroring is observation rather than ownership, plus the store/kernel design. |
 | [mixins-DESIGN.md](./mixins-DESIGN.md) | `foldkit-mixins` substrate probes and the implementation decisions they forced. |
 | [agent-DESIGN.md](./agent-DESIGN.md) | `foldkit-agent` contract, authority boundaries, completion, and adapter rationale. |
