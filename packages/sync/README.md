@@ -107,20 +107,20 @@ neither is written twice:
 
 ```ts
 import { Effect } from 'effect'
-import { actorId, documentId, makeJournal, opId } from 'foldkit-durable'
+import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
 
 type Principal = { readonly actorId: string }
 
 const server = Effect.gen(function* () {
-  const journal = yield* makeJournal({
+  const journal = yield* Journal.make({
     // Operation and snapshot codecs, `empty`, `reduce`, and `authorize` if declared.
     ...TodoSync.journalContract(),
     file: 'todos.sqlite',
     // The two packages brand their ids separately, so re-brand at the seam.
-    opId: operation => opId(operation.opId),
-    actorId: (principal: Principal) => actorId(principal.actorId),
+    opId: operation => OpId.make(operation.opId),
+    actorId: (principal: Principal) => ActorId.make(principal.actorId),
   })
-  return yield* journal.load(documentId('todos'))
+  return yield* journal.load(DocumentId.make('todos'))
 }).pipe(Effect.scoped)
 ```
 
