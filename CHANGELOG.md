@@ -7,26 +7,39 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
-### `foldkit-surface`, `foldkit-remote` (breaking)
+Every package below changes its public types, so each takes a minor while
+pre-1.0: `foldkit-surface` 0.2.0, `foldkit-remote` 0.3.0, `foldkit-remote-server`
+0.3.0, `foldkit-mixins-surface` 0.3.0, `foldkit-agent` 0.3.0, `foldkit-sync`
+0.5.0, and `foldkit-mirror` 0.2.0 (its `Contract` output changed). The versions
+move in the release commit.
+
+### `foldkit-surface` (breaking)
 
 - **Projection metadata is open to any package.** Surface declared Remote's
   requirement types, so no other package could attach facts to a Projection
   without editing Surface. `Metadata.key<A>(name, { merge, summarize })` gives a
   package its own typed slot; `Projection.metadata` carries the entries and every
-  combinator merges them per key.
-- **Remote owns its requirements.** `Requirement`, `RelationRequirement`,
-  `ConnectionRequirement` and the `Requirement.merge*` helpers move from
-  `foldkit-surface` to `foldkit-remote`, which stores them under
-  `RemoteRequirements` and `RemoteConnections`. `Window` is gone; it was
-  `QueryWindow`.
+  combinator merges them per key. Entries are found by the key object, so two
+  copies of one package do not share them.
+- **`Metadata` is opaque.** Only a key's `of` and composition make one; its
+  entries are private and frozen, so a hand-built value has none and nothing can
+  mutate them. `MetadataTypeId` marks a value.
 - **Removed:** `Projection.requirements`, `Projection.connections`, and the
-  matching `Projection.fromReader` options. Read them with
-  `requirementsOf(projection)` / `connectionsOf(projection)`, and attach them
-  with `metadata: RemoteRequirements.of(...)`.
+  matching `Projection.fromReader` options. Remote's requirement types moved to
+  `foldkit-remote` (below).
 - **`Contract.requirements` and `SurfaceInspection.requirements` are now
-  `metadata: MetadataSummary[]`**, so `Module` and DevTools show every package's
-  entries, not only Remote's. `SurfaceView.describe` follows.
-- `foldkit-remote-server` no longer depends on `foldkit-surface`.
+  `metadata: MetadataSummary[]`** (`{ name, entries }`), so `Module` and DevTools
+  show every package's entries. A hand-written `Contract` literal must spell
+  `metadata: []`. `Module.toMarkdown` renders the column as
+  `name: entries; name: entries`, with `|` escaped.
+
+### `foldkit-remote` (breaking)
+
+- **Remote owns its requirements.** `Requirement`, `RelationRequirement`,
+  `ConnectionRequirement` and the `Requirement.merge*` helpers move here from
+  `foldkit-surface`, stored under `RemoteRequirements` and `RemoteConnections`.
+  Read them with `requirementsOf(projection)` / `connectionsOf(projection)`.
+  `Window` is gone; it was `QueryWindow`.
 - **`Data.refresh(model, projection | surface)`** marks what a consumer already
   declares as due again, from `update`, instead of restating each request. It
   returns the Model, with selected fields reading `Refreshing` and loaded
@@ -34,33 +47,53 @@ version changed; `pnpm` skips versions already in the registry.
   so the data is requested once. Unobserved data is revalidated with
   `Remote.prefetch` and `RemotePolicy.networkOnly`.
 
-### `foldkit-agent`
+### `foldkit-remote-server`
 
-- **`Agent.when({ projection, predicate })` completes on state.** A Message
-  contract couples a capability to one implementation path; a state contract
-  completes when the application satisfies the condition, whatever made it so.
-  `predicate` is typed from the projection and the capability input. Waiting
-  subscribes before dispatch and checks again when it starts, so neither a
-  synchronous `update` nor an already-true state is missed; a throwing predicate
-  fails the invocation as a defect. `bind` requires `host.subscribe` for it.
-- `DispatchResult.completion.message` and `CompletionOutcome.message` are now
-  optional: a state completion has no completing Message. Code that read
-  `completion.message._tag` unconditionally needs `?.`. The manifest records a
-  state completion as `{ state: { observes } }`.
+- No longer depends on `foldkit-surface`; `Requirement` comes from
+  `foldkit-remote`.
+
+### `foldkit-mixins-surface` (breaking)
+
+- `SurfaceView.describe` returns `metadata: MetadataSummary[]` in place of
+  `requirements`.
+
+### `foldkit-agent` (breaking)
+
+- **`Agent.when` completes on state.** A Message contract couples a capability
+  to one implementation path; a state contract completes when a condition holds,
+  whatever made it so. It reads a `projection` of the application's Model (which
+  must be that Model, and needs `host.subscribe`) or a `source: { get,
+  subscribe }` outside it. Completed means the condition holds, not that this
+  call made it true; a creation still completes on its Message with `correlate`.
+  A throwing predicate fails the invocation as a defect, and a value a
+  notification left unchanged is not evaluated again.
+- `request` is inferred inline in `Agent.expose`; inside `Agent.variant` it is
+  annotated and checked against `input`. Elsewhere it is `unknown`.
+- **`CompletionOutcome` is a union**, and so is `DispatchResult.completion`: a
+  Message contract carries its `message`; a state contract has none and cannot
+  fail. Code that read `completion.message._tag` unconditionally needs `?.`.
+- **`Manifest` completion gains a `kind`**: `{ kind: 'message', success,
+  failure? }` or `{ kind: 'state', observes }`.
 - `AgentHost.dispatch` may return a failing Effect, such as `Sync.mount`'s
   `Exit`; the failure is the invocation's defect, as a thrown error already was.
 
-### `foldkit-sync`
+### `foldkit-sync` (breaking)
 
 - **The committed state is readable.** `Replica.committed` and
   `ReplicaSnapshot.committed` are the server-confirmed state the optimistic
   `shared` is built on: a pending edit reaches them only once committed, and a
   rejected one never does.
-- **`Mounted.committed`** is a Projection of that state, so an agent can finish
-  on confirmation rather than on its own optimistic edit:
-  `Agent.when({ projection: mounted.committed, … })`. `subscribe` already fires
-  after every exchange that changes it. It reads the replica, not the Model, so
-  it is for waiting consumers, not views.
+- **`Mounted.committed`** is a `CommittedView` (`{ get, subscribe }`), the source
+  an agent waits on to finish on confirmation rather than on its own optimistic
+  edit: `Agent.when({ source: mounted.committed, … })`. It is notified after every
+  exchange, including a checkpoint that keeps the cursor. `Mounted` gains a third
+  type parameter, `Shared`, defaulting to `unknown`.
+- An exchange that acknowledges an edit without returning it now re-installs the
+  shared slice, instead of leaving the dropped edit in the Model.
+
+### `foldkit-mirror`
+
+- Its `Contract` carries `metadata: []` in place of `requirements: []`.
 
 ## 0.4.1
 
