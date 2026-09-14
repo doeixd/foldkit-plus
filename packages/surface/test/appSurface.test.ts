@@ -95,13 +95,8 @@ describe('Surface.at makes activation a Model fact', () => {
 describe('connections ride on Projections', () => {
   const select = { entity: 'Project', fields: ['name'] }
   const feed = { identity: 'Feed\u0000{}', window: { first: 10 }, select }
-  const leaf = (connections: readonly (typeof feed)[]) => ({
-    Model: Schema.Number,
-    dependencies: [],
-    requirements: [],
-    connections,
-    read: () => 1,
-  })
+  const leaf = (connections: readonly (typeof feed)[]) =>
+    Projection.fromReader(Schema.Number, (_root: unknown) => 1, { connections })
 
   it('struct, array, option, and fromReader carry them', () => {
     const other = { ...feed, window: { first: 20 } }

@@ -232,6 +232,7 @@ function makeTree(
           projection.requirements,
           root => Option.map(get(root) as Option.Option<unknown>, value => projection.read(value)),
           projection.connections,
+          projection.metadata,
         )
       : makeProjection(
           projection.Model,
@@ -239,6 +240,7 @@ function makeTree(
           projection.requirements,
           root => projection.read(get(root)),
           projection.connections,
+          projection.metadata,
         )
   }
   return node
@@ -261,6 +263,84 @@ function mergeDependencies(dependencies: DependencyTree): DependencyTree {
     merged.push(dependency)
   }
   return merged
+}
+
+/**
+ * Declarative facts an interpreter attaches to a Projection node, such as the
+ * server data a Remote selection needs. Surface carries and combines them
+ * without knowing what they mean; a package reads only the key it owns.
+ */
+export interface Metadata {
+  /** Merged entries per key, in first-contribution order. Read with `key.get`. */
+  readonly entries: ReadonlyMap<MetadataKey<any>, ReadonlyArray<unknown>>
+}
+
+/**
+ * An interpreter's typed slot in `Metadata`. Lookup is by the key object, never
+ * its `name`, so two packages cannot collide by choosing the same string.
+ */
+export interface MetadataKey<A> {
+  /** For tooling output only. */
+  readonly name: string
+  /** Normalizes the entries gathered from composed nodes, e.g. unioning duplicates. */
+  readonly merge: (values: ReadonlyArray<A>) => ReadonlyArray<A>
+  /** One line per entry for `Module` and DevTools output. */
+  readonly summarize: (value: A) => string
+  readonly of: (...values: ReadonlyArray<A>) => Metadata
+  readonly get: (metadata: Metadata) => ReadonlyArray<A>
+}
+
+/** One key's entries as serializable text. */
+export interface MetadataSummary {
+  readonly interpreter: string
+  readonly entries: readonly string[]
+}
+
+const emptyMetadata: Metadata = { entries: new Map() }
+
+function combineMetadata(parts: ReadonlyArray<Metadata>): Metadata {
+  // Each part is already merged, so a lone part needs no second pass.
+  if (parts.length === 1) return parts[0]!
+  const grouped = new Map<MetadataKey<any>, unknown[]>()
+  for (const part of parts)
+    for (const [key, values] of part.entries) {
+      const group = grouped.get(key)
+      if (group === undefined) grouped.set(key, [...values])
+      else group.push(...values)
+    }
+  if (grouped.size === 0) return emptyMetadata
+  const merged = new Map<MetadataKey<any>, ReadonlyArray<unknown>>()
+  for (const [key, values] of grouped) merged.set(key, key.merge(values))
+  return { entries: merged }
+}
+
+export const Metadata = {
+  empty: emptyMetadata,
+
+  /** Declares an interpreter's slot. Call once per package, at module level. */
+  key: <A>(
+    name: string,
+    options: {
+      readonly merge: (values: ReadonlyArray<A>) => ReadonlyArray<A>
+      readonly summarize: (value: A) => string
+    },
+  ): MetadataKey<A> => {
+    const key: MetadataKey<A> = {
+      name,
+      merge: options.merge,
+      summarize: options.summarize,
+      of: (...values) =>
+        values.length === 0 ? emptyMetadata : { entries: new Map([[key, key.merge(values)]]) },
+      get: metadata => (metadata.entries.get(key) ?? []) as ReadonlyArray<A>,
+    }
+    return key
+  },
+
+  summarize: (metadata: Metadata): readonly MetadataSummary[] =>
+    [...metadata.entries].map(([key, values]) => ({
+      interpreter: key.name,
+      entries: values.map(value => key.summarize(value)),
+    })),
 }
 
 /**
@@ -404,6 +484,8 @@ export interface Projection<Root, Value> {
   readonly requirements: readonly Requirement[]
   /** The query connections the projection reads; `[]` for most projections. */
   readonly connections: readonly ConnectionRequirement[]
+  /** Interpreter-owned facts about this node and everything it composes. */
+  readonly metadata: Metadata
   readonly read: (root: Root) => Value
 }
 
@@ -426,8 +508,9 @@ function makeProjection<Value>(
   requirements: readonly Requirement[],
   read: (root: unknown) => Value,
   connections: readonly ConnectionRequirement[] = [],
+  metadata: Metadata = emptyMetadata,
 ): Projection<unknown, Value> {
-  return { Model, dependencies, requirements, connections, read }
+  return { Model, dependencies, requirements, connections, metadata, read }
 }
 
 /**
@@ -486,6 +569,7 @@ export const Projection = {
       const dependencies: (readonly string[])[] = []
       const requirements: Requirement[] = []
       const connections: ConnectionRequirement[] = []
+      const metadata: Metadata[] = []
       const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
       for (const key of Object.keys(selection)) {
@@ -499,6 +583,7 @@ export const Projection = {
           dependencies.push(...nested.dependencies)
           requirements.push(...nested.requirements)
           connections.push(...nested.connections)
+          metadata.push(nested.metadata)
           readers.push([key, root => nested.read(propertyReader(root, key))])
         }
       }
@@ -514,6 +599,7 @@ export const Projection = {
         mergeRequirements(requirements),
         read,
         mergeConnections(connections),
+        combineMetadata(metadata),
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
@@ -524,6 +610,7 @@ export const Projection = {
     const dependencies: (readonly string[])[] = []
     const requirements: Requirement[] = []
     const connections: ConnectionRequirement[] = []
+    const metadata: Metadata[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
     for (const key of Object.keys(entries)) {
@@ -533,6 +620,7 @@ export const Projection = {
         dependencies.push(...entry.dependencies)
         requirements.push(...entry.requirements)
         connections.push(...entry.connections)
+        metadata.push(entry.metadata)
         readers.push([key, entry.read])
       } else {
         picked[key] = entry.Schema
@@ -552,6 +640,7 @@ export const Projection = {
       mergeRequirements(requirements),
       read,
       mergeConnections(connections),
+      combineMetadata(metadata),
     ) as unknown as Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>>
   },
 
@@ -567,6 +656,7 @@ export const Projection = {
     dependencies: projection.dependencies,
     requirements: projection.requirements,
     connections: projection.connections,
+    metadata: projection.metadata,
     read: root => root.map(value => projection.read(value)),
   }),
 
@@ -578,6 +668,7 @@ export const Projection = {
     dependencies: projection.dependencies,
     requirements: projection.requirements,
     connections: projection.connections,
+    metadata: projection.metadata,
     read: root => Option.map(root, value => projection.read(value)),
   }),
 
@@ -596,12 +687,14 @@ export const Projection = {
       readonly dependencies?: DependencyTree
       readonly requirements?: readonly Requirement[]
       readonly connections?: readonly ConnectionRequirement[]
+      readonly metadata?: Metadata
     },
   ): Projection<Root, Value> => ({
     Model,
     dependencies: options?.dependencies ?? [],
     requirements: options?.requirements ?? [],
     connections: options?.connections ?? [],
+    metadata: options?.metadata ?? emptyMetadata,
     read,
   }),
 

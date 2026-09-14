@@ -373,13 +373,11 @@ const build = <
       }
     }
 
-    const readOnly: Projection<AppModel, Shared> = {
-      Model: shared.schema,
-      dependencies: shared.dependencies,
-      requirements: [],
-      connections: [],
-      read: shared.get,
-    }
+    const readOnly: Projection<AppModel, Shared> = Projection.fromReader(
+      shared.schema,
+      shared.get,
+      { dependencies: shared.dependencies },
+    )
     const surface = Surface.make(app, options.name ?? String(options.documentId), {
       model: () => readOnly,
       messages: durable.constructors,

@@ -10,6 +10,7 @@ import type { Duration } from 'effect'
 import type { Command } from 'foldkit/command'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
+  Metadata,
   Requirement,
   type ActiveSurface,
   type ConnectionRequirement,
@@ -894,6 +895,7 @@ export const Remote = {
       dependencies: [],
       requirements: [{ ...relation, id }],
       connections: [],
+      metadata: Metadata.empty,
       read: (root: AppModel): RemoteData<Value> => {
         const store = storeOf(bound, root)
         const key = entityKey(selection.entity, id)
@@ -1337,6 +1339,7 @@ const bindDomain = <
         dependencies: [],
         requirements: [],
         connections: [requirement],
+        metadata: Metadata.empty,
         ref,
         read: (root: AppModel): RemoteData<Page<Value>> => {
           const remote = store.get(root)

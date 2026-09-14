@@ -2,13 +2,10 @@ import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Projection, Requirement } from '../src/index.js'
 
-const leaf = (requirement: Requirement): Projection<unknown, unknown> => ({
-  Model: Schema.Unknown as Schema.Schema<unknown>,
-  dependencies: [],
-  requirements: [requirement],
-  connections: [],
-  read: () => null,
-})
+const leaf = (requirement: Requirement): Projection<unknown, unknown> =>
+  Projection.fromReader(Schema.Unknown as Schema.Schema<unknown>, () => null, {
+    requirements: [requirement],
+  })
 
 describe('Requirement windows', () => {
   it('merges windows for the same entity and id', () => {

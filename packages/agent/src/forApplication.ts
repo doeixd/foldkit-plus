@@ -1,10 +1,10 @@
 import type { Schema } from 'effect'
-import type {
-  Application,
-  Contract,
+import {
   Projection,
-  Surface,
-  WritableProjection,
+  type Application,
+  type Contract,
+  type Surface,
+  type WritableProjection,
 } from 'foldkit-surface'
 import { type Definition, make } from './make.js'
 import {
@@ -44,12 +44,9 @@ const toProjection = <Model, R extends ReadableProjection<Model, any>>(
     ? readable.projection(undefined)
     : 'read' in readable
       ? readable
-      : {
-          Model: readable.schema,
+      : Projection.fromReader(readable.schema, readable.get, {
           dependencies: readable.dependencies,
-          requirements: [],
-          read: readable.get,
-        }) as Projection<Model, ProjectionValue<R>>
+        })) as Projection<Model, ProjectionValue<R>>
 
 /**
  * `Agent.forApplication(App)` fixes the Model from a `Surface.application` and
