@@ -1,13 +1,20 @@
 # `foldkit-remote-server`
 
-The server half of [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote).
-It owns the semantic work Effect RPC does not know about: entity, query, and
-mutation Sources, **selection authorization**, normalization, and compilation to
-the `RemoteRpc` handlers.
+Answers the requests a
+[`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote)
+client makes. You write one **Source** per entity, query, and mutation — plain
+Effect functions that load rows — and this package compiles them into the
+`RemoteRpc` handlers: it groups and de-duplicates the ids a client asked for,
+drops the fields a principal may not read, resolves a nested selection level by
+level through each entity's own Source, and normalizes the results into the
+patches the client's store reconciles.
 
-It does not own HTTP, WebSockets, serialization, the authentication protocol, or
-database connections. `principal` is resolved outside and passed in; runtime
-dependencies stay in the Effect environment instead of being captured.
+Reach for it when the server is yours and you want the client's field-level
+selections honoured end to end, with authorization enforced where the field
+names are still known rather than in the view. It owns no HTTP, WebSockets,
+serialization, authentication protocol, or database connection: `principal` is
+resolved outside and passed in, and a Source's database is an Effect requirement
+the Source declares, not something this package holds.
 
 ## Install
 
@@ -19,6 +26,10 @@ pnpm add foldkit-remote-server
 it. `foldkit-remote-drizzle` compiles its selections and queries to SQL.
 
 ## Quick start
+
+One entity, one mutation, one query, one live stream, compiled to a layer.
+`loadProjects`, `renameProject`, `projectsPage`, and `projectEvents` are the
+application's own data access; `principal` is whatever authentication resolved.
 
 ```ts
 import { Effect, Schema } from 'effect'
@@ -76,22 +87,24 @@ const layer = RemoteRpc.toLayer(handlers)
 ```
 
 `handlers(server, principal, options?)` takes a `HandlerOptions<P, R>`:
-`maxIdsPerEntity` (default 1000) bounds a read batch and a live subscription
-per entity, `maxDepth` (default 8) bounds nested resolution, and `live` is the
-hub whose signals reach the subscriptions this handler registers. In-process,
-the handlers are a `RemoteClient` through `Remote.clientLayer(handlers)`, with
-whatever the sources require supplied by `Layer.provide`.
+`maxIdsPerEntity` (default 1000) bounds how many distinct ids of one entity a
+read batch — or a `liveHub` subscription — may name, `maxDepth` (default 8)
+bounds nested resolution, and `live` is the hub whose signals reach the
+subscriptions this handler registers. In-process, the handlers are a
+`RemoteClient` through `Remote.clientLayer(handlers)`, with whatever the sources
+require supplied by `Layer.provide`.
 
 ## Sources
 
 ### `RemoteServer.entity`
 
-```ts
-RemoteServer.entity(Project, {
-  authorize?: (principal: P, fields: readonly string[]) => readonly string[],
-  read: (context: { ids; fields; windows?; principal }) =>
-    Effect.Effect<ReadonlyArray<{ id: string; values: Record<string, unknown> }>, RemoteServerError, R>,
-})
+```text
+RemoteServer.entity(entity, {
+  read: (context: { ids: readonly string[]; fields: readonly string[]
+                    windows?: Record<string, QueryWindow>; principal: P })
+    => Effect<ReadonlyArray<{ id: string; values: Record<string, unknown> }>, RemoteServerError, R>
+  authorize?: (principal: P, fields: readonly string[]) => readonly string[]
+}): EntitySource<P, R>
 ```
 
 Given the Entity, a request for a field it does not declare never reaches
@@ -101,16 +114,15 @@ no fields and passes every requested one through.
 `read` is called once per entity, id batch, and window per read level: ids are
 batched up to `maxIdsPerEntity`, ids that page a relation differently are read
 separately, and a nested selection reads its next level after the refs arrive.
-`windows` carries the pagination window for each requested relation field. The result may be a partial
-entity: a field the source omits is simply not present, and presence metadata on
-the client reflects that.
+`windows` carries the pagination window for each requested relation field. The
+result may be a partial entity: a field the source omits is simply not present,
+and presence metadata on the client reflects that.
 
 ### `RemoteServer.query`
 
-```ts
-RemoteServer.query(ProjectsByOwner, ({ input, window, principal }) =>
-  Effect.Effect<QueryPage, RemoteServerError, R>,
-)
+```text
+RemoteServer.query(query, (context: { input: Input; window: QueryWindow; principal: P })
+  => Effect<QueryPage, RemoteServerError, R>): QuerySource<P, R>
 ```
 
 `QueryPage` is `{ edges, start, end }`; `start`/`end` are `Boundary` values
@@ -119,14 +131,12 @@ inferring adjacency from row count.
 
 ### `RemoteServer.mutation`
 
-```ts
-RemoteServer.mutation(RenameProject, ({ input, principal }) =>
-  Effect.Effect<
-    { output: Output; entities?: NormalizedPatch[]; connections?: ConnectionChange[] },
-    RemoteServerError,
-    R
-  >,
-)
+```text
+RemoteServer.mutation(mutation, (context: { input: Input; principal: P })
+  => Effect<{ output: Output
+              entities?: ReadonlyArray<NormalizedPatch>
+              connections?: ReadonlyArray<ConnectionChange> },
+            RemoteServerError, R>): MutationSource<P, R>
 ```
 
 `input` is decoded against the mutation's `Input` schema first, so the callback
@@ -138,11 +148,11 @@ ones in place: `RemoteServer.prepend(connection, ref)`, `append`, and
 
 ### `RemoteServer.live`
 
-```ts
-RemoteServer.live(Project, {
-  subscribe: ({ requirements, after, principal }) =>
-    Stream.Stream<LiveChange, RemoteServerError, R>,
-})
+```text
+RemoteServer.live(entity, {
+  subscribe: (context: { requirements: ReadonlyArray<Requirement>; after: number; principal: P })
+    => Stream<LiveChange, RemoteServerError, R>
+}): LiveSource<P, R>
 ```
 
 `after` is the client's resume cursor; events at or before it are duplicates. The
@@ -157,21 +167,26 @@ The higher-level signal. A hub tracks each live subscriber's requirements and
 principal, so the server says *what changed* and the hub works out *who cares*:
 
 ```ts
+// `entitySources` is the same array `RemoteServer.make({ entities })` was given.
 const hub = yield* RemoteServer.liveHub(entitySources)
-const handlers = RemoteServer.handlers(server, principal, { live: hub })
+const handlers = RemoteServer.handlers(Server, principal, { live: hub })
 
 // Wherever the data changes (a mutation source, a database trigger):
 yield* hub.changed(Project.ref(projectId), ['status', 'updatedAt'])
 yield* hub.deleted(Project.ref(projectId))
 ```
 
+`liveHub` and its signals are Effects, so the lines above live inside an
+`Effect.gen`. It needs only the entity sources, so the mutation sources that
+signal it can be built after it.
+
 `changed` intersects the fields with what each subscriber selects, re-reads
 that intersection through the entity's own source under the subscriber's
 principal (one read per principal value and window signature; subscribers
 selecting none of the fields do no work), and streams an `EntityPatched`
 carrying only the fields that subscriber may see. A record the source does not
-return for the changed id reaches nobody. `deleted` streams an `EntityDeleted` to the entity's
-subscribers. Cursors continue from the cursor each subscriber resumed at, so
+return for the changed id reaches nobody. `deleted` streams an `EntityDeleted`
+to the entity's subscribers. Cursors continue from the cursor each subscriber resumed at, so
 the client's duplicate and gap handling is unchanged. A hub and hand-written
 `RemoteServer.live` sources number their events independently; use one or the
 other for a given subscription. Nested relation targets are not subscribed by
@@ -194,9 +209,10 @@ principal read this semantic field*. Authorization is mandatory, not opt-in:
 
 ## Hardening
 
-- Each read batch and live subscription is bounded per entity
-  (`maxIdsPerEntity`, default 1000, counted across the batch's window groups),
-  and an oversized one fails rather than loading unbounded rows.
+- A read batch is bounded per entity (`maxIdsPerEntity`, default 1000, counted
+  across the batch's window groups) and an oversized one fails rather than
+  loading unbounded rows; a `liveHub` subscription is bounded the same way. A
+  hand-written `RemoteServer.live` source bounds itself.
 - A selection nested past `MAX_RELATION_DEPTH` (8) or naming more than
   `MAX_FIELDS_PER_REQUEST` (256) fields of one entity is refused at decode.
 - Returned field names are filtered with `Object.hasOwn` and accumulated into a
