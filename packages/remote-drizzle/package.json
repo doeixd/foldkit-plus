@@ -2,6 +2,14 @@
   "name": "foldkit-remote-drizzle",
   "version": "0.1.0",
   "description": "Provisional compiler from Remote Entity/Selection/Query to Drizzle's typed query graph.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "drizzle",
+    "drizzle-orm",
+    "sql",
+    "server-state"
+  ],
   "type": "module",
   "license": "MIT",
   "author": "Patrick Glenn <doeixd@gmail.com>",

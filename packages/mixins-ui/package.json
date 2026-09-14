@@ -2,6 +2,14 @@
   "name": "foldkit-mixins-ui",
   "version": "0.1.0",
   "description": "Published slot contracts and mixin adapters for @foldkit/ui, built on foldkit-mixins.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "slots",
+    "styling",
+    "ui-components",
+    "headless-ui"
+  ],
   "type": "module",
   "license": "MIT",
   "author": "Patrick Glenn <doeixd@gmail.com>",
