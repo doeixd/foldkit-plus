@@ -9,15 +9,10 @@ const events = pgTable('events', {
 })
 
 const render = (
-  terms: readonly OrderTerm[],
+  terms: readonly [OrderTerm, ...OrderTerm[]],
   values: readonly unknown[],
   traversal: 'forward' | 'backward',
-) => {
-  const dialect = new PgDialect()
-  return dialect.sqlToQuery(
-    keysetWhere(terms, values, traversal) as NonNullable<ReturnType<typeof keysetWhere>>,
-  )
-}
+) => new PgDialect().sqlToQuery(keysetWhere(terms, values, traversal))
 
 const normalized = (predicate: ReturnType<typeof render>) => predicate.sql.replace(/\s+/g, ' ')
 
@@ -69,7 +64,7 @@ describe('keysetWhere', () => {
   })
 
   it('builds lexicographic branches for a multi-column order', () => {
-    const terms: ReadonlyArray<OrderTerm> = [
+    const terms: readonly [OrderTerm, ...OrderTerm[]] = [
       { column: events.createdAt, direction: 'desc' },
       { column: events.id, direction: 'desc' },
       { column: events.rank, direction: 'asc' },
@@ -87,7 +82,7 @@ describe('keysetWhere', () => {
   })
 
   it('flips every comparator for a backward traversal', () => {
-    const terms: ReadonlyArray<OrderTerm> = [
+    const terms: readonly [OrderTerm, ...OrderTerm[]] = [
       { column: events.createdAt, direction: 'desc' },
       { column: events.id, direction: 'asc' },
     ]

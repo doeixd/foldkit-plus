@@ -185,7 +185,7 @@ describe('snapshot hardening', () => {
       2,
     )
     expect(RemotePersistence.dehydrate(store)).toBe(RemotePersistence.dehydrate(reversed))
-    expect(JSON.parse(RemotePersistence.dehydrate(store)!)).toEqual({
+    expect(JSON.parse(RemotePersistence.dehydrate(store))).toEqual({
       version: REMOTE_CACHE_VERSION,
       scope: null,
       entities: expect.any(Object),
@@ -193,7 +193,7 @@ describe('snapshot hardening', () => {
   })
 
   it('hydrating the same text twice gives equal stores', () => {
-    const text = RemotePersistence.dehydrate(store)!
+    const text = RemotePersistence.dehydrate(store)
     expect(RemotePersistence.hydrate(text)).toEqual(RemotePersistence.hydrate(text))
     expect(RemotePersistence.hydrate(text)).toEqual(store)
   })
@@ -228,7 +228,7 @@ describe('snapshot hardening', () => {
   })
 
   it('an oversized snapshot is neither written nor read', async () => {
-    const size = new TextEncoder().encode(RemotePersistence.dehydrate(store)!).length
+    const size = new TextEncoder().encode(RemotePersistence.dehydrate(store)).length
     expect(RemotePersistence.dehydrate(store, { maxBytes: size })).toBeDefined()
     expect(RemotePersistence.dehydrate(store, { maxBytes: size - 1 })).toBeUndefined()
     expect(
@@ -326,7 +326,7 @@ describe('snapshot hardening', () => {
         Effect.provide(Client),
       ),
     )
-    const html = RemotePersistence.dehydrate(serverStore, { scope: 'u1' })!
+    const html = RemotePersistence.dehydrate(serverStore, { scope: 'u1' })
 
     // Client: hydrate into a fresh model; the plan is empty and the read is Ready.
     const client = updateRemote(initialRemoteModel, {

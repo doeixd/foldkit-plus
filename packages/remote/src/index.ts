@@ -141,7 +141,7 @@ export interface RemoteDescriptor<
   readonly entities: Entities
   readonly queries: Queries
   readonly mutations: Mutations
-  readonly Model: Schema.Schema<RemoteModel>
+  readonly Model: Schema.Codec<RemoteModel, unknown>
   readonly initial: RemoteModel
   readonly Message: Schema.Schema<RemoteMessage>
   readonly update: (model: RemoteModel, message: RemoteMessage) => RemoteModel
@@ -191,6 +191,15 @@ export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
   Dependencies,
   RemoteClient
 >
+
+/**
+ * The entries `RemoteDomain.subscriptions` returns for an active record: a read
+ * and a live entry per key (the live one idles when nothing is read live), and
+ * `retain`.
+ */
+export type SubscriptionEntries<AppModel, Active> = {
+  readonly [K in keyof Active & string as `${K}.read` | `${K}.live`]: RemoteEntry<AppModel, any>
+} & { readonly retain: RemoteEntry<AppModel, any> }
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
@@ -272,10 +281,14 @@ export interface RemoteDomain<
    * Surface's params are a function of the Model (`Surface.at`), so what is
    * fetched, subscribed, and retained follows the Model.
    */
-  subscriptions(
-    active: Readonly<Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>>,
+  subscriptions<
+    const Active extends Readonly<
+      Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
+    >,
+  >(
+    active: Active,
     options?: SubscriptionsOptions,
-  ): Readonly<Record<string, RemoteEntry<AppModel, any>>>
+  ): SubscriptionEntries<AppModel, Active>
   /** `Remote.plan`: the requirements the store does not satisfy. */
   plan<Value>(
     model: AppModel,
@@ -1342,7 +1355,8 @@ const bindDomain = <
             ),
           ),
       }
-      return entries
+      // The loop above wrote exactly the keys the mapped type names.
+      return entries as SubscriptionEntries<AppModel, typeof active>
     },
     plan: (model, projection, options) => Remote.plan(bound, model, projection, options),
     storeOf: model => storeOf(bound, model),

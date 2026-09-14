@@ -89,11 +89,7 @@ describe('Remote.make binds a domain', () => {
   })
 
   it('Remote.Model is entity-independent, so it embeds before the domain is bound', () => {
-    expect(
-      Schema.decodeUnknownSync(Remote.Model as unknown as Schema.ConstraintDecoder<unknown>)(
-        Remote.initial,
-      ),
-    ).toEqual(Remote.initial)
+    expect(Schema.decodeUnknownSync(Remote.Model)(Remote.initial)).toEqual(Remote.initial)
     expect(Data.Model).not.toBe(Remote.Model)
     expect(Data.initial).toBe(Remote.initial)
   })
@@ -323,36 +319,36 @@ describe('Data.live and Data.subscriptions', () => {
   })
 
   it('the read entry plans from the params the Model gives; an inactive Surface plans nothing', () => {
-    expect(subscriptions['page.read']!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions['page.read'].modelToDependencies(at('p7'))).toEqual({
       requirements: [
         { entity: 'Project', id: 'p7', fields: ['name'] },
         { entity: 'User', id: 'u1', fields: ['name'] },
       ],
       queries: [],
     })
-    expect(subscriptions['page.read']!.modelToDependencies(at(''))).toEqual({
+    expect(subscriptions['page.read'].modelToDependencies(at(''))).toEqual({
       requirements: [],
       queries: [],
     })
-    expect(subscriptions['home.read']!.modelToDependencies(at(''))).toEqual({
+    expect(subscriptions['home.read'].modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
     })
   })
 
   it('the live entry subscribes only what the Surface reads live', () => {
-    expect(subscriptions['page.live']!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions['page.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],
       cursor: 0,
     })
-    expect(subscriptions['home.live']!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions['home.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [],
       cursor: 0,
     })
   })
 
   it('the retain entry’s roots are the active Surfaces’ requirements', () => {
-    expect(subscriptions.retain!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions.retain.modelToDependencies(at('p7'))).toEqual({
       requirements: [
         { entity: 'Project', id: 'p7', fields: ['name'], live: true },
         { entity: 'User', id: 'u1', fields: ['name'] },
@@ -360,14 +356,14 @@ describe('Data.live and Data.subscriptions', () => {
       ],
       connections: [],
     })
-    expect(subscriptions.retain!.modelToDependencies(at(''))).toEqual({
+    expect(subscriptions.retain.modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       connections: [],
     })
   })
 
   it('the entries fetch, subscribe, and collect through RemoteClient like the kernel’s', async () => {
-    const read = subscriptions['page.read']!
+    const read = subscriptions['page.read']
     const messages = await Effect.runPromise(
       Stream.runCollect(read.dependenciesToStream(read.modelToDependencies(at('p7')))).pipe(
         Effect.provide(client()),
@@ -383,9 +379,7 @@ describe('Data.live and Data.subscriptions', () => {
 
     const collected = await Effect.runPromise(
       Stream.runCollect(
-        subscriptions.retain!.dependenciesToStream(
-          subscriptions.retain!.modelToDependencies(at('')),
-        ),
+        subscriptions.retain.dependenciesToStream(subscriptions.retain.modelToDependencies(at(''))),
       ).pipe(Effect.provide(client())),
     )
     expect(collected.map(message => message._tag)).toEqual(['RetentionChanged'])
@@ -399,7 +393,7 @@ describe('Data.live and Data.subscriptions', () => {
       Effect.gen(function* () {
         const fiber = yield* Effect.forkChild(
           Stream.runForEach(
-            graced.retain!.dependenciesToStream(graced.retain!.modelToDependencies(at(''))),
+            graced.retain.dependenciesToStream(graced.retain.modelToDependencies(at(''))),
             message => Effect.sync(() => void collected.push(message._tag)),
           ),
         )
@@ -417,7 +411,7 @@ describe('Data.live and Data.subscriptions', () => {
       { home: Home },
       { policy: RemotePolicy.networkOnly, connections: ['Feed'], grace: '1 second' },
     )
-    expect(tuned.retain!.modelToDependencies(at(''))).toMatchObject({
+    expect(tuned.retain.modelToDependencies(at(''))).toMatchObject({
       connections: [{ identity: 'Feed' }],
     })
     // networkOnly plans every field, present or not.
@@ -428,11 +422,11 @@ describe('Data.live and Data.subscriptions', () => {
         entities: writeEntity(emptyStore, entityKey('Project', 'p1'), { name: 'x' }, 0),
       },
     }
-    expect(subscriptions['home.read']!.modelToDependencies(loaded)).toEqual({
+    expect(subscriptions['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [],
       queries: [],
     })
-    expect(tuned['home.read']!.modelToDependencies(loaded)).toEqual({
+    expect(tuned['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
     })
@@ -523,14 +517,14 @@ describe('what runs on every Model change is built once', () => {
       ),
     })
     const model: Model = { route: 'p1', remote: Remote.initial }
-    subscriptions['counted.read']!.modelToDependencies(model)
-    subscriptions['counted.live']!.modelToDependencies(model)
-    subscriptions.retain!.modelToDependencies(model)
+    subscriptions['counted.read'].modelToDependencies(model)
+    subscriptions['counted.live'].modelToDependencies(model)
+    subscriptions.retain.modelToDependencies(model)
     expect(built).toBe(1)
     // A new Model is a new projection; an inactive one builds nothing.
-    subscriptions['counted.read']!.modelToDependencies({ ...model })
+    subscriptions['counted.read'].modelToDependencies({ ...model })
     expect(built).toBe(2)
-    subscriptions.retain!.modelToDependencies({ route: '', remote: Remote.initial })
+    subscriptions.retain.modelToDependencies({ route: '', remote: Remote.initial })
     expect(built).toBe(2)
   })
 })
@@ -888,7 +882,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
   it('the read entry runs the query; the merged page makes its items the next plan', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
     const subscriptions = Data.subscriptions({ list: List })
-    const entry = subscriptions['list.read']!
+    const entry = subscriptions['list.read']
     expect(entry.modelToDependencies(initial)).toEqual({
       requirements: [],
       queries: [
@@ -896,7 +890,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ],
     })
     // The connection is a retention root by itself, with what the page selects of each item.
-    expect(subscriptions.retain!.modelToDependencies(initial)).toEqual({
+    expect(subscriptions.retain.modelToDependencies(initial)).toEqual({
       requirements: [],
       connections: [{ identity, select: { entity: 'Project', fields: ['name'] } }],
     })
@@ -963,7 +957,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     const entry = Data.subscriptions(
       { list: List },
       { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
-    )['list.read']!
+    )['list.read']
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
         Effect.provide(paging(['p1']).layer),
@@ -1000,7 +994,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       }),
     })
     const List = App.surface('List', { model: () => ({ literal }) })
-    const entry = Data.subscriptions({ list: List })['list.read']!
+    const entry = Data.subscriptions({ list: List })['list.read']
     expect(Remote.planQueries(Data, initial, literal)).toEqual([])
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
@@ -1021,7 +1015,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('a failed query yields QueryFailed, which ends the refresh and keeps the pages', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
-    const entry = Data.subscriptions({ list: List })['list.read']!
+    const entry = Data.subscriptions({ list: List })['list.read']
     const stale = Data.reduce(read(merged(initial, ['p1', 'p2']), ['p1', 'p2']), {
       _tag: 'ConnectionInvalidated',
       connection: identity,
@@ -1046,7 +1040,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('an empty page reads nothing further; a page of another entity plans no items', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
-    const entry = Data.subscriptions({ list: List })['list.read']!
+    const entry = Data.subscriptions({ list: List })['list.read']
     const client = paging([])
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(

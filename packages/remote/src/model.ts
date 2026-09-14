@@ -85,7 +85,8 @@ export const initialRemoteModel: RemoteModel = {
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
 const runtimeSchema = Schema.Unknown
 
-export const remoteModelSchema = (): Schema.Schema<RemoteModel> =>
+export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
+  // The runtime fields decode as `unknown`; their types come from `RemoteModel`.
   Schema.Struct({
     entities: runtimeSchema,
     connections: Schema.Record(Schema.String, runtimeSchema),
@@ -94,7 +95,7 @@ export const remoteModelSchema = (): Schema.Schema<RemoteModel> =>
     mutations: runtimeSchema,
     gaps: runtimeSchema,
     loading: runtimeSchema,
-  }) as unknown as Schema.Schema<RemoteModel>
+  }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
 export type RemoteMessage =

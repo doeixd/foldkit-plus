@@ -113,7 +113,12 @@ const deserializeStore = (serialized: SerializedStore): EntityStore =>
  * The snapshot text, or `undefined` when it would exceed `maxBytes`. Only the
  * entity store goes in; pass `model.entities`, never the whole `RemoteModel`.
  */
-const dehydrate = (store: EntityStore, options: SnapshotOptions = {}): string | undefined => {
+function dehydrate(
+  store: EntityStore,
+  options?: SnapshotOptions & { readonly maxBytes?: undefined },
+): string
+function dehydrate(store: EntityStore, options?: SnapshotOptions): string | undefined
+function dehydrate(store: EntityStore, options: SnapshotOptions = {}): string | undefined {
   const text = stableStringify(serializeStore(store, options.scope))
   return exceeds(text, options.maxBytes) ? undefined : text
 }

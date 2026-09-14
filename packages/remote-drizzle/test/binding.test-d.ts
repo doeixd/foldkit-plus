@@ -1,7 +1,15 @@
 import { pgTable, text, uuid } from 'drizzle-orm/pg-core'
 import { Schema } from 'effect'
 import { Remote, Selection, type EntityRef } from 'foldkit-remote'
-import { entity, many, one } from '../src/index.js'
+import type { SQL } from 'drizzle-orm'
+import { entity, keysetWhere, many, one, type OrderTerm } from '../src/index.js'
+
+// A non-empty ordering always yields a predicate; an arbitrary one may not.
+declare const someTerms: readonly OrderTerm[]
+declare const oneTerm: OrderTerm
+const _predicate: SQL = keysetWhere([oneTerm], [], 'forward')
+// @ts-expect-error an ordering that may be empty may have no predicate
+const _maybe: SQL = keysetWhere(someTerms, [], 'forward')
 
 const users = pgTable('users', {
   id: uuid('id').primaryKey(),

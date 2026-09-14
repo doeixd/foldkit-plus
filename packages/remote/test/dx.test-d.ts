@@ -28,6 +28,8 @@ import {
   type SelectsEntity,
 } from '../src/index.js'
 import type { Invalid } from 'foldkit-surface'
+import { RemotePersistence } from '../src/persistence.js'
+import type { EntityStore } from '../src/store.js'
 
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
@@ -279,6 +281,25 @@ const subscriptions = Data.subscriptions(
   { grace: '5 seconds' },
 )
 const _entries: Readonly<Record<string, RemoteEntry<AppModel, any>>> = subscriptions
+// Every active key names its read and live entries, beside `retain`; nothing else.
+const _keys: Equals<
+  keyof typeof subscriptions,
+  'page.read' | 'page.live' | 'home.read' | 'home.live' | 'retain'
+> = true
+const _read: RemoteEntry<AppModel, any> = subscriptions['page.read']
+// @ts-expect-error no Surface is active under `other`
+void subscriptions['other.read']
+
+// A snapshot is dropped only for exceeding `maxBytes`, so without it there is always text.
+declare const entityStore: EntityStore
+const _snapshot: string = RemotePersistence.dehydrate(entityStore, { scope: 'u1' })
+// @ts-expect-error with `maxBytes` the snapshot may be dropped
+const _bounded: string = RemotePersistence.dehydrate(entityStore, { maxBytes: 10 })
+
+// The submodel schema decodes: its decoded side is `RemoteModel`, from any encoded input.
+const _decoded: typeof Remote.initial = Schema.decodeUnknownSync(Remote.Model)(Remote.initial)
+// @ts-expect-error the decoded side is the submodel, not an arbitrary value
+const _wrongModel: Schema.Codec<string, unknown> = Remote.Model
 const _foldkit = Subscription.make<AppModel, typeof Message.Type, RemoteClient>()(
   () => subscriptions,
 )
