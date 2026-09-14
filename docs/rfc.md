@@ -1,8 +1,8 @@
 # RFC: What Foldkit Might Want to Steal from `foldkit-plus`
 
-**Status:** Proposal / design exploration
-**Scope:** Foldkit architecture, tooling, official extensions, and ecosystem boundaries
-**Thesis:** Upstream the vocabulary that makes application boundaries explicit; do not upstream every subsystem built with that vocabulary.
+**Status:** Proposal / design exploration  
+**Scope:** Foldkit architecture, tooling, official extensions, and ecosystem boundaries  
+**Thesis:** Upstream the vocabulary that makes application boundaries explicit; let interpreters reuse that vocabulary without creating parallel state or async systems.
 
 ## Summary
 
@@ -20,20 +20,20 @@ update
 explicit effects
 ```
 
-The Model is the single source of truth. Every state transition flows through `update`. Commands, Subscriptions, Mounts, Managed Resources, Flags, routing, Submodels, Ports, and testing all fit around that state machine without introducing hidden state. That is Foldkit's core strength.
+The Model is the single source of semantic application truth. Every state transition flows through `update`. Commands, Subscriptions, Mounts, Managed Resources, Flags, routing, Submodels, Ports, and testing all fit around that state machine without introducing a second reducer or hidden application store.
 
-What `foldkit-plus` discovers is that there is another class of architectural fact that Foldkit does not yet represent explicitly:
+What `foldkit-plus` discovers is that another class of architectural fact is also worth making explicit:
 
 ```text
 What does this consumer observe?
 
 What may this consumer cause?
 
+Which external facts are required to satisfy this observation?
+
 Which external systems merely represent this state?
 
 Which Messages belong to some external capability?
-
-Which parts of a view may another package decorate?
 
 Which parts of the architecture can tooling inspect without executing it?
 ```
@@ -44,50 +44,98 @@ It is:
 
 > **Application boundaries can be explicit data too.**
 
-A `Surface` in Plus combines a projection of the Model with a subset of application Messages and therefore describes a consumer-facing boundary: what that consumer may observe and what it may cause. It deliberately differs from a Submodel: a Submodel owns a state machine, while a Surface describes access to state and Messages that already exist. A Surface can span multiple Submodels precisely because observation boundaries and ownership boundaries do not necessarily coincide.
+The most useful substrate is a small family of declarations:
 
-That idea fits Foldkit extremely well.
+```text
+Application identity
+        |
+        +--> ModelRef / Projection
+        |
+        +--> Message subset
+        |
+        +--> Surface
+```
 
-The recommendation of this RFC is to selectively absorb the following concepts:
+A Surface describes a consumer-facing boundary over state and Messages that already exist:
+
+```text
+what this consumer may observe
++
+what this consumer may cause
+```
+
+It deliberately differs from a Submodel:
+
+```text
+Submodel
+    who owns a state machine
+
+Surface
+    how a consumer sees and acts on existing state machines
+```
+
+The newer async-semantics work strengthens this proposal.
+
+Solid 2's async model suggests an important general lesson:
+
+> **Async behavior should compose through the same dependency model as ordinary state rather than through a parallel resource vocabulary.**
+
+But Foldkit should not copy Solid's reactive runtime. Foldkit already has a different and valuable decomposition:
+
+```text
+semantic state       -> Model / AsyncData
+one-shot work        -> Command / Effect
+ongoing work         -> Subscription / Stream / Scope
+observation          -> ModelRef / Projection / Surface
+external requirement -> interpreter-owned Projection metadata
+confirmation         -> package-specific semantics composed as Effect
+```
+
+The recommendation of this RFC is therefore to selectively absorb the following concepts:
 
 ```text
                  Foldkit today
-                       │
-                       ▼
+                       |
+                       v
              Model · Message · update
-                       │
+                       |
               explicit effect taxonomy
-                       │
-                       ▼
-         ┌─────────────────────────┐
-         │ new static contract     │
-         │ vocabulary              │
-         │                         │
-         │ Application descriptor  │
-         │ Model Projection        │
-         │ Message subset          │
-         │ Surface / Boundary      │
-         └────────────┬────────────┘
-                      │
-          ┌───────────┼────────────┬────────────┐
-          ▼           ▼            ▼            ▼
-      DevTools     Agents       Mirrors      View parts
-      manifests   capabilities  URL/storage  composition
+                       |
+                       v
+         +---------------------------+
+         | static contract vocabulary|
+         |                           |
+         | Application descriptor    |
+         | Model Projection          |
+         | Message subset            |
+         | Surface / Boundary        |
+         +-------------+-------------+
+                       |
+          +------------+------------+
+          |            |            |
+          v            v            v
+      DevTools       Agents      interpreters
+      manifests                 Remote / Mirror /
+                                future packages
 ```
 
-Remote, Sync, and Durable should remain incubation projects for now. They contain excellent architectural lessons, but they make significantly larger product commitments around caching, offline persistence, replication, authoritative ordering, and server infrastructure.
+Remote, Sync, and Durable should remain incubation projects for now. They contain strong architectural lessons, but they make larger product commitments around caching, replication, local-first persistence, authoritative ordering, and server infrastructure.
 
 The goal is **not to make Foldkit larger for its own sake**.
 
-The goal is to make the boundaries around Foldkit's existing architecture as explicit and inspectable as its state transitions already are.
+The goal is:
+
+> **Make Foldkit's boundaries as explicit and reusable as its transitions, while preserving one Model, one Message flow, one update function, and Effect as the async-control substrate.**
+
+For the detailed async rationale and rejected alternatives, see [`design/async-semantics-DESIGN.md`](./design/async-semantics-DESIGN.md).
 
 ---
 
 # 1. The design constraint: Foldkit must still feel like Foldkit
 
-Any idea borrowed from `foldkit-plus` should pass a very high bar.
+Any idea borrowed from `foldkit-plus` should pass a high bar.
 
-The worst outcome would be turning Foldkit into a pile of optional architectural DSLs:
+The worst outcome would be turning Foldkit into a pile of architectural DSLs:
 
 ```text
 Model
@@ -100,22 +148,20 @@ Agent
 Mirror
 Remote
 Sync
-Mixin
-Slot
-Behavior
-Capability
+Activity
+Authority
+Observation
+Action
 ...
 ```
 
-That would work against one of Foldkit's strongest properties: there is a relatively small vocabulary and an idiomatic place for each kind of behavior.
+That would work against one of Foldkit's strongest properties: a relatively small vocabulary with an idiomatic place for each kind of behavior.
 
-The right integration rule is:
+The integration rule should be:
 
 > **Add a primitive only when it makes several existing or future features simpler at once.**
 
-This produces a few constraints.
-
-### Existing Foldkit applications must remain complete
+## Existing Foldkit applications must remain complete
 
 A small Foldkit app should still need nothing beyond:
 
@@ -128,90 +174,114 @@ view
 Runtime.makeApplication(...)
 ```
 
-No Surface, Projection, Mirror, or architecture manifest should be required.
+No Surface, Projection, architecture manifest, or interpreter metadata should be required.
 
-Plus itself recognizes this principle: if nobody needs to inspect a feature's dependencies, a normal Model-reading function is simpler than a Surface.
+If nobody needs to inspect or reuse a feature's boundary, a plain Model-reading function is simpler than a Surface.
 
-### New abstractions must not own hidden state
+## New abstractions must not own hidden state
 
 Nothing introduced here should create:
 
-* another reducer;
-* another mutable store;
-* another rendering loop;
-* another application lifecycle;
-* another state ownership system.
+- another reducer;
+- another mutable application store;
+- another rendering loop;
+- another state-ownership system;
+- another generic async-control library beside Effect.
 
-A new abstraction should either describe existing architecture or compile down to existing Foldkit primitives.
+A new abstraction should either describe existing architecture or compile into existing Foldkit / Effect primitives.
 
-### Writes should still mean Messages
-
-This is especially important.
-
-Plus exposes writable `ModelRef`s and writable Projections because infrastructure such as Sync needs to install checkpoints. It explicitly warns that the presence of a setter does not imply ownership and that Submodel invariants must still flow through the owning update.
-
-Foldkit itself should be even stricter.
+## Writes should still mean Messages
 
 For ordinary application-facing APIs:
 
 ```text
 reading Model state
-    → Projection
+    -> Projection
 
 changing Model state
-    → Message → update
+    -> Message -> update
 ```
 
-Writable optics/foci may exist for infrastructure, hydration, replay, or internal implementation, but they should not quietly become an alternative application mutation API.
+Writable optics/foci may exist for infrastructure, hydration, replay, or internal implementation, but should not quietly become a second semantic mutation API.
 
-### Higher-level features should compile into existing effect categories
+Knowing where data lives is not authority to mutate it.
 
-Foldkit already has a clear answer for where effects belong:
+## Higher-level features should compile into existing effect categories
 
-* Commands for one-shot work;
-* Flags for pre-init external values;
-* Subscriptions for Model-dependent ongoing work;
-* Mount for element-scoped imperative work;
-* Managed Resources for Model-governed stateful handles.
+Foldkit already has a strong effect taxonomy:
 
-A Mirror should therefore produce or use Commands/Subscriptions.
+```text
+Command
+    one-shot work caused by a transition
 
-An Agent integration should dispatch Messages.
+Subscription
+    ongoing work whose lifetime follows Model state
 
-A Remote cache should be a Submodel.
+Mount
+    element-scoped imperative work
 
-A view Behavior should ultimately become normal attributes and Mounts.
+ManagedResource
+    Model-governed stateful handle
 
-If a Plus-derived feature requires inventing a parallel effect mechanism, the design has gone wrong.
+Flag
+    external value needed before initial Model construction
+```
+
+A higher-level feature should normally compile into these categories and Effect primitives.
+
+Examples:
+
+```text
+Agent
+    dispatches existing Messages
+
+Mirror
+    uses Commands / Subscriptions
+
+Remote
+    keeps cache state in a Submodel and runs I/O outside render
+
+Behavior
+    resolves to ordinary attributes / Mounts
+```
+
+If a feature requires a parallel effect lifecycle, the design has probably gone wrong.
+
+## Core rendering should remain reproducible from Model
+
+This is particularly important after studying Solid 2.
+
+Foldkit should not make runtime fiber state an invisible second input to normal views:
+
+```ts
+// not the default Foldkit model
+view(model, runtimeActivity)
+```
+
+If `saving`, `refreshing`, `stale`, or `pending` affects application semantics, encode that state in Model.
+
+This preserves:
+
+- deterministic rendering;
+- SSR / hydration;
+- Story / Scene;
+- replay;
+- time-travel debugging;
+- Schema-based persistence.
+
+Runtime execution state may still exist for devtools, diagnostics, telemetry, and adapters. It should not silently become application truth.
 
 ---
 
 # 2. The central missing abstraction: a pure application descriptor
 
-The first thing `foldkit-plus` has to invent is:
+`foldkit-plus` repeatedly needs a stable value that means:
 
-```ts
-const App = Surface.application({
-  Model,
-  Message,
-  initial,
-  update,
-})
-```
+> This is the Foldkit application whose Model, Message vocabulary, and transition function I am describing.
 
-That is revealing.
+Today those values exist separately, while `Runtime.makeApplication` is closer to an execution/mounting boundary.
 
-Foldkit currently has all of these values, but they do not exist together as one pure, runtime-independent object. `Runtime.makeApplication` combines the program with runtime/rendering concerns including `view` and `container`; the normal project structure deliberately keeps that bootstrapping in `entry.ts`.
-
-Meanwhile, the Message Schema is not fundamentally part of `Runtime.makeApplication`; today it is supplied to DevTools when schema-valid MCP dispatch is needed.
-
-There is therefore no canonical value an architectural extension can point at and say:
-
-> "This is the Foldkit application whose Model, Message vocabulary, and transition function I am describing."
-
-That is probably worth fixing.
-
-## Proposal: introduce an optional pure Application/Program value
+## Proposal: introduce an optional pure Application / Program value
 
 Illustrative API:
 
@@ -225,7 +295,7 @@ export const App = Application.define({
 })
 ```
 
-Bootstrapping becomes:
+Bootstrapping could become:
 
 ```ts
 const application = Runtime.makeApplication(App, {
@@ -235,52 +305,40 @@ const application = Runtime.makeApplication(App, {
 Runtime.run(application)
 ```
 
-Or, if preserving the exact current API is preferable:
-
-```ts
-const application = Runtime.makeApplication({
-  program: App,
-  container: document.getElementById('root'),
-})
-```
-
-The exact naming is less important than the separation:
+The important distinction is:
 
 ```text
 Application definition
     pure
     importable in tests
     no DOM
-    contains architectural identity
+    stable architectural identity
 
 Runtime mounting
     environment-specific
     container
-    DevTools
+    devtools
     ports
     hydration
     browser/server concerns
 ```
 
-This would also make the already-recommended `main.ts` / `entry.ts` split more explicit rather than changing its philosophy.
-
 ## Why this helps beyond Plus
 
-A pure application value becomes the anchor for:
+A pure application value becomes an anchor for:
 
-* Model projections;
-* Message subsets;
-* Surfaces;
-* Story/Scene helpers;
-* architecture manifests;
-* production agent contracts;
-* Mirror declarations;
-* HMR serialization metadata;
-* SSR metadata;
-* extension packages;
-* eventual static analysis.
+- Model projections;
+- Message subsets;
+- Surfaces;
+- Story / Scene helpers;
+- architecture manifests;
+- agent contracts;
+- Mirror declarations;
+- HMR/SSR metadata;
+- extension packages;
+- static analysis.
 
-Today extensions must each receive loose tuples of:
+Today extensions often need loose tuples of:
 
 ```ts
 Model
@@ -289,49 +347,40 @@ init
 update
 ```
 
-or create their own wrapper.
-
-A canonical application identity eliminates that repetition.
+or create their own wrapper. A canonical application identity removes that repetition and allows the type system to reject cross-application composition.
 
 ## This should remain optional
 
-This must not become:
+Do not make:
 
 ```ts
 Application.define(...)
-Application.configure(...)
-Application.install(...)
-Application.module(...)
 ```
 
-as the only way to write Foldkit.
+the only way to write Foldkit.
 
-The individual exports should remain perfectly valid.
-
-The descriptor is a way to bundle them when something needs an inspectable application identity.
+The descriptor is useful when another subsystem needs a stable, inspectable application identity. Plain exports remain valid.
 
 ---
 
-# 3. Model Projection: make reads explicit without creating another state system
+# 3. Projection: make observation explicit without creating another state system
 
 The most reusable Plus primitive underneath Surface is its notion of an inspectable Model projection.
 
-Plus distinguishes:
+The useful distinction is:
 
 ```text
 Effect Optic
     structural focus
 
 Projection
-    value + where that value came from
+    typed value + explicit read dependencies
 
 Surface
-    Projection + allowed Messages
+    Projection + permitted Messages
 ```
 
-Its field references are backed by Effect Optics but add the Model Schema, dependency path, application identity, and codec.
-
-This is useful because a normal function:
+A normal function:
 
 ```ts
 model => ({
@@ -340,17 +389,17 @@ model => ({
 })
 ```
 
-can compute a read model, but nothing can inspect the function and reliably discover:
+computes a value, but another subsystem cannot reliably inspect the function and discover:
 
 ```text
-depends on:
+reads:
   todos
   filter
 ```
 
-Once dependencies are data, other systems can reason about them.
+Once those relationships are data, other systems can reason about them.
 
-## Proposal: a deliberately small `Projection`
+## Proposal: a small read-only Projection
 
 Conceptually:
 
@@ -359,10 +408,13 @@ interface Projection<Root, Value> {
   readonly schema: Schema.Schema<Value>
   readonly read: (root: Root) => Value
   readonly dependencies: ReadonlyArray<ModelPath>
+  readonly metadata: ReadonlyArray<InterpreterMetadata>
 }
 ```
 
-Generated field references could make this pleasant:
+`metadata` here is deliberately schematic. The important point is that Projection may carry **opaque interpreter-owned declarations** without understanding their domain semantics.
+
+Generated field references make projection construction type-safe:
 
 ```ts
 App.fields.todos
@@ -379,22 +431,13 @@ const TodoOverview = Projection.struct({
 })
 ```
 
-or:
-
-```ts
-const TodoOverview = App.project({
-  todos: App.fields.todos,
-  filter: App.fields.filter,
-})
-```
-
-Now the same value serves both as executable code:
+The same value is executable:
 
 ```ts
 TodoOverview.read(model)
 ```
 
-and architecture metadata:
+and inspectable:
 
 ```text
 reads:
@@ -403,12 +446,6 @@ reads:
 ```
 
 ## Keep core Projection read-only
-
-This is one place Foldkit should improve on the Plus abstraction.
-
-Plus makes `Projection.pick(...)` writable because Sync and Mirror need to install state back into the Model.
-
-That makes sense for infrastructure, but it weakens the conceptual boundary.
 
 For Foldkit proper, prefer:
 
@@ -423,60 +460,125 @@ Message
     semantic state transition
 ```
 
-An infrastructure package may explicitly request a writable focus:
+Infrastructure packages may explicitly request a writable focus, but a Surface, view, Agent, or ordinary feature should usually receive only a Projection.
 
-```ts
-const SharedTodos = Focus.pick(App.fields.todos)
+## Projection metadata should be open, not Remote-shaped
+
+The earlier version of this RFC said:
+
+> Core Projection should carry only Model paths; Remote can wrap or annotate it externally.
+
+That was too restrictive.
+
+Experience in `foldkit-plus` shows why the metadata often needs to survive **through Projection composition itself**. A composed projection should be able to retain the declarative external facts contributed by its children.
+
+The refined rule is:
+
+> **Core may own a tiny open metadata seam; interpreters own the typed metadata and its meaning.**
+
+Do not put these concepts directly into core Projection:
+
+```text
+Remote entity
+Remote field selection
+pagination window
+query connection
+Sync operation
+feature flag
+search index
 ```
 
-but a Surface, view, Agent, or normal feature should usually only receive a Projection.
+Instead, an interpreter should construct a branded / opaque declaration that Projection can preserve and compose.
 
-This keeps a very important distinction visible:
+Conceptually:
 
-> Knowing where data lives is not authority to mutate it.
+```ts
+const RemoteRequirementTypeId: unique symbol
 
-## Do not put Remote semantics in Projection
+interface RemoteRequirement {
+  readonly [RemoteRequirementTypeId]: typeof RemoteRequirementTypeId
+  // Remote-owned structure
+}
+```
 
-Plus Projections also carry Remote entity requirements and query connection requirements.
+Surface / Projection need not understand it.
 
-That is too application-specific for Foldkit core.
+Remote can later inspect the Projection and retrieve only metadata it owns.
 
-Foldkit's Projection should know only:
+A future package can contribute another metadata type without editing a central union.
 
-* how to read;
-* the Schema of the result;
-* which Model paths it depends on.
+### Why this matters
 
-Remote can wrap or annotate a Projection in its own package.
+Without an open metadata seam, every new interpreter tends toward one of three bad outcomes:
 
-Sync can attach replication semantics.
+```text
+1. change Surface core
+2. create a parallel Projection DSL
+3. throw away metadata during composition
+```
 
-Agents can treat it as context.
+With an open seam:
 
-Mirror can observe it.
+```text
+Projection
+   |
+   +--> Remote requirement
+   +--> Search requirement
+   +--> Feature-flag requirement
+   +--> future interpreter metadata
+```
 
-Core should not know why somebody cares about the projection.
+and each interpreter reads only what it understands.
+
+This is similar in spirit to Effect's declarative style: construct an immutable description once, then allow different interpreters to derive behavior from it.
+
+## Keep three relations distinct
+
+Do not collapse everything into one generic `Dependency` type.
+
+There are at least three meaningful relations:
+
+```text
+reads
+    this projection observes this Model state
+
+requires
+    satisfying this projection requires external facts
+
+affects
+    this bounded work may later change some facts
+```
+
+They have different semantics and should remain distinguishable if all three eventually exist.
+
+## Type-safety rule
+
+User code should declare relationships through typed values:
+
+```ts
+App.fields.todos
+Data.get(Project, projectId)
+Message.RequestedRenameProject
+```
+
+not erased strings:
+
+```ts
+affects('todos')
+requires('Project:p1')
+```
+
+A declaration may compile internally to strings or IDs. Strings are acceptable **after** a typed declaration has been compiled; they should not be the declaration API.
 
 ---
 
 # 4. Message subsets: a small primitive with disproportionate value
 
-Plus also introduces `MessageSet`: an inspectable subset of the application's existing Message union. It carries the selected constructors, a codec, tags, and membership checking. The subset itself says nothing about whether those Messages are agent-visible, durable, or anything else; higher-level interpreters attach those meanings.
+Plus introduces `MessageSet`: an inspectable subset of the application's existing Message union.
 
-This is an excellent abstraction.
+That is exactly the sort of primitive Foldkit should own.
 
-Foldkit's Message union is already one of the central architectural values in every app.
-
-It should be possible to say:
-
-```ts
-const EditingMessages = Message.subset([
-  Message.ChangedTitle,
-  Message.DeletedTodo,
-])
-```
-
-or:
+Illustratively:
 
 ```ts
 const EditingMessages = Message.only(
@@ -485,7 +587,7 @@ const EditingMessages = Message.only(
 )
 ```
 
-and get:
+and obtain:
 
 ```text
 Schema
@@ -494,43 +596,38 @@ tags
 includes(message)
 ```
 
-The important thing is that this is just a subset.
-
-It does not create:
+The subset itself does not mean:
 
 ```text
-DurableMessage
-AgentMessage
-RemoteMessage
-SyncMessage
+Agent Message
+Durable Message
+Remote Message
+Sync Message
 ```
-
-as separate parallel concepts.
 
 Instead:
 
 ```text
 Message subset
-      │
-      ├── Agent interprets it as callable
-      ├── Sync interprets it as durable
-      ├── Surface interprets it as allowed
-      └── tooling interprets it as architecture
+      |
+      +--> Agent interprets it as callable
+      +--> Sync interprets it as durable/replayable
+      +--> Surface interprets it as permitted
+      +--> tooling interprets it as architecture
 ```
 
-That is exactly the sort of primitive Foldkit should own.
+This is powerful precisely because it names an existing application vocabulary rather than inventing another one.
 
 ---
 
 # 5. Surface: the idea most worth upstreaming
 
-With Projection and Message subsets available, Surface becomes almost trivial:
+With Projection and Message subsets available:
 
 ```text
 Surface =
     named Projection
   + allowed Message subset
-  + optional parameters
 ```
 
 For example:
@@ -571,21 +668,19 @@ No update is added.
 
 No runtime boundary exists.
 
-That is exactly why this concept belongs close to Foldkit's core.
+That is why this concept fits close to Foldkit's core.
 
 ## Surface fills a gap between views and Submodels
 
-A Foldkit Submodel answers:
+A Submodel answers:
 
 > Who owns this state machine?
 
-It has its own Model, Message type, update, view, Commands, and parent/child wrapping.
-
 A Surface answers:
 
-> What existing application state does this consumer need, and which existing root Messages may it cause?
+> What existing state does this consumer need, and which existing root Messages may it cause?
 
-Plus's strongest example is a screen that needs:
+A screen may legitimately need:
 
 ```text
 route
@@ -593,196 +688,734 @@ settings.theme
 session.user
 ```
 
-even though those values belong to different owners. Making the screen another Submodel solely to aggregate those reads would be the wrong decomposition. Surface lets observation cut across ownership boundaries without changing ownership.
+from several owners. Creating another Submodel solely to aggregate those reads would be the wrong ownership decomposition.
 
-That distinction is useful independently of every other Plus package.
+Surface lets observation cut across ownership boundaries without changing ownership.
 
 ## Views can optionally become capability-restricted
 
-A particularly interesting consequence is that Surface can narrow the `HtmlBuilder` Message type.
-
-Today:
+Today a root view often receives:
 
 ```ts
-view(
-  model: Model,
-  h: HtmlBuilder<Message>,
-)
+HtmlBuilder<Message>
 ```
 
-means the view can construct any application Message.
+and therefore can construct any application Message.
 
-A Surface-backed view could become:
+A Surface-backed view could narrow both sides:
 
 ```ts
 Surface.view(TodoList, (model, h) => {
   // model is only TodoList's projection
-  // h can only emit TodoList.Messages
+  // h only emits TodoList's allowed Messages
 })
 ```
 
-That gives the compiler another useful architectural invariant:
+This should remain optional.
 
-```text
-this view cannot accidentally dispatch
-Message.DeletedAccount
-because that constructor is not in its boundary
-```
-
-This should be optional.
-
-A plain Foldkit view remains a plain function.
-
-## Naming is open
-
-`Surface` is reasonably good because it conveys a public-facing facet of the application.
-
-Other possibilities include:
-
-```text
-Boundary
-Capability
-Interface
-Feature
-ViewModel
-Contract
-```
-
-Most are worse:
-
-* `Capability` describes only the Message side;
-* `ViewModel` makes it sound UI-specific;
-* `Feature` implies ownership;
-* `Contract` is too broad.
-
-`Surface` is probably worth keeping unless it collides with existing terminology.
+Plain functions first; contracts only when something needs to inspect or reuse the boundary.
 
 ---
 
-# 6. Architecture as data: Foldkit DevTools should show structure as well as history
+# 6. What Solid 2 teaches Foldkit about async
 
-Once Foldkit has these static contracts, `foldkit-plus`'s `Module` becomes possible.
+Solid 2 moves async into its reactive graph. Pending work, readiness, stale values, optimistic writes, refresh, errors, and transitions can all be understood through the same graph used for ordinary reactive computation.
 
-Plus can collect contracts and produce:
+Foldkit should steal the **unification principle**, not the runtime mechanism.
 
-* validation findings;
-* a manifest;
-* Markdown;
-* Mermaid;
-* ownership/observation relationships.
+Foldkit already has a different explicit architecture:
 
-It can detect problems such as two replication contracts claiming overlapping Model paths or a contract referring to the wrong application.
+```text
+Message
+   |
+   v
+ update
+   |
+   +--> Model
+   |
+   +--> Command / Subscription
+             |
+             v
+           Effect
+```
 
-I would steal the capability but probably **not** the `Module` abstraction itself.
+The proposal is therefore deliberately conservative.
 
-Foldkit already has enough meanings attached to "module."
+## `AsyncData` already models semantic async state
 
-Instead, make architecture metadata something tooling collects.
+Foldkit already has:
 
-For example:
+```text
+Idle
+Loading
+Refreshing(data)
+Failure(error)
+Stale(data, error)
+Success(data)
+```
+
+and value-level combinators such as mapping, flat-mapping, zipping/all, settling, pending checks, and revalidation helpers.
+
+This already captures a crucial distinction:
+
+```text
+first load
+    !=
+refresh while useful data exists
+    !=
+failed refresh while useful data exists
+```
+
+If loading / refreshing / stale / failed is part of application semantics, it belongs in Model.
+
+Do not replace that with Promise-returning view computations.
+
+## Keep State, Work, and Confirmation separate
+
+A unified async story still needs semantic distinctions.
+
+### State — what is true or visible?
+
+Lives in Model when the application needs to reason about it.
+
+Examples:
+
+```text
+AsyncData.Refreshing(previousUser)
+form validation state
+optimistically renamed local Model value
+```
+
+### Work — what is executing?
+
+Lives in runtime machinery.
+
+Examples:
+
+```text
+HTTP Command fiber
+Subscription
+ManagedResource lifetime
+Remote request
+Sync exchange
+```
+
+A Command being active does not automatically imply application state `saving = true`.
+
+### Confirmation — what counts as settled?
+
+Different interpreters legitimately have different semantics:
+
+```text
+ordinary Foldkit
+    a result Message was reduced
+
+Remote
+    server-derived data was installed
+
+Sync
+    operation entered committed server order
+
+Agent
+    completion Message arrived
+    OR application state satisfies declared success condition
+```
+
+Do not invent a universal `Authority<A>` abstraction that erases those differences.
+
+Prefer precise vocabulary:
+
+```text
+visible
+confirmed / committed
+pending
+settled
+```
+
+## Effect should remain the async-control language
+
+Any new one-shot async-facing API should return `Effect`.
+
+Any ongoing value should naturally compose as `Stream`.
+
+Resource lifetime should use `Scope` / Layer / scoped Effects.
+
+Do not add Foldkit-specific versions of:
+
+```text
+timeout
+retry
+race
+interrupt
+fork
+supervision
+resource finalization
+```
+
+Examples:
 
 ```ts
-const architecture = Architecture.define(App, [
-  TodoList,
-  PreferencesMirror,
-  AssistantAgent,
-])
+Agent.dispatch(...).pipe(
+  Effect.timeout('10 seconds'),
+  Effect.retry(policy),
+)
 ```
 
-or even allow declarations to register themselves into an exported collection.
-
-The exact API can remain experimental.
-
-## The important product is the tooling
-
-Foldkit DevTools currently excels at dynamic history:
-
-```text
-Message N
-    ↓
-Model before
-Model after
-Commands
-Mounts
-Submodel chain
+```ts
+Remote.refresh(ProjectPage).pipe(
+  Effect.timeout('5 seconds'),
+)
 ```
 
-and the MCP tooling exposes current/historical Models, Message history, diffs, replay, and Schema-validated dispatch.
+This keeps Foldkit aligned with the Effect ecosystem instead of growing an ad-hoc async option language in every package.
 
-Static contracts allow a second DevTools mode:
+## Do not add generic `Observation`, global `refresh`, or Solid-style `action`
+
+A tempting wrapper like:
+
+```ts
+interface Observation<A> {
+  get: Effect.Effect<A>
+  changes: Stream.Stream<A>
+}
+```
+
+mostly renames Effect's existing primitives and can introduce read/subscribe races if implemented badly.
+
+Likewise:
+
+```ts
+Foldkit.refresh(anyProjection)
+```
+
+is too generic. A local Model field has nothing to refresh. A Remote requirement can be revalidated. A Sync document synchronizes rather than refreshes.
+
+And Foldkit does not need Solid's `action()` abstraction because it already has a more explicit mutation pipeline:
 
 ```text
-Architecture
+request Message
+      |
+      v
+    update
+   /      \
+Model    Command
+            |
+            v
+        result Message
+            |
+            v
+          update
+```
 
+The lesson is not to add another action concept. It is to make the existing state/effect/confirmation boundaries compose better.
+
+## Do not make runtime activity a second render store
+
+A future runtime introspection API may be useful for devtools:
+
+```ts
+Activity.isActive(SaveUser)
+```
+
+But ordinary application rendering should not become:
+
+```ts
+view(model, activity)
+```
+
+because then replaying the same Model no longer guarantees the same UI.
+
+If the user should see `Saving...`, that semantic fact belongs in Model.
+
+---
+
+# 7. What this substrate enables in practice
+
+The value of the proposal is easier to see through before/after examples.
+
+All API names in this section are illustrative.
+
+## 7.1 Agent completion: implementation event -> semantic result
+
+### Before
+
+An agent that renames a project must know the specific Message that means success:
+
+```ts
+completion: {
+  success: Message.RenamedProject,
+  correlate: (request, result) =>
+    request.projectId === result.projectId,
+}
+```
+
+That works when the application flow is:
+
+```text
+RequestedRenameProject
+        |
+        v
+      update
+        |
+        v
+  RenameProject Command
+        |
+        v
+   RenamedProject
+```
+
+But if confirmation later arrives through a live Remote update or Sync reconciliation, the Agent contract is coupled to an implementation detail.
+
+### After
+
+State-based completion can express the semantic postcondition:
+
+```ts
+completion: Agent.when({
+  projection: ProjectName,
+  predicate: (name, request) =>
+    name === request.name,
+})
+```
+
+Now any lawful application path can satisfy it:
+
+```text
+Command result
+Remote live update
+Sync commit
+another device
+server push
+       |
+       v
+project.name == requested name
+       |
+       v
+agent invocation completes
+```
+
+The capability is coupled to the semantic result rather than one internal event.
+
+Message-based completion should continue to exist when the event itself is the right contract.
+
+## 7.2 Live-source acknowledgement without edge-triggered races
+
+A WebSocket mutation may be accepted before authoritative live state reflects it.
+
+Before, applications often invent a bespoke event waiter:
+
+```text
+send mutation
+subscribe for next matching event
+hope the event did not arrive first
+```
+
+A level-triggered state completion instead asks:
+
+```text
+Does current application state already contain the result?
+If not, wait for state changes until it does.
+```
+
+The implementation must be race-safe: subscribe-before-read or use an Effect primitive that presents current + future values without a gap.
+
+This is the useful lesson from Solid's `until()` without introducing a global Foldkit `until()` abstraction.
+
+## 7.3 Remote refresh derived from existing Projection requirements
+
+Suppose a page already declares:
+
+```ts
+const ProjectPage = Projection.all({
+  project: Data.get(Project, projectId),
+  owner: Data.get(User, ownerId),
+  tasks: Data.query(TasksByProject, { projectId }),
+})
+```
+
+### Before
+
+A refresh path may restate the same data graph:
+
+```ts
+[
+  LoadProject({ projectId }),
+  LoadOwner({ ownerId }),
+  LoadTasks({ projectId }),
+]
+```
+
+### After
+
+Remote can interpret the requirements already carried by the Projection:
+
+```ts
+Remote.refresh(ProjectPage)
+```
+
+meaning:
+
+> Revalidate the Remote requirements contributed by this consumer declaration.
+
+This is **not** a global `Foldkit.refresh`. Remote can implement it because Remote owns the requirement semantics.
+
+## 7.4 Third-party interpreters without parallel DSLs
+
+Imagine:
+
+```text
+@acme/foldkit-feature-flags
+```
+
+Before, the package may need a parallel `FeatureFlagProjection` / `FeatureFlagSurface` because generic Projection cannot carry its requirements.
+
+With open interpreter metadata:
+
+```ts
+const BillingPage = Projection.all({
+  account: App.fields.account,
+  redesignEnabled: Flags.get('billing-redesign'),
+})
+```
+
+`Flags.get(...)` can contribute its own branded metadata while still producing an ordinary Projection.
+
+Then:
+
+```text
+Surface
+   |
+   +--> normal Model dependencies
+   +--> Remote requirements
+   +--> FeatureFlag requirements
+```
+
+Each interpreter consumes only the declarations it owns.
+
+This is a major ecosystem benefit: extension packages can join the same application graph without inventing a second observation language.
+
+## 7.5 Better AsyncData rendering without suspension
+
+Before:
+
+```ts
+AsyncData.match(model.user, {
+  onIdle: () => UserSkeleton(),
+  onLoading: () => UserSkeleton(),
+  onFailure: error => ErrorView(error),
+  onRefreshing: user =>
+    UserView({ user, refreshing: true }),
+  onStale: ({ data, error }) =>
+    UserView({ user: data, staleError: error }),
+  onSuccess: user =>
+    UserView({ user }),
+})
+```
+
+A small view-oriented interpreter could make the common policy easier:
+
+```ts
+Render.async(model.user, {
+  empty: () => UserSkeleton(),
+  failure: error => ErrorView(error),
+  data: (user, state) =>
+    UserView({
+      user,
+      refreshing: state.refreshing,
+      staleError: state.staleError,
+    }),
+})
+```
+
+Still:
+
+```text
+view = Model -> VNode
+```
+
+No Promise suspension. No hidden fetch. No second scheduler.
+
+## 7.6 Agent + Sync: visible is not the same as committed
+
+Suppose an agent edits replicated state.
+
+Sync can immediately expose:
+
+```text
+committed
+    Old title
+
+pending
+    Rename -> New title
+
+visible
+    New title
+```
+
+If Agent completion only inspects visible Model state, it may return success before the server accepts the operation.
+
+A Sync-aware completion path should be able to wait on the **committed** view:
+
+```ts
+completion: Agent.when({
+  projection: TodoSync.committed.select(TodoById(input.id)),
+  predicate: (todo, input) =>
+    todo.title === input.title,
+})
+```
+
+After acknowledgement:
+
+```text
+committed
+    New title
+
+pending
+    []
+
+visible
+    New title
+```
+
+Now the capability settles.
+
+Agent does not need to know about cursors, outbox entries, or Sync protocol Messages. Sync owns what `committed` means; Agent only consumes a typed state condition.
+
+## 7.7 Remote optimism can use the same vocabulary without the same implementation
+
+A future Remote mutation layer may have:
+
+```text
+confirmed server cache
+      +
+optimistic mutation layers
+      =
+visible cache
+```
+
+Normal UI may read visible state while an external capability waits for confirmed state.
+
+Conceptually:
+
+```ts
+Remote.visible(ProjectName)
+Remote.confirmed(ProjectName)
+```
+
+The vocabulary aligns with Sync, but the implementations remain specialized.
+
+Do not extract a universal optimistic-state abstraction merely because the diagrams rhyme.
+
+## 7.8 Effect becomes the one async-control language
+
+Without a clear rule, every package may eventually invent:
+
+```ts
+{
+  timeout: 5000,
+  signal,
+  retry: 3,
+}
+```
+
+With the proposal, package operations compose as Effects:
+
+```ts
+Agent.dispatch(...).pipe(
+  Effect.timeout('5 seconds'),
+)
+
+Remote.refresh(ProjectPage).pipe(
+  Effect.retry(policy),
+)
+
+Sync.synchronize(...).pipe(
+  Effect.race(otherWork),
+)
+```
+
+One ecosystem vocabulary handles cancellation, retry, race, timeout, fibers, Scope, and services.
+
+## 7.9 A future Runtime seam can become more Effect-native
+
+Current host integrations often normalize several JavaScript styles:
+
+```text
+() => Model
+callback subscriptions
+Promise<void>
+Effect<void>
+```
+
+A future first-class Foldkit runtime handle could expose an Effect-native internal seam such as:
+
+```ts
+interface RuntimeHandle<Model, Message> {
+  readonly model: Effect.Effect<Model>
+  readonly models: Stream.Stream<Model>
+  readonly messages: Stream.Stream<Message>
+  readonly dispatch: (message: Message) => Effect.Effect<void>
+}
+```
+
+Protocol adapters can still accept callbacks/Promises at the edge.
+
+This is not required for the Surface proposal, but it would make Agent and future interpreter bindings more uniform with Effect.
+
+## 7.10 Module / DevTools gain a richer static graph
+
+A single declaration can now feed tooling:
+
+```text
+ProjectPage
+|
++-- observes
+|   +-- session.userId
+|   +-- ui.selectedTab
+|   +-- projects
+|
++-- requires
+|   +-- Remote: Project:p1 [id,name,owner]
+|   +-- Remote: TasksByProject:p1
+|   +-- FeatureFlags: new-project-page
+|
++-- may cause
+    +-- RequestedRenameProject
+    +-- RequestedAddTask
+```
+
+That can power:
+
+- architecture docs;
+- manifests;
+- capability review;
+- dependency inspection;
+- DevTools visualizations;
+- AI/MCP architecture queries.
+
+The same declaration becomes useful to several interpreters.
+
+## 7.11 The end-to-end payoff
+
+Consider one declaration:
+
+```ts
+const ProjectPage = App.surface('ProjectPage', {
+  model: Projection.all({
+    project: Data.get(Project, projectId),
+    tasks: Data.query(TasksByProject, { projectId }),
+  }),
+
+  messages: [
+    Message.RequestedRenameProject,
+    Message.RequestedAddTask,
+  ],
+})
+```
+
+The UI interprets it as a restricted render boundary.
+
+The Agent interprets its Projection as context and its Messages as capabilities.
+
+Remote interprets its requirement metadata to plan/revalidate reads.
+
+DevTools interprets it as architecture.
+
+A future package may contribute more metadata without replacing the Surface.
+
+```text
+                  ProjectPage
+                       |
+         +-------------+-------------+
+         |             |             |
+         v             v             v
+        UI           Agent         Remote
+      renders       observes        plans
+      + emits       + acts       requirements
+                                      |
+                                      v
+                                   refresh
+```
+
+Before:
+
+> each subsystem knows enough to integrate with the application.
+
+After:
+
+> **each subsystem interprets the same application declarations.**
+
+That is the strongest form of the Foldkit Plus thesis:
+
+> **Declare the application once. Interpret it everywhere.**
+
+---
+
+# 8. Architecture as data: DevTools should show structure as well as history
+
+Once Foldkit has static contracts, tooling can show both dynamic and static architecture.
+
+Dynamic history already answers:
+
+```text
+What happened?
+```
+
+A static contract layer can additionally answer:
+
+```text
+What may happen?
+Who can cause it?
+What state can this consumer observe?
+What external facts does this consumer require?
+```
+
+Example:
+
+```text
 TodoList
-  reads
+  observes
     todos
     filter
 
-  can emit
+  may cause
     ToggledTodo
     DeletedTodo
 
-Preferences
-  mirrors
-    theme
-    sidebar.collapsed
-
 Assistant
-  reads
-    todos
-    filter
+  observes
+    TodoList projection
 
   may invoke
     RequestedTodo
     ToggledTodo
 
-RemoteData
-  owns
-    remote
-
-Sync
-  replicates
-    documents
+ProjectPage
+  requires
+    Remote Project selection
+    Remote task connection
 ```
 
-This would be unusually aligned with Foldkit's product.
+This would be unusually aligned with Foldkit's product story.
 
-Most frameworks' DevTools answer:
+## Architecture manifests are useful for AI and review
 
-> What is happening?
+Foldkit already benefits from explicit architecture being legible to humans and AI.
 
-Foldkit could additionally answer:
+Generated metadata compounds that advantage.
 
-> What is allowed to happen, and where?
-
-That is a meaningful differentiation.
-
-## Architecture manifests are especially useful for AI work
-
-Foldkit already markets the fact that its architecture is legible to both humans and AI.
-
-Generated architecture metadata compounds that advantage.
-
-An agent could ask:
+An agent could answer:
 
 ```text
-Which feature owns this transition?
-
 Which screen can emit this Message?
-
-Which Model paths does this page observe?
-
+Which Model paths does this feature observe?
+Which external requirements feed this page?
 Which Messages are production-agent callable?
-
 What state is represented in the URL?
-
 Which state is replicated?
 ```
 
-without first reconstructing all of those relationships from arbitrary TypeScript.
-
-A committed manifest could also make capability changes reviewable:
+A committed manifest can also expose security-relevant capability changes:
 
 ```diff
  agent Assistant:
@@ -791,160 +1424,86 @@ A committed manifest could also make capability changes reviewable:
 +    - DeletedTodo
 ```
 
-That is a security-relevant change surfaced as a normal code review diff.
+The product is the inspectability, not necessarily a public `Module` abstraction.
 
 ---
 
-# 7. Production agent capabilities should become an official Foldkit package
+# 9. Production agent capabilities should become an official Foldkit package
 
-`foldkit-agent` may be the most immediately valuable higher-level idea in Plus.
+`foldkit-agent` is one of the most immediately valuable higher-level ideas in Plus.
 
-Foldkit already has DevTools MCP, but these solve different problems.
-
-Current DevTools MCP intentionally gives a development agent broad debugging capabilities. It can inspect current and historical Model state, inspect history and diffs, replay the Runtime, discover the Message Schema, and dispatch arbitrary schema-valid Messages when configured. The relay is development tooling rather than a production application capability boundary.
-
-A production agent API needs almost the opposite posture:
+DevTools MCP and production Agent solve different problems:
 
 ```text
 DevTools MCP
+    trusted developer/tool
+    broad visibility
+    debugging / time travel
+    arbitrary schema-valid dispatch
+    development environment
 
-trusted developer/tool
-broad visibility
-debugging
-time travel
-arbitrary Message dispatch
-development environment
-
-
-Production Agent Contract
-
-untrusted/restricted consumer
-least-privilege visibility
-specific capabilities
-authorization
-stable external schemas
-production environment
+Production Agent
+    restricted consumer
+    least-privilege visibility
+    selected capabilities
+    authorization
+    stable external schema
+    production environment
 ```
 
-Plus gets this distinction right.
+## Core rule
 
-## The core agent rule should be adopted nearly verbatim
+> **An agent capability is an application Message, not a second implementation of the feature.**
 
-> An agent capability is an application Message, not a second implementation of the feature.
-
-Plus exposes a selected Model projection as context and selected existing Messages as capabilities. Protocol adapters merely translate.
-
-That is extremely compatible with Foldkit.
-
-A conventional tool integration tends to become:
+Conventional tool integration often duplicates application behavior:
 
 ```ts
 tool('deleteTodo', async ({ id }) => {
   // validate
   // authorize
-  // locate todo
-  // modify data
+  // mutate
   // persist
-  // notify UI
+  // notify
 })
 ```
 
-while the UI already has:
+while the application already has:
 
 ```ts
 Message.DeletedTodo({ id })
 ```
 
-and `update` already contains the behavior.
+and `update` already knows the transition.
 
-That duplicates the application.
-
-Foldkit can instead say:
-
-```ts
-const Assistant = Agent.define(App, {
-  context: TodoOverview,
-
-  capabilities: {
-    RequestedTodo: {
-      message: Message.RequestedTodo,
-      description: 'Create a todo',
-    },
-
-    ToggledTodo: {
-      message: Message.ToggledTodo,
-      description: 'Toggle a todo',
-    },
-  },
-})
-```
-
-Then humans and agents converge here:
+Foldkit can instead converge all callers on the same Message path:
 
 ```text
-human UI ──────┐
-               │
-agent ─────────┼──> Message ──> update ──> Model / Commands
-               │
-other host ────┘
+human UI -----+
+              |
+agent --------+--> Message --> update --> Model / Commands
+              |
+other host ---+
 ```
 
-That is arguably the cleanest possible production agent architecture for Foldkit.
+## External input should not necessarily equal internal Message payload
 
-## Keep protocol input separate from internal Message shape
-
-Plus also correctly recognizes that an external tool input need not equal the internal Message payload.
-
-Suppose the application has:
+If the application has:
 
 ```text
 RequestedTodo { title }
-
-    ↓ Command
-
-SubmittedTodo {
-  id
-  title
-  createdAt
-}
+      |
+      v Command generates id/time
+      |
+SubmittedTodo { id, title, createdAt }
 ```
 
-The agent should expose `RequestedTodo`, not allow an external caller to fabricate `SubmittedTodo`.
+an external caller should normally invoke `RequestedTodo`, not fabricate the materialized fact Message.
 
-An official package should support:
+This preserves Foldkit's existing nondeterminism boundary.
 
-```ts
-RequestedTodo: {
-  input: Schema.Struct({
-    title: Schema.String,
-  }),
+## Completion contracts should support both events and state
 
-  toMessage: ({ title }) =>
-    Message.RequestedTodo({ title }),
-}
-```
-
-This preserves Foldkit's existing treatment of nondeterminism: IDs, clocks, randomness, external facts, etc. still enter through Commands and result Messages.
-
-## Steal completion contracts
-
-This is one of the best ideas in the entire repository.
-
-Dispatching a Message does not necessarily mean an operation is finished.
-
-```text
-agent dispatches RequestedTodo
-              ↓
-           update
-              ↓
-      GenerateTodo Command
-              ↓
-       SubmittedTodo
-```
-
-The meaningful completion event is `SubmittedTodo`, not the successful insertion of `RequestedTodo` into the runtime queue.
-
-Plus allows:
+Event completion remains valuable:
 
 ```ts
 completion: {
@@ -954,463 +1513,190 @@ completion: {
 }
 ```
 
-and notes that correlation matters when several requests are in flight.
+But state-based completion should also be available where the semantic postcondition is better than one event:
 
-This is excellent.
+```ts
+completion: Agent.when({
+  projection: TodoByClientId,
+  predicate: (todo, request) =>
+    todo.title === request.title,
+})
+```
 
-Foldkit has a uniquely good foundation for agent completion because the application already emits explicit facts.
+The state waiter must be race-safe and represented as Effect so timeout/interruption are ordinary Effect composition.
 
-Most tool systems have to invent promises or bespoke workflow IDs.
-
-Foldkit can say:
-
-> The operation completed when the application itself observed the fact that means it completed.
-
-That should become an official pattern.
-
-## Availability and authorization should remain different concepts
-
-Plus distinguishes:
+## Availability and authorization remain separate
 
 ```text
 available(model)
-    does this action exist right now?
+    does this capability exist now?
 
 authorize(principal, input, model)
     may this caller perform it?
 ```
 
-and evaluates availability before authorization.
+Do not collapse them.
 
-That separation is worth preserving.
+## Adapters should remain thin
 
-It handles state-dependent capabilities naturally:
-
-```text
-no completed todos
-    clear_completed does not exist
-
-completed todos exist
-    clear_completed exists
-
-caller lacks permission
-    exists but forbidden
-```
-
-## Adapters should be thin packages
-
-A protocol-neutral contract should then compile to:
+The protocol-neutral contract can compile to:
 
 ```text
 WebMCP
 MCP
 A2A
 future protocols
-in-app copilots
+in-app copilot
 ```
 
 without business logic appearing in those adapters.
 
-Package shape could eventually be:
-
-```text
-@foldkit/agent
-@foldkit/agent-mcp
-@foldkit/agent-webmcp
-```
-
-rather than pulling every protocol into Foldkit core.
-
-## DevTools and Agent can share infrastructure without sharing authority
-
-There may be useful internal infrastructure to share:
-
-```text
-read current Model
-dispatch Message
-observe applied Messages
-subscribe to Model changes
-```
-
-But the authority models should stay distinct.
-
-DevTools means:
-
-```text
-developer debugging power
-```
-
-Agent means:
-
-```text
-application-defined production capability
-```
-
-They should not be configured through the same switch.
-
 ---
 
-# 8. Mirror should probably become an official Foldkit pattern/package
+# 10. Mirror should probably become an official Foldkit pattern/package
 
-Mirror is another Plus idea that fits Foldkit unusually well.
-
-Its rule is:
+Mirror's rule is:
 
 > The URL or local persistence may represent Model state, but does not become another owner of that state.
-
-Plus describes a mirror as a secondary representation of a Model slice, usually in the URL or a key-value store.
 
 Conceptually:
 
 ```text
              URL
-              ▲
-              │ representation
-              │
-Messages → update → Model
-              │
-              │ representation
-              ▼
+              ^
+              | representation
+              |
+Messages -> update -> Model
+              |
+              | representation
+              v
          KeyValueStore
 ```
 
-rather than:
+rather than three competing owners that need reconciliation.
 
-```text
- URL state ──────┐
-                 │
- Model state ────┼──> somehow reconciled
-                 │
- storage state ──┘
-```
-
-That is very Foldkit-like.
-
-## Mirror is mostly a reusable composition of existing primitives
-
-Mirror should not require a new runtime subsystem.
+## Mirror should compile to existing Foldkit effects
 
 URL mirroring can be implemented from:
 
-* Model Projection;
-* navigation Commands;
-* URL Subscriptions;
-* Schema codecs;
-* existing URL/Route support.
+- Projection;
+- navigation Commands;
+- URL Subscriptions;
+- Schema codecs.
 
-Key-value mirroring can be implemented from:
+KV mirroring can be implemented from:
 
-* Model Projection;
-* a restore Command;
-* a persistence Subscription or Command;
-* `KeyValueStore`.
+- Projection;
+- restore Command;
+- persistence Subscription/Command;
+- KeyValueStore.
 
-That makes Mirror an excellent candidate for an official higher-level package because it standardizes a common pattern without changing Foldkit's execution model.
+That makes Mirror a good optional package rather than a new runtime subsystem.
 
 ## Mirror is not Route
 
-This distinction should be explicit.
+Use Route when a value defines location.
 
-Foldkit's typed Route system answers:
-
-> What location is the application currently at?
-
-The current Query Sync example models search, sorting, diet, and period as fields of the `Browse` route. UI interactions issue `ReplaceFilters`, the browser URL changes, and `ChangedUrl` parses the URL into the next route. In that design, those values really are part of route identity.
-
-Mirror answers a different question:
-
-> Which ordinary application state should happen to be represented in the URL?
-
-Consider:
-
-```ts
-Model = {
-  document: ...,
-  sidebarTab: 'layers',
-  zoom: 1.5,
-}
-```
-
-If `sidebarTab` and `zoom` should be linkable:
+Use Mirror when ordinary Model state should also be represented in the location.
 
 ```text
-?tab=layers&zoom=1.5
+Route
+    application location
+
+URL Mirror
+    representation of Model state
 ```
-
-it may be undesirable to restructure the application's domain model around Route solely for that representation.
-
-Mirror allows:
-
-```text
-Model.zoom
-   ↕
-?zoom=1.5
-```
-
-while the Model remains the semantic owner.
-
-### Guideline
-
-Use Route when the value defines location.
-
-Use Mirror when the value is ordinary Model state that should be encoded into the location.
-
-Those can coexist, but Foldkit should provide one underlying query-string codec/ownership mechanism so Route and Mirror cannot accidentally fight over a key.
 
 ## Mirror is not Flags
 
-Foldkit Flags are the right answer when external data is needed **before the first Model can be constructed**.
-
-The Todo example, for example, loads persisted todos into Flags and initializes the first Model with them.
-
-Mirror restoration implies:
-
 ```text
-construct default Model
-        ↓
-start application
-        ↓
-load persisted representation
-        ↓
-Message
-        ↓
-update Model
-```
+required before initial Model
+    -> Flags
 
-That is better for:
-
-```text
-theme
-collapsed panel
-draft text
-table density
-last selected tab
-```
-
-where default-first rendering is acceptable.
-
-So the documentation should establish:
-
-```text
-required before init
-    → Flags
-
-one-shot effect caused by a transition
-    → Command
-
-ongoing external source with Model-dependent lifetime
-    → Subscription
-
-disposable Model state represented externally
-    → Mirror
+can restore after application starts
+    -> Mirror
 ```
 
 ## Mirror is not durable persistence
 
-Plus explicitly limits Mirror to disposable/per-device state and describes it as last-write-wins without an ordered log.
-
-That boundary is important.
-
-The existing Todo example writes the todo collection after every domain mutation through explicit `SaveTodos` Commands.
-
-Those todos are arguably domain data.
-
-I would not automatically rewrite that example as:
-
-```ts
-Mirror.localStorage(App.fields.todos)
-```
-
-because doing so would teach that persistence correctness is merely representational.
-
-A better teaching example is:
+Mirror is appropriate for disposable/per-device representational state such as:
 
 ```text
-todos
-    explicit persistence / server / durable system
-
 filter
-    URL Mirror
-
-draft
-    KeyValueStore Mirror
-
 theme
-    KeyValueStore Mirror
+panel state
+draft
+zoom
 ```
 
-## Improve the Plus API by keeping writes semantic
+Do not teach that authoritative domain persistence is merely a Mirror.
 
-Plus can structurally write mirrored fields through writable Projections.
+## Restored state should re-enter through Messages
 
-For Foldkit, I would bias the public API toward generating or consuming application Messages.
-
-For example, conceptually:
+Even if infrastructure has structural write access internally, the public design should bias toward semantic re-entry:
 
 ```ts
-const Preferences = Mirror.keyValue({
-  key: 'preferences',
-
-  read: Projection.struct({
-    theme: App.fields.theme,
-    density: App.fields.density,
-  }),
-
-  restored: values =>
-    Message.RestoredPreferences(values),
-})
+restored: values =>
+  Message.RestoredPreferences(values)
 ```
 
-The external representation is decoded, then a normal Message re-enters the state machine.
-
-This is especially important when the mirrored state belongs to a Submodel.
-
-Mirror should not silently bypass:
-
-```text
-Submodel Message
-    ↓
-Submodel update
-```
-
-just because it knows an optic to the child Model.
-
-## Mirror should compile to normal Foldkit values
-
-Ideally the implementation feels approximately like:
-
-```ts
-subscriptions: model => [
-  Preferences.persist(model),
-  UrlState.persist(model),
-]
-```
-
-and:
-
-```ts
-init / update
-    → Preferences.restore(...)
-```
-
-rather than requiring `Runtime.installMirror(...)`.
-
-The more Mirror can be explained entirely in terms of existing Foldkit primitives, the better it fits.
+especially when the data belongs to a Submodel.
 
 ---
 
-# 9. From Mixins, steal attribute composition and named Parts—not the whole system
+# 11. From Mixins, steal attribute composition and named Parts—not the whole system
 
-`foldkit-mixins` addresses a real problem but is the easiest Plus subsystem to over-import.
+`foldkit-mixins` solves a real problem but is the easiest Plus subsystem to over-import.
 
-Foldkit UI currently follows a headless model: a component supplies behavior/ARIA/event attributes through `toView`, and the caller supplies the markup and styling.
-
-That means:
+Foldkit UI's headless mode says:
 
 ```text
-@foldkit/ui
-
 component owns behavior
 caller owns markup
 ```
 
-Mixins solve the inverse problem:
+Mixins address the inverse case:
 
 ```text
-reusable application/design-system view
-
-view owns markup
-caller may decorate named locations
+reusable view owns markup
+caller decorates named extension points
 ```
 
-Plus calls those locations Slots and allows external Style/Behavior declarations to attach to them.
-
-Both composition modes are legitimate.
-
-They should not replace one another.
+Both are useful.
 
 ## Preserve `toView`
 
-For low-level headless primitives, Foldkit's existing model is stronger.
+For low-level headless primitives, caller-owned markup remains stronger.
 
-If Button gives the caller its attribute bundle:
+## Steal semantic attribute composition
 
-```ts
-Button.view({
-  toView: attributes =>
-    h.button(
-      [
-        ...attributes.button,
-        h.Class('primary'),
-      ],
-      ['Save'],
-    ),
-})
-```
-
-the caller controls:
-
-* element type;
-* structure;
-* children;
-* surrounding markup;
-* styling.
-
-A slot system is necessarily less powerful because the component author retains markup ownership.
-
-So `@foldkit/ui` should remain headless and caller-owned.
-
-## The valuable missing primitive is safe attribute composition
-
-Mixins reveals a deeper problem.
-
-Foldkit attributes are not all composable with the same semantics.
-
-Conceptually:
+Attributes do not all compose the same way:
 
 ```text
 Class
-    concatenate/dedupe
+    concatenate / dedupe
 
 Style
     merge declarations
 
 OnMount
-    compose Mounts
+    compose lifecycles
 
 aria-label
-    maybe one owner
+    perhaps one owner
 
 OnClick
-    conflicting independent owners may be a bug
+    independent owners may conflict
 
-key
-    structural; probably protected
-
-innerHTML
-    structural/dangerous; probably protected
+key / innerHTML
+    structural or protected
 ```
 
-Today callers can concatenate arrays, but there is no general semantic operation saying:
+A semantic `Attribute.compose` primitive could be useful independently of the larger Mixins package.
 
-```ts
-Attribute.compose(
-  componentAttributes,
-  accessibilityAttributes,
-  analyticsAttributes,
-  productAttributes,
-)
-```
+## Named Parts may be worth adding later
 
-with conflict handling.
-
-This could be useful throughout Foldkit independently of Mixins.
-
-It would also make attribute bundles from `@foldkit/ui` safer to combine.
-
-## Add lightweight named Parts later
-
-Above that primitive, Foldkit could introduce an optional convention such as:
+A view-owned component could publish controlled extension points:
 
 ```ts
 const CardParts = Parts.define({
@@ -1420,34 +1706,7 @@ const CardParts = Parts.define({
 })
 ```
 
-The view retains markup:
-
-```ts
-const Card = (model, parts, h) =>
-  h.article(parts.root([...]), [
-    h.h2(parts.title([]), [model.title]),
-
-    h.button(
-      parts.action([
-        h.OnClick(Message.ClickedAction()),
-      ]),
-      ['Continue'],
-    ),
-  ])
-```
-
-External code can then decorate:
-
-```ts
-Card.withParts({
-  root: [h.Class('product-card')],
-  action: [analyticsBehavior],
-})
-```
-
-or whatever eventual API fits Foldkit.
-
-The important conceptual boundary is:
+The conceptual boundary is:
 
 ```text
 toView
@@ -1457,119 +1716,41 @@ Parts
     view owns markup but publishes controlled extension points
 ```
 
-## Do not adopt the complete Mixins styling language
-
-Plus grows this into:
-
-* capabilities;
-* event metadata;
-* attribute metadata;
-* protected properties;
-* CSS classes;
-* inline styles;
-* recipes;
-* variants;
-* pseudo-selectors;
-* media queries;
-* container queries;
-* keyframes;
-* globals;
-* themes;
-* CSS extraction.
-
-That is effectively a CSS-in-TypeScript system.
-
-Foldkit does not need to own styling semantics to preserve architectural correctness.
-
-The high-value ideas are:
-
-```text
-Attribute.compose
-named Parts
-stateless reusable Behaviors
-```
-
-not an entire design-system language.
-
-## Behavior can remain very small
-
-Plus's Behavior is useful because it owns no Model state. It contributes ordinary attributes, event handling, and optionally Mount behavior.
-
-Foldkit could model this as little more than:
-
-```ts
-type Behavior<Input, Message> =
-  (
-    input: Input,
-    h: HtmlBuilder<Message>,
-  ) => ReadonlyArray<Attribute<Message>>
-```
-
-If it needs actual application state, it probably wants a Submodel.
-
-That is a good invariant.
+Do not upstream an entire CSS-in-TypeScript language merely to get this capability.
 
 ---
 
-# 10. What to learn from Remote without upstreaming Remote yet
+# 12. What to learn from Remote without upstreaming Remote yet
 
-`foldkit-remote` is a normalized cache of server-owned data stored inside the Foldkit Model. It distinguishes missing/stale/not-found/null data, shares entities by identity, supports query connections, optimistic mutation layers, and live updates. Critically, it does not put a hidden cache beside the application: the cache itself is a Submodel, and remote results enter as Messages.
+`foldkit-remote` is a normalized cache of server-owned data stored inside the Foldkit Model. It distinguishes presence/staleness/not-found/null, shares entities by identity, supports queries/pagination, optimistic layers, and live data.
 
-That is architecturally compelling.
+Most importantly, it does not put an invisible server cache beside the application. Remote state remains inspectable Foldkit state, and I/O results re-enter as Messages.
 
-But it is a large product.
+That is architecturally compelling, but it is a large product commitment.
 
-Adopting it means Foldkit starts making opinions about:
+## Server caches belong inside Model
 
-* entity normalization;
-* entity identity;
-* field-level presence;
-* stale data;
-* query connection representation;
-* optimistic layering;
-* mutation IDs;
-* cursors;
-* live updates;
-* server adapters.
+If server-derived state affects rendering, its status should remain inspectable in the Foldkit state machine rather than hidden in a separate hooks cache.
 
-Those are closer to Relay/Apollo/TanStack Query territory than to core application architecture.
+This preserves:
 
-## The ideas worth carrying into Foldkit
+- DevTools;
+- replay;
+- Story testing;
+- deterministic render;
+- one state model.
 
-### Server caches belong inside the Model
+## Fetch requirements can be declarative without fetching from view
 
-This is worth documenting as a preferred Foldkit pattern.
-
-If server-derived data affects rendering, its status should be inspectable as Foldkit state:
+A consumer may declare:
 
 ```text
-Model.remote
+Project.id
+Project.name
+Project.members.name
 ```
 
-rather than living in an invisible external hook/cache.
-
-That preserves:
-
-* DevTools;
-* replay;
-* Story testing;
-* deterministic rendering;
-* one state model.
-
-### Fetch requirements can be declarative without fetching from view
-
-A feature can describe:
-
-```text
-I require:
-  Project.id
-  Project.name
-  Project.members.name
-```
-
-without the rendering function performing I/O.
-
-Then a Subscription/planner can compare:
+Then a planner can compute:
 
 ```text
 requirements
@@ -1579,132 +1760,138 @@ already-known facts
 work to fetch
 ```
 
-This is a strong pattern.
+The rendering function still performs no I/O.
 
-It may eventually justify an official Remote package.
+## Generic Projection should carry opaque metadata, not Remote types
 
-### Missing and null should not be conflated
+The old recommendation was:
 
-Remote's explicit field-presence modeling is a useful lesson for the existing API-cache patterns.
+> Remote metadata should live entirely outside generic Projection.
 
-```text
-field not requested
-field requested but missing
-field = null
-entity not found
-field stale
-```
+The refined recommendation is:
 
-are semantically different states.
+> Projection may preserve open interpreter metadata, but Remote owns all Remote-specific types, merging semantics, and execution.
 
-Foldkit examples and future helpers should preserve those distinctions.
-
-## What core should not do
-
-Do not put:
+So do **not** put fields like this in generic core:
 
 ```ts
 projection.remoteRequirements
 projection.connections
 ```
 
-into the generic Projection primitive.
+Instead, Remote contributes branded metadata and retrieves it through its own interpreter API.
 
-That makes a general observation abstraction know about one future caching implementation.
+## Remote-specific Projection refresh is a strong candidate
 
-Remote should attach its own metadata around a generic Projection.
+Once requirements survive composition, Remote can lawfully offer:
+
+```ts
+Remote.refresh(ProjectPage)
+```
+
+without the caller restating every request.
+
+This is one of the strongest concrete payoffs of interpreter metadata.
+
+## Keep visible and confirmed concepts precise
+
+If Remote develops optimistic mutation layers, its useful conceptual model is:
+
+```text
+confirmed server-derived cache
+      +
+optimistic overlays
+      =
+visible cache
+```
+
+That vocabulary can align with Sync without forcing both packages through one generic optimistic implementation.
 
 ---
 
-# 11. What to learn from Sync without upstreaming Sync yet
+# 13. What to learn from Sync without upstreaming Sync yet
 
-`foldkit-sync` takes an unusually Foldkit-native approach to local-first replication:
+`foldkit-sync` has an unusually Foldkit-native local-first model:
 
-> Durable operations are existing application Messages, and replay uses the application's existing `update`.
+> Durable operations are existing application Messages, and replay uses the existing `update`.
 
-A client applies an edit immediately, persists it to an outbox, submits it when possible, accepts the server's authoritative ordering, and rebases remaining pending edits by replaying them. It does not maintain a separate sync-specific reducer.
-
-This is one of the strongest conceptual results in Plus.
-
-The formula is:
+The core formula is:
 
 ```text
-normal transition reducer
-        =
-optimistic reducer
-        =
-replay reducer
-        =
-rebase reducer
-```
-
-All are `update`.
-
-That is exactly the kind of leverage Foldkit's architecture should enable.
-
-## Messages are natural operation records
-
-If a Message is:
-
-* serializable;
-* deterministic;
-* state-only for the replicated slice;
-* replayable later;
-
-then it already looks very much like an operation log entry.
-
-There is no reason to invent:
-
-```text
-TodoOperation
-```
-
-beside:
-
-```text
-Message.CreatedTodo
-Message.RenamedTodo
-```
-
-if those Messages already contain the facts necessary for deterministic replay.
-
-This is a major insight worth documenting.
-
-## Intent/fact separation becomes more valuable
-
-Consider:
-
-```text
-RequestedTodo
-    ↓
-Command generates id/time
-    ↓
-SubmittedTodo { id, timestamp, title }
-```
-
-`RequestedTodo` is not necessarily replay-safe.
-
-`SubmittedTodo` is.
-
-This gives Foldkit another reason to encourage meaningful distinctions between:
-
-```text
-request/intention Messages
+committed snapshot
+      +
+pending durable Messages
+      =
+visible optimistic shared state
 ```
 
 and:
 
 ```text
-fully materialized fact Messages
+normal reducer
+    = optimistic reducer
+    = replay reducer
+    = rebase reducer
 ```
 
-without creating a new Message taxonomy in the type system.
+All are `update`.
 
-## A generic replay verifier may eventually belong in Foldkit
+## Messages are natural operation records
 
-Rather than adopting Sync itself, Foldkit could eventually offer development/testing tools capable of asserting that a Message subset is replay-safe.
+If a Message is:
 
-For example:
+- serializable;
+- deterministic;
+- state-only for the replicated slice;
+- replayable later;
+
+then it already resembles an operation log entry.
+
+Do not invent a parallel `TodoOperation` language when application Messages already contain the facts needed for replay.
+
+## Intent/fact separation becomes more valuable
+
+```text
+RequestedTodo
+    |
+    v Command generates id/time
+    |
+SubmittedTodo { id, timestamp, title }
+```
+
+The request may not be replay-safe; the materialized fact can be.
+
+This is a reason to encourage good Message semantics without creating a new type-level Message taxonomy.
+
+## Visible and committed should both be first-class concepts
+
+Sync reveals that:
+
+```text
+visible != confirmed
+```
+
+A user can see an optimistic edit before it joins server order.
+
+This matters beyond Sync itself because external capabilities may need to choose what kind of completion they mean.
+
+An Agent operating on replicated state may reasonably wait for:
+
+```text
+Sync committed view
+```
+
+rather than merely:
+
+```text
+current visible optimistic state
+```
+
+That is a clean example of package composition without abstraction leakage.
+
+## Replay verification may eventually belong in Foldkit tooling
+
+Rather than upstream Sync runtime semantics, Foldkit could eventually provide tools that validate a purported replay-safe Message subset:
 
 ```ts
 Replay.verify({
@@ -1714,34 +1901,24 @@ Replay.verify({
 })
 ```
 
-could detect cases where replay:
+Potential checks:
 
-* touches Model paths outside the declared projection;
-* emits forbidden Commands;
-* depends on external nondeterminism;
-* produces an invalid Model.
+- touches state outside declared slice;
+- emits forbidden Commands;
+- depends on nondeterminism;
+- produces invalid Model.
 
-That capability would be useful beyond synchronization:
-
-* event sourcing;
-* deterministic tests;
-* migrations;
-* recorded workflows;
-* agent audit/replay experiments.
-
-But this should be driven by actual Sync usage rather than added speculatively.
+This could benefit event sourcing, deterministic workflows, migrations, audit/replay, and Sync.
 
 ---
 
-# 12. Durable is valuable, but it is a backend product
+# 14. Durable is valuable, but it is a backend product
 
-`foldkit-durable` implements an authoritative ordered server journal with idempotent append, snapshots, cursors, compaction, live change streams, and a durable effect ledger.
+`foldkit-durable` implements an authoritative ordered server journal with idempotent append, snapshots, cursors, compaction, live change streams, and durable external-effect recovery.
 
-It is a coherent server counterpart to Sync.
+It is a coherent counterpart to Sync.
 
-It is not obviously part of the Foldkit frontend framework.
-
-Its most valuable lesson for Foldkit itself is conceptual:
+Its main lesson for Foldkit is conceptual:
 
 ```text
 client optimistic state
@@ -1750,30 +1927,26 @@ client optimistic state
 server operation order
     defines convergence
 
-external effects
-    need a different durability model
+external side effects
+    need different durability semantics
     from state replay
 ```
 
-Those are good design constraints for an eventual official replication story.
+Foldkit core should not become responsible for:
 
-But Foldkit core should not become responsible for:
+- SQLite journals;
+- server sequence assignment;
+- compaction;
+- effect-recovery workers;
+- retry infrastructure.
 
-* SQLite operation journals;
-* server sequence assignment;
-* durable effect recovery;
-* compaction policies;
-* retry workers.
-
-If local-first becomes a major Foldkit use case, Sync/Durable could eventually become official `@foldkit/*` packages.
-
-They should earn that status through production experience first.
+If local-first becomes a major use case, Sync/Durable could become official packages after production experience.
 
 ---
 
-# 13. One principle from Plus should become part of Foldkit's vocabulary: ownership vs observation
+# 15. One principle should become part of Foldkit's vocabulary: ownership vs observation
 
-A useful thread running through the entire project is:
+A thread running through the entire design is:
 
 > **Observation is not ownership. Representation is not ownership. Capability is not ownership.**
 
@@ -1781,103 +1954,115 @@ Examples:
 
 ```text
 Surface observes a Submodel field
-    ≠ Surface owns that field
+    != Surface owns that field
 
 URL represents filter
-    ≠ URL owns filter
+    != URL owns filter
 
 Agent may send DeletedTodo
-    ≠ Agent owns deletion semantics
+    != Agent owns deletion semantics
 
 Remote cache lives in Model
-    = Remote Submodel owns its cache transitions
+    = Remote Submodel owns cache transitions
 
 Sync replicates todos
-    ≠ replica invents a second todo reducer
+    != Sync invents a second todo reducer
 
 Style decorates a view
-    ≠ Style owns application state
+    != Style owns application state
 ```
 
-This distinction would strengthen Foldkit's existing documentation.
+A useful review rule is:
 
-Foldkit already has a strong single-source-of-truth story.
+> **Every datum should have one semantic owner even when several systems observe, represent, replicate, expose, or interpret it.**
 
-Plus extends that story into a useful rule:
+The async proposal extends this rule:
 
-> Every datum should have one semantic owner, even when several systems observe, represent, replicate, or expose it.
+```text
+runtime work
+    != semantic state
 
-That is a good lens for reviewing Foldkit APIs generally.
+confirmed state
+    != necessarily visible state
+
+interpreter metadata
+    != state ownership
+```
 
 ---
 
-# 14. Proposed Foldkit architecture after these changes
+# 16. Proposed Foldkit architecture after these changes
 
-The end state should not look like Foldkit Plus.
-
-It should remain smaller.
+The end state should remain smaller than Foldkit Plus.
 
 Conceptually:
 
 ```text
-┌─────────────────────────────────────────────┐
-│              Foldkit application            │
-│                                             │
-│ Model · Message · init · update · view      │
-│                                             │
-│ Command · Subscription · Mount              │
-│ ManagedResource · Flags                     │
-│                                             │
-│ Route · Submodel · Port                     │
-└─────────────────────┬───────────────────────┘
-                      │
-                      │ optional static description
-                      ▼
-┌─────────────────────────────────────────────┐
-│        application contract vocabulary      │
-│                                             │
-│ Projection                                  │
-│ Message subset                              │
-│ Surface                                     │
-└──────────────┬──────────────┬───────────────┘
-               │              │
-       ┌───────┴──────┐       │
-       ▼              ▼       ▼
- architecture       Agent    Mirror
- tooling/contracts
-       │
-       ▼
- DevTools / MCP
++---------------------------------------------+
+|              Foldkit application            |
+|                                             |
+| Model · Message · init · update · view      |
+|                                             |
+| AsyncData                                   |
+| Command · Subscription · Mount              |
+| ManagedResource · Flags                     |
+|                                             |
+| Route · Submodel · Port                     |
++---------------------+-----------------------+
+                      |
+                      | optional static description
+                      v
++---------------------------------------------+
+|        application contract vocabulary      |
+|                                             |
+| Application identity                        |
+| Projection                                  |
+| Message subset                              |
+| Surface                                     |
++----------------+----------------------------+
+                 |
+        +--------+---------+-----------+
+        |                  |           |
+        v                  v           v
+ architecture           Agent      interpreters
+ tooling                           Mirror / Remote /
+                                   future packages
 ```
+
+Projection provides a stable declarative observation seam.
+
+Interpreters may attach typed opaque requirements to it.
+
+Effect remains the async-control substrate.
 
 Separately:
 
 ```text
 HTML attributes
-      │
-      ▼
+      |
+      v
 Attribute.compose
-      │
-      ▼
+      |
+      v
 optional named Parts
 ```
 
-And incubating outside the conceptual core:
+Still incubating outside the conceptual core:
 
 ```text
-Remote
+Remote runtime
 Sync
 Durable
 full Mixins styling
 ```
 
-This is substantially smaller than adopting the Plus package graph.
+This is a modest extension of Foldkit rather than adoption of the Plus package graph.
 
 ---
 
-# 15. Concrete candidate API
+# 17. Concrete candidate API
 
-The following is illustrative, not a recommendation on final naming.
+Everything in this section is illustrative, not final naming.
 
 ## Application
 
@@ -1891,16 +2076,6 @@ export const App = Application.define({
 })
 ```
 
-Runtime:
-
-```ts
-const application = Runtime.makeApplication(App, {
-  container: document.getElementById('root'),
-})
-
-Runtime.run(application)
-```
-
 ## Projection
 
 ```ts
@@ -1910,24 +2085,13 @@ const TodoOverview = Projection.struct({
 })
 ```
 
-Type:
-
-```ts
-Projection<
-  Model,
-  {
-    readonly todos: ReadonlyArray<Todo>
-    readonly filter: Filter
-  }
->
-```
-
 Inspectable:
 
 ```ts
 Projection.dependencies(TodoOverview)
-// ['todos', 'filter']
 ```
+
+Interpreter metadata is added only through typed interpreter constructors rather than strings.
 
 ## Message subset
 
@@ -1939,14 +2103,6 @@ const TodoActions = Message.only(
 )
 ```
 
-Inspectable:
-
-```ts
-TodoActions.tags
-TodoActions.schema
-TodoActions.includes(message)
-```
-
 ## Surface
 
 ```ts
@@ -1956,7 +2112,7 @@ const TodoList = Surface.define(App, 'TodoList', {
 })
 ```
 
-or syntactic sugar:
+or application sugar:
 
 ```ts
 const TodoList = App.surface('TodoList', {
@@ -1964,7 +2120,6 @@ const TodoList = App.surface('TodoList', {
     todos: App.fields.todos,
     filter: App.fields.filter,
   },
-
   messages: [
     Message.RequestedTodo,
     Message.ToggledTodo,
@@ -1973,15 +2128,15 @@ const TodoList = App.surface('TodoList', {
 })
 ```
 
-Restricted view:
+## Restricted view
 
 ```ts
 export const todoListView = Surface.view(
   TodoList,
   (model, h) =>
     h.div([], [
-      // model only contains todos/filter.
-      // h only constructs TodoList's allowed Messages.
+      // model is restricted to the Surface projection.
+      // h only constructs permitted Messages.
     ]),
 )
 ```
@@ -1995,69 +2150,69 @@ const Assistant = Agent.define(App, {
   capabilities: {
     RequestedTodo: {
       message: Message.RequestedTodo,
-
-      input: Schema.Struct({
-        title: Schema.String,
-      }),
-
+      input: Schema.Struct({ title: Schema.String }),
       toMessage: ({ title }) =>
         Message.RequestedTodo({ title }),
 
-      completion: {
-        success: Message.SubmittedTodo,
-        failure: Message.FailedSubmitTodo,
-        correlate: (request, result) =>
-          request.title === result.title,
-      },
-    },
-
-    ToggledTodo: {
-      message: Message.ToggledTodo,
+      completion: Agent.when({
+        projection: TodoByClientId,
+        predicate: (todo, input) =>
+          todo.title === input.title,
+      }),
     },
   },
 })
 ```
 
-Adapters:
+Message-based completion remains available as an alternative.
+
+## Remote
+
+A projection may contain Remote-owned requirement metadata:
 
 ```ts
-AgentMcp.serve(Assistant)
-AgentWebMcp.register(Assistant)
+const ProjectPage = Projection.all({
+  project: Data.get(Project, projectId),
+  tasks: Data.query(TasksByProject, { projectId }),
+})
 ```
 
-## Mirror
+Remote can interpret it:
 
-Conceptually:
+```ts
+Remote.refresh(ProjectPage)
+```
+
+Core Projection does not know what an Entity, Selection, QueryWindow, or connection is.
+
+## Mirror
 
 ```ts
 const Preferences = Mirror.keyValue({
   key: 'preferences',
-
   model: Projection.struct({
     theme: App.fields.theme,
     density: App.fields.density,
   }),
-
   restored: values =>
     Message.RestoredPreferences(values),
 })
 ```
 
-and:
+## AsyncData rendering helper
+
+Potential ergonomic sugar:
 
 ```ts
-const ShareableView = Mirror.query({
-  model: Projection.struct({
-    filter: App.fields.filter,
-    page: App.fields.page,
-  }),
-
-  changed: values =>
-    Message.ChangedViewFromUrl(values),
+Render.async(model.user, {
+  empty: () => UserSkeleton(),
+  failure: error => ErrorView(error),
+  data: (user, state) =>
+    UserView({ user, refreshing: state.refreshing }),
 })
 ```
 
-The implementation should compile these into ordinary Commands/Subscriptions/navigation effects rather than adding a Mirror runtime.
+This interprets explicit Model state; it does not suspend render or start work.
 
 ## Attribute composition
 
@@ -2072,169 +2227,127 @@ h.button(
 )
 ```
 
-## Parts
-
-```ts
-const CardParts = Parts.define({
-  root: Part.attributes(),
-  title: Part.attributes(),
-  action: Part.attributes(),
-})
-```
-
-Everything after this point can remain optional.
+Everything after the contract substrate can remain optional.
 
 ---
 
-# 16. What should explicitly NOT be upstreamed
+# 18. What should explicitly NOT be upstreamed
 
-This proposal is as much about refusing ideas as adopting them.
+This RFC is as much about refusing abstractions as adopting them.
 
-Do **not** upstream the following into Foldkit core at this stage:
+Do not upstream these merely because they look unified:
 
-### Full `foldkit-mixins`
+```ts
+Foldkit.refresh(projection)
+Foldkit.latest(projection)
+Observation.make(...)
+Authority.make(...)
+Optimistic.make(...)
+Action.make(...)
+Activity.isPending(surface)
+```
 
-Do not make Foldkit responsible for:
+## No generic Observation wrapper
 
-* a CSS-in-TS language;
-* themes;
-* recipes;
-* variants;
-* keyframes;
-* selector nesting;
-* a second HTML capability taxonomy.
+Use Effect / Stream / SubscriptionRef internally when current + future state must be observed safely.
 
-Steal attribute resolution and perhaps named Parts.
+Do not create a renamed second reactive system.
 
-### Remote-specific Projection metadata
+## No universal Authority type
 
-A generic Model projection should not know about:
+`committed`, `confirmed`, and `server-derived` have package-specific meanings.
 
-* server entities;
-* requested server fields;
-* connections;
-* cache retention.
+Use precise terms rather than a type that overpromises universal truth.
 
-Remote can build on Projection without infecting its abstraction.
+## No Promise-returning render computations
 
-### Sync runtime semantics
+Do not move fetch lifecycle, cancellation, races, errors, or SSR coordination into ordinary reads/views.
 
-Do not add:
+Async must compose, but reads should not initiate hidden work.
 
-* outboxes;
-* operation journals;
-* reconciliation;
-* presence;
-* transport reconnect logic;
+## No Solid-style Action
 
-to Foldkit Runtime.
+Message -> update -> Command -> Message already gives Foldkit a stronger explicit mutation boundary.
 
-Sync should remain a package implemented using Foldkit.
+## No generic optimistic core wrapper
 
-### Durable server infrastructure
-
-Do not make the frontend framework responsible for authoritative SQLite journals or effect recovery.
-
-### Generic arbitrary Mirror stores
-
-If official Mirror initially supports:
+The shared algebra is useful:
 
 ```text
-URL
-KeyValueStore
+confirmed/base + pending overlay = visible
 ```
 
-that is probably enough.
+but Sync, Remote, and ordinary Foldkit use meaningfully different algorithms.
 
-Allowing:
+Share vocabulary first. Extract implementation only after real convergence.
 
-```ts
-Mirror.make({
-  read,
-  write,
-})
-```
+## No user-facing runtime activity as normal view state
 
-too early encourages people to model databases, APIs, Redis, and authoritative servers as "mirrors," which destroys the ownership distinction.
+Devtools may inspect running fibers. Normal application UI should remain explainable from Model.
 
-### Writable Surface projections for normal application code
+## No full Mixins styling language
 
-A Surface should primarily express observation plus permitted Messages.
+Steal attribute composition and perhaps Parts, not an entire CSS-in-TypeScript platform.
 
-It should not become:
+## No Sync or Durable runtime in Foldkit core
 
-```ts
-surface.model.todos.set(...)
-```
-
-because that creates a second semantic mutation path around `update`.
+They should remain packages built from Foldkit concepts.
 
 ---
 
-# 17. A staged implementation plan
+# 19. Staged implementation plan
 
 ## Phase 1: extract the reusable substrate
 
-This phase should be intentionally boring.
-
-Implement:
+Implement only:
 
 ```text
 optional pure Application descriptor
 read-only Model field references / Projection
 typed Message subsets
 Surface
+small open interpreter-metadata seam
 ```
 
 No network behavior.
 
-No storage.
+No persistence.
 
 No agents.
 
 No sync.
 
-The acceptance test is that these abstractions can describe an existing Foldkit application without changing how it executes.
+Acceptance criterion:
 
-A useful initial target would be one larger existing example with multiple Submodels.
+> These abstractions can describe an existing Foldkit application without changing how it executes.
 
-The result should answer:
+The Projection metadata prototype should prove:
 
-```text
-What does this feature read?
-What Messages may it cause?
-```
+1. interpreter-owned branded metadata survives composition;
+2. one interpreter can retrieve only its own declarations;
+3. new interpreters do not require editing a closed core union;
+4. type inference remains acceptable;
+5. application ownership remains checked.
 
-purely from static values.
+## Phase 2: teach tooling about declarations
 
-## Phase 2: teach tooling about the declarations
-
-Add architecture inspection to DevTools.
-
-Start small:
+Start with:
 
 ```text
-Surfaces
+Surface
   name
   Model dependencies
-  allowed Message tags
+  permitted Message tags
+  interpreter metadata summaries
 ```
 
-Then expose the same information through DevTools MCP.
+Expose the same information through DevTools/MCP where useful.
 
-Add optional manifest generation:
+This validates the substrate before several product features depend on it.
 
-```text
-foldkit architecture
-```
+## Phase 3: production Agent contracts
 
-or equivalent build tooling.
-
-This validates whether the static vocabulary is actually useful before more systems depend on it.
-
-## Phase 3: production agent contracts
-
-Build an official agent package using:
+Build official Agent around:
 
 ```text
 Projection
@@ -2242,71 +2355,69 @@ Message subset
 Runtime host binding
 ```
 
-Start with one transport.
-
-MCP is the obvious first external transport because Foldkit already has experience and tooling there, while WebMCP may be attractive for browser-native application capabilities.
-
-The important work is the protocol-neutral contract:
+Support both:
 
 ```text
-context
-capabilities
-input mapping
-availability
-authorization
-completion
-audit
+Message completion
+State completion
 ```
 
-The adapter is secondary.
+State completion must be race-safe and compose as Effect.
 
-## Phase 4: Mirror
+Start with one transport; keep the protocol-neutral contract primary.
+
+## Phase 4: Remote Projection refresh experiment
+
+Before upstreaming Remote, validate the metadata seam with a real interpreter:
+
+```ts
+Remote.refresh(ProjectPage)
+```
+
+Questions:
+
+- can requirements be extracted from arbitrary composed Projection trees?
+- how do live requirements interact with refresh?
+- where do deduplication/staleness semantics live?
+- can Surface remain ignorant of Remote internals?
+
+## Phase 5: Mirror
 
 Implement URL/query and KeyValueStore Mirror as compilers into existing Foldkit effects.
 
-Create examples that make the semantic distinctions explicit:
+Keep the ownership distinctions explicit:
 
 ```text
-Route
-vs
-URL Mirror
-
-Flags
-vs
-KV Mirror
-
-Command persistence
-vs
-Mirror
+Route vs URL Mirror
+Flags vs KV Mirror
+Mirror vs durable persistence
 ```
 
-Rewrite or create a Query Mirror example specifically to test whether the abstraction genuinely removes accidental plumbing.
+## Phase 6: AsyncData view ergonomics
 
-## Phase 5: attribute composition and Parts
+Only if repeated view code justifies it, add a small view interpreter over existing `AsyncData`.
 
-Add `Attribute.compose` first.
+Do not add suspension or Promise reads.
 
-Let experience determine whether a first-class Parts abstraction is warranted.
+## Phase 7: attribute composition and Parts
 
-Do not begin by porting Mixins.
+Add semantic `Attribute.compose` first.
 
-## Phase 6: continue incubating Remote and Sync
+Let usage determine whether named Parts deserve first-class support.
 
-Use the newly official Projection/MessageSet primitives to make third-party or experimental implementations easier.
+## Phase 8: keep incubating Remote / Sync / Durable
 
-If Remote and Sync gain production adoption, evaluate official packages independently.
+Use the official substrate to simplify experimental packages.
 
-They should not need Foldkit core changes beyond the substrate already introduced.
+If production adoption warrants it, evaluate official packages independently.
+
+They should not require a new parallel core runtime.
 
 ---
 
-# 18. Suggested experiments before committing APIs
+# 20. Suggested experiments before committing APIs
 
-The best next step is not implementing every proposal.
-
-Three small prototypes would answer most of the remaining architectural questions.
-
-## Experiment A: Surface-ify a real Foldkit page
+## Experiment A: Surface-ify a real page
 
 Take a page that reads root state plus multiple Submodels.
 
@@ -2318,112 +2429,141 @@ Message subset
 Surface
 ```
 
-and bind its existing view.
-
 Measure:
 
-* how much boilerplate is introduced;
-* whether the restricted Model improves readability;
-* whether restricted `HtmlBuilder<Message>` catches real mistakes;
-* whether dependency metadata is useful in DevTools.
+- boilerplate;
+- readability;
+- compiler errors caught by restricted Message capability;
+- usefulness of dependency metadata in DevTools.
 
 If Surface feels heavier than the value it creates, stop.
 
-## Experiment B: rewrite Query Sync as Model-owned state + Mirror
+## Experiment B: open Projection metadata
 
-Keep the existing Query Sync example as the Route-owned version.
-
-Build a second version where:
+Create two independent fake interpreters:
 
 ```text
-Model owns filters
-URL mirrors them
+Remote-like requirement
+FeatureFlag-like requirement
 ```
 
-Compare:
+Compose their Projections together.
+
+Verify:
+
+- metadata survives composition;
+- neither interpreter imports the other;
+- Surface core does not know either domain;
+- inference remains understandable;
+- tooling can inspect generic metadata safely.
+
+This is the most important substrate experiment added by the async proposal.
+
+## Experiment C: production-safe Todo Agent
+
+Expose only:
 
 ```text
-lines of application code
-number of Messages
-number of Commands
-back/forward semantics
-SSR behavior
-test complexity
-clarity of ownership
-```
-
-This is the best way to determine whether Mirror is genuinely a Foldkit abstraction or merely convenient library code.
-
-## Experiment C: production-safe Todo agent
-
-Take the current Todo example and expose:
-
-```text
-read:
+read
   visible todos
   filter
 
-capabilities:
+capabilities
   add todo
   toggle todo
   clear completed
 ```
 
-without exposing:
+Add one event-completion capability and one state-completion capability.
+
+Test:
+
+- Projection;
+- Message subsets;
+- runtime state observation;
+- race-free completion;
+- authorization;
+- MCP/WebMCP adapter shape;
+- difference from DevTools MCP.
+
+## Experiment D: Remote consumer refresh
+
+Build one page whose Projection composes several entity/query requirements.
+
+Compare:
 
 ```text
-whole Model
-fact Messages containing generated values
-arbitrary dispatch
-DevTools history
+before
+    refresh manually restates each request
+
+after
+    Remote.refresh(PageProjection)
 ```
 
-Add one async completion case.
+Measure whether the API genuinely removes duplicated semantics rather than merely hiding them.
 
-This will immediately test:
+## Experiment E: Agent + Sync confirmation
 
-* Projection;
-* Message subsets;
-* runtime observation;
-* completion semantics;
-* authorization;
-* MCP/WebMCP adapter shape;
-* difference from DevTools MCP.
+Expose a durable edit to an Agent.
 
-If this feels clean, it is a strong signal that the underlying abstractions are correct.
+Compare completion against:
+
+```text
+visible optimistic state
+vs
+committed Sync state
+```
+
+Verify the API can express the distinction without Agent understanding Sync protocol internals.
+
+## Experiment F: Query Mirror
+
+Keep the existing Route-owned query example and build a Model-owned + URL Mirror version.
+
+Compare:
+
+- lines of application code;
+- Messages/Commands;
+- browser navigation semantics;
+- SSR behavior;
+- clarity of ownership.
 
 ---
 
-# 19. How this changes the Foldkit story
+# 21. How this changes the Foldkit story
 
 Foldkit's current story can be summarized as:
 
-> State changes and effects are explicit.
+> **State changes and effects are explicit.**
 
-The useful lesson from Plus is that Foldkit can go one step further:
+The useful lesson from Plus is:
 
-> **State changes, effects, and application boundaries are explicit.**
+> **State changes, effects, application boundaries, and external requirements can all be explicit descriptions.**
 
-That gives a hierarchy like:
+That gives a hierarchy:
 
 ```text
 Model
-    what exists
+    what semantic state exists
 
 Message
     what happened / may happen
 
 update
-    how state transitions
+    how semantic state transitions
 
-Command / Subscription / Mount / Resource
-    what external work exists
+AsyncData
+    explicit readiness / stale / failure state
+
+Command / Subscription / Mount / ManagedResource
+    what external work exists and how long it lives
 
 Submodel
     who owns a state machine
 
 Projection
     what existing state is observed
+    + opaque interpreter declarations
 
 Message subset
     which existing transitions are relevant
@@ -2432,13 +2572,19 @@ Surface
     what a consumer may observe and cause
 
 Agent
-    how a restricted external actor accesses a Surface
+    how a restricted external actor interprets those declarations
 
 Mirror
     where some Model state is represented externally
 
+Remote
+    how server-owned facts satisfy declared requirements
+
+Sync
+    how durable Messages become a replicated optimistic view
+
 Parts
-    where a view permits structural decoration
+    where a view permits controlled structural decoration
 ```
 
 Each concept answers a different architectural question.
@@ -2447,37 +2593,40 @@ That coherence is the standard to hold every new abstraction to.
 
 ---
 
-# 20. Priority recommendation
+# 22. Priority recommendation
 
-If only a small amount of `foldkit-plus` is ever incorporated, I would prioritize it in this order:
+If only a small amount of `foldkit-plus` is ever incorporated, prioritize:
 
-| Priority | Idea                                         | Recommendation                    |
-| -------- | -------------------------------------------- | --------------------------------- |
-| 1        | Typed Message subsets                        | Upstream                          |
-| 2        | Read-only Model Projection / field refs      | Upstream                          |
-| 3        | Surface as observation + capability boundary | Upstream, optional                |
-| 4        | Pure Application descriptor                  | Strongly consider as substrate    |
-| 5        | Architecture manifest / DevTools inspection  | Official tooling                  |
-| 6        | Production agent contract                    | Official optional package         |
-| 7        | Mirror                                       | Official optional package/pattern |
-| 8        | Semantic attribute composition               | Core HTML utility                 |
-| 9        | Named view Parts                             | Experiment, probably UI utility   |
-| 10       | Remote                                       | Keep incubating                   |
-| 11       | Sync                                         | Keep incubating                   |
-| 12       | Durable                                      | Keep outside frontend core        |
-| 13       | Full Mixins styling system                   | Do not upstream                   |
+| Priority | Idea | Recommendation |
+| --- | --- | --- |
+| 1 | Typed Message subsets | Upstream |
+| 2 | Read-only Model Projection / field refs | Upstream |
+| 3 | Surface as observation + capability boundary | Upstream, optional |
+| 4 | Pure Application descriptor | Strongly consider as substrate |
+| 5 | Open interpreter metadata on Projection | Prototype as part of substrate |
+| 6 | Architecture manifest / DevTools inspection | Official tooling |
+| 7 | Production Agent contract | Official optional package |
+| 8 | State-based Agent completion | Add with Agent if prototype succeeds |
+| 9 | Mirror | Official optional package/pattern |
+| 10 | Semantic attribute composition | Core HTML utility candidate |
+| 11 | Named view Parts | Experiment |
+| 12 | Remote Projection refresh | Validate in experimental Remote |
+| 13 | Remote runtime | Keep incubating |
+| 14 | Sync | Keep incubating |
+| 15 | Durable | Keep outside frontend core |
+| 16 | Full Mixins styling system | Do not upstream |
 
-The top five form one coherent project rather than five unrelated features.
+The first six form one coherent substrate/tooling project rather than unrelated features.
 
 ---
 
-# 21. The main architectural risk
+# 23. The main architectural risk
 
 The largest risk is not implementation complexity.
 
-It is **making the architecture more explicit than users actually need**.
+It is **making architecture more explicit than users actually need**.
 
-Foldkit currently gets a lot of power from the fact that a view can simply be:
+Foldkit gets power from the fact that a view can simply be:
 
 ```ts
 (model, h) => ...
@@ -2495,125 +2644,72 @@ If every feature starts requiring:
 Projection.define(...)
 MessageSet.define(...)
 Surface.define(...)
-Module.add(...)
+metadata(...)
+Architecture.add(...)
 ```
 
-Foldkit will become less elegant.
+Foldkit becomes less elegant.
 
-The correct rule should therefore be:
+The rule should remain:
 
-> Plain functions first. Contracts only when something needs to inspect or reuse the boundary.
-
-This is already how Plus itself describes Surface, and Foldkit should preserve that restraint.
+> **Plain functions first. Contracts only when something needs to inspect, restrict, plan from, or reuse the boundary.**
 
 Surfaces become worthwhile when:
 
-* an agent needs a least-privilege context;
-* DevTools should understand feature dependencies;
-* a remote planner needs declared data requirements;
-* a sync system needs a defined slice;
-* a view benefits from compile-time Message restriction;
-* architecture tooling needs a static boundary.
+- an agent needs least-privilege context;
+- DevTools should understand dependencies/capabilities;
+- Remote needs declarative requirements;
+- Sync needs a defined slice;
+- a view benefits from compile-time Message restriction;
+- architecture tooling needs a static boundary;
+- a third-party interpreter needs to participate without inventing a parallel DSL.
 
-Otherwise:
+Otherwise, a plain function is better.
 
-```ts
-const view = model => ...
+A second risk is **false unification**.
+
+The diagrams for Remote and Sync may both contain `confirmed + pending = visible`, but that does not mean they should share one implementation.
+
+The right goal is:
+
+> **coherent composition, not homogeneous composition.**
+
+Use each layer's natural algebra:
+
+```text
+Effect
+    pipe / provide / retry / timeout / race
+
+Projection
+    map / struct / all / select / compose
+
+MessageSet
+    union
+
+Surface
+    observation + capability
+
+Remote requirements
+    interpreter-owned merge/planning
+
+Sync fragments
+    replication-specific composition
+
+Layer
+    service composition
 ```
 
-is better.
+A design is composable when its output becomes a lawful input to the next layer, not when every layer shares the same method names.
 
 ---
 
-# 22. Final recommendation
+# 24. Complete descriptions as a north star
 
-`foldkit-plus` should not be viewed as a set of missing batteries that Foldkit needs to absorb.
+A useful lens from work on complete descriptions is that a good abstraction is not merely about hiding detail.
 
-It is better understood as an architectural stress test.
+It should preserve every distinction that can affect behavior at the chosen level while discarding distinctions that cannot.
 
-It asks:
-
-```text
-If Foldkit really has one state machine,
-can agents use it without another API?
-
-Can server data fit without another store?
-
-Can offline replay use the same reducer?
-
-Can the URL represent state without owning it?
-
-Can persistence observe state without leaking into every transition?
-
-Can a design system customize views without owning state?
-
-Can tooling inspect those relationships?
-```
-
-For the most part, the answer is yes.
-
-That is evidence that Foldkit's existing foundation is strong.
-
-The main thing Plus had to add repeatedly was a way to turn implicit relationships into explicit, inspectable data:
-
-```text
-Model field references
-    ↓
-Projection
-
-Message constructors
-    ↓
-Message subset
-
-Projection + Message subset
-    ↓
-Surface
-
-Surface + policy
-    ↓
-Agent
-
-Projection + representation
-    ↓
-Mirror
-
-all declarations
-    ↓
-architecture tooling
-```
-
-That is the seam I would upstream.
-
-The result should not be "Foldkit now includes foldkit-plus."
-
-It should be:
-
-> **Foldkit gains a tiny contract vocabulary that lets the rest of its architecture extend outward without losing the one-Model, one-Message-flow, one-update-function property that makes Foldkit valuable in the first place.**
-
-In short:
-
-```text
-Steal the substrate.
-
-Officialize Agents and Mirror.
-
-Steal the small useful pieces of Mixins.
-
-Learn from Remote and Sync.
-
-Leave distributed systems and styling frameworks outside core.
-
-Make Foldkit's boundaries as inspectable as its transitions.
-```
-
-That would make Foldkit more capable without making it feel like a different framework.
-
-
-# Addendum: Complete Descriptions and Foldkit
-
-A useful lens from arXiv:2402.09090 is that good abstractions are not merely about hiding detail. They are about finding a **complete description at the right level**: preserving every distinction that affects behavior at that level, while discarding distinctions that do not.
-
-This helps explain why Foldkit and Effect are powerful.
+This helps explain why Foldkit and Effect work well.
 
 In Foldkit:
 
@@ -2621,26 +2717,31 @@ In Foldkit:
 Model + Message + update
 ```
 
-form a complete description of application state transitions, provided `update` is pure. External nondeterminism is pushed into Commands and re-enters as Messages, so the state machine remains closed and replayable.
+can form a complete description of application state transitions when `update` is pure. External nondeterminism is pushed into effects and re-enters as Messages, so the transition system remains inspectable and replayable.
 
-Likewise, Effect and Schema turn otherwise opaque behavior into structured descriptions that can support many interpreters: execution, validation, testing, tracing, retries, documentation, serialization, and so on.
+Effect and Schema similarly turn otherwise opaque behavior/data into descriptions that support many interpreters.
 
-This suggests a stronger principle for the RFC:
+That suggests a stronger principle:
 
-> **Foldkit should prefer complete descriptions that can support many interpretations over multiple partial implementations of the same behavior.**
+> **Prefer complete descriptions that support several useful interpretations over several partial implementations of the same semantics.**
 
-That principle clarifies several proposals.
-
-## Surface as a real abstraction boundary
-
-A Surface is more than:
+The proposed substrate follows that rule:
 
 ```text
-what can this consumer read?
-what Messages can it send?
+Application
+    root machine identity
+
+Projection
+    observable distinctions + declarative interpreter requirements
+
+MessageSet
+    available input vocabulary
+
+Surface
+    consumer-level observation/capability boundary
 ```
 
-It can also be viewed as an attempted higher-level description of part of the application.
+## Surface as a behavioral boundary
 
 Suppose a Surface exposes:
 
@@ -2654,139 +2755,158 @@ and allows:
 ToggledTodo
 ```
 
-but whether `ToggledTodo` changes the todos depends on hidden state such as:
+but the effect of `ToggledTodo` secretly depends on:
 
 ```text
 session.canEdit
 ```
 
-Then the Surface is not behaviorally complete. Two root Models can look identical through the Surface yet react differently to the same Surface Message.
+Then the Surface is not behaviorally complete. Two root Models may look identical through the Surface but respond differently to the same allowed Message.
 
-That gives us a useful law:
-
-```text
-If two root Models look identical through a Surface,
-then applying the same allowed Message should not make
-their projected next states differ.
-```
-
-Formally:
+A useful law is:
 
 ```text
-P(m₁) = P(m₂)
+P(m1) = P(m2)
 
 should imply
 
-P(update(m₁, msg)) = P(update(m₂, msg))
+P(update(m1, msg)) = P(update(m2, msg))
 ```
 
-for Messages relevant to that Surface.
+for Messages relevant to a behaviorally closed Surface.
 
-This does not need to be a hard requirement for every Surface. There are really two useful notions:
+Not every Surface must satisfy that law. It suggests two useful notions:
 
 ```text
 Capability Surface
-    what may this consumer observe and attempt?
+    what a consumer may observe and attempt
 
 Closed Surface
-    does this state + Message vocabulary form a
-    self-contained behavioral abstraction?
+    state + Message vocabulary forms a self-contained
+    behavioral abstraction
 ```
 
-Foldkit could eventually test the second property with Stories or property-based testing and surface hidden dependencies.
+Stories/property tests could eventually detect hidden dependencies for the second case.
 
-## This strengthens the proposed substrate
+## Test every new abstraction this way
 
-The RFC's proposed primitives now have a deeper interpretation:
+Before adding a concept, ask:
 
-```text
-Application
-    the root machine
+1. What level of the program does this describe?
+2. Which distinctions actually matter at that level?
+3. Is the description complete enough to reason about that level without reopening hidden implementation details?
+4. Can multiple useful interpreters be derived from the description?
 
-Projection
-    which state distinctions remain visible
-
-MessageSet
-    which input distinctions remain available
-
-Surface
-    a candidate higher-level machine or capability boundary
-```
-
-This is more compelling than treating them as metadata for tooling.
-
-It also suggests that Projections should remain read-only and support derived values. A Surface may need:
-
-```text
-canEdit: boolean
-```
-
-without exposing the entire internal structure that determines it.
-
-## A useful test for future Foldkit abstractions
-
-The lesson is not "make everything declarative."
-
-Before adding a new abstraction, ask:
-
-1. **What level of the program does this describe?**
-2. **Which distinctions actually matter at that level?**
-3. **Is the description complete enough to reason about that level without reopening hidden implementation details?**
-4. **Can multiple useful interpreters be derived from the description?**
-
-This helps explain why some `foldkit-plus` ideas are more compelling than others.
-
-`Surface`, Agent contracts, Mirror, and replayable Message subsets describe meaningful architectural relationships.
-
-A large styling DSL is less obviously valuable if its main interpretation is simply "turn this back into CSS."
-
-## Revised north star
-
-The RFC originally proposed:
-
-> State changes, effects, and application boundaries are explicit.
-
-A stronger version is:
-
-> **Foldkit helps developers create complete descriptions of programs at useful levels of abstraction.**
-
-Or more concretely:
-
-> **Expose every distinction required to determine behavior at a level, and hide every distinction that cannot affect that behavior.**
-
-That principle already explains much of Foldkit:
-
-```text
-Message
-    makes events explicit
-
-update
-    makes state transitions explicit
-
-Command / Subscription
-    make external interaction explicit
-
-Schema
-    makes data structure explicit
-
-Submodel
-    makes autonomous state ownership explicit
-```
-
-The proposed additions extend the same idea:
-
-```text
-Projection
-    makes observable distinctions explicit
-
-MessageSet
-    makes an input vocabulary explicit
-
-Surface
-    makes a consumer-level boundary explicit
-```
+This explains why Surface, Agent contracts, Mirror, replayable Message subsets, and interpreter requirements are compelling: they describe meaningful program relationships.
 
 The goal is not more abstraction machinery.
 
 It is **better abstractions through more complete descriptions**.
 
+---
+
+# 25. Final recommendation
+
+`foldkit-plus` should not be understood as a bag of missing batteries Foldkit needs to absorb.
+
+It is better understood as an architectural stress test.
+
+It asks:
+
+```text
+If Foldkit really has one state machine,
+can agents use it without another business-logic API?
+
+Can server data fit without another hidden store?
+
+Can offline replay use the same reducer?
+
+Can the URL represent state without owning it?
+
+Can async state remain explicit without moving I/O into reads?
+
+Can external requirements compose with ordinary observation?
+
+Can third-party interpreters join the application graph
+without inventing parallel Projection/Surface DSLs?
+
+Can tooling inspect all of those relationships?
+```
+
+For the most part, the answer is yes.
+
+That is evidence that Foldkit's existing foundation is strong.
+
+The main thing Plus repeatedly needs is a way to turn implicit relationships into explicit, typed, inspectable descriptions:
+
+```text
+Application values
+    -> Application identity
+
+Model field references
+    -> Projection
+
+interpreter declarations
+    -> Projection metadata
+
+Message constructors
+    -> Message subset
+
+Projection + Message subset
+    -> Surface
+
+Surface + policy
+    -> Agent
+
+Projection + representation
+    -> Mirror
+
+Projection + Remote requirements
+    -> Remote planning / refresh
+
+Message subset + replay rules
+    -> Sync
+
+all declarations
+    -> architecture tooling
+```
+
+The result should not be:
+
+> Foldkit now includes Foldkit Plus.
+
+It should be:
+
+> **Foldkit gains a tiny contract vocabulary that lets the rest of its architecture extend outward without losing the one-Model, one-Message-flow, one-update-function property that makes Foldkit valuable.**
+
+The newer async work adds one more constraint:
+
+> **Effect remains the async-control substrate, while semantic readiness and user-visible pending state remain explicit application state.**
+
+In short:
+
+```text
+Steal the substrate.
+
+Let Projection carry typed open interpreter metadata.
+
+Officialize Agents and Mirror when their contracts stabilize.
+
+Add state-based Agent completion where semantic postconditions beat event coupling.
+
+Let Remote interpret requirements and refresh its own Projections.
+
+Keep Sync and Durable specialized.
+
+Reuse Effect instead of inventing a parallel async framework.
+
+Steal small useful pieces of Mixins.
+
+Make Foldkit's boundaries as inspectable as its transitions.
+```
+
+The strongest version of the idea is:
+
+> **Declare application semantics once. Interpret them everywhere.**
+
+That would make Foldkit more capable without making it feel like a different framework.
