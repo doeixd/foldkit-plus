@@ -1,14 +1,29 @@
 # `foldkit-sync`
 
-A local-first replica of a shared Foldkit projection. The application's Message
-union and `update` stay authoritative; sync wraps them rather than introducing a
-second reducer.
+Keeps part of a Foldkit application's Model working offline and converging with
+a server. An edit applies to the local Model immediately, is written to a
+persistent outbox, and is sent to the server when the network allows. The
+server decides the order; every replica replays that order and ends up with the
+same state.
 
-It is the **client half** of [replicated Foldkit state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md).
-Reach for it when clients must keep working offline and converge later, with
-`foldkit-durable` (or any server that orders operations) as the authority. The
-[guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md) covers the mental model and when not to use
-it.
+The trick is that it is still your application. You declare which Model fields
+replicate and which Messages are durable; the shared codec, the initial
+snapshot, the replay reducer, and the server journal's contract are all derived
+from the `update` you already wrote. There is no second reducer to keep in sync
+with the first.
+
+**Use it when** clients must keep working offline, several devices or tabs edit
+the same document, and you have (or can run) a server that orders operations —
+[`foldkit-durable`](https://github.com/doeixd/foldkit-plus/tree/main/packages/durable)
+is one. **Not for** peer-to-peer collaboration: this is server-ordered and
+single-writer-per-document, not a CRDT mesh. Concurrent edits to the same field
+resolve by server arrival order unless you opt that field into the
+[last-writer-wins register](#last-writer-wins-fields-experimental) below, and
+there is no operational transform for collaborative text.
+
+It is the **client half** of [replicated Foldkit state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md);
+the [guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md)
+covers the mental model and when not to use it.
 
 ## Install
 
@@ -21,49 +36,62 @@ pnpm add foldkit-sync
 
 ## Quick start
 
-`Sync.forApplication` is the Foldkit-facing layer. From one
-`Surface.application` and a writable projection it derives the shared schema, the
-durable Message subset, the initial snapshot, and replay, and exposes a read-only
-Surface over the same projection. The application's `update` stays the only
-reducer.
+`forApplication` is the Foldkit-facing layer. From one `Surface.application`
+and a writable projection it derives the shared schema, the durable Message
+subset, the initial snapshot, and replay, and exposes a read-only Surface over
+the same projection.
 
 ```ts
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Surface } from 'foldkit-surface'
+import type * as Update from 'foldkit/update'
+import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { documentId, forApplication } from 'foldkit-sync'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
   selectedTodoId: Schema.NullOr(Schema.String),
+  lastError: Schema.NullOr(Schema.String),
 })
+type Model = typeof Model.Type
+
 const Message = defineMessageUnion({
   CreatedTodo: { id: Schema.String, title: Schema.String },
   RenamedTodo: { id: Schema.String, title: Schema.String },
   SelectedTodo: { id: Schema.String },
 })
+type Message = typeof Message.Type
 
-// `update` is the application's ordinary transition.
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { todos: [], selectedTodoId: null },
-  update,
-})
+const initial: Model = { todos: [], selectedTodoId: null, lastError: null }
 
-const Todos = Projection.pick(App.fields.todos)
-const TodoChanges = MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo])
+type Return = Update.Return<Model, Message>
+// The application's ordinary transition. Sync does not add a second one.
+const update = (model: Model, message: Message): Return =>
+  Message.match<Return>(message, {
+    CreatedTodo: ({ id, title }) => ({
+      model: { ...model, todos: [...model.todos, { id, title }] },
+    }),
+    RenamedTodo: ({ id, title }) => ({
+      model: {
+        ...model,
+        todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      },
+    }),
+    SelectedTodo: ({ id }) => ({ model: { ...model, selectedTodoId: id } }),
+  })
+
+const App = Surface.application({ Model, Message, initial, update })
 
 const TodoSync = forApplication(App).make({
   documentId: documentId('todos'),
-  shared: Todos, // the shared codec, read, and write
-  durable: TodoChanges, // the durable subset
+  shared: Projection.pick(App.fields.todos), // the codec, read, and write
+  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 ```
 
-Only `todos` is replicated; `selectedTodoId` stays local. The derived `replay`
-installs the shared slice into the application's initial Model, applies the
-durable Message through `update`, and reads the shared slice back.
+Only `todos` is replicated; `selectedTodoId` and `lastError` stay local. The
+derived `replay` installs the shared slice into the application's initial Model,
+applies the durable Message through `update`, and reads the shared slice back.
 
 A durable Message must therefore be a deterministic, state-only transition of
 the shared projection. Replay refuses one whose `update` returns a Command (a
@@ -78,42 +106,69 @@ On the server, the same contract produces the journal's codecs and reducer, so
 neither is written twice:
 
 ```ts
-import { makeJournal } from 'foldkit-durable'
+import { Effect } from 'effect'
+import { actorId, documentId, makeJournal, opId } from 'foldkit-durable'
 
-const journal = yield* makeJournal({
-  ...TodoSync.journalContract(), // operation/snapshot codecs, empty, reduce
-  file: 'todos.sqlite',
-  opId: operation => operation.opId,
-  actorId: principal => principal.actorId,
-})
+type Principal = { readonly actorId: string }
+
+const server = Effect.gen(function* () {
+  const journal = yield* makeJournal({
+    // Operation and snapshot codecs, `empty`, `reduce`, and `authorize` if declared.
+    ...TodoSync.journalContract(),
+    file: 'todos.sqlite',
+    // The two packages brand their ids separately, so re-brand at the seam.
+    opId: operation => opId(operation.opId),
+    actorId: (principal: Principal) => actorId(principal.actorId),
+  })
+  return yield* journal.load(documentId('todos'))
+}).pipe(Effect.scoped)
 ```
 
 ### Mounting
 
-`Sync.mount` runs the application over an open replica with one reducer. A
-durable Message is applied at once through the application's `update` and
-persisted afterwards in a Command; the shared slice is re-installed from the
-replica when an exchange or a rejection changes it, or when a persist fails.
+`mount` runs the application over an open replica with one reducer. A durable
+Message is applied at once through the application's `update` and persisted
+afterwards in a Command; the shared slice is re-installed from the replica when
+an exchange or a rejection changes it, or when a persist fails.
 
 ```ts
-const replica = yield* TodoSync.openReplica(replicaId('tab-1'), yield* indexedDb('todos'))
+import { Effect, Scope } from 'effect'
+import { indexedDb, layerSocket, mount, replicaId } from 'foldkit-sync'
+
+const container = document.getElementById('app')! // Foldkit needs the element to have an id
+
+const scope = Effect.runSync(Scope.make())
+const storage = Effect.runSync(Effect.provideService(indexedDb('todos/tab-1'), Scope.Scope, scope))
+const replica = Effect.runSync(TodoSync.openReplica(replicaId('tab-1'), storage))
+
 const mounted = mount(App, TodoSync, {
   replica,
-  container: document.getElementById('app')!, // Foldkit needs the id
-  view: (model, h) => ({ title: 'Todos', body: h.ul([], model.todos.map(todo => h.li([], [todo.title]))) }),
+  container,
+  view: (model, h) => ({
+    title: 'Todos',
+    body: h.ul(
+      [],
+      model.todos.map(todo => h.li([], [todo.title])),
+    ),
+  }),
   onPersistenceFailure: (model, error) => ({ ...model, lastError: error.message }),
 })
-mounted.dispatch(Message.CreatedTodo({ id, title: 'Milk' }))
+
+// The exchange loop: once, then after every submit, retrying a failed exchange.
+Effect.runFork(Effect.provide(replica.start, layerSocket({ url: 'wss://example.com/sync' })))
+
+mounted.dispatch(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' }))
 mounted.model() // the Model after the last transition
 await mounted.dispose() // waits for in-flight persists; the replica stays open
 ```
 
-`url` routes the URL through the application: `init(model, url)` reduces it
-into the Model before the first render, `onUrlChange(url)` names the Message
-for every navigation, and `onUrlRequest` the Message for a link click (omitted,
-the mount follows the link: an internal one pushed, an external one loaded).
-A `foldkit-mirror` URL mirror plugs in as `url: { init: (model, url) =>
-Filters.reduce(model, url), onUrlChange: url => Message.UrlChanged({ url }) }`;
+The optional `url` option routes the URL through the application:
+`init(model, url)` reduces it into the Model before the first render,
+`onUrlChange(url)` names the Message for every navigation, and `onUrlRequest`
+the Message for a link click (omitted, the mount follows the link itself: an
+internal one pushed, an external one loaded). A `foldkit-mirror` URL mirror
+plugs in there as
+`url: { init: (model, url) => Filters.reduce(model, url), onUrlChange: url => Message.UrlChanged({ url }) }`;
 `subscriptions` and `resources` carry its write entry and the store layer.
 
 `mounted.model`, `mounted.dispatch`, `mounted.subscribe`, and `mounted.observe`
@@ -124,7 +179,9 @@ mount guarantees and why no Foldkit change is required.
 
 ### Fragments
 
-A large application declares one fragment per feature and composes them:
+A large application declares one fragment per feature and composes them. `App`
+below is a wider application than the quick start's: it also has a `members`
+field and an `Invited` Message.
 
 ```ts
 const Sync = forApplication(App)
@@ -147,66 +204,79 @@ over the same field are a different mistake, which `Module.validate` reports.
 ### Authorization
 
 Policy attaches to the contract per durable variant and compiles into the
-journal contract, so the server applies it with no glue:
+journal contract, so the server applies it with no glue. This is the same
+`Board` as above, with a principal fixed and one rule added:
 
 ```ts
-const Sync = forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
-const Board = Sync.make({
+const Authorized = forApplication(App).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
+const Board = Authorized.make({
   documentId: documentId('board'),
-  ...Sync.compose(Todos, Members),
+  ...Authorized.compose(Todos, Members),
   authorize: {
     // `message` is exactly `RenamedTodo`; `shared` is the authoritative snapshot.
     RenamedTodo: ({ principal, message, shared }) =>
       principal.role === 'admin' && shared.todos.some(todo => todo.id === message.id),
   },
 })
-
-const journal = yield* makeJournal({ ...Board.journalContract(), file, opId, actorId })
 ```
 
-A durable variant without a rule is allowed; a key that is not a durable tag is
-a compile error. The rule runs inside the append transaction against the
-snapshot, so keep it synchronous and local. The client does not run it: a
-replica has no principal, and a refused operation comes back as a rejection.
+`Board.journalContract()` then carries the compiled rules in the shape
+`makeJournal` takes. A durable variant without a rule is allowed; a key that is
+not a durable tag is a compile error. The rule runs inside the append
+transaction against the snapshot, so keep it synchronous and local. The client
+does not run it: a replica has no principal, and a refused operation comes back
+as a rejection.
 
 ### Lower level
 
-`Sync.forApplication(App).make` compiles down to `defineSync`, the protocol
+`forApplication(App).make` compiles down to `defineSync`, the protocol
 primitive. Use `defineSync` directly when there is no Foldkit application to
 derive the contract from — a non-Foldkit client, or a hand-written projection.
 
 ```ts
-import { Effect } from 'effect'
-import { defineSync, indexedDb, layerFromPromise, replicaId } from 'foldkit-sync'
+import { Effect, Schema } from 'effect'
+import {
+  defineSync,
+  documentId,
+  indexedDb,
+  layerFromPromise,
+  replicaId,
+  type TransportClient,
+} from 'foldkit-sync'
 
-const Sync = defineSync({ ... })
+const Shared = Schema.Struct({ todos: Schema.Array(Schema.String) })
+const Renamed = Schema.Struct({ _tag: Schema.Literal('Renamed'), title: Schema.String })
+declare const transport: TransportClient // the application's own server client
 
-const replica = await Effect.runPromise(
-  Effect.gen(function* () {
-    const storage = yield* indexedDb('todos-tab-1')
-    return yield* Sync.openReplica(replicaId('tab-1'), storage)
-  }),
-)
-await Effect.runPromise(
-  replica.submit(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' })),
-)
-await Effect.runPromise(Effect.provide(replica.synchronize, layerFromPromise(transport)))
+const Protocol = defineSync({
+  documentId: documentId('todos'),
+  message: Renamed,
+  shared: Shared,
+  empty: { todos: [] },
+  durable: () => true,
+  replay: (shared, message) => ({ todos: [...shared.todos, message.title] }),
+})
 
-const shared = Effect.runSync(replica.shared)
+const program = Effect.gen(function* () {
+  const storage = yield* indexedDb('todos-tab-1')
+  const replica = yield* Protocol.openReplica(replicaId('tab-1'), storage)
+  yield* replica.submit({ _tag: 'Renamed', title: 'Milk' })
+  yield* Effect.provide(replica.synchronize, layerFromPromise(transport))
+  return yield* replica.shared
+}).pipe(Effect.scoped)
 ```
 
 ## What it owns
 
-- The Foldkit-facing contract (`Sync.forApplication(App).make`, optionally with
+- The Foldkit-facing contract (`forApplication(App).make`, optionally with
   a custom `replay`): derives the shared projection, the durable Message subset, the
   initial snapshot, and the journal contract from the application, so none is
   declared twice. `Projection.pick`/`Projection.compose` build the writable projection;
   `TodoSync.journalContract()` builds the durable codecs and reducer.
 - The operation envelope: `replicaId:localSequence` identity, `baseCursor`, and
-  protocol/schema versions. The wire codecs live under `Sync.codec`
-  (`normalizeOperation`, `operationFrom`, `committedFrom`, `decodeExchange`) for a
-  custom transport or server; a server-committed operation is a
-  `CommittedOperation`.
+  protocol/schema versions. The contract's `codec` (`normalizeOperation`,
+  `operationFrom`, `committedFrom`, `decodeExchange`) is there for a custom
+  transport or server; a server-committed operation is a `CommittedOperation`.
 - A persisted outbox and optimistic projection: a durable Message is visible
   immediately and rebased onto the authoritative order.
 - Reconciliation: committed operations are replayed in order, acknowledged or
@@ -255,7 +325,7 @@ const shared = Effect.runSync(replica.shared)
   server is left to the application; the sync example shows a `ws` one for the
   transport (presence over `ws` is not wired there yet).
 
-## Last-writer-wins fields (M8, experimental)
+## Last-writer-wins fields (experimental)
 
 Use `lwwRegister` when a field's winner should depend on a write's logical time
 instead of the order offline clients reconnect. It returns a schema and a pure
@@ -263,7 +333,7 @@ instead of the order offline clients reconnect. It returns a schema and a pure
 
 ```ts
 import { Schema } from 'effect'
-import { lwwRegister } from 'foldkit-sync'
+import { lwwRegister, replicaId } from 'foldkit-sync'
 
 const Title = lwwRegister(Schema.String)
 const Shared = Schema.Struct({ title: Title.schema })
@@ -276,7 +346,7 @@ const update = (model: typeof Shared.Type, message: typeof Renamed.Type) => ({
 
 const message: typeof Renamed.Type = {
   _tag: 'Renamed',
-  title: { stamp: { counter: 1, replicaId: 'tab-a' }, value: 'Milk' },
+  title: { stamp: { counter: 1, replicaId: replicaId('tab-a') }, value: 'Milk' },
 }
 ```
 
@@ -291,38 +361,38 @@ write cannot cause timestamp reuse after reload:
 
 ```ts
 import { Effect } from 'effect'
-import { indexedDb, openLwwClock } from 'foldkit-sync'
+import { documentId, indexedDb, openLwwClock, replicaId, type Replica } from 'foldkit-sync'
 
-const clock = await Effect.runPromise(
+type Shared = typeof Shared.Type
+type Renamed = typeof Renamed.Type
+
+const rename = (replica: Replica<Renamed, Shared>, title: string) =>
   Effect.gen(function* () {
+    // A separate database from the replica's outbox; one clock per document/writer.
     const storage = yield* indexedDb('todos-tab-a-clock')
-    return yield* openLwwClock({ documentId: 'todos', replicaId: 'tab-a', storage })
-  }),
-)
-try {
-  const stamp = await Effect.runPromise(
-    clock.next(Effect.runSync(replica.shared).title.stamp.counter),
-  )
-  await Effect.runPromise(
-    replica.submit({ _tag: 'Renamed', title: { stamp, value: 'Milk' } }),
-  )
-} finally {
-  await Effect.runPromise(clock.close)
-}
+    const clock = yield* openLwwClock({
+      documentId: documentId('todos'),
+      replicaId: replicaId('tab-a'),
+      storage,
+    })
+    const shared = yield* replica.shared
+    const stamp = yield* clock.next(shared.title.stamp.counter)
+    yield* replica.submit({ _tag: 'Renamed', title: { stamp, value: title } })
+    yield* clock.close
+  }).pipe(Effect.scoped)
 ```
 
-Use a **separate database** from the replica's outbox, with one clock per
-document/writer. `next(observedCounter)` returns only after persisting a counter
-greater than both its saved value and the supplied observation. Pass the latest
-observed counter for the field being edited; when causality spans several
-registers, pass their maximum. Calling `next()` without an observation advances
-only the saved local counter. The clock does not inspect application state.
+`next(observedCounter)` returns only after persisting a counter greater than
+both its saved value and the supplied observation. Pass the latest observed
+counter for the field being edited; when causality spans several registers, pass
+their maximum. Calling `next()` without an observation advances only the saved
+local counter. The clock does not inspect application state.
 
 Allocations on one handle are serialized. Separate handles use storage's
 compare-and-swap check; a stale handle fails and must be closed and reopened.
 Storage failures reject allocation without returning a stamp. Counter gaps after
 a crash or failed submission are harmless. Counters are nonnegative safe
-integers; exhaustion fails before writing. `close()` waits for accepted
+integers; exhaustion fails before writing. `close` waits for accepted
 allocations and refuses new ones. Opening takes ownership of storage and closes
 it on initialization failure too.
 
@@ -349,16 +419,15 @@ identity. Applications must enforce writer ownership and clock policy at admissi
 where needed. A losing write can still trigger a Command if the application's
 update produces one; this helper only resolves state.
 
-These M8 helpers do not change the todo example's persisted schema or claim
-arbitrary Messages commute. Specialized sets, counters and collaborative text
-remain future work.
+These helpers do not claim arbitrary Messages commute. Specialized sets,
+counters, and collaborative text remain future work.
 
 ## See also
 
 - [Replicated state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md) — the mental model, and
   when not to use it.
 - [Runtime binding](https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md) — what
-  `Sync.mount` guarantees, and why no Foldkit change is required.
+  `mount` guarantees, and why no Foldkit change is required.
 - [`foldkit-durable`](https://github.com/doeixd/foldkit-plus/tree/main/packages/durable) — the server half; [`foldkit-mirror`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mirror) plugs into the mount's
   `url` option.
 - [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — two fragments, owner-only rules, and a browser mount;

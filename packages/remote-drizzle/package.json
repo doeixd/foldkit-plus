@@ -12,6 +12,9 @@
   ],
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Patrick Glenn <doeixd@gmail.com>",
   "repository": {
     "type": "git",
@@ -32,7 +35,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "build": "tsdown",

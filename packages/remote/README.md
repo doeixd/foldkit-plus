@@ -1,19 +1,30 @@
 # `foldkit-remote`
 
-Normalized application-facing server state for Foldkit. Entities, field
-selections, queries, connections, mutations, and live patches reconcile into one
-store that is part of the Model. There is no hidden mutable cache: the same
-`update` that moves the application moves remote data.
+Server data in a Foldkit application, kept in the Model instead of in a cache
+beside it. You declare your entities and the fields each screen reads;
+`foldkit-remote` works out what is missing, fetches it in one batched request,
+stores it normalized so two screens share one copy, and gives each screen its
+own slice as a plain value. Reading is pure — a view never starts a fetch.
 
-`foldkit-remote` owns semantic data modeling; Effect owns the infrastructure
-below it. The wire is Effect RPC (`RemoteRpc`), so the transport is whatever
-Effect layer the application chooses — HTTP, WebSocket, worker, in-process.
-The server half is
-[`foldkit-remote-server`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-server).
-The worked end-to-end trace is
-[`examples/remote`](https://github.com/doeixd/foldkit-plus/tree/main/examples/remote).
-The full design rationale is in
-[Revision Plan §8](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/REVISION_PLAN.md#8-remote).
+There is no hidden mutable cache. Every new fact — a read result, a page, a
+mutation result, a live event — arrives as a Message and goes through the same
+`update` that moves the rest of the application, so replay, time travel, and
+tests see remote data like any other state.
+
+Reach for it when the server owns the data, several screens read overlapping
+slices of it, and you would rather have fetching, caching, pagination,
+optimistic updates, and live patches be one mechanism than five. It is not where
+edits that must survive the process or the network belong — that is
+[`foldkit-durable`](https://github.com/doeixd/foldkit-plus/tree/main/packages/durable)
+and [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync)
+— and it is not a transport: the wire is Effect RPC (`RemoteRpc`) and the
+application supplies the client and server layers (HTTP, WebSocket, worker,
+in-process). The server half is
+[`foldkit-remote-server`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-server);
+[`examples/remote`](https://github.com/doeixd/foldkit-plus/tree/main/examples/remote)
+is the worked end-to-end trace and
+[Revision Plan §8](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/REVISION_PLAN.md#8-remote)
+the design rationale.
 
 The package has two faces. The **application API** is the bound domain `Data`:
 `Data.get`, `Data.live`, `Data.query`, `Data.mutate`, `Data.subscriptions`, and
@@ -83,6 +94,12 @@ import type * as Update from 'foldkit/update'
 import { Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
+// Your own routes; this one has a project route carrying the id the page reads.
+const Route = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('home') }),
+  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
+])
+
 const Model = Schema.Struct({ route: Route, remote: Remote.Model })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({
@@ -95,7 +112,7 @@ type Message = typeof Message.Type
 const App = Surface.application({
   Model,
   Message,
-  initial: { route: Route.home(), remote: Remote.initial },
+  initial: { route: { _tag: 'home' }, remote: Remote.initial },
   update, // step 5: a function declaration, so it may follow Data
 })
 
@@ -132,15 +149,17 @@ RemoteData<Page<ProjectSummary>> }`, read purely from the Model, no I/O. Every
 remote value is a `RemoteData`:
 
 - `Initial` — some selected field is not present yet,
+- `Loading` — carried in the union for a caller that builds its own
+  `RemoteData`; this package's readers never produce it,
 - `Ready` — present,
 - `Refreshing` — present, and being refetched (the value stays visible),
 - `Failed` — the stored value did not decode against the selection,
 - `NotFound` — the entity is a tombstone.
 
-`RemoteData.match` is exhaustive. `Data.get` reads once and refreshes by policy;
-`Data.live` also follows the entity's changes; `Data.query` reads a connection
-as a `Page` of selected items, `Initial` until the page and every item's fields
-are present.
+`RemoteData.match` is exhaustive — omitting a case, `Loading` included, is a
+compile error. `Data.get` reads once and refreshes by policy; `Data.live` also
+follows the entity's changes; `Data.query` reads a connection as a `Page` of
+selected items, `Initial` until the page and every item's fields are present.
 
 ### 4. Fetch, subscribe, and retain from the active Surfaces
 
@@ -238,6 +257,8 @@ returns the Model with the results reduced in, for SSR, route or hover
 prefetch, and tests. It never runs during render.
 
 ```ts
+import { Effect } from 'effect'
+
 const loaded = await Effect.runPromise(
   Data.prefetch(model, ProjectPage.projection({ projectId }), {
     policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }),
@@ -279,6 +300,8 @@ the union of their fields.
 ## Mutations
 
 ```ts
+import { ConnectionChange } from 'foldkit-remote'
+
 const { model: started, requestId, tempId, command } = Data.mutate(model, AddComment, input, {
   optimistic: ({ tempId }) => [
     Comment.patch(tempId, { id: tempId, body: input.body }),
@@ -335,11 +358,13 @@ optimistic layers, the mutation ledger, gaps, and retention roots belong to the
 session and never appear in one.
 
 ```ts
-// SSR: the server prefetches, dehydrates for the page, the client hydrates.
-const html = RemotePersistence.dehydrate(Data.storeOf(loaded), { scope: userId })
+import { emptyStore, RemotePersistence } from 'foldkit-remote'
+
+// SSR: the server prefetches, dehydrates into the page, the client hydrates.
+const snapshot = RemotePersistence.dehydrate(Data.storeOf(loaded), { scope: userId })
 Data.reduce(model, {
   _tag: 'Hydrated',
-  entities: RemotePersistence.hydrate(html, { scope: userId }) ?? emptyStore,
+  entities: RemotePersistence.hydrate(snapshot, { scope: userId }) ?? emptyStore,
   merge: 'preserve-existing',
 })
 
@@ -364,10 +389,10 @@ the same as once.
 
 `Data.inspect(model)` returns a serializable summary of the cache — entities
 with their present/stale fields, connection keys, live streams, gaps, and the
-mutation ledger — and `Remote.inspectEntity(model, key)` returns one entity. Both
-are pure, so DevTools never reach into the private layout. `Data.plan(model,
-projection)` is the plan the read entry would run, and `Remote.planQueries`
-the queries; both are plain data.
+mutation ledger — and `Remote.inspectEntity(remote, key)` returns one entity of
+the store slice. Both are pure, so DevTools never reach into the private layout.
+`Data.plan(model, projection)` is the plan the read entry would run, and
+`Remote.planQueries` the queries; both are plain data.
 
 ## Advanced: the kernel
 
@@ -411,8 +436,9 @@ returns the new store.
 
 ### The reducer and its Messages
 
-`Remote.update(remote, message)` (`Data.reduce` on the bound slice) is the one
-pure reducer over `ReadReceived`/`ReadFailed`/`RefreshStarted`,
+`updateRemote(remote, message)` — `Data.update` on a bound domain, `Data.reduce`
+on the application Model — is the one pure reducer over
+`ReadReceived`/`ReadFailed`/`RefreshStarted`,
 `MutationStarted`/`Succeeded`/`Failed`, `LiveReceived`/`GapCleared`,
 `ConnectionMerged`/`Invalidated`/`Refreshed`/`QueryFailed`,
 `RetentionChanged`, and `Hydrated`. `Remote.messages` is the case record for
@@ -426,10 +452,10 @@ store write a `ReadReceived` performs, for a caller that manages its own store.
 with fixed params and a `toMessage` that wraps the `RemoteMessage` in an
 application union that does not spread `Remote.messages`:
 
-```ts
-Remote.observe(bound, surface, params, toMessage?, options?) // plan + read + queries
-Remote.live(bound, surface, params, toMessage?, options?) // the live stream, from the Model's cursor
-Remote.retain(projections, toMessage?, { connections?, grace? }) // roots → RetentionChanged
+```text
+Remote.observe(bound, surface, params, toMessage?, options?)  plan + read + queries
+Remote.live(bound, surface, params, toMessage?, options?)     the live stream, from the Model's cursor
+Remote.retain(projections, toMessage?, { connections?, grace? })  roots → RetentionChanged
 ```
 
 The read entry's dependencies are the plan (`{ requirements, queries }`); it
@@ -443,7 +469,7 @@ second Message could be lost to the restart. The retain entry's dependencies
 are the roots (the projections' requirements, their connections with what
 each page selects of its items, plus any `connections` listed by identity); it
 emits `RetentionChanged` once the roots have been stable for `grace`, and
-`Remote.update` applies the pure `gc(state, roots)`: a root entity, the targets
+the reducer applies the pure `gc(state, roots)`: a root entity, the targets
 its retained fields refer to, the targets a nested relation selects, a retained
 connection's edges and what its `select` reaches through them, and anything a
 pending request touches survive; everything else is dropped, settled overlays
@@ -460,9 +486,10 @@ window), so `first(25)` and `after(cursor).first(25)` merge into one
 connection.
 
 ```ts
+// Inside an `Effect.gen`, with `RemoteClient` provided.
 const ref = Query.first(25)(ProjectsByOwner.ref({ ownerId }))
 const page = yield* Remote.query(ref) // Effect<QueryResult, RemoteQueryError, RemoteClient>
-Remote.update(remote, Remote.queryMessage(ref, page)) // ConnectionMerged
+updateRemote(remote, Remote.queryMessage(ref, page)) // ConnectionMerged
 Remote.visibleItems(remote, ref) // edges a view shows: overlays placed, removals and tombstones hidden
 ```
 
@@ -480,7 +507,7 @@ keeps showing its items; a `ConnectionMerged` with `refreshes: true`,
 the one-step imperative form (start, run, settle) for SSR and tests.
 `Remote.mutate(mutation, input, requestId)` is the call itself: it decodes the
 typed `Output` and returns the result's normalized `entities` and confirmed
-`connections`, for a caller that reduces them through `Remote.update`. A
+`connections`, for a caller that reduces them through `updateRemote`. A
 `MutationSucceeded` reconciles at most once per `requestId`; an unknown or
 already-applied result is a no-op.
 
@@ -519,7 +546,7 @@ beyond "issued concurrently".
   `query`, `next`, `previous`, `fetch`, `subscriptions`, `plan`, `storeOf`,
   `prefetch`, `mutate`, `reduce`, and `inspect`, each rejecting a descriptor
   the domain never declared at compile time (a branded error naming it) and at
-  runtime. `Remote.update` is the single reducer over reads, mutation results,
+  runtime. `updateRemote` is the single reducer over reads, mutation results,
   live events, connections, and optimistic layers.
 - **Mutation reconciliation.** Idempotent per `requestId`, with a bounded
   settled-request ledger.

@@ -1,23 +1,62 @@
 # Kitchen sink
 
-Every package in this repository, wired into one application. It runs entirely
-in-process — an in-memory SQLite database and a durable journal, no server and no
-browser — so the transcript is deterministic and needs nothing running.
+Fourteen of the fifteen packages, wired into one application. It runs entirely
+in-process — an in-memory SQLite database and a durable journal, no server and
+no browser — so the transcript is deterministic and needs nothing running.
+(`foldkit-mirror` is the one package not here; it needs a URL and a browser
+store, so it lives in [`examples/todo-app`](../todo-app).)
+
+## Run it
 
 ```bash
-pnpm build
+pnpm install && pnpm build                        # from the repository root
 pnpm --filter foldkit-kitchen-sink-example demo
 ```
 
-`pnpm demo` at the repository root runs it with the other examples.
+`pnpm demo` at the repository root runs it with the other examples. Read
+`src/stack.ts` first — it is the one application every package below hangs off —
+then `src/demo.ts`, which drives it.
+
+## The transcript
+
+```
+plan: Project:p1 [id,name,status,owner]
+before fetch: Initial
+after fetch (Drizzle SQLite): Ready Apollo
+nested selection (one read): owner Ada
+mutation (remote-1): MutationSucceeded -> Ready Apollo II
+live (hub.changed): EntityPatched name=Apollo II
+query page: p2, p1
+optimistic insert: p3, p2, p1
+confirmed insert: p3, p2, p1
+inspect: 4 entities cached
+retained with the page: Project:p1, User:u1, Project:p2, Project:p3
+retained by the Board alone: Project:p1, User:u1
+hydrated: Ready Apollo II, plan empty
+replicated (durable journal): First note
+capabilities: requested_create_note, rename_note, selected_note
+agent context: {"notes":[{"id":"n1","body":"First note"}],"selectedNoteId":null}
+notes after agent: First note, From the agent
+webmcp tools: requested_create_note, rename_note, selected_note
+webmcp call: Dispatched RequestedCreateNote
+mcp tools: requested_create_note, rename_note, selected_note
+a2a card: Kitchen Sink (3 skills)
+notes after A2A: First note, From the agent, From WebMCP, From A2A
+native actions: requested_create_note, rename_note, selected_note
+rendered classes: board
+mixins-ui button classes: save
+```
+
+`test/demo.test.ts` pins the lines that carry the claims, so the example cannot
+quietly stop demonstrating them.
 
 ## What each package does here
 
 | Layer | Package | In this example |
 | --- | --- | --- |
-| Observation | `foldkit-surface` | One `Surface.application` embeds the Remote submodel beside the client-owned `notes` slice; `BoardSurface` projects both. |
-| Server-derived state | `foldkit-remote` | The normalized cache submodel: `Remote.prefetch`, `Remote.live`, `Remote.mutateInto`, `Data.mutate` with an optimistic `ConnectionChange`, `Data.query`, `Remote.retain`, `RemotePersistence`, `Remote.inspect`. |
-| Server | `foldkit-remote-server` | `RemoteServer` sources compiled to the `RemoteRpc` handlers, served in-process through `Remote.clientLayer` over the database layer; a `liveHub` feeds the live subscription from the rename mutation. |
+| Observation | `foldkit-surface` | One `Surface.application` embeds the Remote submodel beside the client-owned `notes` slice; `BoardSurface` projects both. `test/module.test.ts` validates the whole set of contracts. |
+| Server-derived state | `foldkit-remote` | The normalized cache submodel: `Data.prefetch`, `Data.live`, `Data.mutate` with an optimistic `ConnectionChange`, `Data.query`, `Data.inspect`, `Remote.retain`, and `RemotePersistence.dehydrate`/`hydrate`. |
+| Server | `foldkit-remote-server` | `RemoteServer` sources compiled to `RemoteServer.handlers`, served in-process through `Remote.clientLayer` over the database layer; a `liveHub` feeds the live subscription from the rename mutation. |
 | Server SQL | `foldkit-remote-drizzle` | `Project` and `User` are Drizzle bindings over in-memory SQLite tables; the nested `owner` selection, the reads, and the query compile to SQL. |
 | Client-owned state | `foldkit-durable` | A `makeJournal` over the Sync contract orders the `notes` operations. |
 | Replication | `foldkit-sync` | A replica, an in-memory `Storage`, and `replica.start` exchanging through a `TransportClient`. |
@@ -29,28 +68,3 @@ pnpm --filter foldkit-kitchen-sink-example demo
 | View | `foldkit-mixins` | A `Slots` contract and a Style attached to it. |
 | View + Surface | `foldkit-mixins-surface` | `SurfaceView.define` binds `BoardSurface`'s projected Model to the slots. |
 | View + UI | `foldkit-mixins-ui` | A `@foldkit/ui` Button customised through `Button.resolve` without copying it. |
-
-## The transcript
-
-```
-surface: the board Surface projects the project and the notes
-after fetch (Drizzle SQLite): Ready Apollo      # remote read compiled to SQL
-nested selection (one read): owner Ada          # owner resolved through its ref
-mutation (remote-1): MutationSucceeded -> Ready Apollo II   # Data.mutate: id from the Model, Command settles
-live (hub.changed): EntityPatched name=Apollo II # the server's live hub re-reads for the subscriber
-query page: p2, p1                               # Data.query -> a page of selected items
-optimistic insert: p3, p2, p1                    # MutationStarted shows the pending item
-confirmed insert: p3, p2, p1                     # the result's insert replaces it in place
-hydrated: Ready Apollo II, plan empty            # dehydrate/hydrate, nothing left to fetch
-retained with the page: Project:p1, User:u1, Project:p2, Project:p3   # Remote.retain roots
-retained by the Board alone: Project:p1, User:u1                      # the rest is collected
-replicated (durable journal): First note        # durable + sync reconciled
-capabilities: requested_create_note, ...        # the agent contract is data
-notes after agent: First note, From the agent   # the agent drives the same update
-webmcp / mcp / a2a / native actions             # one contract, four adapters
-rendered classes: board                         # mixins + mixins-surface
-mixins-ui button classes: save                  # a @foldkit/ui component, customised
-```
-
-`test/demo.test.ts` asserts every line, so the example cannot quietly stop
-demonstrating what it claims.

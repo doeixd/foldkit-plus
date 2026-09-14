@@ -225,7 +225,11 @@ export interface Journal<Operation, Snapshot, Principal, OperationEncoded = unkn
   readonly recover: (
     options: RecoveryOptions<Operation>,
   ) => Effect.Effect<Cursor, InvalidCursorError | CompactedCursorError | JournalError>
-  /** Drops a document's snapshot, operations, and effect records. */
+  /**
+   * Drops a document's snapshot and operations. Effect records are keyed by
+   * the application's own effect identity, not by document, so they are not
+   * scoped to a key; `clearEffect` removes one.
+   */
   readonly reset: (key: DocumentId) => Effect.Effect<void, JournalError>
   /**
    * The document keys a commit changed. Subscription is a `Stream`, so a

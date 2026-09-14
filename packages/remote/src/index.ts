@@ -293,7 +293,7 @@ export interface RemoteDomain<
     input: MutationInput<M>,
     options?: DomainMutateOptions,
   ): MutationStarted<AppModel>
-  /** `Remote.update` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
+  /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
@@ -1080,7 +1080,7 @@ export const Remote = {
   /**
    * Runs a mutation through `RemoteClient`, decoding its typed Output and
    * returning the result's normalized patches so the caller can reconcile them
-   * through `Remote.update`'s `MutationSucceeded` (or `Remote.mutateInto`).
+   * through `updateRemote`'s `MutationSucceeded` (or `Remote.mutateInto`).
    */
   mutate: mutateRemote,
 

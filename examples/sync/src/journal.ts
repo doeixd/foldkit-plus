@@ -47,7 +47,7 @@ export interface JournalPolicy {
   readonly authorize?: Authorize
   /**
    * Effects a committed operation triggers. Recorded successes are reused;
-   * uncertain outcomes can run again. This spike keys effects by array position,
+   * uncertain outcomes can run again. This example keys effects by array position,
    * so its policy must not reorder effects for previously committed operations.
    */
   readonly effects?: (message: Message) => ReadonlyArray<ServerEffect>

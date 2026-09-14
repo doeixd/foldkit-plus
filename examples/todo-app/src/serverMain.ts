@@ -5,7 +5,7 @@
 import { startSyncServer } from './server.js'
 import { openJournal } from './journal.js'
 
-const port = Number(process.env['PORT'] ?? 8787)
+const port = Number(process.env['SYNC_PORT'] ?? 8787)
 const file = process.env['TODO_DB'] ?? 'todos.dev.db'
 const documentId = 'todos'
 

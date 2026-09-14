@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite'
 /**
  * Runnable adapter demo: real SQL in, normalized Remote values out. No external
  * service — it seeds an in-memory `node:sqlite` database.
@@ -8,16 +9,12 @@
  *
  *   pnpm exec tsx packages/remote-drizzle/example/nested.ts
  */
-import { createRequire } from 'node:module'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Query, Remote, Selection } from 'foldkit-remote'
 import { databaseLayer, entity, many, one, query, source } from '../src/index.js'
-
-const require_ = createRequire(import.meta.url)
-const { DatabaseSync } = require_('node:sqlite') as typeof import('node:sqlite')
 
 const users = sqliteTable('users', {
   id: text('id').primaryKey(),

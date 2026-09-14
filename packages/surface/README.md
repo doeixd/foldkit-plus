@@ -1,14 +1,19 @@
 # `foldkit-surface`
 
-The observation boundary for a Foldkit application. A Surface is a **pure
-projection** of the Model: it declares exactly which fields a feature reads and
-which Messages it may construct, and it does so from the application's existing
-Schema, not a second hand-written interface.
+Say once, in one value, which parts of a Foldkit Model a feature reads and which
+Messages it may send. That value — a **Surface** — is derived from the Model's
+own Schema rather than a second hand-written interface, so it cannot name a
+field the Model does not have. It reads the Model purely, it binds a renderer,
+and it can be inspected: given a Surface, a tool can answer "what does this
+screen depend on?" without running anything.
 
-`foldkit-surface` is the foundation under
-[`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync)
-and [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote):
-both consume the projection and Message-subset values this package produces.
+Reach for it when something else needs that answer. `foldkit-remote` fetches
+exactly the server fields the active Surfaces read; `foldkit-sync` replicates
+exactly the Model slice a feature declares; `Module.validate` catches two
+features claiming the same Model path before either runs. If nothing needs to
+inspect a feature's data needs, a plain function of the Model is simpler — this
+package performs no I/O, renders nothing itself, and adds no runtime behaviour
+of its own.
 
 ## Install
 
@@ -25,8 +30,10 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
 
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 const Model = Schema.Struct({
-  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })),
+  todos: Schema.Array(Todo),
+  todosById: Schema.Record(Schema.String, Todo),
   selectedTodoId: Schema.NullOr(Schema.String),
 })
 const Message = defineMessageUnion({
@@ -51,7 +58,7 @@ const update = (model: typeof Model.Type, message: typeof Message.Type) => {
 const App = Surface.application({
   Model,
   Message,
-  initial: { todos: [], selectedTodoId: null },
+  initial: { todos: [], todosById: {}, selectedTodoId: null },
   update,
 })
 
@@ -71,9 +78,9 @@ a writable projection of the same field for a replicator.
 ## Field references
 
 `Surface.application` generates a reference tree from the Model Schema, one node
-per field: `App.fields.todos`, `App.fields.someStruct.title`. Each `FieldRef`
-carries its optic, codec, `get`, and `set`, plus the field name as a literal type,
-so a selection can infer its own output keys without a parallel field registry.
+per field. Each `FieldRef` carries its optic, codec, `get`, and `set`, plus the
+field name as a literal type, so a selection can infer its own output keys
+without a parallel field registry.
 
 ```ts
 App.fields.todos                 // FieldRef<Model, Todo[], 'todos'>
@@ -82,11 +89,11 @@ App.fields.todosById.at('t1')    // OptionalRef<Model, Option<Todo>> (dynamic ke
 App.fields.todos.index(0)        // OptionalRef<Model, Option<Todo>> (dynamic index)
 ```
 
-Struct fields recurse, so a nested reference such as `App.fields.todo.title` is a
-`FieldRef`. Array and record access is `.index(i)` / `.at(key)`, which returns an
-`OptionalRef` — a `ModelRef` with an `Option` value. Those are dynamic selections,
-so `Projection.pick` (which needs a static field name) rejects them; they are useful
-inside a `Projection`.
+A Model field that is itself a `Schema.Struct` recurses, so each of its fields is
+a `FieldRef` too. Array and record access is `.index(i)` / `.at(key)`, which
+returns an `OptionalRef` — a `ModelRef` with an `Option` value. Those are dynamic
+selections, so `Projection.pick` (which needs a static field name) rejects them;
+they are useful inside a `Projection`.
 
 `App.model` is the same tree under its older name; prefer `App.fields`.
 
@@ -128,13 +135,15 @@ contributes its dependencies, requirements, and connections to the parent
 
 ## Applications
 
-`Surface.application({ Model, Message })` captures the pure references (`App.model`,
-`App.Model`, `App.Message`, `App.owner`) with no transition. Use it when a
-consumer needs only the reference tree.
+`Surface.application({ Model, Message })` returns an `Application`: the schemas
+(`App.Model`, `App.Message`), the reference tree (`App.fields`, `App.model`), the
+identity token (`App.owner`), and `App.surface`. No transition, so a consumer
+that only inspects the Model needs nothing more.
 
-`Surface.application({ Model, Message, initial, update })` additionally captures
-the transition and returns a **Runnable** application. `update`'s Commands may
-carry resources; the resource set is threaded through the returned type.
+`Surface.application({ Model, Message, initial, update })` adds `App.initial` and
+`App.update` and returns a `RunnableApplication`, which a replicator needs to
+derive the initial shared value and replay. `update`'s Commands may carry
+resources; the resource set is threaded through the returned type.
 
 ## Message subsets
 
@@ -142,6 +151,8 @@ A subset selects typed variants of one application's Message union by constructo
 reference:
 
 ```ts
+import { MessageSet } from 'foldkit-surface'
+
 const TodoChanges = MessageSet.make(App, [Message.CreatedTodo, Message.ToggledTodo])
 const SelectionChanges = MessageSet.make(App, [Message.SelectedTodo])
 const AllChanges = MessageSet.union(TodoChanges, SelectionChanges)
@@ -235,7 +246,7 @@ modules can contribute their contracts independently.
   `Projection.compose`).
 - Pure `Projection` values with their codec, reader, dependencies, and remote
   requirements.
-- Application scopes (`make` / `application`) and their identity token.
+- Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - Named Surfaces and their renderer binding.
 

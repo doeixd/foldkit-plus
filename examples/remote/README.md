@@ -3,12 +3,15 @@
 The worked `foldkit-remote` → `foldkit-surface` → `foldkit-mixins` trace that the
 [remote guide](../../docs/remote.md) points at. It runs the real path against an
 in-process `RemoteClient` — no server, but plan, prefetch, select, a
-stale-while-revalidate refresh, a query page, render, mutate, retention, and a decode failure
-all go through the real code.
+stale-while-revalidate refresh, a query page, render, mutate, retention, and a
+decode failure all go through the real code.
 
-```
+```bash
+pnpm install && pnpm build                  # from the repository root
 pnpm --filter foldkit-remote-example demo
 ```
+
+The transcript is the example; `src/demo.ts` is the only file to read.
 
 ```
 surface: ProjectPage
@@ -59,4 +62,4 @@ Read it as:
 - **decode failure** — a stored value that does not match the Selection surfaces
   as `Failed`, not as an asserted value.
 
-`test/demo.test.ts` asserts every line; the trace is mutation-verified.
+`test/demo.test.ts` asserts every line above.

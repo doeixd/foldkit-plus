@@ -8,7 +8,7 @@ export const mountReplica = (replica: Replica<Message, Shared>, container: HTMLE
   const mounted = mountTodos(replica, {
     container,
     view: (model, h) => ({
-      title: 'Foldkit sync spike',
+      title: 'Foldkit sync example',
       body: h.div(
         [],
         [
