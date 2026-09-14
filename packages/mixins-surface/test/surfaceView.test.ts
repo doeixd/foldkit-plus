@@ -1,10 +1,19 @@
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import { inertHtml } from 'foldkit/html'
 import { Behavior, Style, type SlotAttributes } from 'foldkit-mixins'
-import { Surface } from 'foldkit-surface'
+import { Metadata, Projection, Surface } from 'foldkit-surface'
 import { SurfaceView } from '../src/index.js'
-import { classValue, Message, tagOf, TodoList, TodoSlots, type TodoMessage } from './fixture.js'
+import {
+  App,
+  classValue,
+  Message,
+  tagOf,
+  TodoList,
+  TodoSlots,
+  type TodoMessage,
+} from './fixture.js'
 
 const h = inertHtml as unknown as HtmlBuilder<TodoMessage>
 
@@ -104,6 +113,25 @@ describe('SurfaceView', () => {
     expect(Object.keys(description.slots)).toEqual(['root', 'archive'])
     expect(description.mixins).toEqual(['Style'])
     expect(JSON.parse(JSON.stringify(description))).toEqual(description)
+  })
+
+  it('describes what other packages attached to the projection', () => {
+    const Tags = Metadata.key<string>('tags', { merge: tags => tags, summarize: tag => tag })
+    const Tagged = Surface.make(App, 'Tagged', {
+      model: ({ model }) =>
+        Projection.struct({
+          todos: model.todos,
+          tagged: Projection.fromReader(Schema.Boolean, () => true, { metadata: Tags.of('beta') }),
+        }),
+    })
+    const view = SurfaceView.define(Tagged, TodoSlots, (_model, slots, h) =>
+      h.ul(slots.root.attrs(), []),
+    )
+
+    expect(SurfaceView.describe(Tagged, undefined, view).metadata).toEqual([
+      { name: 'tags', entries: ['beta'] },
+    ])
+    expect(SurfaceView.describe(TodoList, undefined, view as never).metadata).toEqual([])
   })
 
   it('renders deterministic markdown', () => {

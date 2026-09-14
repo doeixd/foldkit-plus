@@ -261,14 +261,20 @@ function mergeDependencies(dependencies: DependencyTree): DependencyTree {
   return merged
 }
 
+/** Marks a `Metadata` value. Its entries are private to this module. */
+export const MetadataTypeId: unique symbol = Symbol.for('foldkit-surface/Metadata')
+export type MetadataTypeId = typeof MetadataTypeId
+
 /**
  * Declarative facts an interpreter attaches to a Projection node, such as the
  * server data a Remote selection needs. Surface carries and combines them
  * without knowing what they mean; a package reads only the key it owns.
+ *
+ * Opaque: only a key's `of` and Projection composition make one, so entries
+ * cannot be forged past a key's type or `merge`, and they are frozen.
  */
 export interface Metadata {
-  /** Merged entries per key, in first-contribution order. Read with `key.get`. */
-  readonly entries: ReadonlyMap<MetadataKey<any>, ReadonlyArray<unknown>>
+  readonly [MetadataTypeId]: MetadataTypeId
 }
 
 /**
@@ -286,34 +292,51 @@ export interface MetadataKey<A> {
   readonly get: (metadata: Metadata) => ReadonlyArray<A>
 }
 
-/** One key's entries as serializable text. */
+/** One key's entries as serializable text, named by the key. */
 export interface MetadataSummary {
-  readonly interpreter: string
+  readonly name: string
   readonly entries: readonly string[]
 }
 
-const emptyMetadata: Metadata = { entries: new Map() }
+type Entries = ReadonlyMap<MetadataKey<any>, ReadonlyArray<unknown>>
+
+const noEntries: Entries = new Map()
+const noValues: ReadonlyArray<never> = Object.freeze([])
+const entriesByMetadata = new WeakMap<Metadata, Entries>()
+
+const makeMetadata = (entries: Entries): Metadata => {
+  const metadata = Object.freeze({ [MetadataTypeId]: MetadataTypeId }) as Metadata
+  entriesByMetadata.set(metadata, entries)
+  return metadata
+}
+
+/** A value this module did not make has no entries. */
+const entriesOf = (metadata: Metadata): Entries => entriesByMetadata.get(metadata) ?? noEntries
+
+const emptyMetadata = makeMetadata(noEntries)
 
 function combineMetadata(parts: ReadonlyArray<Metadata>): Metadata {
   // Each part is already merged, so a lone part needs no second pass.
   if (parts.length === 1) return parts[0]!
   const grouped = new Map<MetadataKey<any>, unknown[]>()
   for (const part of parts)
-    for (const [key, values] of part.entries) {
+    for (const [key, values] of entriesOf(part)) {
       const group = grouped.get(key)
       if (group === undefined) grouped.set(key, [...values])
       else group.push(...values)
     }
   if (grouped.size === 0) return emptyMetadata
   const merged = new Map<MetadataKey<any>, ReadonlyArray<unknown>>()
-  for (const [key, values] of grouped) merged.set(key, key.merge(values))
-  return { entries: merged }
+  for (const [key, values] of grouped) merged.set(key, Object.freeze([...key.merge(values)]))
+  return makeMetadata(merged)
 }
 
 export const Metadata = {
-  empty: emptyMetadata,
-
-  /** Declares an interpreter's slot. Call once per package, at module level. */
+  /**
+   * Declares an interpreter's slot. Call once per package, at module level:
+   * entries are found by the key object, so two copies of a package (a
+   * duplicated install, a reloaded module) do not see each other's entries.
+   */
   key: <A>(
     name: string,
     options: {
@@ -326,15 +349,17 @@ export const Metadata = {
       merge: options.merge,
       summarize: options.summarize,
       of: (...values) =>
-        values.length === 0 ? emptyMetadata : { entries: new Map([[key, key.merge(values)]]) },
-      get: metadata => (metadata.entries.get(key) ?? []) as ReadonlyArray<A>,
+        values.length === 0
+          ? emptyMetadata
+          : makeMetadata(new Map([[key, Object.freeze([...key.merge(values)])]])),
+      get: metadata => (entriesOf(metadata).get(key) ?? noValues) as ReadonlyArray<A>,
     }
     return key
   },
 
   summarize: (metadata: Metadata): readonly MetadataSummary[] =>
-    [...metadata.entries].map(([key, values]) => ({
-      interpreter: key.name,
+    [...entriesOf(metadata)].map(([key, values]) => ({
+      name: key.name,
       entries: values.map(value => key.summarize(value)),
     })),
 }
@@ -1260,6 +1285,8 @@ export type ModuleItem<Root> =
   Contract | { readonly contract: Contract } | Surface<Root, any, any, void>
 
 const label = (contract: Contract): string => `${contract.kind}:${contract.name}`
+/** Metadata summaries are application data (a query's input), so they cannot break the table. */
+const tableCell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\n/g, ' ')
 const pathKey = (path: readonly string[]): string => path.join('.')
 const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
   prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
@@ -1434,7 +1461,7 @@ export const Module = {
     )
     for (const contract of manifest.contracts)
       lines.push(
-        `| ${contract.kind}:${contract.name} | ${contract.owns.map(pathKey).join(', ')} | ${contract.observes.map(pathKey).join(', ')} | ${contract.messages.join(', ')} | ${contract.metadata.flatMap(summary => summary.entries).join(', ')} |`,
+        `| ${contract.kind}:${contract.name} | ${contract.owns.map(pathKey).join(', ')} | ${contract.observes.map(pathKey).join(', ')} | ${contract.messages.join(', ')} | ${tableCell(contract.metadata.map(summary => `${summary.name}: ${summary.entries.join(', ')}`).join('; '))} |`,
       )
     if (manifest.findings.length > 0) {
       lines.push('', '## Findings', '')

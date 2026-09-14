@@ -148,6 +148,9 @@ Flags.get(Projection.struct({ beta, todos: model.todos }).metadata) // ['beta']
 
 Entries are combined per key with that key's `merge` as projections compose, and
 looked up by the key object, never by its name, so two packages cannot collide.
+The flip side: two copies of one package (a duplicated install, a reloaded
+module) declare two keys and do not see each other's entries. `Metadata` is
+opaque and its entries frozen; only a key's `of` and composition make one.
 Surface never interprets them; `Surface.inspect` and `Module` show them through
 `summarize`.
 

@@ -1,5 +1,5 @@
-import { Option } from 'effect'
-import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { Option, Schema } from 'effect'
+import { Metadata, MessageSet, Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Agent } from '../src/index.js'
 import { Message as MessageUnion, Model, emptyModel, type Message } from './todoApp.js'
@@ -30,6 +30,22 @@ describe('Agent.forApplication', () => {
     expect(Agent.messages(definition).map(message => message.name)).toEqual([
       'requested_delete_todo',
     ])
+  })
+
+  it('reports what other packages attached to its context in the contract', () => {
+    const Tags = Metadata.key<string>('tags', {
+      merge: tags => [...new Set(tags)],
+      summarize: tag => tag,
+    })
+    const definition = TodoAgent.make({
+      context: Projection.struct({
+        todos: App.model.todos,
+        tagged: Projection.fromReader(Schema.Boolean, () => true, { metadata: Tags.of('beta') }),
+      }),
+      messages: TodoAgent.expose(MessageUnion, {}),
+    })
+
+    expect(definition.contract.metadata).toEqual([{ name: 'tags', entries: ['beta'] }])
   })
 
   it('accepts a feature Surface as context, so the view and the agent share it', () => {

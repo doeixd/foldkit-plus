@@ -1,7 +1,7 @@
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
-import { Projection, Surface } from '../src/index.js'
+import { Metadata, Projection, Surface } from '../src/index.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
 const Model = Schema.Struct({
@@ -21,7 +21,7 @@ describe('Surface edge cases', () => {
 
     expect(reader.read({ n: 2 })).toEqual({ doubled: 4 })
     expect(reader.dependencies).toEqual([])
-    expect(reader.metadata.entries.size).toBe(0)
+    expect(Metadata.summarize(reader.metadata)).toEqual([])
   })
 
   it('Projection.array over an empty array is an empty projection', () => {

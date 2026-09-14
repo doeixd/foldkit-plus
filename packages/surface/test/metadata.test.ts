@@ -1,5 +1,6 @@
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Metadata, Projection, Surface } from '../src/index.js'
+import { Metadata, MetadataTypeId, Module, Projection, Surface } from '../src/index.js'
 import { Flags, flag } from './flagsLikeFixture.js'
 import { EntityNeeds, entity, type EntityNeed } from './remoteLikeFixture.js'
 import { App, Model } from './todoFixture.js'
@@ -45,9 +46,9 @@ describe('Projection metadata', () => {
   it('carries nothing for projections of plain Model fields', () => {
     const page = Projection.struct({ todos: App.model.todos, selection: App.model.selectedTodoId })
 
-    expect(page.metadata.entries.size).toBe(0)
+    expect(Metadata.summarize(page.metadata)).toEqual([])
     expect(Flags.get(page.metadata)).toEqual([])
-    expect(Flags.of()).toBe(Metadata.empty)
+    expect(Metadata.summarize(Flags.of())).toEqual([])
   })
 
   it('summarizes every key as text for tooling', () => {
@@ -57,8 +58,38 @@ describe('Projection metadata', () => {
     })
 
     expect(Metadata.summarize(page.metadata)).toEqual([
-      { interpreter: 'remote-like', entries: ['Project:p1 [name]'] },
-      { interpreter: 'flags', entries: ['beta'] },
+      { name: 'remote-like', entries: ['Project:p1 [name]'] },
+      { name: 'flags', entries: ['beta'] },
     ])
+  })
+
+  it('cannot be forged past a key or changed after it is made', () => {
+    const forged = Object.freeze({ [MetadataTypeId]: MetadataTypeId }) as Metadata
+    expect(Flags.get(forged)).toEqual([])
+    expect(Metadata.summarize(forged)).toEqual([])
+
+    const made = Projection.struct({ a: flag('beta'), b: flag('gamma') }).metadata
+    expect(() => (Flags.get(made) as string[]).push('delta')).toThrow(TypeError)
+    expect(() => (Flags.get(flag('beta').metadata) as string[]).push('delta')).toThrow(TypeError)
+    const none = Projection.fromReader(Schema.String, () => '').metadata
+    expect(() => (Flags.get(none) as string[]).push('delta')).toThrow(TypeError)
+    expect(Flags.get(made)).toEqual(['beta', 'gamma'])
+  })
+
+  it('reaches Surface.inspect, Surface.contract, and Module.toMarkdown', () => {
+    const Page = Surface.make(App, 'Page', {
+      model: () =>
+        Projection.struct({ project: entity('Project', 'p1', ['name']), odd: flag('a|b') }),
+    })
+    const summaries = [
+      { name: 'remote-like', entries: ['Project:p1 [name]'] },
+      { name: 'flags', entries: ['a|b'] },
+    ]
+
+    expect(Surface.inspect(Page, undefined).metadata).toEqual(summaries)
+    expect(Surface.contract(Page, undefined).metadata).toEqual(summaries)
+    expect(Module.toMarkdown(Module.make(App, [Page]))).toContain(
+      '| remote-like: Project:p1 [name]; flags: a\\|b |',
+    )
   })
 })

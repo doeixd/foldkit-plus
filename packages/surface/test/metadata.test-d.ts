@@ -1,10 +1,12 @@
 import { expectTypeOf } from 'vitest'
 import { Metadata } from '../src/index.js'
-import { Flags } from './flagsLikeFixture.js'
-import { EntityNeeds, type EntityNeed } from './remoteLikeFixture.js'
+import { Flags, flag } from './flagsLikeFixture.js'
+import { EntityNeeds, entity, type EntityNeed } from './remoteLikeFixture.js'
 
-expectTypeOf(Flags.get(Metadata.empty)).toEqualTypeOf<ReadonlyArray<string>>()
-expectTypeOf(EntityNeeds.get(Metadata.empty)).toEqualTypeOf<ReadonlyArray<EntityNeed>>()
+expectTypeOf(Flags.get(flag('beta').metadata)).toEqualTypeOf<ReadonlyArray<string>>()
+expectTypeOf(EntityNeeds.get(entity('Project', 'p1', ['name']).metadata)).toEqualTypeOf<
+  ReadonlyArray<EntityNeed>
+>()
 
 // @ts-expect-error a flag entry is a string
 Flags.of(42)
@@ -17,3 +19,6 @@ Metadata.key<string>('mismatched', {
   // @ts-expect-error summarize receives the key's own value type
   summarize: (value: number) => String(value),
 })
+
+// @ts-expect-error metadata comes from a key or from composition, never an object literal
+Flags.get({ entries: new Map() })

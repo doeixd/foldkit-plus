@@ -430,10 +430,12 @@ name-keyed `registry` of the declared descriptors (consumed by
 
 ### Requirements and the planner
 
-A projection's `requirements` are plain data — entity, id, fields, a pagination
+A projection carries its requirements as Remote's own metadata, read with
+`requirementsOf(projection)`: plain data — entity, id, fields, a pagination
 window per relation, and through `relations`, the slice required of each
-relation's target — and its `connections` the query connections it reads
-(`{ identity, window, select }`). `Remote.plan(bound, model, projection,
+relation's target — beside the query connections it reads,
+`connectionsOf(projection)` (`{ identity, window, select }`). They are attached
+with `RemoteRequirements.of` and `RemoteConnections.of`. `Remote.plan(bound, model, projection,
 options?)` diffs them against the visible store and returns only the missing
 or stale fields, deterministically: a relation whose field is being fetched
 rides on the request so the server resolves the graph in one read, a relation

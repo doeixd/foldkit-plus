@@ -194,8 +194,8 @@ describe('connections ride on Projections', () => {
     })
 
     expect(Metadata.summarize(page.metadata)).toEqual([
-      { interpreter: 'remote', entries: ['Project:p1'] },
-      { interpreter: 'remote.connection', entries: ['Feed {}'] },
+      { name: 'remote', entries: ['Project:p1'] },
+      { name: 'remote.connection', entries: ['Feed {}'] },
     ])
   })
 })
