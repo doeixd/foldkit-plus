@@ -352,3 +352,14 @@ update produces one; this helper only resolves state.
 These M8 helpers do not change the todo example's persisted schema or claim
 arbitrary Messages commute. Specialized sets, counters and collaborative text
 remain future work.
+
+## See also
+
+- [Replicated state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md) — the mental model, and
+  when not to use it.
+- [Runtime binding](https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md) — what
+  `Sync.mount` guarantees, and why no Foldkit change is required.
+- [`foldkit-durable`](https://github.com/doeixd/foldkit-plus/tree/main/packages/durable) — the server half; [`foldkit-mirror`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mirror) plugs into the mount's
+  `url` option.
+- [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — two fragments, owner-only rules, and a browser mount;
+  [`examples/sync`](https://github.com/doeixd/foldkit-plus/tree/main/examples/sync) is the in-process trace.

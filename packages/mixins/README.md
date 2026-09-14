@@ -229,3 +229,12 @@ It does not replace Foldkit Commands, Subscriptions, Mounts, ManagedResources or
 The API is still settling (`0.1.0`). [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md) records the
 substrate probes and the decisions they forced;
 [`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) is a runnable trace.
+
+## See also
+
+- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the mental
+  model, the four concerns, and the resolver's rules.
+- [`foldkit-mixins-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-surface) renders a Surface projection through a SlotView, and
+  [`foldkit-mixins-ui`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-ui) adapts `@foldkit/ui` components.
+- [`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) — a runnable trace; [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) styles a whole
+  application this way.

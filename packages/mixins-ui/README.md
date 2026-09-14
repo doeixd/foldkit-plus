@@ -69,3 +69,10 @@ expose no attribute bundles, so there is nothing to resolve against; they are no
 adapted.
 
 The API is still settling (`0.1.0`). See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md).
+
+## See also
+
+- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the mental model,
+  and where `@foldkit/ui` adaptation stops.
+- [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) — the resolver these adapters use.
+- [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — Button and Checkbox resolved through this package.

@@ -177,3 +177,13 @@ pure URL step `href` and the URL store share.
 - The URL store touches only its keys and needs a browser `location`; a
   Foldkit router's `route.query(schema)` composes with it when they name
   different keys.
+
+## See also
+
+- [Mirrored state](https://github.com/doeixd/foldkit-plus/blob/main/docs/mirror.md) — the mental model, and when a
+  mirror is the wrong tool.
+- [The design note](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/MIRROR.md) — why a mirror is not
+  an owner.
+- [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync) — for state that must converge instead; its mount's `url` option
+  is where a URL mirror plugs in.
+- [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — a linkable filter and a remembered draft.

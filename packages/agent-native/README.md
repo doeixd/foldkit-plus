@@ -1,6 +1,12 @@
 # `foldkit-agent-native`
 
-Compiles a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract into Agent Native actions.
+Compiles a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract into
+[Agent Native](https://github.com/BuilderIO/agent-native) actions.
+
+Agent Native is a framework for describing what an application can do as
+registered **actions** an agent host can call. This package derives those
+actions from the contract, so the capabilities an agent gets are exactly the
+Messages `update` already handles, and the generated `run` only dispatches.
 
 It is checked against `@agent-native/core@0.177.1`; the integration suite uses
 the real package registry, tool runtime, and schema wrapper. Full HTTP/MCP/A2A
@@ -126,3 +132,24 @@ This completes the bounded proof of concept in
 [issue #22](https://github.com/doeixd/foldkit-plus/issues/22), not a claim that
 every Agent Native subsystem is independently reusable. A full deployment test
 of the HTTP, MCP, A2A, CLI, auth, and UI surfaces remains future work.
+
+## Choosing an adapter
+
+All four serve the same contract, so serving two at once is two calls, not two
+definitions.
+
+| Where the agent runs | Adapter |
+| --- | --- |
+| In the page, beside the user | [`foldkit-agent-webmcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-webmcp) |
+| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) |
+| Another agent, over A2A | [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) |
+| An Agent Native host | [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) |
+
+## See also
+
+- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
+  do, and why a capability is a Message.
+- [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) — the contract this adapter
+  serves, and where `Agent.bind` produces the runtime it takes.
+- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a
+  hand-written host.

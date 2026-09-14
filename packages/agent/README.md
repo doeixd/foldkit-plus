@@ -1,20 +1,30 @@
 # `foldkit-agent`
 
-A thin, Schema-first agent layer for Foldkit. It adds two boundaries and
-nothing else:
+Lets an agent use a Foldkit application through the transitions it already
+has. It adds two boundaries and nothing else:
 
 ```text
 Model         -> context projection   what an agent may see
 Message union -> Agent.expose         what an agent may do
 ```
 
-Context is a `foldkit-surface` projection (`Projection.pick` / `Projection.compose`),
-so the same value an application replicates is what an agent may see. Everything
-else is an adapter. `update` remains the single source of truth.
+A capability **is** a Message, so an agent cannot do anything the application
+cannot, and there is no second implementation of a feature to keep in step. The
+context is a `foldkit-surface` projection, so the value a view renders is the
+value an agent reads. `update` remains the single source of truth, and the
+protocol adapters are translation only.
 
-See the [design rationale](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/agent-DESIGN.md)
-for the full proposal, and [examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) for a worked
-example.
+What you get for declaring that once: typed input decoded at the boundary,
+capabilities that appear and disappear with the Model, authorization beside the
+Messages it governs, a completion contract so a call resolves on the fact rather
+than on receipt, an audit log of every decision, and four protocol adapters that
+add no authority of their own.
+
+**Use it when** an assistant, a copilot, or another service should drive the
+application the way a person does. **Not for** DOM automation: this dispatches
+Messages, so if the behaviour is not a Message, add one. **Not a guarantee of
+exactly-once effects**: completion says a correlated fact was applied, not that
+an external action can be safely repeated.
 
 ## Install
 
@@ -22,7 +32,9 @@ example.
 pnpm add foldkit-agent
 ```
 
-`foldkit` and `effect` are peer dependencies.
+`foldkit` and `effect` are peer dependencies. The
+[agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) covers the mental model, and
+[examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) is a worked contract.
 
 A community package, not affiliated with or endorsed by the Foldkit
 maintainers.
@@ -61,7 +73,7 @@ Bind the constructors to your application, then declare the contract:
 
 ```ts
 import { Agent } from 'foldkit-agent'
-import { Surface } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { Option, Schema } from 'effect'
 
 const App = Surface.application({
@@ -131,6 +143,8 @@ principal must be given a `principal` provider of the matching type.
 | `Agent.toManifest(definition)` | The contract as `agent.json`, for committing and diffing. |
 | `Agent.toMarkdown(definition)` | The contract as documentation. |
 | `Agent.auditLog(options)` | A bounded record of decisions, refusals included. |
+| `Agent.summarize(result)` | One outcome summary, so the adapters map results to their protocols the same way. |
+| `Agent.newInvocationId()` | The default invocation id generator, for an adapter supplying its own. |
 
 ### Variant configuration
 
@@ -209,6 +223,19 @@ committed manifest makes a change to what an application exposes show up in
 review rather than only at runtime.
 
 ### Dispatch
+
+Every invocation runs the same five steps, in this order:
+
+1. **Resolve** the capability, by Message constructor or by protocol name.
+2. **`available(model)`** — does this capability exist in the current Model?
+3. **Decode** the input through the capability's own Effect Schema.
+4. **`authorize`** — may this principal do it?
+5. **Construct and dispatch** the Message into the host.
+
+A refusal at any step before the last sends no Message at all. `available` runs
+before `authorize` deliberately: a capability the Model does not offer reports
+as unavailable rather than leaking whether the caller would have been permitted.
+All of steps 2 to 4 read one Model snapshot, taken when dispatch begins.
 
 A capability can be named by its Message constructor or by its protocol name.
 Both are checked, and both infer the input:
@@ -327,17 +354,11 @@ An invocation whose signal is already aborted is refused before the Model is
 read, and one aborted while decoding or `authorize` is pending never constructs
 or dispatches its Message. Both fail with `AgentCancelledError`.
 
-Dispatch runs in a fixed order: resolve the capability, check `available`,
-decode input through its Effect Schema, run `authorize`, then construct and
-dispatch the Message. A refusal before host dispatch sends no Message. A host
-failure may occur after delivery; completion timeouts and cancellation after
-delivery do not undo it.
+A host failure may occur after delivery, and completion timeouts and
+cancellation after delivery do not undo it: the Message reached `update`.
 
-`available` is checked before `authorize`, so a capability the Model does not
-currently offer reports as unavailable rather than leaking whether the caller
-would have been permitted.
-
-That check is one half of a single guarantee: an unavailable capability is
+Checking `available` before `authorize` is one half of a single guarantee: an
+unavailable capability is
 absent from `messages.available`, and dispatching it by name fails with
 `AgentCapabilityUnavailableError`. Availability is stronger than tool
 visibility -- knowing the name is not enough. Splitting it into separate
@@ -420,29 +441,36 @@ failing the stale invocation -- is deliberately not provided, on the same footin
 as the second availability predicate above: it can be added when a real case
 needs it, and adding it early would fix semantics nothing has asked for.
 
-## Differences from the proposal
+## Why the API looks like this
 
-The proposal in the root README describes an API that does not ship with
-Foldkit. Three points where this implementation had to differ:
+**Why `bind` and a host, rather than a runtime option.** Foldkit `0.158.2`
+accepts no `agent` option on `makeApplication`, and its runtime handle exposes
+neither the current Model nor a dispatch function, so an agent seam cannot be
+installed from outside Foldkit. `Agent.bind({ definition, host })` is that seam,
+with the application supplying `model` and `dispatch`. `Sync.mount` returns a
+host of the right shape; [examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) writes one
+by hand. If Foldkit later grows the option, it can construct the same seam.
 
-**Runtime integration.** The proposal writes
-`Runtime.makeApplication({ agent: AppAgent })`. Foldkit `0.158.2` accepts no
-`agent` option, and its runtime handle exposes neither the current Model nor a
-dispatch function, so that option cannot be implemented from outside foldkit.
-`Agent.bind({ definition, host })` implements the `AgentRuntime` seam the
-proposal describes, with the application supplying `model` and `dispatch`. If
-Foldkit later accepts an `agent` option, it can construct the same seam.
+**Why `forApplication` and `forModel`, rather than plain `make`.** TypeScript
+cannot infer `Model` from an `available` callback alone, so `available: model =>
+…` would leave `model` as `any`. `Agent.forApplication(App)` infers it from a
+`Surface.application`, with `App.fields` typed; `Agent.forModel<Model>()` fixes
+it when there is no application. `Agent.make` is still there when the Model does
+not matter.
 
-**Fixing the Model.** TypeScript cannot infer `Model` from an `available` or
-`select` callback alone, so `available: model => ...` would leave `model` as
-`any`. `Agent.forApplication(App)` infers it from a `Surface.application` (with
-`App.fields` typed), and `Agent.forModel<Model>()` fixes it when there is no
-application. `Agent.expose` is still available directly when the Model does not
-matter.
-
-**Effect 4.** Foldkit `0.158.2` peer-depends on `effect@4.0.0-rc.112`. The
-proposal's snippets use Effect 3 names; `Schema.OptionFromSelf` is
+**Effect 4, not 3.** Foldkit `0.158.2` peer-depends on `effect@4.0.0-rc.112`, so
+snippets written against Effect 3 need translating: `Schema.OptionFromSelf` is
 `Schema.Option` here.
 
-Completion tracking is implemented as described above. Host dispatch is the
-completion boundary only for capabilities without a completion contract.
+The [design rationale](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/agent-DESIGN.md) records the
+alternatives that were considered and rejected.
+
+## See also
+
+- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
+  do, and why a capability is a Message.
+- The adapters that serve this contract: [`foldkit-agent-webmcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-webmcp) in the page,
+  [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) over MCP, [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) over A2A, and
+  [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) as Agent Native actions.
+- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a hand-written host; [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)
+  binds one to a local-first application.

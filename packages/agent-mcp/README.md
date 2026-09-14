@@ -1,12 +1,23 @@
 # `foldkit-agent-mcp`
 
-Serves a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract over the Model Context Protocol
-(`2025-06-18`), so an MCP client can use the capabilities an application already
-exposes.
+Serves a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract over the
+Model Context Protocol (`2025-06-18`), so an MCP client can use the capabilities
+an application already exposes.
+
+[MCP](https://modelcontextprotocol.io) is how an assistant discovers and calls
+tools that live outside it. An MCP server lists tools and resources; a client
+such as an LLM host calls them. Here the tools are the Messages the contract
+exposes and the resources are its context projection, so the assistant works
+through the same transitions a person does, over stdio or Streamable HTTP.
+
+## Install
 
 ```bash
 pnpm add foldkit-agent foldkit-agent-mcp
 ```
+
+`foldkit`, `effect`, and `foldkit-agent` are peer dependencies. `agentRuntime`
+below is what `Agent.bind({ definition, host })` returns.
 
 ## Usage
 
@@ -130,3 +141,24 @@ Over stdio, `stdout` carries MCP messages and nothing else. A stray
 
 Over stdio there is one session and one runtime, bound by the caller; sessions,
 `Origin` validation and authentication are the HTTP transport's job.
+
+## Choosing an adapter
+
+All four serve the same contract, so serving two at once is two calls, not two
+definitions.
+
+| Where the agent runs | Adapter |
+| --- | --- |
+| In the page, beside the user | [`foldkit-agent-webmcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-webmcp) |
+| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) |
+| Another agent, over A2A | [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) |
+| An Agent Native host | [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) |
+
+## See also
+
+- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
+  do, and why a capability is a Message.
+- [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) — the contract this adapter
+  serves, and where `Agent.bind` produces the runtime it takes.
+- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a
+  hand-written host.

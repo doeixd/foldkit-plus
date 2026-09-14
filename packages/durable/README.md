@@ -260,3 +260,12 @@ a rotated journal silently turn an old retry into a new commit.
 - The `[key, op_id]` and `[key, sequence]` uniqueness is enforced by the table
   schema; a server-authoritative deployment is still a single writer per database
   file. Use one `Journal` handle per file.
+
+## See also
+
+- [Replicated state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md) — the mental model for
+  both halves, and when not to use them.
+- [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync) — the client half, whose `journalContract()` supplies this
+  journal's codecs, reducer, and authorization rules.
+- [`examples/sync`](https://github.com/doeixd/foldkit-plus/tree/main/examples/sync) — a SQLite journal, two replicas converging, and the effect
+  ledger.
