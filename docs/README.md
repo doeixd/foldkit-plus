@@ -51,6 +51,15 @@ vocabulary should refine them, not replace them.
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
 
+## Design lineage
+
+If you want to understand where the architecture came from, read
+[Prior art and design lineage](./prior-art.md). It traces the foundational
+lineage from Elm, Foldkit, and Effect, then the subsystem influences from fate,
+Logux, nuqs, Remix mixins, StyleX, `effect-atom-jsx`, and Agent Native. It also
+separates conceptual inspiration from code that is directly adapted under a
+third-party license.
+
 A useful ownership shortcut:
 
 ```text
