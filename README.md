@@ -18,7 +18,27 @@ send Messages `update` already handles. Server data lives in the Model and is
 reconciled by `update`. Replicas replay the same Messages through the same
 `update`. The URL and local storage mirror a slice of the Model; they never own
 one. Views are styled from outside without forking. Each package answers one
-question, and they compose because they all read the same declaration.
+question, and they compose because they meet at explicit application boundaries.
+
+## Start here
+
+If the package count looks larger than the idea, start with the idea rather than
+the package list:
+
+1. **Your Foldkit application stays the center.** Model, Message, `update`,
+   Commands, Submodels, and Mounts still mean what they mean in Foldkit.
+2. **`foldkit-surface` describes boundaries.** A Projection says what a feature
+   observes; a Message subset says what it may cause. Agent, Remote, Sync, and
+   Mirror can derive work from those declarations.
+3. **The other packages are interpreters and adapters.** They expose Messages to
+   agents, reconcile server facts, replicate a Model slice, mirror local state,
+   or customize views without creating another application state machine.
+
+For a concrete application, start with [`examples/todo-app`](./examples/todo-app).
+It shows the app-facing stack in a real browser. For the broadest integration
+trace, use [`examples/kitchen-sink`](./examples/kitchen-sink); together those two
+examples cover all fifteen packages. The [examples index](./examples/README.md)
+says which example to read for each subsystem.
 
 ## Which package do I need?
 
@@ -31,8 +51,11 @@ question, and they compose because they all read the same declaration.
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 
-Every other package is built on `foldkit-surface`, so it comes along with
-whichever you pick.
+`foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
+and the Surface/Mixins bridge. It is not a mandatory base class for the whole
+repository: `foldkit-durable`, core `foldkit-mixins`, and the protocol/UI
+adapters can stand on their own and meet the Surface-backed packages at explicit
+boundaries.
 
 ## The packages
 
@@ -129,27 +152,35 @@ state: a Behavior that "needs state" wants a Submodel.
 flowchart TB
   app["Foldkit application<br/>Model · Message · update · Commands"]
   surface["foldkit-surface<br/>Projection · field refs · Message subsets · Module"]
-  agent["foldkit-agent<br/>webmcp · mcp · a2a · native"]
+  agent["foldkit-agent"]
+  agentAdapters["webmcp · mcp · a2a · native"]
   remote["foldkit-remote<br/>normalized server cache"]
-  server["foldkit-remote-server<br/>foldkit-remote-drizzle"]
-  durable["foldkit-durable<br/>ordered log"]
+  server["foldkit-remote-server"]
+  drizzle["foldkit-remote-drizzle"]
   sync["foldkit-sync<br/>local replica"]
+  durable["foldkit-durable<br/>ordered server log"]
   mirror["foldkit-mirror<br/>URL · KeyValueStore"]
-  mixins["foldkit-mixins<br/>mixins-surface · mixins-ui"]
-  app -- "observe / project" --> surface
-  surface --> agent
-  surface --> remote
-  surface --> durable
+  mixins["foldkit-mixins<br/>typed view extension points"]
+  mixinsSurface["foldkit-mixins-surface"]
+  mixinsUi["foldkit-mixins-ui"]
+
+  app -- "describe observation / capability" --> surface
+  app --> mixins
+  surface --> agent --> agentAdapters
+  surface --> remote --> server
+  drizzle --> server
+  surface --> sync --> durable
   surface --> mirror
-  surface --> mixins
-  remote --> server
-  durable --> sync
+  surface --> mixinsSurface
+  mixins --> mixinsSurface
+  mixins --> mixinsUi
 ```
 
 None of them reimplements `update`. The agent layer projects it, Remote reduces
 its facts through it, Sync replays the same Messages through it, a mirror's
 `reduce` is a pure Model function the app calls from it, and Mixins never touch
-state at all.
+state at all. Durable is the server-side ordered log Sync can derive a contract
+for; it does not need Surface when used independently.
 
 The rule that makes this composable is **one owner per datum**. Every piece of
 state has one authoritative owner, and `Module.validate` reports a second:
@@ -164,8 +195,11 @@ state has one authoritative owner, and `Module.validate` reports a second:
 
 ## Sixty seconds of code
 
-From the [todo app](./examples/todo-app), which wires every package into one
-application. One declaration; every contract is derived from it:
+From the [todo app](./examples/todo-app), which wires the main app-facing stack
+— Surface, Sync/Durable, Agent, Mirror, and Mixins — into one application.
+Remote is intentionally separate there; see [`examples/remote`](./examples/remote)
+or the [`kitchen-sink`](./examples/kitchen-sink) for server-derived state. One
+declaration; every contract below is derived from it:
 
 ```ts
 import { Agent } from 'foldkit-agent'
@@ -246,7 +280,8 @@ lists every package's version.
   [`examples/mixins`](./examples/mixins) — one extension each.
 
 Every example prints a transcript that its test pins line by line; `pnpm demo`
-runs them all.
+runs them all. See [`examples/README.md`](./examples/README.md) for the reading
+order and what each example is meant to prove.
 
 ## Guides
 
@@ -265,7 +300,8 @@ runs them all.
 - [Releases](./docs/releases.md) — the version and publish matrix for every
   workspace package.
 - [Revision plan](./docs/design/REVISION_PLAN.md) — the full design and phase status.
-- [All guides](./docs/README.md), including the [improvement suggestions](./docs/improvements.md).
+- [Documentation map](./docs/README.md) — the recommended reading order, task guides,
+  package references, and design notes.
 - Each package README documents its API.
 
 ## Status
