@@ -785,6 +785,747 @@ state directly to Model and later reconcile with a result Message.
 Use this vocabulary consistently in docs and APIs where it fits, but do not yet
 extract a universal overlay primitive.
 
+## What this enables in practice
+
+The value of this proposal is not a new async subsystem. It is that existing
+application declarations can carry farther, so packages stop restating each
+other's semantics.
+
+The API names below are intentionally provisional. These examples describe the
+capabilities the architecture should make possible, not a commitment to exact
+method names.
+
+### Agent completion can describe the semantic result instead of an internal event
+
+Before, an agent capability that renames a project has to know which Message
+signals success:
+
+```ts
+const AssistantAgent = AgentBuilder.make({
+  messages: AgentBuilder.expose(Message, {
+    RequestedRenameProject: {
+      completion: {
+        success: Message.RenamedProject,
+        correlate: (request, result) =>
+          request.projectId === result.projectId,
+      },
+    },
+  }),
+})
+```
+
+That couples the capability to one implementation path:
+
+```text
+RequestedRenameProject
+        |
+        v
+      update
+        |
+        v
+   RenameProject Command
+        |
+        v
+   HTTP mutation
+        |
+        v
+   RenamedProject
+        |
+        v
+      update
+```
+
+If confirmation later comes from a Remote live update, Sync exchange, another
+device, or server push, the agent should not need to care which internal event
+made the state true.
+
+With state-based completion, the contract can instead describe the result:
+
+```ts
+const ProjectName = Project.select(
+  Projection.make({
+    Model: Schema.String,
+    read: project => project.name,
+  }),
+)
+
+const AssistantAgent = AgentBuilder.make({
+  messages: AgentBuilder.expose(Message, {
+    RequestedRenameProject: {
+      completion: Agent.when({
+        projection: ProjectName,
+        predicate: (name, request) => name === request.name,
+      }),
+    },
+  }),
+})
+```
+
+Conceptually:
+
+```text
+agent dispatches request
+        |
+        v
+anything may cause application state to advance
+        |
+        +-- Command result
+        +-- Remote live update
+        +-- Sync confirmation
+        +-- another device
+        +-- server push
+        |
+        v
+project.name == requested name
+        |
+        v
+agent invocation completes
+```
+
+The contract is now coupled to the semantic outcome rather than to one event
+used by today's implementation.
+
+### Live-source acknowledgement no longer needs transport-specific event waiting
+
+A WebSocket send may only acknowledge that the transport accepted a mutation.
+The actual application truth may arrive later through a live query.
+
+Before, it is easy to mistake transport acknowledgement for semantic completion:
+
+```ts
+const SendMessage = Command.define('SendMessage', {
+  args: {
+    clientId: Schema.String,
+    body: Schema.String,
+  },
+  messages: [Message.CompletedSendMessage],
+  execute: ({ clientId, body }) =>
+    socket.send({ clientId, body }).pipe(
+      Effect.as(Message.CompletedSendMessage({ clientId })),
+    ),
+})
+```
+
+`CompletedSendMessage` here can only prove:
+
+```text
+the socket accepted the send
+```
+
+It does not necessarily prove:
+
+```text
+the message exists in confirmed application state
+```
+
+After, the transport Command can stay honest about what it knows:
+
+```ts
+const SendMessage = Command.define('SendMessage', {
+  args: {
+    clientId: Schema.String,
+    body: Schema.String,
+  },
+  messages: [Message.SubmittedSendMessage],
+  execute: ({ clientId, body }) =>
+    socket.send({ clientId, body }).pipe(
+      Effect.as(Message.SubmittedSendMessage({ clientId })),
+    ),
+})
+```
+
+A consumer that needs semantic confirmation can wait on projected state:
+
+```ts
+completion: Agent.when({
+  projection: Messages,
+  predicate: (messages, input) =>
+    messages.some(message => message.clientId === input.clientId),
+})
+```
+
+```text
+send
+ |
+ v
+transport ack
+ |
+ v
+live source eventually changes Model
+ |
+ v
+predicate is true
+ |
+ v
+complete
+```
+
+Because completion is level-triggered against current + future Model state, it
+is not vulnerable to the classic "confirmation arrived before I subscribed"
+race that an edge-triggered `waitForNextMessage(...)` helper would have.
+
+### Remote can refresh a consumer without restating its data graph
+
+Suppose a page already declares everything it requires:
+
+```ts
+const ProjectPage = Projection.all({
+  project: Data.get(Project, projectId),
+  owner: Data.get(User, ownerId),
+  tasks: Data.query(TasksByProject, { projectId }),
+})
+```
+
+Without Projection-driven refresh, a refresh path tends to repeat that graph:
+
+```ts
+case 'RequestedRefreshProjectPage':
+  return [
+    model,
+    [
+      LoadProject({ projectId }),
+      LoadOwner({ ownerId }),
+      LoadTasks({ projectId }),
+    ],
+  ]
+```
+
+If Remote owns and can interpret the requirements carried by `ProjectPage`, it
+can instead expose a package-specific operation:
+
+```ts
+Remote.refresh(ProjectPage)
+```
+
+Conceptually:
+
+```text
+ProjectPage
+   |
+   +-- requires Project:p1
+   +-- requires User:u9
+   +-- requires TasksByProject:p1
+   |
+   v
+Remote.refresh(ProjectPage)
+   |
+   v
+Remote derives and revalidates those requirements
+```
+
+The consumer declares what it needs once. Remote decides how those requirements
+are fetched, deduplicated, live-updated, or revalidated.
+
+This does **not** imply a global `Foldkit.refresh`. Only the interpreter that
+understands the requirement metadata gets to define refresh semantics.
+
+### Surface can become open to new interpreters without absorbing their domain models
+
+Today Surface carries Remote-shaped requirement concepts because Remote needs a
+place to attach them without a package cycle.
+
+That becomes awkward when a future package has another kind of requirement.
+Imagine:
+
+```text
+foldkit-search
+```
+
+and a Projection that requires a search index query:
+
+```ts
+const ProductResults = Search.query(ProductIndex, {
+  query: searchTerm,
+})
+```
+
+With open interpreter-owned metadata, that Projection can contribute a branded
+`SearchRequirement` while a Remote node contributes a `RemoteRequirement`:
+
+```text
+Projection
+   |
+   +-- Model dependencies
+   |
+   +-- requirements
+       |
+       +-- RemoteRequirement
+       +-- SearchRequirement
+```
+
+Then:
+
+```ts
+Remote.plan(ProductPage)
+```
+
+reads only Remote metadata, while:
+
+```ts
+Search.plan(ProductPage)
+```
+
+reads only Search metadata.
+
+Neither package requires Surface to learn its domain model.
+
+This is the main extensibility payoff of making Projection a declarative
+intermediate representation rather than a Remote-specific planner input.
+
+### Third-party packages can enrich normal Projections instead of inventing parallel DSLs
+
+Consider a third-party package:
+
+```text
+@acme/foldkit-feature-flags
+```
+
+Without an extensible Projection seam, it is tempted to invent:
+
+```text
+FeatureFlagProjection
+FeatureFlagSurface
+FeatureFlagRuntime
+```
+
+With interpreter-owned requirement metadata, it can instead participate in the
+normal application graph:
+
+```ts
+const BillingPage = Projection.all({
+  account: App.model.account,
+  redesignEnabled: Flags.get('billing-redesign'),
+})
+```
+
+`Flags.get(...)` contributes its own typed requirement metadata. Surface still
+sees an ordinary Projection, and the Flags interpreter alone understands how to
+fulfill that metadata.
+
+This gives the ecosystem a consistent extension pattern:
+
+```text
+make a typed declaration
+attach package-owned metadata
+let the owning interpreter consume it
+```
+
+rather than:
+
+```text
+make another parallel state / projection / runtime system
+```
+
+### Async rendering can become less repetitive without becoming magical
+
+Foldkit already correctly models:
+
+```text
+Idle
+Loading
+Refreshing(data)
+Failure(error)
+Stale(data, error)
+Success(data)
+```
+
+The rough edge is view boilerplate.
+
+Before:
+
+```ts
+return AsyncData.match(model.user, {
+  onIdle: () => UserSkeleton(),
+  onLoading: () => UserSkeleton(),
+  onFailure: error => ErrorView(error),
+  onRefreshing: user =>
+    UserView({ user, refreshing: true }),
+  onStale: ({ data, error }) =>
+    UserView({ user: data, staleError: error }),
+  onSuccess: user =>
+    UserView({ user }),
+})
+```
+
+A view-oriented interpreter could collapse the common policy:
+
+```ts
+return Render.async(model.user, {
+  empty: () => UserSkeleton(),
+  failure: error => ErrorView(error),
+  data: (user, state) =>
+    UserView({
+      user,
+      refreshing: state.refreshing,
+      staleError: state.staleError,
+    }),
+})
+```
+
+The important part is what does **not** change:
+
+```text
+view = Model -> VNode
+```
+
+There is no Promise read, thrown not-ready sentinel, hidden scheduler, or second
+source of UI truth. The helper is only a better interpreter for explicit
+`AsyncData` state.
+
+### Semantic pending state no longer needs ad-hoc booleans
+
+Before, an application may drift toward parallel fields:
+
+```ts
+const Model = Schema.Struct({
+  user: User,
+  isRefreshingUser: Schema.Boolean,
+  refreshError: Schema.Option(UserError),
+})
+```
+
+with transitions that manually keep the fields coherent.
+
+The existing `AsyncData` model already gives the better representation:
+
+```ts
+const Model = Schema.Struct({
+  user: UserData.schema,
+})
+```
+
+and a refresh transition can express the semantic state directly:
+
+```ts
+case 'RequestedRefreshUser':
+  return [
+    {
+      ...model,
+      user: AsyncData.revalidate(model.user),
+    },
+    FetchUser(),
+  ]
+```
+
+The proposal reinforces that direction: semantic pending belongs in Model when
+it matters to application behavior. Runtime Activity should not be used to
+replace explicit application state.
+
+### Agent and Sync can compose without Agent learning the Sync protocol
+
+A replicated edit has at least two relevant views:
+
+```text
+committed
+  server-confirmed shared state
+
+visible
+  committed state + pending local operations
+```
+
+Suppose an agent edits a replicated todo.
+
+Before, Agent completion may be coupled to a Sync-specific acknowledgement
+Message or operation event:
+
+```ts
+completion: {
+  success: Message.SyncAcknowledgedRename,
+  correlate: ...,
+}
+```
+
+That leaks replication protocol into the Agent contract.
+
+After, if Sync exposes an appropriate committed Projection, Agent can express the
+real requirement:
+
+```ts
+completion: Agent.when({
+  projection: TodoSync.committed.select(
+    Todos.byId(input.id),
+  ),
+  predicate: (todo, input) => todo.title === input.title,
+})
+```
+
+Immediately after local submission:
+
+```text
+committed
+  "Old title"
+
+pending
+  Rename -> "New title"
+
+visible
+  "New title"
+```
+
+The UI may show the optimistic result, but Agent completion remains pending.
+After server acknowledgement:
+
+```text
+committed
+  "New title"
+
+pending
+  []
+
+visible
+  "New title"
+```
+
+Now completion succeeds.
+
+Agent does not need to know about cursors, operation IDs, checkpoints, or Sync's
+wire protocol. It consumes a semantic view exposed by Sync.
+
+This is an example of **specialized but interoperable APIs** rather than a
+universal `Authority<A>` abstraction.
+
+### The same pattern can work with Remote optimistic mutations
+
+If Remote later supports optimistic mutation layers, it will also have a useful
+distinction between:
+
+```text
+visible cache
+  confirmed server-derived cache + optimistic layers
+
+confirmed cache
+  the last server-derived value
+```
+
+A normal UI usually wants the visible view.
+
+An Agent capability that must not claim success until the server-derived state
+reflects the requested mutation may want a confirmed Projection instead.
+
+Conceptually, Remote could expose package-owned vocabulary such as:
+
+```ts
+Remote.visible(ProjectName)
+Remote.confirmed(ProjectName)
+```
+
+The exact API is open, but the semantic rule is important: Remote owns this
+distinction because Remote understands its own optimistic and server-derived
+layers. Foldkit core does not need a generic `Authority<T>` wrapper.
+
+### Effect remains the one async-control language across packages
+
+Without a strong rule here, each package can slowly invent variants of:
+
+```ts
+{
+  timeout: 5_000,
+  signal,
+  retry: 3,
+}
+```
+
+The proposal instead keeps package operations as Effects:
+
+```ts
+Agent.dispatch(...).pipe(
+  Effect.timeout('5 seconds'),
+  Effect.retry(policy),
+)
+```
+
+```ts
+Remote.refresh(ProjectPage).pipe(
+  Effect.timeout('5 seconds'),
+)
+```
+
+```ts
+Sync.exchange(...).pipe(
+  Effect.retry(Schedule.exponential('100 millis')),
+)
+```
+
+That gives the whole ecosystem one vocabulary for:
+
+```text
+timeout
+retry
+race
+cancellation
+resource scope
+parallelism
+errors
+dependency injection
+```
+
+The package supplies domain semantics. Effect supplies async control flow.
+
+### A future first-class Foldkit runtime can normalize adapters around Effect
+
+The current Agent host deliberately accepts flexible host seams such as callback
+subscriptions and `void | Promise | Effect` dispatch.
+
+If Foldkit eventually exposes a first-class runtime handle, an Effect-native
+internal shape could be simpler:
+
+```ts
+interface Runtime<Model, Message> {
+  readonly model: Effect.Effect<Model>
+  readonly models: Stream.Stream<Model>
+  readonly messages: Stream.Stream<Message>
+  readonly dispatch: (
+    message: Message,
+  ) => Effect.Effect<void>
+}
+```
+
+Then Agent can bind directly to that runtime, while callback / Promise adapters
+remain edge integrations rather than the framework's internal async vocabulary.
+
+This is not required for the first phases of this proposal, but it illustrates
+the direction: **normalize execution through Effect instead of wrapping Effect in
+another Foldkit async abstraction.**
+
+### Module and devtools can derive a richer application graph from the same declarations
+
+Projection already knows what it reads and what external requirements it carries.
+Surface knows what a consumer may observe and which Messages it may cause.
+
+With interpreter-owned requirement metadata, Module could eventually describe a
+consumer like this:
+
+```text
+UserPage
+|
++-- observes
+|   +-- session.userId
+|   +-- ui.selectedTab
+|   +-- projects
+|
++-- requires
+|   +-- Remote: User:u1 [id,name,avatar]
+|   +-- Remote: ProjectsByOwner:u1
+|   +-- FeatureFlags: "new-project-page"
+|
++-- may cause
+    +-- RequestedRenameProject
+    +-- RequestedArchiveProject
+```
+
+The same declarations can therefore serve:
+
+```text
+runtime planning
+documentation
+architecture validation
+devtools
+agent contracts
+static diagrams
+```
+
+without each subsystem maintaining another representation of the application.
+
+### End-to-end: one declaration interpreted by UI, Agent, and Remote
+
+The strongest form of the proposal looks like this.
+
+The application declares a consumer once:
+
+```ts
+const ProjectPage = App.surface({
+  model: Projection.all({
+    project: Data.get(Project, projectId),
+    tasks: Data.query(
+      TasksByProject,
+      { projectId },
+    ),
+  }),
+  messages: MessageSet.make([
+    Message.RequestedRenameProject,
+    Message.RequestedAddTask,
+  ]),
+})
+```
+
+The UI interprets the Surface as a view boundary:
+
+```ts
+SurfaceView.make(ProjectPage, ({ model, send }) =>
+  ProjectScreen({
+    project: model.project,
+    tasks: model.tasks,
+    rename: name =>
+      send(
+        Message.RequestedRenameProject({
+          id: projectId,
+          name,
+        }),
+      ),
+  }),
+)
+```
+
+An Agent interprets the same observation and capability boundary:
+
+```ts
+const Assistant = Agent.make({
+  context: ProjectPage,
+  messages: Agent.expose(ProjectPage.messages, {
+    RequestedRenameProject: {
+      completion: Agent.when({
+        projection: Remote.confirmed(
+          ProjectPage.model.project,
+        ),
+        predicate: (project, request) =>
+          project.name === request.name,
+      }),
+    },
+  }),
+})
+```
+
+Remote interprets the requirements already carried by the Projection:
+
+```ts
+Remote.refresh(ProjectPage.model)
+```
+
+Conceptually:
+
+```text
+                  ProjectPage
+
+                       |
+         +-------------+-------------+
+         |             |             |
+         v             v             v
+        UI           Agent         Remote
+      renders       observes        plans
+       model        + acts       requirements
+                                      |
+                                      v
+                                   refresh
+```
+
+The application still fundamentally remains:
+
+```text
+Model
+Message
+update
+Command
+Subscription
+```
+
+The improvement is not that those concepts disappear. It is that downstream
+systems can interpret the same declarations instead of restating application
+semantics in parallel APIs.
+
+That is the practical form of the broader Foldkit Plus thesis:
+
+> **Declare the application once. Interpret it everywhere.**
+
 ## Effect integration rules
 
 Any new async-facing Foldkit / Plus API should follow these rules.
