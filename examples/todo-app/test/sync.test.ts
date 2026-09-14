@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Effect } from 'effect'
-import { layerSocket } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Message } from '../src/app.js'
 import { openJournal } from '../src/journal.js'
@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 
 const sync = (url: string, replica: TodoReplica): Promise<void> =>
-  Effect.runPromise(Effect.provide(replica.synchronize, layerSocket({ url })))
+  Effect.runPromise(Effect.provide(replica.synchronize, Sync.transport.socket({ url })))
 
 describe('the sync server', () => {
   it('converges two replicas over a real WebSocket', async () => {

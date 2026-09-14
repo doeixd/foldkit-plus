@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
-import { layerSocket } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 import { WebSocket as WsClient } from 'ws'
 import { afterEach, expect, it } from 'vitest'
 import { Message } from '../src/app.js'
@@ -29,7 +29,7 @@ const openReplica = async (id: string): Promise<TodoReplica> =>
   openReplicaEffect(id, await Effect.runPromise(openStorage(id, new IDBFactory())))
 
 const sync = (url: string, replica: TodoReplica): Promise<void> =>
-  Effect.runPromise(Effect.provide(replica.synchronize, layerSocket({ url })))
+  Effect.runPromise(Effect.provide(replica.synchronize, Sync.transport.socket({ url })))
 
 it('converges a replica over a real WebSocket', async () => {
   const journal = openJournal(':memory:')
@@ -104,7 +104,10 @@ it('derives a principal per connection and refuses an unknown token', async () =
     // An unknown token is closed before it can exchange.
     await expect(
       Effect.runPromise(
-        Effect.provide(stranger.synchronize, layerSocket({ url: server.url, maxRetries: 0 })),
+        Effect.provide(
+          stranger.synchronize,
+          Sync.transport.socket({ url: server.url, maxRetries: 0 }),
+        ),
       ),
     ).rejects.toThrow()
     expect(Effect.runSync(stranger.cursor)).toBe(0)
@@ -139,7 +142,7 @@ it('closes a connection when its credential expires and refuses the token afterw
       Effect.runPromise(
         Effect.provide(
           replica.synchronize,
-          layerSocket({ url: `${server.url}?token=short`, maxRetries: 0 }),
+          Sync.transport.socket({ url: `${server.url}?token=short`, maxRetries: 0 }),
         ),
       ),
     ).rejects.toThrow()

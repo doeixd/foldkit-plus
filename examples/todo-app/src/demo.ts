@@ -14,7 +14,7 @@ import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-
 import { A11y, Capability, Event } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Surface } from 'foldkit-surface'
-import { replicaId, type Storage } from 'foldkit-sync'
+import { ReplicaId, type Storage } from 'foldkit-sync'
 import { AppAgent, bindAgent } from './agent.js'
 import { Message, counts, initialModel, visibleTodos } from './app.js'
 import { openJournal } from './journal.js'
@@ -23,7 +23,7 @@ import type { Principal, SyncPrincipal } from './principal.js'
 import { makeStore } from './store.js'
 import { FilterSlots, ItemSlots, stylesheet } from './style.js'
 import { Board, Filters, Prefs, update } from './surface.js'
-import { Sync } from './sync.js'
+import { TodoSync } from './sync.js'
 import { BoardView } from './view.js'
 
 /** Stands in for `document.modelContext` outside a browser. */
@@ -154,7 +154,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // 8. sync.ts — the replica refuses what it cannot replicate.
   say('')
   say('# the replica refuses a local Message (sync.ts)')
-  const replica = await Effect.runPromise(Sync.openReplica(replicaId('demo'), memoryStorage()))
+  const replica = await Effect.runPromise(
+    TodoSync.openReplica(ReplicaId.make('demo'), memoryStorage()),
+  )
   const local = await Effect.runPromise(
     Effect.result(replica.submit(Message.FilterSelected({ filter: 'active' }))),
   )

@@ -10,10 +10,10 @@ policy, presence, and server-authority effects — and puts a test on each piece
 One declaration drives both halves. `sync.ts` builds
 `Surface.application({ Model, Message, initial, update })`, picks the shared
 fields with `Projection.pick(App.fields.todos)`, and names the durable variants
-with `MessageSet.make(...)`; `forApplication(App).make(...)` derives the shared
-projection, the durable subset, the initial snapshot, and replay from that.
-`journal.ts` spreads `Sync.journalContract()`, so the server and the replica
-replay the same Messages through the application's own `update`.
+with `MessageSet.make(...)`; `Sync.forApplication(App).make(...)` derives the
+shared projection, the durable subset, the initial snapshot, and replay from
+that. `journal.ts` spreads `TodoSync.journalContract()`, so the server and the
+replica replay the same Messages through the application's own `update`.
 
 ## Run it
 
@@ -44,7 +44,7 @@ is the shared slice, `selectedTodoId` is not. The page talks to no server;
 | --- | --- |
 | `app.ts` | The Model, the Message union, and `update`. Ids are Message inputs; `update` mints nothing and reads no clock. |
 | `sync.ts` | The contract: the shared projection, the durable subset, and `mountTodos` over `Sync.mount`. |
-| `journal.ts` | The server journal: `makeJournal` on SQLite, spreading `Sync.journalContract()`, plus the application policy — `authorize` against the authoritative Model, and `effects` for server-authority work settled through the durable ledger. |
+| `journal.ts` | The server journal: `Journal.make` on SQLite, spreading `TodoSync.journalContract()`, plus the application policy — `authorize` against the authoritative Model, and `effects` for server-authority work settled through the durable ledger. |
 | `server.ts` | A `ws` WebSocket server fronting the journal. The principal is derived per connection from a `token` query parameter and can expire; actor identity never comes from an operation. |
 | `serverAgent.ts` | An agent host over the journal: a capability dispatch becomes one operation authored by a dedicated replica, under the caller's authenticated principal. |
 | `runtime.ts`, `browser.ts` | The dev page over `Sync.mount`. |

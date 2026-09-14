@@ -1,13 +1,13 @@
 import { Module, Surface } from 'foldkit-surface'
-import { documentId, forApplication } from 'foldkit-sync'
+import { DocumentId, Sync } from 'foldkit-sync'
 import { describe, expect, it } from 'vitest'
 import { AppAgent } from '../src/agent.js'
 import { App, BoardSurface, Data, NoteChanges, Notes } from '../src/stack.js'
 
 // `KitchenSync` is annotated with the low-level `Sync` type for declaration
 // emit, so the contract is made again here from the same declaration.
-const NotesSync = forApplication(App).make({
-  documentId: documentId('kitchen'),
+const NotesSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('kitchen'),
   shared: Notes,
   durable: NoteChanges,
 })
@@ -34,8 +34,8 @@ describe('the kitchen-sink application as a Module', () => {
   })
 
   it('catches a second replication contract over the same field', () => {
-    const Again = forApplication(App).make({
-      documentId: documentId('kitchen-again'),
+    const Again = Sync.forApplication(App).make({
+      documentId: DocumentId.make('kitchen-again'),
       shared: Notes,
       durable: NoteChanges,
     })

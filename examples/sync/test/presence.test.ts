@@ -1,14 +1,7 @@
 import { Clock, Effect, Layer, Schema, type Scope } from 'effect'
 import { TestClock } from 'effect/testing'
 import { WebSocket as WsClient } from 'ws'
-import {
-  createPresence,
-  createPresenceHub,
-  socketPresenceChannel,
-  type Presence,
-  type PresenceHub,
-  type SocketLike,
-} from 'foldkit-sync'
+import { Sync, type Presence, type PresenceHub, type SocketLike } from 'foldkit-sync'
 import { afterEach, expect, it } from 'vitest'
 import { openJournal, type Principal } from '../src/journal.js'
 import { startSyncServer, type Authenticated, type SyncServer } from '../src/server.js'
@@ -30,7 +23,7 @@ const createPresenceRegistry = (): ((documentId: string) => PresenceHub<Selectio
   return documentId => {
     const existing = hubs.get(documentId)
     if (existing !== undefined) return existing
-    const hub = createPresenceHub<Selection>()
+    const hub = Sync.presence.hub<Selection>()
     hubs.set(documentId, hub)
     return hub
   }
@@ -117,16 +110,16 @@ it('broadcasts presence between two authenticated peers over the socket', async 
   try {
     await run(
       Effect.gen(function* () {
-        const alice = yield* createPresence<Selection>({
+        const alice = yield* Sync.presence.make<Selection>({
           id: 'alice',
           ttl: '5 seconds',
-          channel: yield* socketPresenceChannel<Selection>(aliceSocket),
+          channel: yield* Sync.presence.socketChannel<Selection>(aliceSocket),
           decodeValue: decodeSelection,
         })
-        const bob = yield* createPresence<Selection>({
+        const bob = yield* Sync.presence.make<Selection>({
           id: 'bob',
           ttl: '5 seconds',
-          channel: yield* socketPresenceChannel<Selection>(bobSocket),
+          channel: yield* Sync.presence.socketChannel<Selection>(bobSocket),
           decodeValue: decodeSelection,
         })
 
@@ -162,16 +155,16 @@ it('does not broadcast presence across document boundaries', async () => {
   try {
     await run(
       Effect.gen(function* () {
-        const alice = yield* createPresence<Selection>({
+        const alice = yield* Sync.presence.make<Selection>({
           id: 'alice',
           ttl: '5 seconds',
-          channel: yield* socketPresenceChannel<Selection>(aliceSocket),
+          channel: yield* Sync.presence.socketChannel<Selection>(aliceSocket),
           decodeValue: decodeSelection,
         })
-        const carol = yield* createPresence<Selection>({
+        const carol = yield* Sync.presence.make<Selection>({
           id: 'carol',
           ttl: '5 seconds',
-          channel: yield* socketPresenceChannel<Selection>(carolSocket),
+          channel: yield* Sync.presence.socketChannel<Selection>(carolSocket),
           decodeValue: decodeSelection,
         })
         yield* Effect.yieldNow

@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { layerFromPromise, type Replica, type TransportClient } from 'foldkit-sync'
+import { Sync, type Replica, type TransportClient } from 'foldkit-sync'
 import type { Message, Shared } from './app.js'
 import { mountTodos } from './sync.js'
 
@@ -27,7 +27,7 @@ export const mountReplica = (replica: Replica<Message, Shared>, container: HTMLE
     send: mounted.dispatch,
     // The mount re-installs the shared slice itself when the exchange moves the cursor.
     synchronize: (transport: TransportClient) =>
-      Effect.runPromise(Effect.provide(replica.synchronize, layerFromPromise(transport))),
+      Effect.runPromise(Effect.provide(replica.synchronize, Sync.transport.fromPromise(transport))),
     dispose: mounted.dispose,
   }
 }

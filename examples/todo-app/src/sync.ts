@@ -1,7 +1,7 @@
 /**
  * The local-first contract, derived from the application.
  *
- * Nothing here restates behaviour. `forApplication(App)` reads the Model and
+ * Nothing here restates behaviour. `Sync.forApplication(App)` reads the Model and
  * Message schemas, the initial Model, and `update` from `surface.ts`, and the
  * fragments below say only *which* fields replicate and *which* Messages change
  * them. Replay is the application's `update` on the shared slice, and it is
@@ -17,8 +17,8 @@
  * `authorize` is policy on the contract, per durable variant: `message` is
  * exactly that variant, `shared` is the authoritative snapshot, `principal` is
  * what the server's transport established. `journalContract()` carries the
- * compiled rules in the shape `makeJournal` takes, so `journal.ts` applies them
- * by spreading the contract. The client never runs them (a replica has no
+ * compiled rules in the shape `Journal.make` takes, so `journal.ts` applies
+ * them by spreading the contract. The client never runs them (a replica has no
  * principal); a refused operation comes back as a rejection and the replica
  * reverts it.
  */
@@ -27,9 +27,8 @@ import type { Document, HtmlBuilder } from 'foldkit/html'
 import type { Subscriptions } from 'foldkit/subscription'
 import { MessageSet, type Contract } from 'foldkit-surface'
 import {
-  documentId,
-  forApplication,
-  mount,
+  DocumentId,
+  Sync,
   type MountUrl,
   type Mounted,
   type Operation,
@@ -42,7 +41,7 @@ import { Message, type Model, type Shared } from './app.js'
 import { isOwner, type SyncPrincipal } from './principal.js'
 import { App, ListMeta, Todos } from './surface.js'
 
-const TodoApp = forApplication(App).withPrincipal<SyncPrincipal>()
+const TodoApp = Sync.forApplication(App).withPrincipal<SyncPrincipal>()
 
 /** The list: the todos and every Message that changes them. */
 export const TodosFragment = TodoApp.fragment({
@@ -63,8 +62,8 @@ export const ListMetaFragment = TodoApp.fragment({
   durable: MessageSet.make(App, [Message.RenamedList]),
 })
 
-const TodoSync = TodoApp.make({
-  documentId: documentId('todos'),
+const definition = TodoApp.make({
+  documentId: DocumentId.make('todos'),
   ...TodoApp.compose(TodosFragment, ListMetaFragment),
   authorize: {
     // Destructive, list-wide operations are the owner's. `principal` is typed
@@ -83,14 +82,14 @@ const TodoSync = TodoApp.make({
  * the contract's inferred type expands a Foldkit-private alias that declaration
  * emit cannot name. Each is the same value, seen through a nameable type.
  */
-export const Sync: SyncContract<Message, Shared> = TodoSync
+export const TodoSync: SyncContract<Message, Shared> = definition
 
 /** For `Module`: this contract owns `todos` and `listTitle` and records the durable tags. */
-export const contract: Contract = TodoSync.contract
+export const contract: Contract = definition.contract
 
-/** The journal's codecs, reducer, and the compiled `authorize`, for `makeJournal`. */
+/** The journal's codecs, reducer, and the compiled `authorize`, for `Journal.make`. */
 export const journalContract = (): PolicyJournalContract<Operation, Shared, SyncPrincipal> =>
-  TodoSync.journalContract()
+  definition.journalContract()
 
 /**
  * Runs the application over an open replica with `Sync.mount`: one reducer, a
@@ -109,4 +108,4 @@ export const mountTodos = <Resources = never>(
     readonly url?: MountUrl<Model, Message> | undefined
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model
   },
-): Mounted<Model, Message> => mount(App, TodoSync, { replica, ...options })
+): Mounted<Model, Message> => Sync.mount(App, definition, { replica, ...options })

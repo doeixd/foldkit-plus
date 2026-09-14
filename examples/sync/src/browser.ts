@@ -1,19 +1,19 @@
 import { Effect, Scope } from 'effect'
-import { indexedDb, replicaId } from 'foldkit-sync'
+import { ReplicaId, Sync } from 'foldkit-sync'
 import { Message } from './app.js'
 import { mountReplica } from './runtime.js'
-import { Sync } from './sync.js'
+import { TodoSync } from './sync.js'
 
 // The connection lives for the page; it is never explicitly released.
 const storageScope = Effect.runSync(Scope.make())
 const replica = await Effect.runPromise(
   Effect.gen(function* () {
     const storage = yield* Effect.provideService(
-      indexedDb('foldkit-sync-spike'),
+      Sync.indexedDb('foldkit-sync-spike'),
       Scope.Scope,
       storageScope,
     )
-    return yield* Sync.openReplica(replicaId('browser'), storage)
+    return yield* TodoSync.openReplica(ReplicaId.make('browser'), storage)
   }),
 )
 const runtime = mountReplica(replica, document.querySelector<HTMLElement>('#sync-app')!)
