@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { Effect, Schema } from 'effect'
+import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -89,7 +90,7 @@ const exchange = (
 describe('Sync.mount', () => {
   let container: HTMLElement
   let replica: Replica<Message, Shared>
-  let mounted: Mounted<Model, Message> | undefined
+  let mounted: Mounted<Model, Message, Shared> | undefined
   const open = async (storage: Storage = memoryStorage()) => {
     replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), storage))
     mounted = mount(App, TodoSync, {
@@ -196,6 +197,72 @@ describe('Sync.mount', () => {
     await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
     await vi.waitFor(() => expect(text()).toContain('Remote'))
     expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }])
+  })
+
+  it('exposes the committed slice, which a local edit leaves and an exchange advances', async () => {
+    const app = await open()
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+    expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
+    expect(app.committed.read(app.model())).toEqual({ todos: [] })
+    expect(app.committed.dependencies).toEqual([['todos']])
+
+    let notified = 0
+    const stop = app.subscribe(() => {
+      notified += 1
+    })
+    await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(0))
+    stop()
+
+    expect(app.committed.read(app.model())).toEqual({ todos: [{ id: 'r', title: 'Remote' }] })
+    expect(app.model().todos).toEqual([
+      { id: 'r', title: 'Remote' },
+      { id: 'a', title: 'Milk' },
+    ])
+  })
+
+  it('lets an agent complete on the committed edit, not the optimistic one', async () => {
+    const app = await open()
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(Message, {
+          CreatedTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            completion: Agent.when({
+              projection: app.committed,
+              predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+            }),
+          },
+        }),
+      }),
+      host: app,
+    })
+
+    let settled = false
+    const result = Effect.runPromise(
+      runtime.messages.dispatch('create_todo', { id: 'a', title: 'Milk' }),
+    ).finally(() => {
+      settled = true
+    })
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+    // Visible at once, and still not done: the server has not committed it. An
+    // unrelated transition re-evaluates the wait against the persisted outbox.
+    expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
+    app.dispatch(Message.SelectedTodo({ id: 'a' }))
+    await vi.waitFor(() => expect(text()).toContain('Selection: a'))
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
+
+    await exchange(replica, {
+      operations: [{ ...committed('a', 'Milk', 1), replicaId: replicaId('a'), opId: opId('a:1') }],
+      rejected: [],
+    })
+
+    expect((await result).completion).toEqual({ status: 'completed' })
+    expect(pending(replica)).toEqual([])
   })
 
   it('reverts an operation the server rejects', async () => {

@@ -40,9 +40,10 @@ export interface AgentHost<Model, Message extends AnyMessage = AnyMessage, Princ
    * Sends a Message into the Foldkit Runtime.
    *
    * A real application host accepts its whole Message union, which is wider
-   * than the exposed subset; it may not be narrower.
+   * than the exposed subset; it may not be narrower. A failure it returns is a
+   * defect of the invocation: delivery is then unknown, not refused.
    */
-  readonly dispatch: (message: Message) => void | Promise<void> | Effect.Effect<void>
+  readonly dispatch: (message: Message) => void | Promise<void> | Effect.Effect<void, unknown>
   /** Resolves the caller's identity for `authorize`. */
   readonly principal?: (invocation: Invocation) => Principal
   /** Subscribes to Model changes so adapters can reconcile availability. */
@@ -188,7 +189,9 @@ export type BindOptions<
   readonly audit?: AuditSink | undefined
   /** The host must accept every Message the contract can construct. */
   readonly host: AgentHost<Model, Message, Principal> & {
-    readonly dispatch: (message: MessagesOf<ByTag>) => void | Promise<void> | Effect.Effect<void>
+    readonly dispatch: (
+      message: MessagesOf<ByTag>,
+    ) => void | Promise<void> | Effect.Effect<void, unknown>
   }
 } & { readonly host: PrincipalOf<Principal> }
 

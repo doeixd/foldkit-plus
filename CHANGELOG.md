@@ -41,6 +41,20 @@ version changed; `pnpm` skips versions already in the registry.
   optional: a state completion has no completing Message. Code that read
   `completion.message._tag` unconditionally needs `?.`. The manifest records a
   state completion as `{ state: { observes } }`.
+- `AgentHost.dispatch` may return a failing Effect, such as `Sync.mount`'s
+  `Exit`; the failure is the invocation's defect, as a thrown error already was.
+
+### `foldkit-sync`
+
+- **The committed state is readable.** `Replica.committed` and
+  `ReplicaSnapshot.committed` are the server-confirmed state the optimistic
+  `shared` is built on: a pending edit reaches them only once committed, and a
+  rejected one never does.
+- **`Mounted.committed`** is a Projection of that state, so an agent can finish
+  on confirmation rather than on its own optimistic edit:
+  `Agent.when({ projection: mounted.committed, … })`. `subscribe` already fires
+  after every exchange that changes it. It reads the replica, not the Model, so
+  it is for waiting consumers, not views.
 
 ## 0.4.1
 

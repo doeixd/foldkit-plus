@@ -17,7 +17,7 @@ import * as Subscription from 'foldkit/subscription'
 import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
-import type { RunnableApplication } from 'foldkit-surface'
+import { Projection, type RunnableApplication } from 'foldkit-surface'
 import type { ReplicaError } from './errors.js'
 import type { DefinedSync } from './make.js'
 import type { Replica, ReplicaStatus } from './sync.js'
@@ -66,7 +66,7 @@ export interface MountOptions<Model, Message, Shared, Resources> {
   readonly onPersistenceFailure?: ((model: Model, error: ReplicaError) => Model) | undefined
 }
 
-export interface Mounted<Model, Message> {
+export interface Mounted<Model, Message, Shared = unknown> {
   /** Sends an application Message through the runtime; the `Exit` reports a decode failure. */
   readonly dispatch: (message: Message) => Exit.Exit<void, unknown>
   /** The Model after the last transition. */
@@ -79,6 +79,14 @@ export interface Mounted<Model, Message> {
    * finishes its work. The mount's private Messages are not reported.
    */
   readonly observe: (listener: (message: Message) => void) => () => void
+  /**
+   * The shared slice as the server has confirmed it, without pending local
+   * edits: what an agent waits on when an optimistic edit must not count as
+   * done, `Agent.when({ projection: mounted.committed, … })`. It reads the
+   * replica rather than the Model it is handed, so it serves waiting consumers,
+   * not views; `subscribe` fires after every exchange that changes it.
+   */
+  readonly committed: Projection<Model, Shared>
   /** Waits for in-flight persists, then disposes the runtime. The replica stays open. */
   readonly dispose: () => Promise<void>
 }
@@ -117,7 +125,11 @@ export const mount = <
     Schema.Struct.Type<Fields>,
     Resources
   >,
-): Mounted<Model, MessageOf<RunnableApplication<Model, F, Cases, Resources>>> => {
+): Mounted<
+  Model,
+  MessageOf<RunnableApplication<Model, F, Cases, Resources>>,
+  Schema.Struct.Type<Fields>
+> => {
   // Foldkit reports a missing id only inside the runtime fiber, where nothing
   // renders and nothing is thrown; fail here instead.
   if (options.container.id === '')
@@ -282,6 +294,11 @@ export const mount = <
       messageListeners.add(listener)
       return () => messageListeners.delete(listener)
     },
+    committed: Projection.fromReader(
+      sync.projection.schema,
+      () => Effect.runSync(replica.committed),
+      { dependencies: sync.projection.dependencies },
+    ),
     dispose: async () => {
       await Promise.all([...inFlight])
       handle.dispose()

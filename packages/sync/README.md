@@ -181,6 +181,21 @@ runtime applies, which a capability with a `completion` contract needs. See
 [docs/sync-runtime-binding.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md) for what the
 mount guarantees and why no Foldkit change is required.
 
+The Model shows a durable edit at once, before the server has it. An agent that
+must not report success until the server commits the edit waits on
+`mounted.committed` instead, the shared slice as confirmed:
+
+```ts
+completion: Agent.when({
+  projection: mounted.committed,
+  predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+})
+```
+
+It completes after the exchange that commits the edit, and never for one the
+server rejects. The agent learns nothing about cursors or operations. It reads
+the replica rather than the Model it is handed, so use it to wait, not to render.
+
 ### Fragments
 
 A large application declares one fragment per feature and composes them. `App`

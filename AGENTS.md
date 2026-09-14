@@ -238,6 +238,11 @@ installed `.d.ts` before reaching for a remembered API.
   test per guard.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
+- **A wait is only tested where something re-evaluates it.** The Agent + Sync
+  test asserted "still pending before the exchange" and passed with the
+  committed view reading the optimistic value: nothing notified between persist
+  and exchange, so the wrong read was never evaluated. Force a transition
+  between the two states the test tells apart.
 
 **Tooling**
 

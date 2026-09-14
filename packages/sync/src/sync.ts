@@ -125,11 +125,19 @@ export interface ReplicaStatus {
 export interface ReplicaSnapshot<Shared> {
   readonly status: ReplicaStatus
   readonly shared: Shared
+  /** The server-confirmed state the optimistic `shared` is built on. */
+  readonly committed: Shared
 }
 
 export interface Replica<Message, Shared> {
   /** The optimistic projection: committed state with pending operations replayed. */
   readonly shared: Effect.Effect<Shared>
+  /**
+   * The server-confirmed state through `cursor`, with no pending operation
+   * applied. A pending edit reaches it only once the server commits it, and a
+   * rejected one never does.
+   */
+  readonly committed: Effect.Effect<Shared>
   readonly pending: Effect.Effect<ReadonlyArray<Operation>>
   readonly cursor: Effect.Effect<Sequence>
   /**
@@ -428,6 +436,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
             rejected: yield* Ref.get(rejectedOps),
           },
           shared: projected,
+          committed: current.committed,
         }
       })()
       const shared = Effect.map(snapshot, value => value.shared)
@@ -634,6 +643,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
 
       return {
         shared,
+        committed: Effect.map(SynchronizedRef.get(stateRef), state => state.committed),
         pending: Effect.map(SynchronizedRef.get(stateRef), state => state.pending),
         cursor: Effect.map(SynchronizedRef.get(stateRef), state => state.cursor),
         status,
