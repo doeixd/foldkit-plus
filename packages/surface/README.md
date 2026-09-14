@@ -75,6 +75,133 @@ reads purely (`Surface.read(TodoList, model)`), binds a renderer
 `foldkit-agent` derive their work from. `Projection.pick(App.fields.todos)` is
 a writable projection of the same field for a replicator.
 
+## How this relates to Optics and Submodels
+
+Surface sits near two existing ideas in Effect and Foldkit, so the overlap is
+intentional. They operate at different levels:
+
+| Concept | What it answers |
+| --- | --- |
+| **Effect Optic** | "How do I focus, read, or replace this value inside another value?" |
+| **`ModelRef` / `Projection`** | "What application data is this focus or derived value made from?" |
+| **Surface** | "What may this feature observe, and which application Messages may it cause?" |
+| **Foldkit Submodel** | "Which state machine owns this state and these transitions?" |
+
+A useful shorthand is:
+
+```text
+Optic       = structural focus
+Surface     = observation + capability contract
+Submodel    = state-machine ownership boundary
+```
+
+They compose; none replaces the others.
+
+### Surface builds on Optics rather than replacing them
+
+Every generated `ModelRef` contains an Effect `Optic.Optional` underneath it.
+The optic supplies the structural focus. Surface enriches that focus with the
+information the rest of an application architecture needs:
+
+```text
+Effect Optic
+   + Schema
+   + dependency path
+   + application identity
+   + get / set
+        ↓
+     ModelRef
+        ↓
+     Projection
+   + remote requirements
+   + connection requirements
+        ↓
+      Surface
+   + name / params
+   + allowed Messages
+```
+
+For example, `App.fields.todos` is not an alternative to an optic. It is an
+optic-backed reference that also knows that the value is the `todos` field of
+*this* application, how it is encoded, and that a consumer depending on it
+depends on the `todos` Model path. `ModelRef.fromOptic` is the escape hatch when
+you already have an optic and want to add that metadata yourself.
+
+That extra metadata is the reason Surface exists. An optic can focus
+`model.todos`; by itself it cannot tell `foldkit-sync` that `todos` is the slice
+to replicate, `Module` that another contract claims the same path, or
+`foldkit-remote` that a derived projection carries server requirements.
+
+A `Projection` also need not correspond to one structural focus. It can combine
+several refs or derived values into one read model while preserving the
+dependencies and requirements of every part.
+
+### Surface is not a Submodel
+
+A [Foldkit Submodel](https://foldkit.dev/core/submodel) is for a part of the
+application that **owns a state machine**. It has its own Model, Message, update,
+view, and Commands. The parent stores the child Model, routes child Messages,
+and delegates transitions to the child's update.
+
+A Surface owns none of those things. It has no private state, no child update,
+no runtime boundary, no Message wrapping, and no Command lifting. It describes
+a restricted interface to state and Messages that already belong to an
+application.
+
+```text
+Submodel
+  "This child owns how this state changes."
+
+Surface
+  "This feature may see these values and cause these Messages."
+```
+
+That distinction matters even though both can look like "a smaller Model plus a
+smaller Message type". With a Submodel, the smaller Model and Message union are
+the child's actual state machine. With a Surface, they are a projection and a
+capability boundary over the existing application state machine; `update`
+remains the owner of the transitions.
+
+They are useful together. A parent Model may contain a child Submodel Model, and
+a Surface may project some of that data along with other parent-owned fields:
+
+```text
+Root Model
+├── route                         parent-owned
+├── settings: Settings.Model      Settings Submodel owns transitions
+└── remote                        Remote Submodel / cache
+
+SettingsPage Surface
+├── observes route
+├── observes settings.theme
+└── may cause selected root Messages
+```
+
+The Surface does **not** weaken the Submodel boundary. Reading a child-owned
+field through a `ModelRef` does not grant permission to mutate it directly. If a
+Submodel owns that state, application transitions should still go through the
+child's update (`Update.foldChild`, exported helpers, or the normal wrapped
+Message path). `FieldRef.set` and writable `Projection`s exist so infrastructure
+such as replication or mirroring can install declared slices; they are not an
+ownership model.
+
+Likewise, Surface does not replace `h.submodel`: `h.submodel` creates the runtime
+child boundary and routes child Messages. A Surface is pure data that other
+interpreters and tooling can inspect without starting that runtime.
+
+### Which one should I reach for?
+
+- **You need to focus or update nested immutable data:** start with an Effect
+  Optic; use `ModelRef.fromOptic` if that focus must participate in Surface
+  metadata.
+- **A feature needs its own state, Message vocabulary, update logic, Commands,
+  or reusable stateful lifecycle:** use a Foldkit Submodel.
+- **Something needs an inspectable declaration of what existing application
+  state a feature reads or which existing Messages it may cause:** use a
+  Surface.
+- **You need both:** keep ownership in the Submodel and describe the relevant
+  observation/capability boundary with Surface.
+
 ## Field references
 
 `Surface.application` generates a reference tree from the Model Schema, one node
