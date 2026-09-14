@@ -81,7 +81,7 @@ Start with the same Entity the client selects:
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, RemoteRpc } from 'foldkit-remote'
+import { Entity, Remote, RemoteRpc } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 
 const Project = Entity.make(
@@ -430,15 +430,21 @@ const Server = RemoteServer.make({
 })
 ```
 
-When you also have the Remote domain descriptor, validate the names at startup:
+When the client and server share the Remote domain declaration, validate the
+Source names at startup:
 
 ```ts
+const Data = Remote.define({
+  entities: [Project, User],
+  queries: [ProjectsByOwner],
+  mutations: [RenameProject],
+})
+
 RemoteServer.validate(Data, Server)
 ```
 
 That catches an Entity, Query, or Mutation Source whose name is not declared by
-the client/server Remote domain instead of letting it silently answer nothing at
-runtime.
+the shared domain instead of letting it silently answer nothing at runtime.
 
 Then compile once per authenticated principal:
 
