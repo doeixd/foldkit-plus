@@ -161,7 +161,7 @@ describe('Remote.observe policies', () => {
     expect(messages).toEqual([])
 
     const first = await collect(RemotePolicy.cacheFirst, emptyStore)
-    expect(first.messages.map(message => message._tag)).toEqual(['ReadReceived'])
+    expect(first.messages.map(message => message._tag)).toEqual(['ReadStarted', 'ReadReceived'])
   })
 
   it('stale-while-revalidate refetches an expired entry behind RefreshStarted', async () => {
@@ -173,6 +173,7 @@ describe('Remote.observe policies', () => {
     const expired = await collect(policy, known, () => 500)
     expect(expired.dependencies.requirements).toEqual([requirement])
     expect(expired.messages.map(message => message._tag)).toEqual([
+      'ReadStarted',
       'RefreshStarted',
       'ReadReceived',
     ])
@@ -182,7 +183,11 @@ describe('Remote.observe policies', () => {
   it('network-only plans every field even when the Surface is known', async () => {
     const { dependencies, messages } = await collect(RemotePolicy.networkOnly)
     expect(dependencies.requirements).toEqual([requirement])
-    expect(messages.map(message => message._tag)).toEqual(['RefreshStarted', 'ReadReceived'])
+    expect(messages.map(message => message._tag)).toEqual([
+      'ReadStarted',
+      'RefreshStarted',
+      'ReadReceived',
+    ])
   })
 
   it('reads Refreshing between RefreshStarted and ReadReceived, then Ready', async () => {
@@ -190,12 +195,18 @@ describe('Remote.observe policies', () => {
     const projection = Remote.select(AppRemote, UserSummary)('u1')
     let model = { ...initialRemoteModel, entities: known }
     expect(projection.read({ remote: model })._tag).toBe('Ready')
-    model = updateRemote(model, messages[0]!)
+    model = updateRemote(
+      model,
+      messages.find(message => message._tag === 'RefreshStarted')!,
+    )
     expect(projection.read({ remote: model })).toEqual({
       _tag: 'Refreshing',
       value: { id: 'u1', name: 'ada' },
     })
-    model = updateRemote(model, messages[1]!)
+    model = updateRemote(
+      model,
+      messages.find(message => message._tag === 'ReadReceived')!,
+    )
     expect(projection.read({ remote: model })).toEqual({
       _tag: 'Ready',
       value: { id: 'u1', name: 'grace' },
@@ -204,7 +215,7 @@ describe('Remote.observe policies', () => {
 
   it('stamps ReadReceived with the injected clock', async () => {
     const { messages } = await collect(RemotePolicy.networkOnly, known, () => 4242)
-    const received = messages[1]
+    const received = messages.find(message => message._tag === 'ReadReceived')
     expect(received?._tag === 'ReadReceived' && received.now).toBe(4242)
   })
 

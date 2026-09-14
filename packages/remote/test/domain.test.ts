@@ -367,7 +367,7 @@ describe('Data.live and Data.subscriptions', () => {
         Effect.provide(client()),
       ),
     )
-    expect(messages.map(message => message._tag)).toEqual(['ReadReceived'])
+    expect(messages.map(message => message._tag)).toEqual(['ReadStarted', 'ReadReceived'])
     const loaded = messages.reduce(Data.reduce, at('p7'))
     expect(Data.get(summary, 'p7').read(loaded)).toEqual({
       _tag: 'Ready',
@@ -815,7 +815,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(client.layer),
       ),
     )
-    expect(reads.map(message => message._tag)).toEqual(['ReadReceived'])
+    expect(reads.map(message => message._tag)).toEqual(['ReadStarted', 'ReadReceived'])
     expect(client.reads).toEqual([['p1', 'p2']])
     const loaded = reads.reduce(Data.reduce, paged)
     expect(projects.read(loaded)).toEqual({
@@ -850,7 +850,11 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(paging(['p1']).layer),
       ),
     )
-    expect(refetch.map(message => message._tag)).toEqual(['RefreshStarted', 'ReadReceived'])
+    expect(refetch.map(message => message._tag)).toEqual([
+      'ReadStarted',
+      'RefreshStarted',
+      'ReadReceived',
+    ])
   })
 
   it('a connection invalidated before it was ever loaded still reads Initial', () => {

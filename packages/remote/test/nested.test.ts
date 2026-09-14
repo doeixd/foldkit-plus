@@ -417,8 +417,9 @@ describe('observe resolves a graph in one read', () => {
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(dependencies)).pipe(Effect.provide(Client)),
     )
-    const received = [...messages][0] as RemoteMessage
-    expect(received._tag).toBe('ReadReceived')
+    const emitted = [...messages] as ReadonlyArray<RemoteMessage>
+    expect(emitted.map(message => message._tag)).toEqual(['ReadStarted', 'ReadReceived'])
+    const received = emitted.find(message => message._tag === 'ReadReceived')!
     const model = Data.update(initialRemoteModel, received)
     expect(calls).toHaveLength(1)
     expect(Object.keys(model.entities).sort()).toEqual([

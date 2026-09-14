@@ -9,7 +9,7 @@ describe('foldkit-remote example', () => {
     expect(lines).toContain('before fetch: Initial')
     expect(lines).toContain('after fetch: Ready {"id":"p1","name":"Apollo","status":"active"}')
     expect(lines).toContain(
-      'stale-while-revalidate: RefreshStarted, ReadReceived; Refreshing {"id":"p1","name":"Apollo","status":"active"} -> Ready {"id":"p1","name":"Apollo","status":"active"}',
+      'stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {"id":"p1","name":"Apollo","status":"active"} -> Ready {"id":"p1","name":"Apollo","status":"active"}',
     )
     expect(lines).toContain('query page: Ready p1 Apollo; next page: none')
     expect(lines).toContain('inspect: 1 entities, 1 connection, 1 registered queries')

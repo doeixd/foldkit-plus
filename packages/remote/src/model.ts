@@ -63,6 +63,13 @@ export interface RemoteModel {
   readonly mutations: MutationState
   /** Streams whose live cursor fell behind; the caller should resync or refetch. */
   readonly gaps: ReadonlySet<string>
+  /**
+   * The `entity\0id\0field` marks a read is currently fetching. A field absent
+   * from the store reads as `Loading` while its mark is here and `Initial`
+   * otherwise, which is what separates "being fetched" from "nothing is
+   * fetching this".
+   */
+  readonly loading: ReadonlySet<string>
 }
 
 export const initialRemoteModel: RemoteModel = {
@@ -72,6 +79,7 @@ export const initialRemoteModel: RemoteModel = {
   live: {},
   mutations: emptyMutationState,
   gaps: new Set(),
+  loading: new Set(),
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -85,6 +93,7 @@ export const remoteModelSchema = (): Schema.Schema<RemoteModel> =>
     live: Schema.Record(Schema.String, runtimeSchema),
     mutations: runtimeSchema,
     gaps: runtimeSchema,
+    loading: runtimeSchema,
   }) as unknown as Schema.Schema<RemoteModel>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -102,6 +111,8 @@ export type RemoteMessage =
     }
   /** A refetch of present fields began; they read as `Refreshing` until it lands. */
   | { readonly _tag: 'RefreshStarted'; readonly requests: readonly Requirement[] }
+  /** A read began; the fields it asks for that the store lacks read as `Loading`. */
+  | { readonly _tag: 'ReadStarted'; readonly requests: readonly Requirement[] }
   /** The active Surfaces' roots changed; everything they do not reach is collected. */
   | { readonly _tag: 'RetentionChanged'; readonly roots: RetentionRoots }
   /** A restored snapshot meets the store; runtime state is untouched. */
@@ -159,6 +170,7 @@ export const remoteMessageCases = {
   },
   ReadFailed: { requests: Schema.Array(ReadRequest), error: remoteErrorSchema },
   RefreshStarted: { requests: Schema.Array(ReadRequest) },
+  ReadStarted: { requests: Schema.Array(ReadRequest) },
   RetentionChanged: { roots: retentionRootsSchema },
   Hydrated: {
     entities: runtimeSchema,
@@ -224,6 +236,54 @@ const marksOf = (
 ): ReadonlyArray<readonly [string, ReadonlyArray<string>]> =>
   requests.map(request => [entityKey(request.entity, request.id), request.fields] as const)
 
+/**
+ * One mark per requested field. A read is identified by what it asks for, not by
+ * a request id: two reads asking for one field share its mark, so the first
+ * answer clears it. Over-clearing shows `Initial` rather than a spinner, which
+ * is the safer way to be wrong.
+ */
+const loadingMarks = function* (requests: ReadonlyArray<Requirement>): Generator<string> {
+  for (const request of requests) {
+    const key = entityKey(request.entity, request.id)
+    for (const field of request.fields) yield `${key}\u0000${field}`
+  }
+}
+
+const withLoading = (
+  loading: ReadonlySet<string>,
+  requests: ReadonlyArray<Requirement>,
+): ReadonlySet<string> => {
+  const next = new Set(loading)
+  for (const mark of loadingMarks(requests)) next.add(mark)
+  return next
+}
+
+const withoutLoading = (
+  loading: ReadonlySet<string>,
+  requests: ReadonlyArray<Requirement>,
+): ReadonlySet<string> => {
+  if (loading.size === 0) return loading
+  const next = new Set(loading)
+  for (const mark of loadingMarks(requests)) next.delete(mark)
+  return next
+}
+
+/**
+ * Whether a read is fetching any of `fields` for this entity. Consulted only
+ * when the store lacks the value, which is what separates `Loading` from
+ * `Initial`.
+ */
+export const isLoading = (
+  model: RemoteModel,
+  entity: string,
+  id: string,
+  fields: ReadonlyArray<string>,
+): boolean => {
+  if (model.loading.size === 0) return false
+  const key = entityKey(entity, id)
+  return fields.some(field => model.loading.has(`${key}\u0000${field}`))
+}
+
 const setConnectionStale = (
   connections: Readonly<Record<string, Connection>>,
   connection: string,
@@ -252,10 +312,16 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return {
         ...model,
         entities: writeRead(model.entities, message.requests, message.result, message.now),
+        loading: withoutLoading(model.loading, message.requests),
       }
     case 'ReadFailed':
-      // The refresh is over; the fields read as they did before it started.
-      return { ...model, entities: setStale(model.entities, marksOf(message.requests), false) }
+      // The read is over; the fields read as they did before it started. A field
+      // it never delivered goes back to `Initial`, not a spinner that never ends.
+      return {
+        ...model,
+        entities: setStale(model.entities, marksOf(message.requests), false),
+        loading: withoutLoading(model.loading, message.requests),
+      }
     case 'RetentionChanged':
       return { ...model, ...gc(model, message.roots) }
     case 'Hydrated':
@@ -265,6 +331,8 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       }
     case 'RefreshStarted':
       return { ...model, entities: setStale(model.entities, marksOf(message.requests), true) }
+    case 'ReadStarted':
+      return { ...model, loading: withLoading(model.loading, message.requests) }
     case 'MutationStarted':
       return {
         ...model,

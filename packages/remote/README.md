@@ -148,16 +148,20 @@ The Surface's Model is `{ project: RemoteData<ProjectSummary>; projects:
 RemoteData<Page<ProjectSummary>> }`, read purely from the Model, no I/O. Every
 remote value is a `RemoteData`:
 
-- `Initial` — some selected field is not present yet,
-- `Loading` — carried in the union for a caller that builds its own
-  `RemoteData`; this package's readers never produce it,
+- `Initial` — a selected field is not present, and **nothing is fetching it**,
+- `Loading` — not present, and a read is in flight,
 - `Ready` — present,
 - `Refreshing` — present, and being refetched (the value stays visible),
 - `Failed` — the stored value did not decode against the selection,
 - `NotFound` — the entity is a tombstone.
 
-`RemoteData.match` is exhaustive — omitting a case, `Loading` included, is a
-compile error. `Data.get` reads once and refreshes by policy; `Data.live` also
+`Loading` is the absent-value twin of `Refreshing`: both mean a read is in
+flight. The distinction from `Initial` is worth rendering differently, because
+nothing fetches a projection no active Surface observes. Such a projection reads
+`Initial` forever, and showing a spinner for it hides the wiring mistake, while
+`Loading` is the state where waiting is the right thing to do.
+
+`RemoteData.match` is exhaustive — omitting a case is a compile error. `Data.get` reads once and refreshes by policy; `Data.live` also
 follows the entity's changes; `Data.query` reads a connection as a `Page` of
 selected items, `Initial` until the page and every item's fields are present.
 
