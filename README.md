@@ -235,11 +235,11 @@ lists every package's version.
 ## Examples
 
 - [`examples/todo-app`](./examples/todo-app) — **start here.** A local-first,
-  agent-ready todo list that uses every package and explains each choice: a
-  SQLite journal, two browser tabs converging, owner-only rules, WebMCP tools,
-  a linkable filter, and a styled view. `pnpm dev` runs it in a browser.
-- [`examples/kitchen-sink`](./examples/kitchen-sink) — every package in one
-  in-process transcript, no server and no browser.
+  agent-ready todo list that explains each choice: a SQLite journal, two
+  browser tabs converging, owner-only rules, WebMCP tools, a linkable filter,
+  and a styled view. `pnpm dev` runs it in a browser.
+- [`examples/kitchen-sink`](./examples/kitchen-sink) — every package but the
+  mirror in one in-process transcript, no server and no browser.
 - [`examples/todo`](./examples/todo) — `foldkit-agent` alone, with a hand-written
   host.
 - [`examples/sync`](./examples/sync), [`examples/remote`](./examples/remote),
@@ -297,8 +297,8 @@ packages/mirror           foldkit-mirror
 packages/mixins           foldkit-mixins
 packages/mixins-surface   foldkit-mixins-surface
 packages/mixins-ui        foldkit-mixins-ui
-examples/todo-app         the todo app: every package in one local-first, agent-ready application
-examples/kitchen-sink     every package wired in-process, as a deterministic transcript
+examples/todo-app         the todo app: a local-first, agent-ready application
+examples/kitchen-sink     fourteen packages wired in-process, as a deterministic transcript
 examples/todo             foldkit-agent, driven by a human and by an agent over WebMCP
 examples/sync             durable messages and ordered replication
 examples/remote           normalized server state, end to end

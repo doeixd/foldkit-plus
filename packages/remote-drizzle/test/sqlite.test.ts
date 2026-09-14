@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module'
+import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -15,10 +15,6 @@ import {
   source,
   type AnyEntityBinding,
 } from '../src/index.js'
-
-// Vite rewrites a static `node:sqlite` import to `sqlite`; load it at the boundary.
-const require_ = createRequire(import.meta.url)
-const { DatabaseSync } = require_('node:sqlite') as typeof import('node:sqlite')
 
 const users = sqliteTable('users', {
   id: text('id').primaryKey(),

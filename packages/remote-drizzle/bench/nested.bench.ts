@@ -1,12 +1,9 @@
-import { createRequire } from 'node:module'
+import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
 import { bench, describe } from 'vitest'
 import { databaseLayer, entity, many, source } from '../src/index.js'
-
-const require_ = createRequire(import.meta.url)
-const { DatabaseSync } = require_('node:sqlite') as typeof import('node:sqlite')
 
 const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),

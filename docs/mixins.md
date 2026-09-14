@@ -108,10 +108,12 @@ mistake fails loudly instead of producing a subtly wrong element.
 consumer seam — Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip,
 Slider, Tabs, RadioGroup, Calendar, and more — and resolves mixins around them.
 
-It does **not** adapt every component. `Menu`, `Listbox`, `ComboBox` and
-`DatePicker` build their whole element tree internally and expose no
-`toView`/attribute bundles, so there is nothing to attach to. That is a boundary
-of the component API, not of the mixin model.
+It does **not** adapt every component, for two different reasons. `Menu`,
+`Listbox`, `ComboBox` and `DatePicker` build their whole element tree internally
+and expose no `toView`/attribute bundles, so there is nothing to attach to —
+a boundary of the component API, not of the mixin model. `Toast`, `FileDrop`,
+`VirtualList`, `DragAndDrop`, `Anchor`, `HoverIntent` and `Animation` are simply
+not adapted yet; `FileDrop` exposes a `toView` seam, so it could be.
 
 ## See the trace
 

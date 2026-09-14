@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module'
+import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
@@ -14,9 +14,6 @@ import {
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { databaseLayer, entity, many, one, source } from '../src/index.js'
-
-const require_ = createRequire(import.meta.url)
-const { DatabaseSync } = require_('node:sqlite') as typeof import('node:sqlite')
 
 const users = sqliteTable('users', {
   id: text('id').primaryKey(),
