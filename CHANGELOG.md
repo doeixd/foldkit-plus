@@ -28,6 +28,20 @@ version changed; `pnpm` skips versions already in the registry.
   entries, not only Remote's. `SurfaceView.describe` follows.
 - `foldkit-remote-server` no longer depends on `foldkit-surface`.
 
+### `foldkit-agent`
+
+- **`Agent.when({ projection, predicate })` completes on state.** A Message
+  contract couples a capability to one implementation path; a state contract
+  completes when the application satisfies the condition, whatever made it so.
+  `predicate` is typed from the projection and the capability input. Waiting
+  subscribes before dispatch and checks again when it starts, so neither a
+  synchronous `update` nor an already-true state is missed; a throwing predicate
+  fails the invocation as a defect. `bind` requires `host.subscribe` for it.
+- `DispatchResult.completion.message` and `CompletionOutcome.message` are now
+  optional: a state completion has no completing Message. Code that read
+  `completion.message._tag` unconditionally needs `?.`. The manifest records a
+  state completion as `{ state: { observes } }`.
+
 ## 0.4.1
 
 `foldkit-durable` and `foldkit-sync` take a minor for new, additive API. No other

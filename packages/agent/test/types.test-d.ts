@@ -10,6 +10,49 @@ import { type Model, Message, Model as ModelSchema } from './todoApp.js'
 
 const TodoAgent = Agent.forModel<Model>()
 
+// A state completion types `predicate` from the projection and the capability input.
+const TodoList = Projection.of(ModelSchema)({ todos: true })
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: TodoList,
+      predicate: (value, request) => value.todos.every(todo => todo.id !== request.id),
+    }),
+  },
+})
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: TodoList,
+      // @ts-expect-error the capability input has `id`, not `todoId`.
+      predicate: (_value, request) => request.todoId === '',
+    }),
+  },
+})
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: TodoList,
+      // @ts-expect-error the projection reads `todos`, not `items`.
+      predicate: value => value.items.length === 0,
+    }),
+  },
+})
+
+Agent.expose(Message, {
+  // @ts-expect-error a state completion is built with Agent.when, which tags it.
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: { projection: TodoList, predicate: () => true },
+  },
+})
+
 // A tag that is not part of the union is rejected.
 Agent.expose(Message, {
   // @ts-expect-error NotAMessage is not a variant of this Message union.

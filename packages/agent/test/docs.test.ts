@@ -60,6 +60,29 @@ describe('Agent.toManifest', () => {
     })
   })
 
+  it('records a state completion by the Model paths it reads', () => {
+    const StateAgent = Agent.make({
+      messages: Agent.expose(MessageUnion, {
+        RequestedCreateTodo: {
+          description: 'Create a todo',
+          completion: Agent.when({
+            projection: Projection.fromReader(ModelSchema, (model: Model) => model, {
+              dependencies: [['todos'], ['selectedTodoId']],
+            }),
+            predicate: () => true,
+          }),
+        },
+      }),
+    })
+
+    expect(Agent.toManifest(StateAgent).capabilities[0]?.completion).toEqual({
+      state: { observes: ['todos', 'selectedTodoId'] },
+    })
+    expect(Agent.toMarkdown(StateAgent)).toContain(
+      'Completes when application state (`todos`, `selectedTodoId`) satisfies its condition.',
+    )
+  })
+
   it('omits completion where none is declared', () => {
     const create = Agent.toManifest(AppAgent).capabilities.find(
       c => c.name === 'requested_create_todo',

@@ -12,7 +12,7 @@ import {
 import type { AnyCapabilitiesByName, AnyCapabilitiesByTag, ExposedVariant } from './expose.js'
 import { resolveInvocation } from './invocation.js'
 import type { AuditDecision, AuditSink } from './audit.js'
-import { awaitCompletion } from './completion.js'
+import { awaitCompletion, awaitState, type CompiledCompletion } from './completion.js'
 import { messageTag } from './tag.js'
 import type {
   AnyMessage,
@@ -292,16 +292,24 @@ export const bind = <
 
   // A contract that cannot be honoured is refused here rather than at the first
   // call, where it would look like an application bug.
-  const needsObserve = definition.messages.variants.filter(
-    variant => variant.compiledCompletion !== undefined,
-  )
-  if (needsObserve.length > 0 && host.observe === undefined) {
-    throw new Error(
-      `This host cannot observe Messages, which ${needsObserve
-        .map(variant => `"${variant.name}"`)
-        .join(', ')} needs to report completion. Supply host.observe.`,
+  const requireSeam = (
+    kind: CompiledCompletion['_tag'],
+    seam: 'observe' | 'subscribe',
+    ability: string,
+  ): void => {
+    const needing = definition.messages.variants.filter(
+      variant => variant.compiledCompletion?._tag === kind,
     )
+    if (needing.length > 0 && host[seam] === undefined) {
+      throw new Error(
+        `This host cannot ${ability}, which ${needing
+          .map(variant => `"${variant.name}"`)
+          .join(', ')} needs to report completion. Supply host.${seam}.`,
+      )
+    }
   }
+  requireSeam('Message', 'observe', 'observe Messages')
+  requireSeam('State', 'subscribe', 'subscribe to Model changes')
 
   const descriptors = describeMessages(definition)
   const descriptorByName = new Map(
@@ -388,18 +396,29 @@ export const bind = <
       const message = variant.construct(decoded, context)
 
       // Subscribed before dispatching: `update` can produce the completing
-      // Message synchronously, and a waiter that started afterwards would miss
-      // it and then sit until its timeout.
+      // Message or state synchronously, and a waiter that started afterwards
+      // would miss it and then sit until its timeout. `bind` refused a host
+      // lacking the seam a contract needs, so both are present here.
+      const compiled = variant.compiledCompletion
       const waiter =
-        variant.compiledCompletion === undefined || host.observe === undefined
+        compiled === undefined
           ? undefined
-          : awaitCompletion({
-              completion: variant.compiledCompletion,
-              capability: name,
-              input: decoded,
-              invocation,
-              observe: host.observe,
-            })
+          : compiled._tag === 'State'
+            ? awaitState({
+                completion: compiled,
+                capability: name,
+                input: decoded,
+                invocation,
+                model: host.model,
+                subscribe: host.subscribe!,
+              })
+            : awaitCompletion({
+                completion: compiled,
+                capability: name,
+                input: decoded,
+                invocation,
+                observe: host.observe!,
+              })
 
       // Inside `suspend` so a host that throws synchronously fails the Effect
       // rather than the generator: a JS `try` around `yield*` would not see a

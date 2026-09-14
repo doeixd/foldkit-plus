@@ -1,4 +1,5 @@
 import type { Definition } from './make.js'
+import { isStateCompletion } from './completion.js'
 import { contextSchema, messages, resources } from './introspect.js'
 import { messageTags } from './tag.js'
 
@@ -16,10 +17,13 @@ export interface Manifest {
     readonly inputSchema: Record<string, unknown>
     readonly modelDependent: boolean
     readonly requiresAuthorization: boolean
-    readonly completion?: {
-      readonly success: ReadonlyArray<string>
-      readonly failure?: ReadonlyArray<string>
-    }
+    readonly completion?:
+      | {
+          readonly success: ReadonlyArray<string>
+          readonly failure?: ReadonlyArray<string>
+        }
+      /** Completes on application state; `observes` are the Model paths it reads. */
+      | { readonly state: { readonly observes: ReadonlyArray<string> } }
   }>
   readonly resources: ReadonlyArray<{
     readonly name: string
@@ -53,12 +57,18 @@ export const toManifest = (definition: Definition<any, any, any, any, any>): Man
         ...(completion === undefined
           ? {}
           : {
-              completion: {
-                success: messageTags(completion.success),
-                ...(completion.failure === undefined
-                  ? {}
-                  : { failure: messageTags(completion.failure) }),
-              },
+              completion: isStateCompletion(completion)
+                ? {
+                    state: {
+                      observes: completion.projection.dependencies.map(path => path.join('.')),
+                    },
+                  }
+                : {
+                    success: messageTags(completion.success),
+                    ...(completion.failure === undefined
+                      ? {}
+                      : { failure: messageTags(completion.failure) }),
+                  },
             }),
       }
     }),
@@ -117,13 +127,22 @@ export const toMarkdown = (definition: Definition<any, any, any, any, any>): str
         lines.push('Runs an authorization check before dispatching.', '')
       }
       lines.push('Input:', '', jsonBlock(capability.inputSchema), '')
-      if (capability.completion !== undefined) {
-        const success = capability.completion.success.join(', ')
-        const failure = capability.completion.failure?.join(', ')
-        lines.push(
-          `Completes on \`${success}\`${failure === undefined ? '' : `, fails on \`${failure}\``}.`,
-          '',
-        )
+      const completion = capability.completion
+      if (completion !== undefined) {
+        if ('state' in completion) {
+          const observes = completion.state.observes.map(path => `\`${path}\``).join(', ')
+          lines.push(
+            `Completes when application state${observes === '' ? '' : ` (${observes})`} satisfies its condition.`,
+            '',
+          )
+        } else {
+          const success = completion.success.join(', ')
+          const failure = completion.failure?.join(', ')
+          lines.push(
+            `Completes on \`${success}\`${failure === undefined ? '' : `, fails on \`${failure}\``}.`,
+            '',
+          )
+        }
       }
     }
   }

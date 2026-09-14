@@ -11,6 +11,7 @@ import type {
   AnyMessage,
   InvocationContext,
   MessageConstructor,
+  StateCompletion,
   VariantConfig,
 } from './types.js'
 
@@ -307,7 +308,8 @@ export const variant = <
     context: InvocationContext<Model, Principal>,
   ) => MessageInput
   readonly authorize?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['authorize']
-  readonly completion?: VariantCompletion<ExternalInput, Success, Failure> | undefined
+  readonly completion?:
+    VariantCompletion<ExternalInput, Success, Failure> | StateCompletion<ExternalInput> | undefined
 }): Omit<typeof config, 'name' | 'completion'> &
   // Erased on the way out: the contract was checked against this variant's own
   // input above, and `expose`'s constraint types `completion` for the inline

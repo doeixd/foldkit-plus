@@ -1,4 +1,5 @@
 import type { Duration, Effect, Schema } from 'effect'
+import type { Projection } from 'foldkit-surface'
 import type { AuthorizationError } from './errors.js'
 
 /** Any Foldkit Message: a tagged struct value. */
@@ -57,8 +58,20 @@ export interface Completion<
   readonly timeout?: Duration.Input | undefined
 }
 
+/**
+ * Completes an invocation when application state satisfies `predicate`,
+ * whichever Message, live update, or other actor made it true. Built with
+ * `Agent.when`, which types `predicate` from the projection and the capability.
+ */
+export interface StateCompletion<Request = unknown, Value = any> {
+  readonly _tag: 'StateCompletion'
+  readonly projection: Projection<any, Value>
+  readonly predicate: (value: Value, request: Request) => boolean
+  readonly timeout?: Duration.Input | undefined
+}
+
 /** A completion contract with its authoring types erased, as adapters see it. */
-export type AnyCompletion = Completion<any, AnyMessage, AnyMessage>
+export type AnyCompletion = Completion<any, AnyMessage, AnyMessage> | StateCompletion<any, any>
 
 /** Configuration for one exposed Message variant. */
 export interface VariantConfig<
@@ -94,9 +107,11 @@ export interface VariantConfig<
       ) => boolean | Effect.Effect<boolean, AuthorizationError>)
     | undefined
 
-  /** Optional completion contract. Dispatch then waits for a completing Message. */
+  /** Optional completion contract. Dispatch then waits for a completing Message or state. */
   readonly completion?:
-    Completion<CompletionRequest, CompletionSuccess, CompletionFailure> | undefined
+    | Completion<CompletionRequest, CompletionSuccess, CompletionFailure>
+    | StateCompletion<CompletionRequest>
+    | undefined
 }
 
 /**
@@ -147,6 +162,7 @@ export interface DispatchResult<Message extends AnyMessage = AnyMessage> {
    */
   readonly completion?: {
     readonly status: 'completed' | 'failed'
-    readonly message: AnyMessage
+    /** The completing Message; absent when application state completed the operation. */
+    readonly message?: AnyMessage | undefined
   }
 }

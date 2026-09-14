@@ -350,6 +350,32 @@ completion is pending.
 Give `correlate` whenever two invocations of a capability can be in flight at
 once. Without it the first matching Message wins, whichever invocation caused it.
 
+#### Completing on state
+
+A Message names one implementation path. When what matters is the outcome --
+the project now has the requested name, whether a Command result, a live update,
+a Sync exchange, or another device put it there -- complete on state instead:
+
+```ts
+RequestedRenameProject: {
+  description: 'Rename a project',
+  completion: Agent.when({
+    projection: ProjectName,
+    predicate: (name, request) => name === request.name,
+  }),
+}
+```
+
+`predicate` reads the projection's value and the capability's input, both
+inferred. The host needs `subscribe`, and `bind` refuses one without it.
+
+Completion is level-triggered: dispatch subscribes first and checks once more
+when it starts waiting, so a change made synchronously by `update`, or a state
+that already held, is never missed. The result carries `status: 'completed'`
+and no `message`. A predicate that throws fails that invocation as a defect and
+never the code that changed the Model. `timeout` and cancellation behave as they
+do for a Message contract.
+
 An invocation whose signal is already aborted is refused before the Model is
 read, and one aborted while decoding or `authorize` is pending never constructs
 or dispatches its Message. Both fail with `AgentCancelledError`.

@@ -1,8 +1,15 @@
-import { Duration, Effect } from 'effect'
+import { Cause, Duration, Effect } from 'effect'
+import { Projection } from 'foldkit-surface'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Agent } from '../src/index.js'
 import type { Completion, DispatchResult } from '../src/types.js'
-import { type Message, type Model, Message as MessageUnion, emptyModel } from './todoApp.js'
+import {
+  type Message,
+  type Model,
+  Message as MessageUnion,
+  Model as ModelSchema,
+  emptyModel,
+} from './todoApp.js'
 
 /**
  * A host that runs an `update` of the test's choosing and reports every Message
@@ -60,7 +67,7 @@ describe('completion tracking', () => {
     )
 
     expect(result.completion).toMatchObject({ status: 'completed' })
-    expect(result.completion?.message._tag).toBe('ReceivedTodos')
+    expect(result.completion?.message?._tag).toBe('ReceivedTodos')
   })
 
   it('catches a completion that update produces synchronously', async () => {
@@ -455,5 +462,191 @@ describe('summarize', () => {
     expect(
       Agent.summarize(result({ status: 'failed', message: { _tag: 'CreateFailed' } as never })),
     ).toEqual({ ok: false, text: 'Failed: CreateFailed' })
+  })
+
+  it('reports a completion that application state settled', () => {
+    expect(Agent.summarize(result({ status: 'completed' }))).toEqual({
+      ok: true,
+      text: 'Completed: RequestedCreateTodo reached its declared state',
+    })
+  })
+})
+
+describe('state completion', () => {
+  /** A host whose Model changes through `set`, notifying subscribers as a Runtime would. */
+  const makeStateHost = (update?: (message: Message, set: (model: Model) => void) => void) => {
+    let current = emptyModel
+    const listeners = new Set<() => void>()
+    const dispatched: Array<Message> = []
+    const set = (next: Model): void => {
+      current = next
+      for (const listener of [...listeners]) listener()
+    }
+    return {
+      dispatched,
+      listeners,
+      set,
+      /** Changes the Model without notifying anyone. */
+      replace: (next: Model): void => {
+        current = next
+      },
+      host: {
+        model: () => current,
+        dispatch: (message: Message) => {
+          dispatched.push(message)
+          update?.(message, set)
+        },
+        subscribe: (listener: () => void) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+      },
+    }
+  }
+
+  const Todos = Projection.of(ModelSchema)({ todos: true })
+  const withTitle = (title: string): Model => ({
+    ...emptyModel,
+    todos: [{ id: title, title, completed: false }],
+  })
+
+  const creating = (timeout: Duration.Input = Duration.seconds(30)) =>
+    Agent.make({
+      messages: Agent.expose(MessageUnion, {
+        RequestedCreateTodo: {
+          name: 'create_todo',
+          description: 'Create a todo',
+          completion: Agent.when({
+            projection: Todos,
+            predicate: (value, request) => value.todos.some(todo => todo.title === request.title),
+            timeout,
+          }),
+        },
+      }),
+    })
+
+  it('completes when update makes the state true, reporting no Message', async () => {
+    const state = makeStateHost((message, set) => {
+      if (message._tag === 'RequestedCreateTodo') set(withTitle(message.title))
+    })
+    const runtime = Agent.bind({ definition: creating(), host: state.host })
+
+    const result = await Effect.runPromise(
+      runtime.messages.dispatch('create_todo', { title: 'milk' }),
+    )
+
+    expect(result.completion).toEqual({ status: 'completed' })
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('completes when something else makes the state true later', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({ definition: creating(Duration.seconds(1)), host: state.host })
+
+    const pending = run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+    setTimeout(() => state.set(withTitle('bread')), 1)
+    setTimeout(() => state.set(withTitle('milk')), 5)
+    const result = await pending
+
+    expect(result._tag).toBe('Success')
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('completes when update changed the state without notifying', async () => {
+    const state = makeStateHost()
+    state.host.dispatch = (message: Message) => {
+      state.dispatched.push(message)
+      if (message._tag === 'RequestedCreateTodo') state.replace(withTitle(message.title))
+    }
+    const runtime = Agent.bind({ definition: creating(Duration.millis(50)), host: state.host })
+
+    const result = await run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+
+    expect(result._tag).toBe('Success')
+  })
+
+  it('completes at once when the state already holds', async () => {
+    const state = makeStateHost()
+    state.replace(withTitle('milk'))
+    const runtime = Agent.bind({ definition: creating(Duration.millis(50)), host: state.host })
+
+    const result = await run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+
+    expect(result._tag).toBe('Success')
+    expect(state.dispatched).toHaveLength(1)
+  })
+
+  it('times out when the state never arrives, without claiming anything was undone', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({ definition: creating(Duration.millis(20)), host: state.host })
+
+    const result = await run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+
+    expect((result as { failure: { _tag: string } }).failure._tag).toBe(
+      'AgentCompletionTimeoutError',
+    )
+    expect(state.dispatched).toHaveLength(1)
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('fails the invocation, not the host, when the predicate throws', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(MessageUnion, {
+          RequestedCreateTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            completion: Agent.when({
+              projection: Todos,
+              predicate: value => {
+                if (value.todos.length > 0) throw new Error('broken predicate')
+                return false
+              },
+            }),
+          },
+        }),
+      }),
+      host: state.host,
+    })
+
+    const pending = Effect.runPromiseExit(
+      runtime.messages.dispatch('create_todo', { title: 'milk' }),
+    )
+    await new Promise(resolve => setTimeout(resolve, 0))
+    // Whoever changes the Model must not receive the predicate's error.
+    expect(() => state.set(withTitle('milk'))).not.toThrow()
+    const exit = await pending
+
+    expect(exit._tag === 'Failure' && Cause.hasDies(exit.cause)).toBe(true)
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('releases its listener when the caller stops waiting', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({ definition: creating(), host: state.host })
+
+    await Effect.runPromiseExit(
+      Effect.timeout(
+        runtime.messages.dispatch('create_todo', { title: 'milk' }),
+        Duration.millis(20),
+      ),
+    )
+
+    expect(state.dispatched).toHaveLength(1)
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('is refused at bind when the host cannot subscribe, naming the capability', () => {
+    expect(() =>
+      Agent.bind({
+        definition: creating(),
+        host: { model: () => emptyModel, dispatch: (_: Message) => {} },
+      }),
+    ).toThrow(/cannot subscribe to Model changes, which "create_todo"/)
+  })
+
+  it('needs no Message observation', () => {
+    expect(() => Agent.bind({ definition: creating(), host: makeStateHost().host })).not.toThrow()
   })
 })
