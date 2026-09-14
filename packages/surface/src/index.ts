@@ -107,7 +107,7 @@ type RefNode<Root, S, Key extends string> =
           : Selectable<Root, A, Key, Encoded>
     : never
 
-type AnySchema = Schema.Schema<unknown>
+type AnySchema = Schema.Codec<unknown, unknown>
 
 /**
  * Names that belong to the ModelRef surface. A Struct field with one of these
@@ -365,7 +365,7 @@ export const Metadata = {
 }
 
 export interface Projection<Root, Value> {
-  readonly Model: Schema.Schema<Value>
+  readonly Model: Schema.Codec<Value, unknown>
   readonly dependencies: DependencyTree
   /** Interpreter-owned facts about this node and everything it composes. */
   readonly metadata: Metadata
@@ -386,7 +386,7 @@ export interface WritableProjection<Model, Fields extends Schema.Struct.Fields> 
 }
 
 function makeProjection<Value>(
-  Model: Schema.Schema<Value>,
+  Model: Schema.Codec<Value, unknown>,
   dependencies: DependencyTree,
   read: (root: unknown) => Value,
   metadata: Metadata = emptyMetadata,
@@ -546,7 +546,7 @@ export const Projection = {
    * `of`/`struct`/`select`; dependencies default to empty.
    */
   fromReader: <Root, Value>(
-    Model: Schema.Schema<Value>,
+    Model: Schema.Codec<Value, unknown>,
     read: (root: Root) => Value,
     options?: {
       readonly dependencies?: DependencyTree
@@ -666,11 +666,22 @@ export interface SurfaceInspection {
   readonly emits: readonly unknown[]
 }
 
+/**
+ * A Surface's params codec: present when the Surface declares params, absent
+ * when `Params` is `void`, and possibly either when `Params` is `any`/`unknown`
+ * so a params Surface still fits a `Surface<…, any>` position.
+ */
+export type ParamsSchema<Params> = unknown extends Params
+  ? Schema.Codec<Params, unknown> | undefined
+  : [Params] extends [void]
+    ? undefined
+    : Schema.Codec<Params, unknown>
+
 export interface Surface<Root, Model, Message, Params> {
   readonly name: string
   /** Identity token of the application this Surface belongs to. */
   readonly owner: object
-  readonly Params: Schema.Schema<Params> | undefined
+  readonly Params: ParamsSchema<Params>
   readonly Message: Schema.Schema<Message>
   readonly messages: readonly unknown[]
   readonly projection: (params: Params) => Projection<Root, Model>
@@ -881,7 +892,8 @@ const makeScope = <
     Message: config.Message,
     owner,
     model: makeTree(
-      config.Model,
+      // A generic `F` hides the Struct's services; a Foldkit Model is pure.
+      config.Model as unknown as AnySchema,
       [],
       Optic.id(),
       root => root,
@@ -1105,7 +1117,7 @@ export const Surface = {
     app: AppScope<Root, F, Cases>,
     name: string,
     config: {
-      readonly Params?: Schema.Schema<Params>
+      readonly Params?: Schema.Codec<Params, unknown>
       readonly model: (context: {
         readonly model: RefTree<Root, F>
         readonly params: Params
@@ -1120,7 +1132,8 @@ export const Surface = {
     return {
       name,
       owner: app.owner,
-      Params: config.Params,
+      // Present exactly when `Params` is not `void`, which `ParamsSchema` encodes.
+      Params: config.Params as ParamsSchema<Params>,
       Message: Schema.Never as unknown as Schema.Schema<MsgOf<Ms>>,
       messages: config.messages ?? [],
       projection,

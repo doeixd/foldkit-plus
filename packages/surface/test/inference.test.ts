@@ -129,10 +129,8 @@ describe('Surface runtime', () => {
   })
 
   it('treats an empty selection as a strict empty object', () => {
-    // `Projection.Model` is the narrow `Schema.Schema` view; decode at the test
-    // boundary needs the full codec.
-    const decode = (schema: Schema.Schema<unknown>, input: unknown) =>
-      Schema.decodeUnknownSync(schema as unknown as Schema.ConstraintDecoder<unknown>)(input)
+    const decode = (schema: Schema.Codec<unknown, unknown>, input: unknown) =>
+      Schema.decodeUnknownSync(schema)(input)
 
     const empty = Projection.of(UserSchema)({})
     expect(empty.read({ id: 'u1', name: 'ada' })).toEqual({})

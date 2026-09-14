@@ -36,9 +36,7 @@ export const resources = (
 export const contextSchema = (
   definition: Definition<any, any, any, any, any>,
 ): Record<string, unknown> | undefined =>
-  definition.context === undefined
-    ? undefined
-    : toJsonSchema(definition.context.Model as unknown as Schema.Codec<unknown>)
+  definition.context === undefined ? undefined : toJsonSchema(definition.context.Model)
 
 /**
  * The full, data-only description of an agent contract.

@@ -11,7 +11,7 @@ import {
 } from '../src/index.js'
 
 const needs = (...requirements: Requirement[]) =>
-  Projection.fromReader(Schema.Unknown as Schema.Schema<unknown>, (_root: unknown) => null, {
+  Projection.fromReader(Schema.Unknown, (_root: unknown) => null, {
     metadata: RemoteRequirements.of(...requirements),
   })
 

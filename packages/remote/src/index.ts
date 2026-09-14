@@ -1414,8 +1414,9 @@ const bindDomain = <
         ref,
       }
       return {
-        Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Schema<
-          RemoteData<Page<Value>>
+        Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Codec<
+          RemoteData<Page<Value>>,
+          unknown
         >,
         dependencies: [],
         metadata: RemoteConnections.of(requirement),

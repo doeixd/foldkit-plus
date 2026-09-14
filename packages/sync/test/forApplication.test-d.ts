@@ -133,3 +133,8 @@ WideSync.make({
   // @ts-expect-error the principal has no `owner`
   authorize: { CreatedTodo: ({ principal }) => principal.owner === 'x' },
 })
+
+// Declared rules make the journal contract's `authorize` present.
+const _guarded: (request: never) => boolean = Composed.journalContract().authorize
+// @ts-expect-error without rules, `authorize` may be absent
+const _open: (request: never) => boolean = TodoSync.journalContract().authorize

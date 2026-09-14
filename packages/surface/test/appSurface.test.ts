@@ -17,8 +17,8 @@ describe('App.surface lifts the mechanical wrappers', () => {
         count: model.count,
       }),
     })
-    expect(Schema.decodeUnknownSync(Page.Params as never)({ id: 'p1' })).toEqual({ id: 'p1' })
-    expect(() => Schema.decodeUnknownSync(Page.Params as never)({})).toThrow()
+    expect(Schema.decodeUnknownSync(Page.Params)({ id: 'p1' })).toEqual({ id: 'p1' })
+    expect(() => Schema.decodeUnknownSync(Page.Params)({})).toThrow()
     expect(Page.projection({ id: 'p1' }).read(root)).toEqual({ id: 'p1', count: 3 })
   })
 

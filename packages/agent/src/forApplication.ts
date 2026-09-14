@@ -45,9 +45,14 @@ const toProjection = <Model, R extends ReadableProjection<Model, any>>(
     ? readable.projection(undefined)
     : 'read' in readable
       ? readable
-      : Projection.fromReader(readable.schema, readable.get, {
-          dependencies: readable.dependencies,
-        })) as Projection<Model, ProjectionValue<R>>
+      : // `any` fields erase the Struct's services; a projection schema is pure.
+        Projection.fromReader(
+          readable.schema as unknown as Schema.Codec<unknown, unknown>,
+          readable.get,
+          {
+            dependencies: readable.dependencies,
+          },
+        )) as Projection<Model, ProjectionValue<R>>
 
 /**
  * `Agent.forApplication(App)` fixes the Model from a `Surface.application` and

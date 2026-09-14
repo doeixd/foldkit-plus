@@ -27,6 +27,6 @@ export const EntityNeeds = Metadata.key<EntityNeed>('remote-like', {
 })
 
 export const entity = (entity: string, id: string, fields: readonly string[]) =>
-  Projection.fromReader(Schema.Unknown as Schema.Schema<unknown>, (_root: unknown) => null, {
+  Projection.fromReader(Schema.Unknown, (_root: unknown) => null, {
     metadata: EntityNeeds.of({ entity, id, fields }),
   })
