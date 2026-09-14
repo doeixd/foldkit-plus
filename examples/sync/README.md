@@ -21,9 +21,9 @@ From the repository root:
 
 ```bash
 pnpm install && pnpm build
-pnpm --filter foldkit-agent-example-sync demo   # the command-line walkthrough
+pnpm --filter foldkit-example-sync demo   # the command-line walkthrough
 pnpm exec vitest run examples/sync/test         # the recovery catalogue
-pnpm --filter foldkit-agent-example-sync dev    # the browser page
+pnpm --filter foldkit-example-sync dev    # the browser page
 ```
 
 `demo` recovers an offline outbox, converges two replicas through a SQLite

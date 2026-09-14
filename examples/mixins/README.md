@@ -6,7 +6,7 @@ of the application's Messages, then styles and decorates it with a `SlotView`.
 
 ```bash
 pnpm install && pnpm build                  # from the repository root
-pnpm --filter foldkit-mixins-example demo
+pnpm --filter foldkit-example-mixins demo
 ```
 
 `src/demo.ts` is the only file to read. Its output is the point:

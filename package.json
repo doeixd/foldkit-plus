@@ -21,7 +21,7 @@
     "test": "vitest run",
     "bench": "vitest bench --run",
     "bench:storage": "tsx packages/durable/bench/storage.ts",
-    "demo": "pnpm build && pnpm --filter foldkit-agent-example-todo demo && pnpm --filter foldkit-agent-example-sync demo && pnpm --filter foldkit-mixins-example demo && pnpm --filter foldkit-remote-example demo && pnpm exec tsx packages/remote-drizzle/example/nested.ts && pnpm --filter foldkit-kitchen-sink-example demo && pnpm --filter foldkit-todo-app-example demo",
+    "demo": "pnpm build && pnpm --filter foldkit-example-todo demo && pnpm --filter foldkit-example-sync demo && pnpm --filter foldkit-example-mixins demo && pnpm --filter foldkit-example-remote demo && pnpm exec tsx packages/remote-drizzle/example/nested.ts && pnpm --filter foldkit-example-kitchen-sink demo && pnpm --filter foldkit-example-todo-app demo",
     "test:watch": "vitest",
     "typecheck": "tsc -b",
     "typecheck:force": "tsc -b --force",

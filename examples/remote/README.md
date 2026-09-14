@@ -8,7 +8,7 @@ decode failure all go through the real code.
 
 ```bash
 pnpm install && pnpm build                  # from the repository root
-pnpm --filter foldkit-remote-example demo
+pnpm --filter foldkit-example-remote demo
 ```
 
 The transcript is the example; `src/demo.ts` is the only file to read.
