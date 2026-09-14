@@ -11,6 +11,9 @@
   ],
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Patrick Glenn <doeixd@gmail.com>",
   "repository": {
     "type": "git",
