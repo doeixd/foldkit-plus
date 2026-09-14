@@ -1,29 +1,23 @@
 import { strict as assert } from 'node:assert'
 import { IDBFactory } from 'fake-indexeddb'
 import { Agent } from 'foldkit-agent'
-import {
-  createPresence,
-  indexedDb,
-  layerFromPromise,
-  loopbackPresenceChannel,
-  replicaId,
-  type Replica,
-  type TransportClient,
-} from 'foldkit-sync'
+import { ReplicaId, Sync, type Replica, type TransportClient } from 'foldkit-sync'
 import { Clock, Effect, Exit, Layer, Schema, Scope } from 'effect'
 import { TestClock } from 'effect/testing'
 import { Message, type Shared } from './app.js'
 import { openJournal, type Principal } from './journal.js'
 import { serverAgentHost } from './serverAgent.js'
-import { Sync } from './sync.js'
+import { TodoSync } from './sync.js'
 
 type TodoReplica = Replica<Message, Shared>
-const open = (id: string, storage: Parameters<typeof Sync.openReplica>[1]): Promise<TodoReplica> =>
-  Effect.runPromise(Sync.openReplica(replicaId(id), storage))
+const open = (
+  id: string,
+  storage: Parameters<typeof TodoSync.openReplica>[1],
+): Promise<TodoReplica> => Effect.runPromise(TodoSync.openReplica(ReplicaId.make(id), storage))
 const submit = (replica: TodoReplica, message: Message): Promise<void> =>
   Effect.runPromise(replica.submit(message))
 const synchronize = (replica: TodoReplica, transport: TransportClient): Promise<void> =>
-  Effect.runPromise(Effect.provide(replica.synchronize, layerFromPromise(transport)))
+  Effect.runPromise(Effect.provide(replica.synchronize, Sync.transport.fromPromise(transport)))
 const shared = (replica: TodoReplica): Shared => Effect.runSync(replica.shared)
 const pending = (replica: TodoReplica) => Effect.runSync(replica.pending)
 const close = (replica: TodoReplica): Promise<void> => Effect.runPromise(replica.close)
@@ -32,7 +26,7 @@ const factory = new IDBFactory()
 // The IndexedDB connections share one scope, released at the end of the demo.
 const storageScope = Effect.runSync(Scope.make())
 const openStorage = (name: string, factory: IDBFactory) =>
-  Effect.runPromise(Effect.provideService(indexedDb(name, factory), Scope.Scope, storageScope))
+  Effect.runPromise(Effect.provideService(Sync.indexedDb(name, factory), Scope.Scope, storageScope))
 const server = openJournal(':memory:')
 const principal = { actorId: 'owner', documentId: 'todos', canWrite: true }
 const transport = server.transport(principal)
@@ -79,14 +73,14 @@ const decodeSelectedTodo = Schema.decodeUnknownSync(SelectedTodoPresence)
 await Effect.runPromise(
   Effect.scoped(
     Effect.gen(function* () {
-      const presence = yield* loopbackPresenceChannel<{ selectedTodoId: string }>()
-      const alicePresence = yield* createPresence<{ selectedTodoId: string }>({
+      const presence = yield* Sync.presence.loopbackChannel<{ selectedTodoId: string }>()
+      const alicePresence = yield* Sync.presence.make<{ selectedTodoId: string }>({
         id: 'alice',
         ttl: '5 seconds',
         channel: presence,
         decodeValue: decodeSelectedTodo,
       })
-      const bobPresence = yield* createPresence<{ selectedTodoId: string }>({
+      const bobPresence = yield* Sync.presence.make<{ selectedTodoId: string }>({
         id: 'bob',
         ttl: '5 seconds',
         channel: presence,

@@ -8,20 +8,7 @@ import { Effect, Schema, Scope } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
-import {
-  defineSync,
-  documentId,
-  indexedDb,
-  layerFromPromise,
-  layerSocket,
-  lwwRegister,
-  mount,
-  openLwwClock,
-  replicaId,
-  forApplication,
-  type Replica,
-  type TransportClient,
-} from '../src/index.js'
+import { DocumentId, ReplicaId, Sync, type Replica, type TransportClient } from '../src/index.js'
 
 // Quick start
 const Model = Schema.Struct({
@@ -58,8 +45,8 @@ const update = (model: Model, message: Message): Return =>
 
 const App = Surface.application({ Model, Message, initial, update })
 
-const TodoSync = forApplication(App).make({
-  documentId: documentId('todos'),
+const TodoSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.fields.todos), // the codec, read, and write
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
@@ -78,10 +65,12 @@ void journalOptions
 const container = document.getElementById('app')! // Foldkit needs the element to have an id
 
 const scope = Effect.runSync(Scope.make())
-const storage = Effect.runSync(Effect.provideService(indexedDb('todos/tab-1'), Scope.Scope, scope))
-const replica = Effect.runSync(TodoSync.openReplica(replicaId('tab-1'), storage))
+const storage = Effect.runSync(
+  Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
+)
+const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
 
-const mounted = mount(App, TodoSync, {
+const mounted = Sync.mount(App, TodoSync, {
   replica,
   container,
   view: (model, h) => ({
@@ -95,7 +84,9 @@ const mounted = mount(App, TodoSync, {
 })
 
 // The exchange loop: once, then after every submit, retrying a failed exchange.
-Effect.runFork(Effect.provide(replica.start, layerSocket({ url: 'wss://example.com/sync' })))
+Effect.runFork(
+  Effect.provide(replica.start, Sync.transport.socket({ url: 'wss://example.com/sync' })),
+)
 
 mounted.dispatch(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' }))
 mounted.model() // the Model after the last transition
@@ -121,22 +112,27 @@ const WideApp = Surface.application({
   update: (model: WideModel) => ({ model }),
 })
 
-const Sync = forApplication(WideApp)
-const Todos = Sync.fragment({
+const AppSync = Sync.forApplication(WideApp)
+const Todos = AppSync.fragment({
   shared: Projection.pick(WideApp.fields.todos),
   durable: MessageSet.make(WideApp, [WideMessage.CreatedTodo, WideMessage.RenamedTodo]),
 })
-const Members = Sync.fragment({
+const Members = AppSync.fragment({
   shared: Projection.pick(WideApp.fields.members),
   durable: MessageSet.make(WideApp, [WideMessage.Invited]),
 })
-const Board = Sync.make({ documentId: documentId('board'), ...Sync.compose(Todos, Members) })
+const Board = AppSync.make({
+  documentId: DocumentId.make('board'),
+  ...AppSync.compose(Todos, Members),
+})
 void Board
 
 // Authorization: the same Board, with a principal fixed and one rule added.
-const Authorized = forApplication(WideApp).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
+const Authorized = Sync.forApplication(WideApp).withPrincipal<{
+  readonly role: 'admin' | 'guest'
+}>()
 const AuthorizedBoard = Authorized.make({
-  documentId: documentId('board'),
+  documentId: DocumentId.make('board'),
   ...Authorized.compose(Todos, Members),
   authorize: {
     // `message` is exactly `RenamedTodo`; `shared` is the authoritative snapshot.
@@ -146,13 +142,13 @@ const AuthorizedBoard = Authorized.make({
 })
 void AuthorizedBoard.journalContract()
 
-// Lower level: `defineSync` without a Foldkit application to derive from.
+// Lower level: `Sync.define` without a Foldkit application to derive from.
 const LowerShared = Schema.Struct({ todos: Schema.Array(Schema.String) })
 const LowerRenamed = Schema.Struct({ _tag: Schema.Literal('Renamed'), title: Schema.String })
 declare const transport: TransportClient // the application's own server client
 
-const Protocol = defineSync({
-  documentId: documentId('todos'),
+const Protocol = Sync.define({
+  documentId: DocumentId.make('todos'),
   message: LowerRenamed,
   shared: LowerShared,
   empty: { todos: [] },
@@ -161,17 +157,17 @@ const Protocol = defineSync({
 })
 
 const program = Effect.gen(function* () {
-  const storage = yield* indexedDb('todos-tab-1')
-  const replica = yield* Protocol.openReplica(replicaId('tab-1'), storage)
+  const storage = yield* Sync.indexedDb('todos-tab-1')
+  const replica = yield* Protocol.openReplica(ReplicaId.make('tab-1'), storage)
   yield* replica.submit({ _tag: 'Renamed', title: 'Milk' })
-  yield* Effect.provide(replica.synchronize, layerFromPromise(transport))
+  yield* Effect.provide(replica.synchronize, Sync.transport.fromPromise(transport))
   return yield* replica.shared
 }).pipe(Effect.scoped)
 
 void program
 
 // Last-writer-wins fields
-const Title = lwwRegister(Schema.String)
+const Title = Sync.lww.register(Schema.String)
 const Shared = Schema.Struct({ title: Title.schema })
 const Renamed = Schema.Struct({ _tag: Schema.Literal('Renamed'), title: Title.schema })
 
@@ -183,7 +179,7 @@ void lwwUpdate
 
 const message: typeof Renamed.Type = {
   _tag: 'Renamed',
-  title: { stamp: { counter: 1, replicaId: replicaId('tab-a') }, value: 'Milk' },
+  title: { stamp: { counter: 1, replicaId: ReplicaId.make('tab-a') }, value: 'Milk' },
 }
 void message
 
@@ -193,10 +189,10 @@ type Renamed = typeof Renamed.Type
 const rename = (replica: Replica<Renamed, Shared>, title: string) =>
   Effect.gen(function* () {
     // A separate database from the replica's outbox; one clock per document/writer.
-    const storage = yield* indexedDb('todos-tab-a-clock')
-    const clock = yield* openLwwClock({
-      documentId: documentId('todos'),
-      replicaId: replicaId('tab-a'),
+    const storage = yield* Sync.indexedDb('todos-tab-a-clock')
+    const clock = yield* Sync.lww.openClock({
+      documentId: DocumentId.make('todos'),
+      replicaId: ReplicaId.make('tab-a'),
       storage,
     })
     const shared = yield* replica.shared

@@ -1,12 +1,6 @@
 import { WebSocketServer, type WebSocket } from 'ws'
-import {
-  sequence,
-  servePresence,
-  serveSocket,
-  type PresenceHub,
-  type SocketLike,
-} from 'foldkit-sync'
-import type { Journal, Principal } from './journal.js'
+import { Sequence, Sync, type PresenceHub, type SocketLike } from 'foldkit-sync'
+import type { Principal, ServerJournal } from './journal.js'
 
 /** Adapts one `ws` socket to the transport's minimal socket. */
 const socketLike = (socket: WebSocket): SocketLike => ({
@@ -43,7 +37,7 @@ export interface Authenticated {
  * refresh it before it expires.
  */
 export const startSyncServer = async <Presence = unknown>(options: {
-  readonly journal: Journal
+  readonly journal: ServerJournal
   /** Maps a connection's token to a credential; `undefined` refuses the socket. */
   readonly authenticate: (token: string | null) => Authenticated | undefined
   /** Optional presence registry; a socket joins the hub for its document. */
@@ -77,13 +71,13 @@ export const startSyncServer = async <Presence = unknown>(options: {
 
     const handler = options.journal.transport(principal)
     const stops = [
-      serveSocket(socketLike(socket), {
-        exchange: (cursor, pending) => handler.exchange(sequence(cursor), pending),
+      Sync.transport.serve(socketLike(socket), {
+        exchange: (cursor, pending) => handler.exchange(Sequence.make(cursor), pending),
       }),
     ]
     if (options.presence !== undefined)
       stops.push(
-        servePresence(socketLike(socket), options.presence(principal.documentId), {
+        Sync.presence.serve(socketLike(socket), options.presence(principal.documentId), {
           peerId: principal.actorId,
         }),
       )

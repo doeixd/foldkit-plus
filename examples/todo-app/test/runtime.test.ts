@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { Effect } from 'effect'
-import { replicaId, type Storage } from 'foldkit-sync'
+import { ReplicaId, type Storage } from 'foldkit-sync'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Message } from '../src/app.js'
 import { mountApp } from '../src/runtime.js'
-import { Sync } from '../src/sync.js'
+import { TodoSync } from '../src/sync.js'
 
 /** A storage double, so the runtime can be mounted without IndexedDB. */
 const memoryStorage = (): Storage => {
@@ -33,7 +33,9 @@ describe('the mounted app', () => {
     const container = document.createElement('div')
     container.id = 'todo-app-mirrors'
     document.body.appendChild(container)
-    const replica = await Effect.runPromise(Sync.openReplica(replicaId('mirrors'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      TodoSync.openReplica(ReplicaId.make('mirrors'), memoryStorage()),
+    )
     const mounted = mountApp(replica, container)
     try {
       await vi.waitFor(() => expect(mounted.model().filter).toBe('active'))
@@ -64,7 +66,9 @@ describe('the mounted app', () => {
     container.id = 'todo-app-runtime'
     document.body.appendChild(container)
 
-    const replica = await Effect.runPromise(Sync.openReplica(replicaId('test'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      TodoSync.openReplica(ReplicaId.make('test'), memoryStorage()),
+    )
     const mounted = mountApp(replica, container)
     try {
       await vi.waitFor(() => expect(document.body.textContent).toContain('0 active'))

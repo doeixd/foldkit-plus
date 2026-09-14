@@ -7,8 +7,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## 0.4.0
 
-`foldkit-remote` and the `foldkit-mixins` family take a minor; everything else
-republishes so npm serves the corrected pages.
+`foldkit-remote`, `foldkit-durable`, `foldkit-sync` and the `foldkit-mixins`
+family take a minor; everything else republishes so npm serves the corrected
+pages. Nothing in this release is breaking.
 
 ### `foldkit-remote` 0.2.0
 
@@ -24,6 +25,32 @@ republishes so npm serves the corrected pages.
   and `RemoteModel` gains `loading`, so code that matches every Remote message
   or builds a `RemoteModel` literal needs the new case and field. The documented
   path, `Remote.reduces` then `Data.reduce`, is unaffected.
+
+### `foldkit-durable` 0.3.0 and `foldkit-sync` 0.4.0
+
+- **Namespaces, additively.** Both packages exported bare functions while every
+  other package here is namespace-first, and Effect is too. `Journal.make`,
+  `Journal.layer`, `Journal.metrics` and `Journal.define`, and `Sync` grouping
+  `forApplication`, `define`, `mount`, `metrics`, `indexedDb` plus `transport.*`,
+  `presence.*` and `lww.*`. They delegate by reference, so inference at call
+  sites is unchanged, and every previous export keeps its name, signature and
+  behaviour. The branded ids lead with `DocumentId.make('todos')`, which Effect's
+  schemas already provide; the lowercase decoders still work.
+- **`Journal.define<Operation, Snapshot, Principal>(key)`** closes a soundness
+  hole. `JournalService` takes its type arguments at the use site with nothing
+  tying them to the layer that satisfied the tag, so reading a key back as a
+  journal of another shape compiles. A definition fixes the types once and
+  returns the tag and the layer constructor that agree on them.
+- **Effect schemas as codecs.** `JournalOptions.operation` and `.snapshot` accept
+  a `Schema.Codec` as well as the `encode`/`decode` pair, with `Codec.fromSchema`
+  as the explicit conversion, resolved once at construction because the sync
+  decoders recompile per call.
+- **A refusal can say why.** `authorize` accepts `{ allowed: false, reason }` and
+  the reason reaches `OperationRejectedError` and its message, which matters
+  because sync forwards rejections to the replica and the person whose edit
+  reverted saw no reason. `validate` now accepts an Effect as `authorize`
+  already did, and `runEffect`'s `retryFailed` accepts a predicate over the
+  record, since the recovery policy asks the application to decide per intent.
 
 ### `foldkit-mixins` 0.2.0
 

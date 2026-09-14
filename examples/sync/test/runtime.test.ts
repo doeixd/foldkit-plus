@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { Effect } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
-import { replicaId } from 'foldkit-sync'
+import { ReplicaId } from 'foldkit-sync'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Message } from '../src/app.js'
 import { mountReplica } from '../src/runtime.js'
-import { Sync } from '../src/sync.js'
+import { TodoSync } from '../src/sync.js'
 import { closeStorages, openStorage } from './helpers.js'
 
 afterEach(async () => {
@@ -24,7 +24,7 @@ it('runs the application over Sync.mount: durable changes render at once and per
     release = resolve
   })
   const replica = await Effect.runPromise(
-    Sync.openReplica(replicaId('a'), {
+    TodoSync.openReplica(ReplicaId.make('a'), {
       ...storage,
       save: (state, revision) =>
         Effect.gen(function* () {

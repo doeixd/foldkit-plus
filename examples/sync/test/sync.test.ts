@@ -5,11 +5,11 @@ import { Effect } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
 import { Agent } from 'foldkit-agent'
 import {
-  documentId,
-  localSequence,
-  opId,
-  replicaId,
-  sequence,
+  DocumentId,
+  LocalSequence,
+  OpId,
+  ReplicaId,
+  Sequence,
   StorageError,
   type Exchange,
   type Operation,
@@ -30,11 +30,11 @@ const operation = (
 ): Operation => ({
   protocolVersion: 1,
   schemaVersion: 1,
-  documentId: documentId('todos'),
-  replicaId: replicaId(replica),
-  localSequence: localSequence(local),
-  opId: opId(`${replica}:${local}`),
-  baseCursor: sequence(0),
+  documentId: DocumentId.make('todos'),
+  replicaId: ReplicaId.make(replica),
+  localSequence: LocalSequence.make(local),
+  opId: OpId.make(`${replica}:${local}`),
+  baseCursor: Sequence.make(0),
   message,
 })
 let factory: IDBFactory
@@ -123,7 +123,7 @@ describe('the journal adapter', () => {
       'Unauthorized',
     )
     await expect(
-      server.transport({ ...principal, actorId: '' }).exchange(sequence(0), []),
+      server.transport({ ...principal, actorId: '' }).exchange(Sequence.make(0), []),
     ).rejects.toThrow('Unauthenticated')
     expect(server.snapshot('todos').cursor).toBe(0)
   })
@@ -161,9 +161,9 @@ describe('the journal adapter', () => {
     const transport = server.transport(principal)
 
     // At the floor the retained tail still covers the range.
-    await expect(transport.exchange(sequence(1), [])).resolves.not.toHaveProperty('checkpoint')
+    await expect(transport.exchange(Sequence.make(1), [])).resolves.not.toHaveProperty('checkpoint')
     // Below it the log cannot, so the snapshot is sent instead.
-    await expect(transport.exchange(sequence(0), [])).resolves.toMatchObject({
+    await expect(transport.exchange(Sequence.make(0), [])).resolves.toMatchObject({
       checkpoint: { cursor: 2 },
     })
   })
@@ -340,7 +340,7 @@ describe('the journal adapter', () => {
       await expect(
         guarded
           .transport(principal)
-          .exchange(sequence(0), [
+          .exchange(Sequence.make(0), [
             operation('a', 1, Message.RenamedTodo({ id: 'todo', title: 'malicious' })),
           ]),
       ).rejects.toThrow()

@@ -5,29 +5,28 @@
  */
 import { Effect, Exit, Fiber, Scope, Stream } from 'effect'
 import {
-  actorId as toActorId,
-  cursor as toCursor,
-  documentId as toDocumentId,
-  makeJournal,
-  opId as toOpId,
-  sequence as toSequence,
+  ActorId,
+  Cursor,
+  DocumentId,
+  Journal,
+  OpId,
+  Sequence,
   type AppendResult as DurableAppendResult,
   type Committed as DurableCommitted,
-  type Journal as DurableJournal,
 } from 'foldkit-durable'
 import {
-  documentId as toSyncDocumentId,
+  DocumentId as SyncDocumentId,
   type CommittedOperation as Committed,
   type Operation,
   type TransportClient,
 } from 'foldkit-sync'
 import { encodeShared, type Message, type Shared } from './app.js'
 import type { SyncPrincipal } from './principal.js'
-import { Sync, journalContract } from './sync.js'
+import { TodoSync, journalContract } from './sync.js'
 
 export type { SyncPrincipal } from './principal.js'
 
-export interface Journal {
+export interface ServerJournal {
   readonly append: (input: unknown, principal: SyncPrincipal) => Committed
   /** Appends a Message a server-side producer authored, using its own id. */
   readonly appendAsServer: (
@@ -43,19 +42,19 @@ export interface Journal {
   readonly close: () => void
 }
 
-export const openJournal = (path: string): Journal => {
+export const openJournal = (path: string): ServerJournal => {
   const scope = Effect.runSync(Scope.make())
-  const durable: DurableJournal<Operation, Shared, SyncPrincipal> = (() => {
+  const durable: Journal<Operation, Shared, SyncPrincipal> = (() => {
     try {
       return Effect.runSync(
-        makeJournal<Operation, Shared, SyncPrincipal>({
+        Journal.make<Operation, Shared, SyncPrincipal>({
           // The contract produces the journal's codecs, initial snapshot, and
           // reducer, and its `authorize` rules: none is written twice, and the
           // policy declared in `sync.ts` is the policy this journal enforces.
           ...journalContract(),
           file: path,
-          opId: operation => toOpId(operation.opId),
-          actorId: principal => toActorId(principal.actorId),
+          opId: operation => OpId.make(operation.opId),
+          actorId: principal => ActorId.make(principal.actorId),
           validate: ({ key, operation, cursor }) => {
             if (String(operation.documentId) !== String(key)) throw new Error('Wrong document')
             if (operation.baseCursor > cursor)
@@ -70,20 +69,20 @@ export const openJournal = (path: string): Journal => {
   })()
 
   const toCommitted = (committed: DurableCommitted<Operation>, documentId: string): Committed =>
-    Sync.codec.committedFrom(
+    TodoSync.codec.committedFrom(
       { ...committed.operation, serverSequence: committed.sequence, actorId: committed.actorId },
-      toSyncDocumentId(documentId),
+      SyncDocumentId.make(documentId),
     )
 
   const snapshot = (documentId: string): { cursor: number; model: Shared } => {
-    const { cursor, snapshot: model } = Effect.runSync(durable.load(toDocumentId(documentId)))
+    const { cursor, snapshot: model } = Effect.runSync(durable.load(DocumentId.make(documentId)))
     return { cursor, model }
   }
 
   const append = (input: unknown, principal: SyncPrincipal): Committed => {
     if (!principal.actorId || !principal.canWrite) throw new Error('Unauthorized operation')
     const result: DurableAppendResult<Operation> = Effect.runSync(
-      durable.append(toDocumentId(principal.documentId), input, principal),
+      durable.append(DocumentId.make(principal.documentId), input, principal),
     )
     if (result._tag === 'AlreadyCommitted')
       throw new Error(
@@ -119,7 +118,7 @@ export const openJournal = (path: string): Journal => {
   }
 
   const read = (documentId: string, after: number): ReadonlyArray<Committed> =>
-    Effect.runSync(durable.read(toDocumentId(documentId), toCursor(after))).map(committed =>
+    Effect.runSync(durable.read(DocumentId.make(documentId), Cursor.make(after))).map(committed =>
       toCommitted(committed, documentId),
     )
 
@@ -128,7 +127,7 @@ export const openJournal = (path: string): Journal => {
     appendAsServer,
     read,
     compact: (documentId, through) =>
-      Effect.runSync(durable.compact(toDocumentId(documentId), toSequence(through))),
+      Effect.runSync(durable.compact(DocumentId.make(documentId), Sequence.make(through))),
     snapshot,
     subscribe: listener => {
       const fiber = Effect.runFork(
@@ -144,13 +143,13 @@ export const openJournal = (path: string): Journal => {
         const rejected: string[] = []
         const acknowledged: string[] = []
         for (const input of pending) {
-          const operation = Sync.codec.normalizeOperation(input)
+          const operation = TodoSync.codec.normalizeOperation(input)
           if (!principal.canWrite) {
             rejected.push(operation.opId)
             continue
           }
           const result = Effect.runSync(
-            durable.append(toDocumentId(principal.documentId), operation, principal).pipe(
+            durable.append(DocumentId.make(principal.documentId), operation, principal).pipe(
               Effect.catchTag('OperationRejectedError', error =>
                 Effect.sync(() => {
                   rejected.push(error.opId)
@@ -169,7 +168,7 @@ export const openJournal = (path: string): Journal => {
         // read decides that itself, so a compaction cannot slip between the
         // floor check and the read and produce a gapped stream.
         const caught = Effect.runSync(
-          durable.read(toDocumentId(principal.documentId), toCursor(cursor)).pipe(
+          durable.read(DocumentId.make(principal.documentId), Cursor.make(cursor)).pipe(
             Effect.map(rows => ({ rows })),
             Effect.catchTag('CompactedCursorError', () =>
               Effect.succeed({ checkpoint: true as const }),

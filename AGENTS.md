@@ -253,6 +253,13 @@ installed `.d.ts` before reaching for a remembered API.
   defaults. Markdown is deliberately ignored, because prettier pads table
   columns and reformats code inside fenced blocks, rewriting the documents'
   illustrative snippets.
+- **A re-exported type and a same-named const collide.** `export { type Sync }
+  from './sync.js'` beside `export const Sync = {…}` is `TS2323 Cannot redeclare
+  exported variable`, even though a type and a value may share a name. Both
+  names have to originate in the same module: import the type under an alias
+  (`type Sync as SyncContract`) and re-declare it (`export type Sync<…> =
+  SyncContract<…>`). Namespacing a package whose main type shares the
+  namespace's name hits this immediately.
 - **`@ts-expect-error` is anchored to the next line.** Reformatting wrapped a
   long call and left two directives pointing at a line that no longer errors, so
   the assertions silently stopped asserting. Put the directive immediately above

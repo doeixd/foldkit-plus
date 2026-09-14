@@ -1,9 +1,9 @@
 import type { Agent } from 'foldkit-agent'
 import type { Message, Shared } from './app.js'
-import type { Journal, Principal } from './journal.js'
+import type { Principal, ServerJournal } from './journal.js'
 
 export interface ServerAgentHostOptions {
-  readonly journal: Journal
+  readonly journal: ServerJournal
   /** The transport-authenticated caller the agent acts as. */
   readonly principal: Principal
   /** Identifies the producer in the durable log, separate from the caller. */

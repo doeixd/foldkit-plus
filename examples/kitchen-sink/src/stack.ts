@@ -28,20 +28,20 @@ import { databaseLayer, entity, returning, one, query, source } from 'foldkit-re
 import { RemoteServer } from 'foldkit-remote-server'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import {
-  actorId as toDurableActorId,
-  cursor as toDurableCursor,
-  documentId as toDurableDocumentId,
-  makeJournal,
-  opId,
+  ActorId as DurableActorId,
+  Cursor as DurableCursor,
+  DocumentId as DurableDocumentId,
+  Journal,
+  OpId,
 } from 'foldkit-durable'
 import {
-  type Sync as SyncContract,
-  documentId as toSyncDocumentId,
-  forApplication,
-  replicaId,
-  sequence,
+  DocumentId as SyncDocumentId,
+  ReplicaId,
+  Sequence,
   StorageError,
+  Sync,
   type Storage,
+  type Sync as SyncContract,
   type TransportClient,
 } from 'foldkit-sync'
 
@@ -275,8 +275,8 @@ export const NoteChanges = MessageSet.make(App, [
 export const KitchenSync: SyncContract<
   Message,
   { readonly notes: ReadonlyArray<typeof Note.Type> }
-> = forApplication(App).make({
-  documentId: toSyncDocumentId('kitchen'),
+> = Sync.forApplication(App).make({
+  documentId: SyncDocumentId.make('kitchen'),
   shared: Notes,
   durable: NoteChanges,
 })
@@ -305,30 +305,30 @@ export interface Principal {
 }
 
 /**
- * The durable server half: a `makeJournal` over the Sync contract, and a
+ * The durable server half: a `Journal.make` over the Sync contract, and a
  * `TransportClient` the replica exchanges through.
  */
 export const makeSyncServer = (principal: Principal) =>
   Effect.gen(function* () {
-    const journal = yield* makeJournal({
+    const journal = yield* Journal.make({
       ...KitchenSync.journalContract(),
       file: ':memory:',
-      opId: operation => opId(operation.opId),
-      actorId: (value: Principal) => toDurableActorId(value.actorId),
+      opId: operation => OpId.make(operation.opId),
+      actorId: (value: Principal) => DurableActorId.make(value.actorId),
     })
-    const document = toDurableDocumentId('kitchen')
+    const document = DurableDocumentId.make('kitchen')
     const transport: TransportClient = {
       exchange: async (cursor, pending) => {
         for (const operation of pending) {
           await Effect.runPromise(journal.append(document, operation, principal))
         }
         const committed = await Effect.runPromise(
-          journal.read(document, toDurableCursor(Number(cursor))),
+          journal.read(document, DurableCursor.make(Number(cursor))),
         )
         return {
           operations: committed.map(entry => ({
             ...entry.operation,
-            serverSequence: sequence(Number(entry.sequence)),
+            serverSequence: Sequence.make(Number(entry.sequence)),
             actorId: String(entry.actorId),
           })),
           rejected: [],
@@ -339,7 +339,7 @@ export const makeSyncServer = (principal: Principal) =>
     return { journal, transport }
   })
 
-export const openReplica = KitchenSync.openReplica(replicaId('kitchen-a'), memoryStorage())
+export const openReplica = KitchenSync.openReplica(ReplicaId.make('kitchen-a'), memoryStorage())
 
 // ---------------------------------------------------------------------------
 // The server-backed RemoteClient

@@ -21,7 +21,7 @@ import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 import { view as buttonView } from '@foldkit/ui/button'
 import { Surface } from 'foldkit-surface'
 import { Remote, RemoteData, type EntityStore } from 'foldkit-remote'
-import { layerFromPromise } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 import {
   App,
   BoardSurface,
@@ -233,7 +233,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
           Effect.forkScoped,
         )
         yield* Effect.forkScoped(
-          replica.start.pipe(Effect.provide(layerFromPromise(server.transport))),
+          replica.start.pipe(Effect.provide(Sync.transport.fromPromise(server.transport))),
         )
         yield* replica.submit(Message.RequestedCreateNote({ id: 'n1', body: 'First note' }))
         yield* Fiber.join(settled)

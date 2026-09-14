@@ -171,7 +171,7 @@ application. One declaration; every contract is derived from it:
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
 import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
-import { documentId, forApplication } from 'foldkit-sync'
+import { DocumentId, Sync } from 'foldkit-sync'
 
 // The application: an ordinary Model, Message union, and update.
 const App = Surface.application({ Model, Message, initial, update })
@@ -183,8 +183,8 @@ const Board = App.surface('Board', {
 })
 
 // What replicates: this slice, changed by these Messages, replayed through update.
-const TodoSync = forApplication(App).make({
-  documentId: documentId('todos'),
+const TodoSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.fields.todos),
   durable: MessageSet.make(App, [Message.SubmittedTodo, Message.ToggledTodo, Message.DeletedTodo]),
 })

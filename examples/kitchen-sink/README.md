@@ -58,7 +58,7 @@ quietly stop demonstrating them.
 | Server-derived state | `foldkit-remote` | The normalized cache submodel: `Data.prefetch`, `Data.live`, `Data.mutate` with an optimistic `ConnectionChange`, `Data.query`, `Data.inspect`, `Remote.retain`, and `RemotePersistence.dehydrate`/`hydrate`. |
 | Server | `foldkit-remote-server` | `RemoteServer` sources compiled to `RemoteServer.handlers`, served in-process through `Remote.clientLayer` over the database layer; a `liveHub` feeds the live subscription from the rename mutation. |
 | Server SQL | `foldkit-remote-drizzle` | `Project` and `User` are Drizzle bindings over in-memory SQLite tables; the nested `owner` selection, the reads, and the query compile to SQL. |
-| Client-owned state | `foldkit-durable` | A `makeJournal` over the Sync contract orders the `notes` operations. |
+| Client-owned state | `foldkit-durable` | A `Journal.make` over the Sync contract orders the `notes` operations. |
 | Replication | `foldkit-sync` | A replica, an in-memory `Storage`, and `replica.start` exchanging through a `TransportClient`. |
 | Agent | `foldkit-agent` | One contract projected from the same Model and Messages. |
 | Agent browser | `foldkit-agent-webmcp` | The contract registered into a `document.modelContext` stand-in. |

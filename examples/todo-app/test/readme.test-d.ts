@@ -9,7 +9,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
 import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
-import { documentId, forApplication } from 'foldkit-sync'
+import { DocumentId, Sync } from 'foldkit-sync'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 const Model = Schema.Struct({
@@ -61,8 +61,8 @@ const Board = App.surface('Board', {
 })
 
 // What replicates: this slice, changed by these Messages, replayed through update.
-const TodoSync = forApplication(App).make({
-  documentId: documentId('todos'),
+const TodoSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.fields.todos),
   durable: MessageSet.make(App, [Message.SubmittedTodo, Message.ToggledTodo, Message.DeletedTodo]),
 })

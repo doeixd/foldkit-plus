@@ -1,9 +1,8 @@
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import {
-  documentId,
-  forApplication,
-  mount,
+  DocumentId,
+  Sync,
   type Mounted,
   type Replica,
   type ReplicaError,
@@ -24,17 +23,19 @@ const TodoChanges = MessageSet.make(App, [
  * The replicated-state contract for the todo document: `Sync.forApplication`
  * derives the shared projection, the durable subset, the initial snapshot, and
  * replay from one application declaration.
- *
- * Annotated with the low-level `Sync` type because this example emits
- * declarations: the inferred type contains `Schema.Schema.Type<MessageUnion<...>>`,
- * which expands a Foldkit-private alias that declaration emit cannot name.
  */
-const TodoSync = forApplication(App).make({
-  documentId: documentId('todos'),
+const definition = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
   shared: Todos,
   durable: TodoChanges,
 })
-export const Sync: SyncContract<Message, Shared> = TodoSync
+
+/**
+ * The same value, seen through the low-level `Sync` type: this example emits
+ * declarations, and the inferred type expands a Foldkit-private alias that
+ * declaration emit cannot name.
+ */
+export const TodoSync: SyncContract<Message, Shared> = definition
 
 /**
  * Runs the application over a replica with `Sync.mount`: one reducer, durable
@@ -49,4 +50,4 @@ export const mountTodos = (
     readonly view: (model: Model, h: HtmlBuilder<Message>) => Document
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model
   },
-): Mounted<Model, Message> => mount(App, TodoSync, { replica, ...options })
+): Mounted<Model, Message> => Sync.mount(App, definition, { replica, ...options })

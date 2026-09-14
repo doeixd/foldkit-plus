@@ -2,44 +2,35 @@ import { Effect, Exit, Schema, Scope } from 'effect'
 import { IDBFactory } from 'fake-indexeddb'
 import { defineMessageUnion } from 'foldkit/message'
 import {
-  actorId as toActorId,
-  cursor as toCursor,
-  documentId as toDocumentId,
-  makeJournal,
+  ActorId,
+  Cursor,
+  DocumentId as DurableDocumentId,
+  Journal,
   OperationRejectedError,
-  opId as toOpId,
-  sequence as toSequence,
+  OpId,
+  Sequence,
 } from 'foldkit-durable'
-import {
-  defineSync,
-  documentId,
-  layerFromPromise,
-  lwwRegister,
-  openLwwClock,
-  replicaId,
-  type Operation,
-  type TransportClient,
-} from 'foldkit-sync'
+import { DocumentId, ReplicaId, Sync, type Operation, type TransportClient } from 'foldkit-sync'
 import { afterEach, expect, it } from 'vitest'
 import { closeStorages, openStorage } from './helpers.js'
 
 afterEach(closeStorages)
 
-const Title = lwwRegister(Schema.NullOr(Schema.String))
+const Title = Sync.lww.register(Schema.NullOr(Schema.String))
 const Shared = Schema.Struct({ title: Title.schema })
 type Shared = typeof Shared.Type
 const Message = defineMessageUnion({ Renamed: { title: Title.schema } })
 type Message = typeof Message.Type
 const empty: Shared = {
-  title: { stamp: { counter: 0, replicaId: replicaId('initial') }, value: 'Original' },
+  title: { stamp: { counter: 0, replicaId: ReplicaId.make('initial') }, value: 'Original' },
 }
 const update = (model: Shared, message: Message): Shared => ({
   ...model,
   title: Title.merge(model.title, message.title),
 })
 const decodeMessage = Schema.decodeUnknownSync(Message, { onExcessProperty: 'error' })
-const Sync = defineSync({
-  documentId: documentId('titles'),
+const TitlesSync = Sync.define({
+  documentId: DocumentId.make('titles'),
   message: Message,
   shared: Shared,
   empty,
@@ -47,18 +38,18 @@ const Sync = defineSync({
   replay: update,
 })
 const rename = (counter: number, replica: string, value: string | null): Message =>
-  Message.Renamed({ title: { stamp: { counter, replicaId: replicaId(replica) }, value } })
+  Message.Renamed({ title: { stamp: { counter, replicaId: ReplicaId.make(replica) }, value } })
 
 /** A promise facade over the Effect replica, so the LWW test reads as before. */
-const openReplica = async (id: string, storage: Parameters<typeof Sync.openReplica>[1]) => {
-  const replica = await Effect.runPromise(Sync.openReplica(replicaId(id), storage))
+const openReplica = async (id: string, storage: Parameters<typeof TitlesSync.openReplica>[1]) => {
+  const replica = await Effect.runPromise(TitlesSync.openReplica(ReplicaId.make(id), storage))
   return {
     shared: () => Effect.runSync(replica.shared),
     pending: () => Effect.runSync(replica.pending),
     cursor: () => Effect.runSync(replica.cursor),
     submit: (message: Message) => Effect.runPromise(replica.submit(message)),
     synchronize: (transport: TransportClient) =>
-      Effect.runPromise(Effect.provide(replica.synchronize, layerFromPromise(transport))),
+      Effect.runPromise(Effect.provide(replica.synchronize, Sync.transport.fromPromise(transport))),
     close: () => Effect.runPromise(replica.close),
   }
 }
@@ -66,17 +57,17 @@ const openReplica = async (id: string, storage: Parameters<typeof Sync.openRepli
 const openJournal = () => {
   const scope = Effect.runSync(Scope.make())
   const durable = Effect.runSync(
-    makeJournal<Operation, Shared, { actorId: string; canWrite: boolean }>({
+    Journal.make<Operation, Shared, { actorId: string; canWrite: boolean }>({
       file: ':memory:',
-      operation: { encode: value => value, decode: Sync.codec.normalizeOperation },
+      operation: { encode: value => value, decode: TitlesSync.codec.normalizeOperation },
       snapshot: {
         encode: Schema.encodeSync(Shared),
         decode: Schema.decodeUnknownSync(Shared, { onExcessProperty: 'error' }),
       },
       empty: () => empty,
       reduce: (model, operation) => update(model, decodeMessage(operation.message)),
-      opId: operation => toOpId(operation.opId),
-      actorId: principal => toActorId(principal.actorId),
+      opId: operation => OpId.make(operation.opId),
+      actorId: principal => ActorId.make(principal.actorId),
       authorize: ({ principal }) => principal.canWrite,
       validate: ({ key, operation }) => {
         if (String(operation.documentId) !== String(key)) throw new Error('Wrong document')
@@ -86,13 +77,13 @@ const openJournal = () => {
   // The test drives the journal synchronously; `node:sqlite` is synchronous.
   const journal = {
     append: (key: string, input: unknown, principal: { actorId: string; canWrite: boolean }) =>
-      Effect.runSync(durable.append(toDocumentId(key), input, principal)),
-    floor: (key: string) => Effect.runSync(durable.floor(toDocumentId(key))),
-    load: (key: string) => Effect.runSync(durable.load(toDocumentId(key))),
+      Effect.runSync(durable.append(DurableDocumentId.make(key), input, principal)),
+    floor: (key: string) => Effect.runSync(durable.floor(DurableDocumentId.make(key))),
+    load: (key: string) => Effect.runSync(durable.load(DurableDocumentId.make(key))),
     read: (key: string, after: number) =>
-      Effect.runSync(durable.read(toDocumentId(key), toCursor(after))),
+      Effect.runSync(durable.read(DurableDocumentId.make(key), Cursor.make(after))),
     compact: (key: string, through: number) =>
-      Effect.runSync(durable.compact(toDocumentId(key), toSequence(through))),
+      Effect.runSync(durable.compact(DurableDocumentId.make(key), Sequence.make(through))),
     close: () => Effect.runSync(Scope.close(scope, Exit.void)),
   }
   const transport = (canWrite = true): TransportClient => ({
@@ -213,9 +204,9 @@ it('allocates beyond rejected and unsubmitted writes after IndexedDB reload', as
   const factory = new IDBFactory()
   const openClock = async () =>
     Effect.runPromise(
-      openLwwClock({
-        documentId: documentId('titles'),
-        replicaId: replicaId('a'),
+      Sync.lww.openClock({
+        documentId: DocumentId.make('titles'),
+        replicaId: ReplicaId.make('a'),
         storage: await Effect.runPromise(openStorage('a-clock', factory)),
       }),
     )
@@ -256,9 +247,9 @@ it('IndexedDB admits only one clock writer at a saved revision', async () => {
   const factory = new IDBFactory()
   const openClock = async () =>
     Effect.runPromise(
-      openLwwClock({
-        documentId: documentId('titles'),
-        replicaId: replicaId('a'),
+      Sync.lww.openClock({
+        documentId: DocumentId.make('titles'),
+        replicaId: ReplicaId.make('a'),
         storage: await Effect.runPromise(openStorage('clock', factory)),
       }),
     )

@@ -6,7 +6,7 @@
  * committed order is stable, and compaction never changes the logical state a
  * replay would produce.
  */
-export type { Codec } from './codec.js'
+export { Codec, type CodecInput } from './codec.js'
 export {
   ActorId,
   Cursor,
@@ -31,17 +31,19 @@ export {
   UnsupportedJournalVersionError,
 } from './errors.js'
 export {
+  Journal,
   JournalService,
   journalMetrics,
   makeJournal,
   makeJournalLayer,
   type AppendError,
   type AppendResult,
+  type AuthorizationDecision,
   type AuthorizationRequest,
   type Committed,
   type EffectRecord,
   type EffectStatus,
-  type Journal,
+  type JournalDefinition,
   type JournalOptions,
   type RecoveryIntent,
   type RecoveryOptions,

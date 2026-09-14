@@ -27,7 +27,7 @@ covers the mental model and when not to use either.
 
 ```ts
 import { Effect, Schema } from 'effect'
-import { actorId, cursor, documentId, makeJournal, opId } from 'foldkit-durable'
+import { ActorId, Cursor, DocumentId, Journal, OpId } from 'foldkit-durable'
 
 const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
 const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
@@ -35,37 +35,45 @@ type Operation = typeof Operation.Type
 type Snapshot = typeof Snapshot.Type
 type Principal = { readonly actorId: string }
 
-const decodeOperation = Schema.decodeUnknownSync(Operation)
-const decodeSnapshot = Schema.decodeUnknownSync(Snapshot)
-
 const program = Effect.gen(function* () {
-  const journal = yield* makeJournal<Operation, Snapshot, Principal>({
+  // The schemas decide the types: `append` takes `Operation`'s encoded side.
+  const journal = yield* Journal.make({
     file: 'journal.sqlite',
-    // Operations are stored exactly as they arrive, so `encode` is the identity.
-    operation: { encode: operation => operation, decode: decodeOperation },
-    snapshot: { encode: snapshot => snapshot, decode: decodeSnapshot },
+    operation: Operation,
+    snapshot: Snapshot,
     empty: () => ({ todos: [] }),
     reduce: (snapshot, operation) => ({ todos: [...snapshot.todos, operation.title] }),
-    opId: operation => opId(operation.opId),
-    actorId: principal => actorId(principal.actorId),
+    opId: operation => OpId.make(operation.opId),
+    actorId: (principal: Principal) => ActorId.make(principal.actorId),
   })
 
-  const todos = documentId('todos')
+  const todos = DocumentId.make('todos')
   yield* journal.append(todos, { opId: 'tab-1:1', title: 'Milk' }, { actorId: 'alice' })
   const { snapshot } = yield* journal.load(todos)
-  const since = yield* journal.read(todos, cursor(0))
+  const since = yield* journal.read(todos, Cursor.make(0))
   return { snapshot, since }
 }).pipe(Effect.scoped)
 
 await Effect.runPromise(program)
 ```
 
-`makeJournal` is scoped: the SQLite connection is released when the scope
+`Journal.make` is scoped: the SQLite connection is released when the scope
 closes. `file` accepts a literal or a `Config.Config<string>`, so the path can
-come from the environment. `operation` is a `Codec<Operation, Encoded>` and
-`append` takes the encoded side, so a transforming codec is checked at the call
-site; `snapshot` is a `Codec<Snapshot>`. Failures are `Schema.TaggedError`s
-(`JournalError`, `UnsupportedJournalVersionError`, `InvalidOperationError`,
+come from the environment.
+
+`operation` and `snapshot` take an Effect `Schema.Codec`, as above, or a pair of
+throwing `encode`/`decode` functions for an application that does not use
+`Schema`. A schema decides the encoded side: `append` takes
+`Operation`'s `Encoded` type, so a transforming schema is checked at the call
+site rather than accepting `unknown`. `Codec.fromSchema(schema)` is the same
+conversion spelled out, for handing the function pair somewhere else. Decode
+failures are `InvalidOperationError`s either way.
+
+The identities are branded `Schema` types, so `DocumentId.make('todos')`,
+`OpId.make(...)`, `ActorId.make(...)`, `Sequence.make(n)`, and `Cursor.make(n)`
+build them and reject a value the brand refuses (an empty string, for one).
+Failures are `Schema.TaggedError`s (`JournalError`,
+`UnsupportedJournalVersionError`, `InvalidOperationError`,
 `OperationRejectedError`, `IdentityConflictError`, `InvalidCursorError`,
 `CompactedCursorError`, `InvalidCompactionError`, `EffectFailedError`), so
 `Effect.catchTag` narrows them.
@@ -73,11 +81,11 @@ site; `snapshot` is a `Codec<Snapshot>`. Failures are `Schema.TaggedError`s
 `append` answers with `{ _tag: 'Committed' }` carrying the operation, its
 `opId`, `sequence`, and `actorId`, or with `{ _tag: 'AlreadyCommitted' }` when
 the `opId` is known but compaction has already dropped its payload. `read` and `load`
-speak in branded `Sequence` and `Cursor` values, built with `sequence(n)` and
-`cursor(n)`, so one cannot be passed where the other is expected. `appendAll`
-commits an ordered batch in one transaction; `compact` and `floor` bound what
-payloads are retained; and `keys`, `reset`, `unfinished`, `effect`,
-`clearEffect`, and `recover` support maintenance and recovery.
+speak in branded `Sequence` and `Cursor` values, so one cannot be passed where
+the other is expected. `appendAll` commits an ordered batch in one transaction;
+`compact` and `floor` bound what payloads are retained; and `keys`, `reset`,
+`unfinished`, `effect`, `clearEffect`, and `recover` support maintenance and
+recovery.
 
 ## Install
 
@@ -90,27 +98,59 @@ Node 22 is required for `node:sqlite`. `foldkit-sync` is the client half.
 
 ## The journal as a service
 
-`makeJournalLayer` provides the journal through `Effect.provide`, and
-`JournalService` reads it back:
+`Journal.define` names a journal once — its service key and its type parameters
+together — and hands back the tag to read it with and the layer that satisfies
+that tag:
 
 ```ts
 import { Effect } from 'effect'
-import { JournalService, documentId, makeJournalLayer, type JournalOptions } from 'foldkit-durable'
+import { DocumentId, Journal, type JournalOptions } from 'foldkit-durable'
 
-// The same object `makeJournal` takes.
+const TodoJournal = Journal.define<Operation, Snapshot, Principal>('app/TodoJournal')
+
+// The same object `Journal.make` takes.
 declare const options: JournalOptions<Operation, Snapshot, Principal>
-const JournalLayer = makeJournalLayer(options)
 
 const program = Effect.gen(function* () {
-  const journal = yield* JournalService<Operation, Snapshot, Principal>()
-  return yield* journal.load(documentId('todos'))
-}).pipe(Effect.provide(JournalLayer))
+  const journal = yield* TodoJournal.tag
+  return yield* journal.load(DocumentId.make('todos'))
+}).pipe(Effect.provide(TodoJournal.layer(options)))
 ```
 
-A parameterized service tag shares one runtime key, so an application that runs
-two journals must give each a distinct key:
-`makeJournalLayer(optionsB, 'my-app/journal-b')` and
-`JournalService<OperationB, SnapshotB, PrincipalB>('my-app/journal-b')`.
+Two journals are two definitions with two keys; each tag can only be satisfied
+by its own layer, and neither can be read back as a journal of the other shape.
+`Journal.layer(options)` still provides one under the default key for an
+application that does not need a definition.
+
+## Validation and policy
+
+`validate` runs first, for structural checks against the snapshot; `authorize`
+decides policy. Both run inside the append transaction, so neither can require a
+service.
+
+```ts
+import { Effect } from 'effect'
+import { InvalidOperationError, type JournalOptions } from 'foldkit-durable'
+
+const hooks: Pick<JournalOptions<Operation, Snapshot, Principal>, 'validate' | 'authorize'> = {
+  // Throw, or return an Effect that fails with InvalidOperationError.
+  validate: ({ operation }) =>
+    operation.title.length === 0
+      ? Effect.fail(new InvalidOperationError({ message: 'title is empty' }))
+      : Effect.void,
+  // `true`/`false`, a refusal carrying its reason, or an Effect of either.
+  authorize: ({ principal, operation }) =>
+    principal.actorId === operation.opId.split(':')[0] || {
+      allowed: false,
+      reason: 'an operation must be committed by the tab that created it',
+    },
+}
+```
+
+A refusal fails with `OperationRejectedError`. The reason, when the rule gave
+one, is on `.reason` and repeated in `.message`, so a server that forwards the
+message to the client that sent the operation shows the person whose edit
+reverted why. A plain `false` refuses with no reason, as before.
 
 ## What it owns
 
@@ -140,11 +180,10 @@ two journals must give each a distinct key:
 - **Migrations.** The tables are created or upgraded by a transactional
   `user_version` migration, so an existing database is upgraded in place and an
   interrupted run is safe to repeat.
-- **Metrics.** `journalMetrics` counts appends, compactions, owner effect runs,
+- **Metrics.** `Journal.metrics` counts appends, compactions, owner effect runs,
   and coalesced effect runs.
 - **Branded identities.** `DocumentId`, `OpId`, `ActorId`, `Sequence`, and
-  `Cursor` are `Schema.brand`s with `documentId` / `opId` / `actorId` / `sequence`
-  / `cursor` decoders, so they cannot be swapped.
+  `Cursor` are `Schema.brand`s, built with `.make`, so they cannot be swapped.
 
 ## Guarantees
 
@@ -172,8 +211,10 @@ provider may have accepted a request before the response or local save failed.
 Calling `runEffect` again retries both `pending` and `failed` records. It does
 not decide whether retrying is safe, and it does not restart work automatically.
 Pass `{ retryFailed: false }` to fail fast with an `EffectFailedError` (carrying
-the recorded message) instead of retrying a `failed` record; `unfinished()`
-lists those records so a recovery worker can decide per intent.
+the recorded message) instead of retrying a `failed` record, or a predicate
+`(record: EffectRecord) => boolean` to decide from the record itself — retry a
+recorded timeout, refuse a recorded decline. `unfinished()` lists those records
+so a recovery worker can decide per intent.
 
 | Durable record | What recovery can conclude | Application policy |
 | --- | --- | --- |
@@ -245,11 +286,11 @@ up to which every intent settled, so the caller persists it and resumes:
 
 ```ts
 import { Effect, Option } from 'effect'
-import { documentId, type Cursor } from 'foldkit-durable'
+import { DocumentId, type Cursor } from 'foldkit-durable'
 
 const settle = (journal: Orders, from: Cursor) =>
   journal.recover({
-    key: documentId('orders'),
+    key: DocumentId.make('orders'),
     from,
     intents: order => [
       {
@@ -279,7 +320,7 @@ today.
 
 ### Execution ownership
 
-The in-flight registry belongs to one `makeJournal` instance. Two journal
+The in-flight registry belongs to one `Journal.make` instance. Two journal
 handles or processes can both execute the same key; writing `pending` is not
 an exclusive claim. Route execution to one owner for the database. Multi-owner
 execution requires a persistent claim/lease protocol with fencing and a recovery
@@ -325,11 +366,10 @@ a rotated journal silently turn an old retry into a new commit.
   needs Node 22 (`node:sqlite`). The storage contract is `SqlClient`, so a
   Postgres adapter is a driver swap.
 - The SQL module is under `unstable` in the pinned Effect release candidate.
-- `reduce` and `validate` are synchronous and run inside the append transaction,
-  holding the SQLite write lock; they must be pure and fast and cannot call a
-  service. `authorize` may return an `Effect`, but it runs there too, so it has
-  no service requirement and must stay local to the snapshot. An encoded
-  operation must be JSON-compatible.
+- `reduce` runs inside the append transaction, holding the SQLite write lock; it
+  must be pure and fast. `validate` and `authorize` may each return an `Effect`,
+  but they run there too, so neither has a service requirement and both must
+  stay local to the snapshot. An encoded operation must be JSON-compatible.
 - Schema 3 recomputes retained operations' `payload_hash` from canonical JSON, so
   a payload compacted after the upgrade compares canonically. A payload already
   compacted before it keeps its pre-canonical hash — its content is gone and
@@ -337,6 +377,18 @@ a rotated journal silently turn an old retry into a new commit.
 - The `[key, op_id]` and `[key, sequence]` uniqueness is enforced by the table
   schema; a server-authoritative deployment is still a single writer per database
   file. Use one `Journal` handle per file.
+
+## The older spellings still work
+
+Every name this package has ever exported still does the same thing.
+`Journal.make`, `Journal.layer`, and `Journal.metrics` are `makeJournal`,
+`makeJournalLayer`, and `journalMetrics`; `DocumentId.make` and its siblings are
+`documentId`, `opId`, `actorId`, `sequence`, and `cursor`. `JournalService<...>(key)`
+still reads a journal back from a key, though `Journal.define` is the safer
+form: `JournalService`'s type arguments are supplied at each use site and
+nothing checks them against the layer that satisfied the tag, so reading the
+same key back as a journal of another shape compiles. A codec given as a pair of
+`encode`/`decode` functions is still accepted wherever a `Schema.Codec` now is.
 
 ## See also
 
