@@ -1,21 +1,35 @@
-# foldkit-mixins-surface
+# `foldkit-mixins-surface`
 
-Bridges [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface)'s projected Model and Message subset to
-[`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) SlotViews.
+Connects a [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface)
+feature boundary to a [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins)
+`SlotView` without repeating that boundary in the view layer.
 
-A Surface is a narrowed window onto an application: it projects a few fields of
-the root Model and names the few Messages it may emit. A SlotView is a view that
-publishes attachment points for Style and Behavior. On their own, nothing
-connects the two: `SlotView.define` takes whatever input type and Message
-universe you annotate, so nothing stops an attachment from reading a field the
-Surface does not project, or emitting a Message it does not expose.
+The two packages answer different questions:
 
-`SurfaceView.define` closes that gap. It is one function that pins a SlotView's
-input type to the Surface's projection and its Message universe to the Surface's
-subset. A Style or Behavior attached to the result can only read projected
-fields, and can only emit exposed Messages — both are compile errors otherwise,
-in the attachment rather than at the application boundary. It creates no state
-and no rendering machinery; the result is an ordinary `SlotView`.
+```text
+Surface   -> what may this feature observe and which Messages may it emit?
+SlotView  -> where may this view be customized with Style and Behavior?
+```
+
+`SurfaceView.define` joins them. The SlotView's input becomes exactly the
+Surface's projected value, and its Message universe becomes exactly the
+Surface's exposed subset. A Behavior cannot quietly read a root-Model field the
+Surface omitted or emit a Message the feature did not expose; both mistakes are
+type errors where the view is defined.
+
+The bridge creates no state, no renderer, and no second runtime. The result is
+an ordinary `SlotView` with the Surface's boundary reflected in its types.
+
+## Use it when
+
+You already render a Surface and want to style or decorate that feature through
+typed Mixins extension points. If you are not using `foldkit-surface`, use
+`SlotView.define` / `SlotView.forMessages` from `foldkit-mixins` directly — this
+package adds nothing else.
+
+For the Mixins mental model itself (Slot, Style, Behavior, SlotView), read
+[Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md)
+first.
 
 ## Install
 
@@ -26,12 +40,6 @@ pnpm add foldkit-mixins foldkit-surface foldkit-mixins-surface
 `foldkit`, `effect`, `foldkit-mixins`, and `foldkit-surface` are peer
 dependencies.
 
-## Use it when
-
-You already render a Surface and want to style or decorate it from outside.
-If you are not using `foldkit-surface`, use `SlotView.define` from
-`foldkit-mixins` directly — this package adds nothing else.
-
 ## Usage
 
 ```ts
@@ -39,7 +47,7 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Behavior, Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
-import { Projection, Surface } from 'foldkit-surface'
+import { Surface } from 'foldkit-surface'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
@@ -56,8 +64,8 @@ const Message = defineMessageUnion({
 const App = Surface.application({ Model, Message })
 
 // Projects two of the three fields, exposes two of the three Messages.
-const TodoList = Surface.make(App, 'TodoList', {
-  model: ({ model }) => Projection.struct({ todos: model.todos, selectedId: model.selectedId }),
+const TodoList = App.surface('TodoList', {
+  model: ({ model }) => ({ todos: model.todos, selectedId: model.selectedId }),
   messages: [Message.SelectedTodo, Message.ArchivedTodo],
 })
 
@@ -98,33 +106,66 @@ const TodoListView = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) =
 const renderer = Surface.view(TodoList, SurfaceView.toRenderer(TodoListView))
 ```
 
-Note what the render callback does not need: no type annotation on `model` or
-`h`. `SlotView.define` infers its Message universe from the builder you annotate;
-`SurfaceView.define` takes it from the Surface. A Behavior's `Input` parameter,
-though, has to be exactly the projected type — a `SlotView` is invariant in it,
-so a narrower "just the fields I read" type is rejected by `Behavior.attach`.
+The useful part is what the render callback does **not** repeat: no type
+annotation on `model` or `h`, no second Message union, and no root-Model input
+type. `SurfaceView.define` gets those from the Surface.
 
-`toRenderer` is the single boundary cast, the same one `Surface.rootView` makes:
-`Surface.view` hands a renderer a `ViewBuilder` — the real builder with its
-`MessageUniverse` phantom removed — and this is the matching adaptation, sound
-because the renderer can only construct the Surface's Messages.
+A Behavior's `Input` parameter still has to be exactly the projected type — a
+`SlotView` is invariant in it, so a narrower "just the fields I happen to read"
+type is rejected by `Behavior.attach`.
+
+`toRenderer` is the single boundary adaptation. `Surface.view` hands a renderer
+a `ViewBuilder` with its `MessageUniverse` phantom removed; the SlotView is sound
+there because `SurfaceView.define` already restricted what it can construct to
+the Surface's Message subset.
+
+## What the bridge buys you
+
+Without this package, Surface and SlotView are both type-safe independently, but
+you can accidentally describe the same feature boundary twice:
+
+```text
+Surface projection / Message subset
+             X
+SlotView input / Message universe
+```
+
+With `SurfaceView.define`, there is one declaration:
+
+```text
+Surface
+  │
+  ├─ projected value ──────────────┐
+  └─ Message subset ────────────┐  │
+                                ▼  ▼
+                             SlotView
+                                │
+                         Style + Behavior
+```
+
+That is the whole package.
 
 ## Introspection
 
-`SurfaceView.inspect(view)` returns serializable `{ name, slots, mixins }` with no
-functions. `SurfaceView.describe(surface, params, view)` merges that with
+`SurfaceView.inspect(view)` returns serializable `{ name, slots, mixins }` with
+no functions. `SurfaceView.describe(surface, params, view)` merges that with
 `Surface.inspect` — what the Surface observes, requires, and may emit, with
-emitted Messages as tags — into one value, and `SurfaceView.toMarkdown` renders it
+emitted Messages as tags — into one value. `SurfaceView.toMarkdown` renders it
 deterministically for docs or a CI drift check.
 
-Each of `define`, `toRenderer`, `inspect`, `describe` and `toMarkdown` is also a
-direct named export, if you prefer that to the `SurfaceView` namespace.
+Each of `define`, `toRenderer`, `inspect`, `describe`, and `toMarkdown` is also a
+direct named export if you prefer that to the `SurfaceView` namespace.
 
-The API is still settling (`0.1.0`). See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md).
+## Status
+
+The API is still settling in the `0.x` series. This is deliberately a small
+bridge rather than a second view system; changes should keep it that way. See
+[the design note](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md)
+for the underlying Mixins decisions.
 
 ## See also
 
-- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the mental model.
-- [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) — the resolver, Style, and Behavior; [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface) — the
-  projection this bridges.
-- [`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) — Surface to SlotView, end to end.
+- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the Mixins mental model and before/after examples.
+- [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) — SlotView, Style, Behavior, and the resolver.
+- [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface) — the projection/capability boundary this package preserves.
+- [`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) — Surface → SlotView end to end.
