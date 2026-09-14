@@ -8,6 +8,8 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { SurfaceView } from 'foldkit-mixins-surface'
 import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, Sync } from 'foldkit-sync'
 
@@ -74,7 +76,31 @@ const Overview = App.surface('Overview', {
   model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
 })
 
-// 3. Sync declares ownership of one writable slice and the facts that change it.
+// 3. Mixins let the view publish typed extension points once. The view owns
+// markup; Style owns appearance. Neither gets another place to keep state.
+const BoardSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  list: Slot.make({ capability: Capability.Collection }),
+})
+
+const BoardStyle = Style.forSlots(BoardSlots)({
+  root: Style.class('todo-board'),
+  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }),
+})
+
+export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h) =>
+  h.section(slots.root.attrs(), [
+    h.ul(
+      slots.list.attrs(),
+      model.todos.map(todo => h.li([], [todo.title])),
+    ),
+  ]),
+).pipe(Style.attach(BoardStyle))
+
+// Behavior attaches element-level interaction through the same slots when needed;
+// application state and transitions still belong to Model / Message / update.
+
+// 4. Sync declares ownership of one writable slice and the facts that change it.
 // Projection.pick is writable because checkpoints must install back into Model;
 // replay still runs these Messages through the application's own update.
 const TodoSync = Sync.forApplication(App)
@@ -97,7 +123,7 @@ const TodoSync = Sync.forApplication(App)
 // There is no second server-side reducer to keep in agreement.
 TodoSync.journalContract()
 
-// 4. Agent exposes the same application vocabulary instead of reimplementing actions.
+// 5. Agent exposes the same application vocabulary instead of reimplementing actions.
 const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
 const AppAgent = TodoAgent.make({
   context: Overview,
@@ -127,7 +153,7 @@ const AppAgent = TodoAgent.make({
   }),
 })
 
-// 5. Mirrors do not own state. They are secondary representations of Model fields.
+// 6. Mirrors do not own state. They are secondary representations of Model fields.
 const Filters = Mirror.url(App, {
   name: 'filters',
   fields: [App.fields.filter], // linkable: ?filter=active
@@ -137,7 +163,7 @@ const Prefs = Mirror.kv(App, {
   fields: [App.fields.draft], // remembered on this device
 })
 
-// 6. The architecture itself is data. Validate ownership/capability relationships,
+// 7. The architecture itself is data. Validate ownership/capability relationships,
 // or turn the same declarations into documentation and tooling input.
 const Project = Module.make(App, [
   Board,
