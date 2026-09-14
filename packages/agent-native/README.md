@@ -1,10 +1,19 @@
 # `foldkit-agent-native`
 
-Compiles a [`foldkit-agent`](../agent) contract into Agent Native actions.
+Compiles a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract into Agent Native actions.
 
 It is checked against `@agent-native/core@0.177.1`; the integration suite uses
 the real package registry, tool runtime, and schema wrapper. Full HTTP/MCP/A2A
 deployments remain outside this package's test suite.
+
+## Install
+
+```bash
+pnpm add foldkit-agent foldkit-agent-native
+```
+
+`foldkit`, `effect`, `foldkit-agent`, and `@agent-native/core` are peer
+dependencies.
 
 ## What it does
 

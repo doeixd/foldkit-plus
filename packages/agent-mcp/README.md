@@ -1,6 +1,6 @@
 # `foldkit-agent-mcp`
 
-Serves a [`foldkit-agent`](../agent) contract over the Model Context Protocol
+Serves a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract over the Model Context Protocol
 (`2025-06-18`), so an MCP client can use the capabilities an application already
 exposes.
 

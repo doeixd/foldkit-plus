@@ -1,6 +1,6 @@
 # `foldkit-agent-a2a`
 
-Serves a [`foldkit-agent`](../agent) contract as an A2A agent, so another agent
+Serves a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract as an A2A agent, so another agent
 can use the capabilities an application already exposes.
 
 ```bash

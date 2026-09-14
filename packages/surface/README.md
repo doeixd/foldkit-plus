@@ -10,6 +10,14 @@ Schema, not a second hand-written interface.
 and [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote):
 both consume the projection and Message-subset values this package produces.
 
+## Install
+
+```bash
+pnpm add foldkit-surface
+```
+
+`foldkit` and `effect` are peer dependencies.
+
 ## Quick start
 
 ```ts

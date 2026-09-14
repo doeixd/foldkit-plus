@@ -17,6 +17,18 @@ Remote Selection / Query
  normalized Remote patches
 ```
 
+## Install
+
+```bash
+pnpm add foldkit-remote-drizzle
+```
+
+`effect` is a peer dependency; `foldkit-remote`, `foldkit-remote-server`, and
+`drizzle-orm` come with it. It is part of
+[foldkit-plus](https://github.com/doeixd/foldkit-plus); the
+[server-derived state guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md)
+covers the mental model.
+
 ## Quick start
 
 ```ts

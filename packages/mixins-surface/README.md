@@ -1,7 +1,7 @@
 # foldkit-mixins-surface
 
-Bridges [`foldkit-surface`](../surface)'s projected Model and Message subset to
-[`foldkit-mixins`](../mixins) SlotViews.
+Bridges [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface)'s projected Model and Message subset to
+[`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) SlotViews.
 
 `SurfaceView.define(surface, slots, render)` returns an ordinary `SlotView`: the
 renderer's input is the Surface's projected Model, so Style and Behavior
@@ -17,6 +17,15 @@ const TodoCardView = SurfaceView.define(TodoSurface, TodoSlots, (model, slots, h
 
 Surface.view(TodoSurface, SurfaceView.toRenderer(TodoCardView))
 ```
+
+## Install
+
+```bash
+pnpm add foldkit-mixins foldkit-surface foldkit-mixins-surface
+```
+
+`foldkit`, `effect`, `foldkit-mixins`, and `foldkit-surface` are peer
+dependencies.
 
 ## What the bridge enforces
 
@@ -36,4 +45,4 @@ functions. `SurfaceView.describe(surface, params, view)` merges that with
 emitted Messages as tags — into one value, and `SurfaceView.toMarkdown` renders it
 deterministically for docs or a CI drift check.
 
-The API is still settling (`0.1.0`). See [DESIGN.md](../../docs/design/mixins-DESIGN.md).
+The API is still settling (`0.1.0`). See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md).

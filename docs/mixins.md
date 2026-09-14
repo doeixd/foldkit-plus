@@ -120,8 +120,11 @@ of the component API, not of the mixin model.
   the projected input, and the serializable `SurfaceView.describe` metadata.
 - [`examples/remote`](../examples/remote) — the same view layer over a
   `foldkit-remote` projection: plan → prefetch → render → mutate → decode failure.
+- [`examples/todo-app`](../examples/todo-app) — a whole application styled this
+  way: `Style.recipe`, `Style.whenInput`, a Theme, Behaviors for the row editor,
+  and `@foldkit/ui` Button and Checkbox through `foldkit-mixins-ui`.
 
-`pnpm demo` runs both.
+`pnpm demo` runs all three.
 
 ## Limits
 

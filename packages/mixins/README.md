@@ -23,6 +23,15 @@ runtime.
           ordinary Foldkit attributes
 ```
 
+## Install
+
+```bash
+pnpm add foldkit-mixins
+```
+
+`foldkit` and `effect` are peer dependencies. `foldkit-mixins-surface` bridges a
+Surface projection, and `foldkit-mixins-ui` adapts `@foldkit/ui`.
+
 ## Why
 
 - **Customize without forking.** A component publishes a slot contract; a style
@@ -147,7 +156,7 @@ Style.stylesheet(CardStyle, OtherStyle) // deduplicated, deterministic
 Equal rules share a class; nothing mutates the DOM, so the server and the client
 derive the same class and rules. Rules inside `Style.whenInput` are rejected
 (`style:conditional-rules-unsupported`) because the class is static while the
-condition is not. See [DESIGN.md](../../docs/design/mixins-DESIGN.md) for the compiler's scope.
+condition is not. See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md) for the compiler's scope.
 
 ## Behavior
 
@@ -204,10 +213,10 @@ unpublished events or attributes in authored order. It does not certify WCAG.
 
 ## Adapters
 
-- [`foldkit-mixins-ui`](../mixins-ui) publishes `@foldkit/ui` attribute bundles as
+- [`foldkit-mixins-ui`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-ui) publishes `@foldkit/ui` attribute bundles as
   slots (Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip, Slider,
   Tabs, RadioGroup, Calendar, …).
-- [`foldkit-mixins-surface`](../mixins-surface) binds a `foldkit-surface`
+- [`foldkit-mixins-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-surface) binds a `foldkit-surface`
   projection and Message subset to a `SlotView`.
 
 ## Boundaries
@@ -217,6 +226,6 @@ second update loop, mutable element handles as the default path, or an event bus
 It does not replace Foldkit Commands, Subscriptions, Mounts, ManagedResources or
 `@foldkit/ui`.
 
-The API is still settling (`0.1.0`). [DESIGN.md](../../docs/design/mixins-DESIGN.md) records the
+The API is still settling (`0.1.0`). [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md) records the
 substrate probes and the decisions they forced;
-[`examples/mixins`](../../examples/mixins) is a runnable trace.
+[`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) is a runnable trace.

@@ -1,7 +1,7 @@
 # foldkit-mixins-ui
 
 Published slot contracts and mixin adapters for [`@foldkit/ui`](https://www.npmjs.com/package/@foldkit/ui),
-built on [`foldkit-mixins`](../mixins).
+built on [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins).
 
 `@foldkit/ui` components do not own markup: they build typed attribute bundles
 and hand them to a consumer `toView` callback. This package formalizes those
@@ -28,6 +28,14 @@ Base accessibility attributes, event Messages and any `ChildAttribute` are
 preserved; Mixin contributions merge through the same deterministic resolver as
 the core package. A Behavior cannot silently take over an event the component
 already owns.
+
+## Install
+
+```bash
+pnpm add foldkit-mixins foldkit-mixins-ui @foldkit/ui
+```
+
+`foldkit`, `effect`, `foldkit-mixins`, and `@foldkit/ui` are peer dependencies.
 
 ## Components
 
@@ -60,4 +68,4 @@ contribution to every item while each item's base keeps its own event ownership.
 expose no attribute bundles, so there is nothing to resolve against; they are not
 adapted.
 
-The API is still settling (`0.1.0`). See [DESIGN.md](../../docs/design/mixins-DESIGN.md).
+The API is still settling (`0.1.0`). See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md).

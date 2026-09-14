@@ -1,6 +1,6 @@
 # `foldkit-agent-webmcp`
 
-The browser-native adapter for [`foldkit-agent`](../agent). It projects exposed
+The browser-native adapter for [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent). It projects exposed
 Foldkit Messages into Chrome's experimental WebMCP Imperative API.
 
 WebMCP runs in the page itself, so a tool's `execute` dispatches directly into
@@ -26,7 +26,7 @@ import { AgentWebMcp } from 'foldkit-agent-webmcp'
 const registration = AgentWebMcp.register({ agent: agentRuntime })
 ```
 
-[examples/todo](../../examples/todo) registers a real contract and executes the
+[examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) registers a real contract and executes the
 resulting tools.
 
 `agent` is the `AgentRuntime` returned by `Agent.bind(...)`.
