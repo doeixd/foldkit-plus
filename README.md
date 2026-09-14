@@ -1,6 +1,6 @@
 # foldkit-plus
 
-[![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml)
+[![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/doeixd/foldkit-plus)
 
 > Fifteen packages that extend a [Foldkit](https://foldkit.dev/) application
 > outward — to agents, servers, other devices, the URL, and design systems —
