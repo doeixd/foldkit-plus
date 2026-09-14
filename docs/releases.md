@@ -15,8 +15,8 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-agent-mcp`](../packages/agent-mcp) | 0.2.1 | Published | External MCP adapter: a transport-free handler plus stdio and Streamable HTTP. |
 | [`foldkit-agent-a2a`](../packages/agent-a2a) | 0.2.1 | Published | A2A adapter: an Agent Card and `message/send` as tasks. |
 | [`foldkit-agent-native`](../packages/agent-native) | 0.2.1 | Published | Agent Native adapter: compiles exposed capabilities into framework actions whose `run` only dispatches. |
-| [`foldkit-durable`](../packages/durable) | 0.2.1 | Published | Durable, ordered operation log on `effect/unstable/sql`, with snapshots, cursors, compaction, and an effect ledger. |
-| [`foldkit-sync`](../packages/sync) | 0.3.1 | Published | Local-first replica: offline outbox, optimistic projection, reconciliation, presence, and a reconnecting WebSocket transport. |
+| [`foldkit-durable`](../packages/durable) | 0.3.0 | Published | Durable, ordered operation log on `effect/unstable/sql`, with snapshots, cursors, compaction, and an effect ledger. |
+| [`foldkit-sync`](../packages/sync) | 0.4.0 | Published | Local-first replica: offline outbox, optimistic projection, reconciliation, presence, and a reconnecting WebSocket transport. |
 | [`foldkit-surface`](../packages/surface) | 0.1.1 | Published | Observation boundary: pure Model projections, field references, and typed Message subsets. |
 | [`foldkit-remote`](../packages/remote) | 0.2.0 | Published | Normalized server state as a Foldkit Submodel: entities, selections, queries, connections, mutations, and live changes. |
 | [`foldkit-remote-server`](../packages/remote-server) | 0.2.0 | Published | Server sources and handler compilation for Remote: entities, queries, mutations, live, and selection authorization. |
