@@ -58,8 +58,8 @@ describe('the todo app', () => {
       Agent.toManifest(AppAgent).capabilities.find(capability => capability.name === name)
         ?.completion
 
-    expect(completion('add_todo')).toEqual({ success: ['SubmittedTodo'] })
-    expect(completion('rename_list')).toEqual({ state: { observes: ['listTitle'] } })
+    expect(completion('add_todo')).toEqual({ kind: 'message', success: ['SubmittedTodo'] })
+    expect(completion('rename_list')).toEqual({ kind: 'state', observes: ['listTitle'] })
   })
 
   it('mints the fact in a Command and keeps local state out of it', () => {

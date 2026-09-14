@@ -296,12 +296,12 @@ export const bind = <
   // A contract that cannot be honoured is refused here rather than at the first
   // call, where it would look like an application bug.
   const requireSeam = (
-    kind: CompiledCompletion['_tag'],
+    needs: (completion: CompiledCompletion) => boolean,
     seam: 'observe' | 'subscribe',
     ability: string,
   ): void => {
     const needing = definition.messages.variants.filter(
-      variant => variant.compiledCompletion?._tag === kind,
+      variant => variant.compiledCompletion !== undefined && needs(variant.compiledCompletion),
     )
     if (needing.length > 0 && host[seam] === undefined) {
       throw new Error(
@@ -311,8 +311,13 @@ export const bind = <
       )
     }
   }
-  requireSeam('Message', 'observe', 'observe Messages')
-  requireSeam('State', 'subscribe', 'subscribe to Model changes')
+  requireSeam(completion => completion._tag === 'Message', 'observe', 'observe Messages')
+  // A state contract over a source notifies on its own; only a projection needs the host.
+  requireSeam(
+    completion => completion._tag === 'State' && completion.subscribe === undefined,
+    'subscribe',
+    'subscribe to Model changes',
+  )
 
   const descriptors = describeMessages(definition)
   const descriptorByName = new Map(
@@ -413,7 +418,7 @@ export const bind = <
                 input: decoded,
                 invocation,
                 model: host.model,
-                subscribe: host.subscribe!,
+                subscribe: compiled.subscribe ?? host.subscribe!,
               })
             : awaitCompletion({
                 completion: compiled,

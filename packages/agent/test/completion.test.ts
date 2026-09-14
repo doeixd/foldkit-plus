@@ -565,7 +565,7 @@ describe('state completion', () => {
     expect(result._tag).toBe('Success')
   })
 
-  it('completes at once when the state already holds', async () => {
+  it('completes at once when the state already holds, whoever made it so', async () => {
     const state = makeStateHost()
     state.replace(withTitle('milk'))
     const runtime = Agent.bind({ definition: creating(Duration.millis(50)), host: state.host })
@@ -646,7 +646,147 @@ describe('state completion', () => {
     ).toThrow(/cannot subscribe to Model changes, which "create_todo"/)
   })
 
-  it('needs no Message observation', () => {
-    expect(() => Agent.bind({ definition: creating(), host: makeStateHost().host })).not.toThrow()
+  it('reads a source outside the Model, which needs no host subscription', async () => {
+    let count = 0
+    const listeners = new Set<() => void>()
+    const source = {
+      get: () => count,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    }
+    const bump = (): void => {
+      count += 1
+      for (const listener of [...listeners]) listener()
+    }
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(MessageUnion, {
+          RequestedCreateTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            completion: Agent.when({ source, predicate: value => value >= 2 }),
+          },
+        }),
+      }),
+      host: { model: () => emptyModel, dispatch: (_: Message) => {} },
+    })
+
+    const pending = run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+    setTimeout(bump, 1)
+    setTimeout(bump, 5)
+
+    expect((await pending)._tag).toBe('Success')
+    expect(listeners.size).toBe(0)
+  })
+
+  it('does not re-evaluate a value a notification left unchanged', async () => {
+    const state = makeStateHost()
+    let evaluated = 0
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(MessageUnion, {
+          RequestedCreateTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            completion: Agent.when({
+              projection: Projection.fromReader(ModelSchema, (model: Model) => model),
+              predicate: (model, request) => {
+                evaluated += 1
+                return model.todos.some(todo => todo.title === request.title)
+              },
+            }),
+          },
+        }),
+      }),
+      host: state.host,
+    })
+
+    const pending = run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+    await new Promise(resolve => setTimeout(resolve, 1))
+    const before = evaluated
+    for (const listener of [...state.listeners]) listener()
+    for (const listener of [...state.listeners]) listener()
+    expect(evaluated).toBe(before)
+
+    state.set(withTitle('milk'))
+    expect((await pending)._tag).toBe('Success')
+    expect(evaluated).toBe(before + 1)
+  })
+
+  it('stops waiting on abort and releases its listener', async () => {
+    const state = makeStateHost()
+    const controller = new AbortController()
+    const runtime = Agent.bind({ definition: creating(), host: state.host })
+
+    const pending = run(
+      runtime.messages.dispatch('create_todo', { title: 'milk' }, { signal: controller.signal }),
+    )
+    await new Promise(resolve => setTimeout(resolve, 1))
+    controller.abort()
+
+    expect(((await pending) as { failure: unknown }).failure).toMatchObject({
+      _tag: 'AgentCancelledError',
+      dispatched: true,
+    })
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('settles concurrent invocations each on its own condition', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({ definition: creating(Duration.seconds(1)), host: state.host })
+
+    let milkSettled = false
+    const milk = run(runtime.messages.dispatch('create_todo', { title: 'milk' })).finally(() => {
+      milkSettled = true
+    })
+    const bread = run(runtime.messages.dispatch('create_todo', { title: 'bread' }))
+    await new Promise(resolve => setTimeout(resolve, 1))
+
+    state.set(withTitle('bread'))
+    expect((await bread)._tag).toBe('Success')
+    expect(milkSettled).toBe(false)
+
+    state.set(withTitle('milk'))
+    expect((await milk)._tag).toBe('Success')
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('never subscribes for an invocation that was refused', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(MessageUnion, {
+          RequestedCreateTodo: {
+            name: 'create_todo',
+            description: 'Create a todo',
+            authorize: () => false,
+            completion: Agent.when({ projection: Todos, predicate: () => true }),
+          },
+        }),
+      }),
+      host: state.host,
+    })
+
+    const result = await run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+
+    expect((result as { failure: { _tag: string } }).failure._tag).toBe('AgentAuthorizationError')
+    expect(state.listeners.size).toBe(0)
+  })
+
+  it('releases its listener when the host returns a failing Effect', async () => {
+    const state = makeStateHost()
+    const runtime = Agent.bind({
+      definition: creating(),
+      host: { ...state.host, dispatch: (_: Message) => Effect.fail('refused') },
+    })
+
+    const exit = await Effect.runPromiseExit(
+      runtime.messages.dispatch('create_todo', { title: 'milk' }),
+    )
+
+    expect(exit._tag === 'Failure' && Cause.hasDies(exit.cause)).toBe(true)
+    expect(state.listeners.size).toBe(0)
   })
 })

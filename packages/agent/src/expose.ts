@@ -309,7 +309,9 @@ export const variant = <
   ) => MessageInput
   readonly authorize?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['authorize']
   readonly completion?:
-    VariantCompletion<ExternalInput, Success, Failure> | StateCompletion<ExternalInput> | undefined
+    | VariantCompletion<ExternalInput, Success, Failure>
+    | StateCompletion<ExternalInput, Model>
+    | undefined
 }): Omit<typeof config, 'name' | 'completion'> &
   // Erased on the way out: the contract was checked against this variant's own
   // input above, and `expose`'s constraint types `completion` for the inline

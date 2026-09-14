@@ -1,5 +1,5 @@
-import type { Definition } from './make.js'
 import { isStateCompletion } from './completion.js'
+import type { Definition } from './make.js'
 import { contextSchema, messages, resources } from './introspect.js'
 import { messageTags } from './tag.js'
 
@@ -19,11 +19,12 @@ export interface Manifest {
     readonly requiresAuthorization: boolean
     readonly completion?:
       | {
+          readonly kind: 'message'
           readonly success: ReadonlyArray<string>
           readonly failure?: ReadonlyArray<string>
         }
-      /** Completes on application state; `observes` are the Model paths it reads. */
-      | { readonly state: { readonly observes: ReadonlyArray<string> } }
+      /** `observes` are the Model paths a projection reads; empty for a source. */
+      | { readonly kind: 'state'; readonly observes: ReadonlyArray<string> }
   }>
   readonly resources: ReadonlyArray<{
     readonly name: string
@@ -59,11 +60,11 @@ export const toManifest = (definition: Definition<any, any, any, any, any>): Man
           : {
               completion: isStateCompletion(completion)
                 ? {
-                    state: {
-                      observes: completion.projection.dependencies.map(path => path.join('.')),
-                    },
+                    kind: 'state' as const,
+                    observes: completion.projection?.dependencies.map(path => path.join('.')) ?? [],
                   }
                 : {
+                    kind: 'message' as const,
                     success: messageTags(completion.success),
                     ...(completion.failure === undefined
                       ? {}
@@ -128,21 +129,19 @@ export const toMarkdown = (definition: Definition<any, any, any, any, any>): str
       }
       lines.push('Input:', '', jsonBlock(capability.inputSchema), '')
       const completion = capability.completion
-      if (completion !== undefined) {
-        if ('state' in completion) {
-          const observes = completion.state.observes.map(path => `\`${path}\``).join(', ')
-          lines.push(
-            `Completes when application state${observes === '' ? '' : ` (${observes})`} satisfies its condition.`,
-            '',
-          )
-        } else {
-          const success = completion.success.join(', ')
-          const failure = completion.failure?.join(', ')
-          lines.push(
-            `Completes on \`${success}\`${failure === undefined ? '' : `, fails on \`${failure}\``}.`,
-            '',
-          )
-        }
+      if (completion?.kind === 'state') {
+        const observes = completion.observes.map(path => `\`${path}\``).join(', ')
+        lines.push(
+          `Completes when application state${observes === '' ? '' : ` (${observes})`} satisfies its condition.`,
+          '',
+        )
+      } else if (completion?.kind === 'message') {
+        const success = completion.success.join(', ')
+        const failure = completion.failure?.join(', ')
+        lines.push(
+          `Completes on \`${success}\`${failure === undefined ? '' : `, fails on \`${failure}\``}.`,
+          '',
+        )
       }
     }
   }

@@ -53,6 +53,81 @@ Agent.expose(Message, {
   },
 })
 
+// Inside `Agent.variant`, `when` runs before the input is inferred, so `request`
+// is annotated; the variant still infers its input, and checks the annotation.
+Agent.expose(Message, {
+  RequestedDeleteTodo: Agent.variant({
+    description: 'Delete a todo',
+    input: Schema.Struct({ todoId: Schema.String }),
+    toMessage: input => ({ id: input.todoId }),
+    completion: Agent.when({
+      projection: TodoList,
+      predicate: (value, request: { readonly todoId: string }) =>
+        value.todos.every(todo => todo.id !== request.todoId),
+    }),
+  }),
+})
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: Agent.variant({
+    description: 'Delete a todo',
+    input: Schema.Struct({ todoId: Schema.String }),
+    toMessage: input => ({ id: input.todoId }),
+    completion: Agent.when({
+      projection: TodoList,
+      // @ts-expect-error unannotated inside `Agent.variant`, `request` is unknown.
+      predicate: (_value, request) => request.todoId === '',
+    }),
+  }),
+})
+
+// A wrong annotation is rejected: it disagrees with `input`, so the variant
+// reports the mismatch where the input is declared and read.
+Agent.expose(Message, {
+  RequestedDeleteTodo: Agent.variant({
+    description: 'Delete a todo',
+    // @ts-expect-error the request annotation says `id`, but the input declares `todoId`.
+    input: Schema.Struct({ todoId: Schema.String }),
+    // @ts-expect-error so the input `toMessage` reads has no `todoId`.
+    toMessage: input => ({ id: input.todoId }),
+    completion: Agent.when({
+      projection: TodoList,
+      predicate: (_value, request: { readonly id: string }) => request.id === '',
+    }),
+  }),
+})
+
+// Written outside a capability, `request` is unknown until annotated.
+Agent.when({
+  projection: TodoList,
+  // @ts-expect-error nothing says what the request is here.
+  predicate: (_value, request) => request.id === '',
+})
+
+// A projection of another Model is refused once the Model is known.
+TodoAgent.expose(Message, {
+  // @ts-expect-error the projection reads a different Model.
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: Projection.of(Schema.Struct({ unrelated: Schema.Number }))({ unrelated: true }),
+      predicate: () => true,
+    }),
+  },
+})
+
+// A source is typed by what it returns.
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      source: { get: () => 1, subscribe: () => () => {} },
+      // @ts-expect-error the source yields a number.
+      predicate: value => value.length === 0,
+    }),
+  },
+})
+
 // A tag that is not part of the union is rejected.
 Agent.expose(Message, {
   // @ts-expect-error NotAMessage is not a variant of this Message union.

@@ -366,15 +366,24 @@ RequestedRenameProject: {
 }
 ```
 
-`predicate` reads the projection's value and the capability's input, both
-inferred. The host needs `subscribe`, and `bind` refuses one without it.
+`predicate` reads the projection's value and the capability's input. Both are
+inferred when `when` is written inline in `Agent.expose`; inside `Agent.variant`
+annotate `request`, which is checked against the variant's `input`. The projection must read
+this application's Model, and the host needs `subscribe`; `bind` refuses one
+without it. A value outside the Model reads through `source: { get, subscribe }`
+instead, such as `foldkit-sync`'s `mounted.committed`.
 
-Completion is level-triggered: dispatch subscribes first and checks once more
-when it starts waiting, so a change made synchronously by `update`, or a state
-that already held, is never missed. The result carries `status: 'completed'`
-and no `message`. A predicate that throws fails that invocation as a defect and
-never the code that changed the Model. `timeout` and cancellation behave as they
-do for a Message contract.
+Completed means the condition holds, not that this call made it true. Dispatch
+subscribes before sending and checks once more when it starts waiting, so a
+change `update` makes synchronously is not missed, and a state that already
+holds completes at once. Write a predicate only this call can make true; a
+creation, where only the resulting fact says which record is this call's,
+completes on its Message with `correlate`.
+
+The result carries `status: 'completed'` and no `message`. A predicate that
+throws fails that invocation as a defect, never the code that changed the Model,
+and a value a notification left unchanged is not evaluated again. `timeout` and
+cancellation behave as they do for a Message contract.
 
 An invocation whose signal is already aborted is refused before the Model is
 read, and one aborted while decoding or `authorize` is pending never constructs

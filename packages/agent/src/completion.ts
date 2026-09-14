@@ -5,17 +5,14 @@ import { messageTags } from './tag.js'
 import type {
   AnyCompletion,
   AnyMessage,
+  CompletionOutcome,
   DispatchResult,
   Invocation,
   StateCompletion,
+  StateSource,
 } from './types.js'
 
-/** How a dispatched Message finished, once a completion contract is declared. */
-export interface CompletionOutcome<Message extends AnyMessage = AnyMessage> {
-  readonly status: 'completed' | 'failed'
-  /** The Message that completed the operation; absent when application state did. */
-  readonly message?: Message | undefined
-}
+export type { CompletionOutcome } from './types.js'
 
 /** A protocol-neutral reading of a successful dispatch, for an adapter to render. */
 export interface DispatchSummary {
@@ -40,14 +37,22 @@ export const summarize = (result: DispatchResult): DispatchSummary => ({
 })
 
 /**
- * Completes an invocation when application state satisfies `predicate`,
- * whatever caused it: a Command result, a live update, a Sync exchange, another
- * device. `request` is the capability's decoded input, inferred from the
- * variant this is declared on.
+ * Completes an invocation when a state satisfies `predicate`, whatever caused
+ * it: a Command result, a live update, a Sync exchange, another device.
+ * `request` is the capability's decoded input. Written inline in an
+ * `Agent.expose` capability it is inferred. Inside `Agent.variant`, or anywhere
+ * else, it is `unknown` until annotated, and a wrong annotation is rejected.
  *
- * Level-triggered: a state that already holds once the Message is dispatched
- * completes at once. Only success is expressed; a state that never arrives ends
- * at `timeout`, as a Message contract does.
+ * Completed means the condition holds, not that this call made it true: a state
+ * that already holds when the Message is dispatched completes at once. Write a
+ * predicate only this call can make true. A creation, where only the resulting
+ * fact says which record is this call's, completes on that Message with
+ * `correlate` instead.
+ *
+ * A `projection` reads this application's Model through the host, which then
+ * needs `subscribe`. A `source` reads a value outside the Model and notifies on
+ * its own, like `foldkit-sync`'s `mounted.committed`. Only success is
+ * expressed; a state that never arrives ends at `timeout`.
  *
  * @example
  * ```ts
@@ -60,15 +65,21 @@ export const summarize = (result: DispatchResult): DispatchSummary => ({
  * }
  * ```
  */
-export const when = <Value, Request = never>(config: {
-  readonly projection: Projection<any, Value>
+export function when<Value, Request = unknown, Model = any>(config: {
+  readonly projection: Projection<Model, Value>
   readonly predicate: (value: Value, request: Request) => boolean
   readonly timeout?: Duration.Input | undefined
-}): StateCompletion<Request, Value> => ({ _tag: 'StateCompletion', ...config })
+}): StateCompletion<Request, Model>
+export function when<Value, Request = unknown>(config: {
+  readonly source: StateSource<Value>
+  readonly predicate: (value: Value, request: Request) => boolean
+  readonly timeout?: Duration.Input | undefined
+}): StateCompletion<Request, unknown>
+export function when(config: object): StateCompletion {
+  return { _tag: 'StateCompletion', ...config } as StateCompletion
+}
 
-export const isStateCompletion = (
-  completion: AnyCompletion,
-): completion is StateCompletion<any, any> =>
+export const isStateCompletion = (completion: AnyCompletion): completion is StateCompletion =>
   '_tag' in completion && completion._tag === 'StateCompletion'
 
 /** A Message contract compiled into the tags and predicate the runtime matches on. */
@@ -83,7 +94,10 @@ export interface CompiledMessageCompletion {
 /** A state contract compiled into the read and the condition the runtime evaluates. */
 export interface CompiledStateCompletion {
   readonly _tag: 'State'
+  /** Reads the value from the host's Model; a source ignores it. */
   readonly read: (model: unknown) => unknown
+  /** A source's own notifications; `undefined` means the host's `subscribe`. */
+  readonly subscribe: ((listener: () => void) => () => void) | undefined
   readonly predicate: (value: unknown, request: unknown) => boolean
   readonly timeout: Duration.Duration
 }
@@ -104,11 +118,25 @@ export const compileCompletion = (
   capability: string,
 ): CompiledCompletion => {
   if (isStateCompletion(completion)) {
+    const predicate = completion.predicate
+    const timeout = timeoutOf(completion.timeout)
+    if (completion.source === undefined) {
+      const projection = completion.projection
+      return {
+        _tag: 'State',
+        read: model => projection.read(model),
+        subscribe: undefined,
+        predicate,
+        timeout,
+      }
+    }
+    const source = completion.source
     return {
       _tag: 'State',
-      read: completion.projection.read,
-      predicate: completion.predicate,
-      timeout: timeoutOf(completion.timeout),
+      read: () => source.get(),
+      subscribe: source.subscribe,
+      predicate,
+      timeout,
     }
   }
 
@@ -217,12 +245,11 @@ export const awaitCompletion = (options: {
 }
 
 /**
- * Waits for application state to satisfy a state contract.
+ * Waits for a state contract's condition.
  *
- * Subscribes before dispatch, then evaluates once more when the wait begins:
- * a host need not notify for a change `update` made synchronously, and a state
- * that already held produces no change at all. Between the two, no change can
- * go unseen.
+ * Subscribes before dispatch, then evaluates once more when the wait begins: a
+ * host need not notify for a change `update` made synchronously, and a state
+ * that already held produces no change at all.
  */
 export const awaitState = (options: {
   readonly completion: CompiledStateCompletion
@@ -238,6 +265,8 @@ export const awaitState = (options: {
   let settled: Effect.Effect<CompletionOutcome> | undefined
   let unsubscribe: (() => void) | undefined
   let released = false
+  let evaluated = false
+  let last: unknown
 
   const release = (): void => {
     if (released) return
@@ -249,7 +278,13 @@ export const awaitState = (options: {
   const check = (): void => {
     if (settled !== undefined || released) return
     try {
-      if (!completion.predicate(completion.read(model()), input)) return
+      const value = completion.read(model())
+      // Every Model change notifies every waiter; one that left this value
+      // alone cannot change the answer, so it costs a read and no predicate.
+      if (evaluated && Object.is(value, last)) return
+      evaluated = true
+      last = value
+      if (!completion.predicate(value, input)) return
       settled = Effect.succeed({ status: 'completed' })
     } catch (error) {
       // Thrown inside the host's notification: it becomes this invocation's

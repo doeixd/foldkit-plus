@@ -55,6 +55,7 @@ describe('Agent.toManifest', () => {
     const deleteTodo = Agent.toManifest(AppAgent).capabilities.find(c => c.name === 'delete_todo')
 
     expect(deleteTodo?.completion).toEqual({
+      kind: 'message',
       success: ['ReceivedTodos'],
       failure: ['FailedToLoadTodos'],
     })
@@ -76,7 +77,8 @@ describe('Agent.toManifest', () => {
     })
 
     expect(Agent.toManifest(StateAgent).capabilities[0]?.completion).toEqual({
-      state: { observes: ['todos', 'selectedTodoId'] },
+      kind: 'state',
+      observes: ['todos', 'selectedTodoId'],
     })
     expect(Agent.toMarkdown(StateAgent)).toContain(
       'Completes when application state (`todos`, `selectedTodoId`) satisfies its condition.',

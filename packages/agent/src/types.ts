@@ -58,17 +58,26 @@ export interface Completion<
   readonly timeout?: Duration.Input | undefined
 }
 
-/**
- * Completes an invocation when application state satisfies `predicate`,
- * whichever Message, live update, or other actor made it true. Built with
- * `Agent.when`, which types `predicate` from the projection and the capability.
- */
-export interface StateCompletion<Request = unknown, Value = any> {
-  readonly _tag: 'StateCompletion'
-  readonly projection: Projection<any, Value>
-  readonly predicate: (value: Value, request: Request) => boolean
-  readonly timeout?: Duration.Input | undefined
+/** A value kept outside the Model that says when it may have changed, such as Sync's committed state. */
+export interface StateSource<A> {
+  readonly get: () => A
+  readonly subscribe: (listener: () => void) => () => void
 }
+
+/**
+ * Completes an invocation when a state satisfies `predicate`, whichever
+ * Message, live update, or other actor made it true. Built with `Agent.when`,
+ * which types `predicate`. It reads a `projection` of `Model` through the host,
+ * or a `source` that notifies on its own.
+ */
+export type StateCompletion<Request = unknown, Model = any> = {
+  readonly _tag: 'StateCompletion'
+  readonly predicate: (value: any, request: Request) => boolean
+  readonly timeout?: Duration.Input | undefined
+} & (
+  | { readonly projection: Projection<Model, any>; readonly source?: undefined }
+  | { readonly source: StateSource<unknown>; readonly projection?: undefined }
+)
 
 /** A completion contract with its authoring types erased, as adapters see it. */
 export type AnyCompletion = Completion<any, AnyMessage, AnyMessage> | StateCompletion<any, any>
@@ -110,7 +119,7 @@ export interface VariantConfig<
   /** Optional completion contract. Dispatch then waits for a completing Message or state. */
   readonly completion?:
     | Completion<CompletionRequest, CompletionSuccess, CompletionFailure>
-    | StateCompletion<CompletionRequest>
+    | StateCompletion<CompletionRequest, Model>
     | undefined
 }
 
@@ -160,9 +169,12 @@ export interface DispatchResult<Message extends AnyMessage = AnyMessage> {
    * How the operation finished, when the capability declares a completion
    * contract. Absent otherwise: validated dispatch is then the boundary.
    */
-  readonly completion?: {
-    readonly status: 'completed' | 'failed'
-    /** The completing Message; absent when application state completed the operation. */
-    readonly message?: AnyMessage | undefined
-  }
+  readonly completion?: CompletionOutcome | undefined
 }
+
+/** How a dispatched Message finished, once a completion contract is declared. */
+export type CompletionOutcome<Message extends AnyMessage = AnyMessage> =
+  /** A Message contract: the Message that completed or failed the operation. */
+  | { readonly status: 'completed' | 'failed'; readonly message: Message }
+  /** A state contract: the state holds. It has no Message and cannot fail. */
+  | { readonly status: 'completed'; readonly message?: undefined }
