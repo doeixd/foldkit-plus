@@ -178,6 +178,13 @@ installed `.d.ts` before reaching for a remembered API.
   [binding] })` failed while `Selection.make(binding, …)` (which infers `F`)
   passed. Declaring `ref(id): …` as a method restores bivariance. Write the
   assignability case, not just the call that happens to infer.
+- **A cast in a test marks an API gap.** Tests and examples are end-user code:
+  an audit found about a fifth of their casts came from our types, such as
+  `subscriptions['page.read']!` on keys the runtime always emits, `dehydrate(x)!`
+  where no size limit was given, and `inertHtml as unknown as HtmlBuilder<M>`.
+  Fix the type instead. Acceptable casts: deliberately invalid input, written as
+  `@ts-expect-error` so the rejection is also asserted; an upstream brand we
+  cannot construct; and a lookup `!` under `noUncheckedIndexedAccess`.
 - **Prove a type rejects, not just that it accepts.** Every constraint needs a
   `@ts-expect-error` negative case in `types.test-d.ts`. Both bugs above passed
   a suite full of positive cases.

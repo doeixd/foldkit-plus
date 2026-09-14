@@ -1,20 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { view as buttonView } from '@foldkit/ui/button'
-import type { HtmlBuilder } from 'foldkit/html'
-import { inertHtml } from 'foldkit/html'
-import { Style, type SlotAttributes } from 'foldkit-mixins'
+import { Attributes, SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
 import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 import { SurfaceView } from '../src/index.js'
-import {
-  attributeOf,
-  classValue,
-  Message,
-  TodoList,
-  TodoSlots,
-  type TodoMessage,
-} from './fixture.js'
+import { classValue, Message, TodoList, TodoSlots, type TodoMessage } from './fixture.js'
 
-const h = inertHtml as unknown as HtmlBuilder<TodoMessage>
+const h = SlotView.inertBuilder<TodoMessage>()
 
 describe('@foldkit/ui inside a SurfaceView', () => {
   it('renders a Button with a Surface Message and a Mixin', () => {
@@ -39,8 +30,8 @@ describe('@foldkit/ui inside a SurfaceView', () => {
       ]),
     )
     ArchiveButton({ todos: [], selectedId: 'a' }, h)
-    expect(attributeOf(captured, 'Type')?.value).toBe('button')
+    expect(Attributes.find(captured, 'Type')?.value).toBe('button')
     expect(classValue(captured)).toBe('archive')
-    expect(attributeOf(captured, 'OnClick')?.message).toEqual(Message.ArchivedTodo({ id: 'a' }))
+    expect(Attributes.find(captured, 'OnClick')?.message).toEqual(Message.ArchivedTodo({ id: 'a' }))
   })
 })

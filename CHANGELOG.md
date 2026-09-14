@@ -7,11 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
-Every package below changes its public types, so each takes a minor while
-pre-1.0: `foldkit-surface` 0.2.0, `foldkit-remote` 0.3.0, `foldkit-remote-server`
-0.3.0, `foldkit-mixins-surface` 0.3.0, `foldkit-agent` 0.3.0, `foldkit-sync`
-0.5.0, and `foldkit-mirror` 0.2.0 (its `Contract` output changed). The versions
-move in the release commit.
+Every package below changes its public types or adds API, so each takes a minor
+while pre-1.0: `foldkit-surface` 0.2.0, `foldkit-remote` 0.3.0,
+`foldkit-remote-server` 0.3.0, `foldkit-remote-drizzle` 0.3.0,
+`foldkit-mixins` 0.3.0, `foldkit-mixins-surface` 0.3.0, `foldkit-agent` 0.3.0,
+`foldkit-agent-a2a` 0.3.0, `foldkit-agent-mcp` 0.3.0, `foldkit-agent-native`
+0.3.0, `foldkit-sync` 0.5.0, and `foldkit-mirror` 0.2.0 (its `Contract` output
+changed). The versions move in the release commit.
+
+Several of these changes exist so that user code, tests included, needs no type
+casts: a cast in a test marked a gap in the API.
 
 ### `foldkit-surface` (breaking)
 
@@ -32,6 +37,11 @@ move in the release commit.
   show every package's entries. A hand-written `Contract` literal must spell
   `metadata: []`. `Module.toMarkdown` renders the column as
   `name: entries; name: entries`, with `|` escaped.
+- **Schemas are decodable codecs.** `Projection.Model` and `Surface.Params` are
+  `Schema.Codec<Value, unknown>`, so `Schema.decodeUnknownSync(projection.Model)`
+  needs no cast, and `Surface.Params` is present, not `| undefined`, when the
+  Surface declares params (`ParamsSchema`). `Projection.fromReader` and
+  `Surface.make({ Params })` refuse a schema that needs decoding services.
 
 ### `foldkit-remote` (breaking)
 
@@ -46,6 +56,10 @@ move in the release commit.
   connections invalidated; the `Data.subscriptions` read entries refetch them,
   so the data is requested once. Unobserved data is revalidated with
   `Remote.prefetch` and `RemotePolicy.networkOnly`.
+- `Data.subscriptions` returns `SubscriptionEntries`, with exact `<key>.read`,
+  `<key>.live` and `retain` keys, so a lookup needs no `!`.
+- `RemotePersistence.dehydrate` returns `string` when no `maxBytes` is given.
+- `Remote.Model` is a decodable `Schema.Codec<RemoteModel, unknown>`.
 
 ### `foldkit-remote-server`
 
@@ -56,6 +70,8 @@ move in the release commit.
 
 - `SurfaceView.describe` returns `metadata: MetadataSummary[]` in place of
   `requirements`.
+- **`SurfaceView.render(view, surface, params, root)`** renders a view for a
+  Surface's projection with an inert builder, for demos, tests and static output.
 
 ### `foldkit-agent` (breaking)
 
@@ -76,6 +92,34 @@ move in the release commit.
   failure? }` or `{ kind: 'state', observes }`.
 - `AgentHost.dispatch` may return a failing Effect, such as `Sync.mount`'s
   `Exit`; the failure is the invocation's defect, as a thrown error already was.
+- **The audit log is typed by principal.** `auditLog<Principal>`, `AuditSink`,
+  `AuditLogOptions` and `AuditRecord` take the principal type, so a projection
+  `(caller: User) => caller.id` needs no cast, and binding a log built for
+  another principal is refused. An unannotated projection now sees `unknown`,
+  and a hand-written sink declares its principal type.
+- `Agent.make` returns `context` as present when one was given.
+  `Agent.contextSchema` returns a `JsonSchemaDocument` rather than an untyped
+  record.
+
+### `foldkit-agent-mcp` (breaking)
+
+- `AgentMcp.httpApp({ server })` accepts a server alone; passing handler options
+  beside it, which were ignored, is now a type error.
+- `AgentMcp.stdio` types `input` and `output` as the `on`/`off`/`write` it uses
+  (`LineInput`, `LineOutput`), so a fake stream needs no cast. Node's
+  `process.stdin` and `process.stdout` still fit.
+
+### `foldkit-agent-a2a` (breaking)
+
+- `Success.result` is a `Task`, which every handler already returns. Code that
+  builds a `Success` by hand must pass one.
+
+### `foldkit-agent-native` (breaking)
+
+- `AgentNative.actions` returns an `ActionRegistry` with exact keys for a known
+  contract, so a known capability needs no `!`; indexing it with an arbitrary
+  string is a type error. An open contract keeps string keys.
+- An action's `schema` also types its `~standard.jsonSchema`.
 
 ### `foldkit-sync` (breaking)
 
@@ -90,10 +134,25 @@ move in the release commit.
   type parameter, `Shared`, defaulting to `unknown`.
 - An exchange that acknowledges an edit without returning it now re-installs the
   shared slice, instead of leaving the dropped edit in the Model.
+- `Sync.forApplication(App).make({ authorize })` types
+  `journalContract().authorize` as present.
 
 ### `foldkit-mirror`
 
 - Its `Contract` carries `metadata: []` in place of `requirements: []`.
+
+### `foldkit-mixins`
+
+- **`Attributes.find`, `filter` and `tagOf`** read a resolved `SlotAttributes`
+  bundle by tag and return that variant typed (`find(attrs, 'Class')?.value`),
+  so reading attributes needs no cast. An unknown tag is a type error.
+- **`SlotView.inertBuilder<Message>()`** is Foldkit's `inertHtml` typed for a
+  Message universe, for rendering outside a runtime. It holds the one cast the
+  invariant builder needs.
+
+### `foldkit-remote-drizzle`
+
+- `keysetWhere` returns `SQL` for a non-empty tuple of order terms.
 
 ## 0.4.1
 

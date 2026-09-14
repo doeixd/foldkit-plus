@@ -1,21 +1,11 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import type { HtmlBuilder } from 'foldkit/html'
-import { inertHtml } from 'foldkit/html'
-import { Behavior, Style, type SlotAttributes } from 'foldkit-mixins'
+import { Attributes, Behavior, SlotView, Style, type SlotAttributes } from 'foldkit-mixins'
 import { Metadata, Projection, Surface } from 'foldkit-surface'
 import { SurfaceView } from '../src/index.js'
-import {
-  App,
-  classValue,
-  Message,
-  tagOf,
-  TodoList,
-  TodoSlots,
-  type TodoMessage,
-} from './fixture.js'
+import { App, classValue, Message, TodoList, TodoSlots, type TodoMessage } from './fixture.js'
 
-const h = inertHtml as unknown as HtmlBuilder<TodoMessage>
+const h = SlotView.inertBuilder<TodoMessage>()
 
 type ProjectedTodo = {
   readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }>
@@ -47,10 +37,7 @@ describe('SurfaceView', () => {
       h.ul(slots.root.attrs(), []),
     )
     const renderer = SurfaceView.toRenderer(view)
-    const html = renderer(
-      { todos: [], selectedId: null },
-      h as unknown as Parameters<typeof renderer>[1],
-    )
+    const html = renderer({ todos: [], selectedId: null }, h)
     expect(html).not.toBeNull()
   })
 
@@ -62,8 +49,20 @@ describe('SurfaceView', () => {
     })
     const rootView = Surface.rootView(TodoList, undefined, SurfaceView.toRenderer(view))
     const root = { todos: [{ id: 'a', title: 'A' }], selectedId: 'a', secret: 's' }
-    rootView(root, h as unknown as Parameters<typeof rootView>[1])
+    rootView(root, h)
     expect(seen).toEqual({ todos: [{ id: 'a', title: 'A' }], selectedId: 'a' })
+  })
+
+  it('renders the projected root model with an inert builder', () => {
+    let seen: unknown
+    const view = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) => {
+      seen = model
+      return h.ul(slots.root.attrs(), [])
+    })
+    const root = { todos: [{ id: 'a', title: 'A' }], selectedId: 'a', secret: 's' }
+    const html = SurfaceView.render(view, TodoList, undefined, root)
+    expect(seen).toEqual({ todos: [{ id: 'a', title: 'A' }], selectedId: 'a' })
+    expect(html).toMatchObject({ sel: 'ul' })
   })
 
   it('applies Style and a projected-input Behavior through the bridge', () => {
@@ -80,13 +79,9 @@ describe('SurfaceView', () => {
       Style.attach(Style.forSlots(TodoSlots)({ root: Style.class('todo-list') })),
       Behavior.attach(ArchiveWhenSelected),
     )
-    const rootView = Surface.rootView(TodoList, undefined, SurfaceView.toRenderer(TodoCard))
-    rootView(
-      { todos: [], selectedId: 'a', secret: 's' },
-      h as unknown as Parameters<typeof rootView>[1],
-    )
+    SurfaceView.render(TodoCard, TodoList, undefined, { todos: [], selectedId: 'a', secret: 's' })
     expect(classValue(resolved)).toBe('todo-list')
-    expect(resolved.map(tagOf)).toContain('AriaDisabled')
+    expect(Attributes.find(resolved, 'AriaDisabled')?.value).toBe(true)
   })
 
   it('inspects serializable slot and mixin metadata', () => {

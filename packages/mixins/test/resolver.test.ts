@@ -1,37 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { Attribute } from 'foldkit/html'
-import { Attr, Event, Resolver, Slot, type SlotAttributes } from '../src/index.js'
+import { Attr, Attributes, Event, Resolver, Slot, type SlotAttributes } from '../src/index.js'
 import { DiagnosticError } from '../src/diagnostics.js'
 import { fakeChild, h, mount, type TestMessage } from './resolverFixture.js'
 
 const tagOf = <Message>(attribute: SlotAttributes<Message>[number]): string =>
-  typeof attribute === 'object' && attribute !== null && '_tag' in attribute
-    ? String((attribute as { readonly _tag: unknown })._tag)
-    : 'Child'
+  Attributes.tagOf(attribute) ?? 'Child'
 
 const tags = <Message>(attributes: SlotAttributes<Message>): ReadonlyArray<string> =>
   attributes.map(tagOf)
 
-const attributeOf = <Message>(
-  attributes: SlotAttributes<Message>,
-  tag: string,
-): { readonly value: unknown } | undefined => {
-  for (const attribute of attributes) {
-    if (tagOf(attribute) === tag) return attribute as { readonly value: unknown }
-  }
-  return undefined
-}
-
 const classOf = <Message>(attributes: SlotAttributes<Message>): unknown =>
-  attributeOf(attributes, 'Class')?.value
+  Attributes.find(attributes, 'Class')?.value
 
 const styleOf = <Message>(attributes: SlotAttributes<Message>): unknown =>
-  attributeOf(attributes, 'Style')?.value
+  Attributes.find(attributes, 'Style')?.value
 
 const mountNames = <Message>(attributes: SlotAttributes<Message>): ReadonlyArray<string> =>
-  attributes
-    .filter(attribute => tagOf(attribute) === 'OnMount')
-    .map(attribute => (attribute as { readonly action: { readonly name: string } }).action.name)
+  Attributes.filter(attributes, 'OnMount').map(attribute => attribute.action.name)
 
 const codeOf = (f: () => unknown): string => {
   try {

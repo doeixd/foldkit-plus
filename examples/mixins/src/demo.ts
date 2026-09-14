@@ -6,10 +6,9 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import type { HtmlBuilder } from 'foldkit/html'
-import { inertHtml } from 'foldkit/html'
 import {
   A11y,
+  Attributes,
   Behavior,
   Capability,
   Event,
@@ -81,33 +80,8 @@ const ArchiveBehavior = Behavior.forSlots(ProjectCardSlots)<ProjectedModel, Card
   { name: 'ArchiveBehavior' },
 )
 
-const tagOf = (attribute: SlotAttributes<CardMessage>[number]): string =>
-  typeof attribute === 'object' && attribute !== null && '_tag' in attribute
-    ? String((attribute as { readonly _tag: unknown })._tag)
-    : 'Child'
-
-const classTokens = (attributes: SlotAttributes<CardMessage>): ReadonlyArray<string> => {
-  for (const attribute of attributes) {
-    if (tagOf(attribute) === 'Class') {
-      return (attribute as { readonly value: string }).value.split(/\s+/)
-    }
-  }
-  return []
-}
-
-const styleValue = (attributes: SlotAttributes<CardMessage>): unknown => {
-  for (const attribute of attributes) {
-    if (tagOf(attribute) === 'Style') return (attribute as { readonly value: unknown }).value
-  }
-  return undefined
-}
-
-const attributeValue = (attributes: SlotAttributes<CardMessage>, tag: string): unknown => {
-  for (const attribute of attributes) {
-    if (tagOf(attribute) === tag) return (attribute as { readonly value: unknown }).value
-  }
-  return undefined
-}
+const classTokens = (attributes: SlotAttributes<CardMessage>): ReadonlyArray<string> =>
+  Attributes.find(attributes, 'Class')?.value.split(/\s+/) ?? []
 
 export const runDemo = (): ReadonlyArray<string> => {
   const inspection = Surface.inspect(ProjectCard, undefined)
@@ -158,18 +132,19 @@ export const runDemo = (): ReadonlyArray<string> => {
   const missing = A11y.validate(A11y.pattern({ legend: {} }), ProjectCardSlots)
   lines.push(`a11y missing: ${missing.map(d => d.code).join(', ')}`)
 
-  const h = inertHtml as unknown as HtmlBuilder<AppMessage>
-  const rootView = Surface.rootView(ProjectCard, undefined, SurfaceView.toRenderer(ProjectCardView))
-  rootView(
-    { project: { name: 'Apollo', archived: true }, selection: 'p1', internalNotes: 'hidden' },
-    h,
-  )
+  SurfaceView.render(ProjectCardView, ProjectCard, undefined, {
+    project: { name: 'Apollo', archived: true },
+    selection: 'p1',
+    internalNotes: 'hidden',
+  })
 
   lines.push(`projected: ${JSON.stringify(seen)}`)
   lines.push(`root classes: ${classTokens(resolved.root).join(' ')}`)
-  lines.push(`root style: ${JSON.stringify(styleValue(resolved.root))}`)
+  lines.push(`root style: ${JSON.stringify(Attributes.find(resolved.root, 'Style')?.value)}`)
   lines.push(`status classes: ${classTokens(resolved.status).join(' ')}`)
-  lines.push(`archive aria-disabled: ${String(attributeValue(resolved.archive, 'AriaDisabled'))}`)
+  lines.push(
+    `archive aria-disabled: ${String(Attributes.find(resolved.archive, 'AriaDisabled')?.value)}`,
+  )
   lines.push(`stylesheet: ${Style.stylesheet(ProjectCardStyle)}`)
 
   const description = SurfaceView.describe(ProjectCard, undefined, ProjectCardView)

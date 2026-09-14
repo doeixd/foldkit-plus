@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import {
   Attr,
+  Attributes,
   Behavior,
   Capability,
   Event,
@@ -9,7 +10,6 @@ import {
   SlotView,
   Style,
   type ContributionContext,
-  type SlotAttributes,
 } from '../src/index.js'
 import { DiagnosticError } from '../src/diagnostics.js'
 import { FieldSlots } from './fixture.js'
@@ -29,10 +29,7 @@ const codeOf = (f: () => unknown): string => {
   throw new Error('expected to throw')
 }
 
-const tagOf = (attribute: SlotAttributes<TestMessage>[number]): string =>
-  typeof attribute === 'object' && attribute !== null && '_tag' in attribute
-    ? String((attribute as { readonly _tag: unknown })._tag)
-    : 'Child'
+const tagOf = Attributes.tagOf
 
 const Validation = Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>(
   {

@@ -5,7 +5,7 @@
  * ordinary Foldkit attributes per slot, using the view's own `h` so Message
  * capability masking is preserved.
  */
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { SlotContribution } from './contribution.js'
 import { evaluate, type AnyMixin, type Mixin, type MixinFor, type StaticMixin } from './mixin.js'
 import { pipeSelf, type Pipeable } from './pipe.js'
@@ -102,6 +102,15 @@ export const define = <Slots, Input, Message>(
   render: SlotViewRender<Slots, Input, Message>,
   options?: { readonly name?: string },
 ): SlotView<Slots, Input, Message> => makeView(options?.name, slots, [], render)
+
+/**
+ * Foldkit's `inertHtml` typed for a Message universe, for rendering a view
+ * outside a runtime (tests, demos, static description). `inertHtml` is
+ * `HtmlBuilder<never>`, and the builder is invariant in `Message`, so this is
+ * the one cast: sound because inert handlers are never dispatched.
+ */
+export const inertBuilder = <Message>(): HtmlBuilder<Message> =>
+  inertHtml as unknown as HtmlBuilder<Message>
 
 /** The `SlotView` constructors with `Message` already fixed. */
 export interface MessageSlotView<Message> {

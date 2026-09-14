@@ -7,7 +7,7 @@
  * Surface does not expose. The returned value is an ordinary `SlotView`, so the
  * core attach/pipe algebra applies unchanged.
  */
-import type { HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Surface, type MetadataSummary, type Renderer } from 'foldkit-surface'
 import { Slots, SlotView, type SlotViewRender } from 'foldkit-mixins'
 
@@ -33,6 +33,19 @@ export const toRenderer =
   ): Renderer<Model, Message> =>
   (model, h) =>
     view(model, h as unknown as HtmlBuilder<Message>)
+
+/**
+ * Renders a SlotView for `surface`'s projection of `root` with an inert
+ * builder: no runtime, so handlers are built but never dispatched. For demos,
+ * tests, and static output.
+ */
+export const render = <Root, Model, Message, Params, Slots_>(
+  view: SlotView.SlotView<Slots_, Model, Message>,
+  surface: Surface<Root, Model, Message, Params>,
+  params: Params,
+  root: Root,
+): Html =>
+  Surface.rootView(surface, params, toRenderer(view))(root, SlotView.inertBuilder<Message>())
 
 export interface SurfaceViewInspection {
   /** The SlotView's name, defaulted from the Surface's name. */

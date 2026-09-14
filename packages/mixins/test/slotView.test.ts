@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
-import { Mixin, SlotView, type SlotAttributes } from '../src/index.js'
+import { Attributes, Mixin, SlotView, type SlotAttributes } from '../src/index.js'
 import { DiagnosticError } from '../src/diagnostics.js'
 import { FieldSlots } from './fixture.js'
 import { h, type TestMessage } from './resolverFixture.js'
@@ -19,28 +19,11 @@ const FieldView = SlotView.define(
   { name: 'Field' },
 )
 
-const classValue = (attributes: SlotAttributes<TestMessage>): string | undefined => {
-  for (const attribute of attributes) {
-    if (
-      typeof attribute === 'object' &&
-      attribute !== null &&
-      '_tag' in attribute &&
-      (attribute as { readonly _tag: string })._tag === 'Class'
-    ) {
-      return (attribute as { readonly value: string }).value
-    }
-  }
-  return undefined
-}
+const classValue = (attributes: SlotAttributes<TestMessage>): string | undefined =>
+  Attributes.find(attributes, 'Class')?.value
 
-const hasTag = (attributes: SlotAttributes<TestMessage>, tag: string): boolean =>
-  attributes.some(
-    attribute =>
-      typeof attribute === 'object' &&
-      attribute !== null &&
-      '_tag' in attribute &&
-      (attribute as { readonly _tag: string })._tag === tag,
-  )
+const hasTag = (attributes: SlotAttributes<TestMessage>, tag: Attributes.Tag): boolean =>
+  Attributes.find(attributes, tag) !== undefined
 
 const vnodeData = (value: unknown): Record<string, unknown> =>
   (value as { readonly data?: Record<string, unknown> }).data ?? {}

@@ -5,5 +5,5 @@
  * resolver runs.
  */
 export * as SurfaceView from './surfaceView.js'
-export { define, describe, inspect, toMarkdown, toRenderer } from './surfaceView.js'
+export { define, describe, inspect, render, toMarkdown, toRenderer } from './surfaceView.js'
 export type { SurfaceViewDescription, SurfaceViewInspection } from './surfaceView.js'

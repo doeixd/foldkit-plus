@@ -8,6 +8,7 @@
  */
 export * as A11y from './a11y.js'
 export * as Attr from './attr.js'
+export * as Attributes from './attributes.js'
 export * as Behavior from './behavior.js'
 export * as Capability from './capability.js'
 export * as Diagnostics from './diagnostics.js'
