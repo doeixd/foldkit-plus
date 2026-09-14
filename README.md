@@ -168,10 +168,10 @@ From the [todo app](./examples/todo-app), which wires every package into one
 application. One declaration; every contract is derived from it:
 
 ```ts
-import { Surface, Projection, MessageSet, Module } from 'foldkit-surface'
-import { forApplication } from 'foldkit-sync'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
+import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
+import { documentId, forApplication } from 'foldkit-sync'
 
 // The application: an ordinary Model, Message union, and update.
 const App = Surface.application({ Model, Message, initial, update })
@@ -207,7 +207,10 @@ Module.validate(Module.make(App, [Board, TodoSync, AppAgent, Filters.contract]))
 
 The same `update` serves the view, the replica, the agent, and the journal on
 the server; `TodoSync.journalContract()` hands the server its codecs, reducer,
-and authorization rules, so nothing is declared twice.
+and authorization rules, so nothing is declared twice. That sample is
+type-checked in
+[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
+so it cannot drift from the API.
 
 ## Install
 
