@@ -55,29 +55,58 @@ const Overview = App.surface('Overview', {
   model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
 })
 
-// 3. Mixins let the view publish typed extension points once. The view owns
-// markup; Style owns appearance. Neither gets another place to keep state.
+// 3. Mixins separate "where customization is allowed" from "what gets attached there."
+//
+// BoardSlots is the view's public customization contract. It renders nothing by
+// itself. It only names the places the view agrees other code may extend later:
+// `root` will be the outer <section>; `list` will be the <ul>.
+// Capabilities describe what kind of element lives at each point so incompatible
+// Styles or Behaviors can be rejected instead of silently doing the wrong thing.
 const BoardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   list: Slot.make({ capability: Capability.Collection }),
 })
 
+// Style is data written against that slot contract. Nothing is applied yet, and
+// BoardStyle cannot read or change application state. Because it is created with
+// `forSlots(BoardSlots)`, misspelling a slot or styling one Board never published
+// is a type error rather than a convention.
 const BoardStyle = Style.forSlots(BoardSlots)({
-  root: Style.class('todo-board'),
-  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }),
+  root: Style.class('todo-board'), // contribute a class to the `root` slot
+  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }), // style `list`
 })
 
+// SurfaceView.define ties three boundaries together:
+//   Board      -> the projected Model this view receives and the Messages it may emit
+//   BoardSlots -> the places outside customization may attach
+//   render fn  -> the actual markup
+//
+// So `model` is not the whole application Model; it is Board's { todos, filter }.
+// And `h` is typed to the Messages Board declared above.
 export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h) =>
-  h.section(slots.root.attrs(), [
-    h.ul(
-      slots.list.attrs(),
-      model.todos.map(todo => h.li([], [todo.title])),
-    ),
-  ]),
-).pipe(Style.attach(BoardStyle))
+  h.section(
+    // `.attrs()` is the handoff point between markup and Mixins. It resolves the
+    // view's own attributes plus every Style/Behavior attached to `root` into
+    // ordinary Foldkit attributes for this <section>.
+    slots.root.attrs(),
+    [
+      h.ul(
+        // Same idea here: this exact DOM position is the published `list` slot.
+        slots.list.attrs(),
+        model.todos.map(todo => h.li([], [todo.title])),
+      ),
+    ],
+  ),
+).pipe(
+  // Attach appearance from the outside. BoardView never imports CSS decisions into
+  // its markup, so styles can be swapped/composed without copying the component or
+  // adding a growing collection of styling props.
+  Style.attach(BoardStyle),
+)
 
-// Behavior attaches element-level interaction through the same slots when needed;
-// application state and transitions still belong to Model / Message / update.
+// Behavior can attach element-level interaction through those same slots. It may
+// contribute attributes, event handlers, or a Mount, but it still owns no Model;
+// application state and transitions remain Model / Message / update.
 
 // 4. Sync declares ownership of one writable slice and the facts that change it.
 // Projection.pick is writable because checkpoints must install back into Model;
@@ -161,6 +190,15 @@ const Project = Module.make(App, [
 Module.validate(Project) // []
 Module.toMermaid(Project) // architecture generated from the declarations above
 ```
+
+Read the Mixins part from left to right: `Board` defines the state/Message
+boundary, `BoardSlots` defines the supported customization points, `BoardStyle`
+is pure attachment data for those points, and `BoardView` maps Board's projected
+Model to markup. Each `slots.*.attrs()` call marks the exact element where an
+attachment is allowed to land. `Style.attach(BoardStyle)` then composes the
+appearance from outside the view. The result is still ordinary Foldkit markup
+and attributes; Mixins adds neither another state container nor another render
+loop.
 
 A useful naming rule for Agent code is **builder first, contract second**:
 `Agent.forApplication(App)` (optionally followed by `withPrincipal`) specializes
