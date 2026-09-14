@@ -5,6 +5,30 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## 0.3.1
+
+A documentation release. Every package republishes so npm serves the corrected
+pages; two fixes reach the published artifacts themselves.
+
+- **`foldkit-remote-drizzle` now ships its third-party notice.** The package
+  adapts [fate](https://github.com/nkzw-tech/fate)'s Drizzle integration under
+  MIT and records the attribution in `THIRD_PARTY_NOTICES.md`, which `files`
+  omitted, so the published tarball carried the pointer without the notice.
+- **`foldkit-remote`'s declaration file named an API that does not exist.** Four
+  doc comments referenced `Remote.update`, which the package does not export;
+  the reducer is `updateRemote`, and on a bound domain it is `Data.reduce`.
+  The wrong name reached editors through the shipped `.d.mts`.
+- **Every README was checked against its source.** Snippets that could not
+  compile are fixed across `foldkit-durable`, `foldkit-sync`, `foldkit-mirror`,
+  `foldkit-mixins`, `foldkit-mixins-ui`, `foldkit-remote`, `foldkit-remote-server`,
+  `foldkit-remote-drizzle` and `foldkit-surface`; `foldkit-agent-webmcp` is
+  rewritten around the feature detection a reader needs before `register`
+  throws. Each package now opens in plain language, says when to reach for it
+  and when not to, and links its guide, siblings, and example.
+- **Manifests.** The eight packages that were private until 0.3.0 gained the
+  `keywords` npm search matches on and the `publishConfig` the other seven
+  carry. No package behaviour changed in this release.
+
 ## 0.3.0
 
 Every package ships. The eight packages that were `private` — `foldkit-surface`,
