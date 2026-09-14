@@ -123,11 +123,16 @@ const TodoSync = Sync.forApplication(App)
 // There is no second server-side reducer to keep in agreement.
 TodoSync.journalContract()
 
-// 5. Agent exposes the same application vocabulary instead of reimplementing actions.
-const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
-const AppAgent = TodoAgent.make({
+// 5. First specialize the Agent API to this application and Principal type.
+// `forApplication(...).withPrincipal(...)` does NOT create an agent; it creates
+// a typed builder whose helpers know App's Model, Message union, and Principal.
+const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
+
+// `make` creates the concrete agent contract that MCP/WebMCP/A2A/etc. can serve:
+// what this agent sees, which existing Messages it may cause, and their policy.
+const AssistantAgent = AgentBuilder.make({
   context: Overview,
-  messages: TodoAgent.expose(Message, {
+  messages: AgentBuilder.expose(Message, {
     RequestedTodo: Agent.variant({
       name: 'add_todo',
       description: 'Add a todo with the given title',
@@ -169,7 +174,7 @@ const Project = Module.make(App, [
   Board,
   Overview,
   TodoSync,
-  AppAgent,
+  AssistantAgent,
   Filters.contract,
   Prefs.contract,
 ])
