@@ -27,19 +27,12 @@ one application declaration. Assume `Model`, `Message`, `initial`, and `update`
 are an ordinary Foldkit app you already wrote. Everything around them derives
 from the same state machine; none of it introduces a second reducer.
 
-For the Remote portion below, that ordinary app has one extra field and one set
-of Message cases: `remote: Remote.Model` starts as `Remote.initial`,
-`...Remote.messages` is part of the application's Message union, and `update`
-hands those Messages to the bound Remote domain's `reduce`. The type-checked
-fixture linked below includes that wiring explicitly.
-
 ```ts
 import { Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
 import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
-import { Entity, Remote } from 'foldkit-remote'
 import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, Sync } from 'foldkit-sync'
 
@@ -62,49 +55,7 @@ const Overview = App.surface('Overview', {
   model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
 })
 
-// 3. Remote is for facts another system owns. First describe the server shape.
-// This is not another client Model; it is a typed description of a server entity.
-const ProjectEntity = Entity.make(
-  'Project',
-  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
-)
-const ProjectSummary = ProjectEntity.select({ id: true, name: true, status: true })
-
-// Bind that server domain to the `remote` field already embedded in App.Model.
-// Remote's normalized cache therefore lives *inside* the application Model,
-// rather than in React Query, a hook cache, or some second mutable store.
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [ProjectEntity],
-})
-
-// `Data.get` is a pure Projection, not a network request. It says:
-// "this Surface needs these fields of this Project id" and reads whatever the
-// current Model already knows as a RemoteData value.
-const ProjectPage = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({
-    project: Data.get(ProjectSummary, params.projectId),
-  }),
-})
-
-// That `project` value is explicit about cache state:
-// Initial | Loading | Ready | Refreshing | Failed | NotFound.
-// A view can render it without ever performing I/O during render.
-//
-// Network work is derived separately from *active* Surfaces. If ProjectPage is
-// active, Remote compares its requirements with the Model, fetches only missing
-// fields through RemoteClient, and retains what the page reaches. If everything
-// is already known, this schedules no read. When a response arrives, it is a
-// Remote Message, and the application's own update -> Data.reduce path stores it.
-Data.subscriptions({
-  project: Surface.at(ProjectPage, model => ({ projectId: model.projectId })),
-})
-
-// Data.contract tells Module that this Remote domain owns the `remote` Model path.
-// The server still owns the *facts* represented there; Remote owns their local cache.
-
-// 4. Mixins separate "where customization is allowed" from "what gets attached there."
+// 3. Mixins separate "where customization is allowed" from "what gets attached there."
 //
 // BoardSlots is the view's public customization contract. It renders nothing by
 // itself. It only names the places the view agrees other code may extend later:
@@ -157,10 +108,9 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
 // contribute attributes, event handlers, or a Mount, but it still owns no Model;
 // application state and transitions remain Model / Message / update.
 
-// 5. Sync solves a different ownership problem. Remote caches server-owned facts;
-// Sync replicates application-owned facts that must survive offline work and converge.
-// Projection.pick is writable because checkpoints must install the shared slice
-// back into Model; replay still runs these Messages through the application's update.
+// 4. Sync declares ownership of one writable slice and the facts that change it.
+// Projection.pick is writable because checkpoints must install back into Model;
+// replay still runs these Messages through the application's own update.
 const TodoSync = Sync.forApplication(App)
   .withPrincipal<Principal>()
   .make({
@@ -181,7 +131,7 @@ const TodoSync = Sync.forApplication(App)
 // There is no second server-side reducer to keep in agreement.
 TodoSync.journalContract()
 
-// 6. First specialize the Agent API to this application and Principal type.
+// 5. First specialize the Agent API to this application and Principal type.
 // `forApplication(...).withPrincipal(...)` does NOT create an agent; it creates
 // a typed builder whose helpers know App's Model, Message union, and Principal.
 const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
@@ -216,7 +166,7 @@ const AssistantAgent = AgentBuilder.make({
   }),
 })
 
-// 7. Mirrors do not own state. They are secondary representations of Model fields.
+// 6. Mirrors do not own state. They are secondary representations of Model fields.
 const Filters = Mirror.url(App, {
   name: 'filters',
   fields: [App.fields.filter], // linkable: ?filter=active
@@ -226,14 +176,11 @@ const Prefs = Mirror.kv(App, {
   fields: [App.fields.draft], // remembered on this device
 })
 
-// 8. The architecture itself is data. Each subsystem contributes its contract;
-// Module can now see that Remote owns `remote`, Sync owns its shared slice, and
-// the other features only observe/expose what they declared.
+// 7. The architecture itself is data. Validate ownership/capability relationships,
+// or turn the same declarations into documentation and tooling input.
 const Project = Module.make(App, [
   Board,
   Overview,
-  ProjectPage,
-  Data.contract,
   TodoSync,
   AssistantAgent,
   Filters.contract,
@@ -243,21 +190,6 @@ const Project = Module.make(App, [
 Module.validate(Project) // []
 Module.toMermaid(Project) // architecture generated from the declarations above
 ```
-
-Read the Remote part as **server shape → local cache binding → pure projection →
-runtime subscriptions**. `ProjectEntity` describes data the server owns;
-`Remote.make` says where the normalized cache lives in the application Model;
-`Data.get` contributes requirements to a Projection without fetching; and
-`Data.subscriptions` turns the requirements of active Surfaces into reads, live
-subscriptions, and retention. Responses return as Messages and are reduced by
-the same application `update`. Remote is therefore not a second source of truth:
-the server owns the facts, and the Foldkit Model owns the local representation
-of what the application currently knows about them.
-
-That is also why Remote and Sync are separate. **Remote is for server-owned
-facts you can refetch. Sync is for application-owned facts that must be durable
-and converge.** A project record from your API belongs in Remote; a todo edited
-offline by this application may belong in Sync.
 
 Read the Mixins part from left to right: `Board` defines the state/Message
 boundary, `BoardSlots` defines the supported customization points, `BoardStyle`
@@ -276,19 +208,17 @@ In the example, `AgentBuilder` is the former and `AssistantAgent` is the latter.
 Adapters bind or serve `AssistantAgent`; `AgentBuilder` is just the typed DSL used
 to construct it.
 
-The important part is what is **missing**: no agent reducer, sync reducer,
-React-query-style cache, URL store, persistence state machine, server copy of the
-shared schema, or forked component just to restyle it. The same `update` remains
-the transition function throughout; Remote stores server knowledge in the Model
-and Mixins never becomes another state owner.
+The important part is what is **missing**: no agent reducer, sync reducer, URL
+store, persistence state machine, server copy of the shared schema, or forked
+component just to restyle it. The same `update` remains the transition function
+throughout; Mixins never becomes another state owner.
 
-The Remote section above intentionally stops before transport, queries,
-optimistic mutations, pagination, and live events so the front-page example
-still fits in one reading. [`examples/remote`](./examples/remote) shows that
-whole path end to end. [`examples/todo-app`](./examples/todo-app) contains the
-fuller Surface, Sync, Agent, Mirror, and Mixins composition used by the rest of
-the sample, while [`examples/kitchen-sink`](./examples/kitchen-sink) shows the
-broadest in-process integration.
+`foldkit-remote` is deliberately not squeezed into this block. Its value is
+best understood with an actual server-owned entity and query; see
+[`examples/remote`](./examples/remote) or the
+[`kitchen-sink`](./examples/kitchen-sink) for that path. The
+[`todo-app`](./examples/todo-app) contains the fuller version of the Surface,
+Sync, Agent, Mirror, and Mixins composition shown above.
 
 The sample above is type-checked in
 [`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),

@@ -10,47 +10,25 @@ import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
 import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
-import { Entity, Remote } from 'foldkit-remote'
 import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, Sync } from 'foldkit-sync'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
-const ProjectEntity = Entity.make(
-  'Project',
-  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
-)
-const ProjectSummary = ProjectEntity.select({ id: true, name: true, status: true })
-
 const Model = Schema.Struct({
   todos: Schema.Array(Todo),
   filter: Schema.Literals(['all', 'active', 'done']),
   draft: Schema.String,
-  projectId: Schema.String,
-  remote: Remote.Model,
 })
 const Message = defineMessageUnion({
   ...Mirror.messages,
-  ...Remote.messages,
   RequestedTodo: { title: Schema.String },
   SubmittedTodo: { id: Schema.String, title: Schema.String },
   ToggledTodo: { id: Schema.String },
   DeletedTodo: { id: Schema.String },
 })
-const initial: typeof Model.Type = {
-  todos: [],
-  filter: 'all',
-  draft: '',
-  projectId: 'p1',
-  remote: Remote.initial,
-}
+const initial: typeof Model.Type = { todos: [], filter: 'all', draft: '' }
 
-// Explicit return type keeps the App -> Data -> update reference cycle typeable.
-const update = (
-  model: typeof Model.Type,
-  message: typeof Message.Type,
-): { readonly model: typeof Model.Type } => {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-
+const update = (model: typeof Model.Type, message: typeof Message.Type) => {
   switch (message._tag) {
     case 'RequestedTodo':
       return { model }
@@ -98,33 +76,7 @@ const Overview = App.surface('Overview', {
   model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
 })
 
-// 3. Remote is for facts another system owns. The application embeds Remote.Model
-// in its own Model, includes Remote.messages in its Message union, and routes those
-// Messages through Data.reduce in update. There is no cache beside the application.
-const Data = Remote.make({
-  model: App.model.remote, // the one place this normalized server cache lives
-  entities: [ProjectEntity],
-})
-
-// `Data.get` is a pure Projection, not a fetch. It says this feature needs these
-// fields of this Project id, and reads a RemoteData value from the current Model.
-const ProjectPage = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({
-    project: Data.get(ProjectSummary, params.projectId),
-  }),
-})
-
-// `project` is RemoteData<ProjectSummary>: Initial / Loading / Ready /
-// Refreshing / Failed / NotFound. Missing data is represented explicitly.
-// Network work stays outside render. Active Surfaces become subscriptions; Remote
-// plans only the fields the Model lacks, fetches them through RemoteClient, and the
-// response comes back as a Message that `update` reduces into `model.remote`.
-Data.subscriptions({
-  project: Surface.at(ProjectPage, model => ({ projectId: model.projectId })),
-})
-
-// 4. Mixins separate "where customization is allowed" from "what gets attached there."
+// 3. Mixins separate "where customization is allowed" from "what gets attached there."
 //
 // BoardSlots is the view's public customization contract. It renders nothing by
 // itself. It only names the places the view agrees other code may extend later:
@@ -177,9 +129,9 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
 // contribute attributes, event handlers, or a Mount, but it still owns no Model;
 // application state and transitions remain Model / Message / update.
 
-// 5. Sync is different from Remote: these are application-owned facts that must
-// survive offline work and converge. Projection.pick is writable because a
-// checkpoint must be installed back into Model; replay still uses app update.
+// 4. Sync declares ownership of one writable slice and the facts that change it.
+// Projection.pick is writable because checkpoints must install back into Model;
+// replay still runs these Messages through the application's own update.
 const TodoSync = Sync.forApplication(App)
   .withPrincipal<Principal>()
   .make({
@@ -200,7 +152,7 @@ const TodoSync = Sync.forApplication(App)
 // There is no second server-side reducer to keep in agreement.
 TodoSync.journalContract()
 
-// 6. First specialize the Agent API to this application and Principal type.
+// 5. First specialize the Agent API to this application and Principal type.
 // `forApplication(...).withPrincipal(...)` does NOT create an agent; it creates
 // a typed builder whose helpers know App's Model, Message union, and Principal.
 const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
@@ -235,7 +187,7 @@ const AssistantAgent = AgentBuilder.make({
   }),
 })
 
-// 7. Mirrors do not own state. They are secondary representations of Model fields.
+// 6. Mirrors do not own state. They are secondary representations of Model fields.
 const Filters = Mirror.url(App, {
   name: 'filters',
   fields: [App.fields.filter], // linkable: ?filter=active
@@ -245,13 +197,11 @@ const Prefs = Mirror.kv(App, {
   fields: [App.fields.draft], // remembered on this device
 })
 
-// 8. The architecture itself is data. Remote contributes Data.contract, which
-// owns the `remote` Model path just as Sync declares ownership of its shared slice.
+// 7. The architecture itself is data. Validate ownership/capability relationships,
+// or turn the same declarations into documentation and tooling input.
 const Project = Module.make(App, [
   Board,
   Overview,
-  ProjectPage,
-  Data.contract,
   TodoSync,
   AssistantAgent,
   Filters.contract,
