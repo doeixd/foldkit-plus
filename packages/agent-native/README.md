@@ -1,27 +1,43 @@
 # `foldkit-agent-native`
 
-Compiles a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract into
-[Agent Native](https://github.com/BuilderIO/agent-native) actions.
+Compiles a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent)
+contract into [Agent Native](https://github.com/BuilderIO/agent-native) actions.
 
-Agent Native is a framework for describing what an application can do as
-registered **actions** an agent host can call. This package derives those
-actions from the contract, so the capabilities an agent gets are exactly the
-Messages `update` already handles, and the generated `run` only dispatches.
+Use it when your host application already uses Agent Native's action registry
+and you want those actions to be the same capabilities your Foldkit application
+already exposes. A capability becomes an Agent Native action; the generated
+`run` validates/authorizes through the bound `foldkit-agent` runtime and then
+**only dispatches the existing Foldkit Message**. Application behavior stays in
+`update`.
 
-It is checked against `@agent-native/core@0.177.1`; the integration suite uses
-the real package registry, tool runtime, and schema wrapper. Full HTTP/MCP/A2A
-deployments remain outside this package's test suite.
+```text
+foldkit-agent contract
+  capability + input + policy
+            │
+            ▼
+foldkit-agent-native
+            │
+            ▼
+Agent Native action
+            │ run
+            ▼
+bound AgentRuntime -> Message -> update
+```
+
+This is an adapter, not an alternative agent architecture. If the agent runs in
+the page, use `foldkit-agent-webmcp`; if an external client speaks MCP, use
+`foldkit-agent-mcp`; if another agent speaks A2A, use `foldkit-agent-a2a`.
 
 ## Install
 
 ```bash
-pnpm add foldkit-agent foldkit-agent-native
+pnpm add foldkit-agent foldkit-agent-native @agent-native/core
 ```
 
 `foldkit`, `effect`, `foldkit-agent`, and `@agent-native/core` are peer
 dependencies.
 
-## What it does
+## Quick start
 
 ```ts
 import { AgentNative } from 'foldkit-agent-native'
@@ -35,108 +51,162 @@ registerPackageActions(
 )
 ```
 
+`AppAgent` is the protocol-neutral `foldkit-agent` definition. The adapter
+returns the action record Agent Native expects; registering it does not write any
+action files to disk.
+
 One exposed capability becomes one entry, keyed by capability name, with its
-description, advertised parameters and schema taken from the contract. Each
-entry states `http: POST`, `requiresAuth: true`, and `readOnly: false` — a
-capability dispatches a Message, so it is a write, and claiming otherwise would
-let plan mode run it for real.
+description and input schema derived from the contract. Each entry states
+`http: POST`, `requiresAuth: true`, and `readOnly: false`: a capability can
+dispatch a Message, so claiming it is read-only could let a planning surface run
+it for real.
 
-Nothing is written to disk. A registry has no file to go stale, so a removed
-capability cannot leave behind an action that is still callable.
+## Runtime and identity
 
-`resolveRuntime` is called **per invocation**, not once at registration, because
-which Model a caller means depends on who is calling. The Runtime it returns must
-already be bound for that caller: when a contract declares `authorize`,
-`Agent.bind` requires a `principal` provider, so the identity mapping stays with
-the application rather than being guessed from `userEmail`.
+`resolveRuntime` runs **per invocation**, not once when actions are registered.
+That distinction matters because an action description is static while the
+Model/principal it should operate on depends on the caller.
 
-## The dependency direction
+The runtime you return must already be bound for that caller:
 
-Foldkit stays the source of truth. A generated `run` **only dispatches** —
-application behaviour stays in `update`, which is the entire reason for
-generating these rather than writing a second action layer beside the state
-machine.
+```text
+verified Agent Native caller/context
+              │
+              ▼
+      resolveRuntime(ctx)
+              │
+              ▼
+Agent.bind({ definition, host, principal })
+              │
+              ▼
+ availability / authorization / dispatch
+```
 
-The action layer adds no authority of its own either. Availability,
-authorization and input validation all still happen in the contract, and the
-tests assert that an action refuses exactly what the contract refuses.
+When a contract declares `authorize`, `Agent.bind` requires a principal provider
+of the right type. The adapter deliberately does not guess application identity
+from fields such as `userEmail`; mapping an authenticated host caller to your
+principal belongs to the application.
+
+The registry is static — it describes all declared capabilities — while
+availability is checked at invocation time against the current Model. A
+capability that is currently unavailable remains an action in the registry but
+is refused by the runtime when called.
 
 ## What `run` returns
 
-`run` never throws for a contract failure. Unavailable, unauthorized, a failed
-completion, or input the runtime itself rejects all resolve to
-`{ ok: false, message }`; Agent Native records the call as completed and
-serializes that object as the tool output. A surface that decides success from
-the action's status alone therefore reads a refusal as a success -- read `ok`
-instead. Only a host defect is caught, and it is flattened to a generic message
-so application internals never reach the caller.
+A contract refusal is application output, not an adapter crash. Unavailable,
+unauthorized, cancelled, failed completion, or runtime input rejection resolves
+to:
+
+```ts
+{ ok: false, message: '…' }
+```
+
+A successful dispatch/completion resolves with `ok: true`. Agent Native records
+the action call itself as completed, so a consumer must inspect the returned
+`ok` rather than assuming the framework-level action status means the
+application accepted the operation.
+
+Only a host/adapter defect is flattened to a generic failure message; application
+internals are not sent to the caller.
+
+## Why generate actions instead of writing them twice?
+
+The dependency direction stays one-way:
+
+```text
+Foldkit Message + update
+        │
+foldkit-agent capability
+        │
+Agent Native action
+```
+
+Availability, authorization, input validation, and completion all remain in the
+contract. The action adds no authority and reimplements no transition. Removing
+or changing a capability changes the generated registry entry rather than
+leaving a hand-written action beside the application that can drift.
+
+Nothing is written to disk. An application-local Agent Native action file may
+still override an inherited/package action according to Agent Native's own
+registry rules.
 
 ## The schema bridge
 
-The adapter exposes the encoded input schema as a Standard Schema validator,
-rejecting undeclared fields. It preserves encoded values for `dispatchUnknown`
-to decode once, including transforming schemas such as `NumberFromString`.
+The adapter exposes the capability's **encoded** input schema as a Standard
+Schema validator and advertises the corresponding JSON Schema to Agent Native.
+This matters for transforming Effect schemas such as `NumberFromString`: the
+host validates the encoded input, then `foldkit-agent` performs the application's
+single decode before dispatch.
 
-The subtlety is which conversion, and it fails silently:
+Agent Native's schema integration has a subtle requirement. Effect exposes two
+conversions with different halves of what Agent Native needs:
 
-| | `validate` | advertised parameters |
+| Conversion | `validate` | advertised parameters |
 | --- | --- | --- |
-| `toStandardSchemaV1` | yes | **empty** |
+| `toStandardSchemaV1` | yes | empty |
 | `toStandardJSONSchemaV1` | no | full |
-| the two copied together | yes | **empty** |
-| both, called in turn on the same schema | yes | full |
+| copied into a fresh object | yes | empty |
+| both called on the same schema object | yes | full |
 
-All four are accepted without complaint, and three produce a tool an agent sees
-as taking no input. Copying fails because the conversion reads the Effect schema
-itself, so identity has to survive — and both helpers return that same schema,
-sharing one `~standard`, so calling them in turn leaves a single object carrying
-`jsonSchema` and `validate` alike. That is what this package does.
+The conversion reads/mutates metadata associated with the Effect schema, so
+object identity has to survive. This adapter calls both helpers on the same
+schema object and leaves one Standard Schema value carrying validation and JSON
+Schema metadata. Extra input fields are rejected.
 
-## What it proves
+Only object input schemas are supported because that is what Agent Native
+includes in its tool list.
 
-Run `pnpm exec vitest run packages/agent-native/test/framework.test.ts` at the
-repository root. No LLM credentials or network server are needed. The suite uses
-an in-memory PGlite database for the framework's internal metadata lookups.
+## Compatibility and executable proof
 
-| Framework surface | Executable evidence |
+The adapter is checked against `@agent-native/core@0.177.1`. The integration
+suite uses the real Agent Native package registry, tool runtime, and schema
+wrapper rather than stand-ins.
+
+Run from the repository root:
+
+```bash
+pnpm exec vitest run packages/agent-native/test/framework.test.ts
+```
+
+No LLM credentials or network server are needed; the suite uses an in-memory
+PGlite database for Agent Native's internal metadata lookups.
+
+| Framework surface | What the test proves |
 | --- | --- |
-| Package registry | `registerPackageActions` + `autoDiscoverActions` discovers the adapter entry. An actual app-local action file wins a name collision. |
+| Package registry | `registerPackageActions` + `autoDiscoverActions` discovers the generated entry; an actual app-local action file wins a name collision. |
 | Agent tool runtime | `actionsToEngineTools` advertises the encoded schema; `executeAgentToolCall` changes the Foldkit Model for an authorized caller and refuses another caller. |
-| Schema wrapper | `defineAction` derives parameters, preserves transforming input for one decode in Foldkit, and rejects extra fields. |
+| Schema wrapper | `defineAction` derives parameters, preserves transforming input for the one decode in Foldkit, and rejects excess fields. |
 
-The framework is a development dependency and a pinned peer of this adapter.
-It is not a dependency of `foldkit-agent`. The public adapter types are checked
-against the real `ActionTool` type; only object input schemas are supported,
-because the framework omits other input shapes from its tool list.
+The public adapter types are checked against Agent Native's real `ActionTool`
+type. The framework is a development dependency and a pinned peer of this
+adapter, not a dependency of `foldkit-agent` itself.
 
-## Limits and reuse decision
+## Limits
 
-The registry and agent tool runtime can be reused without replacing Foldkit's
-state machine. HTTP, MCP, A2A, CLI, UI queries, auth sessions, and deep links
-still need their framework host and deployment wiring; this suite does not
-claim an end-to-end test of those surfaces. Keep the independent MCP/A2A
-adapters and direct WebMCP adapter.
+This package proves/reuses the Agent Native **action registry and tool runtime**.
+It does not claim to replace or integrate every Agent Native subsystem. HTTP,
+MCP, A2A, CLI, UI queries, auth sessions, and deep-link deployment still belong
+to the Agent Native host or to Foldkit Plus's dedicated adapters.
 
-The registry is static: it describes all declared capabilities, while Foldkit
-checks availability at invocation time. The application maps a verified caller
-to a principal when binding a server-held Runtime. Page-local state still belongs
-to WebMCP; no browser RPC bridge is introduced.
+Page-local state still belongs to WebMCP; this package does not introduce a
+browser RPC bridge.
 
-The framework's package registry retains the first registration of a name and
+The Agent Native package registry retains the first registration of a name and
 skips names inherited from `Object.prototype`, including `__proto__`. Avoid
 those names and restart the host after changing a registered contract. The
-adapter's own returned record preserves these keys, but cannot fix that
-downstream registry behavior.
+adapter's returned record preserves such keys, but cannot change downstream
+registry behavior.
 
-This completes the bounded proof of concept in
+Full HTTP/MCP/A2A deployment tests are outside this package's test suite. This
+is the bounded integration originally tracked in
 [issue #22](https://github.com/doeixd/foldkit-plus/issues/22), not a claim that
-every Agent Native subsystem is independently reusable. A full deployment test
-of the HTTP, MCP, A2A, CLI, auth, and UI surfaces remains future work.
+every Agent Native subsystem is independently reusable.
 
 ## Choosing an adapter
 
-All four serve the same contract, so serving two at once is two calls, not two
-definitions.
+All four serve the same `foldkit-agent` contract. Serving more than one is
+multiple adapters over one definition, not multiple capability declarations.
 
 | Where the agent runs | Adapter |
 | --- | --- |
@@ -147,9 +217,6 @@ definitions.
 
 ## See also
 
-- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
-  do, and why a capability is a Message.
-- [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) — the contract this adapter
-  serves, and where `Agent.bind` produces the runtime it takes.
-- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a
-  hand-written host.
+- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and do, and why a capability is a Message.
+- [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) — the contract this adapter serves and where `Agent.bind` produces the runtime it takes.
+- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a hand-written host.
