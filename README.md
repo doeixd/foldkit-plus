@@ -24,13 +24,15 @@ question, and they compose because they meet at explicit application boundaries.
 
 The fastest way to understand Foldkit Plus is to watch several packages reuse
 one application declaration. Assume `Model`, `Message`, `initial`, and `update`
-are an ordinary Foldkit app you already wrote. Everything below is a contract
-over those values; none of it introduces a second reducer.
+are an ordinary Foldkit app you already wrote. Everything around them derives
+from the same state machine; none of it introduces a second reducer.
 
 ```ts
 import { Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { SurfaceView } from 'foldkit-mixins-surface'
 import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, Sync } from 'foldkit-sync'
 
@@ -53,7 +55,31 @@ const Overview = App.surface('Overview', {
   model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
 })
 
-// 3. Sync declares ownership of one writable slice and the facts that change it.
+// 3. Mixins let the view publish typed extension points once. The view owns
+// markup; Style owns appearance. Neither gets another place to keep state.
+const BoardSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  list: Slot.make({ capability: Capability.Collection }),
+})
+
+const BoardStyle = Style.forSlots(BoardSlots)({
+  root: Style.class('todo-board'),
+  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }),
+})
+
+export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h) =>
+  h.section(slots.root.attrs(), [
+    h.ul(
+      slots.list.attrs(),
+      model.todos.map(todo => h.li([], [todo.title])),
+    ),
+  ]),
+).pipe(Style.attach(BoardStyle))
+
+// Behavior attaches element-level interaction through the same slots when needed;
+// application state and transitions still belong to Model / Message / update.
+
+// 4. Sync declares ownership of one writable slice and the facts that change it.
 // Projection.pick is writable because checkpoints must install back into Model;
 // replay still runs these Messages through the application's own update.
 const TodoSync = Sync.forApplication(App)
@@ -76,7 +102,7 @@ const TodoSync = Sync.forApplication(App)
 // There is no second server-side reducer to keep in agreement.
 TodoSync.journalContract()
 
-// 4. Agent exposes the same application vocabulary instead of reimplementing actions.
+// 5. Agent exposes the same application vocabulary instead of reimplementing actions.
 const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
 const AppAgent = TodoAgent.make({
   context: Overview,
@@ -106,7 +132,7 @@ const AppAgent = TodoAgent.make({
   }),
 })
 
-// 5. Mirrors do not own state. They are secondary representations of Model fields.
+// 6. Mirrors do not own state. They are secondary representations of Model fields.
 const Filters = Mirror.url(App, {
   name: 'filters',
   fields: [App.fields.filter], // linkable: ?filter=active
@@ -116,7 +142,7 @@ const Prefs = Mirror.kv(App, {
   fields: [App.fields.draft], // remembered on this device
 })
 
-// 6. The architecture itself is data. Validate ownership/capability relationships,
+// 7. The architecture itself is data. Validate ownership/capability relationships,
 // or turn the same declarations into documentation and tooling input.
 const Project = Module.make(App, [
   Board,
@@ -132,14 +158,16 @@ Module.toMermaid(Project) // architecture generated from the declarations above
 ```
 
 The important part is what is **missing**: no agent reducer, sync reducer, URL
-store, persistence state machine, or server copy of the shared schema. The same
-`update` remains the transition function throughout.
+store, persistence state machine, server copy of the shared schema, or forked
+component just to restyle it. The same `update` remains the transition function
+throughout; Mixins never becomes another state owner.
 
-Two packages are deliberately not squeezed into this block. `foldkit-remote` is
-best understood with an actual server-owned entity and query; `foldkit-mixins`
-is best understood with a real view publishing slots. The
-[`todo-app`](./examples/todo-app) and [`kitchen-sink`](./examples/kitchen-sink)
-show both in context.
+`foldkit-remote` is deliberately not squeezed into this block. Its value is
+best understood with an actual server-owned entity and query; see
+[`examples/remote`](./examples/remote) or the
+[`kitchen-sink`](./examples/kitchen-sink) for that path. The
+[`todo-app`](./examples/todo-app) contains the fuller version of the Surface,
+Sync, Agent, Mirror, and Mixins composition shown above.
 
 The sample above is type-checked in
 [`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
