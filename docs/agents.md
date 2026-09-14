@@ -1,202 +1,597 @@
-# Agents: `foldkit-agent` and its adapters
+# Agents: expose the application, do not reimplement it
 
-A Foldkit application already has the two things an agent needs: a **Model** it
-could look at and a **Message** union it could send. `foldkit-agent` turns a
-deliberate subset of each into a contract, and four adapters serve that one
-contract over WebMCP, MCP, A2A, and Agent Native. Nothing in the agent path
-reimplements behaviour: every capability is a Message that `update` already
-handles.
+A Foldkit application already has the two things an agent needs:
 
-- [`foldkit-agent`](../packages/agent) — the protocol-neutral contract: context,
-  capabilities, resources, authorization, completion, audit.
-- [`foldkit-agent-webmcp`](../packages/agent-webmcp) — the browser adapter, into
-  `document.modelContext`.
-- [`foldkit-agent-mcp`](../packages/agent-mcp) — MCP over stdio or Streamable
-  HTTP, plus a transport-free handler.
-- [`foldkit-agent-a2a`](../packages/agent-a2a) — an Agent Card and
-  `message/send` as tasks.
-- [`foldkit-agent-native`](../packages/agent-native) — Agent Native actions whose
-  `run` only dispatches.
-
-## The problem
-
-Wiring an LLM to an application usually starts with a tool per feature, and the
-usual things go wrong:
-
-- a tool's handler re-implements a transition the UI already has, and the two
-  drift;
-- a tool can see the whole Model, secrets and transient errors included;
-- a tool can send any Message, including the facts only a Command should mint;
-- authorization lives in the transport, so each protocol checks it differently;
-- "did it work?" means polling, because dispatching a Message and finishing the
-  operation are different events;
-- four protocols mean four schemas, four dispatchers, and four error mappings.
-
-The fix is one contract: an information boundary (what an agent may see) and a
-capability boundary (what an agent may do), both derived from the application,
-and adapters that translate protocol to contract and nothing else.
-
-## How it fits together
-
-```mermaid
-flowchart LR
-  app["Foldkit application<br/>Model · Message · update"]
-  surface["foldkit-surface<br/>Projection · MessageSet"]
-  contract["foldkit-agent<br/>context · capabilities · resources<br/>authorize · completion · audit"]
-  runtime["Agent.bind<br/>host: model · dispatch · observe"]
-  webmcp["foldkit-agent-webmcp<br/>document.modelContext"]
-  mcp["foldkit-agent-mcp<br/>stdio · Streamable HTTP"]
-  a2a["foldkit-agent-a2a<br/>Agent Card · tasks"]
-  native["foldkit-agent-native<br/>actions"]
-  app --> surface --> contract --> runtime
-  runtime --> webmcp
-  runtime --> mcp
-  runtime --> a2a
-  runtime --> native
+```text
+Model         -> information the agent may observe
+Message union -> actions the agent may cause
 ```
 
-The contract is declared once, from a `Surface.application`:
+`foldkit-agent` turns deliberate subsets of those into one **protocol-neutral
+agent contract**. WebMCP, MCP, A2A, and Agent Native then serve that same
+contract without adding application behaviour of their own.
+
+The important architectural rule is simple:
+
+> **An agent capability is an application Message, not a second implementation
+> of the feature.**
+
+The UI and the agent therefore meet at the same `update`. If a person and an
+agent both rename a todo, there is still one rename transition to understand,
+test, authorize, replay, and debug.
+
+## The mental model
+
+There are four different values in normal agent code. Keeping them separate
+makes the API much easier to read:
+
+```text
+Foldkit application
+        App
+         |
+         | Agent.forApplication(App)
+         v
+application-specialized builder
+     AgentBuilder
+         |
+         | .make(...)
+         v
+protocol-neutral contract
+    AssistantAgent
+         |
+         | .bind({ host })
+         v
+live AgentRuntime
+         |
+         +--> WebMCP
+         +--> MCP
+         +--> A2A
+         +--> Agent Native
+```
+
+A useful naming rule is **builder first, contract second**:
 
 ```ts
-const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
+const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
 
-const AppAgent = TodoAgent.make({
+const AssistantAgent = AgentBuilder.make({
+  // ...the actual agent contract
+})
+```
+
+`AgentBuilder` is **not an agent**. It is a typed DSL specialized to this
+application's Model, Message union, and Principal type. Its helpers such as
+`make`, `expose`, and `bind` now know those types.
+
+`AssistantAgent` is the actual contract: what this agent may see, what it may do,
+which policies apply, how completion is recognized, and which read-only
+resources it exposes. This is the value adapters describe and serve.
+
+Binding that contract to a running application produces the live runtime that
+can read the current Model and dispatch Messages.
+
+## Why have a contract at all?
+
+A direct "LLM tool -> application code" integration tends to grow a second
+application by accident:
+
+- a tool handler reimplements a transition the UI already has;
+- the tool receives the whole Model because selecting a safe context is work;
+- fact Messages containing ids or timestamps become callable like intents;
+- each transport invents its own authorization and error mapping;
+- dispatching a Message is mistaken for finishing the operation;
+- WebMCP, MCP, A2A, and other integrations each grow their own schema and
+  handler layer.
+
+The agent contract fixes that by declaring two boundaries once:
+
+```text
+information boundary
+  "What may this agent know?"
+        -> Surface / Projection
+
+capability boundary
+  "What may this agent cause?"
+        -> selected application Messages
+```
+
+Everything after that is interpretation and transport.
+
+## A small end-to-end example
+
+Assume an ordinary Foldkit application has already been captured with
+`Surface.application`:
+
+```ts
+const App = Surface.application({ Model, Message, initial, update })
+```
+
+A Surface can describe the read model an agent is allowed to see:
+
+```ts
+const Overview = App.surface('Overview', {
+  model: ({ model }) => ({
+    listTitle: model.listTitle,
+    todos: model.todos,
+    filter: model.filter,
+  }),
+})
+```
+
+Notice what is missing. If the root Model also contains editor state, a pending
+form error, or internal bookkeeping, none of it becomes agent context merely
+because it exists.
+
+For the examples below, assume the application identifies callers like this:
+
+```ts
+type Principal = { readonly actorId: string }
+const isOwner = (principal: Principal) => principal.actorId === 'owner'
+```
+
+Now specialize the agent API to this application:
+
+```ts
+const AgentBuilder = Agent
+  .forApplication(App)
+  .withPrincipal<Principal>()
+```
+
+Then create one concrete contract:
+
+```ts
+const AssistantAgent = AgentBuilder.make({
   name: 'assistant',
-  context: Overview, // a Surface, or Projection.pick(App.fields.todos, …)
-  messages: TodoAgent.expose(Message, {
+  context: Overview,
+
+  messages: AgentBuilder.expose(Message, {
     RequestedTodo: Agent.variant({
       name: 'add_todo',
       description: 'Add a todo with the given title',
+
       input: Schema.Struct({ title: Schema.String }),
       toMessage: ({ title }) => ({ title }),
+
       completion: {
         success: Message.SubmittedTodo,
-        correlate: (request, result) => request.title.trim() === result.title,
+        correlate: (request, result) =>
+          request.title.trim() === result.title,
       },
     }),
-    ToggledTodo: { name: 'toggle_todo', description: 'Mark a todo done, or undo that' },
+
+    ToggledTodo: {
+      name: 'toggle_todo',
+      description: 'Mark a todo done, or undo that',
+    },
+
     ClearedCompleted: {
       name: 'clear_completed',
       description: 'Delete every completed todo (owner only)',
       authorize: ({ principal }) => isOwner(principal),
     },
   }),
-  resources: [Agent.resource('counts', { description: '…', schema: Counts, read: counts })],
 })
 ```
 
-Then bound to a running application, and served:
+Read this literally:
+
+```text
+context: Overview
+  -> this is what the agent may observe
+
+RequestedTodo / ToggledTodo / ClearedCompleted
+  -> these are the only application Messages it may cause
+
+input / toMessage
+  -> this is the protocol-facing input boundary
+
+authorize
+  -> this is policy for one capability
+
+completion
+  -> this is how dispatch becomes a meaningful operation result
+```
+
+There is deliberately no `exposeAll`. A Message is unreachable unless the
+contract opts into it.
+
+Finally, bind the static contract to the live application:
 
 ```ts
-const agentRuntime = TodoAgent.bind({
-  definition: AppAgent,
+const agentRuntime = AgentBuilder.bind({
+  definition: AssistantAgent,
   host: {
     model: mounted.model,
-    dispatch: message => { mounted.dispatch(message) },
-    observe: mounted.observe, // a completion contract needs to see Messages
+    dispatch: message => {
+      mounted.dispatch(message)
+    },
+    subscribe: mounted.subscribe,
+    observe: mounted.observe,
     principal: () => principal,
   },
 })
-
-AgentWebMcp.register({ agent: agentRuntime }) // in the page
-AgentMcp.stdio({ agent: agentRuntime }) // or AgentMcp.handler, AgentMcp.httpApp
-AgentA2a.handler({ agent: agentRuntime })
-registerPackageActions(AgentNative.actions({ definition: AppAgent, resolveRuntime }))
 ```
 
-`Sync.mount` returns a host of the right shape (`model`, `dispatch`, `subscribe`,
-`observe`), so a local-first application is agent-ready without a second seam;
-[`examples/todo`](../examples/todo) shows the host written by hand.
+The contract is static application architecture. The host supplies runtime
+facts: the current Model, how to dispatch, how to follow Model changes, how to
+observe Messages for completion, and who the current principal is.
 
-## What an agent may see
+A host only needs the capabilities the contract actually uses. For example,
+`observe` matters when a capability declares completion, while `subscribe`
+lets adapters such as WebMCP follow capabilities whose availability changes with
+the Model.
 
-`context` is a `foldkit-surface` projection: a feature Surface the view already
-renders, or `Projection.pick(App.fields.…)`. The agent sees exactly that value,
-so the same projection can be rendered, replicated, and shown to an agent, and
-a field left out of the projection (a token, a transient error, the whole
-Model) is not reachable. `Agent.resource` adds named, schema-typed reads for
-data the context does not carry.
+## What an agent may see: context and resources
 
-## What an agent may do
+The contract's `context` is a `foldkit-surface` Surface or Projection. This is
+usually the best place to reuse an existing feature boundary:
 
-Exposure is opt-in: `expose` names the variants an agent may send, and there is
-no `exposeAll`. Two rules keep the contract honest:
+```ts
+context: Overview
+```
 
-- **Expose intents, not facts.** A fact carries its own nondeterminism (an id, a
-  timestamp) and is minted by a Command. The agent sends `RequestedTodo`; the
-  application's Command emits `SubmittedTodo`. A `completion` contract then
-  says the call is done when the correlated fact is applied, so `dispatch`
-  resolves with the fact rather than with "the Message was received".
-- **Availability precedes authorization.** `available(model)` says whether the
-  capability exists in this Model; an unavailable capability is absent from the
-  tool list and refused by name, before `authorize` runs, so a caller cannot
-  learn whether they would have been permitted. Dispatch is a fixed order:
-  resolve, `available`, decode input, `authorize`, construct, dispatch.
+That gives the agent a coherent read model without giving it the root Model.
+The same projection can also be rendered by a view, inspected by tooling, or
+used by another Foldkit Plus package.
 
-An invocation reads one Model snapshot for all of `available`, `authorize`, and
-`toMessage`, so a capability that reads the selection twice cannot see two
-different selections.
+This matters because an agent does not need access to state merely because the
+application has it. Treat context like an API response: include the information
+required to reason about the task and leave everything else out.
 
-## Policy, once
+For additional named reads, use resources:
 
-`authorize` on a capability takes the principal, the decoded input, the Model
-snapshot, and the transport. In the todo app the two owner-only rules are the
-same rule the sync contract enforces inside the journal's append transaction:
-the agent is refused early, with a typed error; the server would refuse late.
-Declaring policy next to the Messages it governs is what lets both boundaries
-share it.
+```ts
+resources: [
+  Agent.resource('counts', {
+    description: 'How many todos are active and completed',
+    schema: Schema.Struct({
+      total: Schema.Number,
+      active: Schema.Number,
+      completed: Schema.Number,
+    }),
+    read: model => counts(model),
+  }),
+]
+```
 
-Every decision can be recorded. `Agent.auditLog` keeps a bounded ring of
-entries, refusals included, and never keeps the Model; input and principal are
-opt-in and redactable. A sink that throws never fails a dispatch.
+A useful distinction is:
 
-## Adapters translate and nothing else
+```text
+context  = the default read model for this agent
+resource = an additional named, read-only piece of information
+message  = a capability that may change the application
+```
 
-Each adapter maps protocol vocabulary onto the runtime and stops:
+## What an agent may do: expose Messages
 
-| Adapter | Capability becomes | Dispatch path |
+`AgentBuilder.expose(Message, ...)` selects application Message variants and
+gives them protocol-facing metadata.
+
+That is the core safety property of the package: **the agent cannot invent a
+new transition path around the application**. It can only request transitions
+already represented in the Message union and already handled by `update`.
+
+### Expose intents, not facts
+
+Suppose creating a todo requires generating an id:
+
+```text
+RequestedTodo
+    |
+    | update starts Command
+    v
+Command generates id + timestamp
+    |
+    v
+SubmittedTodo { id, title, createdAt }
+```
+
+The agent should normally expose `RequestedTodo`, not `SubmittedTodo`.
+`SubmittedTodo` is a fact whose id and timestamp were minted by application
+logic. Letting an agent manufacture it would move nondeterminism and invariants
+out of the state machine and into the protocol boundary.
+
+Mapped input makes that explicit:
+
+```ts
+RequestedTodo: Agent.variant({
+  name: 'add_todo',
+  description: 'Add a todo with the given title',
+  input: Schema.Struct({ title: Schema.String }),
+  toMessage: ({ title }) => ({ title }),
+})
+```
+
+The external tool schema can therefore be simpler than the eventual durable
+fact, and decoding happens before a Message is constructed.
+
+## Dispatch is not always completion
+
+For an immediate Message, "dispatch succeeded" may be enough. But an intent can
+start Commands and finish later:
+
+```text
+agent calls add_todo
+        |
+        v
+RequestedTodo dispatched
+        |
+        v
+update starts Command
+        |
+        v
+SubmittedTodo applied
+        |
+        v
+operation is complete
+```
+
+A completion contract teaches the runtime which later Message means the
+operation actually finished:
+
+```ts
+completion: {
+  success: Message.SubmittedTodo,
+  correlate: (request, result) =>
+    request.title.trim() === result.title,
+  timeout: Duration.seconds(10),
+}
+```
+
+A completion may also declare one or more failure Messages when the application
+has explicit failure facts.
+
+`correlate` matters whenever multiple calls can be in flight. Without it, the
+first matching completion Message wins.
+
+Completion does **not** make the operation transactional or exactly-once. A
+timeout or cancellation means the runtime stopped waiting; it does not rewind a
+Message that already reached `update`, and it does not make an external effect
+idempotent.
+
+## Availability and authorization are different questions
+
+A capability can depend on the current Model:
+
+```ts
+ClearedCompleted: {
+  name: 'clear_completed',
+  description: 'Delete every completed todo',
+  available: model => model.todos.some(todo => todo.completed),
+  authorize: ({ principal }) => isOwner(principal),
+}
+```
+
+These predicates answer different questions:
+
+```text
+available(model)
+  "Does this action exist in the application's current state?"
+
+authorize(...)
+  "May this principal invoke it?"
+```
+
+Availability runs first. An unavailable capability is omitted from discovery
+and refused by name before authorization is evaluated. That prevents the
+authorization result for an action that does not currently exist from becoming
+an information leak.
+
+One invocation reads one Model snapshot for `available`, input mapping, and
+`authorize`, so policy does not accidentally reason over several different
+application states.
+
+## The invocation pipeline
+
+Every call goes through the same contract-owned pipeline regardless of adapter:
+
+```text
+1. resolve capability
+2. check available(model)
+3. decode protocol input
+4. authorize principal
+5. construct application Message
+6. dispatch Message
+7. if declared, wait for correlated completion
+```
+
+Anything refused before dispatch sends no Message.
+
+That separation is important: adapters do not get to decide what counts as
+valid input, whether an action is available, or whether the caller is allowed.
+They only translate their protocol into this pipeline.
+
+## Policy belongs beside the capability
+
+`authorize` receives the principal, decoded input, Model snapshot, and transport.
+That lets the contract reject an agent call early with a typed error.
+
+For state that also has an authoritative server boundary, early agent policy is
+not a replacement for server enforcement. For example, the todo app uses the
+same owner predicate in the agent contract and in the Sync/Durable journal:
+
+```text
+agent boundary
+  -> refuse unauthorized request early
+
+server journal
+  -> enforce authorization authoritatively
+```
+
+Those checks are complementary. A client-side agent contract improves the
+interface; the trusted boundary still owns trust.
+
+## Bind once, serve several protocols
+
+Once a contract is bound to a live runtime, adapters are intentionally thin:
+
+| Where the caller is | Adapter | What a capability becomes |
 | --- | --- | --- |
-| WebMCP | a tool in `document.modelContext`, re-registered as availability changes | `execute` → `dispatchUnknown` in the same page |
-| MCP | `tools/list` entry with the derived JSON Schema | `tools/call` over stdio or Streamable HTTP |
-| A2A | a skill on the Agent Card | `message/send` as a task; `tasks/get`, `tasks/cancel` |
-| Agent Native | an action (`http: POST`, `requiresAuth`, not read-only) | `run` resolves a bound runtime per caller and dispatches |
+| Agent running in the page | [`foldkit-agent-webmcp`](../packages/agent-webmcp) | WebMCP tool on `document.modelContext` |
+| External MCP client | [`foldkit-agent-mcp`](../packages/agent-mcp) | `tools/list` / `tools/call` entry over stdio or Streamable HTTP |
+| Another A2A agent | [`foldkit-agent-a2a`](../packages/agent-a2a) | skill on an Agent Card, invoked as a task |
+| Agent Native host | [`foldkit-agent-native`](../packages/agent-native) | Agent Native action |
 
-No adapter repeats a schema, a handler, or an authorization check. The tagged
-errors (`AgentCapabilityUnavailableError`, `AgentInvalidInputError`,
-`AgentAuthorizationError`, `AgentCancelledError`, …) are `Schema`-backed, so an
-adapter encodes one across its protocol boundary rather than inventing its own.
+For example:
 
-## The contract is data
+```ts
+AgentWebMcp.register({ agent: agentRuntime })
+AgentMcp.stdio({ agent: agentRuntime })
+AgentA2a.handler({ agent: agentRuntime })
+```
 
-`Agent.messages`, `Agent.schema`, and `Agent.contextSchema` expose the contract
-for tests that need no LLM. `Agent.toManifest` writes `agent.json` and
-`Agent.toMarkdown` writes its documentation, both reproducible for a given
-contract, so a change in what the application exposes shows up in review. The
-contract also carries a `Module` contract (what it observes, which Message tags
-it exposes), so `Module.validate` reports an agent exposing a Message the
-application does not declare, or a contract from another application.
+Agent Native differs slightly because the host may resolve a runtime per caller:
+
+```ts
+registerPackageActions(
+  AgentNative.actions({
+    definition: AssistantAgent,
+    resolveRuntime,
+  }),
+)
+```
+
+Serving the same application through two protocols is therefore two adapter
+calls, not two contracts.
+
+Adapters derive their schemas and call the same runtime. They do not repeat
+business logic, authorization, or input validation.
+
+## Dynamic capabilities
+
+`available(model)` can make a capability appear or disappear as the application
+moves through states.
+
+With WebMCP, for example, a host that supplies `subscribe` lets the adapter
+reconcile tool registration when the Model changes:
+
+```text
+no completed todos
+  tools: add_todo
+
+a todo becomes completed
+  Model changes
+  tools: add_todo, clear_completed
+```
+
+This is not merely presentation. Calling `clear_completed` by name while it is
+unavailable still fails with `AgentCapabilityUnavailableError`.
+
+## Audit without capturing the Model
+
+Every decision can be recorded, including refusals:
+
+```ts
+const audit = Agent.auditLog({
+  capacity: 500,
+  principal: principal => principal.actorId,
+})
+
+const agentRuntime = AgentBuilder.bind({
+  definition: AssistantAgent,
+  host,
+  audit,
+})
+```
+
+The built-in log is deliberately conservative:
+
+- the Model is never stored;
+- the principal is stored only through an explicit projection;
+- input is opt-in and can be redacted;
+- the buffer is bounded;
+- a failing audit sink never fails the application dispatch.
+
+Audit is accountability, not replay. Re-dispatching an old invocation remains
+an explicit application decision.
+
+## The contract is inspectable data
+
+The contract can be inspected without an LLM or a running transport:
+
+```ts
+Agent.messages(AssistantAgent)
+Agent.schema(AssistantAgent)
+Agent.contextSchema(AssistantAgent)
+Agent.toManifest(AssistantAgent)
+Agent.toMarkdown(AssistantAgent)
+```
+
+This is useful in tests and code review. Committing a generated manifest turns
+"the agent can now do X" into an ordinary diff instead of a hidden runtime
+change.
+
+The contract also contributes architecture metadata to `foldkit-surface`'s
+`Module`, so the application can inspect which Model paths an agent observes and
+which Message tags it exposes.
+
+## Local-first applications
+
+`foldkit-agent` does not care whether the live host is a simple in-memory
+runtime or a replicated application.
+
+`Sync.mount` already exposes the runtime-shaped pieces an agent needs: current
+Model access, dispatch, subscription, and Message observation. That means a
+local-first app can give a human and an agent the same application seam:
+
+```text
+human UI ---------> Messages ----+
+                                 |
+agent contract ---> Messages ----+--> update / replica
+```
+
+The agent does not need a second server API that reimplements the state
+transitions merely because the application is synchronized.
+
+## How this relates to Surface
+
+Surface and Agent answer different questions:
+
+```text
+Surface
+  "What may this feature observe and which application Messages may it cause?"
+
+Agent
+  "How should part of that application boundary be exposed safely to an agent?"
+```
+
+A Surface makes an excellent agent context because it is already an inspectable
+consumer-facing projection of application state. Agent then adds protocol input,
+availability, authorization, completion, resources, audit, and adapter-facing
+metadata around the application's existing Messages.
+
+The agent contract does not become a second owner of the state it observes.
+Submodels, Sync, Remote, or plain application `update` still own their respective
+transitions.
 
 ## When not to use this
 
-- **The agent should drive the UI.** This is not DOM automation; it dispatches
-  Messages. If the behaviour is not a Message, add one.
-- **The agent needs the whole Model.** That is a sign the context is wrong, not
-  a reason to widen it; project what the feature would render.
-- **Exactly-once effects.** Completion says a correlated fact was applied. It
-  does not undo a Message after a timeout or cancellation, and it does not make
-  an external action idempotent; see the durable
-  [effect recovery](../packages/durable/README.md#effect-recovery) policy.
+- **You want DOM automation.** `foldkit-agent` dispatches application Messages;
+  it does not click buttons or scrape the page. If an important operation has no
+  Message, model it as application behaviour first.
+- **You want to expose the entire Model.** Usually that means the information
+  boundary has not been designed yet. Give the agent a Surface or Projection
+  that contains what the task requires.
+- **You need exactly-once external effects.** Completion observes application
+  facts; it is not an idempotency or effect-recovery protocol. See
+  [Durable effect recovery](../packages/durable/README.md#effect-recovery).
+- **You are only wrapping a stateless function.** If there is no meaningful
+  application Model/Message boundary to preserve, a normal tool definition may
+  be simpler.
 
-## See it working
+## Choosing what to read next
 
-- [`examples/todo`](../examples/todo) — the contract, a hand-written host, and
-  WebMCP, as an asserted transcript.
-- [`examples/todo-app`](../examples/todo-app) — the same idea over `Sync.mount`:
-  the agent's context is a Surface the view renders, and its policy is the sync
-  contract's.
-- [`examples/sync`](../examples/sync) — an agent bound to a shared replica, so a
-  server-side agent acts on the state the user sees.
-
-The package READMEs document the full APIs, and
-[`docs/design/agent-DESIGN.md`](./design/agent-DESIGN.md) records the design
-rationale.
+- [`examples/todo-app/src/agent.ts`](../examples/todo-app/src/agent.ts) — the
+  clearest concrete contract: Surface context, intent/fact completion,
+  authorization, and resources.
+- [`examples/todo`](../examples/todo) — a hand-written host and adapter path,
+  useful for understanding binding without Sync.
+- [`examples/todo-app`](../examples/todo-app) — a real browser application where
+  the same state is used by the UI, replication, and agent.
+- [`packages/agent/README.md`](../packages/agent/README.md) — the full API,
+  dispatch errors, schemas, audit options, and completion semantics.
+- Adapter READMEs: [WebMCP](../packages/agent-webmcp),
+  [MCP](../packages/agent-mcp), [A2A](../packages/agent-a2a), and
+  [Agent Native](../packages/agent-native).
+- [`docs/design/agent-DESIGN.md`](./design/agent-DESIGN.md) — design rationale
+  and rejected alternatives.
