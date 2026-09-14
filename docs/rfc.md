@@ -2607,3 +2607,186 @@ Make Foldkit's boundaries as inspectable as its transitions.
 ```
 
 That would make Foldkit more capable without making it feel like a different framework.
+
+
+# Addendum: Complete Descriptions and Foldkit
+
+A useful lens from arXiv:2402.09090 is that good abstractions are not merely about hiding detail. They are about finding a **complete description at the right level**: preserving every distinction that affects behavior at that level, while discarding distinctions that do not.
+
+This helps explain why Foldkit and Effect are powerful.
+
+In Foldkit:
+
+```text
+Model + Message + update
+```
+
+form a complete description of application state transitions, provided `update` is pure. External nondeterminism is pushed into Commands and re-enters as Messages, so the state machine remains closed and replayable.
+
+Likewise, Effect and Schema turn otherwise opaque behavior into structured descriptions that can support many interpreters: execution, validation, testing, tracing, retries, documentation, serialization, and so on.
+
+This suggests a stronger principle for the RFC:
+
+> **Foldkit should prefer complete descriptions that can support many interpretations over multiple partial implementations of the same behavior.**
+
+That principle clarifies several proposals.
+
+## Surface as a real abstraction boundary
+
+A Surface is more than:
+
+```text
+what can this consumer read?
+what Messages can it send?
+```
+
+It can also be viewed as an attempted higher-level description of part of the application.
+
+Suppose a Surface exposes:
+
+```text
+todos
+```
+
+and allows:
+
+```text
+ToggledTodo
+```
+
+but whether `ToggledTodo` changes the todos depends on hidden state such as:
+
+```text
+session.canEdit
+```
+
+Then the Surface is not behaviorally complete. Two root Models can look identical through the Surface yet react differently to the same Surface Message.
+
+That gives us a useful law:
+
+```text
+If two root Models look identical through a Surface,
+then applying the same allowed Message should not make
+their projected next states differ.
+```
+
+Formally:
+
+```text
+P(m₁) = P(m₂)
+
+should imply
+
+P(update(m₁, msg)) = P(update(m₂, msg))
+```
+
+for Messages relevant to that Surface.
+
+This does not need to be a hard requirement for every Surface. There are really two useful notions:
+
+```text
+Capability Surface
+    what may this consumer observe and attempt?
+
+Closed Surface
+    does this state + Message vocabulary form a
+    self-contained behavioral abstraction?
+```
+
+Foldkit could eventually test the second property with Stories or property-based testing and surface hidden dependencies.
+
+## This strengthens the proposed substrate
+
+The RFC's proposed primitives now have a deeper interpretation:
+
+```text
+Application
+    the root machine
+
+Projection
+    which state distinctions remain visible
+
+MessageSet
+    which input distinctions remain available
+
+Surface
+    a candidate higher-level machine or capability boundary
+```
+
+This is more compelling than treating them as metadata for tooling.
+
+It also suggests that Projections should remain read-only and support derived values. A Surface may need:
+
+```text
+canEdit: boolean
+```
+
+without exposing the entire internal structure that determines it.
+
+## A useful test for future Foldkit abstractions
+
+The lesson is not "make everything declarative."
+
+Before adding a new abstraction, ask:
+
+1. **What level of the program does this describe?**
+2. **Which distinctions actually matter at that level?**
+3. **Is the description complete enough to reason about that level without reopening hidden implementation details?**
+4. **Can multiple useful interpreters be derived from the description?**
+
+This helps explain why some `foldkit-plus` ideas are more compelling than others.
+
+`Surface`, Agent contracts, Mirror, and replayable Message subsets describe meaningful architectural relationships.
+
+A large styling DSL is less obviously valuable if its main interpretation is simply "turn this back into CSS."
+
+## Revised north star
+
+The RFC originally proposed:
+
+> State changes, effects, and application boundaries are explicit.
+
+A stronger version is:
+
+> **Foldkit helps developers create complete descriptions of programs at useful levels of abstraction.**
+
+Or more concretely:
+
+> **Expose every distinction required to determine behavior at a level, and hide every distinction that cannot affect that behavior.**
+
+That principle already explains much of Foldkit:
+
+```text
+Message
+    makes events explicit
+
+update
+    makes state transitions explicit
+
+Command / Subscription
+    make external interaction explicit
+
+Schema
+    makes data structure explicit
+
+Submodel
+    makes autonomous state ownership explicit
+```
+
+The proposed additions extend the same idea:
+
+```text
+Projection
+    makes observable distinctions explicit
+
+MessageSet
+    makes an input vocabulary explicit
+
+Surface
+    makes a consumer-level boundary explicit
+```
+
+The goal is not more abstraction machinery.
+
+It is **better abstractions through more complete descriptions**.
+
