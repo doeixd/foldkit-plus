@@ -76,6 +76,7 @@ const ObserveMessage = defineMessageUnion({
     ),
   },
   ReadError: { message: Schema.String },
+  Started: { fields: Schema.Array(Schema.String) },
 })
 type ObserveMessageType = Schema.Schema.Type<typeof ObserveMessage>
 
@@ -91,6 +92,10 @@ const toMessage = (message: RemoteMessage): ObserveMessageType => {
       })
     case 'ReadFailed':
       return ObserveMessage.ReadError({ message: message.error.message })
+    case 'ReadStarted':
+      return ObserveMessage.Started({
+        fields: message.requests.flatMap(request => request.fields),
+      })
     default:
       throw new Error(`unexpected remote message: ${message._tag}`)
   }
@@ -184,6 +189,7 @@ describe('Remote observation', () => {
       Stream.runCollect(entry.dependenciesToStream(dependencies)).pipe(Effect.provide(FakeClient)),
     )
     expect([...messages]).toEqual([
+      { _tag: 'Started', fields: ['id', 'name'] },
       {
         _tag: 'Batch',
         entities: [{ entity: 'User', id: 'u1', values: { id: 'u1', name: 'ada' } }],
@@ -220,7 +226,10 @@ describe('Remote observation', () => {
         Effect.provide(failing),
       ),
     )
-    expect([...messages]).toEqual([{ _tag: 'ReadError', message: 'boom' }])
+    expect([...messages]).toEqual([
+      { _tag: 'Started', fields: ['id', 'name'] },
+      { _tag: 'ReadError', message: 'boom' },
+    ])
   })
 
   it('propagates a read failure from prefetch', async () => {

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-remote",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Normalized application-facing server state for Foldkit: entities, selections, and the pure remote core.",
   "keywords": [
     "foldkit",

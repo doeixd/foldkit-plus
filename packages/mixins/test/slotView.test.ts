@@ -89,6 +89,19 @@ describe('SlotView', () => {
     expect(vnodeData(html).class).toMatchObject({ field: true })
   })
 
+  it('forMessages defines a view that renders and attaches like define', () => {
+    const Decoration = Mixin.make<TestMessage>('Decoration', { root: { classes: ['field'] } })
+    const view = SlotView.forMessages<TestMessage>()
+      .define(
+        FieldSlots,
+        (input: FieldInput, slots, h) => h.div(slots.root.attrs(), [input.label]),
+        { name: 'Curried' },
+      )
+      .pipe(SlotView.attach(Decoration))
+    expect(view.name).toBe('Curried')
+    expect(vnodeData(view({ label: 'Name' }, h)).class).toMatchObject({ field: true })
+  })
+
   it('throws when an attached Mixin conflicts with the view base', () => {
     const Steal = Mixin.make<TestMessage>('Steal', {
       input: { attributes: [h.OnClick({ _tag: 'Clicked' })] },

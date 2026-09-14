@@ -33,6 +33,7 @@ import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.j
 import type { LiveCursor } from './live.js'
 import {
   initialRemoteModel,
+  isLoading,
   isRemoteMessage,
   remoteMessageCases,
   remoteMessageSchema,
@@ -725,9 +726,16 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     },
     dependenciesToStream: ({ requirements, queries }) =>
       Stream.concat(
-        RemotePolicy.refreshes(policy) && requirements.length > 0
-          ? Stream.succeed(toMessage({ _tag: 'RefreshStarted', requests: requirements }))
-          : Stream.empty,
+        requirements.length === 0
+          ? Stream.empty
+          : Stream.fromIterable([
+              // Absent fields read as `Loading` until the read lands.
+              toMessage({ _tag: 'ReadStarted', requests: requirements }),
+              // A refreshing policy also marks the present ones stale.
+              ...(RemotePolicy.refreshes(policy)
+                ? [toMessage({ _tag: 'RefreshStarted', requests: requirements })]
+                : []),
+            ]),
         Stream.mergeAll(
           [
             ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
@@ -889,17 +897,32 @@ export const Remote = {
       read: (root: AppModel): RemoteData<Value> => {
         const store = storeOf(bound, root)
         const key = entityKey(selection.entity, id)
-        return memoRead(store, store, `${key}\u0000${stableStringify(relation)}`, () => {
-          if (isTombstone(store, key)) return { _tag: 'NotFound' }
-          const assembled = assemble(store, key, relation)
-          if (assembled === undefined) return { _tag: 'Initial' }
-          const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
-          return Result.isFailure(decoded)
-            ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
-            : assembled.refreshing
-              ? { _tag: 'Refreshing', value: decoded.success }
-              : { _tag: 'Ready', value: decoded.success }
-        })
+        // The store-dependent half is memoized per store snapshot; `undefined`
+        // means the store lacks the value. Whether that reads as `Loading` or
+        // `Initial` depends on the in-flight marks, which change independently
+        // of the store, so it is decided outside the memo.
+        const present = memoRead<RemoteData<Value> | undefined>(
+          store,
+          store,
+          `${key}\u0000${stableStringify(relation)}`,
+          () => {
+            if (isTombstone(store, key)) return { _tag: 'NotFound' }
+            const assembled = assemble(store, key, relation)
+            if (assembled === undefined) return undefined
+            const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
+            return Result.isFailure(decoded)
+              ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
+              : assembled.refreshing
+                ? { _tag: 'Refreshing', value: decoded.success }
+                : { _tag: 'Ready', value: decoded.success }
+          },
+        )
+        if (present !== undefined) return present
+        // Nothing is fetching this: usually a projection no active Surface
+        // observes, rather than a slow network.
+        return isLoading(bound.store.get(root), selection.entity, id, relation.fields)
+          ? { _tag: 'Loading' }
+          : { _tag: 'Initial' }
       },
     })
   },

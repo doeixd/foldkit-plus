@@ -12,7 +12,7 @@ workspace once from the repository root:
 
 ```bash
 pnpm install && pnpm build
-pnpm --filter foldkit-agent-example-todo demo
+pnpm --filter foldkit-example-todo demo
 ```
 
 The demo prints a transcript of the eight steps below; `test/demo.test.ts` pins

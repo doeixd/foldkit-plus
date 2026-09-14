@@ -53,6 +53,7 @@ export type { RequirementToken } from './requirement.js'
 export type { ResolveOptions, SlotAttributes } from './resolver.js'
 export type { SlotProtection, UnnamedSlot } from './slot.js'
 export type {
+  MessageSlotView,
   SlotBuilder,
   SlotBuilders,
   SlotViewRender,

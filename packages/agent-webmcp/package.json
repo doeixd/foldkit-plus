@@ -1,6 +1,6 @@
 {
   "name": "foldkit-agent-webmcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "WebMCP adapter for foldkit-agent. Projects exposed Foldkit Messages into document.modelContext tools.",
   "keywords": [
     "foldkit",

@@ -143,11 +143,15 @@ reducer's pure `gc` keeps what the roots reach through the store's refs plus any
 pending optimistic change.
 
 In the view, a remote field is a `RemoteData`. `Remote.select` produces
-`Initial` until its selected fields are present, `Ready` once they are,
-`Refreshing` while a selected field is stale (an observer is refetching it),
-`Failed` if the server data does not decode, and `NotFound` for a tombstone.
-`Loading` exists for a caller that tracks a request lifecycle explicitly. There
-is no hidden suspense; the states are explicit.
+`Ready` once its selected fields are present, `Refreshing` while one is stale
+(an observer is refetching it), `Failed` if the server data does not decode, and
+`NotFound` for a tombstone. A value the store lacks reads as `Loading` while a
+read is fetching it and `Initial` when none is: the read entry emits
+`ReadStarted` before it fetches, and `ReadReceived` or `ReadFailed` clears the
+mark. That distinction is the one worth rendering differently, because nothing
+fetches a projection no active Surface observes; it reads `Initial` forever, and
+a spinner there hides the wiring mistake rather than showing progress. There is
+no hidden suspense; the states are explicit.
 
 ## Mutations and live data
 

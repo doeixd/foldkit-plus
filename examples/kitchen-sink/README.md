@@ -10,7 +10,7 @@ store, so it lives in [`examples/todo-app`](../todo-app).)
 
 ```bash
 pnpm install && pnpm build                        # from the repository root
-pnpm --filter foldkit-kitchen-sink-example demo
+pnpm --filter foldkit-example-kitchen-sink demo
 ```
 
 `pnpm demo` at the repository root runs it with the other examples. Read

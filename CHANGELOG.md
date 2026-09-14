@@ -5,6 +5,59 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## 0.4.0
+
+`foldkit-remote` and the `foldkit-mixins` family take a minor; everything else
+republishes so npm serves the corrected pages.
+
+### `foldkit-remote` 0.2.0
+
+- **`RemoteData.Loading` means something now.** It was a required `match` case
+  nothing constructed — the missing half of a symmetry, since `Refreshing` is
+  produced by `RefreshStarted` marking present fields stale. The read entry now
+  emits `ReadStarted` before it reads, the reducer records a mark per requested
+  field, and `ReadReceived` or `ReadFailed` clears it, so a value the store
+  lacks reads `Loading` while a read is fetching it and `Initial` when none is.
+  That distinction is worth rendering differently: nothing fetches a projection
+  no active Surface observes, so it reads `Initial` forever and a spinner there
+  hides the wiring mistake. **Breaking:** `RemoteMessage` gains `ReadStarted`
+  and `RemoteModel` gains `loading`, so code that matches every Remote message
+  or builds a `RemoteModel` literal needs the new case and field. The documented
+  path, `Remote.reduces` then `Data.reduce`, is unaffected.
+
+### `foldkit-mixins` 0.2.0
+
+- **`SlotView.forMessages<Message>().define(...)`.** `define`'s Message universe
+  was anchored only by the render callback's builder, so without an explicit
+  `h: HtmlBuilder<Message>` it resolved to `unknown` and failed later as a
+  variance mismatch that never named the annotation. The curried form fixes
+  Message up front, following `Agent.forModel<Model>()`; `define` is unchanged.
+  `foldkit-mixins-surface` and `foldkit-mixins-ui` follow to 0.2.0 for the peer
+  range.
+
+### Documentation
+
+Two fixes reach the published artifacts themselves.
+
+- **`foldkit-remote-drizzle` now ships its third-party notice.** The package
+  adapts [fate](https://github.com/nkzw-tech/fate)'s Drizzle integration under
+  MIT and records the attribution in `THIRD_PARTY_NOTICES.md`, which `files`
+  omitted, so the published tarball carried the pointer without the notice.
+- **`foldkit-remote`'s declaration file named an API that does not exist.** Four
+  doc comments referenced `Remote.update`, which the package does not export;
+  the reducer is `updateRemote`, and on a bound domain it is `Data.reduce`.
+  The wrong name reached editors through the shipped `.d.mts`.
+- **Every README was checked against its source.** Snippets that could not
+  compile are fixed across `foldkit-durable`, `foldkit-sync`, `foldkit-mirror`,
+  `foldkit-mixins`, `foldkit-mixins-ui`, `foldkit-remote`, `foldkit-remote-server`,
+  `foldkit-remote-drizzle` and `foldkit-surface`; `foldkit-agent-webmcp` is
+  rewritten around the feature detection a reader needs before `register`
+  throws. Each package now opens in plain language, says when to reach for it
+  and when not to, and links its guide, siblings, and example.
+- **Manifests.** The eight packages that were private until 0.3.0 gained the
+  `keywords` npm search matches on and the `publishConfig` the other seven
+  carry. No package behaviour changed in this release.
+
 ## 0.3.0
 
 Every package ships. The eight packages that were `private` — `foldkit-surface`,

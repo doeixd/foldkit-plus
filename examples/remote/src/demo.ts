@@ -231,8 +231,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       Effect.provide(FakeClient),
     ),
   )
-  const midRefresh = Data.reduce(loaded, refreshMessages[0]!)
-  const refreshed = refreshMessages.slice(1).reduce(Data.reduce, midRefresh)
+  // The announcements first: `ReadStarted` marks what is being fetched and
+  // `RefreshStarted` marks the present fields stale, so the value reads
+  // `Refreshing` until the result lands.
+  const midRefresh = refreshMessages
+    .filter(message => message._tag !== 'ReadReceived')
+    .reduce(Data.reduce, loaded)
+  const refreshed = refreshMessages.reduce(Data.reduce, loaded)
   lines.push(
     `stale-while-revalidate: ${refreshMessages.map(message => message._tag).join(', ')}; ${describeData(projection.read(midRefresh))} -> ${describeData(projection.read(refreshed))}`,
   )

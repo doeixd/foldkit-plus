@@ -216,7 +216,11 @@ describe('review: a failed refresh ends', () => {
     )
     let model = { ...initialRemoteModel, entities: known }
     for (const message of messages) model = updateRemote(model, message)
-    expect([...messages].map(message => message._tag)).toEqual(['RefreshStarted', 'ReadFailed'])
+    expect([...messages].map(message => message._tag)).toEqual([
+      'ReadStarted',
+      'RefreshStarted',
+      'ReadFailed',
+    ])
     expect(isFieldStale(model.entities, entityKey('User', 'u1'), 'name')).toBe(false)
     expect(Page.projection({ id: 'u1' }).read({ remote: model }).user._tag).toBe('Ready')
   })

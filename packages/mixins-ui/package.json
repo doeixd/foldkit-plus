@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-ui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Published slot contracts and mixin adapters for @foldkit/ui, built on foldkit-mixins.",
   "keywords": [
     "foldkit",
