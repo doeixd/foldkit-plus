@@ -27,14 +27,12 @@ version changed; `pnpm` skips versions already in the registry.
   `metadata: MetadataSummary[]`**, so `Module` and DevTools show every package's
   entries, not only Remote's. `SurfaceView.describe` follows.
 - `foldkit-remote-server` no longer depends on `foldkit-surface`.
-- **`Data.refresh(model, projection | surface)`** revalidates what a consumer
-  already declares, from `update`, instead of restating each request. It
-  returns `{ model, commands }`: the Model reads `Refreshing` (or `Loading`)
-  at once, and the Commands (one forced read, one query per connection) settle
-  it through the usual `ReadReceived` / `ConnectionMerged` Messages. A
-  projection that requires nothing remote returns the Model and no Commands.
-  Outside `update`, `Remote.prefetch` with `RemotePolicy.networkOnly` is the
-  same revalidation as an Effect.
+- **`Data.refresh(model, projection | surface)`** marks what a consumer already
+  declares as due again, from `update`, instead of restating each request. It
+  returns the Model, with selected fields reading `Refreshing` and loaded
+  connections invalidated; the `Data.subscriptions` read entries refetch them,
+  so the data is requested once. Unobserved data is revalidated with
+  `Remote.prefetch` and `RemotePolicy.networkOnly`.
 
 ### `foldkit-agent`
 

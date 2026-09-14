@@ -208,7 +208,7 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
       return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
     }
     case 'ClickedRefresh':
-      return Data.refresh(model, ProjectPage.projection({ projectId: model.route }))
+      return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.route })) }
   }
 }
 ```
@@ -224,15 +224,15 @@ Message settles it; the optimistic patch shows until then. `Data.next` is the
 the Command that merges it, after which the same `projects` projection reads
 every loaded page.
 
-`Data.refresh` revalidates what a projection (or a Surface without params)
-already declares, so a refresh does not restate the requests behind a page. It
-returns `{ model, commands }`, which `update` can return directly: the Model reads
-`Refreshing` where values are present and `Loading` where they are not, and the
-Commands (one read of every selected field, forced past the cache, and one query
-per connection) settle it through the usual Messages. A projection that requires
-nothing remote gets the Model back and no Commands. Outside `update`,
-`Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly })` is the
-same revalidation as an Effect.
+`Data.refresh` marks what a projection (or a Surface without params) already
+declares as due again, so a refresh does not restate the requests behind a page.
+It returns the Model: every selected field the store holds reads `Refreshing`,
+and every loaded connection is invalidated. It fetches nothing itself. The read
+entries from step 4 refetch it, since a stale field or connection is planned
+again under every policy, so the page is not requested twice. That means the
+projection must be observed, as it is while it is on screen; for data nothing
+observes, `Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly })`
+is the same revalidation as an Effect.
 
 ### 6. Provide the client
 

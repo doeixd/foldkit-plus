@@ -203,13 +203,6 @@ export interface MutationStarted<AppModel> {
   readonly command: Command<RemoteMessage, never, RemoteClient>
 }
 
-/** What `Remote.refresh` hands back to `update`: the Model as refreshing, and what settles it. */
-export interface RefreshStarted<AppModel> {
-  readonly model: AppModel
-  /** One read, plus one query per connection; empty when nothing remote is required. */
-  readonly commands: ReadonlyArray<Command<RemoteMessage, never, RemoteClient>>
-}
-
 /**
  * A Remote domain bound to its place in the application Model: the descriptor
  * (`Remote.define`), the binding (`Remote.at`), and the application-facing
@@ -266,11 +259,11 @@ export interface RemoteDomain<
   ): QueryRef<Name, Input> | undefined
   /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
   fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
-  /** `Remote.refresh`: revalidates what a projection or a Surface requires, from `update`. */
+  /** `Remote.refresh`: marks what a projection or a Surface requires as due, for its read entry to refetch. */
   refresh(
     model: AppModel,
     target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
-  ): RefreshStarted<AppModel>
+  ): AppModel
   /**
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
@@ -1009,30 +1002,30 @@ export const Remote = {
   }),
 
   /**
-   * Revalidates what a projection, or a Surface without params, requires. Called
-   * from `update`: every selected field is read again and every query connection
-   * re-run, whatever the store already holds. The returned Model reads
-   * `Refreshing` where values are present and `Loading` where they are not, and
-   * `commands` settle it: one read, plus one query per connection, or none when
-   * nothing remote is required. Live subscriptions are left as they are; a read
-   * already in flight is joined under `Remote.coalesced`.
+   * Marks what a projection, or a Surface without params, requires as due again.
+   * Called from `update`: every selected field the store holds reads `Refreshing`,
+   * and every loaded query connection is invalidated. Nothing is fetched here.
+   * The read entries `Data.subscriptions` derives refetch it, because a stale
+   * field or connection is planned again under every policy, so a refresh never
+   * sends a request beside the entry already observing the same data.
    *
-   * For the same revalidation outside `update` (SSR, tests), use
-   * `Remote.prefetch` with `RemotePolicy.networkOnly`.
+   * The projection must be observed, which it is while it is on screen. Live
+   * subscriptions are left as they are. For data nothing observes (SSR, tests),
+   * use `Remote.prefetch` with `RemotePolicy.networkOnly`.
    */
   refresh: <AppModel, Store extends RemoteModel>(
     bound: BoundRemote<AppModel, Store>,
     model: AppModel,
     target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
-  ): RefreshStarted<AppModel> => {
+  ): AppModel => {
     const projection = 'read' in target ? target : target.projection(undefined)
     const remote = bound.store.get(model)
     const asked = askedOf(projection)
     const connections = Requirement.mergeConnections(
       asked.connections,
     ) as ReadonlyArray<QueryRequirement>
-    // A loaded connection's current items are refreshed with the entities; its
-    // page is re-run beside them, and new items are planned when it lands.
+    // A loaded connection's current items are marked with the entities; its page
+    // is re-run by the read entry, and new items are planned when it lands.
     const items = connections.flatMap(connection => {
       const known = remote.connections[connection.identity]
       return known === undefined
@@ -1053,30 +1046,21 @@ export const Remote = {
       { force: true },
     )
 
-    const started: RemoteMessage[] = []
-    const commands: Array<Command<RemoteMessage, never, RemoteClient>> = []
-    if (requirements.length > 0) {
-      started.push(
-        { _tag: 'ReadStarted', requests: requirements },
-        { _tag: 'RefreshStarted', requests: requirements },
-      )
-      commands.push({
-        name: 'Remote.refresh',
-        args: { requests: requirements },
-        effect: readMessage(requirements, Date.now),
-      })
-    }
-    for (const connection of connections) {
-      started.push({ _tag: 'ConnectionInvalidated', connection: connection.identity })
-      commands.push({
-        name: 'Remote.refresh',
-        args: { connection: connection.identity, window: connection.window },
-        effect: queryMessage(connection),
-      })
-    }
-    return started.length === 0
-      ? { model, commands }
-      : { model: bound.store.set(model, started.reduce(updateRemote, remote) as Store), commands }
+    const marks: RemoteMessage[] = [
+      ...(requirements.length === 0
+        ? []
+        : [{ _tag: 'RefreshStarted' as const, requests: requirements }]),
+      // A connection the Model never loaded is already a query to run.
+      ...connections
+        .filter(connection => remote.connections[connection.identity] !== undefined)
+        .map(connection => ({
+          _tag: 'ConnectionInvalidated' as const,
+          connection: connection.identity,
+        })),
+    ]
+    return marks.length === 0
+      ? model
+      : bound.store.set(model, marks.reduce(updateRemote, remote) as Store)
   },
 
   /**
