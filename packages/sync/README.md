@@ -10,6 +10,15 @@ Reach for it when clients must keep working offline and converge later, with
 [guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md) covers the mental model and when not to use
 it.
 
+## Install
+
+```bash
+pnpm add foldkit-sync
+```
+
+`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with it.
+`foldkit-durable` is the server half.
+
 ## Quick start
 
 `Sync.forApplication` is the Foldkit-facing layer. From one
@@ -110,7 +119,7 @@ Filters.reduce(model, url), onUrlChange: url => Message.UrlChanged({ url }) }`;
 `mounted.model`, `mounted.dispatch`, `mounted.subscribe`, and `mounted.observe`
 are the host an agent binds to; `observe` reports every application Message the
 runtime applies, which a capability with a `completion` contract needs. See
-[docs/sync-runtime-binding.md](../../docs/sync-runtime-binding.md) for what the
+[docs/sync-runtime-binding.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md) for what the
 mount guarantees and why no Foldkit change is required.
 
 ### Fragments

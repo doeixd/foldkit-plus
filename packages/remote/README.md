@@ -23,6 +23,15 @@ the transport seam — stays exported for tooling, SSR, tests, and package
 authors, and is documented under [Advanced](#advanced-the-kernel). Ordinary
 application code needs only the first.
 
+## Install
+
+```bash
+pnpm add foldkit-remote
+```
+
+`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with it.
+The server half is `foldkit-remote-server`.
+
 ## Quick start
 
 One feature, end to end: a project page that reads a project live, lists the
@@ -200,8 +209,8 @@ const clientLayer = Remote.clientLayer(rpcClient) // an Effect RPC client for Re
 `Remote.clientLayer` adapts an Effect RPC client for `RemoteRpc` to the
 `RemoteClient` service the subscriptions and Commands run through, and coalesces
 its reads and queries. The server side is
-[`foldkit-remote-server`](../remote-server) with sources compiled by
-[`foldkit-remote-drizzle`](../remote-drizzle) or written by hand.
+[`foldkit-remote-server`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-server) with sources compiled by
+[`foldkit-remote-drizzle`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-drizzle) or written by hand.
 
 ## Reading
 

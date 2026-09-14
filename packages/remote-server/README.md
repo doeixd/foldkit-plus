@@ -9,6 +9,15 @@ It does not own HTTP, WebSockets, serialization, the authentication protocol, or
 database connections. `principal` is resolved outside and passed in; runtime
 dependencies stay in the Effect environment instead of being captured.
 
+## Install
+
+```bash
+pnpm add foldkit-remote-server
+```
+
+`effect` is a peer dependency; `foldkit-remote` and `foldkit-surface` come with
+it. `foldkit-remote-drizzle` compiles its selections and queries to SQL.
+
 ## Quick start
 
 ```ts

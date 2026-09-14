@@ -49,6 +49,15 @@ passed where a cursor is expected. `appendAll` commits an ordered batch in one
 transaction, and `keys`, `reset`, `unfinished`, and `clearEffect` support
 maintenance and recovery.
 
+## Install
+
+```bash
+pnpm add foldkit-durable
+```
+
+`effect` is a peer dependency, `@effect/sql-sqlite-node` comes with it, and
+Node 22 is required for `node:sqlite`. `foldkit-sync` is the client half.
+
 ## The journal as a service
 
 `makeJournalLayer` provides the journal through `Effect.provide`, and

@@ -13,7 +13,7 @@ so the same value an application replicates is what an agent may see. Everything
 else is an adapter. `update` remains the single source of truth.
 
 See the [design rationale](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/agent-DESIGN.md)
-for the full proposal, and [examples/todo](../../examples/todo) for a worked
+for the full proposal, and [examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) for a worked
 example.
 
 ## Install
@@ -400,7 +400,7 @@ RequestedDeleteTodo: {
 }
 ```
 
-That is [examples/todo](../../examples/todo) as written.
+That is [examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) as written.
 
 The `getOrThrow` is safe only because the Model `toMessage` reads is the one
 `available` approved. Re-reading after an async `authorize` would let the two

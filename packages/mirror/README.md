@@ -19,6 +19,14 @@ which is what separates it from
 | Filter, sort, page, search text, an open panel | the local Model | the URL (`Mirror.url`)        |
 | Preferences, a draft, a collapsed sidebar      | the local Model | `KeyValueStore` (`Mirror.kv`) |
 
+## Install
+
+```bash
+pnpm add foldkit-mirror
+```
+
+`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with it.
+
 ## Quick start
 
 ```ts
