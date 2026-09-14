@@ -5,11 +5,29 @@ fit together, and why. One application definition drives everything: the view
 a human uses, the tools an agent calls, the document replicas share, and the
 policy the server enforces.
 
-```text
-pnpm demo   # a transcript of the whole contract, no browser, no network
-pnpm dev    # the sync server on SQLite plus Vite; open two tabs with different ?token= values
-pnpm test   # from the repo root: pnpm vitest run examples/todo-app
+## Run it
+
+The example imports the packages by their published entry points, so build the
+workspace once from the repository root:
+
+```bash
+pnpm install && pnpm build
 ```
+
+Then, from `examples/todo-app`:
+
+```bash
+pnpm demo    # the whole contract as a transcript — no browser, no network
+pnpm dev     # the SQLite sync server plus Vite, on http://127.0.0.1:5173
+pnpm server  # the sync server alone, on ws://127.0.0.1:8787
+```
+
+`pnpm vitest run examples/todo-app` from the root runs the tests.
+
+Start with `pnpm demo`. It prints a labelled transcript — capabilities, the
+agent writing through `update`, both authorization boundaries, the ownership
+manifest, the compiled stylesheet, the mirrors — and every section names the
+file it exercises. `test/demo.test.ts` pins its lines.
 
 ## The idea in one diagram
 
@@ -44,16 +62,15 @@ value.
 | --- | --- |
 | `app.ts` | The Model, the Message union, and `update`. Three kinds of Message: durable facts, effectful intents, and local state. Why an id is minted in a Command and never in `update`. |
 | `principal.ts` | Two principals for two boundaries: the agent's and the server's. The same `isOwner` rule serves both. |
-| `surface.ts` | `Surface.application` and the feature Surfaces. A Surface is what a part of the UI observes and may cause; its Message list is a compile-time capability boundary. |
+| `surface.ts` | `Surface.application` and the feature Surfaces. A Surface is what a part of the UI observes and may cause; its Message list is a compile-time capability boundary. It also declares the two mirrors: `Mirror.url` keeps the filter in the URL (`?filter=active`, linkable, read back on navigation) and `Mirror.kv` remembers the composer's draft in Web Storage. Both observe the Model and own nothing, and `update` takes their reducer as an argument so the Model stays a leaf of the import graph. |
 | `style.ts` | Slots, Styles, Behaviors, and a Theme. Appearance and interaction attached from outside the views. `Style.recipe`, `Style.whenInput`, `pseudo`/`media`/`nest` compiling to one stylesheet. |
 | `view.ts` | The views. No class names, no inline style, no keyboard code: `slots.x.attrs(base)` merges what is attached. `@foldkit/ui` Button and Checkbox resolved through `foldkit-mixins-ui`. `Surface.rootView` at the Root boundary. |
 | `sync.ts` | The local-first contract derived from the application: two fragments composed into one document, `authorize` rules per durable variant, and `mountTodos` over `Sync.mount`. |
 | `agent.ts` | The agent contract: capabilities are existing Messages, the context is a Surface, `add_todo` exposes the intent with a `completion` contract, `authorize` mirrors the sync policy. |
 | `module.ts` | `Module.make` over every contract: validation and the ownership manifest. |
-| `surface.ts` (mirrors) | `Mirror.url` keeps the filter in the URL (`?filter=active`, linkable, read back on navigation) and `Mirror.kv` remembers the composer's draft in Web Storage; both observe the Model and own nothing, and `update` takes their reducer so the Model stays a leaf of the import graph. |
 | `runtime.ts`, `client.ts` | Mounting in a browser: the stylesheet injected once, the replica on IndexedDB, the exchange loop, WebMCP registration with the mount as the agent's host. |
 | `journal.ts`, `server.ts` | The server: `foldkit-durable` on SQLite, spreading the contract so codecs, reducer, and policy are never written twice; a WebSocket transport that authenticates per connection. |
-| `demo.ts` | The transcript. Every section names the file it exercises; the test pins its lines. |
+| `store.ts`, `demo.ts` | The transcript, and the few-line host seam it runs on in place of `Sync.mount`. Every section names the file it exercises; the test pins its lines. |
 
 ## The rules the code follows
 
@@ -88,10 +105,14 @@ branches in the view.
 
 ## Things to try in the browser
 
-- Open the app in two tabs with `?token=owner` and `?token=guest`. Add a todo
-  in one; it appears in the other through the SQLite journal.
-- Rename the list as `guest`. The field reverts and the footer reports it: the
-  server refused `RenamedList`, and the replica rolled the edit back.
+- Open the app in two tabs with `?token=owner` and `?token=guest`. Add a todo in
+  one; it reaches the SQLite journal at once. A replica exchanges on start and
+  after every submit, so the other tab picks it up on its next edit, or on
+  reload.
+- Rename the list as `guest`. The field reverts: the server refuses
+  `RenamedList`, and the exchange the submit triggered rolls the edit back. The
+  footer stays quiet — it reports `onPersistenceFailure`, which is the local
+  save, not a server refusal.
 - Double-click a title to rename it; Escape cancels, Enter or blur commits.
   `EditingCommitted` is local; its Command emits `RenamedTodo`.
 - Click a priority badge to cycle it; the list re-sorts, highest first.
@@ -101,8 +122,9 @@ branches in the view.
 
 ## What is deliberately not here
 
-- **Presence.** The server can host a presence hub, but the client would need
-  to share one socket between the sync transport and the presence channel across
-  reconnects. It is a good next exercise; see `examples/sync` for the primitive.
+- **Presence.** `startSyncServer` takes a presence hub, but the client would
+  need to share one socket between the sync transport and the presence channel
+  across reconnects. It is a good next exercise; see
+  [`examples/sync`](../sync) for the primitive.
 - **Remote data.** Server-derived, non-replicated entities are `foldkit-remote`;
-  `examples/kitchen-sink` shows them beside a sync document.
+  [`examples/kitchen-sink`](../kitchen-sink) shows them beside a sync document.

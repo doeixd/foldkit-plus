@@ -1,12 +1,23 @@
 # Todo example
 
 A worked example of `foldkit-agent`: one state machine, driven by a human and
-by an agent, exposed to a browser agent through WebMCP.
+by an agent, exposed to a browser agent through WebMCP. Nothing else is wired
+in: no sync, no server, no views. [`examples/todo-app`](../todo-app) is the same
+contract inside a full application.
+
+## Run it
+
+The example imports the packages by their published entry points, so build the
+workspace once from the repository root:
 
 ```bash
-pnpm build   # the example imports the packages by their published entry points
-pnpm demo
+pnpm install && pnpm build
+pnpm --filter foldkit-agent-example-todo demo
 ```
+
+The demo prints a transcript of the eight steps below; `test/demo.test.ts` pins
+its lines. Read [`src/agent.ts`](./src/agent.ts) first — it is the whole
+contract, in one file.
 
 ## What is here
 
@@ -47,7 +58,7 @@ application these two functions read and write the live Foldkit Runtime.
 3. **The agent originates the same transition**, naming the capability by
    Message reference rather than by string.
 4. **Availability follows the Model.** `delete_selected_todo` does not exist
-   until a todo is selected -- it is neither advertised nor invocable, which is
+   until a todo is selected — it is neither advertised nor invocable, which is
    what lets it take its target from the Model instead of from the caller.
 5. **Availability is not authorization.** With the capability available, a
    principal that may not delete is still refused, and no Message is dispatched.

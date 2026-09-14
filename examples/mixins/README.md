@@ -4,11 +4,12 @@ A worked trace of the `foldkit-surface` → `foldkit-mixins` bridge. It defines 
 `ProjectCard` Surface that projects only the fields it needs and exposes only two
 of the application's Messages, then styles and decorates it with a `SlotView`.
 
-```
+```bash
+pnpm install && pnpm build                  # from the repository root
 pnpm --filter foldkit-mixins-example demo
 ```
 
-The output is the point:
+`src/demo.ts` is the only file to read. Its output is the point:
 
 ```
 surface: ProjectCard
@@ -56,6 +57,8 @@ The demo then prints the serializable `SurfaceView.describe(...)` value and its
 ## Slots
 
 - `root` — Container
+- `title` — Container
+- `status` — Container
 - `archive` — Interactive (events: click)
 
 ## Mixins
@@ -64,4 +67,4 @@ The demo then prints the serializable `SurfaceView.describe(...)` value and its
 - `ArchiveBehavior`
 ```
 
-`test/demo.test.ts` asserts every line, so the trace cannot silently drift.
+`test/demo.test.ts` pins every line, so the trace cannot silently drift.
