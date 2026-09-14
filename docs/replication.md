@@ -696,9 +696,9 @@ documents those guarantees in detail.
 
 ## Authorization: optimistic client, authoritative server
 
-A Sync contract can declare policy per durable Message variant. Those rules are
-compiled into the journal contract so the server can enforce the same policy at
-the authoritative append boundary.
+A Sync contract can declare a boolean policy per durable Message variant. Those
+rules are compiled into the journal contract so the server can enforce the same
+policy at the authoritative append boundary.
 
 ```text
 client
@@ -714,12 +714,10 @@ exchange -> commit/ack or rejection -> rebase
 Client-side availability or early policy checks can improve UX, but they are not
 the trust boundary. The journal is.
 
-When policy returns `{ allowed: false, reason }`, the rejection can preserve a
-user-facing reason while the replica removes the refused optimistic operation
-from the pending set.
-
-This is another reason the “committed + pending” model matters: authorization
-rollback is not special mutation logic. It is ordinary reconciliation.
+A refused operation is returned to the replica as a rejected operation id. The
+replica removes it from pending during reconciliation, so authorization rollback
+is not special mutation logic: it is ordinary rebase over the authoritative
+committed state.
 
 ## `foldkit-durable`: the authoritative server journal
 
