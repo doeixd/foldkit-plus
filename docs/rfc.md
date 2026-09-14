@@ -1,4 +1,4 @@
-# RFC: What Foldkit Should Steal from `foldkit-plus`
+# RFC: What Foldkit Might Want to Steal from `foldkit-plus`
 
 **Status:** Proposal / design exploration
 **Scope:** Foldkit architecture, tooling, official extensions, and ecosystem boundaries
