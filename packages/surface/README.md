@@ -248,3 +248,14 @@ modules can contribute their contracts independently.
 - `Model` codecs are pure by construction: Foldkit Model fields carry no decoding
   or encoding services.
 - A projection declares dependencies and requirements but does not resolve them.
+
+## See also
+
+- The packages built on this boundary: [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote) projects requirements
+  from it, [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync) replicates a projection of it, [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) makes one
+  an agent's context, [`foldkit-mirror`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mirror) keeps one in the URL or a store, and
+  [`foldkit-mixins-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-surface) renders one.
+- [Server-derived state](https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md) — the guide that covers
+  this boundary and the Remote Submodel above it.
+- [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — five feature Surfaces, a Module, and every contract in one
+  application.

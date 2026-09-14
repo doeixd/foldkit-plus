@@ -571,3 +571,12 @@ beyond "issued concurrently".
 - `RemoteData` is a closed union.
 - A selection picks at least one field: `Selection.make(User, {})` throws,
   since it would require nothing and read `Ready` for any id.
+
+## See also
+
+- [Server-derived state](https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md) — the mental model, and
+  when to reach for something else.
+- [`foldkit-remote-server`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-server) — the server half; [`foldkit-remote-drizzle`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-drizzle) compiles its
+  selections and queries to SQL.
+- [`examples/remote`](https://github.com/doeixd/foldkit-plus/tree/main/examples/remote) — a worked plan, prefetch, render, mutate, retain trace;
+  [`examples/kitchen-sink`](https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink) runs the same path over the real server packages.

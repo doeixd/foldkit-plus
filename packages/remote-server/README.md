@@ -223,3 +223,12 @@ principal read this semantic field*. Authorization is mandatory, not opt-in:
   connection insert/remove/invalidate events.
 - Database and other runtime dependencies are the Source's Effect requirements,
   not this package's.
+
+## See also
+
+- [Server-derived state](https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md) — the mental model for
+  both halves.
+- [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote) — the client half this answers; [`foldkit-remote-drizzle`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-drizzle)
+  compiles its selections and queries to SQL.
+- [`examples/kitchen-sink`](https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink) — the server packages with a live hub, an optimistic
+  insert confirmed in place, and retention.

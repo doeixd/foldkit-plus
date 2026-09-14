@@ -34,14 +34,36 @@ const AppAgent = TodoAgent.make({
   }),
 })
 
-declare const currentModel: () => Model
-declare const sendToRuntime: (message: Message) => void
-declare const onModelChange: (listener: () => void) => () => void
+// The Usage section's host: `mounted` stands for a Foldkit runtime handle, which
+// `Sync.mount` returns and `examples/todo` writes by hand.
+declare const mounted: {
+  readonly model: () => Model
+  readonly dispatch: (message: Message) => void
+  readonly subscribe: (listener: () => void) => () => void
+  readonly observe: (listener: (message: Message) => void) => () => void
+}
 
-const agentRuntime = TodoAgent.bind({
+const agent = TodoAgent.bind({
   definition: AppAgent,
-  host: { model: currentModel, dispatch: sendToRuntime, subscribe: onModelChange },
+  host: {
+    model: mounted.model,
+    dispatch: (message: Message) => {
+      mounted.dispatch(message)
+    },
+    subscribe: mounted.subscribe,
+    observe: mounted.observe,
+  },
 })
+
+// Feature detection: `register` throws when there is no model context.
+declare const addEventListener: (type: string, listener: () => void) => void
+const modelContext = AgentWebMcp.documentModelContext()
+if (modelContext !== undefined) {
+  const live = AgentWebMcp.register({ agent, modelContext })
+  addEventListener('beforeunload', () => live.unregister())
+}
+
+const agentRuntime = agent
 
 // Usage.
 const registration = AgentWebMcp.register({ agent: agentRuntime })

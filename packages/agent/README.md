@@ -446,3 +446,13 @@ proposal's snippets use Effect 3 names; `Schema.OptionFromSelf` is
 
 Completion tracking is implemented as described above. Host dispatch is the
 completion boundary only for capabilities without a completion contract.
+
+## See also
+
+- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
+  do, and why a capability is a Message.
+- The adapters that serve this contract: [`foldkit-agent-webmcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-webmcp) in the page,
+  [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) over MCP, [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) over A2A, and
+  [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) as Agent Native actions.
+- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a hand-written host; [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)
+  binds one to a local-first application.

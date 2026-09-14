@@ -415,3 +415,9 @@ joins, grouping and limits, but not Postgres NULL ordering.
 MIT. The keyset-cursor and projection logic adapts [fate](https://github.com/nkzw-tech/fate)'s
 Drizzle integration (MIT, Copyright (c) 2025 Nakazawa Tech); see
 `THIRD_PARTY_NOTICES.md`.
+
+## See also
+
+- [Server-derived state](https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md) — the mental model.
+- [`foldkit-remote-server`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote-server) — the Sources this compiles; [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote) is the
+  client half.

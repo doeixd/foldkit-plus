@@ -46,3 +46,10 @@ emitted Messages as tags — into one value, and `SurfaceView.toMarkdown` render
 deterministically for docs or a CI drift check.
 
 The API is still settling (`0.1.0`). See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md).
+
+## See also
+
+- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the mental model.
+- [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) — the resolver, Style, and Behavior; [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface) — the
+  projection this bridges.
+- [`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) — Surface to SlotView, end to end.
