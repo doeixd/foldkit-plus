@@ -675,6 +675,83 @@ describe('Data.query reads a connection as a page of selected items', () => {
     return { queries, reads, layer }
   }
 
+  describe('Data.refresh', () => {
+    const settle = (
+      refreshed: ReturnType<typeof Data.refresh>,
+      layer: Layer.Layer<RemoteClient>,
+    ): Promise<Model> =>
+      Effect.runPromise(
+        Effect.all(refreshed.commands.map(command => command.effect)).pipe(Effect.provide(layer)),
+      ).then(messages => messages.reduce(Data.reduce, refreshed.model))
+
+    it('re-reads a present entity: Refreshing at once, Ready once settled', async () => {
+      const project = Data.get(summary, 'p1')
+      const loaded = read(initial, ['p1'])
+      const client = paging([])
+
+      const refreshed = Data.refresh(loaded, project)
+
+      expect(project.read(refreshed.model)).toEqual({
+        _tag: 'Refreshing',
+        value: { name: 'name of p1' },
+      })
+      expect(refreshed.commands).toHaveLength(1)
+      const settled = await settle(refreshed, client.layer)
+      // A cache-first plan would read nothing for a field the store holds.
+      expect(client.reads).toEqual([['p1']])
+      expect(project.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'name of p1' } })
+    })
+
+    it('takes a Surface without params, and reads Loading for what is absent', () => {
+      const Home = App.surface('RefreshHome', {
+        model: () => ({ project: Data.get(summary, 'p1') }),
+      })
+
+      const refreshed = Data.refresh(initial, Home)
+
+      expect(Home.projection(undefined).read(refreshed.model)).toEqual({
+        project: { _tag: 'Loading' },
+      })
+      expect(refreshed.commands).toHaveLength(1)
+    })
+
+    it('re-runs a loaded connection’s page and re-reads its items', async () => {
+      const known = read(merged(initial, ['p1', 'p2']), ['p1', 'p2'])
+      const client = paging(['p1', 'p2', 'p3'])
+
+      const refreshed = Data.refresh(known, projects)
+
+      expect(refreshed.model.remote.connections[identity]?.stale).toBe(true)
+      expect(projects.read(refreshed.model)._tag).toBe('Refreshing')
+      expect(refreshed.commands).toHaveLength(2)
+      const settled = await settle(refreshed, client.layer)
+      expect(client.reads).toEqual([['p1', 'p2']])
+      expect(client.queries).toEqual([{ input: { ownerId: 'u1' }, window: { first: 2 } }])
+      expect(projects.read(settled)._tag).toBe('Ready')
+    })
+
+    it('settles a failed page query back to what the connection showed', async () => {
+      const known = read(merged(initial, ['p1']), ['p1'])
+
+      const settled = await settle(
+        Data.refresh(known, projects),
+        paging(['p1'], { fail: true }).layer,
+      )
+
+      expect(settled.remote.connections[identity]?.stale).toBe(false)
+      expect(projects.read(settled)._tag).toBe('Ready')
+    })
+
+    it('leaves the Model untouched with no Commands when nothing remote is required', () => {
+      const local = Projection.fromReader(Schema.String, (model: Model) => model.route)
+
+      const refreshed = Data.refresh(initial, local)
+
+      expect(refreshed.model).toBe(initial)
+      expect(refreshed.commands).toEqual([])
+    })
+  })
+
   it('carries the connection and no entity requirement; it reads Initial until the page is known', () => {
     expect(requirementsOf(projects)).toEqual([])
     expect(connectionsOf(projects)).toEqual([

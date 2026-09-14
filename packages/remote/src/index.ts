@@ -203,6 +203,13 @@ export interface MutationStarted<AppModel> {
   readonly command: Command<RemoteMessage, never, RemoteClient>
 }
 
+/** What `Remote.refresh` hands back to `update`: the Model as refreshing, and what settles it. */
+export interface RefreshStarted<AppModel> {
+  readonly model: AppModel
+  /** One read, plus one query per connection; empty when nothing remote is required. */
+  readonly commands: ReadonlyArray<Command<RemoteMessage, never, RemoteClient>>
+}
+
 /**
  * A Remote domain bound to its place in the application Model: the descriptor
  * (`Remote.define`), the binding (`Remote.at`), and the application-facing
@@ -259,6 +266,11 @@ export interface RemoteDomain<
   ): QueryRef<Name, Input> | undefined
   /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
   fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
+  /** `Remote.refresh`: revalidates what a projection or a Surface requires, from `update`. */
+  refresh(
+    model: AppModel,
+    target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
+  ): RefreshStarted<AppModel>
   /**
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
@@ -650,6 +662,37 @@ const rootsOf = (
   }
 }
 
+/** Reads requirements and reports the Message that settles them. Never fails. */
+const readMessage = (
+  requirements: ReadonlyArray<Requirement>,
+  now: () => number,
+): Effect.Effect<RemoteMessage, never, RemoteClient> =>
+  Effect.gen(function* () {
+    const client = yield* RemoteClient
+    const at = now()
+    const result = yield* Effect.result(
+      client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
+    )
+    return Result.isFailure(result)
+      ? { _tag: 'ReadFailed', requests: requirements, error: remoteError(result.failure) }
+      : { _tag: 'ReadReceived', requests: requirements, result: result.success, now: at }
+  })
+
+/** Runs a query and reports the page that refreshes its connection, or the failure. Never fails. */
+const queryMessage = (query: {
+  readonly identity: string
+  readonly window: QueryWindow
+}): Effect.Effect<RemoteMessage, never, RemoteClient> =>
+  Effect.gen(function* () {
+    const client = yield* RemoteClient
+    const result = yield* Effect.result(
+      queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request))),
+    )
+    return Result.isFailure(result)
+      ? { _tag: 'QueryFailed', connection: query.identity, error: remoteError(result.failure) }
+      : pageMessage(query.identity, result.success, true)
+  })
+
 /** A query the read entry runs, as its dependencies carry it: plain data Foldkit compares. */
 const PlannedQuery = Schema.Struct({
   identity: Schema.String,
@@ -680,39 +723,9 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
   const { policy = RemotePolicy.cacheFirst, now = Date.now } = options
   const read = (requirements: ReadonlyArray<Requirement>) =>
-    Effect.gen(function* () {
-      const client = yield* RemoteClient
-      const at = now()
-      const result = yield* Effect.result(
-        client.read({ version: REMOTE_PROTOCOL_VERSION, requests: requirements }),
-      )
-      return Result.isFailure(result)
-        ? toMessage({
-            _tag: 'ReadFailed',
-            requests: requirements,
-            error: remoteError(result.failure),
-          })
-        : toMessage({
-            _tag: 'ReadReceived',
-            requests: requirements,
-            result: result.success,
-            now: at,
-          })
-    })
+    Effect.map(readMessage(requirements, now), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
-    Effect.gen(function* () {
-      const client = yield* RemoteClient
-      const result = yield* Effect.result(
-        queryRequestOf(query).pipe(Effect.flatMap(request => client.query(request))),
-      )
-      return Result.isFailure(result)
-        ? toMessage({
-            _tag: 'QueryFailed',
-            connection: query.identity,
-            error: remoteError(result.failure),
-          })
-        : toMessage(pageMessage(query.identity, result.success, true))
-    })
+    Effect.map(queryMessage(query), toMessage)
   return {
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
@@ -994,6 +1007,77 @@ export const Remote = {
     const result = yield* client.read({ version: REMOTE_PROTOCOL_VERSION, requests: missing })
     return writeRead(store, missing, result, at)
   }),
+
+  /**
+   * Revalidates what a projection, or a Surface without params, requires. Called
+   * from `update`: every selected field is read again and every query connection
+   * re-run, whatever the store already holds. The returned Model reads
+   * `Refreshing` where values are present and `Loading` where they are not, and
+   * `commands` settle it: one read, plus one query per connection, or none when
+   * nothing remote is required. Live subscriptions are left as they are; a read
+   * already in flight is joined under `Remote.coalesced`.
+   *
+   * For the same revalidation outside `update` (SSR, tests), use
+   * `Remote.prefetch` with `RemotePolicy.networkOnly`.
+   */
+  refresh: <AppModel, Store extends RemoteModel>(
+    bound: BoundRemote<AppModel, Store>,
+    model: AppModel,
+    target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
+  ): RefreshStarted<AppModel> => {
+    const projection = 'read' in target ? target : target.projection(undefined)
+    const remote = bound.store.get(model)
+    const asked = askedOf(projection)
+    const connections = Requirement.mergeConnections(
+      asked.connections,
+    ) as ReadonlyArray<QueryRequirement>
+    // A loaded connection's current items are refreshed with the entities; its
+    // page is re-run beside them, and new items are planned when it lands.
+    const items = connections.flatMap(connection => {
+      const known = remote.connections[connection.identity]
+      return known === undefined
+        ? []
+        : itemsOf(
+            visibleItems(
+              known,
+              connection.identity,
+              remote.optimistic.overlays,
+              remote.entities,
+            ).map(edge => edge.ref),
+            connection.select,
+          )
+    })
+    const requirements = plan(
+      visibleStoreOf(remote.entities, remote.optimistic),
+      [...asked.requirements, ...items],
+      { force: true },
+    )
+
+    const started: RemoteMessage[] = []
+    const commands: Array<Command<RemoteMessage, never, RemoteClient>> = []
+    if (requirements.length > 0) {
+      started.push(
+        { _tag: 'ReadStarted', requests: requirements },
+        { _tag: 'RefreshStarted', requests: requirements },
+      )
+      commands.push({
+        name: 'Remote.refresh',
+        args: { requests: requirements },
+        effect: readMessage(requirements, Date.now),
+      })
+    }
+    for (const connection of connections) {
+      started.push({ _tag: 'ConnectionInvalidated', connection: connection.identity })
+      commands.push({
+        name: 'Remote.refresh',
+        args: { connection: connection.identity, window: connection.window },
+        effect: queryMessage(connection),
+      })
+    }
+    return started.length === 0
+      ? { model, commands }
+      : { model: bound.store.set(model, started.reduce(updateRemote, remote) as Store), commands }
+  },
 
   /**
    * Writes a read result into the store, recording each field's applied window.
@@ -1412,6 +1496,7 @@ const bindDomain = <
           }
         : undefined
     },
+    refresh: (model, target) => Remote.refresh(bound, model, target),
     fetch: ref => ({
       name: `Remote.query(${ref.query})`,
       args: { connection: ref.identity, window: ref.window },
