@@ -72,14 +72,14 @@ A durable, ordered log with a snapshot and cursor per document key, backed by
 SQLite through `effect/unstable/sql`.
 
 ```ts
-const journal = yield* makeJournal({
+const journal = yield* Journal.make({
   file: Config.succeed('journal.sqlite'),
-  operation: { encode: op => op, decode: readMessage },
-  snapshot:  { encode: s => s,  decode: readShared },
+  operation: Codec.fromSchema(Operation),                // or a { encode, decode } pair
+  snapshot: Codec.fromSchema(Shared),
   empty: () => ({ todos: [] }),
   reduce: (shared, message) => replay(shared, message),  // pure and deterministic
-  opId: op => opId(op.opId),                             // idempotency key
-  actorId: principal => actorId(principal.actorId),      // trusted actor
+  opId: operation => OpId.make(operation.opId),          // idempotency key
+  actorId: principal => ActorId.make(principal.actorId), // trusted actor
   validate, authorize,                                   // policy before commit
 })
 ```
@@ -87,6 +87,10 @@ const journal = yield* makeJournal({
 With a sync contract, `...TodoSync.journalContract()` supplies the codecs, the
 empty snapshot, the reducer, and the `authorize` rules, so none is written
 twice.
+
+As a service rather than a scoped value, `Journal.define<Operation, Snapshot,
+Principal>('app/todos')` fixes the types once and hands back the tag and the
+layer constructor that agree on them, so the two cannot drift apart.
 
 It owns storage and ordering only, and gives you:
 
@@ -127,19 +131,20 @@ the replica reconciles with the server's authoritative order.
 
 ```ts
 const App = Surface.application({ Model, Message, initial, update })
-const TodoSync = forApplication(App).make({
-  documentId: documentId('todos'),
+const TodoSync = Sync.forApplication(App).make({
+  documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.fields.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 
-const replica = yield* TodoSync.openReplica(replicaId('tab-1'), yield* indexedDb('todos-tab-1'))
-yield* replica.submit(Message.CreatedTodo({ id, title: 'Milk' }))  // instant, local
-yield* Effect.provide(replica.synchronize, layerSocket({ url }))   // reconcile
+const storage = yield* Sync.indexedDb('todos-tab-1')
+const replica = yield* TodoSync.openReplica(ReplicaId.make('tab-1'), storage)
+yield* replica.submit(Message.CreatedTodo({ id, title: 'Milk' }))      // instant, local
+yield* Effect.provide(replica.synchronize, Sync.transport.socket({ url })) // reconcile
 ```
 
 `Sync.forApplication` derives the shared projection, the durable subset, the
-initial snapshot, and replay from one application declaration; `defineSync`
+initial snapshot, and replay from one application declaration; `Sync.define`
 remains the protocol primitive it compiles to. `TodoSync.journalContract()` gives
 the server's journal the same operation and snapshot codecs, empty snapshot, and
 reducer, so the client and server never declare the shared state twice.
@@ -164,7 +169,10 @@ It owns:
 - **Policy on the contract.** `authorize` rules are declared per durable variant,
   with the Message typed as that variant, and compile into the journal
   contract, so the server enforces them inside the append transaction. A
-  refused operation is a rejection the replica rolls back.
+  refused operation is a rejection the replica rolls back. Returning
+  `{ allowed: false, reason }` instead of `false` carries the reason onto
+  `OperationRejectedError`, so the client can say which rule refused rather
+  than only that something did.
 - **A persisted outbox and optimistic projection.** `submit` replays the Message
   first and writes it locally only if replay accepts it; `replica.shared` shows
   the change immediately without replaying the outbox again.
