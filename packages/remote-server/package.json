@@ -1,6 +1,6 @@
 {
   "name": "foldkit-remote-server",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Server sources and handler compilation for foldkit-remote: entities, selection authorization, and normalization.",
   "keywords": [
     "foldkit",
