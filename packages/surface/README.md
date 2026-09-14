@@ -136,7 +136,7 @@ A `Projection` also need not correspond to one structural focus. It can combine
 several refs or derived values into one read model while preserving the
 dependencies and requirements of every part.
 
-### Surface is not a Submodel
+### Surface and Submodels solve different decompositions
 
 A [Foldkit Submodel](https://foldkit.dev/core/submodel) is for a part of the
 application that **owns a state machine**. It has its own Model, Message, update,
@@ -145,7 +145,7 @@ and delegates transitions to the child's update.
 
 A Surface owns none of those things. It has no private state, no child update,
 no runtime boundary, no Message wrapping, and no Command lifting. It describes
-a restricted interface to state and Messages that already belong to an
+a restricted interface to state and Messages that already belong to the
 application.
 
 ```text
@@ -153,41 +153,82 @@ Submodel
   "This child owns how this state changes."
 
 Surface
-  "This feature may see these values and cause these Messages."
+  "This consumer may see these values and cause these application Messages."
 ```
 
-That distinction matters even though both can look like "a smaller Model plus a
-smaller Message type". With a Submodel, the smaller Model and Message union are
-the child's actual state machine. With a Surface, they are a projection and a
-capability boundary over the existing application state machine; `update`
-remains the owner of the transitions.
-
-They are useful together. A parent Model may contain a child Submodel Model, and
-a Surface may project some of that data along with other parent-owned fields:
+The most useful way to distinguish them is by the decomposition they create:
 
 ```text
-Root Model
-├── route                         parent-owned
-├── settings: Settings.Model      Settings Submodel owns transitions
-└── remote                        Remote Submodel / cache
+Submodels divide the application by ownership:
+  who owns this state and these transitions?
 
-SettingsPage Surface
-├── observes route
-├── observes settings.theme
-└── may cause selected root Messages
+Surfaces divide the application by consumer needs:
+  what does this screen / agent / subsystem need to observe and cause?
 ```
 
-The Surface does **not** weaken the Submodel boundary. Reading a child-owned
-field through a `ModelRef` does not grant permission to mutate it directly. If a
-Submodel owns that state, application transitions should still go through the
-child's update (`Update.foldChild`, exported helpers, or the normal wrapped
-Message path). `FieldRef.set` and writable `Projection`s exist so infrastructure
-such as replication or mirroring can install declared slices; they are not an
-ownership model.
+Those boundaries do not need to line up. In fact, a Surface can deliberately
+span several Submodels because observation is not ownership. A page that reads
+the route, a theme owned by `Settings`, and the signed-in user owned by
+`Session` does not need to become a third state machine just to assemble those
+values:
+
+```ts
+const Model = Schema.Struct({
+  route: Route,
+  settings: Settings.Model,
+  session: Session.Model,
+})
+
+const App = Surface.application({ Model, Message, initial, update })
+
+const AccountPage = App.surface('AccountPage', {
+  model: ({ model }) => ({
+    route: model.route,                   // parent-owned
+    theme: model.settings.theme,          // Settings Submodel
+    user: model.session.user,             // Session Submodel
+  }),
+})
+```
+
+Conceptually:
+
+```text
+Root application
+├── route                         parent-owned
+├── settings: Settings.Model      Settings owns transitions
+└── session: Session.Model        Session owns transitions
+        │               │
+        └───────┬───────┘
+                │ observed by
+         AccountPage Surface
+       (+ parent-owned route)
+```
+
+This is a feature of the model, not a leak in it: **Submodels partition
+transition ownership; Surfaces may cut across those partitions to describe a
+consumer-facing read/capability boundary.** A screen, an agent context, or
+another interpreter often needs a coherent read model assembled from several
+owners.
+
+The Surface does **not** weaken any of those Submodel boundaries. Reading
+`model.settings.theme` through a `ModelRef` does not grant permission to change
+it directly. If `Settings` owns that state, changes must still go through the
+Settings state machine: its child Message and update, routed through the normal
+parent/child path (`Update.foldChild`, an exported child helper, or the wrapped
+Message path used by the application).
+
+The same rule applies to Surface capabilities. If `AccountPage` may cause a
+Settings transition, expose the **root application Message constructor that
+routes to Settings** in the Surface's `messages`; do not use the underlying
+optic/setter as a shortcut around the child update.
+
+`FieldRef.set` and writable `Projection`s are structural/infrastructure tools.
+Their existence does not imply ownership of the focused state. A Submodel's
+invariants still belong to its update.
 
 Likewise, Surface does not replace `h.submodel`: `h.submodel` creates the runtime
-child boundary and routes child Messages. A Surface is pure data that other
-interpreters and tooling can inspect without starting that runtime.
+child boundary and routes child Messages. A Surface is pure, inspectable data
+that may observe across those runtime boundaries without creating another one.
 
 ### Which one should I reach for?
 
@@ -199,8 +240,10 @@ interpreters and tooling can inspect without starting that runtime.
 - **Something needs an inspectable declaration of what existing application
   state a feature reads or which existing Messages it may cause:** use a
   Surface.
-- **You need both:** keep ownership in the Submodel and describe the relevant
-  observation/capability boundary with Surface.
+- **A screen or subsystem reads across several Submodels:** use one Surface over
+  those child fields; do not invent a new Submodel merely to aggregate them.
+- **You need both:** keep transition ownership in each Submodel and describe the
+  consumer-facing observation/capability boundary with Surface.
 
 ## Field references
 
