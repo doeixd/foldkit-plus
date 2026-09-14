@@ -1,14 +1,36 @@
 # `foldkit-agent-mcp`
 
-Serves a [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) contract over the
-Model Context Protocol (`2025-06-18`), so an MCP client can use the capabilities
-an application already exposes.
+Serves a [`foldkit-agent`](../agent) runtime over the Model Context Protocol
+(`2025-06-18`).
 
-[MCP](https://modelcontextprotocol.io) is how an assistant discovers and calls
-tools that live outside it. An MCP server lists tools and resources; a client
-such as an LLM host calls them. Here the tools are the Messages the contract
-exposes and the resources are its context projection, so the assistant works
-through the same transitions a person does, over stdio or Streamable HTTP.
+Use it when an external assistant or tool host should discover and invoke the
+same capabilities your Foldkit application already exposes. This package does
+not define tools independently. It maps the protocol-neutral agent contract onto
+MCP tools/resources and delegates every invocation back to the bound
+`AgentRuntime`.
+
+```text
+Foldkit application
+       |
+       v
+AssistantAgent              protocol-neutral contract
+       |
+       | AgentBuilder.bind(...)
+       v
+AgentRuntime                live Model + dispatch + policy
+       |
+       v
+foldkit-agent-mcp           adapter
+       |
+       +---- stdio
+       |
+       +---- Streamable HTTP
+       v
+MCP client
+```
+
+The contract remains the authority. MCP adds transport, sessions, protocol error
+mapping, and discovery; it does not add application capabilities.
 
 ## Install
 
@@ -16,10 +38,23 @@ through the same transitions a person does, over stdio or Streamable HTTP.
 pnpm add foldkit-agent foldkit-agent-mcp
 ```
 
-`foldkit`, `effect`, and `foldkit-agent` are peer dependencies. `agentRuntime`
-below is what `Agent.bind({ definition, host })` returns.
+`foldkit`, `effect`, and `foldkit-agent` are peer dependencies.
 
-## Usage
+## Sixty seconds: serve a bound runtime
+
+Assume the application already declared and bound a contract:
+
+```ts
+const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
+const AssistantAgent = AgentBuilder.make({ ... })
+
+const agentRuntime = AgentBuilder.bind({
+  definition: AssistantAgent,
+  host,
+})
+```
+
+The smallest MCP server is stdio:
 
 ```ts
 import { AgentMcp } from 'foldkit-agent-mcp'
@@ -27,45 +62,81 @@ import { AgentMcp } from 'foldkit-agent-mcp'
 AgentMcp.stdio({ agent: agentRuntime })
 ```
 
-The protocol mapping is a transport-free message handler, so it can be driven
-directly:
+That gives an MCP client the capabilities/resources derived from the same
+contract used by every other adapter.
+
+For embedding or tests, the protocol mapping is also exposed without a
+transport:
 
 ```ts
-const served = AgentMcp.handler({ agent: agentRuntime, onNotification: send })
+const served = AgentMcp.handler({
+  agent: agentRuntime,
+  onNotification: send,
+})
 
-await served.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+await served.handle({
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'tools/list',
+})
 ```
 
-## Mapping
+## What the contract becomes
 
-| MCP | Contract |
+| MCP | `foldkit-agent` |
 | --- | --- |
-| `tools/list` | the capabilities `available` in the current Model |
-| `tools/call` | `dispatchUnknown(name, arguments, invocation)` |
-| `resources/list` and `resources/read` | `app://<name>`, plus `app://context` |
-| `notifications/tools/list_changed` | the advertised set changed |
-| `notifications/cancelled` | aborts that invocation |
+| `tools/list` | capabilities currently `available` in the Model |
+| `tools/call` | `AgentRuntime` dispatch by protocol name |
+| `resources/list` / `resources/read` | named resources plus `app://context` |
+| `notifications/tools/list_changed` | advertised capability set changed |
+| `notifications/cancelled` | abort the matching invocation |
 
-## Errors
+The adapter derives input schemas from the capability's Effect Schema. A
+capability with a completion contract resolves after its correlated success or
+failure Message; otherwise validated dispatch is the completion boundary.
 
-The spec splits these, and the split matters:
+## Protocol errors vs application refusals
 
-- An unknown tool, or arguments that fail the advertised schema, are the
-  caller's fault at the protocol level: **JSON-RPC error `-32602`**.
-- Everything the application decided — unavailable, unauthorized, cancelled, a
-  declared failure — is a **result with `isError: true`**.
+MCP distinguishes a malformed/invalid protocol call from a valid call the
+application refuses. This adapter preserves that distinction:
 
-An authorization refusal reported as a protocol error would have clients retry
-it as a transport fault, which is why it is not one.
+| Situation | MCP result |
+| --- | --- |
+| unknown tool name | JSON-RPC error `-32602` |
+| arguments fail the advertised input schema | JSON-RPC error `-32602` |
+| capability is currently unavailable | tool result with `isError: true` |
+| principal is unauthorized | tool result with `isError: true` |
+| invocation is cancelled | tool result with `isError: true` |
+| declared completion fails | tool result with `isError: true` |
 
-## Over HTTP
+That matters because a client may treat JSON-RPC errors as malformed requests or
+transport/protocol faults. An authorization refusal is an application decision,
+not a broken MCP call.
 
-`httpApp` serves the Streamable HTTP transport as an Effect HTTP application,
-so it runs behind any Effect server or as a plain web handler, on Node, Bun,
-Deno or a worker:
+A capability can also disappear between `tools/list` and `tools/call`. That
+call remains syntactically valid, so it returns a tool error rather than
+`-32602`.
+
+## Availability follows the Model
+
+`tools/list` is dynamic. If a capability's `available(model)` changes, the tool
+appears or disappears with the live application state.
+
+The adapter emits `notifications/tools/list_changed` only when that advertised
+set actually changes, not on every Model transition. Use `debounceMs` when the
+capability set itself can flap rapidly.
+
+Availability is also enforced at invocation time. Knowing a previously
+advertised tool name does not bypass the current Model boundary.
+
+## Streamable HTTP
+
+Use `httpApp` when the MCP server should run behind an Effect HTTP server or be
+converted to a web-standard `Request -> Response` handler:
 
 ```ts
 import * as HttpEffect from 'effect/unstable/http/HttpEffect'
+import { AgentMcp } from 'foldkit-agent-mcp'
 
 const handler = HttpEffect.toWebHandler(
   AgentMcp.httpApp({
@@ -75,90 +146,82 @@ const handler = HttpEffect.toWebHandler(
   }),
 )
 
-const response = await handler(request) // Request -> Response
+const response = await handler(request)
 ```
 
-Underneath, `httpHandler` holds the session and security rules against a
-transport-neutral request shape. Reach for it directly only to embed the server
-in something that is not Effect-based:
+Unlike stdio, HTTP is multi-session. `createAgent` runs for a session under the
+principal returned by `authenticate`, so different callers do not accidentally
+share a bound application runtime.
+
+Underneath, `httpHandler` exposes the same session/security machinery against a
+transport-neutral request shape. Use it when integrating with a server stack
+that is not Effect HTTP:
 
 ```ts
 const server = AgentMcp.httpHandler({
-  // The principal comes from here and nowhere else, and typing it here is what
-  // gives `createAgent` its principal.
   authenticate: request => verify(request.headers['authorization']),
-
-  // One runtime per session. No two principals ever share one.
   createAgent: ({ principal }) => bindAgentFor(principal),
-
-  // A request carrying an Origin that is not listed is refused.
   allowedOrigins: ['https://app.example'],
 })
 
 const response = await server.handle({ method, headers, body })
 ```
 
-A session is created by `initialize` and identified by `Mcp-Session-Id`
-afterwards. An unknown or expired session answers 404, which is the client's
-signal to re-initialize; `DELETE` terminates one.
+## HTTP identity and sessions
 
-A session id is not a bearer token. A session belongs to the principal that
-initialized it, and another principal presenting the id is answered exactly as
-an unknown session — so the id's existence does not leak, and that caller
-re-initializes into a session of its own. Where a principal carries fields that
-differ between requests of the same caller, give `principalId` to say what
-identity means.
+`initialize` creates a session, identified afterwards by `Mcp-Session-Id`.
+Unknown or expired sessions return 404 so the client can re-initialize; `DELETE`
+terminates one.
 
-`GET` opens an SSE stream for server notifications. Each event carries an id, so
-a client that reconnects with `Last-Event-ID` is sent what it missed and nothing
-it already saw. An event goes to exactly one stream, never broadcast across
-several.
+A session id is **not** a bearer token. The authenticated principal owns the
+session. If a different principal presents the same id, the server treats it as
+unknown rather than revealing that the session exists.
 
-### What this transport will not do
+When a principal contains request-varying fields, provide `principalId` so the
+adapter knows which stable identity should own the session.
 
-- **No `Origin`, no allowlist, no entry.** A request carrying an `Origin` that is
-  not configured is refused, including when no origins are configured at all.
-  This is the DNS-rebinding defence the spec requires; a non-browser client
-  sends no `Origin` and is unaffected.
-- **A principal in request params is ignored.** Identity comes from
-  `authenticate`. Reading it from params would let any caller claim any identity
-  and walk straight through `authorize`.
-- Bind to localhost when serving locally, and require authentication otherwise.
+`GET` opens the SSE notification stream. Events have ids; reconnecting with
+`Last-Event-ID` replays missed events without replaying ones already seen. An
+event is delivered to one stream for that session, not broadcast across every
+open connection.
 
-## Notes
+### HTTP security rules
 
-`tools/list` returns what is available now, so a Model-dependent capability
-appears and disappears with the Model. A capability that goes unavailable
-between `tools/list` and `tools/call` fails the call as a tool error rather than
-`-32602`: the request was well formed, the application simply no longer offers
-the capability. `notifications/tools/list_changed` fires
-when that advertised set changes — not on every Model change, or an application
-that updates on each keystroke would become a notification storm. Set
-`debounceMs` when the set itself flaps.
+The adapter deliberately keeps protocol identity separate from caller-provided
+payloads:
 
-Over stdio, `stdout` carries MCP messages and nothing else. A stray
-`console.log` corrupts the stream; diagnostics belong on `stderr`.
+- **Authentication is the source of principal identity.** A principal supplied
+  inside request params is ignored.
+- **Browser `Origin` values must be allowlisted.** An Origin-bearing request is
+  refused when its origin is not configured. Non-browser clients usually send
+  no Origin and are unaffected.
+- **A local unauthenticated server should stay local.** Bind to localhost; use
+  authentication when exposing the server beyond it.
 
-Over stdio there is one session and one runtime, bound by the caller; sessions,
-`Origin` validation and authentication are the HTTP transport's job.
+These rules exist so MCP transport details cannot silently widen the authority
+already declared by `foldkit-agent`.
+
+## Stdio notes
+
+Stdio has one caller-provided runtime and no HTTP session layer.
+
+`stdout` is reserved for MCP messages. A stray `console.log` corrupts the
+protocol stream; write diagnostics to `stderr`.
 
 ## Choosing an adapter
 
-All four serve the same contract, so serving two at once is two calls, not two
-definitions.
+All four adapters serve the same `AssistantAgent` contract through a bound
+runtime.
 
 | Where the agent runs | Adapter |
 | --- | --- |
-| In the page, beside the user | [`foldkit-agent-webmcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-webmcp) |
-| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) |
-| Another agent, over A2A | [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) |
-| An Agent Native host | [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) |
+| In the page, beside the user | [`foldkit-agent-webmcp`](../agent-webmcp) |
+| An external MCP client, over stdio or HTTP | `foldkit-agent-mcp` |
+| Another agent, over A2A | [`foldkit-agent-a2a`](../agent-a2a) |
+| An Agent Native host | [`foldkit-agent-native`](../agent-native) |
 
 ## See also
 
-- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
-  do, and why a capability is a Message.
-- [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) — the contract this adapter
-  serves, and where `Agent.bind` produces the runtime it takes.
-- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a
-  hand-written host.
+- [Agents guide](../../docs/agents.md) — builder → contract → runtime and the authority model.
+- [`foldkit-agent`](../agent) — the protocol-neutral contract and runtime.
+- [`examples/todo`](../../examples/todo) — a focused contract served through adapters.
