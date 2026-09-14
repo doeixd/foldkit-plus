@@ -187,14 +187,15 @@ must not report success until the server commits the edit waits on
 
 ```ts
 completion: Agent.when({
-  projection: mounted.committed,
+  source: mounted.committed,
   predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
 })
 ```
 
 It completes after the exchange that commits the edit, and never for one the
-server rejects. The agent learns nothing about cursors or operations. It reads
-the replica rather than the Model it is handed, so use it to wait, not to render.
+server rejects. The agent learns nothing about cursors or operations.
+`mounted.committed` is a source (`{ get, subscribe }`), not a Projection: it reads
+the replica, not the Model, and tells subscribers after every exchange.
 
 ### Fragments
 

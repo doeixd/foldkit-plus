@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Effect, Schema } from 'effect'
+import { Duration, Effect, Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -81,11 +81,38 @@ const text = () => document.body.textContent ?? ''
 const pending = (replica: Replica<Message, Shared>) => Effect.runSync(replica.pending)
 const exchange = (
   replica: Replica<Message, Shared>,
-  response: { operations: CommittedOperation[]; rejected: string[] },
+  response: {
+    operations: CommittedOperation[]
+    rejected: string[]
+    acknowledged?: string[]
+    checkpoint?: { cursor: number; model: Shared }
+  },
 ) =>
   Effect.runPromise(
     Effect.provide(replica.synchronize, layerFromPromise({ exchange: async () => response })),
   )
+
+/** An agent whose `create_todo` is done only once the server has the todo. */
+const createTodoAgent = (
+  app: Mounted<Model, Message, Shared>,
+  timeout: Duration.Input = Duration.seconds(30),
+) =>
+  Agent.bind({
+    definition: Agent.make({
+      messages: Agent.expose(Message, {
+        CreatedTodo: {
+          name: 'create_todo',
+          description: 'Create a todo',
+          completion: Agent.when({
+            source: app.committed,
+            predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+            timeout,
+          }),
+        },
+      }),
+    }),
+    host: app,
+  })
 
 describe('Sync.mount', () => {
   let container: HTMLElement
@@ -201,58 +228,96 @@ describe('Sync.mount', () => {
 
   it('exposes the committed slice, which a local edit leaves and an exchange advances', async () => {
     const app = await open()
+    let notified = 0
+    const stop = app.committed.subscribe(() => {
+      notified += 1
+    })
     app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
     await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
 
     expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
-    expect(app.committed.read(app.model())).toEqual({ todos: [] })
-    expect(app.committed.dependencies).toEqual([['todos']])
+    expect(app.committed.get()).toEqual({ todos: [] })
 
-    let notified = 0
-    const stop = app.subscribe(() => {
-      notified += 1
-    })
+    const before = notified
     await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
-    await vi.waitFor(() => expect(notified).toBeGreaterThan(0))
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(before))
     stop()
 
-    expect(app.committed.read(app.model())).toEqual({ todos: [{ id: 'r', title: 'Remote' }] })
-    expect(app.model().todos).toEqual([
-      { id: 'r', title: 'Remote' },
-      { id: 'a', title: 'Milk' },
-    ])
+    expect(app.committed.get()).toEqual({ todos: [{ id: 'r', title: 'Remote' }] })
+    await vi.waitFor(() =>
+      expect(app.model().todos).toEqual([
+        { id: 'r', title: 'Remote' },
+        { id: 'a', title: 'Milk' },
+      ]),
+    )
+  })
+
+  it('tells committed subscribers about a checkpoint that keeps the cursor', async () => {
+    const app = await open()
+    let notified = 0
+    app.committed.subscribe(() => {
+      notified += 1
+    })
+    // The mount's status subscription starts with the runtime.
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(0))
+
+    const before = notified
+    const checkpointed = { todos: [{ id: 'c', title: 'Checkpoint' }] }
+    await exchange(replica, {
+      operations: [],
+      rejected: [],
+      checkpoint: { cursor: 0, model: checkpointed },
+    })
+
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(before))
+    expect(app.committed.get()).toEqual(checkpointed)
+  })
+
+  it('re-installs the shared slice when an exchange only acknowledges an edit', async () => {
+    const app = await open()
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+    // Acknowledged but not returned: the replica drops it without committing it.
+    await exchange(replica, { operations: [], rejected: [], acknowledged: ['a:1'] })
+
+    await vi.waitFor(() => expect(app.model().todos).toEqual([]))
+    expect(pending(replica)).toEqual([])
+  })
+
+  it('never completes an agent on an edit the server rejects', async () => {
+    const app = await open()
+    const result = Effect.runPromise(
+      Effect.result(
+        createTodoAgent(app, Duration.millis(200)).messages.dispatch('create_todo', {
+          id: 'a',
+          title: 'Milk',
+        }),
+      ),
+    )
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+    await exchange(replica, { operations: [], rejected: ['a:1'] })
+
+    expect(((await result) as { failure?: { _tag: string } }).failure?._tag).toBe(
+      'AgentCompletionTimeoutError',
+    )
+    expect(app.committed.get()).toEqual({ todos: [] })
   })
 
   it('lets an agent complete on the committed edit, not the optimistic one', async () => {
     const app = await open()
-    const runtime = Agent.bind({
-      definition: Agent.make({
-        messages: Agent.expose(Message, {
-          CreatedTodo: {
-            name: 'create_todo',
-            description: 'Create a todo',
-            completion: Agent.when({
-              projection: app.committed,
-              predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
-            }),
-          },
-        }),
-      }),
-      host: app,
-    })
 
     let settled = false
     const result = Effect.runPromise(
-      runtime.messages.dispatch('create_todo', { id: 'a', title: 'Milk' }),
+      createTodoAgent(app).messages.dispatch('create_todo', { id: 'a', title: 'Milk' }),
     ).finally(() => {
       settled = true
     })
     await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
-    // Visible at once, and still not done: the server has not committed it. An
-    // unrelated transition re-evaluates the wait against the persisted outbox.
+    // Visible at once, and still not done: the persist notified the committed
+    // view, which does not have the edit until the server commits it.
     expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
-    app.dispatch(Message.SelectedTodo({ id: 'a' }))
-    await vi.waitFor(() => expect(text()).toContain('Selection: a'))
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(settled).toBe(false)
 

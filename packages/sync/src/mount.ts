@@ -17,7 +17,7 @@ import * as Subscription from 'foldkit/subscription'
 import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
-import { Projection, type RunnableApplication } from 'foldkit-surface'
+import type { RunnableApplication } from 'foldkit-surface'
 import type { ReplicaError } from './errors.js'
 import type { DefinedSync } from './make.js'
 import type { Replica, ReplicaStatus } from './sync.js'
@@ -66,6 +66,17 @@ export interface MountOptions<Model, Message, Shared, Resources> {
   readonly onPersistenceFailure?: ((model: Model, error: ReplicaError) => Model) | undefined
 }
 
+/**
+ * The shared slice as the server has confirmed it, outside the Model. It is a
+ * source for waiting consumers, the shape `Agent.when({ source })` reads, and
+ * not a Projection: it does not render and is not derived from the Model.
+ */
+export interface CommittedView<Shared> {
+  readonly get: () => Shared
+  /** Told after every exchange, including one that moves no cursor (a checkpoint). */
+  readonly subscribe: (listener: () => void) => () => void
+}
+
 export interface Mounted<Model, Message, Shared = unknown> {
   /** Sends an application Message through the runtime; the `Exit` reports a decode failure. */
   readonly dispatch: (message: Message) => Exit.Exit<void, unknown>
@@ -80,21 +91,23 @@ export interface Mounted<Model, Message, Shared = unknown> {
    */
   readonly observe: (listener: (message: Message) => void) => () => void
   /**
-   * The shared slice as the server has confirmed it, without pending local
-   * edits: what an agent waits on when an optimistic edit must not count as
-   * done, `Agent.when({ projection: mounted.committed, … })`. It reads the
-   * replica rather than the Model it is handed, so it serves waiting consumers,
-   * not views; `subscribe` fires after every exchange that changes it.
+   * The shared slice without pending local edits, for an agent that must not
+   * report an optimistic edit as done: `Agent.when({ source: mounted.committed, … })`.
    */
-  readonly committed: Projection<Model, Shared>
+  readonly committed: CommittedView<Shared>
   /** Waits for in-flight persists, then disposes the runtime. The replica stays open. */
   readonly dispose: () => Promise<void>
 }
 
-/** Exchanges and rejections change what the replica holds; a submit only echoes a local edit. */
+/**
+ * Commits, rejections and acknowledgments change what the replica holds; a
+ * submit only echoes a local edit. An acknowledgment that does not return the
+ * operation moves no cursor, but it still drops the edit from the outbox.
+ */
 const sharedChanged = (previous: ReplicaStatus | undefined, next: ReplicaStatus): boolean =>
   previous === undefined ||
   previous.cursor !== next.cursor ||
+  next.pending < previous.pending ||
   previous.rejected.length !== next.rejected.length ||
   previous.rejected.some((id, index) => id !== next.rejected[index])
 
@@ -146,6 +159,10 @@ export const mount = <
   const inFlight = new Set<Promise<void>>()
   let latest: Model = install(app.initial)
   const modelListeners = new Set<() => void>()
+  const committedListeners = new Set<() => void>()
+  const notifyCommitted = (): void => {
+    for (const listener of [...committedListeners]) listener()
+  }
   const messageListeners = new Set<(message: Message) => void>()
 
   const update = (
@@ -221,6 +238,9 @@ export const mount = <
     // when the shared slice held locally can differ from the replica's.
     refresh: Subscription.persistent<RuntimeMessage, Resources>(
       replica.statusChanges.pipe(
+        // Every status, not only a changed cursor: a checkpoint at the same
+        // cursor still replaces the committed state a waiter reads.
+        Stream.tap(() => Effect.sync(notifyCommitted)),
         Stream.mapAccum(
           (): ReplicaStatus | undefined => undefined,
           (previous, status): readonly [ReplicaStatus, ReadonlyArray<RuntimeMessage>] => [
@@ -294,11 +314,13 @@ export const mount = <
       messageListeners.add(listener)
       return () => messageListeners.delete(listener)
     },
-    committed: Projection.fromReader(
-      sync.projection.schema,
-      () => Effect.runSync(replica.committed),
-      { dependencies: sync.projection.dependencies },
-    ),
+    committed: {
+      get: () => Effect.runSync(replica.committed),
+      subscribe: listener => {
+        committedListeners.add(listener)
+        return () => committedListeners.delete(listener)
+      },
+    },
     dispose: async () => {
       await Promise.all([...inFlight])
       handle.dispose()
