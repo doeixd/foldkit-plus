@@ -162,6 +162,14 @@ Module.validate(Project) // []
 Module.toMermaid(Project) // architecture generated from the declarations above
 ```
 
+A useful naming rule for Agent code is **builder first, contract second**:
+`Agent.forApplication(App)` (optionally followed by `withPrincipal`) specializes
+the API to your application; it does not describe any particular agent. Calling
+`.make(...)` on that builder produces the actual protocol-neutral agent contract.
+In the example, `AgentBuilder` is the former and `AssistantAgent` is the latter.
+Adapters bind or serve `AssistantAgent`; `AgentBuilder` is just the typed DSL used
+to construct it.
+
 The important part is what is **missing**: no agent reducer, sync reducer, URL
 store, persistence state machine, server copy of the shared schema, or forked
 component just to restyle it. The same `update` remains the transition function
