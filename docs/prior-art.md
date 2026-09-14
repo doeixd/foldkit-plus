@@ -47,6 +47,7 @@ The package-specific influences then sit around that foundation:
 | [Elm](https://guide.elm-lang.org/architecture/) | one Model, Messages, pure transitions, effects outside the transition | the underlying application model |
 | [Foldkit](https://github.com/foldkit/foldkit) | Schema Model, fact-named Messages, exhaustive `update`, Commands, Subscriptions, Submodels | the authority every Plus package extends |
 | [Effect](https://effect.website/) | Schema, Optics, typed service requirements, Layers, Streams, scopes | the structural/effect vocabulary throughout the repo |
+| [`doeixd/gpui-ts`](https://github.com/doeixd/gpui-ts) | centralized model ownership, focused models, composable lenses, views bound to explicit model slices | `foldkit-surface`, especially `ModelRef` / Projection |
 | [fate](https://fate.technology/) | declarative data requirements, view composition, normalized caching, strict selection, Drizzle compilation | `foldkit-remote`, `foldkit-remote-server`, `foldkit-remote-drizzle` |
 | [Logux](https://logux.org/) | optimistic local action log, offline persistence, replay, reconciliation against later server history | `foldkit-sync` + `foldkit-durable` |
 | [nuqs](https://nuqs.dev/) | typed URL state, parsers/serializers, defaults, push/replace history semantics | `foldkit-mirror` |
@@ -128,6 +129,75 @@ with the Schema, dependency metadata, and application identity needed by
 Surface. Remote clients, Durable journals, transports, database access, and
 protocol servers likewise expose Effect requirements rather than inventing a
 second dependency-injection model.
+
+## Focused application state: GPUI-TS and Effect Optics
+
+[`doeixd/gpui-ts`](https://github.com/doeixd/gpui-ts) is the direct internal
+precursor to the state-focusing side of `foldkit-surface`. GPUI-TS already
+centered **model ownership** and let consumers operate on a focused part of that
+owned state instead of creating another store beside it. Its lens and focused
+model APIs made that relationship explicit:
+
+```text
+central model owner
+      │
+      ├── lens / lensAt
+      │       │
+      │       ▼
+      │   focused value
+      │
+      └── focus(lens)
+              │
+              ▼
+         focused model
+```
+
+That design also showed up in views: a view could bind to a particular model,
+and derived/focused access was a first-class thing rather than an ad-hoc selector
+convention.
+
+Surface keeps that instinct but moves it into the Foldkit + Effect vocabulary.
+[Effect Optics](https://github.com/Effect-TS/effect/blob/main/packages/effect/OPTIC.md)
+provide the lawful structural focus, including reusable/composable focus into
+nested data. `ModelRef` enriches an Optic with the pieces Foldkit Plus needs:
+Schema, dependency metadata, application identity, and convenient `get` / `set`
+operations.
+
+```text
+GPUI-TS
+central model + lenses + focused models
+                 │
+                 │ design lineage
+                 ▼
+Effect Optic ──► ModelRef
+                  │
+                  ▼
+              Projection
+                  │
+                  ▼
+               Surface
+```
+
+The other half of Surface comes from Foldkit itself. A consumer does not only
+observe state; it may also be permitted to cause some existing application
+Messages. Surface therefore combines:
+
+```text
+structural focus / observation
+      GPUI-TS + Effect Optics
+                │
+                ├──────┐
+                │      │
+                ▼      ▼
+             Surface = observation + capability
+                           ▲
+                           │
+                   Foldkit Messages
+```
+
+Fate is a later influence on **Projection requirement metadata**, especially for
+Remote: a Projection can carry declarative requirements that an interpreter can
+plan. It is not the primary ancestor of Surface's focused-state design.
 
 ## Server-derived state: fate
 
@@ -423,21 +493,12 @@ authority.
 That distinction is central to the project's larger rule: **do not encode the
 same application behavior once for humans and again for agents.**
 
-## Surface: the common intermediate boundary
+## Surface as the common intermediate boundary
 
-Within the lineage above, `foldkit-surface` is the piece without a one-to-one
-ancestor in any single project on this list.
+The GPUI-TS / Effect Optics lineage explains Surface's focused-state side, but
+Surface adds a Foldkit-specific consumer contract around it.
 
-It combines several inherited ideas:
-
-- Effect Optics provide structural focus into the Model;
-- Effect Schema provides runtime/type contracts;
-- Fate-like requirements make observation dependencies explicit;
-- Foldkit Messages provide the application's existing capability vocabulary;
-- the inside-out composition work suggests that consumers should declare their
-  boundary rather than take the whole application implicitly.
-
-A Surface then says two things together:
+A Surface says two things together:
 
 ```text
 information boundary
@@ -554,7 +615,8 @@ This distinction matters for both accuracy and licensing.
 | --- | --- | --- |
 | Elm | yes | no |
 | Foldkit | substrate/dependency | no copied implementation in this repo |
-| Effect | substrate/dependency | no copied implementation in this repo |
+| Effect | substrate/dependency; Optics are used directly by Surface | no copied implementation in this repo |
+| gpui-ts | yes; internal precursor to Surface's focused-state design | ideas/API lineage, not copied third-party code |
 | fate | yes | **yes: selected Drizzle logic, under MIT; see notice** |
 | Logux | yes | no |
 | nuqs | yes | no |
@@ -575,6 +637,8 @@ this architectural document. Today the relevant notice is
 - [Effect](https://effect.website/)
 - [Effect Schema](https://effect.website/docs/v4/schema/introduction)
 - [Effect Services and Layers](https://effect.website/docs/v4/requirements-management/services)
+- [Effect Optics](https://github.com/Effect-TS/effect/blob/main/packages/effect/OPTIC.md)
+- [`doeixd/gpui-ts`](https://github.com/doeixd/gpui-ts)
 - [fate core concepts](https://fate.technology/guide/core-concepts)
 - [fate 1.0](https://fate.technology/posts/fate-1.0)
 - [Logux concepts](https://logux.org/guide/concepts/action/)
