@@ -5,26 +5,10 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## 0.4.0
+## 0.4.1
 
-`foldkit-remote`, `foldkit-durable`, `foldkit-sync` and the `foldkit-mixins`
-family take a minor; everything else republishes so npm serves the corrected
-pages. Nothing in this release is breaking.
-
-### `foldkit-remote` 0.2.0
-
-- **`RemoteData.Loading` means something now.** It was a required `match` case
-  nothing constructed — the missing half of a symmetry, since `Refreshing` is
-  produced by `RefreshStarted` marking present fields stale. The read entry now
-  emits `ReadStarted` before it reads, the reducer records a mark per requested
-  field, and `ReadReceived` or `ReadFailed` clears it, so a value the store
-  lacks reads `Loading` while a read is fetching it and `Initial` when none is.
-  That distinction is worth rendering differently: nothing fetches a projection
-  no active Surface observes, so it reads `Initial` forever and a spinner there
-  hides the wiring mistake. **Breaking:** `RemoteMessage` gains `ReadStarted`
-  and `RemoteModel` gains `loading`, so code that matches every Remote message
-  or builds a `RemoteModel` literal needs the new case and field. The documented
-  path, `Remote.reduces` then `Data.reduce`, is unaffected.
+`foldkit-durable` and `foldkit-sync` take a minor for new, additive API. No other
+package republishes.
 
 ### `foldkit-durable` 0.3.0 and `foldkit-sync` 0.4.0
 
@@ -51,6 +35,27 @@ pages. Nothing in this release is breaking.
   reverted saw no reason. `validate` now accepts an Effect as `authorize`
   already did, and `runEffect`'s `retryFailed` accepts a predicate over the
   record, since the recovery policy asks the application to decide per intent.
+
+## 0.4.0
+
+`foldkit-remote` and the `foldkit-mixins` family take a minor; everything else
+republishes so npm serves the corrected pages. The one breaking change is
+`foldkit-remote`'s new `ReadStarted` message and `loading` field, below.
+
+### `foldkit-remote` 0.2.0
+
+- **`RemoteData.Loading` means something now.** It was a required `match` case
+  nothing constructed — the missing half of a symmetry, since `Refreshing` is
+  produced by `RefreshStarted` marking present fields stale. The read entry now
+  emits `ReadStarted` before it reads, the reducer records a mark per requested
+  field, and `ReadReceived` or `ReadFailed` clears it, so a value the store
+  lacks reads `Loading` while a read is fetching it and `Initial` when none is.
+  That distinction is worth rendering differently: nothing fetches a projection
+  no active Surface observes, so it reads `Initial` forever and a spinner there
+  hides the wiring mistake. **Breaking:** `RemoteMessage` gains `ReadStarted`
+  and `RemoteModel` gains `loading`, so code that matches every Remote message
+  or builds a `RemoteModel` literal needs the new case and field. The documented
+  path, `Remote.reduces` then `Data.reduce`, is unaffected.
 
 ### `foldkit-mixins` 0.2.0
 
