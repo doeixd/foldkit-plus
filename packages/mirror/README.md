@@ -1,13 +1,22 @@
 # `foldkit-mirror`
 
-A Foldkit Model slice kept in the URL or a key-value store. The Model is the
-only truth; a mirror names a slice of it and keeps an external keyed string
-store in step: the slice is written to the store whenever it changes, and read
-back into the Model on navigation or cold load. The URL query string and
-Effect's `KeyValueStore` are the two stores.
+Keeps part of a Foldkit Model in the URL or in a key-value store, so a filter
+survives a shared link and a draft survives a reload. You name a slice of the
+Model; the mirror writes it out whenever it changes and reads it back on
+navigation or cold load. Nothing else about the application changes: the Model
+is still the only truth, and `update` is still the only reducer.
 
-A mirror is not an owner. It is last-write-wins to a dumb store with no log,
-which is what separates it from
+You do not declare keys, codecs, or defaults. They are derived from the field
+refs you point at: a key's name is the field's name, its text form comes from
+the field's encoded type, and a value equal to the Model's initial one is left
+out of the store entirely. The URL query string and Effect's `KeyValueStore`
+are the two stores that ship.
+
+**Use it when** the state is disposable, per-device, and cheap to lose: a
+filter, a sort, a page, an open panel, a preference, an unsent draft. **Not
+for** anything that must converge. A mirror is last-write-wins against a store
+with no log and no ordering, so two tabs writing the same key-value document
+simply overwrite each other. That is what separates it from
 [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync)
 (an ordered durable log that converges) and from
 [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote)
@@ -29,10 +38,16 @@ pnpm add foldkit-mirror
 
 ## Quick start
 
+Declare the mirrors over the application, then wire their three seams: `reduce`
+in `update`, `restore` in a Command, and `subscriptions` for the writes.
+
 ```ts
 import { Schema } from 'effect'
+import type { KeyValueStore } from 'effect/unstable/persistence'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
+import { Url } from 'foldkit/url'
 import { Projection, Surface } from 'foldkit-surface'
 import { Mirror } from 'foldkit-mirror'
 
@@ -43,56 +58,61 @@ const Model = Schema.Struct({
   sidebar: Schema.Literals(['open', 'closed']),
   draft: Schema.String,
 })
-const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { href: Schema.String }, … })
+type Model = typeof Model.Type
+
+// `Mirror.messages` contributes `MirrorRestored`, which a store mirror reduces.
+const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
+type Message = typeof Message.Type
+
+const initial: Model = { filter: 'all', page: 1, q: '', sidebar: 'open', draft: '' }
 const App = Surface.application({ Model, Message, initial, update })
 
 // The URL shows the filters, as ?filter=…&page=…&q=…; keys default to the field names.
 const Filters = Mirror.url(App, {
+  name: 'filters',
   fields: [App.fields.filter, App.fields.page, App.fields.q],
   keys: { q: { history: 'replace' } }, // the rest push a history entry
 })
 
-// A key-value store keeps preferences and the draft across sessions.
+// A key-value store keeps the preference and the draft across sessions.
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
-  scope: userId,
-  fields: [App.fields.sidebar, App.fields.draft],
+  fields: Projection.pick(App.fields.sidebar, App.fields.draft),
 })
-```
 
-Wiring, in the application:
+type Return = Update.Return<Model, Message, KeyValueStore.KeyValueStore>
 
-```ts
-init: url => ({ model: Filters.reduce(initial, url), commands: [Prefs.restore] })
-
-function update(model: Model, message: Message): Update.Return<Model, Message, KeyValueStore> {
+function update(model: Model, message: Message): Return {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
   switch (message._tag) {
     case 'UrlChanged':
-      return { model: Filters.reduce(model, message.href) }
-    …
+      return { model: Filters.reduce(model, message.url) }
   }
 }
 
-const subscriptions = Subscription.make<Model, Message, KeyValueStore>()(() => ({
+// Cold load: the URL is reduced in, and the store is asked for the rest.
+const init = (url: Url): Return => ({
+  model: Filters.reduce(initial, url),
+  commands: [Prefs.restore],
+})
+
+// The writes: one entry per mirror, keyed `<name>.mirror`.
+const subscriptions = Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(() => ({
   ...Filters.subscriptions,
   ...Prefs.subscriptions,
 }))
 ```
 
-`update` stays the only reducer. The slice is field refs straight from
-`App.fields`, or a writable projection over them (`Projection.pick`,
-`Projection.compose`), the same object `foldkit-sync` replicates. The URL comes
-in through the `onUrlChange` the runtime already has for routing
-(`Filters.reduce` takes a Foldkit `Url` or an href); the store comes in
-through one `MirrorRestored` case spread from `Mirror.messages`
-(`Prefs.reduce` takes that Message). Each mirror's `subscriptions` is one
-Subscription entry, keyed `<name>.mirror`, that writes the store when the
-encoded slice changes. Links are `Filters.href(model, { page: 2 })`, the
-mirrored keys applied to the current URL. An application built without
-`initial` passes `initial` in the mirror's config; defaults are read from it.
-Under `Sync.mount`, the `url` option (`init`, `onUrlChange`) is where the URL
-mirror plugs in.
+The slice is field refs straight from `App.fields`, or a writable projection
+over them (`Projection.pick`, `Projection.compose`) — the same object
+`foldkit-sync` replicates. The URL comes in through the `onUrlChange` the
+runtime already has for routing; `Filters.reduce` takes a Foldkit `Url` or an
+href. The store comes in through one `MirrorRestored` case spread from
+`Mirror.messages`. Links are `Filters.href(model, { page: 2 })`, the mirrored
+keys applied to the current URL. An application built without `initial` passes
+`initial` in the mirror's config; defaults are read from it. Under
+`foldkit-sync`'s `mount`, the `url` option (`init`, `onUrlChange`) is where the
+URL mirror plugs in.
 
 ## What the Model being the truth gives
 
@@ -174,9 +194,9 @@ pure URL step `href` and the URL store share.
   cold load the URL wins when it names the key, then the store, then the
   initial value: `init` reduces the URL first, and `restore` applies only
   fields still at their initial value.
-- The URL store touches only its keys and needs a browser `location`; a
-  Foldkit router's `route.query(schema)` composes with it when they name
-  different keys.
+- The URL store touches only its keys and needs a browser `location`; it uses
+  the query string unless `location: 'hash'` says otherwise. A Foldkit router's
+  `route.query(schema)` composes with it when they name different keys.
 
 ## See also
 

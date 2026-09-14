@@ -1,37 +1,63 @@
 # `foldkit-durable`
 
-A durable, ordered operation log with a snapshot and cursor per key, backed by
-[`effect/unstable/sql`](https://effect.website) through
-`@effect/sql-sqlite-node`. Storage and ordering only; application semantics stay
-in the `reduce` the caller supplies.
+An append-only operation log on SQLite, with a snapshot and a cursor per
+document. Clients hand you operations; the journal decides their order, folds
+each one into the document's snapshot with the `reduce` you supply, and
+remembers every operation's identity so a retransmission is answered with the
+original outcome instead of applied a second time.
 
-It is the **server half** of [replicated Foldkit state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md).
-Reach for it when a server must sequence operations from many clients, replay or
-compact them, and retain effect outcomes; `foldkit-sync` is the client
-half. The [guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md) covers the mental model and when not
-to use it.
+That is what a server owes a local-first or multi-device application: one
+authoritative order every client can replay, retries that are safe to send, and
+a durable record of the external effects (a charge, an email) an operation
+caused, so a crash between "the provider accepted it" and "we wrote that down"
+is something you can reconcile rather than guess at. The journal understands
+storage and ordering only — every application rule lives in the `reduce`,
+`validate`, and `authorize` callbacks you pass it.
+
+**Use it when** a server must sequence operations from several clients or
+devices, replay or compact them, and not repeat an effect on retry. **Not for**
+peer-to-peer or multi-master writes: ordering is the server's, and one journal
+handle owns one SQLite file. It is also not a job scheduler — `recover` is a
+loop you call, not a worker it runs for you.
+
+It is the **server half** of [replicated Foldkit state](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md);
+[`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync)
+is the client half. The [guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md)
+covers the mental model and when not to use either.
 
 ```ts
-import { Config, Effect } from 'effect'
-import { actorId, documentId, makeJournal, opId } from 'foldkit-durable'
+import { Effect, Schema } from 'effect'
+import { actorId, cursor, documentId, makeJournal, opId } from 'foldkit-durable'
 
-const run = Effect.gen(function* () {
-  const journal = yield* makeJournal({
-    file: Config.succeed('journal.sqlite'),
-    operation: { encode: operation => operation, decode: readOperation },
-    snapshot: { encode: snapshot => snapshot, decode: readSnapshot },
+const Operation = Schema.Struct({ opId: Schema.String, title: Schema.String })
+const Snapshot = Schema.Struct({ todos: Schema.Array(Schema.String) })
+type Operation = typeof Operation.Type
+type Snapshot = typeof Snapshot.Type
+type Principal = { readonly actorId: string }
+
+const decodeOperation = Schema.decodeUnknownSync(Operation)
+const decodeSnapshot = Schema.decodeUnknownSync(Snapshot)
+
+const program = Effect.gen(function* () {
+  const journal = yield* makeJournal<Operation, Snapshot, Principal>({
+    file: 'journal.sqlite',
+    // Operations are stored exactly as they arrive, so `encode` is the identity.
+    operation: { encode: operation => operation, decode: decodeOperation },
+    snapshot: { encode: snapshot => snapshot, decode: decodeSnapshot },
     empty: () => ({ todos: [] }),
-    reduce: (snapshot, operation) => applyTodo(snapshot, operation),
+    reduce: (snapshot, operation) => ({ todos: [...snapshot.todos, operation.title] }),
     opId: operation => opId(operation.opId),
     actorId: principal => actorId(principal.actorId),
   })
 
-  yield* journal.append(documentId('todos'), operation, principal)
-  const rows = yield* journal.read(documentId('todos'), 0)
-  return rows
+  const todos = documentId('todos')
+  yield* journal.append(todos, { opId: 'tab-1:1', title: 'Milk' }, { actorId: 'alice' })
+  const { snapshot } = yield* journal.load(todos)
+  const since = yield* journal.read(todos, cursor(0))
+  return { snapshot, since }
 }).pipe(Effect.scoped)
 
-await Effect.runPromise(run)
+await Effect.runPromise(program)
 ```
 
 `makeJournal` is scoped: the SQLite connection is released when the scope
@@ -39,15 +65,19 @@ closes. `file` accepts a literal or a `Config.Config<string>`, so the path can
 come from the environment. `operation` is a `Codec<Operation, Encoded>` and
 `append` takes the encoded side, so a transforming codec is checked at the call
 site; `snapshot` is a `Codec<Snapshot>`. Failures are `Schema.TaggedError`s
-(`JournalError`, `InvalidOperationError`, `OperationRejectedError`,
-`IdentityConflictError`, `InvalidCursorError`, `InvalidCompactionError`), so
+(`JournalError`, `UnsupportedJournalVersionError`, `InvalidOperationError`,
+`OperationRejectedError`, `IdentityConflictError`, `InvalidCursorError`,
+`CompactedCursorError`, `InvalidCompactionError`, `EffectFailedError`), so
 `Effect.catchTag` narrows them.
 
-`append` returns the committed operation's `opId` and `sequence`; `read` and
-`load` speak in branded `Sequence` and `Cursor` values, so a sequence cannot be
-passed where a cursor is expected. `appendAll` commits an ordered batch in one
-transaction, and `keys`, `reset`, `unfinished`, and `clearEffect` support
-maintenance and recovery.
+`append` answers with `{ _tag: 'Committed' }` carrying the operation, its
+`opId`, `sequence`, and `actorId`, or with `{ _tag: 'AlreadyCommitted' }` when
+the `opId` is known but compaction has already dropped its payload. `read` and `load`
+speak in branded `Sequence` and `Cursor` values, built with `sequence(n)` and
+`cursor(n)`, so one cannot be passed where the other is expected. `appendAll`
+commits an ordered batch in one transaction; `compact` and `floor` bound what
+payloads are retained; and `keys`, `reset`, `unfinished`, `effect`,
+`clearEffect`, and `recover` support maintenance and recovery.
 
 ## Install
 
@@ -65,12 +95,16 @@ Node 22 is required for `node:sqlite`. `foldkit-sync` is the client half.
 
 ```ts
 import { Effect } from 'effect'
-import { JournalService, makeJournalLayer } from 'foldkit-durable'
+import { JournalService, documentId, makeJournalLayer, type JournalOptions } from 'foldkit-durable'
+
+// The same object `makeJournal` takes.
+declare const options: JournalOptions<Operation, Snapshot, Principal>
+const JournalLayer = makeJournalLayer(options)
 
 const program = Effect.gen(function* () {
   const journal = yield* JournalService<Operation, Snapshot, Principal>()
   return yield* journal.load(documentId('todos'))
-}).pipe(Effect.provide(makeJournalLayer(options)))
+}).pipe(Effect.provide(JournalLayer))
 ```
 
 A parameterized service tag shares one runtime key, so an application that runs
@@ -90,16 +124,19 @@ two journals must give each a distinct key:
 - **A snapshot and cursor per key**, written together in one transaction, read as
   branded `Cursor`/`Sequence` values.
 - **Compaction.** Payloads below a floor are dropped without changing the state
-  a replay of the compacted prefix would produce; identity rows remain.
+  a replay of the compacted prefix would produce; identity rows remain, and
+  `floor` reports the highest sequence whose payload is gone.
 - **A change stream.** `journal.subscribe` is a `Stream.Stream<string>` of the
   keys a commit changed. It is a sliding channel: a subscriber never fails or
   slows a commit, and a slow one drops the oldest wake-ups rather than growing
   memory.
 - **A durable effect ledger.** `runEffect(key, run)` reuses recorded successes
   and shares concurrent calls within one journal instance. `unfinished` lists the
-  pending and failed records for recovery, and `clearEffect` removes one.
+  pending and failed records, `effect` reads one, `clearEffect` removes one, and
+  `recover` drives the scan-and-settle loop over a document.
 - **Maintenance.** `keys` lists the documents, and `reset` drops a document's
-  snapshot and operations.
+  snapshot and operations. Effect records are keyed globally, not per document,
+  so `reset` leaves them; `clearEffect` removes one.
 - **Migrations.** The tables are created or upgraded by a transactional
   `user_version` migration, so an existing database is upgraded in place and an
   interrupted run is safe to repeat.
@@ -146,17 +183,30 @@ lists those records so a recovery worker can decide per intent.
 
 Choose the identity before executing the action. The effect ledger's keys are
 global to the database, so include the document as well as the operation and
-a stable semantic name. For example, with an application-supplied provider:
+a stable semantic name. The orders journal and `provider` below stand in for
+the application's own:
 
 ```ts
-const key = JSON.stringify(['orders', operation.opId, 'send-confirmation:v1'])
-yield* journal.runEffect(
-  key,
-  Effect.tryPromise(() => provider.sendConfirmation({
-    orderId: operation.orderId,
-    idempotencyKey: key,
-  })),
-)
+import { Effect } from 'effect'
+import type { Journal } from 'foldkit-durable'
+
+type Order = { readonly opId: string; readonly id: string }
+type OrderSnapshot = { readonly confirmed: ReadonlyArray<string> }
+type Orders = Journal<Order, OrderSnapshot, Principal>
+declare const provider: {
+  sendConfirmation: (input: { orderId: string; idempotencyKey?: string }) => Promise<void>
+}
+
+const confirmationKey = (order: Order) =>
+  JSON.stringify(['orders', order.opId, 'send-confirmation:v1'])
+
+const sendConfirmation = (journal: Orders, order: Order) => {
+  const key = confirmationKey(order)
+  return journal.runEffect(
+    key,
+    Effect.tryPromise(() => provider.sendConfirmation({ orderId: order.id, idempotencyKey: key })),
+  )
+}
 ```
 
 The provider must durably associate that key with the action and its result.
@@ -188,19 +238,44 @@ find operations committed before settlement started:
    snapshot state through the same reducer/append transaction, and discover them
    from `load` after compaction. Re-derive old intents with their original semantics.
 
-The application owns document enumeration, the recovery cursor or snapshot
-intents, and scheduling recovery on startup. `journal.unfinished()` lists every
-pending and failed record, `journal.keys()` enumerates the documents, and
-`journal.clearEffect(key)` drops a record once it is resolved. A subscription is
-only a wake-up signal; it cannot recover missed commits by itself. There is no
-atomic append-and-enqueue API today.
+`journal.recover` runs that loop. It reads the committed operations after
+`from`, derives each one's effect intents, reuses recorded successes, and stops
+before any operation whose intent failed or was skipped. It returns the cursor
+up to which every intent settled, so the caller persists it and resumes:
 
-`journal.recover({ key, from, intents, onUnresolved })` runs the scan/reconcile
-loop: it reads the committed operations after `from`, derives each one's effect
-intents, reuses recorded successes, and stops before any operation whose intent
-failed or was skipped. It returns the cursor up to which every intent settled, so
-the caller persists it and resumes. Scheduling and discovery stay with the
-application.
+```ts
+import { Effect, Option } from 'effect'
+import { documentId, type Cursor } from 'foldkit-durable'
+
+const settle = (journal: Orders, from: Cursor) =>
+  journal.recover({
+    key: documentId('orders'),
+    from,
+    intents: order => [
+      {
+        key: confirmationKey(order),
+        run: Effect.tryPromise(() =>
+          provider.sendConfirmation({
+            orderId: order.id,
+            idempotencyKey: confirmationKey(order),
+          }),
+        ),
+      },
+    ],
+    // The default is `retry`. `skip` stops the loop and leaves the returned
+    // cursor at the previous operation, for manual resolution.
+    onUnresolved: (_intent, record) =>
+      Option.isSome(record) && record.value.status === 'failed' ? 'skip' : 'retry',
+  })
+```
+
+Scheduling and discovery stay with the application: it owns document
+enumeration, the recovery cursor or snapshot intents, and running this on
+startup. `journal.unfinished()` lists every pending and failed record,
+`journal.keys()` enumerates the documents, and `journal.clearEffect(key)` drops
+a record once it is resolved. A subscription is only a wake-up signal; it cannot
+recover missed commits by itself. There is no atomic append-and-enqueue API
+today.
 
 ### Execution ownership
 
@@ -211,11 +286,13 @@ execution requires a persistent claim/lease protocol with fencing and a recovery
 policy, which this package does not supply. Such ownership still cannot close
 the gap between external success and recording it locally.
 
-Process-crash tests in `test/effectRecovery.test.ts` exercise exits after append,
-before provider work, after provider success, and after recording success but
-before acknowledgement. They use a separate SQLite provider emulator with
-durable idempotency receipts and also demonstrate the duplicate without them.
-These tests cover process termination, not machine power loss.
+Process-crash tests in
+[`test/effectRecovery.test.ts`](https://github.com/doeixd/foldkit-plus/blob/main/packages/durable/test/effectRecovery.test.ts)
+exercise exits after append, before provider work, after provider success, and
+after recording success but before acknowledgement. They use a separate SQLite
+provider emulator with durable idempotency receipts and also demonstrate the
+duplicate without them. These tests cover process termination, not machine
+power loss.
 
 ## Retention
 
