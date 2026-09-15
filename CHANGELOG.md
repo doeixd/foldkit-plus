@@ -5,7 +5,7 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.5.0
 
 Every package below changes its public types or adds API, so each takes a minor
 while pre-1.0: `foldkit-surface` 0.2.0, `foldkit-remote` 0.3.0,
@@ -13,7 +13,8 @@ while pre-1.0: `foldkit-surface` 0.2.0, `foldkit-remote` 0.3.0,
 `foldkit-mixins` 0.3.0, `foldkit-mixins-surface` 0.3.0, `foldkit-agent` 0.3.0,
 `foldkit-agent-a2a` 0.3.0, `foldkit-agent-mcp` 0.3.0, `foldkit-agent-native`
 0.3.0, `foldkit-sync` 0.5.0, and `foldkit-mirror` 0.2.0 (its `Contract` output
-changed). The versions move in the release commit.
+changed). `foldkit-agent-webmcp` 0.3.0 and `foldkit-mixins-ui` 0.3.0 republish
+only for their peer ranges. `foldkit-durable` does not republish.
 
 Several of these changes exist so that user code, tests included, needs no type
 casts: a cast in a test marked a gap in the API.
@@ -128,6 +129,12 @@ casts: a cast in a test marked a gap in the API.
   string is a type error. An open contract keeps string keys.
 - An action's `schema` also types its `~standard.jsonSchema`.
 
+### `foldkit-agent-webmcp`
+
+- Republished with a peer range on `foldkit-agent` 0.3.0. Its own API is
+  unchanged, but the published 0.2.1 peers `foldkit-agent@^0.2.1`, which in 0.x
+  excludes 0.3.0.
+
 ### `foldkit-sync` (breaking)
 
 - **The committed state is readable.** `Replica.committed` and
@@ -170,6 +177,12 @@ casts: a cast in a test marked a gap in the API.
 - **`SlotView.inertBuilder<Message>()`** is Foldkit's `inertHtml` typed for a
   Message universe, for rendering outside a runtime. It holds the one cast the
   invariant builder needs.
+
+### `foldkit-mixins-ui`
+
+- Republished with a peer range on `foldkit-mixins` 0.3.0. Its own API is
+  unchanged, but the published 0.2.0 peers `foldkit-mixins@^0.2.0`, which in 0.x
+  excludes 0.3.0.
 
 ### `foldkit-remote-drizzle`
 
