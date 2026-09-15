@@ -106,6 +106,7 @@ const Message = defineMessageUnion({
   ...Remote.messages,
   ClickedRename: { id: Schema.String, name: Schema.String },
   ClickedMore: {},
+  ClickedRefresh: {},
 })
 type Message = typeof Message.Type
 
@@ -207,8 +208,11 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
       const next = Data.next(model, projects)
       return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
     }
-    case 'ClickedRefresh':
-      return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.route })) }
+    case 'ClickedRefresh': {
+      if (model.route._tag !== 'project') return { model }
+      const page = ProjectPage.projection({ projectId: model.route.projectId })
+      return { model: Data.refresh(model, page) }
+    }
   }
 }
 ```

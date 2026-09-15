@@ -260,11 +260,12 @@ installed `.d.ts` before reaching for a remembered API.
   normal static import works in Vitest and tsx. Do not reinstate per-file
   `createRequire`.
 
-- **Writing a file can turn ` ` into a raw NUL.** Moving Remote's
+- **Writing a file can turn `\u0000` into a raw NUL.** Moving Remote's
   requirement code by rewriting it whole emitted literal NUL bytes for the
   escapes, so git showed `requirement.ts` as `Bin` and editors rendered
-  `replace(' ', ' ')`. After writing code that contains control-character
-  escapes, check `git diff --stat` for `Bin` and grep for the escape.
+  the escape as an invisible character in `replace('\u0000', ' ')`. After
+  writing code that contains control-character escapes, check
+  `git diff --stat` for `Bin` and grep for the escape.
 - **Format with `pnpm format`, never bare `prettier`.** The config matches the
   style already in the tree; without it prettier rewrites files to its own
   defaults. Markdown is deliberately ignored, because prettier pads table

@@ -97,7 +97,9 @@ casts: a cast in a test marked a gap in the API.
   `AuditLogOptions` and `AuditRecord` take the principal type, so a projection
   `(caller: User) => caller.id` needs no cast, and binding a log built for
   another principal is refused. An unannotated projection now sees `unknown`,
-  and a hand-written sink declares its principal type.
+  and a hand-written sink declares its principal type. `AuditRecord.principal`
+  is `Principal | undefined`: a call refused before its principal is resolved
+  is recorded with `undefined`, and the `principal` projection is not called.
 - `Agent.make` returns `context` as present when one was given.
   `Agent.contextSchema` returns a `JsonSchemaDocument` rather than an untyped
   record.

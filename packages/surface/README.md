@@ -265,8 +265,8 @@ modules can contribute their contracts independently.
 
 - Reference-based Model selection (`App.fields`, `Projection.pick`,
   `Projection.compose`).
-- Pure `Projection` values with their codec, reader, dependencies, and remote
-  requirements.
+- Pure `Projection` values with their codec, reader, dependencies, and opaque
+  interpreter metadata (`Metadata.key`).
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - Named Surfaces and their renderer binding.
@@ -279,7 +279,8 @@ modules can contribute their contracts independently.
   [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync).
 - `Model` codecs are pure by construction: Foldkit Model fields carry no decoding
   or encoding services.
-- A projection declares dependencies and requirements but does not resolve them.
+- A projection declares dependencies and carries metadata but does not act on
+  either; an interpreter such as `foldkit-remote` reads the metadata it owns.
 
 ## See also
 
