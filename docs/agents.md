@@ -344,10 +344,70 @@ has explicit failure facts.
 `correlate` matters whenever multiple calls can be in flight. Without it, the
 first matching completion Message wins.
 
-Completion does **not** make the operation transactional or exactly-once. A
-timeout or cancellation means the runtime stopped waiting; it does not rewind a
-Message that already reached `update`, and it does not make an external effect
-idempotent.
+### Completing on state instead of a Message
+
+A completion Message names one implementation path. Sometimes what matters is
+the outcome, whoever produced it: a Command result, a live update, a Sync
+exchange, another device. A state contract completes when a condition holds:
+
+```ts
+RequestedDeleteTodo: {
+  description: 'Delete a todo',
+  completion: Agent.when({
+    projection: TodoList,
+    predicate: (value, request) =>
+      value.todos.every(todo => todo.id !== request.id),
+  }),
+}
+```
+
+`projection` reads the application's Model, so the host must provide
+`subscribe`; `bind` refuses the contract otherwise. A value that lives outside
+the Model reads through a `source` instead, such as `foldkit-sync`'s
+`mounted.committed` (the server-confirmed shared slice):
+
+```ts
+completion: Agent.when({
+  source: mounted.committed,
+  predicate: (shared, request) =>
+    shared.todos.some(todo => todo.id === request.id),
+})
+```
+
+Both accept the same optional `timeout`. Neither declares failure; a state that
+never arrives ends at the deadline.
+
+Choose by what identifies this call's outcome:
+
+```text
+the outcome is a checkable condition    -> Agent.when
+  (renamed, deleted, confirmed by server)
+
+only the resulting fact says which      -> success Message + correlate
+record is this call's (a creation with
+an id minted by update)
+```
+
+"Completed" means the condition holds, **not** that this call made it true. The
+runtime subscribes before dispatching and checks again when it starts waiting,
+so a state that already holds completes at once. Write a predicate only this
+call can make true.
+
+Predicates are ordinary functions over plain data, so guard lookups by key:
+`value[request.title]` is truthy for a title of `'constructor'`, because it
+reads an inherited property. Use `Object.hasOwn` or a `Map`. A predicate that
+throws fails that invocation as a defect; it does not break the code that
+changed the state.
+
+Completion does **not** make the operation transactional or exactly-once.
+
+The deadline runs from the moment the host's `dispatch` is called, so it bounds
+sending and waiting together; a host that never returns does not hang the call.
+A timeout or cancellation after the host returned means the runtime stopped
+waiting: the Message reached `update`, and nothing is rewound. A timeout or
+abort **before** the host returned means delivery is unknown: the timeout error
+says so, `AgentCancelledError` carries `dispatched: false`, and the audit records
+`decision: 'unknown'`. Neither case makes an external effect idempotent.
 
 ## Availability and authorization are different questions
 

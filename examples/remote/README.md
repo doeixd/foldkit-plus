@@ -78,7 +78,7 @@ ProjectPage now reads Ready(...)
 ```
 
 The rest of the demo layers queries, stale-while-revalidate, mutation,
-retention, rendering, and decode failure onto that same loop.
+retention, rendering, decode failure, and a refresh from `update` onto that same loop.
 
 ## Transcript
 
@@ -87,7 +87,7 @@ surface: ProjectPage
 plan: Project:p1 [id,name,status]
 before fetch: Initial
 after fetch: Ready {"id":"p1","name":"Apollo","status":"active"}
-stale-while-revalidate: RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
+stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
 query page: Ready p1 Apollo; next page: none
 inspect: 1 entities, 1 connection, 1 registered queries
 rendered classes: project-card
@@ -96,6 +96,8 @@ mutation RenameProject (remote-1): MutationSucceeded
 after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
 retained: Project:p1; 1 entity and 1 connection collected
 corrupt store: Failed DecodeError
+refresh: Refreshing {"id":"p1","name":"Apollo",...}; list Refreshing p1; again unchanged: true
+after refresh: ReadStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...,"name":"Artemis",...}; list Ready p2 Borealis
 ```
 
 Read those lines in this order:
@@ -138,7 +140,7 @@ outside render.
 ### 3. Stale data stays visible while requirements are refreshed
 
 ```text
-stale-while-revalidate: RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
+stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
 ```
 
 The demo creates an entry with:
@@ -242,6 +244,30 @@ corrupt store: Failed DecodeError
 The Selection schema is still enforced when reading cached data. A malformed
 stored entity produces `RemoteData.Failed(DecodeError)` rather than being cast to
 the requested value.
+
+### 10. A refresh marks; the Subscription fetches
+
+```text
+refresh: Refreshing {...Apollo...}; list Refreshing p1; again unchanged: true
+after refresh: ReadStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...Artemis...}; list Ready p2 Borealis
+```
+
+The server renames `p1` and its owner's list becomes `p2` alone. A refresh
+button's `update` branch returns `Data.refresh(model, Dashboard)` (a Projection,
+or a Surface without params):
+
+- It performs **no I/O**. The Model comes back with the present fields reading
+  `Refreshing` over the old value and the loaded connection invalidated.
+  Refreshing it again returns the same Model.
+- The `Data.subscriptions` read entry then refetches what was marked, once: the
+  project and the query page, then a read of `p2`, which the new page references.
+- The refreshed first page **replaces** the connection's pages, so `p1`, which
+  the server removed, leaves the list; later pages would be paged again.
+
+It does not fetch a Projection nothing observes (use `Data.prefetch` with
+`RemotePolicy.networkOnly` there), and it leaves `Data.live` subscriptions alone.
+A read in flight when the refresh lands restarts rather than applying its older
+answer; this in-process client answers instantly, so the demo does not show it.
 
 ## What this example deliberately omits
 

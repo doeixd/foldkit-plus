@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runDemo } from '../src/demo.js'
 
 describe('foldkit-remote example', () => {
-  it('traces plan, load, render, mutate and a decode failure', async () => {
+  it('traces plan, load, render, mutate, a decode failure and a refresh', async () => {
     const lines = await runDemo()
     expect(lines).toContain('surface: ProjectPage')
     expect(lines).toContain('plan: Project:p1 [id,name,status]')
@@ -21,5 +21,11 @@ describe('foldkit-remote example', () => {
     )
     expect(lines).toContain('retained: Project:p1; 1 entity and 1 connection collected')
     expect(lines).toContain('corrupt store: Failed DecodeError')
+    expect(lines).toContain(
+      'refresh: Refreshing {"id":"p1","name":"Apollo","status":"active"}; list Refreshing p1; again unchanged: true',
+    )
+    expect(lines).toContain(
+      'after refresh: ReadStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {"id":"p1","name":"Artemis","status":"active"}; list Ready p2 Borealis',
+    )
   })
 })

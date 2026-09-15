@@ -324,6 +324,35 @@ The contracts are data:
 - diagnostics have stable codes and structured `details`, so the same information can feed tests,
   DevTools, documentation or agent tooling.
 
+## Testing and static output
+
+`SlotView.inertBuilder<Message>()` is an `HtmlBuilder` with no runtime behind it. Rendering a
+view with it builds the same tagged attributes and elements, but nothing mounts and handlers are
+never dispatched. Use it in tests, demos and static output, not as a renderer.
+
+`Attributes` reads a resolved bundle, such as the result of `slots.x.attrs(base)`, by tag.
+`Attributes.find(bundle, tag)` returns the **first** match typed as that variant, so `value`,
+`message` or `action` need no cast; `Attributes.filter` returns every match in bundle order;
+`Attributes.tagOf` returns an entry's tag. Opaque `ChildAttribute` entries have no readable tag
+and are skipped.
+
+```ts
+import { Attributes, type SlotAttributes } from 'foldkit-mixins'
+
+let input: SlotAttributes<Message> = []
+const Probe = SlotView.forMessages<Message>()
+  .define(FieldSlots, (field: FieldInput, slots, h) => {
+    input = slots.input.attrs([h.Value(field.value)])
+    return h.input(input)
+  })
+  .pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
+
+Probe({ value: 'Ada', invalid: true }, SlotView.inertBuilder<Message>())
+
+Attributes.find(input, 'Class')?.value // 'field-input'
+Attributes.find(input, 'AriaInvalid')?.value // true
+```
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer
