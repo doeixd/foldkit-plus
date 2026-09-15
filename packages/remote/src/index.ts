@@ -714,6 +714,8 @@ const PlannedQuery = Schema.Struct({
 export interface ReadDependencies {
   readonly requirements: ReadonlyArray<Requirement>
   readonly queries: ReadonlyArray<Schema.Schema.Type<typeof PlannedQuery>>
+  /** The Model's requested refresh generation: a refresh restarts the entry. */
+  readonly refresh: number
 }
 
 /**
@@ -740,14 +742,13 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
       queries: Schema.Array(PlannedQuery),
+      refresh: Schema.Number,
     }),
     modelToDependencies: model => {
-      const planned = planAsked(
-        bound.store.get(model),
-        askedOf(model),
-        RemotePolicy.toPlan(policy, now()),
-      )
+      const remote = bound.store.get(model)
+      const planned = planAsked(remote, askedOf(model), RemotePolicy.toPlan(policy, now()))
       return {
+        refresh: remote.refresh.requested,
         requirements: planned.requirements,
         queries: planned.queries.map(({ identity, window, select }) => ({
           identity,
@@ -756,13 +757,13 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
         })),
       }
     },
-    dependenciesToStream: ({ requirements, queries }) =>
+    dependenciesToStream: ({ requirements, queries, refresh }) =>
       Stream.concat(
         requirements.length === 0
           ? Stream.empty
           : Stream.fromIterable([
               // Absent fields read as `Loading` until the read lands.
-              toMessage({ _tag: 'ReadStarted', requests: requirements }),
+              toMessage({ _tag: 'ReadStarted', requests: requirements, refresh }),
               // A refreshing policy also marks the present ones stale.
               ...(RemotePolicy.refreshes(policy)
                 ? [toMessage({ _tag: 'RefreshStarted', requests: requirements })]
@@ -1026,9 +1027,15 @@ export const Remote = {
    * field or connection is planned again under every policy, so a refresh never
    * sends a request beside the entry already observing the same data.
    *
+   * A refreshed connection's page replaces its pages, so items the server removed
+   * or reordered follow it; pages loaded past the first are dropped and paged
+   * again with `next`/`previous`. The read entries restart, so a read or query
+   * sent before the refresh is not applied after it.
+   *
    * The projection must be observed, which it is while it is on screen. Live
    * subscriptions are left as they are. For data nothing observes (SSR, tests),
-   * use `Remote.prefetch` with `RemotePolicy.networkOnly`.
+   * use `Remote.prefetch` with `RemotePolicy.networkOnly`. Refreshing what is
+   * already being refreshed returns the same Model.
    */
   refresh: <AppModel, Store extends RemoteModel>(
     bound: BoundRemote<AppModel, Store>,
@@ -1075,9 +1082,23 @@ export const Remote = {
           connection: connection.identity,
         })),
     ]
-    return marks.length === 0
-      ? model
-      : bound.store.set(model, marks.reduce(updateRemote, remote) as Store)
+    const marked = marks.reduce(updateRemote, remote)
+    // Fields already stale may be in a read that began before this refresh (a
+    // refreshing policy marks what it refetches); unless no read has begun since
+    // the last refresh, that read is restarted too.
+    const inFlight =
+      remote.refresh.started === remote.refresh.requested &&
+      requirements.some(requirement =>
+        requirement.fields.some(
+          field =>
+            remote.entities[entityKey(requirement.entity, requirement.id)]?.stale.has(field) ===
+            true,
+        ),
+      )
+    // Marking what is already marked changes nothing, so the Model keeps its identity.
+    if (marked === remote && !inFlight) return model
+    const refresh = { ...marked.refresh, requested: marked.refresh.requested + 1 }
+    return bound.store.set(model, { ...marked, refresh } as Store)
   },
 
   /**

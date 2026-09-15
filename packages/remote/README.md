@@ -236,7 +236,10 @@ entries from step 4 refetch it, since a stale field or connection is planned
 again under every policy, so the page is not requested twice. That means the
 projection must be observed, as it is while it is on screen; for data nothing
 observes, `Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly })`
-is the same revalidation as an Effect.
+is the same revalidation as an Effect. A refreshed connection's first page
+replaces its loaded pages, so items the server removed or reordered follow it
+and later pages are fetched again with `Data.next`. A read already in flight
+restarts instead of landing after the refresh.
 
 ### 6. Provide the client
 
@@ -480,7 +483,8 @@ Remote.live(bound, surface, params, toMessage?, options?)     the live stream, f
 Remote.retain(projections, toMessage?, { connections?, grace? })  roots → RetentionChanged
 ```
 
-The read entry's dependencies are the plan (`{ requirements, queries }`); it
+The read entry's dependencies are the plan and the Model's refresh generation
+(`{ requirements, queries, refresh }`), so `Data.refresh` restarts it; it
 emits nothing when both are empty, `RefreshStarted` before a refreshing read,
 and runs the entity read and the queries concurrently. Every Message it emits
 changes the Model, so Foldkit recomputes the dependencies and restarts the
@@ -521,7 +525,8 @@ insert it carries and a live removal it contradicts, and leaves a pending
 request's overlays alone; a replayed live event is a duplicate by cursor and
 changes nothing. `ConnectionInvalidated` marks a connection stale while it
 keeps showing its items; a `ConnectionMerged` with `refreshes: true`,
-`ConnectionRefreshed`, or `QueryFailed` clears it.
+`ConnectionRefreshed`, or `QueryFailed` clears it. A `refreshes: true` page
+replaces a stale connection's pages rather than merging into them.
 
 ### Mutations by hand
 

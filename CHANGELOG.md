@@ -55,7 +55,11 @@ casts: a cast in a test marked a gap in the API.
   returns the Model, with selected fields reading `Refreshing` and loaded
   connections invalidated; the `Data.subscriptions` read entries refetch them,
   so the data is requested once. Unobserved data is revalidated with
-  `Remote.prefetch` and `RemotePolicy.networkOnly`.
+  `Remote.prefetch` and `RemotePolicy.networkOnly`. A refreshed connection's
+  page replaces its pages, so removed and reordered items follow the server and
+  later pages are paged again; a read already in flight is restarted rather than
+  applied after the refresh. Refreshing what is already refreshing returns the
+  same Model.
 - `Data.subscriptions` returns `SubscriptionEntries`, with exact `<key>.read`,
   `<key>.live` and `retain` keys, so a lookup needs no `!`.
 - `RemotePersistence.dehydrate` returns `string` when no `maxBytes` is given.
@@ -137,6 +141,14 @@ casts: a cast in a test marked a gap in the API.
   type parameter, `Shared`, defaulting to `unknown`.
 - An exchange that acknowledges an edit without returning it now re-installs the
   shared slice, instead of leaving the dropped edit in the Model.
+- A Model, Message or committed listener that throws no longer stops the
+  listeners after it or the mount's refresh; its error is re-thrown from a
+  microtask.
+- `dispose` no longer hangs when a persist dies with a defect.
+- **Known issue:** a durable edit whose submit is still waiting for the replica
+  can be hidden by an exchange that settles in that moment, until the next
+  exchange that changes the shared slice. This predates this release, except
+  for exchanges that only acknowledge.
 - `Sync.forApplication(App).make({ authorize })` types
   `journalContract().authorize` as present.
 
