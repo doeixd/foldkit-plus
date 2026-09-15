@@ -4,6 +4,7 @@ import {
   AuthorizationError,
   CancelledError,
   CapabilityUnavailableError,
+  CompletionTimeoutError,
   type DispatchError,
   InvalidInputError,
   ResourceError,
@@ -11,8 +12,8 @@ import {
 } from './errors.js'
 import type { AnyCapabilitiesByName, AnyCapabilitiesByTag, ExposedVariant } from './expose.js'
 import { resolveInvocation } from './invocation.js'
-import type { AuditDecision, AuditSink } from './audit.js'
-import { awaitCompletion } from './completion.js'
+import type { AuditDecision, AuditRecord, AuditSink } from './audit.js'
+import { awaitCompletion, awaitState, type CompiledCompletion } from './completion.js'
 import { messageTag } from './tag.js'
 import type {
   AnyMessage,
@@ -40,9 +41,10 @@ export interface AgentHost<Model, Message extends AnyMessage = AnyMessage, Princ
    * Sends a Message into the Foldkit Runtime.
    *
    * A real application host accepts its whole Message union, which is wider
-   * than the exposed subset; it may not be narrower.
+   * than the exposed subset; it may not be narrower. A failure it returns is a
+   * defect of the invocation: delivery is then unknown, not refused.
    */
-  readonly dispatch: (message: Message) => void | Promise<void> | Effect.Effect<void>
+  readonly dispatch: (message: Message) => void | Promise<void> | Effect.Effect<void, unknown>
   /** Resolves the caller's identity for `authorize`. */
   readonly principal?: (invocation: Invocation) => Principal
   /** Subscribes to Model changes so adapters can reconcile availability. */
@@ -185,10 +187,12 @@ export type BindOptions<
    * A sink that throws never fails the dispatch: accountability must not be a
    * new way for a capability to break.
    */
-  readonly audit?: AuditSink | undefined
+  readonly audit?: AuditSink<Principal> | undefined
   /** The host must accept every Message the contract can construct. */
   readonly host: AgentHost<Model, Message, Principal> & {
-    readonly dispatch: (message: MessagesOf<ByTag>) => void | Promise<void> | Effect.Effect<void>
+    readonly dispatch: (
+      message: MessagesOf<ByTag>,
+    ) => void | Promise<void> | Effect.Effect<void, unknown>
   }
 } & { readonly host: PrincipalOf<Principal> }
 
@@ -218,7 +222,7 @@ export const bind = <
     typeof target === 'function' ? byConstructor.get(target) : byName.get(String(target))
 
   /** Recording is best-effort by design; a broken sink must not break dispatch. */
-  const record = (entry: Parameters<AuditSink['record']>[0]): void => {
+  const record = (entry: AuditRecord<Principal>): void => {
     try {
       options.audit?.record(entry)
     } catch {
@@ -248,7 +252,7 @@ export const bind = <
     // differently the second time, so it runs once, during dispatch, and leaves
     // what it returned here. `delivery` is the fact a refusal and a
     // post-dispatch failure differ on, and only dispatch can observe it.
-    const progress: DispatchProgress = { delivery: 'none' }
+    const progress: DispatchProgress<Principal> = { delivery: 'none' }
     const effect = dispatchResolved(target, input, invocation, progress)
 
     return Effect.onExit(effect, exit =>
@@ -292,16 +296,29 @@ export const bind = <
 
   // A contract that cannot be honoured is refused here rather than at the first
   // call, where it would look like an application bug.
-  const needsObserve = definition.messages.variants.filter(
-    variant => variant.compiledCompletion !== undefined,
-  )
-  if (needsObserve.length > 0 && host.observe === undefined) {
-    throw new Error(
-      `This host cannot observe Messages, which ${needsObserve
-        .map(variant => `"${variant.name}"`)
-        .join(', ')} needs to report completion. Supply host.observe.`,
+  const requireSeam = (
+    needs: (completion: CompiledCompletion) => boolean,
+    seam: 'observe' | 'subscribe',
+    ability: string,
+  ): void => {
+    const needing = definition.messages.variants.filter(
+      variant => variant.compiledCompletion !== undefined && needs(variant.compiledCompletion),
     )
+    if (needing.length > 0 && host[seam] === undefined) {
+      throw new Error(
+        `This host cannot ${ability}, which ${needing
+          .map(variant => `"${variant.name}"`)
+          .join(', ')} needs to report completion. Supply host.${seam}.`,
+      )
+    }
   }
+  requireSeam(completion => completion._tag === 'Message', 'observe', 'observe Messages')
+  // A state contract over a source notifies on its own; only a projection needs the host.
+  requireSeam(
+    completion => completion._tag === 'State' && completion.subscribe === undefined,
+    'subscribe',
+    'subscribe to Model changes',
+  )
 
   const descriptors = describeMessages(definition)
   const descriptorByName = new Map(
@@ -315,7 +332,7 @@ export const bind = <
     target: unknown,
     input: unknown,
     invocation: Invocation,
-    progress?: DispatchProgress,
+    progress?: DispatchProgress<Principal>,
   ) {
     {
       // Read through a function so control flow analysis cannot narrow it away:
@@ -388,23 +405,33 @@ export const bind = <
       const message = variant.construct(decoded, context)
 
       // Subscribed before dispatching: `update` can produce the completing
-      // Message synchronously, and a waiter that started afterwards would miss
-      // it and then sit until its timeout.
+      // Message or state synchronously, and a waiter that started afterwards
+      // would miss it and then sit until its timeout. `bind` refused a host
+      // lacking the seam a contract needs, so both are present here.
+      const compiled = variant.compiledCompletion
       const waiter =
-        variant.compiledCompletion === undefined || host.observe === undefined
+        compiled === undefined
           ? undefined
-          : awaitCompletion({
-              completion: variant.compiledCompletion,
-              capability: name,
-              input: decoded,
-              invocation,
-              observe: host.observe,
-            })
+          : compiled._tag === 'State'
+            ? awaitState({
+                completion: compiled,
+                input: decoded,
+                model: host.model,
+                subscribe: compiled.subscribe ?? host.subscribe!,
+              })
+            : awaitCompletion({
+                completion: compiled,
+                input: decoded,
+                observe: host.observe!,
+              })
 
       // Inside `suspend` so a host that throws synchronously fails the Effect
       // rather than the generator: a JS `try` around `yield*` would not see a
       // rejected Promise or a defecting Effect, which is how the subscription
       // used to leak.
+      // Kept apart from `progress`, which exists only when auditing: the errors
+      // below need it to say whether the host had returned.
+      let sent = false
       const send = Effect.suspend(() => {
         // Marked before the call, not after: a host that raises leaves this at
         // `attempted`, which is all anyone can honestly say about the Message.
@@ -417,31 +444,51 @@ export const bind = <
       }).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
+            sent = true
             if (progress !== undefined) progress.delivery = 'sent'
           }),
         ),
       )
 
+      // The checks above cannot help once the host has been called, so the
+      // signal settles send and wait alike: a host Promise that never resolves
+      // must not outlive the caller's abort. Only the invocation stops; nothing
+      // already in the Runtime is rolled back.
+      const signal = invocation.signal
+      const cancellable = <A, E>(effect: Effect.Effect<A, E>) =>
+        signal === undefined
+          ? effect
+          : Effect.raceFirst(
+              effect,
+              abortedWhile(signal, name, () => sent),
+            )
+
+      // Without a contract there is no declared deadline, so only the signal
+      // bounds a host that never returns.
       if (waiter === undefined) {
-        yield* send
+        yield* cancellable(send)
         return { name, tag: variant.tag, message, invocation } satisfies DispatchResult
       }
 
-      // The two synchronous checks above cannot help once the wait has begun,
-      // so the signal has to settle it. Only the waiting stops: the Message is
-      // already in the Runtime, and nothing is rolled back.
-      const wait =
-        invocation.signal === undefined
-          ? waiter.outcome
-          : Effect.raceFirst(waiter.outcome, abortedWhile(invocation.signal, name))
-
-      // One finalizer covers both windows: the subscription is taken before
-      // dispatch, so a failing dispatch and a failing, timed-out, aborted or
-      // interrupted wait all release it.
-      const completion = yield* Effect.ensuring(
-        Effect.flatMap(send, () => wait),
-        Effect.sync(waiter.release),
+      // One deadline, measured from the start of send, bounds send and wait
+      // together; a slow host spends the same budget the completion has.
+      const timeout = compiled!.timeout
+      const bounded = Effect.flatMap(send, () => waiter.outcome).pipe(
+        Effect.timeoutOrElse({
+          duration: timeout,
+          orElse: () =>
+            Effect.fail(
+              sent
+                ? CompletionTimeoutError.of(name, invocation.id, timeout)
+                : CompletionTimeoutError.whileSending(name, invocation.id, timeout),
+            ),
+        }),
       )
+
+      // One finalizer covers every window: the subscription is taken before
+      // dispatch, so a failing, stuck, timed-out, aborted or interrupted send or
+      // wait all release it.
+      const completion = yield* Effect.ensuring(cancellable(bounded), Effect.sync(waiter.release))
       return { name, tag: variant.tag, message, invocation, completion } satisfies DispatchResult
     }
   })
@@ -452,11 +499,7 @@ export const bind = <
     context: Effect.suspend(() => {
       const declared = definition.context
       if (declared === undefined) return Effect.succeed(undefined)
-      return project(
-        declared.Model as unknown as Schema.Codec<unknown>,
-        declared.read(host.model()),
-        'context',
-      )
+      return project(declared.Model, declared.read(host.model()), 'context')
     }),
 
     resources: {
@@ -530,9 +573,17 @@ const project = (
 const abortedWhile = (
   signal: AbortSignal,
   capability: string,
+  sent: () => boolean,
 ): Effect.Effect<never, DispatchError> =>
   Effect.callback<never, DispatchError>(resume => {
-    const stop = (): void => resume(Effect.fail(CancelledError.whileWaiting(capability)))
+    const stop = (): void =>
+      resume(
+        Effect.fail(
+          sent()
+            ? CancelledError.whileWaiting(capability)
+            : CancelledError.whileSending(capability),
+        ),
+      )
     if (signal.aborted) {
       stop()
       return
@@ -545,15 +596,15 @@ const abortedWhile = (
  * What dispatch had managed to do when it exited, so the record can say what
  * happened rather than assuming a failure means a refusal.
  */
-interface DispatchProgress {
-  principal?: unknown
+interface DispatchProgress<Principal> {
+  principal?: Principal
   capability?: string
   tag?: string
   /** `attempted` means the host was called and raised: delivery is unknowable. */
   delivery: 'none' | 'attempted' | 'sent'
 }
 
-const decisionOf = (delivery: DispatchProgress['delivery']): AuditDecision =>
+const decisionOf = (delivery: DispatchProgress<unknown>['delivery']): AuditDecision =>
   delivery === 'sent' ? 'dispatched' : delivery === 'attempted' ? 'unknown' : 'refused'
 
 /**

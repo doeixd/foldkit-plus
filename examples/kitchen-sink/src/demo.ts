@@ -7,20 +7,25 @@
 import { Effect, Fiber, Option, Stream } from 'effect'
 import { ConnectionChange, RemotePersistence } from 'foldkit-remote'
 import { defineMessageUnion } from 'foldkit/message'
-import type { HtmlBuilder } from 'foldkit/html'
-import { inertHtml } from 'foldkit/html'
 import { Agent } from 'foldkit-agent'
 import { AgentA2a } from 'foldkit-agent-a2a'
 import { AgentMcp } from 'foldkit-agent-mcp'
 import { AgentNative } from 'foldkit-agent-native'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
 import type { ModelContext, RegisterToolOptions, ToolDescriptor } from 'foldkit-agent-webmcp'
-import { Capability, Slot, Slots, Style, type SlotAttributes } from 'foldkit-mixins'
+import {
+  Attributes,
+  Capability,
+  Slot,
+  Slots,
+  SlotView,
+  Style,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 import { view as buttonView } from '@foldkit/ui/button'
-import { Surface } from 'foldkit-surface'
-import { Remote, RemoteData, type EntityStore } from 'foldkit-remote'
+import { Remote, RemoteData, requirementsOf, type EntityStore } from 'foldkit-remote'
 import { Sync } from 'foldkit-sync'
 import {
   App,
@@ -101,7 +106,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const client = serverClient('u1')
   const projection = Data.get(ProjectSummary, 'p1')
   say(
-    `plan: ${projection.requirements.map(r => `${r.entity}:${r.id} [${r.fields.join(',')}]`).join(', ')}`,
+    `plan: ${requirementsOf(projection)
+      .map(r => `${r.entity}:${r.id} [${r.fields.join(',')}]`)
+      .join(', ')}`,
   )
   say(`before fetch: ${describeData(projection.read(App.initial))}`)
 
@@ -118,7 +125,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // before the rename, so the mutation's `hub.changed` reaches it.
   // The Board's Subscription entries, as `Subscription.make` would take them;
   // the live entry exists because the Board reads the project through `Data.live`.
-  const liveEntry = Data.subscriptions({ board: BoardSurface })['board.live']!
+  const liveEntry = Data.subscriptions({ board: BoardSurface })['board.live']
   // `Data.mutate` is what `update` calls: it starts the request in the Model
   // (the id comes from the Model's own sequence) and hands back the Command
   // whose Message settles it; here the Command runs and reduces in place.
@@ -210,7 +217,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   // Hydration: the store dehydrates to deterministic text (SSR would embed it)
   // and hydrates into a fresh Model with nothing left to fetch.
-  const snapshot = RemotePersistence.dehydrate(remote.entities, { scope: 'u1' })!
+  const snapshot = RemotePersistence.dehydrate(remote.entities, { scope: 'u1' })
   const fresh = withStore(App.initial, RemotePersistence.hydrate(snapshot, { scope: 'u1' })!)
   say(
     `hydrated: ${describeData(projection.read(fresh))}, plan ${
@@ -336,25 +343,15 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     rendered = slots.root.attrs()
     return h.article(slots.root.attrs(), [h.h2(slots.name.attrs(), [describeData(model.project)])])
   }).pipe(Style.attach(BoardStyle))
-  const h = inertHtml as unknown as HtmlBuilder<typeof Message.Type>
-  Surface.rootView(BoardSurface, undefined, SurfaceView.toRenderer(BoardView))(live, h)
-  const classes = (() => {
-    for (const attribute of rendered ?? []) {
-      if (typeof attribute === 'object' && attribute !== null && '_tag' in attribute) {
-        if ((attribute as { readonly _tag: string })._tag === 'Class') {
-          return (attribute as { readonly value: string }).value
-        }
-      }
-    }
-    return ''
-  })()
-  say(`rendered classes: ${classes}`)
+  SurfaceView.render(BoardView, BoardSurface, undefined, live)
+  say(`rendered classes: ${Attributes.find(rendered ?? [], 'Class')?.value ?? ''}`)
 
   // A `@foldkit/ui` component customised through `foldkit-mixins-ui`: the
   // component hands its attribute bundle to `toView`, and `Button.resolve`
   // merges the attached Mixins around it without disturbing the base bundle.
   const SaveStyle = Style.forSlots(ButtonSlots)({ button: Style.class('save') })
   let buttonClasses = ''
+  const h = SlotView.inertBuilder<typeof Message.Type>()
   buttonView<typeof Message.Type>(
     {
       onClick: Message.SelectedNote({ id: 'n1' }),
@@ -363,13 +360,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
           input: undefined,
           h,
         })
-        for (const attribute of slots.button as ReadonlyArray<unknown>) {
-          if (typeof attribute === 'object' && attribute !== null && '_tag' in attribute) {
-            if ((attribute as { readonly _tag: string })._tag === 'Class') {
-              buttonClasses = (attribute as unknown as { readonly value: string }).value
-            }
-          }
-        }
+        buttonClasses = Attributes.find(slots.button, 'Class')?.value ?? ''
         return h.button(slots.button, ['Rename'])
       },
     },

@@ -8,7 +8,7 @@ describe('Surface inspection', () => {
 
     expect(inspection.name).toBe('TodoList')
     expect(inspection.dependencies).toEqual([['todos'], ['selectedTodoId']])
-    expect(inspection.requirements).toEqual([])
+    expect(inspection.metadata).toEqual([])
     expect(inspection.emits).toEqual([Message.CreatedTodo, Message.RenamedTodo])
   })
 })

@@ -11,6 +11,10 @@
  *   fact. The agent never mints an id or a timestamp; the Command does. Its
  *   `completion` contract says the call is done when the correlated
  *   `SubmittedTodo` is applied, so `dispatch` resolves with the fact.
+ * - `rename_list` completes on *state*, not on a Message: it is done when the
+ *   list carries the requested title, whether this call, a synced peer, or
+ *   another tab put it there. `add_todo` needs its Message, because only the
+ *   fact says which new todo is this call's.
  * - `clear_completed` and `rename_list` carry the same `authorize` rule the
  *   sync contract applies on the server. The agent is refused here, early and
  *   typed; the journal would refuse it anyway, late.
@@ -18,6 +22,7 @@
  */
 import { Schema } from 'effect'
 import { Agent } from 'foldkit-agent'
+import { Projection } from 'foldkit-surface'
 import { Message, Todo, counts } from './app.js'
 import { isOwner, type Principal } from './principal.js'
 import { App, Overview } from './surface.js'
@@ -58,6 +63,11 @@ export const AppAgent = TodoAgent.make({
       name: 'rename_list',
       description: 'Rename the list (owner only)',
       authorize: ({ principal }) => isOwner(principal),
+      // `update` trims the title, so the state to wait for is the trimmed one.
+      completion: Agent.when({
+        projection: Projection.struct({ listTitle: App.model.listTitle }),
+        predicate: ({ listTitle }, request) => listTitle === request.title.trim(),
+      }),
     },
   }),
 

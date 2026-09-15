@@ -526,9 +526,6 @@ importers:
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote
-      foldkit-surface:
-        specifier: workspace:*
-        version: link:../surface
     devDependencies:
       effect:
         specifier: 4.0.0-rc.112
@@ -570,6 +567,9 @@ importers:
       foldkit:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
+      foldkit-agent:
+        specifier: workspace:*
+        version: link:../agent
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

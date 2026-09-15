@@ -1,12 +1,13 @@
 import type { Schema } from 'effect'
-import type {
-  Application,
-  Contract,
+import {
+  Metadata,
   Projection,
-  Surface,
-  WritableProjection,
+  type Application,
+  type Contract,
+  type Surface,
+  type WritableProjection,
 } from 'foldkit-surface'
-import { type Definition, make } from './make.js'
+import { type DefinitionOf, make } from './make.js'
 import {
   type AnyCapabilitiesByName,
   type AnyCapabilitiesByTag,
@@ -44,12 +45,14 @@ const toProjection = <Model, R extends ReadableProjection<Model, any>>(
     ? readable.projection(undefined)
     : 'read' in readable
       ? readable
-      : {
-          Model: readable.schema,
-          dependencies: readable.dependencies,
-          requirements: [],
-          read: readable.get,
-        }) as Projection<Model, ProjectionValue<R>>
+      : // `any` fields erase the Struct's services; a projection schema is pure.
+        Projection.fromReader(
+          readable.schema as unknown as Schema.Codec<unknown, unknown>,
+          readable.get,
+          {
+            dependencies: readable.dependencies,
+          },
+        )) as Projection<Model, ProjectionValue<R>>
 
 /**
  * `Agent.forApplication(App)` fixes the Model from a `Surface.application` and
@@ -71,7 +74,7 @@ export interface ApplicationAgent<Model, Principal> extends Omit<
     readonly context?: R
     readonly messages: ExposedMessages<Model, Principal, ByName, ByTag>
     readonly resources?: ReadonlyArray<Resource<Model, any>> | undefined
-  }) => Definition<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
+  }) => DefinitionOf<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
     readonly contract: Contract
   }
   /**
@@ -102,7 +105,7 @@ const buildAgent = <Model, Principal>(
     readonly context?: R
     readonly messages: ExposedMessages<Model, Principal, ByName, ByTag>
     readonly resources?: ReadonlyArray<Resource<Model, any>> | undefined
-  }): Definition<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
+  }): DefinitionOf<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
     readonly contract: Contract
   } => {
     const context =
@@ -125,7 +128,7 @@ const buildAgent = <Model, Principal>(
         owns: [],
         observes: context?.dependencies ?? [],
         messages: options.messages.variants.map(variant => variant.tag),
-        requirements: context?.requirements ?? [],
+        metadata: context === undefined ? [] : Metadata.summarize(context.metadata),
       },
     }
   }

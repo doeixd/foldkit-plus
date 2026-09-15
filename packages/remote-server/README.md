@@ -71,9 +71,9 @@ something else.
 pnpm add foldkit-remote-server
 ```
 
-`effect` is a peer dependency; `foldkit-remote` and `foldkit-surface` come with
-the package. [`foldkit-remote-drizzle`](../remote-drizzle) is an optional Source
-compiler for Drizzle-backed entities and queries.
+`effect` is a peer dependency; `foldkit-remote` comes with the package.
+[`foldkit-remote-drizzle`](../remote-drizzle) is an optional Source compiler for
+Drizzle-backed entities and queries.
 
 ## Sixty seconds: answer one Entity read
 

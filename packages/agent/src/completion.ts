@@ -1,14 +1,17 @@
 import { Duration, Effect } from 'effect'
-import { CompletionTimeoutError } from './errors.js'
+import type { Projection } from 'foldkit-surface'
 import { messageTags } from './tag.js'
-import type { AnyMessage, Completion, DispatchResult, Invocation } from './types.js'
+import type {
+  AnyCompletion,
+  AnyMessage,
+  CompletionOutcome,
+  DispatchResult,
+  Invocation,
+  StateCompletion,
+  StateSource,
+} from './types.js'
 
-/** How a dispatched Message finished, once a completion contract is declared. */
-export interface CompletionOutcome<Message extends AnyMessage = AnyMessage> {
-  readonly status: 'completed' | 'failed'
-  /** The Message that completed the operation. */
-  readonly message: Message
-}
+export type { CompletionOutcome } from './types.js'
 
 /** A protocol-neutral reading of a successful dispatch, for an adapter to render. */
 export interface DispatchSummary {
@@ -27,16 +30,78 @@ export const summarize = (result: DispatchResult): DispatchSummary => ({
   text:
     result.completion === undefined
       ? `Dispatched ${result.tag}`
-      : `${result.completion.status === 'completed' ? 'Completed' : 'Failed'}: ${result.completion.message._tag}`,
+      : result.completion.message === undefined
+        ? `Completed: ${result.tag} reached its declared state`
+        : `${result.completion.status === 'completed' ? 'Completed' : 'Failed'}: ${result.completion.message._tag}`,
 })
 
-/** A completion contract compiled into the tags and predicate the runtime matches on. */
-export interface CompiledCompletion {
+/**
+ * Completes an invocation when a state satisfies `predicate`, whatever caused
+ * it: a Command result, a live update, a Sync exchange, another device.
+ * `request` is the capability's decoded input. Written inline in an
+ * `Agent.expose` capability it is inferred. Inside `Agent.variant`, or anywhere
+ * else, it is `unknown` until annotated, and a wrong annotation is rejected.
+ *
+ * Completed means the condition holds, not that this call made it true: a state
+ * that already holds when the Message is dispatched completes at once. Write a
+ * predicate only this call can make true. A creation, where only the resulting
+ * fact says which record is this call's, completes on that Message with
+ * `correlate` instead.
+ *
+ * A `projection` reads this application's Model through the host, which then
+ * needs `subscribe`. A `source` reads a value outside the Model and notifies on
+ * its own, like `foldkit-sync`'s `mounted.committed`. Only success is
+ * expressed; a state that never arrives ends at `timeout`.
+ *
+ * @example
+ * ```ts
+ * RequestedRenameProject: {
+ *   description: 'Rename a project',
+ *   completion: Agent.when({
+ *     projection: ProjectName,
+ *     predicate: (name, request) => name === request.name,
+ *   }),
+ * }
+ * ```
+ */
+export function when<Value, Request = unknown, Model = any>(config: {
+  readonly projection: Projection<Model, Value>
+  readonly predicate: (value: Value, request: Request) => boolean
+  readonly timeout?: Duration.Input | undefined
+}): StateCompletion<Request, Model>
+export function when<Value, Request = unknown>(config: {
+  readonly source: StateSource<Value>
+  readonly predicate: (value: Value, request: Request) => boolean
+  readonly timeout?: Duration.Input | undefined
+}): StateCompletion<Request, unknown>
+export function when(config: object): StateCompletion {
+  return { _tag: 'StateCompletion', ...config } as StateCompletion
+}
+
+export const isStateCompletion = (completion: AnyCompletion): completion is StateCompletion =>
+  '_tag' in completion && completion._tag === 'StateCompletion'
+
+/** A Message contract compiled into the tags and predicate the runtime matches on. */
+export interface CompiledMessageCompletion {
+  readonly _tag: 'Message'
   readonly success: ReadonlySet<string>
   readonly failure: ReadonlySet<string>
   readonly correlate: ((request: unknown, result: AnyMessage) => boolean) | undefined
   readonly timeout: Duration.Duration
 }
+
+/** A state contract compiled into the read and the condition the runtime evaluates. */
+export interface CompiledStateCompletion {
+  readonly _tag: 'State'
+  /** Reads the value from the host's Model; a source ignores it. */
+  readonly read: (model: unknown) => unknown
+  /** A source's own notifications; `undefined` means the host's `subscribe`. */
+  readonly subscribe: ((listener: () => void) => () => void) | undefined
+  readonly predicate: (value: unknown, request: unknown) => boolean
+  readonly timeout: Duration.Duration
+}
+
+export type CompiledCompletion = CompiledMessageCompletion | CompiledStateCompletion
 
 /**
  * A completion contract that never resolves is a leak, so a waiter always has a
@@ -44,10 +109,36 @@ export interface CompiledCompletion {
  */
 const DEFAULT_TIMEOUT = Duration.seconds(30)
 
+const timeoutOf = (timeout: Duration.Input | undefined): Duration.Duration =>
+  timeout === undefined ? DEFAULT_TIMEOUT : Duration.fromInputUnsafe(timeout)
+
 export const compileCompletion = (
-  completion: Completion,
+  completion: AnyCompletion,
   capability: string,
 ): CompiledCompletion => {
+  if (isStateCompletion(completion)) {
+    const predicate = completion.predicate
+    const timeout = timeoutOf(completion.timeout)
+    if (completion.source === undefined) {
+      const projection = completion.projection
+      return {
+        _tag: 'State',
+        read: model => projection.read(model),
+        subscribe: undefined,
+        predicate,
+        timeout,
+      }
+    }
+    const source = completion.source
+    return {
+      _tag: 'State',
+      read: () => source.get(),
+      subscribe: source.subscribe,
+      predicate,
+      timeout,
+    }
+  }
+
   const success = new Set(messageTags(completion.success))
   const failure = new Set(messageTags(completion.failure ?? []))
 
@@ -65,19 +156,21 @@ export const compileCompletion = (
   }
 
   return {
+    _tag: 'Message',
     success,
     failure,
-    correlate: completion.correlate as CompiledCompletion['correlate'],
-    timeout:
-      completion.timeout === undefined
-        ? DEFAULT_TIMEOUT
-        : Duration.fromInputUnsafe(completion.timeout),
+    correlate: completion.correlate as CompiledMessageCompletion['correlate'],
+    timeout: timeoutOf(completion.timeout),
   }
 }
 
-/** Subscribes to the host's Messages and resolves on the first that this invocation owns. */
+/** Subscribes to the host and resolves once this invocation's contract is met. */
 interface CompletionWaiter {
-  readonly outcome: Effect.Effect<CompletionOutcome, CompletionTimeoutError>
+  /**
+   * Never times out on its own: the caller applies the deadline around dispatch
+   * and this wait together, so a host that never returns is bounded too.
+   */
+  readonly outcome: Effect.Effect<CompletionOutcome>
   /**
    * Releases the subscription. Safe to call more than once.
    *
@@ -94,13 +187,11 @@ interface CompletionWaiter {
  * subscribed afterwards would miss it and then sit until its timeout.
  */
 export const awaitCompletion = (options: {
-  readonly completion: CompiledCompletion
-  readonly capability: string
+  readonly completion: CompiledMessageCompletion
   readonly input: unknown
-  readonly invocation: Invocation
   readonly observe: (listener: (message: AnyMessage) => void) => () => void
 }): CompletionWaiter => {
-  const { completion, capability, input, invocation, observe } = options
+  const { completion, input, observe } = options
 
   let settle: ((outcome: CompletionOutcome) => void) | undefined
   let settled: CompletionOutcome | undefined
@@ -143,13 +234,73 @@ export const awaitCompletion = (options: {
       return
     }
     settle = outcome => resume(Effect.succeed(outcome))
-  }).pipe(
-    Effect.timeoutOrElse({
-      duration: completion.timeout,
-      orElse: () =>
-        Effect.fail(CompletionTimeoutError.of(capability, invocation.id, completion.timeout)),
-    }),
-  )
+  })
+
+  return { outcome, release }
+}
+
+/**
+ * Waits for a state contract's condition.
+ *
+ * Subscribes before dispatch, then evaluates once more when the wait begins: a
+ * host need not notify for a change `update` made synchronously, and a state
+ * that already held produces no change at all.
+ */
+export const awaitState = (options: {
+  readonly completion: CompiledStateCompletion
+  readonly input: unknown
+  readonly model: () => unknown
+  readonly subscribe: (listener: () => void) => () => void
+}): CompletionWaiter => {
+  const { completion, input, model, subscribe } = options
+
+  let settle: ((result: Effect.Effect<CompletionOutcome>) => void) | undefined
+  let settled: Effect.Effect<CompletionOutcome> | undefined
+  let unsubscribe: (() => void) | undefined
+  let released = false
+  let evaluated = false
+  let last: unknown
+
+  const release = (): void => {
+    if (released) return
+    released = true
+    unsubscribe?.()
+    unsubscribe = undefined
+  }
+
+  // Only a projection of an immutable Model can skip an unchanged reference; a
+  // source may mutate its value in place and notify with the same reference.
+  const skipsUnchanged = completion.subscribe === undefined
+
+  const check = (): void => {
+    if (settled !== undefined || released) return
+    try {
+      const value = completion.read(model())
+      // Every Model change notifies every waiter; one that left this value
+      // alone cannot change the answer, so it costs a read and no predicate.
+      if (skipsUnchanged && evaluated && Object.is(value, last)) return
+      evaluated = true
+      last = value
+      if (!completion.predicate(value, input)) return
+      settled = Effect.succeed({ status: 'completed' })
+    } catch (error) {
+      // Thrown inside the host's notification: it becomes this invocation's
+      // defect rather than breaking whatever changed the Model.
+      settled = Effect.die(error)
+    }
+    settle?.(settled)
+  }
+
+  unsubscribe = subscribe(check)
+
+  const outcome = Effect.callback<CompletionOutcome>(resume => {
+    check()
+    if (settled !== undefined) {
+      resume(settled)
+      return
+    }
+    settle = resume
+  })
 
   return { outcome, release }
 }

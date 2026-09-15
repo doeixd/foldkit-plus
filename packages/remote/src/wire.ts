@@ -5,7 +5,7 @@
  */
 import { Schema } from 'effect'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
-import type { RelationRequirement, Requirement } from 'foldkit-surface'
+import type { RelationRequirement, Requirement } from './requirement.js'
 
 /**
  * The read/live protocol version. A batch names the version it speaks and the

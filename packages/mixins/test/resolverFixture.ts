@@ -1,16 +1,16 @@
 /**
- * Test fixtures for the resolver. `inertHtml` is cast to a real Message
- * universe so event attributes can be constructed without a live Foldkit
- * runtime; the tagged shape is the same one `h` builds. See docs/design/mixins-DESIGN.md.
+ * Test fixtures for the resolver. `h` is the inert builder typed for a real
+ * Message universe, so event attributes can be constructed without a live
+ * Foldkit runtime. See docs/design/mixins-DESIGN.md.
  */
 import { Stream } from 'effect'
-import type { Attribute, ChildAttribute, HtmlBuilder } from 'foldkit/html'
-import { inertHtml } from 'foldkit/html'
+import type { Attribute, ChildAttribute } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
+import { SlotView } from '../src/index.js'
 
 export type TestMessage = { readonly _tag: 'Clicked' } | { readonly _tag: 'Other' }
 
-export const h = inertHtml as unknown as HtmlBuilder<TestMessage>
+export const h = SlotView.inertBuilder<TestMessage>()
 
 export const mount = (name: string): MountAction<TestMessage> => ({
   name,

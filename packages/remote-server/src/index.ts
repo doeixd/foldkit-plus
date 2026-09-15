@@ -27,9 +27,9 @@ import {
   type QueryWindow,
   type RelationRequirement,
   type RemoteDescriptor,
+  Requirement,
   type RemoteRpcClient,
 } from 'foldkit-remote'
-import { Requirement } from 'foldkit-surface'
 
 export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
   'RemoteServerError',

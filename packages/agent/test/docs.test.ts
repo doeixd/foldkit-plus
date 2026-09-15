@@ -55,9 +55,56 @@ describe('Agent.toManifest', () => {
     const deleteTodo = Agent.toManifest(AppAgent).capabilities.find(c => c.name === 'delete_todo')
 
     expect(deleteTodo?.completion).toEqual({
+      kind: 'message',
       success: ['ReceivedTodos'],
       failure: ['FailedToLoadTodos'],
     })
+  })
+
+  it('records a state completion by the Model paths it reads', () => {
+    const StateAgent = Agent.make({
+      messages: Agent.expose(MessageUnion, {
+        RequestedCreateTodo: {
+          description: 'Create a todo',
+          completion: Agent.when({
+            projection: Projection.fromReader(ModelSchema, (model: Model) => model, {
+              dependencies: [['todos'], ['selectedTodoId']],
+            }),
+            predicate: () => true,
+          }),
+        },
+      }),
+    })
+
+    expect(Agent.toManifest(StateAgent).capabilities[0]?.completion).toEqual({
+      kind: 'state',
+      observes: ['todos', 'selectedTodoId'],
+    })
+    expect(Agent.toMarkdown(StateAgent)).toContain(
+      'Completes when application state (`todos`, `selectedTodoId`) satisfies its condition.',
+    )
+  })
+
+  it('names a nested Model path by its dotted segments', () => {
+    const NestedAgent = Agent.make({
+      messages: Agent.expose(MessageUnion, {
+        RequestedCreateTodo: {
+          description: 'Create a todo',
+          completion: Agent.when({
+            projection: Projection.fromReader(ModelSchema, (model: Model) => model, {
+              dependencies: [['todos', 'count']],
+            }),
+            predicate: () => true,
+          }),
+        },
+      }),
+    })
+
+    expect(Agent.toManifest(NestedAgent).capabilities[0]?.completion).toEqual({
+      kind: 'state',
+      observes: ['todos.count'],
+    })
+    expect(Agent.toMarkdown(NestedAgent)).toContain('(`todos.count`)')
   })
 
   it('omits completion where none is declared', () => {

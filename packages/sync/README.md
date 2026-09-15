@@ -588,6 +588,22 @@ Agent runtimes bind to those same capabilities; `observe` reports application
 Messages the runtime applies, including the completion facts an agent capability
 may wait for. See [runtime binding](../../docs/sync-runtime-binding.md).
 
+The Model shows a durable edit at once, before the server has it. An agent that
+must not report success until the server commits the edit waits on
+`mounted.committed` instead, the shared slice as confirmed:
+
+```ts
+completion: Agent.when({
+  source: mounted.committed,
+  predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+})
+```
+
+It completes after the exchange that commits the edit, and never for one the
+server rejects. The agent learns nothing about cursors or operations.
+`mounted.committed` is a source (`{ get, subscribe }`), not a Projection: it reads
+the replica, not the Model, and tells subscribers after every exchange.
+
 ## Fragments: compose one document from features
 
 Large applications do not need one giant Sync declaration. Declare feature

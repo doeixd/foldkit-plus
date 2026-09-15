@@ -167,6 +167,8 @@ export interface DefinedSync<
   Message,
   Ms extends readonly unknown[],
   Principal = unknown,
+  /** `true` when `make` was given `authorize`, so the contract's `authorize` is present. */
+  Authorized extends boolean = false,
 > extends Sync<Message, Schema.Struct.Type<Fields>> {
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
@@ -174,11 +176,12 @@ export interface DefinedSync<
   /** For `Module`: this contract owns the shared projection's paths and records the durable tags. */
   readonly contract: Contract
   /** The durable journal's codecs, reducer, and, when declared, authorization. */
-  readonly journalContract: () => PolicyJournalContract<
-    Operation,
-    Schema.Struct.Type<Fields>,
-    Principal
-  >
+  readonly journalContract: () => Authorized extends true
+    ? PolicyJournalContract<Operation, Schema.Struct.Type<Fields>, Principal> &
+        Required<
+          Pick<PolicyJournalContract<Operation, Schema.Struct.Type<Fields>, Principal>, 'authorize'>
+        >
+    : PolicyJournalContract<Operation, Schema.Struct.Type<Fields>, Principal>
 }
 
 /** The sync constructors specialized to one application. */
@@ -211,13 +214,24 @@ export interface ApplicationSync<
   readonly compose: <const Fs extends readonly SyncFragment<AppModel, any, any, any>[]>(
     ...fragments: Fs
   ) => SyncFragment<AppModel, FragmentFields<Fs>, FragmentMessages<Fs>, FragmentConstructors<Fs>>
-  readonly make: <
-    Fields extends Schema.Struct.Fields,
-    Subset,
-    Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
-  >(
-    options: MakeOptions<AppModel, Fields, Subset, Ms, Principal>,
-  ) => DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal>
+  readonly make: {
+    <
+      Fields extends Schema.Struct.Fields,
+      Subset,
+      Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
+    >(
+      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal> & {
+        readonly authorize: AuthorizePolicy<Principal, NoInfer<Fields>, NoInfer<Ms>>
+      },
+    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal, true>
+    <
+      Fields extends Schema.Struct.Fields,
+      Subset,
+      Ms extends readonly MessageConstructor<AppMessage<AppModel, F, Cases>>[],
+    >(
+      options: MakeOptions<AppModel, Fields, Subset, Ms, Principal>,
+    ): DefinedSync<AppModel, Fields, AppMessage<AppModel, F, Cases>, Ms, Principal>
+  }
 }
 
 /**
@@ -325,7 +339,7 @@ const build = <
 
   const make = (
     options: MakeOptions<AppModel, any, any, any, Principal>,
-  ): DefinedSync<AppModel, any, Message, any, Principal> => {
+  ): DefinedSync<AppModel, any, Message, any, Principal, boolean> => {
     type Shared = Record<string, unknown>
     const { shared, durable } = options
 
@@ -346,10 +360,11 @@ const build = <
     )
     // `AppScope` does not constrain its schemas' services; a Foldkit Message union
     // and a Struct are pure, so the low-level contract's `never` is satisfied.
+    const sharedCodec = shared.schema as unknown as Schema.Codec<Shared, unknown>
     const sync = defineSync<Message, Shared, unknown, unknown>({
       documentId: options.documentId,
       message: app.Message as unknown as Schema.Codec<Message, unknown>,
-      shared: shared.schema as unknown as Schema.Codec<Shared, unknown>,
+      shared: sharedCodec,
       empty: shared.get(app.initial),
       durable: message => {
         const tag = (message as { readonly _tag?: string })._tag
@@ -373,13 +388,9 @@ const build = <
       }
     }
 
-    const readOnly: Projection<AppModel, Shared> = {
-      Model: shared.schema,
+    const readOnly: Projection<AppModel, Shared> = Projection.fromReader(sharedCodec, shared.get, {
       dependencies: shared.dependencies,
-      requirements: [],
-      connections: [],
-      read: shared.get,
-    }
+    })
     const surface = Surface.make(app, options.name ?? String(options.documentId), {
       model: () => readOnly,
       messages: durable.constructors,
@@ -391,7 +402,7 @@ const build = <
       owns: shared.dependencies,
       observes: shared.dependencies,
       messages: [...durable.tags],
-      requirements: [],
+      metadata: [],
     }
     return {
       ...sync,

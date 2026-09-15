@@ -88,9 +88,10 @@ export class AuthorizationError extends Schema.TaggedError<AuthorizationError>()
  * The caller aborted the invocation.
  *
  * Cancellation stops waiting, never the dispatched effect, so `dispatched` is
- * the fact a caller has to act on: `false` means the Message never reached
- * `update`, `true` means it did and only the waiting stopped. Nothing is undone
- * either way.
+ * the fact a caller has to act on: `true` means the host accepted the Message
+ * and only the waiting stopped; `false` means it was not confirmed -- either
+ * never sent, or the host had not returned when the abort arrived, which the
+ * message says. Nothing is undone either way.
  */
 export class CancelledError extends Schema.TaggedError<CancelledError>()('AgentCancelledError', {
   capability: Schema.String,
@@ -104,6 +105,17 @@ export class CancelledError extends Schema.TaggedError<CancelledError>()('AgentC
       capability,
       dispatched: false,
       message: `Invocation of "${capability}" was cancelled before it was dispatched`,
+    })
+  }
+
+  /** Aborted while the host's dispatch had not yet returned. */
+  static whileSending(capability: string): CancelledError {
+    return new CancelledError({
+      capability,
+      dispatched: false,
+      message:
+        `Invocation of "${capability}" was cancelled while the host was still ` +
+        `dispatching it. Whether the Message reached update is unknown.`,
     })
   }
 
@@ -140,6 +152,21 @@ export class CompletionTimeoutError extends Schema.TaggedError<CompletionTimeout
       message:
         `"${capability}" was dispatched but did not complete within ` +
         `${String(timeout)}. The Message still reached update.`,
+    })
+  }
+
+  /** The deadline covers dispatch too; this host had not returned by then. */
+  static whileSending(
+    capability: string,
+    invocation: string,
+    timeout: unknown,
+  ): CompletionTimeoutError {
+    return new CompletionTimeoutError({
+      capability,
+      invocation,
+      message:
+        `The host was still dispatching "${capability}" after ${String(timeout)}. ` +
+        `Whether the Message reached update is unknown.`,
     })
   }
 }

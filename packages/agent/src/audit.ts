@@ -16,13 +16,14 @@ import type { Invocation, Transport } from './types.js'
 export type AuditDecision = 'dispatched' | 'refused' | 'unknown'
 
 /** What the runtime reports about one decision. A sink decides what to keep. */
-export interface AuditRecord {
+export interface AuditRecord<Principal = unknown> {
   readonly invocation: Invocation
   /** The capability as the caller named it. */
   readonly capability: string
   /** The internal Message tag, when the capability resolved to one. */
   readonly tag: string | undefined
-  readonly principal: unknown
+  /** `undefined` when the invocation was refused before the principal was resolved. */
+  readonly principal: Principal | undefined
   readonly decision: AuditDecision
   /**
    * What became of it: `dispatched` when nothing further was awaited,
@@ -35,9 +36,14 @@ export interface AuditRecord {
   readonly input: unknown
 }
 
-/** Where decisions go. Implement it to forward them somewhere durable. */
-export interface AuditSink {
-  readonly record: (record: AuditRecord) => void
+/**
+ * Where decisions go. Implement it to forward them somewhere durable.
+ *
+ * `Principal` is the caller identity the bound host resolves; a sink built for
+ * one principal type cannot be bound to a host resolving another.
+ */
+export interface AuditSink<in Principal = unknown> {
+  readonly record: (record: AuditRecord<Principal>) => void
 }
 
 /** One decision as kept by {@link auditLog}. */
@@ -56,7 +62,7 @@ export interface AuditEntry {
   readonly input?: Record<string, unknown> | undefined
 }
 
-export interface AuditLogOptions {
+export interface AuditLogOptions<Principal = unknown> {
   /** Entries kept before the oldest is dropped. Defaults to 500. */
   readonly capacity?: number | undefined
   /**
@@ -70,14 +76,15 @@ export interface AuditLogOptions {
   readonly redact?: ReadonlyArray<string> | undefined
   /**
    * Projects the principal down to what is safe to keep -- an id, not the whole
-   * identity. Without it the principal is not recorded at all.
+   * identity. Without it the principal is not recorded at all. A refusal that came
+   * before the principal was resolved records it as `undefined`, unprojected.
    */
-  readonly principal?: ((principal: unknown) => unknown) | undefined
+  readonly principal?: ((principal: Principal) => unknown) | undefined
   /** Injected for tests. */
   readonly clock?: (() => number) | undefined
 }
 
-export interface AuditLog extends AuditSink {
+export interface AuditLog<in Principal = unknown> extends AuditSink<Principal> {
   /** Oldest first. */
   readonly entries: () => ReadonlyArray<AuditEntry>
   readonly clear: () => void
@@ -154,11 +161,13 @@ const redactInput = (
  *
  * @example
  * ```ts
- * const audit = Agent.auditLog({ capacity: 200, principal: user => user.id })
+ * const audit = Agent.auditLog({ capacity: 200, principal: (user: User) => user.id })
  * const runtime = Agent.bind({ definition, host, audit })
  * ```
  */
-export const auditLog = (options: AuditLogOptions = {}): AuditLog => {
+export const auditLog = <Principal = unknown>(
+  options: AuditLogOptions<Principal> = {},
+): AuditLog<Principal> => {
   const capacity = Math.max(1, options.capacity ?? 500)
   const clock = options.clock ?? (() => Date.now())
   const redact = options.redact ?? []
@@ -176,7 +185,12 @@ export const auditLog = (options: AuditLogOptions = {}): AuditLog => {
         ...(record.tag === undefined ? {} : { tag: record.tag }),
         ...(options.principal === undefined
           ? {}
-          : { principal: options.principal(record.principal) }),
+          : {
+              // Not projected before it was resolved: the projection is typed
+              // for a resolved principal and would throw on undefined.
+              principal:
+                record.principal === undefined ? undefined : options.principal(record.principal),
+            }),
         decision: record.decision,
         outcome: record.outcome,
         ...(input === undefined ? {} : { input }),

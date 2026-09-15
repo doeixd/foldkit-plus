@@ -1,7 +1,7 @@
 import { Effect, Fiber, Schema, Stream, type Duration } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface, type Requirement } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -16,6 +16,7 @@ import {
   entityKey,
   gc,
   initialRemoteModel,
+  requirementsOf,
   segment,
   updateRemote,
   writeEntity,
@@ -77,10 +78,10 @@ const model = (): RemoteModel => ({
 
 const keys = (state: { readonly entities: EntityStore }) => Object.keys(state.entities).sort()
 const roots = (
-  projections: ReadonlyArray<{ readonly requirements: readonly Requirement[] }>,
+  projections: ReadonlyArray<Projection<any, unknown>>,
   connections: ConnectionRoot[] = [],
 ) => ({
-  requirements: projections.flatMap(projection => projection.requirements),
+  requirements: projections.flatMap(requirementsOf),
   connections,
 })
 

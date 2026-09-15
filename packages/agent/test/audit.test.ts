@@ -4,7 +4,9 @@ import { Agent } from '../src/index.js'
 import type { AnyMessage, Completion } from '../src/types.js'
 import { type Message, type Model, Message as MessageUnion, emptyModel } from './todoApp.js'
 
-const TodoAgent = Agent.forModel<Model, { readonly user: string; readonly token: string }>()
+type Principal = { readonly user: string; readonly token: string }
+
+const TodoAgent = Agent.forModel<Model, Principal>()
 
 const definition = TodoAgent.make({
   messages: TodoAgent.expose(MessageUnion, {
@@ -20,9 +22,9 @@ const definition = TodoAgent.make({
 
 let model: Model
 let dispatched: Array<Message>
-let principal: { readonly user: string; readonly token: string }
+let principal: Principal
 
-const runtimeWith = (audit: Agent.AuditSink) =>
+const runtimeWith = (audit: Agent.AuditSink<Principal>) =>
   TodoAgent.bind({
     definition,
     audit,
@@ -136,7 +138,7 @@ describe('what is never recorded', () => {
   })
 
   it('records only what the principal projection returns', async () => {
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     await run(runtimeWith(audit).messages.dispatch('create_todo', { title: 'x' }))
 
     expect(audit.entries()[0]?.principal).toBe('alice')
@@ -169,10 +171,7 @@ describe('what is never recorded', () => {
 })
 
 describe('the principal is resolved once per dispatch', () => {
-  const runtimeResolving = (
-    audit: Agent.AuditSink,
-    resolvePrincipal: () => { readonly user: string; readonly token: string },
-  ) =>
+  const runtimeResolving = (audit: Agent.AuditSink<Principal>, resolvePrincipal: () => Principal) =>
     TodoAgent.bind({
       definition,
       audit,
@@ -185,7 +184,7 @@ describe('the principal is resolved once per dispatch', () => {
 
   it('calls the resolver exactly once', async () => {
     let calls = 0
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     const runtime = runtimeResolving(audit, () => {
       calls += 1
       return principal
@@ -199,7 +198,7 @@ describe('the principal is resolved once per dispatch', () => {
   })
 
   it('records the principal that authorized the dispatch, not a later answer', async () => {
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     let calls = 0
     const runtime = runtimeResolving(audit, () => {
       calls += 1
@@ -212,7 +211,7 @@ describe('the principal is resolved once per dispatch', () => {
   })
 
   it('does not fail a dispatch whose resolver is one-shot', async () => {
-    const audit = Agent.auditLog({ principal: caller => (caller as { user: string }).user })
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     let calls = 0
     const runtime = runtimeResolving(audit, () => {
       calls += 1
@@ -229,13 +228,14 @@ describe('the principal is resolved once per dispatch', () => {
 
   it('records no principal when the dispatch is refused before one is resolved', async () => {
     let calls = 0
-    const audit = Agent.auditLog({ principal: caller => caller })
+    // Dereferences its argument, so projecting the unresolved principal would throw.
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     const runtime = runtimeResolving(audit, () => {
       calls += 1
       return principal
     })
 
-    await run(runtime.messages.dispatchUnknown('no_such_capability', {}))
+    await run(runtime.messages.dispatchUnknown('create_todo', { title: 42 }))
 
     expect(calls).toBe(0)
     expect(audit.entries()).toMatchObject([{ decision: 'refused', principal: undefined }])
@@ -577,6 +577,47 @@ describe('a dispatch that was accepted but did not complete', () => {
     // says so rather than filing it beside a policy refusal.
     expect(audit.entries()).toMatchObject([
       { capability: 'delete_todo', tag: 'RequestedDeleteTodo', decision: 'unknown' },
+    ])
+  })
+
+  // A host that never returns was called, so this is not a refusal; it never
+  // accepted the Message either, so it is not a dispatch.
+  const stuckHost = () => ({
+    ...completingHost({}),
+    dispatch: (_: Message) => new Promise<void>(() => {}),
+  })
+
+  it('records a send that outlived the deadline as unknown', async () => {
+    const audit = Agent.auditLog()
+    const runtime = completingRuntime(audit, stuckHost(), {
+      success: MessageUnion.ReceivedTodos,
+      timeout: Duration.millis(20),
+    })
+
+    await run(runtime.messages.dispatch('delete_todo', { id: 'a' }))
+
+    expect(audit.entries()).toMatchObject([
+      { capability: 'delete_todo', decision: 'unknown', outcome: 'timeout' },
+    ])
+  })
+
+  it('records a send aborted before the host returned as unknown', async () => {
+    const audit = Agent.auditLog()
+    const runtime = completingRuntime(audit, stuckHost(), {
+      success: MessageUnion.ReceivedTodos,
+      timeout: Duration.seconds(30),
+    })
+    const controller = new AbortController()
+
+    const pending = run(
+      runtime.messages.dispatch('delete_todo', { id: 'a' }, { signal: controller.signal }),
+    )
+    await new Promise(resolve => setTimeout(resolve, 5))
+    controller.abort()
+    await pending
+
+    expect(audit.entries()).toMatchObject([
+      { capability: 'delete_todo', decision: 'unknown', outcome: 'AgentCancelledError' },
     ])
   })
 })

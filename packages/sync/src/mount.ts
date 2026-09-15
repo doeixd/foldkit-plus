@@ -66,7 +66,18 @@ export interface MountOptions<Model, Message, Shared, Resources> {
   readonly onPersistenceFailure?: ((model: Model, error: ReplicaError) => Model) | undefined
 }
 
-export interface Mounted<Model, Message> {
+/**
+ * The shared slice as the server has confirmed it, outside the Model. It is a
+ * source for waiting consumers, the shape `Agent.when({ source })` reads, and
+ * not a Projection: it does not render and is not derived from the Model.
+ */
+export interface CommittedView<Shared> {
+  readonly get: () => Shared
+  /** Told after every exchange, including one that moves no cursor (a checkpoint). */
+  readonly subscribe: (listener: () => void) => () => void
+}
+
+export interface Mounted<Model, Message, Shared = unknown> {
   /** Sends an application Message through the runtime; the `Exit` reports a decode failure. */
   readonly dispatch: (message: Message) => Exit.Exit<void, unknown>
   /** The Model after the last transition. */
@@ -79,14 +90,24 @@ export interface Mounted<Model, Message> {
    * finishes its work. The mount's private Messages are not reported.
    */
   readonly observe: (listener: (message: Message) => void) => () => void
+  /**
+   * The shared slice without pending local edits, for an agent that must not
+   * report an optimistic edit as done: `Agent.when({ source: mounted.committed, … })`.
+   */
+  readonly committed: CommittedView<Shared>
   /** Waits for in-flight persists, then disposes the runtime. The replica stays open. */
   readonly dispose: () => Promise<void>
 }
 
-/** Exchanges and rejections change what the replica holds; a submit only echoes a local edit. */
+/**
+ * Commits, rejections and acknowledgments change what the replica holds; a
+ * submit only echoes a local edit. An acknowledgment that does not return the
+ * operation moves no cursor, but it still drops the edit from the outbox.
+ */
 const sharedChanged = (previous: ReplicaStatus | undefined, next: ReplicaStatus): boolean =>
   previous === undefined ||
   previous.cursor !== next.cursor ||
+  next.pending < previous.pending ||
   previous.rejected.length !== next.rejected.length ||
   previous.rejected.some((id, index) => id !== next.rejected[index])
 
@@ -117,7 +138,11 @@ export const mount = <
     Schema.Struct.Type<Fields>,
     Resources
   >,
-): Mounted<Model, MessageOf<RunnableApplication<Model, F, Cases, Resources>>> => {
+): Mounted<
+  Model,
+  MessageOf<RunnableApplication<Model, F, Cases, Resources>>,
+  Schema.Struct.Type<Fields>
+> => {
   // Foldkit reports a missing id only inside the runtime fiber, where nothing
   // renders and nothing is thrown; fail here instead.
   if (options.container.id === '')
@@ -134,13 +159,33 @@ export const mount = <
   const inFlight = new Set<Promise<void>>()
   let latest: Model = install(app.initial)
   const modelListeners = new Set<() => void>()
+  const committedListeners = new Set<() => void>()
   const messageListeners = new Set<(message: Message) => void>()
+  // Listeners run inside `update`, a Subscription, and the refresh stream. A
+  // throwing one must not break those or skip the listeners after it, so its
+  // error is reported asynchronously, as an event listener's would be.
+  const notifyEach = <A>(listeners: ReadonlySet<(value: A) => void>, value: A): void => {
+    for (const listener of [...listeners]) {
+      try {
+        listener(value)
+      } catch (error) {
+        queueMicrotask(() => {
+          throw error
+        })
+      }
+    }
+  }
+  const notifyCommitted = (): void => notifyEach(committedListeners, undefined)
 
   const update = (
     model: Model,
     message: RuntimeMessage,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
     switch (message._tag) {
+      // Known gap: a durable edit whose submit is still waiting for the replica
+      // lock is not in `replica.shared` yet, so a REFRESH landing then hides it
+      // until the next exchange that changes the shared slice. Deferring the
+      // install instead starves remote changes while edits keep overlapping.
       case REFRESH:
         return { model: install(model) }
       case PERSISTED:
@@ -171,7 +216,7 @@ export const mount = <
       case NAVIGATED:
         return { model }
       default: {
-        for (const listener of messageListeners) listener(message as Message)
+        notifyEach(messageListeners, message as Message)
         const result = app.update(model, message as Message) as Update.Return<
           Model,
           RuntimeMessage,
@@ -187,9 +232,15 @@ export const mount = <
               settle = resolve
             })
             inFlight.add(done)
-            const outcome = yield* Effect.result(replica.submit(message as Message))
-            inFlight.delete(done)
-            settle()
+            // `ensuring`, so a defect in storage still lets `dispose` finish.
+            const outcome = yield* Effect.result(replica.submit(message as Message)).pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  inFlight.delete(done)
+                  settle()
+                }),
+              ),
+            )
             return outcome._tag === 'Success'
               ? ({ _tag: PERSISTED } as RuntimeMessage)
               : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
@@ -209,6 +260,9 @@ export const mount = <
     // when the shared slice held locally can differ from the replica's.
     refresh: Subscription.persistent<RuntimeMessage, Resources>(
       replica.statusChanges.pipe(
+        // Every status, not only a changed cursor: a checkpoint at the same
+        // cursor still replaces the committed state a waiter reads.
+        Stream.tap(() => Effect.sync(notifyCommitted)),
         Stream.mapAccum(
           (): ReplicaStatus | undefined => undefined,
           (previous, status): readonly [ReplicaStatus, ReadonlyArray<RuntimeMessage>] => [
@@ -224,7 +278,7 @@ export const mount = <
       dependenciesSchema: Schema.Struct({}),
       modelToDependencies: (model: Model) => {
         latest = model
-        for (const listener of modelListeners) listener()
+        notifyEach(modelListeners, undefined)
         return {}
       },
       dependenciesToStream: () => Stream.never,
@@ -281,6 +335,13 @@ export const mount = <
     observe: listener => {
       messageListeners.add(listener)
       return () => messageListeners.delete(listener)
+    },
+    committed: {
+      get: () => Effect.runSync(replica.committed),
+      subscribe: listener => {
+        committedListeners.add(listener)
+        return () => committedListeners.delete(listener)
+      },
     },
     dispose: async () => {
       await Promise.all([...inFlight])

@@ -5,6 +5,170 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+Every package below changes its public types or adds API, so each takes a minor
+while pre-1.0: `foldkit-surface` 0.2.0, `foldkit-remote` 0.3.0,
+`foldkit-remote-server` 0.3.0, `foldkit-remote-drizzle` 0.3.0,
+`foldkit-mixins` 0.3.0, `foldkit-mixins-surface` 0.3.0, `foldkit-agent` 0.3.0,
+`foldkit-agent-a2a` 0.3.0, `foldkit-agent-mcp` 0.3.0, `foldkit-agent-native`
+0.3.0, `foldkit-sync` 0.5.0, and `foldkit-mirror` 0.2.0 (its `Contract` output
+changed). The versions move in the release commit.
+
+Several of these changes exist so that user code, tests included, needs no type
+casts: a cast in a test marked a gap in the API.
+
+### `foldkit-surface` (breaking)
+
+- **Projection metadata is open to any package.** Surface declared Remote's
+  requirement types, so no other package could attach facts to a Projection
+  without editing Surface. `Metadata.key<A>(name, { merge, summarize })` gives a
+  package its own typed slot; `Projection.metadata` carries the entries and every
+  combinator merges them per key. Entries are found by the key object, so two
+  copies of one package do not share them.
+- **`Metadata` is opaque.** Only a key's `of` and composition make one; its
+  entries are private and frozen, so a hand-built value has none and nothing can
+  mutate them. `MetadataTypeId` marks a value.
+- **Removed:** `Projection.requirements`, `Projection.connections`, and the
+  matching `Projection.fromReader` options. Remote's requirement types moved to
+  `foldkit-remote` (below).
+- **`Contract.requirements` and `SurfaceInspection.requirements` are now
+  `metadata: MetadataSummary[]`** (`{ name, entries }`), so `Module` and DevTools
+  show every package's entries. A hand-written `Contract` literal must spell
+  `metadata: []`. `Module.toMarkdown` renders the column as
+  `name: entries; name: entries`, with `|` escaped.
+- **Schemas are decodable codecs.** `Projection.Model` and `Surface.Params` are
+  `Schema.Codec<Value, unknown>`, so `Schema.decodeUnknownSync(projection.Model)`
+  needs no cast, and `Surface.Params` is present, not `| undefined`, when the
+  Surface declares params (`ParamsSchema`). `Projection.fromReader` and
+  `Surface.make({ Params })` refuse a schema that needs decoding services.
+
+### `foldkit-remote` (breaking)
+
+- **Remote owns its requirements.** `Requirement`, `RelationRequirement`,
+  `ConnectionRequirement` and the `Requirement.merge*` helpers move here from
+  `foldkit-surface`, stored under `RemoteRequirements` and `RemoteConnections`.
+  Read them with `requirementsOf(projection)` / `connectionsOf(projection)`.
+  `Window` is gone; it was `QueryWindow`.
+- **`Data.refresh(model, projection | surface)`** marks what a consumer already
+  declares as due again, from `update`, instead of restating each request. It
+  returns the Model, with selected fields reading `Refreshing` and loaded
+  connections invalidated; the `Data.subscriptions` read entries refetch them,
+  so the data is requested once. Unobserved data is revalidated with
+  `Remote.prefetch` and `RemotePolicy.networkOnly`. A refreshed connection's
+  page replaces its pages, so removed and reordered items follow the server and
+  later pages are paged again; a read already in flight is restarted rather than
+  applied after the refresh. Refreshing what is already refreshing returns the
+  same Model.
+- `Data.subscriptions` returns `SubscriptionEntries`, with exact `<key>.read`,
+  `<key>.live` and `retain` keys, so a lookup needs no `!`.
+- `RemotePersistence.dehydrate` returns `string` when no `maxBytes` is given.
+- `Remote.Model` is a decodable `Schema.Codec<RemoteModel, unknown>`.
+
+### `foldkit-remote-server`
+
+- No longer depends on `foldkit-surface`; `Requirement` comes from
+  `foldkit-remote`.
+
+### `foldkit-mixins-surface` (breaking)
+
+- `SurfaceView.describe` returns `metadata: MetadataSummary[]` in place of
+  `requirements`.
+- **`SurfaceView.render(view, surface, params, root)`** renders a view for a
+  Surface's projection with an inert builder, for demos, tests and static output.
+
+### `foldkit-agent` (breaking)
+
+- **`Agent.when` completes on state.** A Message contract couples a capability
+  to one implementation path; a state contract completes when a condition holds,
+  whatever made it so. It reads a `projection` of the application's Model (which
+  must be that Model, and needs `host.subscribe`) or a `source: { get,
+  subscribe }` outside it. Completed means the condition holds, not that this
+  call made it true; a creation still completes on its Message with `correlate`.
+  A throwing predicate fails the invocation as a defect, and a value a
+  notification left unchanged is not evaluated again; a `source` is re-evaluated
+  on every notification, since it may mutate its value in place.
+- `request` is inferred inline in `Agent.expose`; inside `Agent.variant` it is
+  annotated and checked against `input`. Elsewhere it is `unknown`.
+- **`CompletionOutcome` is a union**, and so is `DispatchResult.completion`: a
+  Message contract carries its `message`; a state contract has none and cannot
+  fail. Code that read `completion.message._tag` unconditionally needs `?.`.
+- **`Manifest` completion gains a `kind`**: `{ kind: 'message', success,
+  failure? }` or `{ kind: 'state', observes }`.
+- `AgentHost.dispatch` may return a failing Effect, such as `Sync.mount`'s
+  `Exit`; the failure is the invocation's defect, as a thrown error already was.
+- **The audit log is typed by principal.** `auditLog<Principal>`, `AuditSink`,
+  `AuditLogOptions` and `AuditRecord` take the principal type, so a projection
+  `(caller: User) => caller.id` needs no cast, and binding a log built for
+  another principal is refused. An unannotated projection now sees `unknown`,
+  and a hand-written sink declares its principal type. `AuditRecord.principal`
+  is `Principal | undefined`: a call refused before its principal is resolved
+  is recorded with `undefined`, and the `principal` projection is not called.
+- `Agent.make` returns `context` as present when one was given.
+  `Agent.contextSchema` returns a `JsonSchemaDocument` rather than an untyped
+  record.
+
+### `foldkit-agent-mcp` (breaking)
+
+- `AgentMcp.httpApp({ server })` accepts a server alone; passing handler options
+  beside it, which were ignored, is now a type error.
+- `AgentMcp.stdio` types `input` and `output` as the `on`/`off`/`write` it uses
+  (`LineInput`, `LineOutput`), so a fake stream needs no cast. Node's
+  `process.stdin` and `process.stdout` still fit.
+
+### `foldkit-agent-a2a` (breaking)
+
+- `Success.result` is a `Task`, which every handler already returns. Code that
+  builds a `Success` by hand must pass one.
+
+### `foldkit-agent-native` (breaking)
+
+- `AgentNative.actions` returns an `ActionRegistry` with exact keys for a known
+  contract, so a known capability needs no `!`; indexing it with an arbitrary
+  string is a type error. An open contract keeps string keys.
+- An action's `schema` also types its `~standard.jsonSchema`.
+
+### `foldkit-sync` (breaking)
+
+- **The committed state is readable.** `Replica.committed` and
+  `ReplicaSnapshot.committed` are the server-confirmed state the optimistic
+  `shared` is built on: a pending edit reaches them only once committed, and a
+  rejected one never does.
+- **`Mounted.committed`** is a `CommittedView` (`{ get, subscribe }`), the source
+  an agent waits on to finish on confirmation rather than on its own optimistic
+  edit: `Agent.when({ source: mounted.committed, … })`. It is notified after every
+  exchange, including a checkpoint that keeps the cursor. `Mounted` gains a third
+  type parameter, `Shared`, defaulting to `unknown`.
+- An exchange that acknowledges an edit without returning it now re-installs the
+  shared slice, instead of leaving the dropped edit in the Model.
+- A Model, Message or committed listener that throws no longer stops the
+  listeners after it or the mount's refresh; its error is re-thrown from a
+  microtask.
+- `dispose` no longer hangs when a persist dies with a defect.
+- **Known issue:** a durable edit whose submit is still waiting for the replica
+  can be hidden by an exchange that settles in that moment, until the next
+  exchange that changes the shared slice. This predates this release, except
+  for exchanges that only acknowledge.
+- `Sync.forApplication(App).make({ authorize })` types
+  `journalContract().authorize` as present.
+
+### `foldkit-mirror`
+
+- Its `Contract` carries `metadata: []` in place of `requirements: []`.
+
+### `foldkit-mixins`
+
+- **`Attributes.find`, `filter` and `tagOf`** read a resolved `SlotAttributes`
+  bundle by tag and return that variant typed (`find(attrs, 'Class')?.value`),
+  so reading attributes needs no cast. An unknown tag is a type error.
+- **`SlotView.inertBuilder<Message>()`** is Foldkit's `inertHtml` typed for a
+  Message universe, for rendering outside a runtime. It holds the one cast the
+  invariant builder needs.
+
+### `foldkit-remote-drizzle`
+
+- `keysetWhere` returns `SQL` for a non-empty tuple of order terms.
+
 ## 0.4.1
 
 `foldkit-durable` and `foldkit-sync` take a minor for new, additive API. No other

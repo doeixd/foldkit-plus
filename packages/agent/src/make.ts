@@ -22,6 +22,19 @@ export interface Definition<
 }
 
 /**
+ * A `Definition` whose `context` is present once one was supplied, so reading it
+ * needs no check. Without a context `Context_` is inferred as `unknown`.
+ */
+export type DefinitionOf<Model, Context_, Principal, ByName, ByTag> = Definition<
+  Model,
+  Context_,
+  Principal,
+  ByName,
+  ByTag
+> &
+  (unknown extends Context_ ? unknown : { readonly context: Projection<Model, Context_> })
+
+/**
  * Combines a context projection, exposed Messages, and optional resources into
  * one agent contract.
  *
@@ -50,7 +63,7 @@ export const make = <
   ByTag = AnyCapabilitiesByTag,
 >(
   options: MakeOptions<Model, Context_, Principal, ByName, ByTag>,
-): Definition<Model, Context_, Principal, ByName, ByTag> => {
+): DefinitionOf<Model, Context_, Principal, ByName, ByTag> => {
   // Copied so a later mutation of the caller's array cannot change the contract.
   const resources = [...(options.resources ?? [])]
 
@@ -62,9 +75,10 @@ export const make = <
     names.add(resource.name)
   }
 
+  // `context` is the caller's own value, so it is present exactly when supplied.
   return {
     context: options.context,
     messages: options.messages,
     resources: resources as ReadonlyArray<Resource<Model, unknown>>,
-  }
+  } as DefinitionOf<Model, Context_, Principal, ByName, ByTag>
 }

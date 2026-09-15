@@ -898,6 +898,8 @@ describe('Replica.start', () => {
 
     expect(snapshots[0]!.status).toMatchObject({ pending: 1, cursor: 0 })
     expect(snapshots[0]!.shared).toEqual({ todos: [{ id: 'a', title: 'a' }] })
+    // The edit is pending, so only the optimistic value has it.
+    expect(snapshots[0]!.committed).toEqual({ todos: [] })
     await close(replica)
   })
 })

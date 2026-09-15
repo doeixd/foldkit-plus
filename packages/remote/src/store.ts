@@ -128,6 +128,8 @@ export const setStale = (
         if (previous.present.has(field)) staleFields.add(field)
       } else staleFields.delete(field)
     }
+    // Only ever added to or only ever removed from, so an equal size is the same set.
+    if (staleFields.size === previous.stale.size) continue
     next ??= { ...store }
     next[key] = { ...previous, stale: staleFields }
   }

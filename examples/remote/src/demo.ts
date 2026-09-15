@@ -7,9 +7,15 @@
  */
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import type { HtmlBuilder } from 'foldkit/html'
-import { inertHtml } from 'foldkit/html'
-import { Behavior, Capability, Slot, Slots, Style, type SlotAttributes } from 'foldkit-mixins'
+import {
+  Attributes,
+  Behavior,
+  Capability,
+  Slot,
+  Slots,
+  Style,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import {
   Entity,
@@ -142,31 +148,11 @@ const statusText = (data: RemoteData<ProjectValue>): string =>
     NotFound: () => 'missing',
   })
 
-const tagOf = (attribute: SlotAttributes<PageMessage>[number]): string =>
-  typeof attribute === 'object' && attribute !== null && '_tag' in attribute
-    ? String((attribute as { readonly _tag: unknown })._tag)
-    : 'Child'
+const classTokens = (attributes: SlotAttributes<PageMessage>): ReadonlyArray<string> =>
+  Attributes.find(attributes, 'Class')?.value.split(/\s+/) ?? []
 
-const classTokens = (attributes: SlotAttributes<PageMessage>): ReadonlyArray<string> => {
-  for (const attribute of attributes) {
-    if (tagOf(attribute) === 'Class') {
-      return (attribute as { readonly value: string }).value.split(/\s+/)
-    }
-  }
-  return []
-}
-
-const dataAttribute = (attributes: SlotAttributes<PageMessage>, key: string): unknown => {
-  for (const attribute of attributes) {
-    if (
-      tagOf(attribute) === 'DataAttribute' &&
-      (attribute as { readonly key?: string }).key === key
-    ) {
-      return (attribute as { readonly value?: unknown }).value
-    }
-  }
-  return undefined
-}
+const dataAttribute = (attributes: SlotAttributes<PageMessage>, key: string): string | undefined =>
+  Attributes.filter(attributes, 'DataAttribute').find(attribute => attribute.key === key)?.value
 
 const withStore = (model: typeof App.initial, store: EntityStore): typeof App.initial => ({
   ...model,
@@ -225,7 +211,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const refreshing = Data.subscriptions(
     { page: Surface.at(ProjectPage, { projectId: 'p1' }) },
     { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), now: () => 60_000 },
-  )['page.read']!
+  )['page.read']
   const refreshMessages = await Effect.runPromise(
     Stream.runCollect(refreshing.dependenciesToStream(refreshing.modelToDependencies(loaded))).pipe(
       Effect.provide(FakeClient),
@@ -283,13 +269,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     ])
   }).pipe(Style.attach(ProjectStyle), Behavior.attach(StatusBehavior))
 
-  const h = inertHtml as unknown as HtmlBuilder<typeof Message.Type>
-  const rootView = Surface.rootView(
-    ProjectPage,
-    { projectId: 'p1' },
-    SurfaceView.toRenderer(ProjectView),
-  )
-  rootView(loaded, h)
+  SurfaceView.render(ProjectView, ProjectPage, { projectId: 'p1' }, loaded)
   const view = resolved!
   lines.push(`rendered classes: ${classTokens(view.root).join(' ')}`)
   lines.push(`rendered status: ${String(dataAttribute(view.status, 'status'))}`)

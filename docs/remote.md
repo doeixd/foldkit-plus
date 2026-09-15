@@ -91,7 +91,8 @@ ProjectsByOwner(u7)   Project:p9  Project:p7  Project:p4  [gap]  Project:p1
 
 A Surface's projection carries its remote **requirements** — entity, id, fields,
 a pagination window per relation, and through `relations`, the slice required of
-each relation's target — as plain data. Reading is pure; it performs no I/O. A
+each relation's target — as plain data under Remote's key in `Projection.metadata`
+(`requirementsOf(projection)`). Reading is pure; it performs no I/O. A
 nested selection (`owner: UserSummary`) reads through the ref in the store and
 assembles the target's fields; the store itself stays normalized.
 

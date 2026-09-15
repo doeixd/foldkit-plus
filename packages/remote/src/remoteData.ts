@@ -22,9 +22,11 @@ export const remoteErrorSchema = Schema.Struct({ _tag: Schema.String, message: S
 // once and shared: the value schema is a module-level constant in practice.
 const remoteDataSchemas = new WeakMap<object, Schema.Schema<unknown>>()
 
-export const remoteDataSchema = <A>(value: Schema.Schema<A>): Schema.Schema<RemoteData<A>> => {
+export const remoteDataSchema = <A>(
+  value: Schema.Schema<A>,
+): Schema.Codec<RemoteData<A>, unknown> => {
   const cached = remoteDataSchemas.get(value)
-  if (cached !== undefined) return cached as Schema.Schema<RemoteData<A>>
+  if (cached !== undefined) return cached as Schema.Codec<RemoteData<A>, unknown>
   const built = Schema.Union([
     Schema.Struct({ _tag: Schema.Literal('Initial') }),
     Schema.Struct({ _tag: Schema.Literal('Loading') }),
@@ -36,7 +38,7 @@ export const remoteDataSchema = <A>(value: Schema.Schema<A>): Schema.Schema<Remo
       previous: Schema.optional(value),
     }),
     Schema.Struct({ _tag: Schema.Literal('NotFound') }),
-  ]) as unknown as Schema.Schema<RemoteData<A>>
+  ]) as unknown as Schema.Codec<RemoteData<A>, unknown>
   remoteDataSchemas.set(value, built as Schema.Schema<unknown>)
   return built
 }

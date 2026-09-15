@@ -33,7 +33,7 @@ export {
   type AuditRecord,
   type AuditSink,
 } from './audit.js'
-export { summarize, type CompletionOutcome, type DispatchSummary } from './completion.js'
+export { summarize, when, type CompletionOutcome, type DispatchSummary } from './completion.js'
 export { toManifest, toMarkdown, type Manifest } from './docs.js'
 export { contextSchema, messages, resources, schema } from './introspect.js'
 export { newInvocationId } from './invocation.js'
@@ -48,8 +48,10 @@ export type {
   Invocation,
   InvocationContext,
   MessageConstructor,
+  JsonSchemaDocument,
   MessageDescriptor,
   ResourceDescriptor,
+  StateCompletion,
   Transport,
   VariantConfig,
 } from './types.js'

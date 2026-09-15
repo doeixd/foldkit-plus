@@ -66,7 +66,7 @@ value.
 | `style.ts` | Slots, Styles, Behaviors, and a Theme. Appearance and interaction attached from outside the views. `Style.recipe`, `Style.whenInput`, `pseudo`/`media`/`nest` compiling to one stylesheet. |
 | `view.ts` | The views. No class names, no inline style, no keyboard code: `slots.x.attrs(base)` merges what is attached. `@foldkit/ui` Button and Checkbox resolved through `foldkit-mixins-ui`. `Surface.rootView` at the Root boundary. |
 | `sync.ts` | The local-first contract derived from the application: two fragments composed into one document, `authorize` rules per durable variant, and `mountTodos` over `Sync.mount`. |
-| `agent.ts` | The agent contract: capabilities are existing Messages, the context is a Surface, `add_todo` exposes the intent with a `completion` contract, `authorize` mirrors the sync policy. |
+| `agent.ts` | The agent contract: capabilities are existing Messages, the context is a Surface, `add_todo` exposes the intent and completes on its fact, `rename_list` completes on state with `Agent.when`, `authorize` mirrors the sync policy. |
 | `module.ts` | `Module.make` over every contract: validation and the ownership manifest. |
 | `runtime.ts`, `client.ts` | Mounting in a browser: the stylesheet injected once, the replica on IndexedDB, the exchange loop, WebMCP registration with the mount as the agent's host. |
 | `journal.ts`, `server.ts` | The server: `foldkit-durable` on SQLite, spreading the contract so codecs, reducer, and policy are never written twice; a WebSocket transport that authenticates per connection. |
@@ -84,7 +84,8 @@ local field.
 the timestamp. `RequestedTodo` is the intent: local, and its `update` returns a
 Command that reads the clock, mints the id, and emits the fact. The agent
 exposes the intent, not the fact, and waits for the fact through a completion
-contract.
+contract. Where the outcome is a state rather than a new fact, it waits for the
+state: `rename_list` is done when the list carries the title, whoever set it.
 
 **One owner per datum.** `todos` and `listTitle` are owned by the sync
 contract; everything else is local. `Module.manifest` prints this, and

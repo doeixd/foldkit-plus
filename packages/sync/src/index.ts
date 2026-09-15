@@ -89,7 +89,13 @@ export const Sync = {
 }
 
 export { indexedDb, type Storage } from './indexedDb.js'
-export { mount, type MountOptions, type MountUrl, type Mounted } from './mount.js'
+export {
+  mount,
+  type CommittedView,
+  type MountOptions,
+  type MountUrl,
+  type Mounted,
+} from './mount.js'
 export {
   forApplication,
   type ApplicationSync,

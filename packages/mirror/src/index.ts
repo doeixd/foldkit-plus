@@ -613,7 +613,7 @@ const make = <S extends Slice, R, Name extends string>(
     owns: [],
     observes: fields.dependencies,
     messages: kind === 'kv' ? ['MirrorRestored'] : [],
-    requirements: [],
+    metadata: [],
   }
 
   const restore: Command<MirrorMessage, never, R> = {

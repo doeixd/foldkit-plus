@@ -282,7 +282,7 @@ Every decision the contract makes can be recorded, refusals included:
 ```ts
 const audit = Agent.auditLog({
   capacity: 500,
-  principal: caller => caller.id, // an id, not the whole identity
+  principal: (caller: User) => caller.id, // an id, not the whole identity
 })
 
 const agentRuntime = TodoAgent.bind({ definition: AppAgent, host, audit })
@@ -342,13 +342,55 @@ host: {
 A contract declaring completion is refused at `bind` when the host cannot
 observe, rather than silently reporting every call as complete.
 
-Waiting always has a deadline; it defaults to 30 seconds.
-`AgentCompletionTimeoutError` means the wait ended, **not** that anything was
-undone -- the Message reached `update`. The same is true of cancelling while a
-completion is pending.
+Waiting always has a deadline; it defaults to 30 seconds. It runs from the
+moment the host's `dispatch` is called, so a host that never returns is bounded
+by the same budget. `AgentCompletionTimeoutError` means the wait ended, **not**
+that anything was undone -- the Message reached `update`. The same is true of
+cancelling while a completion is pending.
+
+An abort also settles a host `dispatch` that has not returned, with or without a
+completion contract; without one there is no deadline, so only the signal
+bounds it. Either way the error says delivery is unknown, `AgentCancelledError`
+carries `dispatched: false`, and the audit records `decision: 'unknown'`.
 
 Give `correlate` whenever two invocations of a capability can be in flight at
 once. Without it the first matching Message wins, whichever invocation caused it.
+
+#### Completing on state
+
+A Message names one implementation path. When what matters is the outcome --
+the project now has the requested name, whether a Command result, a live update,
+a Sync exchange, or another device put it there -- complete on state instead:
+
+```ts
+RequestedRenameProject: {
+  description: 'Rename a project',
+  completion: Agent.when({
+    projection: ProjectName,
+    predicate: (name, request) => name === request.name,
+  }),
+}
+```
+
+`predicate` reads the projection's value and the capability's input. Both are
+inferred when `when` is written inline in `Agent.expose`; inside `Agent.variant`
+annotate `request`, which is checked against the variant's `input`. The projection must read
+this application's Model, and the host needs `subscribe`; `bind` refuses one
+without it. A value outside the Model reads through `source: { get, subscribe }`
+instead, such as `foldkit-sync`'s `mounted.committed`.
+
+Completed means the condition holds, not that this call made it true. Dispatch
+subscribes before sending and checks once more when it starts waiting, so a
+change `update` makes synchronously is not missed, and a state that already
+holds completes at once. Write a predicate only this call can make true; a
+creation, where only the resulting fact says which record is this call's,
+completes on its Message with `correlate`.
+
+The result carries `status: 'completed'` and no `message`. A predicate that
+throws fails that invocation as a defect, never the code that changed the Model,
+and a projected value a notification left unchanged is not evaluated again (a
+`source` is re-evaluated on every notification, since it may mutate in place). `timeout` and
+cancellation behave as they do for a Message contract.
 
 An invocation whose signal is already aborted is refused before the Model is
 read, and one aborted while decoding or `authorize` is pending never constructs

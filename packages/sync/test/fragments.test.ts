@@ -130,7 +130,7 @@ describe('Sync authorization policy', () => {
         principal.role === 'admin' && shared.todos.some(todo => todo.id === message.id),
     },
   })
-  const authorize = Guarded.journalContract().authorize!
+  const authorize = Guarded.journalContract().authorize
   const snapshot = { todos: [{ id: 'a', title: 'A' }], members: [] }
   const admin: Principal = { role: 'admin' }
   const guest: Principal = { role: 'guest' }

@@ -44,7 +44,8 @@ export const RequestSchema = Schema.Struct({
 export interface Success {
   readonly jsonrpc: '2.0'
   readonly id: Id
-  readonly result: unknown
+  /** Every method this adapter answers successfully answers with a task. */
+  readonly result: Task
 }
 
 export interface Failure {
@@ -65,7 +66,7 @@ export const code = {
   TASK_NOT_CANCELABLE: -32002,
 } as const
 
-export const success = (id: Id, result: unknown): Success => ({ jsonrpc: '2.0', id, result })
+export const success = (id: Id, result: Task): Success => ({ jsonrpc: '2.0', id, result })
 
 export const failure = (id: Id | null, errorCode: number, message: string): Failure => ({
   jsonrpc: '2.0',

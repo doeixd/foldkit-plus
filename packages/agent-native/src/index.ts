@@ -10,4 +10,10 @@
  * README.
  */
 export * as AgentNative from './agentNative.js'
-export type { ActionEntry, ActionResult, ActionRunContext, ActionsOptions } from './actions.js'
+export type {
+  ActionEntry,
+  ActionRegistry,
+  ActionResult,
+  ActionRunContext,
+  ActionsOptions,
+} from './actions.js'

@@ -1,9 +1,22 @@
 import type { Notification, Response } from './jsonRpc.js'
 import { type Handler, type HandlerOptions, handler } from './handler.js'
 
+/** The part of a readable stream `stdio` uses. `process.stdin` satisfies it. */
+export interface LineInput {
+  on(event: 'data', listener: (chunk: Buffer | string) => void): unknown
+  on(event: 'end', listener: () => void): unknown
+  off(event: 'data', listener: (chunk: Buffer | string) => void): unknown
+  off(event: 'end', listener: () => void): unknown
+}
+
+/** The part of a writable stream `stdio` uses. `process.stdout` satisfies it. */
+export interface LineOutput {
+  write(line: string): unknown
+}
+
 export interface StdioOptions {
-  readonly input?: NodeJS.ReadableStream | undefined
-  readonly output?: NodeJS.WritableStream | undefined
+  readonly input?: LineInput | undefined
+  readonly output?: LineOutput | undefined
 }
 
 /**

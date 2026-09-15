@@ -10,6 +10,124 @@ import { type Model, Message, Model as ModelSchema } from './todoApp.js'
 
 const TodoAgent = Agent.forModel<Model>()
 
+// A state completion types `predicate` from the projection and the capability input.
+const TodoList = Projection.of(ModelSchema)({ todos: true })
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: TodoList,
+      predicate: (value, request) => value.todos.every(todo => todo.id !== request.id),
+    }),
+  },
+})
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: TodoList,
+      // @ts-expect-error the capability input has `id`, not `todoId`.
+      predicate: (_value, request) => request.todoId === '',
+    }),
+  },
+})
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: TodoList,
+      // @ts-expect-error the projection reads `todos`, not `items`.
+      predicate: value => value.items.length === 0,
+    }),
+  },
+})
+
+Agent.expose(Message, {
+  // @ts-expect-error a state completion is built with Agent.when, which tags it.
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: { projection: TodoList, predicate: () => true },
+  },
+})
+
+// Inside `Agent.variant`, `when` runs before the input is inferred, so `request`
+// is annotated; the variant still infers its input, and checks the annotation.
+Agent.expose(Message, {
+  RequestedDeleteTodo: Agent.variant({
+    description: 'Delete a todo',
+    input: Schema.Struct({ todoId: Schema.String }),
+    toMessage: input => ({ id: input.todoId }),
+    completion: Agent.when({
+      projection: TodoList,
+      predicate: (value, request: { readonly todoId: string }) =>
+        value.todos.every(todo => todo.id !== request.todoId),
+    }),
+  }),
+})
+
+Agent.expose(Message, {
+  RequestedDeleteTodo: Agent.variant({
+    description: 'Delete a todo',
+    input: Schema.Struct({ todoId: Schema.String }),
+    toMessage: input => ({ id: input.todoId }),
+    completion: Agent.when({
+      projection: TodoList,
+      // @ts-expect-error unannotated inside `Agent.variant`, `request` is unknown.
+      predicate: (_value, request) => request.todoId === '',
+    }),
+  }),
+})
+
+// A wrong annotation is rejected: it disagrees with `input`, so the variant
+// reports the mismatch where the input is declared and read.
+Agent.expose(Message, {
+  RequestedDeleteTodo: Agent.variant({
+    description: 'Delete a todo',
+    // @ts-expect-error the request annotation says `id`, but the input declares `todoId`.
+    input: Schema.Struct({ todoId: Schema.String }),
+    // @ts-expect-error so the input `toMessage` reads has no `todoId`.
+    toMessage: input => ({ id: input.todoId }),
+    completion: Agent.when({
+      projection: TodoList,
+      predicate: (_value, request: { readonly id: string }) => request.id === '',
+    }),
+  }),
+})
+
+// Written outside a capability, `request` is unknown until annotated.
+Agent.when({
+  projection: TodoList,
+  // @ts-expect-error nothing says what the request is here.
+  predicate: (_value, request) => request.id === '',
+})
+
+// A projection of another Model is refused once the Model is known.
+TodoAgent.expose(Message, {
+  // @ts-expect-error the projection reads a different Model.
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      projection: Projection.of(Schema.Struct({ unrelated: Schema.Number }))({ unrelated: true }),
+      predicate: () => true,
+    }),
+  },
+})
+
+// A source is typed by what it returns.
+Agent.expose(Message, {
+  RequestedDeleteTodo: {
+    description: 'Delete a todo',
+    completion: Agent.when({
+      source: { get: () => 1, subscribe: () => () => {} },
+      // @ts-expect-error the source yields a number.
+      predicate: value => value.length === 0,
+    }),
+  },
+})
+
 // A tag that is not part of the union is rejected.
 Agent.expose(Message, {
   // @ts-expect-error NotAMessage is not a variant of this Message union.
@@ -280,6 +398,15 @@ Agent.bind({
   host: { model: () => ({}), dispatch: (_: { _tag: 'Unrelated'; count: number }) => {} },
 })
 
+// A context schema names its `properties`, so a test can read them unchecked.
+export const contextProperties: Record<string, unknown> | undefined = Agent.contextSchema(
+  Agent.make({ context: TodoList, messages: Agent.expose(Message, {}) }),
+)?.properties
+// @ts-expect-error `properties` is a record of schemas, not a list of names.
+export const contextNames: ReadonlyArray<string> | undefined = Agent.contextSchema(
+  Agent.make({ context: TodoList, messages: Agent.expose(Message, {}) }),
+)?.properties
+
 // A contract that reads a principal requires the host to supply one.
 const Guarded = Agent.forModel<{ readonly ok: boolean }, { readonly allowed: boolean }>()
 const guarded = Guarded.make({
@@ -300,6 +427,25 @@ Guarded.bind({
 Guarded.bind({ definition: guarded, host: { model: () => ({ ok: true }), dispatch: () => {} } })
 Guarded.bind({
   definition: guarded,
+  host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
+})
+
+// An audit log projects the principal it is typed for, and binds only where the
+// host resolves that principal. A log with no projection binds anywhere.
+Guarded.bind({
+  definition: guarded,
+  audit: Agent.auditLog({ principal: (caller: { readonly allowed: boolean }) => caller.allowed }),
+  host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
+})
+Guarded.bind({
+  definition: guarded,
+  audit: Agent.auditLog(),
+  host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
+})
+Guarded.bind({
+  definition: guarded,
+  // @ts-expect-error the log projects a `user`, which this host's principal lacks.
+  audit: Agent.auditLog({ principal: (caller: { readonly user: string }) => caller.user }),
   host: { model: () => ({ ok: true }), principal: () => ({ allowed: true }), dispatch: () => {} },
 })
 

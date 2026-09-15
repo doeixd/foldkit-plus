@@ -593,6 +593,10 @@ describe('the stdio transport', () => {
         ;(listeners[event] ??= []).push(listener)
         return input
       },
+      off: (event: string, listener: (chunk: string) => void) => {
+        listeners[event] = (listeners[event] ?? []).filter(existing => existing !== listener)
+        return input
+      },
       send: (line: string) => {
         for (const listener of listeners['data'] ?? []) listener(line)
       },
@@ -612,8 +616,8 @@ describe('the stdio transport', () => {
           principal: () => principal,
         },
       }),
-      input: input as never,
-      output: output as never,
+      input,
+      output,
     })
 
     input.send(`${JSON.stringify(request(1, 'initialize'))}\n`)
@@ -636,8 +640,8 @@ describe('the stdio transport', () => {
           principal: () => principal,
         },
       }),
-      input: input as never,
-      output: output as never,
+      input,
+      output,
     })
 
     input.send('not json at all\n')
@@ -657,8 +661,8 @@ describe('the stdio transport', () => {
           principal: () => principal,
         },
       }),
-      input: input as never,
-      output: output as never,
+      input,
+      output,
     })
 
     const line = JSON.stringify(request(1, 'initialize'))

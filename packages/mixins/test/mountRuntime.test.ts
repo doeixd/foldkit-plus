@@ -3,7 +3,7 @@ import { Effect, Result, Stream } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { liveViewStateChanges, type MountAction } from 'foldkit/mount'
-import { Behavior, Capability, Resolver, Slot, SlotView, Slots } from '../src/index.js'
+import { Attributes, Behavior, Capability, Resolver, Slot, SlotView, Slots } from '../src/index.js'
 
 type TestMessage = { readonly _tag: 'GotA' } | { readonly _tag: 'GotB' }
 
@@ -22,9 +22,7 @@ const composed = (
     mounts.map(mount => ({ mounts: [mount] })),
     { slot: 'root' },
   )
-  const onMount = attributes.find(
-    attribute => (attribute as { readonly _tag?: string })._tag === 'OnMount',
-  ) as { readonly action: MountAction<TestMessage, any> } | undefined
+  const onMount = Attributes.find(attributes, 'OnMount')
   if (onMount === undefined) throw new Error('expected a composed OnMount')
   return onMount.action
 }

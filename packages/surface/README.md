@@ -113,8 +113,7 @@ Effect Optic
      ModelRef
         ↓
      Projection
-   + remote requirements
-   + connection requirements
+   + metadata (Remote's requirements, …)
         ↓
       Surface
    + name / params
@@ -130,11 +129,13 @@ you already have an optic and want to add that metadata yourself.
 That extra metadata is the reason Surface exists. An optic can focus
 `model.todos`; by itself it cannot tell `foldkit-sync` that `todos` is the slice
 to replicate, `Module` that another contract claims the same path, or
-`foldkit-remote` that a derived projection carries server requirements.
+`foldkit-remote` that a derived projection needs server data. Surface carries
+that last fact as opaque metadata: `foldkit-remote` attaches its requirements
+under its own `Metadata.key` and reads them back, and Surface only merges them.
 
 A `Projection` also need not correspond to one structural focus. It can combine
 several refs or derived values into one read model while preserving the
-dependencies and requirements of every part.
+dependencies and metadata of every part.
 
 ### Surface and Submodels solve different decompositions
 
@@ -285,10 +286,10 @@ have.
 
 ## Projections
 
-A `Projection<Root, Value>` is three things: a `Model` codec for `Value`, a pure
-`read(root) => Value`, and what it needs: its `dependencies` (Model paths), its
-`requirements` (remote entity fields), and its `connections` (remote query
-connections, with what they select of each item). Reading never performs I/O.
+A `Projection<Root, Value>` is a `Model` codec for `Value`, a pure
+`read(root) => Value`, its `dependencies` (Model paths), and its `metadata`:
+facts other packages attach and interpret, such as the server data a
+`foldkit-remote` selection needs. Reading never performs I/O.
 
 ```ts
 Projection.struct({ todos: model.todos, selectedTodoId: model.selectedTodoId })
@@ -300,8 +301,29 @@ Projection.fromReader(codec, read)  // escape hatch for a non-ModelRef value
 
 `Projection.struct` accepts `ModelRef`s and nested `Projection`s, so a Surface can
 mix local fields with remote or replicated values. A nested projection
-contributes its dependencies, requirements, and connections to the parent
-(`Requirement.merge` and `Requirement.mergeConnections` union them).
+contributes its dependencies and metadata to the parent.
+
+### Metadata
+
+A package declares its own slot once and reads back only its own entries:
+
+```ts
+const Flags = Metadata.key<string>('flags', {
+  merge: flags => [...new Set(flags)],
+  summarize: flag => flag,
+})
+
+const beta = Projection.fromReader(Schema.Boolean, readBeta, { metadata: Flags.of('beta') })
+Flags.get(Projection.struct({ beta, todos: model.todos }).metadata) // ['beta']
+```
+
+Entries are combined per key with that key's `merge` as projections compose, and
+looked up by the key object, never by its name, so two packages cannot collide.
+The flip side: two copies of one package (a duplicated install, a reloaded
+module) declare two keys and do not see each other's entries. `Metadata` is
+opaque and its entries frozen; only a key's `of` and composition make one.
+Surface never interprets them; `Surface.inspect` and `Module` show them through
+`summarize`.
 
 ## Applications
 
@@ -414,8 +436,8 @@ modules can contribute their contracts independently.
 
 - Reference-based Model selection (`App.fields`, `Projection.pick`,
   `Projection.compose`).
-- Pure `Projection` values with their codec, reader, dependencies, and remote
-  requirements.
+- Pure `Projection` values with their codec, reader, dependencies, and opaque
+  interpreter metadata (`Metadata.key`).
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - Named Surfaces and their renderer binding.
@@ -428,7 +450,8 @@ modules can contribute their contracts independently.
   [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync).
 - `Model` codecs are pure by construction: Foldkit Model fields carry no decoding
   or encoding services.
-- A projection declares dependencies and requirements but does not resolve them.
+- A projection declares dependencies and carries metadata but does not act on
+  either; an interpreter such as `foldkit-remote` reads the metadata it owns.
 
 ## See also
 

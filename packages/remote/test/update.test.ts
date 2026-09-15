@@ -117,6 +117,21 @@ describe('Remote.update', () => {
       refreshes: true,
     })
     expect(answered.connections.c1!.stale).toBe(false)
+    // That page replaces an invalidated connection's pages; a connection not invalidated merges it.
+    const other = { ...page, edges: [{ key: 'User:u2', ref: { entity: 'User', id: 'u2' } }] }
+    const answer = {
+      _tag: 'ConnectionMerged',
+      connection: 'c1',
+      page: other,
+      refreshes: true,
+    } as const
+    expect(items(updateRemote(invalidated, answer).connections.c1!).map(edge => edge.key)).toEqual([
+      'User:u2',
+    ])
+    expect(items(updateRemote(merged, answer).connections.c1!).map(edge => edge.key)).toEqual([
+      'User:u1',
+      'User:u2',
+    ])
     expect(
       updateRemote(invalidated, { _tag: 'ConnectionMerged', connection: 'c1', page }).connections
         .c1!.stale,

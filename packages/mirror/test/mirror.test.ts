@@ -334,7 +334,7 @@ describe('the contract', () => {
       owns: [],
       observes: [['filter'], ['page'], ['q']],
       messages: [],
-      requirements: [],
+      metadata: [],
     })
     expect(Module.validate(Module.make(App, [m.contract]))).toEqual([])
     expect(Module.manifest(Module.make(App, [m.contract])).ownership).toContainEqual({

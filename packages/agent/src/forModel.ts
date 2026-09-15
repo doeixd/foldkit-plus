@@ -1,4 +1,4 @@
-import { type MakeOptions, type Definition, make } from './make.js'
+import { type MakeOptions, type DefinitionOf, make } from './make.js'
 import {
   type AnyCapabilitiesByName,
   type AnyCapabilitiesByTag,
@@ -58,7 +58,7 @@ export interface BoundAgent<Model, Principal> {
 
   readonly make: <Context_, ByName = AnyCapabilitiesByName, ByTag = AnyCapabilitiesByTag>(
     options: MakeOptions<Model, Context_, Principal, ByName, ByTag>,
-  ) => Definition<Model, Context_, Principal, ByName, ByTag>
+  ) => DefinitionOf<Model, Context_, Principal, ByName, ByTag>
 
   readonly bind: <
     Context_,

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { Effect, Schema } from 'effect'
+import { Duration, Effect, Schema } from 'effect'
+import { Agent } from 'foldkit-agent'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -80,16 +81,43 @@ const text = () => document.body.textContent ?? ''
 const pending = (replica: Replica<Message, Shared>) => Effect.runSync(replica.pending)
 const exchange = (
   replica: Replica<Message, Shared>,
-  response: { operations: CommittedOperation[]; rejected: string[] },
+  response: {
+    operations: CommittedOperation[]
+    rejected: string[]
+    acknowledged?: string[]
+    checkpoint?: { cursor: number; model: Shared }
+  },
 ) =>
   Effect.runPromise(
     Effect.provide(replica.synchronize, layerFromPromise({ exchange: async () => response })),
   )
 
+/** An agent whose `create_todo` is done only once the server has the todo. */
+const createTodoAgent = (
+  app: Mounted<Model, Message, Shared>,
+  timeout: Duration.Input = Duration.seconds(30),
+) =>
+  Agent.bind({
+    definition: Agent.make({
+      messages: Agent.expose(Message, {
+        CreatedTodo: {
+          name: 'create_todo',
+          description: 'Create a todo',
+          completion: Agent.when({
+            source: app.committed,
+            predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+            timeout,
+          }),
+        },
+      }),
+    }),
+    host: app,
+  })
+
 describe('Sync.mount', () => {
   let container: HTMLElement
   let replica: Replica<Message, Shared>
-  let mounted: Mounted<Model, Message> | undefined
+  let mounted: Mounted<Model, Message, Shared> | undefined
   const open = async (storage: Storage = memoryStorage()) => {
     replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), storage))
     mounted = mount(App, TodoSync, {
@@ -198,6 +226,140 @@ describe('Sync.mount', () => {
     expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }])
   })
 
+  it('exposes the committed slice, which a local edit leaves and an exchange advances', async () => {
+    const app = await open()
+    let notified = 0
+    const stop = app.committed.subscribe(() => {
+      notified += 1
+    })
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+    expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
+    expect(app.committed.get()).toEqual({ todos: [] })
+
+    const before = notified
+    await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(before))
+    stop()
+
+    expect(app.committed.get()).toEqual({ todos: [{ id: 'r', title: 'Remote' }] })
+    await vi.waitFor(() =>
+      expect(app.model().todos).toEqual([
+        { id: 'r', title: 'Remote' },
+        { id: 'a', title: 'Milk' },
+      ]),
+    )
+  })
+
+  it('tells committed subscribers about a checkpoint that keeps the cursor', async () => {
+    const app = await open()
+    let notified = 0
+    app.committed.subscribe(() => {
+      notified += 1
+    })
+    // The mount's status subscription starts with the runtime.
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(0))
+
+    const before = notified
+    const checkpointed = { todos: [{ id: 'c', title: 'Checkpoint' }] }
+    await exchange(replica, {
+      operations: [],
+      rejected: [],
+      checkpoint: { cursor: 0, model: checkpointed },
+    })
+
+    await vi.waitFor(() => expect(notified).toBeGreaterThan(before))
+    expect(app.committed.get()).toEqual(checkpointed)
+  })
+
+  it('re-installs the shared slice when an exchange only acknowledges an edit', async () => {
+    const app = await open()
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+    // Acknowledged but not returned: the replica drops it without committing it.
+    await exchange(replica, { operations: [], rejected: [], acknowledged: ['a:1'] })
+
+    await vi.waitFor(() => expect(app.model().todos).toEqual([]))
+    expect(pending(replica)).toEqual([])
+  })
+
+  it('keeps refreshing and notifying after a committed listener throws', async () => {
+    // The runtime schedules through queueMicrotask too, so wrap it rather than replace it.
+    const reported: unknown[] = []
+    const schedule = globalThis.queueMicrotask
+    vi.stubGlobal('queueMicrotask', (callback: () => void) =>
+      schedule(() => {
+        try {
+          callback()
+        } catch (error) {
+          reported.push(error)
+        }
+      }),
+    )
+    const app = await open()
+    let later = 0
+    app.committed.subscribe(() => {
+      throw new Error('listener bug')
+    })
+    app.committed.subscribe(() => {
+      later += 1
+    })
+    await vi.waitFor(() => expect(later).toBeGreaterThan(0))
+
+    await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await vi.waitFor(() => expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }]))
+    await exchange(replica, { operations: [committed('s', 'Second', 2)], rejected: [] })
+    await vi.waitFor(() => expect(app.model().todos.map(todo => todo.id)).toEqual(['r', 's']))
+    expect(reported).toContainEqual(new Error('listener bug'))
+  })
+
+  it('never completes an agent on an edit the server rejects', async () => {
+    const app = await open()
+    const result = Effect.runPromise(
+      Effect.result(
+        createTodoAgent(app, Duration.millis(200)).messages.dispatch('create_todo', {
+          id: 'a',
+          title: 'Milk',
+        }),
+      ),
+    )
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+    await exchange(replica, { operations: [], rejected: ['a:1'] })
+
+    expect(((await result) as { failure?: { _tag: string } }).failure?._tag).toBe(
+      'AgentCompletionTimeoutError',
+    )
+    expect(app.committed.get()).toEqual({ todos: [] })
+  })
+
+  it('lets an agent complete on the committed edit, not the optimistic one', async () => {
+    const app = await open()
+
+    let settled = false
+    const result = Effect.runPromise(
+      createTodoAgent(app).messages.dispatch('create_todo', { id: 'a', title: 'Milk' }),
+    ).finally(() => {
+      settled = true
+    })
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+    // Visible at once, and still not done: the persist notified the committed
+    // view, which does not have the edit until the server commits it.
+    expect(app.model().todos).toEqual([{ id: 'a', title: 'Milk' }])
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
+
+    await exchange(replica, {
+      operations: [{ ...committed('a', 'Milk', 1), replicaId: replicaId('a'), opId: opId('a:1') }],
+      rejected: [],
+    })
+
+    expect((await result).completion).toEqual({ status: 'completed' })
+    expect(pending(replica)).toEqual([])
+  })
+
   it('reverts an operation the server rejects', async () => {
     const app = await open()
     app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
@@ -205,6 +367,24 @@ describe('Sync.mount', () => {
     await exchange(replica, { operations: [], rejected: ['a:1'] })
     await vi.waitFor(() => expect(text()).not.toContain('Milk'))
     expect(app.model().todos).toEqual([])
+  })
+
+  it('disposes when a persist dies with a defect', async () => {
+    const base = memoryStorage()
+    const app = await open({
+      ...base,
+      save: (state, revision) =>
+        revision === null ? base.save(state, revision) : Effect.die(new Error('storage defect')),
+    })
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(text()).toContain('storage defect'))
+
+    const outcome = await Promise.race([
+      app.dispose().then(() => 'disposed'),
+      new Promise(resolve => setTimeout(() => resolve('hung'), 500)),
+    ])
+    mounted = undefined
+    expect(outcome).toBe('disposed')
   })
 
   it('waits for an in-flight persist before disposing', async () => {

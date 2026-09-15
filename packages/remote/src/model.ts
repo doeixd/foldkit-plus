@@ -4,7 +4,7 @@
  * change it, and the pure reducer over them.
  */
 import { Schema } from 'effect'
-import type { Requirement } from 'foldkit-surface'
+import type { Requirement } from './requirement.js'
 import { emptyConnection, merge, type Connection, type Segment } from './connection.js'
 import {
   beginOptimistic,
@@ -70,6 +70,12 @@ export interface RemoteModel {
    * fetching this".
    */
   readonly loading: ReadonlySet<string>
+  /**
+   * `Remote.refresh` generations. The read entries restart when `requested`
+   * moves, so a read sent before a refresh cannot land after it; `started` is
+   * the latest generation a read began under.
+   */
+  readonly refresh: { readonly requested: number; readonly started: number }
 }
 
 export const initialRemoteModel: RemoteModel = {
@@ -80,12 +86,14 @@ export const initialRemoteModel: RemoteModel = {
   mutations: emptyMutationState,
   gaps: new Set(),
   loading: new Set(),
+  refresh: { requested: 0, started: 0 },
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
 const runtimeSchema = Schema.Unknown
 
-export const remoteModelSchema = (): Schema.Schema<RemoteModel> =>
+export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
+  // The runtime fields decode as `unknown`; their types come from `RemoteModel`.
   Schema.Struct({
     entities: runtimeSchema,
     connections: Schema.Record(Schema.String, runtimeSchema),
@@ -94,7 +102,8 @@ export const remoteModelSchema = (): Schema.Schema<RemoteModel> =>
     mutations: runtimeSchema,
     gaps: runtimeSchema,
     loading: runtimeSchema,
-  }) as unknown as Schema.Schema<RemoteModel>
+    refresh: Schema.Struct({ requested: Schema.Number, started: Schema.Number }),
+  }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
 export type RemoteMessage =
@@ -112,7 +121,12 @@ export type RemoteMessage =
   /** A refetch of present fields began; they read as `Refreshing` until it lands. */
   | { readonly _tag: 'RefreshStarted'; readonly requests: readonly Requirement[] }
   /** A read began; the fields it asks for that the store lacks read as `Loading`. */
-  | { readonly _tag: 'ReadStarted'; readonly requests: readonly Requirement[] }
+  | {
+      readonly _tag: 'ReadStarted'
+      readonly requests: readonly Requirement[]
+      /** The refresh generation the read was planned under. */
+      readonly refresh?: number | undefined
+    }
   /** The active Surfaces' roots changed; everything they do not reach is collected. */
   | { readonly _tag: 'RetentionChanged'; readonly roots: RetentionRoots }
   /** A restored snapshot meets the store; runtime state is untouched. */
@@ -170,7 +184,7 @@ export const remoteMessageCases = {
   },
   ReadFailed: { requests: Schema.Array(ReadRequest), error: remoteErrorSchema },
   RefreshStarted: { requests: Schema.Array(ReadRequest) },
-  ReadStarted: { requests: Schema.Array(ReadRequest) },
+  ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
   RetentionChanged: { roots: retentionRootsSchema },
   Hydrated: {
     entities: runtimeSchema,
@@ -329,10 +343,18 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         ...model,
         entities: RemotePersistence.mergeStores(model.entities, message.entities, message.merge),
       }
-    case 'RefreshStarted':
-      return { ...model, entities: setStale(model.entities, marksOf(message.requests), true) }
-    case 'ReadStarted':
-      return { ...model, loading: withLoading(model.loading, message.requests) }
+    case 'RefreshStarted': {
+      const entities = setStale(model.entities, marksOf(message.requests), true)
+      return entities === model.entities ? model : { ...model, entities }
+    }
+    case 'ReadStarted': {
+      const started = Math.max(model.refresh.started, message.refresh ?? 0)
+      return {
+        ...model,
+        loading: withLoading(model.loading, message.requests),
+        refresh: started === model.refresh.started ? model.refresh : { ...model.refresh, started },
+      }
+    }
     case 'MutationStarted':
       return {
         ...model,
@@ -394,7 +416,11 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return clearGap(model, message.stream)
     case 'ConnectionMerged': {
       const current = model.connections[message.connection] ?? emptyConnection
-      const merged = merge(current, message.page)
+      // The page answering an invalidation is the server's list as it now is, so it
+      // replaces the pages: removed and reordered items go, and later pages are paged
+      // again. A re-run of a connection that was not invalidated still merges.
+      const replaces = message.refreshes === true && current.stale
+      const merged = merge(replaces ? emptyConnection : current, message.page)
       return {
         ...model,
         connections: {
@@ -410,6 +436,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       }
     }
     case 'ConnectionInvalidated':
+      if (model.connections[message.connection]?.stale === true) return model
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),

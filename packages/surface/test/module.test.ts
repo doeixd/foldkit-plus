@@ -29,7 +29,7 @@ const notesSync: Contract = {
   owns: Projection.pick(App.fields.notes).dependencies,
   observes: Projection.pick(App.fields.notes).dependencies,
   messages: [...MessageSet.make(App, [Message.CreatedNote]).tags],
-  requirements: [],
+  metadata: [],
 }
 /** What `Remote.at` attaches: it owns the store field. */
 const remote: Contract = {
@@ -39,7 +39,7 @@ const remote: Contract = {
   owns: [['remote']],
   observes: [['remote']],
   messages: [],
-  requirements: [],
+  metadata: [],
 }
 
 describe('Module', () => {
@@ -58,7 +58,7 @@ describe('Module', () => {
       owns: [],
       observes: [['notes'], ['selectedNoteId']],
       messages: ['CreatedNote', 'SelectedNote'],
-      requirements: [],
+      metadata: [],
     })
     expect(Module.add(Project).contracts).toEqual(Project.contracts)
   })
@@ -121,7 +121,7 @@ describe('Module', () => {
       owns: [],
       observes: [['nope']],
       messages: ['Missing'],
-      requirements: [],
+      metadata: [],
     }
     expect(Module.validate(Module.make(App, [stray])).map(finding => finding.message)).toEqual([
       'agent:assistant references "nope", which is not a Model field',

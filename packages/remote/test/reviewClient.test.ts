@@ -20,6 +20,7 @@ import {
   isFieldStale,
   merge,
   plan,
+  requirementsOf,
   segment,
   stableStringify,
   updateRemote,
@@ -54,7 +55,7 @@ const Card = Selection.make(Project, {
     }),
   ),
 })
-const requirement = Remote.select(AppRemote, Card)('p1').requirements[0]!
+const requirement = requirementsOf(Remote.select(AppRemote, Card)('p1'))[0]!
 
 describe('review: nested relation windows', () => {
   const result = {
@@ -95,7 +96,7 @@ describe('review: nested relation windows', () => {
         }),
       ),
     })
-    const again = plan(store, Remote.select(AppRemote, wider)('p1').requirements)
+    const again = plan(store, requirementsOf(Remote.select(AppRemote, wider)('p1')))
     expect(again).toEqual([
       {
         entity: 'Comment',
@@ -123,7 +124,7 @@ describe('review: nested relation windows', () => {
         }),
       ),
     })
-    const requests = plan(store, Remote.select(AppRemote, more)('p1').requirements)
+    const requests = plan(store, requirementsOf(Remote.select(AppRemote, more)('p1')))
     const next = Remote.writeRead(store, requests, {
       entities: [
         {
@@ -175,7 +176,7 @@ describe('review: prefetch stamps the store with its clock', () => {
       }).pipe(Effect.provide(Client)),
     )
     expect(store[entityKey('User', 'u1')]?.updatedAt).toBe(10_000)
-    expect(plan(store, projection.requirements, RemotePolicy.toPlan(policy, 10_050))).toEqual([])
+    expect(plan(store, requirementsOf(projection), RemotePolicy.toPlan(policy, 10_050))).toEqual([])
   })
 })
 

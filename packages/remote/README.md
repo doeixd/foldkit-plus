@@ -431,6 +431,32 @@ const loaded = await Effect.runPromise(
 Remote Messages reduced into it. It never changes the semantics of the
 Projection itself.
 
+### Refreshing from `update`
+
+To revalidate what a screen already declares — a refresh button, a focus
+regained — hand its Projection (or a Surface without params) to `Data.refresh`:
+
+```ts
+case 'ClickedRefresh': {
+  if (model.route._tag !== 'project') return { model }
+  const page = ProjectPage.projection({ projectId: model.route.projectId })
+  return { model: Data.refresh(model, page) }
+}
+```
+
+`Data.refresh` performs no I/O and restates no request. It returns the Model
+with every selected field the store holds reading `Refreshing` and every loaded
+connection invalidated; the `Data.subscriptions` read entries then refetch it,
+since stale data is planned again under every policy, so the page is requested
+once. The Projection must be observed, as it is while it is on screen; for data
+nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
+
+- A refreshed connection's first page replaces its loaded pages, so items the
+  server removed or reordered follow it; later pages are fetched again with
+  `Data.next`.
+- A read already in flight restarts instead of landing after the refresh.
+- Refreshing what is already refreshing, or nothing, returns the same Model.
+
 ## Queries and pagination
 
 Entities answer "which fields of this known thing?" A Query answers "which
@@ -738,9 +764,12 @@ helpers. `Remote.select(bound, selection)(id)` is the lower-level form of
 
 ### Requirements and the planner
 
-A Projection's `requirements` are plain data: entity, id, fields, any relation
-pagination windows, and the nested target selections reached through relations.
-Its `connections` describe query connections as `{ identity, window, select }`.
+A Projection carries its requirements as Remote's own metadata, attached with
+`RemoteRequirements.of` / `RemoteConnections.of` and read with
+`requirementsOf(projection)` / `connectionsOf(projection)`. Requirements are
+plain data: entity, id, fields, any relation pagination windows, and the nested
+target selections reached through relations. Connections describe query
+connections as `{ identity, window, select }`.
 
 `Remote.plan(bound, model, projection, options?)` deterministically diffs those
 requirements against the visible store and returns only missing/stale work. A
@@ -788,9 +817,10 @@ Remote.retain(projections, toMessage?, { connections?, grace? })
   active roots -> RetentionChanged
 ```
 
-The observe entry's dependencies are the current plan. If entity requirements
-and queries are both empty, it performs no I/O. A refreshing read emits
-`RefreshStarted` first, then a result Message.
+The observe entry's dependencies are the current plan and the Model's refresh
+generation (`{ requirements, queries, refresh }`), so `Data.refresh` restarts
+it. If entity requirements and queries are both empty, it performs no I/O. A
+refreshing read emits `RefreshStarted` first, then a result Message.
 
 Every emitted Message changes the Model, so Foldkit recomputes Subscription
 dependencies. For example, after a query page lands, the next computation sees
@@ -824,7 +854,9 @@ Remote.visibleItems(remote, ref)
 
 `items`, `hasNext`, `hasPrevious`, and `isGapped` describe the known region.
 `ConnectionInvalidated` keeps visible rows but marks the connection stale until
-a refresh/query result settles it.
+a refresh/query result settles it. A `ConnectionMerged` page with
+`refreshes: true` replaces a stale connection's pages rather than merging into
+them.
 
 ### Mutations by hand
 

@@ -365,6 +365,13 @@ installed `.d.ts` before reaching for a remembered API.
   [binding] })` failed while `Selection.make(binding, …)` (which infers `F`)
   passed. Declaring `ref(id): …` as a method restores bivariance. Write the
   assignability case, not just the call that happens to infer.
+- **A cast in a test marks an API gap.** Tests and examples are end-user code:
+  an audit found about a fifth of their casts came from our types, such as
+  `subscriptions['page.read']!` on keys the runtime always emits, `dehydrate(x)!`
+  where no size limit was given, and `inertHtml as unknown as HtmlBuilder<M>`.
+  Fix the type instead. Acceptable casts: deliberately invalid input, written as
+  `@ts-expect-error` so the rejection is also asserted; an upstream brand we
+  cannot construct; and a lookup `!` under `noUncheckedIndexedAccess`.
 - **Prove a type rejects, not just that it accepts.** Every constraint needs a
   `@ts-expect-error` negative case in `types.test-d.ts`. Both bugs above passed
   a suite full of positive cases.
@@ -425,6 +432,11 @@ installed `.d.ts` before reaching for a remembered API.
   test per guard.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
+- **A wait is only tested where something re-evaluates it.** The Agent + Sync
+  test asserted "still pending before the exchange" and passed with the
+  committed view reading the optimistic value: nothing notified between persist
+  and exchange, so the wrong read was never evaluated. Force a transition
+  between the two states the test tells apart.
 
 **Tooling**
 
@@ -435,6 +447,12 @@ installed `.d.ts` before reaching for a remembered API.
   normal static import works in Vitest and tsx. Do not reinstate per-file
   `createRequire`.
 
+- **Writing a file can turn `\u0000` into a raw NUL.** Moving Remote's
+  requirement code by rewriting it whole emitted literal NUL bytes for the
+  escapes, so git showed `requirement.ts` as `Bin` and editors rendered
+  the escape as an invisible character in `replace('\u0000', ' ')`. After
+  writing code that contains control-character escapes, check
+  `git diff --stat` for `Bin` and grep for the escape.
 - **Format with `pnpm format`, never bare `prettier`.** The config matches the
   style already in the tree; without it prettier rewrites files to its own
   defaults. Markdown is deliberately ignored, because prettier pads table

@@ -2,7 +2,7 @@
  * The bound domain (`Remote.make({ model, … })`): the application-facing
  * operations over the kernel, and what they compile to.
  */
-import { Effect, Fiber, Layer, Optic, Option, Schema, Stream } from 'effect'
+import { Deferred, Effect, Fiber, Layer, Optic, Option, Queue, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { ModelRef, Projection, Surface } from 'foldkit-surface'
@@ -14,16 +14,21 @@ import {
   Query,
   Remote,
   RemoteClient,
+  RemoteConnections,
   RemoteData,
   RemoteMutationError,
   RemotePolicy,
   RemoteQueryError,
+  RemoteReadError,
   Selection,
+  connectionsOf,
   emptyStore,
   entityKey,
   readField,
+  requirementsOf,
   writeEntity,
   type Boundary,
+  type RemoteMessage,
 } from '../src/index.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -85,11 +90,7 @@ describe('Remote.make binds a domain', () => {
   })
 
   it('Remote.Model is entity-independent, so it embeds before the domain is bound', () => {
-    expect(
-      Schema.decodeUnknownSync(Remote.Model as unknown as Schema.ConstraintDecoder<unknown>)(
-        Remote.initial,
-      ),
-    ).toEqual(Remote.initial)
+    expect(Schema.decodeUnknownSync(Remote.Model)(Remote.initial)).toEqual(Remote.initial)
     expect(Data.Model).not.toBe(Remote.Model)
     expect(Data.initial).toBe(Remote.initial)
   })
@@ -149,7 +150,7 @@ describe('the domain’s operations compile to the kernel’s', () => {
 
   it('get, plan, storeOf, prefetch, inspect', async () => {
     const projection = Data.get(summary, 'p1')
-    expect(projection.requirements).toEqual(Remote.select(Data, summary)('p1').requirements)
+    expect(requirementsOf(projection)).toEqual(requirementsOf(Remote.select(Data, summary)('p1')))
     expect(Data.plan(initial, projection)).toEqual(Remote.plan(Data, initial, projection))
     expect(Data.storeOf(initial)).toBe(Remote.storeOf(Data, initial))
 
@@ -287,13 +288,15 @@ describe('Data.live and Data.subscriptions', () => {
   const at = (route: string): Model => ({ route, remote: Remote.initial })
 
   it('live marks the projection’s requirements; get does not; the mark survives Projection.struct', () => {
-    expect(Data.live(summary, 'p1').requirements).toEqual([
+    expect(requirementsOf(Data.live(summary, 'p1'))).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'], live: true },
     ])
-    expect(Data.get(summary, 'p1').requirements).toEqual([
+    expect(requirementsOf(Data.get(summary, 'p1'))).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'] },
     ])
-    expect(Page.projection({ projectId: 'p1' }).requirements.map(r => [r.entity, r.live])).toEqual([
+    expect(
+      requirementsOf(Page.projection({ projectId: 'p1' })).map(r => [r.entity, r.live]),
+    ).toEqual([
       ['Project', true],
       ['User', undefined],
     ])
@@ -317,36 +320,39 @@ describe('Data.live and Data.subscriptions', () => {
   })
 
   it('the read entry plans from the params the Model gives; an inactive Surface plans nothing', () => {
-    expect(subscriptions['page.read']!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions['page.read'].modelToDependencies(at('p7'))).toEqual({
       requirements: [
         { entity: 'Project', id: 'p7', fields: ['name'] },
         { entity: 'User', id: 'u1', fields: ['name'] },
       ],
       queries: [],
+      refresh: 0,
     })
-    expect(subscriptions['page.read']!.modelToDependencies(at(''))).toEqual({
+    expect(subscriptions['page.read'].modelToDependencies(at(''))).toEqual({
       requirements: [],
       queries: [],
+      refresh: 0,
     })
-    expect(subscriptions['home.read']!.modelToDependencies(at(''))).toEqual({
+    expect(subscriptions['home.read'].modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
+      refresh: 0,
     })
   })
 
   it('the live entry subscribes only what the Surface reads live', () => {
-    expect(subscriptions['page.live']!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions['page.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],
       cursor: 0,
     })
-    expect(subscriptions['home.live']!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions['home.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [],
       cursor: 0,
     })
   })
 
   it('the retain entry’s roots are the active Surfaces’ requirements', () => {
-    expect(subscriptions.retain!.modelToDependencies(at('p7'))).toEqual({
+    expect(subscriptions.retain.modelToDependencies(at('p7'))).toEqual({
       requirements: [
         { entity: 'Project', id: 'p7', fields: ['name'], live: true },
         { entity: 'User', id: 'u1', fields: ['name'] },
@@ -354,14 +360,14 @@ describe('Data.live and Data.subscriptions', () => {
       ],
       connections: [],
     })
-    expect(subscriptions.retain!.modelToDependencies(at(''))).toEqual({
+    expect(subscriptions.retain.modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       connections: [],
     })
   })
 
   it('the entries fetch, subscribe, and collect through RemoteClient like the kernel’s', async () => {
-    const read = subscriptions['page.read']!
+    const read = subscriptions['page.read']
     const messages = await Effect.runPromise(
       Stream.runCollect(read.dependenciesToStream(read.modelToDependencies(at('p7')))).pipe(
         Effect.provide(client()),
@@ -373,13 +379,11 @@ describe('Data.live and Data.subscriptions', () => {
       _tag: 'Ready',
       value: { name: 'name of p7' },
     })
-    expect(read.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [] })
+    expect(read.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [], refresh: 0 })
 
     const collected = await Effect.runPromise(
       Stream.runCollect(
-        subscriptions.retain!.dependenciesToStream(
-          subscriptions.retain!.modelToDependencies(at('')),
-        ),
+        subscriptions.retain.dependenciesToStream(subscriptions.retain.modelToDependencies(at(''))),
       ).pipe(Effect.provide(client())),
     )
     expect(collected.map(message => message._tag)).toEqual(['RetentionChanged'])
@@ -393,7 +397,7 @@ describe('Data.live and Data.subscriptions', () => {
       Effect.gen(function* () {
         const fiber = yield* Effect.forkChild(
           Stream.runForEach(
-            graced.retain!.dependenciesToStream(graced.retain!.modelToDependencies(at(''))),
+            graced.retain.dependenciesToStream(graced.retain.modelToDependencies(at(''))),
             message => Effect.sync(() => void collected.push(message._tag)),
           ),
         )
@@ -411,7 +415,7 @@ describe('Data.live and Data.subscriptions', () => {
       { home: Home },
       { policy: RemotePolicy.networkOnly, connections: ['Feed'], grace: '1 second' },
     )
-    expect(tuned.retain!.modelToDependencies(at(''))).toMatchObject({
+    expect(tuned.retain.modelToDependencies(at(''))).toMatchObject({
       connections: [{ identity: 'Feed' }],
     })
     // networkOnly plans every field, present or not.
@@ -422,13 +426,15 @@ describe('Data.live and Data.subscriptions', () => {
         entities: writeEntity(emptyStore, entityKey('Project', 'p1'), { name: 'x' }, 0),
       },
     }
-    expect(subscriptions['home.read']!.modelToDependencies(loaded)).toEqual({
+    expect(subscriptions['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [],
       queries: [],
+      refresh: 0,
     })
-    expect(tuned['home.read']!.modelToDependencies(loaded)).toEqual({
+    expect(tuned['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
+      refresh: 0,
     })
   })
 })
@@ -517,14 +523,14 @@ describe('what runs on every Model change is built once', () => {
       ),
     })
     const model: Model = { route: 'p1', remote: Remote.initial }
-    subscriptions['counted.read']!.modelToDependencies(model)
-    subscriptions['counted.live']!.modelToDependencies(model)
-    subscriptions.retain!.modelToDependencies(model)
+    subscriptions['counted.read'].modelToDependencies(model)
+    subscriptions['counted.live'].modelToDependencies(model)
+    subscriptions.retain.modelToDependencies(model)
     expect(built).toBe(1)
     // A new Model is a new projection; an inactive one builds nothing.
-    subscriptions['counted.read']!.modelToDependencies({ ...model })
+    subscriptions['counted.read'].modelToDependencies({ ...model })
     expect(built).toBe(2)
-    subscriptions.retain!.modelToDependencies({ route: '', remote: Remote.initial })
+    subscriptions.retain.modelToDependencies({ route: '', remote: Remote.initial })
     expect(built).toBe(2)
   })
 })
@@ -670,9 +676,308 @@ describe('Data.query reads a connection as a page of selected items', () => {
     return { queries, reads, layer }
   }
 
+  describe('Data.refresh', () => {
+    /** Runs the read entry that observes `projection` until it plans nothing more. */
+    const observe = async (
+      model: Model,
+      projection: Projection<Model, unknown>,
+      layer: Layer.Layer<RemoteClient>,
+    ): Promise<Model> => {
+      const entry = Remote.observe(
+        Data,
+        App.surface('Refreshed', { model: () => ({ value: projection }) }),
+        undefined,
+      )
+      let current = model
+      for (let pass = 0; pass < 3; pass += 1) {
+        const dependencies = entry.modelToDependencies(current)
+        if (dependencies.requirements.length === 0 && dependencies.queries.length === 0) break
+        const messages = await Effect.runPromise(
+          Stream.runCollect(entry.dependenciesToStream(dependencies)).pipe(Effect.provide(layer)),
+        )
+        current = messages.reduce(Data.reduce, current)
+      }
+      return current
+    }
+
+    it('marks a present entity Refreshing, and its read entry reads it once', async () => {
+      const project = Data.get(summary, 'p1')
+      const loaded = read(initial, ['p1'])
+      const client = paging([])
+      // Without a refresh, the cache-first entry has nothing to read.
+      expect(await observe(loaded, project, client.layer)).toBe(loaded)
+
+      const refreshed = Data.refresh(loaded, project)
+
+      expect(project.read(refreshed)).toEqual({ _tag: 'Refreshing', value: { name: 'name of p1' } })
+      const settled = await observe(refreshed, project, client.layer)
+      expect(client.reads).toEqual([['p1']])
+      expect(project.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'name of p1' } })
+    })
+
+    it('invalidates a loaded connection: one page query, then one read of its items', async () => {
+      const known = read(merged(initial, ['p1', 'p2']), ['p1', 'p2'])
+      const client = paging(['p1', 'p2', 'p3'])
+
+      const refreshed = Data.refresh(known, projects)
+
+      expect(refreshed.remote.connections[identity]?.stale).toBe(true)
+      expect(projects.read(refreshed)._tag).toBe('Refreshing')
+      const settled = await observe(refreshed, projects, client.layer)
+      expect(client.queries).toEqual([{ input: { ownerId: 'u1' }, window: { first: 2 } }])
+      expect(client.reads).toEqual([['p1', 'p2']])
+      expect(projects.read(settled)._tag).toBe('Ready')
+    })
+
+    it('takes a Surface without params, as the kernel form does', () => {
+      const loaded = read(initial, ['p1'])
+      const Home = App.surface('RefreshHome', {
+        model: () => ({ project: Data.get(summary, 'p1') }),
+      })
+
+      const refreshed = Data.refresh(loaded, Home)
+
+      expect(Home.projection(undefined).read(refreshed)).toEqual({
+        project: { _tag: 'Refreshing', value: { name: 'name of p1' } },
+      })
+      expect(Remote.refresh(Data, loaded, Home)).toEqual(refreshed)
+    })
+
+    it('settles a failed refetch back to the value it had', async () => {
+      const project = Data.get(summary, 'p1')
+      const loaded = read(merged(initial, ['p1']), ['p1'])
+      const unreachable = Layer.succeed(RemoteClient, {
+        read: () => Effect.fail(new RemoteReadError({ message: 'down' })),
+        query: () => Effect.fail(new RemoteQueryError({ message: 'down' })),
+        mutate: () => Effect.die('unused'),
+        live: () => Stream.empty,
+      })
+
+      const entity = await observe(Data.refresh(loaded, project), project, unreachable)
+      const page = await observe(Data.refresh(loaded, projects), projects, unreachable)
+
+      expect(project.read(entity)).toEqual({ _tag: 'Ready', value: { name: 'name of p1' } })
+      expect(page.remote.connections[identity]?.stale).toBe(false)
+      expect(projects.read(page)._tag).toBe('Ready')
+    })
+
+    it('leaves live subscriptions as they are', () => {
+      const loaded = read(initial, ['p1'])
+      const Live = App.surface('RefreshLive', {
+        model: () => ({ project: Data.live(summary, 'p1') }),
+      })
+      const live = Remote.live(Data, Live, undefined)
+
+      expect(live.modelToDependencies(Data.refresh(loaded, Live))).toEqual(
+        live.modelToDependencies(loaded),
+      )
+    })
+
+    it('leaves a connection the Model never loaded to its read entry', () => {
+      const refreshed = Data.refresh(initial, projects)
+
+      expect(refreshed.remote.connections[identity]).toBeUndefined()
+      expect(projects.read(refreshed)).toEqual({ _tag: 'Initial' })
+    })
+
+    it('returns the same Model when nothing remote is required', () => {
+      const local = Projection.fromReader(Schema.String, (model: Model) => model.route)
+
+      expect(Data.refresh(initial, local)).toBe(initial)
+    })
+
+    it('returns the same Model when nothing it names is loaded', () => {
+      expect(Data.refresh(initial, Data.get(summary, 'p1'))).toBe(initial)
+    })
+
+    it('returns the same Model when refreshing what is already being refreshed', () => {
+      const known = read(merged(initial, ['p1', 'p2']), ['p1', 'p2'])
+      const both = Projection.struct({ project: Data.get(summary, 'p1'), projects })
+
+      const once = Data.refresh(known, both)
+
+      expect(once).not.toBe(known)
+      expect(Data.refresh(once, both)).toBe(once)
+    })
+
+    it('returns the same Model for a connection already invalidated', () => {
+      const stale = Data.reduce(merged(initial, ['p1']), {
+        _tag: 'ConnectionInvalidated',
+        connection: identity,
+      })
+
+      expect(Data.refresh(stale, projects)).toBe(stale)
+    })
+
+    it('asks again once a read has begun since the last refresh', () => {
+      const project = Data.get(summary, 'p1')
+      const once = Data.refresh(read(initial, ['p1']), project)
+      const reading = Data.reduce(once, {
+        _tag: 'ReadStarted',
+        requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+        refresh: once.remote.refresh.requested,
+      })
+
+      expect(Data.refresh(reading, project).remote.refresh.requested).toBe(
+        once.remote.refresh.requested + 1,
+      )
+    })
+
+    it.each([
+      { change: 'removes an item', server: ['p2', 'p3', 'p4', 'p5'], items: ['p2', 'p3'] },
+      { change: 'reorders items', server: ['p2', 'p1', 'p3', 'p4'], items: ['p2', 'p1'] },
+    ])(
+      'follows the server when it $change, dropping the pages past the first',
+      async ({ server, items }) => {
+        const first = await observe(initial, projects, paging(['p1', 'p2', 'p3', 'p4']).layer)
+        const next = Data.next(first, projects)
+        if (next === undefined) throw new Error('the first page has a next page')
+        const page = await Effect.runPromise(
+          Data.fetch(next).effect.pipe(Effect.provide(paging(['p1', 'p2', 'p3', 'p4']).layer)),
+        )
+        const loaded = await observe(Data.reduce(first, page), projects, paging([]).layer)
+        expect(projects.read(loaded)).toMatchObject({
+          _tag: 'Ready',
+          value: { items: ['p1', 'p2', 'p3', 'p4'].map(id => ({ name: `name of ${id}` })) },
+        })
+
+        const settled = await observe(
+          Data.refresh(loaded, projects),
+          projects,
+          paging(server).layer,
+        )
+
+        expect(projects.read(settled)).toEqual({
+          _tag: 'Ready',
+          value: {
+            items: items.map(id => ({ name: `name of ${id}` })),
+            hasNext: true,
+            hasPrevious: false,
+          },
+        })
+      },
+    )
+
+    it('restarts a networkOnly entry whose query is in flight when its connection is invalidated', () => {
+      const List = App.surface('RefreshList', { model: () => ({ projects }) })
+      const entry = Data.subscriptions({ list: List }, { policy: RemotePolicy.networkOnly })[
+        'list.read'
+      ]
+      const known = read(merged(initial, ['p1', 'p2']), ['p1', 'p2'])
+
+      expect(entry.modelToDependencies(Data.refresh(known, projects))).not.toEqual(
+        entry.modelToDependencies(known),
+      )
+    })
+
+    it('restarts a read already in flight, so its older answer is not applied', async () => {
+      const project = Data.get(summary, 'p1')
+      const Page = App.surface('RefreshInFlight', { model: () => ({ project }) })
+      const entry = Data.subscriptions({ page: Page }, { policy: RemotePolicy.networkOnly })[
+        'page.read'
+      ]
+      const settled = await Effect.runPromise(
+        Effect.gen(function* () {
+          let name = 'Apollo'
+          let calls = 0
+          const called = yield* Deferred.make<void>()
+          const gate = yield* Deferred.make<void>()
+          const layer = Layer.succeed(RemoteClient, {
+            read: batch => {
+              calls += 1
+              // The answer is the server as it is when the read is sent.
+              const answer = {
+                entities: batch.requests.map(request => ({
+                  entity: request.entity,
+                  id: request.id,
+                  values: { name },
+                })),
+              }
+              // The first read reports that it was sent, and resolves only when the test says so.
+              return calls === 1
+                ? Deferred.succeed(called, undefined).pipe(
+                    Effect.andThen(Deferred.await(gate)),
+                    Effect.as(answer),
+                  )
+                : Effect.succeed(answer)
+            },
+            query: () => Effect.die('unused'),
+            mutate: () => Effect.die('unused'),
+            live: () => Stream.empty,
+          })
+
+          // Foldkit's part: reduce each Message, and restart the stream when the
+          // dependencies change. A stream's end is reported by its generation.
+          const inbox = yield* Queue.unbounded<RemoteMessage | { readonly ended: number }>()
+          let model = Data.reduce(initial, {
+            _tag: 'ReadReceived',
+            requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+            result: { entities: [{ entity: 'Project', id: 'p1', values: { name } }] },
+            now: 0,
+          })
+          let dependencies = entry.modelToDependencies(model)
+          let generation = 0
+          const start = () => {
+            const ended = generation
+            return Effect.forkChild(
+              Stream.runForEach(entry.dependenciesToStream(dependencies), message =>
+                Queue.offer(inbox, message),
+              ).pipe(Effect.andThen(Queue.offer(inbox, { ended })), Effect.provide(layer)),
+            )
+          }
+          let fiber = yield* start()
+          const settle = (next: Model) =>
+            Effect.gen(function* () {
+              model = next
+              const changed = entry.modelToDependencies(model)
+              if (JSON.stringify(changed) === JSON.stringify(dependencies)) return
+              dependencies = changed
+              yield* Fiber.interrupt(fiber)
+              generation += 1
+              fiber = yield* start()
+            })
+
+          // The read is announced and in flight; then the server changes and the user refreshes.
+          for (let taken = 0; taken < 2; taken += 1) {
+            const message = yield* Queue.take(inbox)
+            if ('_tag' in message) yield* settle(Data.reduce(model, message))
+          }
+          expect(project.read(model)).toEqual({ _tag: 'Refreshing', value: { name: 'Apollo' } })
+          yield* Deferred.await(called)
+          name = 'Apollo II'
+          yield* settle(Data.refresh(model, project))
+          yield* Deferred.succeed(gate, undefined)
+
+          for (;;) {
+            const message = yield* Queue.take(inbox)
+            if (!('_tag' in message)) {
+              if (message.ended === generation) break
+              continue
+            }
+            yield* settle(Data.reduce(model, message))
+          }
+          return model
+        }),
+      )
+
+      expect(project.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'Apollo II' } })
+    })
+
+    it('refuses a Surface whose params it cannot supply', () => {
+      const Paged = App.surface('RefreshPaged', {
+        params: { id: Schema.String },
+        model: ({ params }) => ({ project: Data.get(summary, params.id) }),
+      })
+      const refused = () =>
+        // @ts-expect-error a Surface with params needs them: refresh its projection instead.
+        Data.refresh(initial, Paged)
+      expect(typeof refused).toBe('function')
+    })
+  })
+
   it('carries the connection and no entity requirement; it reads Initial until the page is known', () => {
-    expect(projects.requirements).toEqual([])
-    expect(projects.connections).toEqual([
+    expect(requirementsOf(projects)).toEqual([])
+    expect(connectionsOf(projects)).toEqual([
       {
         identity,
         window: { first: 2 },
@@ -760,15 +1065,16 @@ describe('Data.query reads a connection as a page of selected items', () => {
   it('the read entry runs the query; the merged page makes its items the next plan', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
     const subscriptions = Data.subscriptions({ list: List })
-    const entry = subscriptions['list.read']!
+    const entry = subscriptions['list.read']
     expect(entry.modelToDependencies(initial)).toEqual({
       requirements: [],
       queries: [
         { identity, window: { first: 2 }, select: { entity: 'Project', fields: ['name'] } },
       ],
+      refresh: 0,
     })
     // The connection is a retention root by itself, with what the page selects of each item.
-    expect(subscriptions.retain!.modelToDependencies(initial)).toEqual({
+    expect(subscriptions.retain.modelToDependencies(initial)).toEqual({
       requirements: [],
       connections: [{ identity, select: { entity: 'Project', fields: ['name'] } }],
     })
@@ -809,6 +1115,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         { entity: 'Project', id: 'p2', fields: ['name'] },
       ],
       queries: [],
+      refresh: 0,
     })
     const reads = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(paged))).pipe(
@@ -826,7 +1133,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         hasPrevious: false,
       },
     })
-    expect(entry.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [] })
+    expect(entry.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [], refresh: 0 })
   })
 
   it('a refreshing policy announces only the fields it refetches, never a bare query', async () => {
@@ -835,7 +1142,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     const entry = Data.subscriptions(
       { list: List },
       { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 1_000 }), now: () => clock },
-    )['list.read']!
+    )['list.read']
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
         Effect.provide(paging(['p1']).layer),
@@ -865,12 +1172,14 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('a hand-built connection that is not a query’s fails as a query would, without dying', async () => {
     const literal = Projection.fromReader(Schema.Unknown, () => null, {
-      connections: [
-        { identity: 'Feed', window: {}, select: { entity: 'Project', fields: ['name'] } },
-      ],
+      metadata: RemoteConnections.of({
+        identity: 'Feed',
+        window: {},
+        select: { entity: 'Project', fields: ['name'] },
+      }),
     })
     const List = App.surface('List', { model: () => ({ literal }) })
-    const entry = Data.subscriptions({ list: List })['list.read']!
+    const entry = Data.subscriptions({ list: List })['list.read']
     expect(Remote.planQueries(Data, initial, literal)).toEqual([])
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
@@ -891,7 +1200,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('a failed query yields QueryFailed, which ends the refresh and keeps the pages', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
-    const entry = Data.subscriptions({ list: List })['list.read']!
+    const entry = Data.subscriptions({ list: List })['list.read']
     const stale = Data.reduce(read(merged(initial, ['p1', 'p2']), ['p1', 'p2']), {
       _tag: 'ConnectionInvalidated',
       connection: identity,
@@ -916,7 +1225,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('an empty page reads nothing further; a page of another entity plans no items', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
-    const entry = Data.subscriptions({ list: List })['list.read']!
+    const entry = Data.subscriptions({ list: List })['list.read']
     const client = paging([])
     const messages = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(initial))).pipe(
@@ -929,7 +1238,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       _tag: 'Ready',
       value: { items: [], hasNext: false, hasPrevious: false },
     })
-    expect(entry.modelToDependencies(empty)).toEqual({ requirements: [], queries: [] })
+    expect(entry.modelToDependencies(empty)).toEqual({ requirements: [], queries: [], refresh: 0 })
     const foreign = Data.reduce(initial, {
       _tag: 'ConnectionMerged',
       connection: identity,
@@ -1061,7 +1370,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       { select: Project.select({ id: true }), first: 2 },
     )
     const both = Projection.struct({ names: projects, ids })
-    expect(both.connections.map(connection => connection.select)).toEqual([
+    expect(connectionsOf(both).map(connection => connection.select)).toEqual([
       { entity: 'Project', fields: ['name', 'id'] },
     ])
     expect(Remote.planQueries(Data, initial, both)).toEqual([projects.ref])
@@ -1080,7 +1389,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     ])
     // The planner merges for itself too, as it does requirements, for a hand-built projection.
     const literal = Projection.fromReader(Schema.Unknown, () => null, {
-      connections: [...projects.connections, ...ids.connections],
+      metadata: RemoteConnections.of(...connectionsOf(projects), ...connectionsOf(ids)),
     })
     expect(Remote.planQueries(Data, initial, literal)).toEqual([projects.ref])
     expect(Data.plan(merged(initial, ['p1']), literal)).toEqual([

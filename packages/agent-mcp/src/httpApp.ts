@@ -52,16 +52,15 @@ const toHttpRequest = (
   ...(body === undefined ? {} : { body }),
 })
 
-export interface HttpAppOptions<
-  Model,
-  Context_,
-  Principal,
-  ByName,
-  ByTag,
-> extends HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
-  /** Reuses an existing handler instead of creating one, so sessions can be shared. */
-  readonly server?: HttpHandler | undefined
-}
+/**
+ * Either the options to create a handler, or an existing handler to reuse so
+ * sessions can be shared. Not both: a reused handler would ignore the rest.
+ */
+export type HttpAppOptions<Model, Context_, Principal, ByName, ByTag> =
+  | (HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> & {
+      readonly server?: undefined
+    })
+  | { readonly server: HttpHandler }
 
 /**
  * Serves a contract as an Effect HTTP application.
@@ -83,7 +82,7 @@ export const httpApp = <Model, Context_, Principal, ByName, ByTag>(
   never,
   HttpServerRequest.HttpServerRequest
 > => {
-  const server = options.server ?? httpHandler(options)
+  const server = options.server === undefined ? httpHandler(options) : options.server
 
   return Effect.fn('AgentMcp.httpApp')(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest

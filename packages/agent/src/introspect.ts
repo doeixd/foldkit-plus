@@ -1,7 +1,12 @@
 import type { Schema } from 'effect'
 import type { Definition } from './make.js'
 import { toJsonSchema } from './jsonSchema.js'
-import type { AgentSchema, MessageDescriptor, ResourceDescriptor } from './types.js'
+import type {
+  AgentSchema,
+  JsonSchemaDocument,
+  MessageDescriptor,
+  ResourceDescriptor,
+} from './types.js'
 
 /**
  * Describes every exposed capability as protocol-neutral data.
@@ -35,10 +40,8 @@ export const resources = (
 /** The JSON Schema of the projected agent context, when the definition declares one. */
 export const contextSchema = (
   definition: Definition<any, any, any, any, any>,
-): Record<string, unknown> | undefined =>
-  definition.context === undefined
-    ? undefined
-    : toJsonSchema(definition.context.Model as unknown as Schema.Codec<unknown>)
+): JsonSchemaDocument | undefined =>
+  definition.context === undefined ? undefined : toJsonSchema(definition.context.Model)
 
 /**
  * The full, data-only description of an agent contract.

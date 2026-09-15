@@ -1,23 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { Capability, Slot, SlotView, Slots, Style, type SlotAttributes } from '../src/index.js'
+import {
+  Attributes,
+  Capability,
+  Slot,
+  SlotView,
+  Slots,
+  Style,
+  type SlotAttributes,
+} from '../src/index.js'
 import { DiagnosticError } from '../src/diagnostics.js'
 import { h, type TestMessage } from './resolverFixture.js'
 
 const RuleSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
 
-const classValue = (attributes: SlotAttributes<TestMessage>): string | undefined => {
-  for (const attribute of attributes) {
-    if (
-      typeof attribute === 'object' &&
-      attribute !== null &&
-      '_tag' in attribute &&
-      (attribute as { readonly _tag: string })._tag === 'Class'
-    ) {
-      return (attribute as { readonly value: string }).value
-    }
-  }
-  return undefined
-}
+const classValue = (attributes: SlotAttributes<TestMessage>): string | undefined =>
+  Attributes.find(attributes, 'Class')?.value
 
 const diagnosticCode = (run: () => unknown): string | undefined => {
   try {

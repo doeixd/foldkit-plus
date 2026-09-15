@@ -65,11 +65,21 @@ const cursorCompare = (
  * keeps a page contiguous under a multi-column order. `forward` selects rows
  * after the cursor; `backward` before it.
  */
-export const keysetWhere = (
+export function keysetWhere(
+  terms: readonly [OrderTerm, ...OrderTerm[]],
+  values: readonly unknown[],
+  traversal: Traversal,
+): SQL
+export function keysetWhere(
   terms: readonly OrderTerm[],
   values: readonly unknown[],
   traversal: Traversal,
-): SQL | undefined => {
+): SQL | undefined
+export function keysetWhere(
+  terms: readonly OrderTerm[],
+  values: readonly unknown[],
+  traversal: Traversal,
+): SQL | undefined {
   if (terms.length === 0) return undefined
   const branches = terms.map((term, index) => {
     const equalities = terms
