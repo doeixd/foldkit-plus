@@ -285,52 +285,6 @@ describe('Sync.mount', () => {
     expect(pending(replica)).toEqual([])
   })
 
-  const ownCommitted = (id: string, n: number): CommittedOperation => ({
-    ...committed(id, id, n),
-    replicaId: replicaId('a'),
-    localSequence: localSequence(n),
-    opId: opId(`a:${n}`),
-  })
-
-  it.each([
-    ['commits', { operations: [ownCommitted('B', 1)], rejected: [] }],
-    ['only acknowledges', { operations: [], rejected: [], acknowledged: ['a:1'] }],
-    ['rejects', { operations: [], rejected: ['a:1'] }],
-  ])(
-    'keeps an edit still persisting when an exchange that %s an earlier one settles',
-    async (_, response) => {
-      const base = memoryStorage()
-      let gate: Promise<void> | undefined
-      const app = await open({
-        ...base,
-        save: (state, revision) =>
-          gate === undefined
-            ? base.save(state, revision)
-            : Effect.promise(() => gate!).pipe(Effect.andThen(base.save(state, revision))),
-      })
-      app.dispatch(Message.CreatedTodo({ id: 'B', title: 'B' }))
-      await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
-
-      let release!: () => void
-      gate = new Promise(resolve => {
-        release = resolve
-      })
-      // B's exchange holds the replica lock in its slow persist; A's submit waits behind it.
-      const settling = exchange(replica, response)
-      await new Promise(resolve => setTimeout(resolve, 10))
-      app.dispatch(Message.CreatedTodo({ id: 'A', title: 'A' }))
-      await vi.waitFor(() => expect(app.model().todos.map(todo => todo.id)).toContain('A'))
-
-      release()
-      await settling
-      await vi.waitFor(() => expect(pending(replica).map(op => op.opId)).toContain('a:2'))
-      await vi.waitFor(() =>
-        expect(app.model().todos).toEqual(Effect.runSync(replica.shared).todos),
-      )
-      expect(app.model().todos.map(todo => todo.id)).toContain('A')
-    },
-  )
-
   it('keeps refreshing and notifying after a committed listener throws', async () => {
     // The runtime schedules through queueMicrotask too, so wrap it rather than replace it.
     const reported: unknown[] = []
@@ -413,6 +367,24 @@ describe('Sync.mount', () => {
     await exchange(replica, { operations: [], rejected: ['a:1'] })
     await vi.waitFor(() => expect(text()).not.toContain('Milk'))
     expect(app.model().todos).toEqual([])
+  })
+
+  it('disposes when a persist dies with a defect', async () => {
+    const base = memoryStorage()
+    const app = await open({
+      ...base,
+      save: (state, revision) =>
+        revision === null ? base.save(state, revision) : Effect.die(new Error('storage defect')),
+    })
+    app.dispatch(Message.CreatedTodo({ id: 'a', title: 'Milk' }))
+    await vi.waitFor(() => expect(text()).toContain('storage defect'))
+
+    const outcome = await Promise.race([
+      app.dispose().then(() => 'disposed'),
+      new Promise(resolve => setTimeout(() => resolve('hung'), 500)),
+    ])
+    mounted = undefined
+    expect(outcome).toBe('disposed')
   })
 
   it('waits for an in-flight persist before disposing', async () => {

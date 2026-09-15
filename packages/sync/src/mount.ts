@@ -157,8 +157,6 @@ export const mount = <
     sync.projection.set(model, Effect.runSync(replica.shared))
 
   const inFlight = new Set<Promise<void>>()
-  let unsettled = 0
-  let stale = false
   let latest: Model = install(app.initial)
   const modelListeners = new Set<() => void>()
   const committedListeners = new Set<() => void>()
@@ -184,25 +182,17 @@ export const mount = <
     message: RuntimeMessage,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
     switch (message._tag) {
-      // While a durable edit is applied but its submit has not settled, the
-      // replica does not hold it yet: installing then would drop it. Defer the
-      // install until the last outstanding submit settles.
+      // Known gap: a durable edit whose submit is still waiting for the replica
+      // lock is not in `replica.shared` yet, so a REFRESH landing then hides it
+      // until the next exchange that changes the shared slice. Deferring the
+      // install instead starves remote changes while edits keep overlapping.
       case REFRESH:
-        if (unsettled > 0) {
-          stale = true
-          return { model }
-        }
         return { model: install(model) }
       case PERSISTED:
-        unsettled -= 1
-        if (unsettled > 0 || !stale) return { model }
-        stale = false
-        return { model: install(model) }
+        return { model }
       case FAILED: {
-        unsettled -= 1
         const { error } = message as Extract<Private, { readonly _tag: typeof FAILED }>
-        stale = unsettled > 0
-        const reverted = stale ? model : install(model)
+        const reverted = install(model)
         return { model: options.onPersistenceFailure?.(reverted, error) ?? reverted }
       }
       case NAVIGATE: {
@@ -233,7 +223,6 @@ export const mount = <
           Resources
         >
         if (!durable.has(message._tag)) return result
-        unsettled += 1
         const persist = {
           name: 'foldkit-sync/persist',
           effect: Effect.gen(function* () {
@@ -243,9 +232,15 @@ export const mount = <
               settle = resolve
             })
             inFlight.add(done)
-            const outcome = yield* Effect.result(replica.submit(message as Message))
-            inFlight.delete(done)
-            settle()
+            // `ensuring`, so a defect in storage still lets `dispose` finish.
+            const outcome = yield* Effect.result(replica.submit(message as Message)).pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  inFlight.delete(done)
+                  settle()
+                }),
+              ),
+            )
             return outcome._tag === 'Success'
               ? ({ _tag: PERSISTED } as RuntimeMessage)
               : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
