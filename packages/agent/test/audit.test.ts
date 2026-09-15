@@ -228,13 +228,14 @@ describe('the principal is resolved once per dispatch', () => {
 
   it('records no principal when the dispatch is refused before one is resolved', async () => {
     let calls = 0
-    const audit = Agent.auditLog({ principal: caller => caller })
+    // Dereferences its argument, so projecting the unresolved principal would throw.
+    const audit = Agent.auditLog({ principal: (caller: Principal) => caller.user })
     const runtime = runtimeResolving(audit, () => {
       calls += 1
       return principal
     })
 
-    await run(runtime.messages.dispatchUnknown('no_such_capability', {}))
+    await run(runtime.messages.dispatchUnknown('create_todo', { title: 42 }))
 
     expect(calls).toBe(0)
     expect(audit.entries()).toMatchObject([{ decision: 'refused', principal: undefined }])

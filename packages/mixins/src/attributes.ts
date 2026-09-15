@@ -4,7 +4,7 @@
  * own fields (`value`, `message`, `key`, `action`) without a cast.
  */
 import type { Attribute } from 'foldkit/html'
-import { isChildAttribute, isTagged } from './attribute.js'
+import { isTagged } from './attribute.js'
 import type { SlotAttributes } from './resolver.js'
 
 /** Every Foldkit attribute tag: `'Class'`, `'OnClick'`, `'DataAttribute'`, … */
@@ -15,7 +15,7 @@ export type Of<Message, T extends Tag> = Extract<Attribute<Message>, { readonly 
 
 /** The tag of one bundle entry; `undefined` for an opaque `ChildAttribute`. */
 export const tagOf = <Message>(attribute: SlotAttributes<Message>[number]): Tag | undefined =>
-  !isChildAttribute(attribute) && isTagged(attribute) ? attribute._tag : undefined
+  isTagged(attribute) ? attribute._tag : undefined
 
 const hasTag =
   <Message, T extends Tag>(tag: T) =>

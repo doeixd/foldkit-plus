@@ -565,6 +565,19 @@ describe('state completion', () => {
     expect(result._tag).toBe('Success')
   })
 
+  it('completes when update notifies a true state and reverts it before dispatch returns', async () => {
+    const state = makeStateHost((message, set) => {
+      if (message._tag !== 'RequestedCreateTodo') return
+      set(withTitle(message.title))
+      set(emptyModel)
+    })
+    const runtime = Agent.bind({ definition: creating(Duration.millis(50)), host: state.host })
+
+    const result = await run(runtime.messages.dispatch('create_todo', { title: 'milk' }))
+
+    expect(result._tag).toBe('Success')
+  })
+
   it('completes at once when the state already holds, whoever made it so', async () => {
     const state = makeStateHost()
     state.replace(withTitle('milk'))

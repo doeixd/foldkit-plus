@@ -85,6 +85,28 @@ describe('Agent.toManifest', () => {
     )
   })
 
+  it('names a nested Model path by its dotted segments', () => {
+    const NestedAgent = Agent.make({
+      messages: Agent.expose(MessageUnion, {
+        RequestedCreateTodo: {
+          description: 'Create a todo',
+          completion: Agent.when({
+            projection: Projection.fromReader(ModelSchema, (model: Model) => model, {
+              dependencies: [['todos', 'count']],
+            }),
+            predicate: () => true,
+          }),
+        },
+      }),
+    })
+
+    expect(Agent.toManifest(NestedAgent).capabilities[0]?.completion).toEqual({
+      kind: 'state',
+      observes: ['todos.count'],
+    })
+    expect(Agent.toMarkdown(NestedAgent)).toContain('(`todos.count`)')
+  })
+
   it('omits completion where none is declared', () => {
     const create = Agent.toManifest(AppAgent).capabilities.find(
       c => c.name === 'requested_create_todo',

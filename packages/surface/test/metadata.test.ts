@@ -69,6 +69,8 @@ describe('Projection metadata', () => {
     expect(Metadata.summarize(forged)).toEqual([])
 
     const made = Projection.struct({ a: flag('beta'), b: flag('gamma') }).metadata
+    expect(Object.isFrozen(made)).toBe(true)
+    expect(Object.isFrozen(flag('beta').metadata)).toBe(true)
     expect(() => (Flags.get(made) as string[]).push('delta')).toThrow(TypeError)
     expect(() => (Flags.get(flag('beta').metadata) as string[]).push('delta')).toThrow(TypeError)
     const none = Projection.fromReader(Schema.String, () => '').metadata
