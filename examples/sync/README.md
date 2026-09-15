@@ -154,6 +154,29 @@ policy/order/replay path as a client replica.
 Alice and Bob then synchronize and converge on those agent-authored operations as
 well.
 
+Here dispatch and commit happen together, because the host appends straight to
+the journal. A browser agent works differently. It binds to the mounted app, and
+its edit appears in the Model before the server has it. If that agent must not
+report success until the server has committed the edit, its completion waits on
+`mounted.committed`, not on the Model:
+
+```ts
+completion: Agent.when({
+  source: app.committed, // app = mountTodos(replica, ...)
+  predicate: (shared, request) => shared.todos.some(todo => todo.id === request.id),
+  timeout,
+})
+```
+
+`app.committed` is a read of the replica's committed slice (`{ get, subscribe }`).
+It does no I/O and never triggers a synchronize. It notifies subscribers after
+every exchange, and the agent re-checks the predicate then. So the dispatch
+resolves only after an exchange that commits the todo. If the server rejects
+the edit, the todo never shows up in the committed slice, and the dispatch fails
+with `AgentCompletionTimeoutError`. The rejection does not end the wait early.
+`test/runtime.test.ts` covers both cases against the real journal transport.
+The demo has no mounted app, so it does not show this.
+
 ### 4. Presence stays ephemeral
 
 Presence uses a separate channel and TTL. Alice publishes a selected todo; Bob
@@ -174,7 +197,8 @@ The demo ends with:
 Recovered an offline outbox, converged two replicas, replayed two server agent Messages, and let a presence peer expire.
 ```
 
-followed by the final converged document. `test/demo.test.ts` pins that output.
+followed by the final converged document. No test pins that transcript; the
+scenarios it narrates are covered in `test/` (see the table below).
 
 ## Try the browser version
 
@@ -230,7 +254,7 @@ The tests go much further than the demo. Grouped by the guarantee they exercise:
 | closed replica | work after close is refused and retransmitted committed operations remain harmless |
 | credential expiry | the socket is closed/refused once the authenticated credential expires |
 | server-authority effects | a recorded successful effect is not intentionally repeated for the same committed operation |
-| agent producer | server-agent dispatch cannot bypass journal authorization/order |
+| agent producer | server-agent dispatch cannot bypass journal authorization/order; a browser agent completes on the committed slice, never on a rejected edit |
 | presence | peers are scoped to the document and expire independently of durable state |
 | LWW fields | logical clocks survive reload and advance beyond rejected/unsubmitted writes |
 

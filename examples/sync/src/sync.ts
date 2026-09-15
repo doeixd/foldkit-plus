@@ -50,4 +50,4 @@ export const mountTodos = (
     readonly view: (model: Model, h: HtmlBuilder<Message>) => Document
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model
   },
-): Mounted<Model, Message> => Sync.mount(App, definition, { replica, ...options })
+): Mounted<Model, Message, Shared> => Sync.mount(App, definition, { replica, ...options })
