@@ -172,6 +172,11 @@ export interface DefinedSync<
 > extends Sync<Message, Schema.Struct.Type<Fields>> {
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
+  /** The reducer the replica replays durable Messages with: derived from `update`, or `make`'s `replay`. */
+  readonly replay: (
+    shared: Schema.Struct.Type<Fields>,
+    message: Message,
+  ) => Schema.Struct.Type<Fields>
   readonly messages: Ms
   /** For `Module`: this contract owns the shared projection's paths and records the durable tags. */
   readonly contract: Contract
@@ -409,6 +414,7 @@ const build = <
       journalContract,
       surface,
       projection: shared,
+      replay,
       messages: durable.constructors,
       contract,
     }

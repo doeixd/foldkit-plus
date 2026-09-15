@@ -127,6 +127,12 @@ export interface ReplicaSnapshot<Shared> {
   readonly shared: Shared
   /** The server-confirmed state the optimistic `shared` is built on. */
   readonly committed: Shared
+  /**
+   * The local sequence the next submitted operation takes. Only a successful
+   * submit moves it, so a caller that submits one Message at a time can tell
+   * from one snapshot whether `shared` already holds it.
+   */
+  readonly nextLocalSequence: LocalSequence
 }
 
 export interface Replica<Message, Shared> {
@@ -152,6 +158,8 @@ export interface Replica<Message, Shared> {
    * submit and exchange, so a UI can subscribe once instead of to both.
    */
   readonly changes: Stream.Stream<ReplicaSnapshot<Shared>>
+  /** The status, `shared`, `committed` and next local sequence, read from one replica state. */
+  readonly snapshot: Effect.Effect<ReplicaSnapshot<Shared>>
   readonly submit: (message: Message) => Effect.Effect<void, ReplicaError>
   /** Reconciles against the server. The `Transport` service must be provided. */
   readonly synchronize: Effect.Effect<void, ReplicaError | TransportError, Transport>
@@ -437,6 +445,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
           },
           shared: projected,
           committed: current.committed,
+          nextLocalSequence: current.nextLocalSequence,
         }
       })()
       const shared = Effect.map(snapshot, value => value.shared)
@@ -643,6 +652,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
 
       return {
         shared,
+        snapshot,
         committed: Effect.map(SynchronizedRef.get(stateRef), state => state.committed),
         pending: Effect.map(SynchronizedRef.get(stateRef), state => state.pending),
         cursor: Effect.map(SynchronizedRef.get(stateRef), state => state.cursor),

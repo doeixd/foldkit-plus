@@ -20,6 +20,7 @@ import {
   type Replica,
   type Storage,
 } from '../src/index.js'
+import { unconfirmedEdits } from '../src/mount.js'
 import { memoryStorage } from './memoryStorage.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
@@ -283,6 +284,130 @@ describe('Sync.mount', () => {
 
     await vi.waitFor(() => expect(app.model().todos).toEqual([]))
     expect(pending(replica)).toEqual([])
+  })
+
+  const ownCommitted = (id: string, n: number): CommittedOperation => ({
+    ...committed(id, id, n),
+    replicaId: replicaId('a'),
+    localSequence: localSequence(n),
+    opId: opId(`a:${n}`),
+  })
+  const ids = (model: Model) => model.todos.map(todo => todo.id)
+
+  it.each([
+    ['commits', { operations: [ownCommitted('B', 1)], rejected: [] }],
+    ['only acknowledges', { operations: [], rejected: [], acknowledged: ['a:1'] }],
+    ['rejects', { operations: [], rejected: ['a:1'] }],
+  ])(
+    'keeps edits still waiting for the replica when an exchange that %s an earlier one settles',
+    async (_, response) => {
+      const base = memoryStorage()
+      let gate: Promise<void> | undefined
+      const app = await open({
+        ...base,
+        save: (state, revision) =>
+          gate === undefined
+            ? base.save(state, revision)
+            : Effect.promise(() => gate!).pipe(Effect.andThen(base.save(state, revision))),
+      })
+      app.dispatch(Message.CreatedTodo({ id: 'B', title: 'B' }))
+      await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+      let release!: () => void
+      gate = new Promise(resolve => {
+        release = resolve
+      })
+      // B's exchange holds the replica lock in its slow persist; A and C wait behind it.
+      const settling = exchange(replica, response)
+      await new Promise(resolve => setTimeout(resolve, 10))
+      app.dispatch(Message.CreatedTodo({ id: 'A', title: 'A' }))
+      app.dispatch(Message.CreatedTodo({ id: 'C', title: 'C' }))
+      await vi.waitFor(() => expect(ids(app.model())).toEqual(expect.arrayContaining(['A', 'C'])))
+
+      release()
+      await settling
+      await vi.waitFor(() => expect(pending(replica).map(op => op.opId)).toContain('a:3'))
+      await vi.waitFor(() =>
+        expect(app.model().todos).toEqual(Effect.runSync(replica.shared).todos),
+      )
+      expect(ids(app.model())).toEqual(expect.arrayContaining(['A', 'C']))
+      expect(new Set(ids(app.model())).size).toBe(ids(app.model()).length)
+    },
+  )
+
+  it('shows a remote change while durable edits keep overlapping', async () => {
+    const base = memoryStorage()
+    const app = await open({
+      ...base,
+      save: (state, revision) =>
+        revision === null
+          ? base.save(state, revision)
+          : Effect.sleep(Duration.millis(20)).pipe(Effect.andThen(base.save(state, revision))),
+    })
+    let dispatched = 0
+    const editing = setInterval(() => {
+      dispatched += 1
+      app.dispatch(Message.CreatedTodo({ id: `e${dispatched}`, title: 'Edit' }))
+    }, 5)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 30))
+      const syncing = exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+      await vi.waitFor(() => expect(ids(app.model())).toContain('r'), { timeout: 400 })
+      // Edits were still waiting for the replica when the remote change showed.
+      expect(pending(replica).length).toBeLessThan(dispatched)
+      await syncing
+    } finally {
+      clearInterval(editing)
+    }
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(dispatched), { timeout: 5_000 })
+    await vi.waitFor(() => expect(app.model().todos).toEqual(Effect.runSync(replica.shared).todos))
+    expect(new Set(ids(app.model())).size).toBe(ids(app.model()).length)
+  })
+
+  it('reverts a failed edit while a later one waits, and keeps the later one', async () => {
+    const base = memoryStorage()
+    let gate: Promise<void> | undefined
+    let savesAfterRelease = 0
+    const app = await open({
+      ...base,
+      save: (state, revision) => {
+        if (gate === undefined) return base.save(state, revision)
+        return Effect.promise(() => gate!).pipe(
+          Effect.andThen(
+            Effect.suspend(() => {
+              savesAfterRelease += 1
+              // The exchange saves first, then A's submit, then C's.
+              return savesAfterRelease === 2
+                ? Effect.fail(new StorageError({ message: 'disk full' }))
+                : base.save(state, revision)
+            }),
+          ),
+        )
+      },
+    })
+    let release!: () => void
+    gate = new Promise(resolve => {
+      release = resolve
+    })
+    const settling = exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    app.dispatch(Message.CreatedTodo({ id: 'A', title: 'A' }))
+    app.dispatch(Message.CreatedTodo({ id: 'C', title: 'C' }))
+
+    release()
+    await settling
+    await vi.waitFor(() => expect(app.model().lastError).toBe('StorageError'))
+    await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+    await vi.waitFor(() => expect(ids(app.model())).toEqual(['r', 'C']))
+  })
+
+  it('replays only the edits the replica does not hold yet', () => {
+    const queued = { message: 'queued', started: undefined }
+    const inFlight = { message: 'in flight', started: 4 }
+    // The in-flight submit has not landed: the sequence is still the one it started at.
+    expect(unconfirmedEdits([inFlight, queued], 4)).toEqual(['in flight', 'queued'])
+    // It landed and moved the sequence, so `shared` already holds it.
+    expect(unconfirmedEdits([inFlight, queued], 5)).toEqual(['queued'])
   })
 
   it('keeps refreshing and notifying after a committed listener throws', async () => {

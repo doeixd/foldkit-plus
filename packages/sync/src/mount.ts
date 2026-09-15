@@ -111,6 +111,26 @@ const sharedChanged = (previous: ReplicaStatus | undefined, next: ReplicaStatus)
   previous.rejected.length !== next.rejected.length ||
   previous.rejected.some((id, index) => id !== next.rejected[index])
 
+/**
+ * A durable edit the Model already shows. `started` is the replica's next local
+ * sequence when its submit began, `undefined` while it waits for its turn.
+ */
+export interface LocalEdit<Message> {
+  readonly message: Message
+  started: number | undefined
+}
+
+/**
+ * The edits a replica whose next local sequence is `next` does not hold yet.
+ * Submits run one at a time, so the one in flight is in the replica exactly
+ * when its submit has moved the sequence past `started`.
+ */
+export const unconfirmedEdits = <Message>(
+  edits: ReadonlyArray<LocalEdit<Message>>,
+  next: number,
+): ReadonlyArray<Message> =>
+  edits.filter(edit => edit.started === undefined || next <= edit.started).map(edit => edit.message)
+
 /** The application's Message union, as `Surface.application` types it. */
 type MessageOf<App> =
   App extends RunnableApplication<any, any, any, any> ? Schema.Schema.Type<App['Message']> : never
@@ -151,10 +171,34 @@ export const mount = <
   // The application's Messages are tagged structs; the generic cannot say so.
   type Tagged = { readonly _tag: string }
   type RuntimeMessage = (Message & Tagged) | Private
+  type Shared = Schema.Struct.Type<Fields>
   const { replica } = options
   const durable = new Set(sync.contract.messages)
-  const install = (model: Model): Model =>
-    sync.projection.set(model, Effect.runSync(replica.shared))
+
+  // Durable edits whose submit has not settled, in dispatch order.
+  const edits: Array<LocalEdit<Message>> = []
+  // Settles when the latest edit's submit does; the next submit waits for it.
+  let tail: Promise<void> = Promise.resolve()
+
+  // The replica's `shared` holds every settled edit, and the one in flight once
+  // its submit lands; the rest are replayed on top. Read from one snapshot, so
+  // a refresh neither hides an edit still waiting for the replica nor applies
+  // one the replica already holds.
+  const install = (model: Model): Model => {
+    const snapshot = Effect.runSync(replica.snapshot)
+    const shared = unconfirmedEdits(edits, snapshot.nextLocalSequence).reduce<Shared>(
+      (value, message) => {
+        try {
+          return sync.replay(value, message)
+        } catch {
+          // The replica refuses it too; its FAILED re-installs without it.
+          return value
+        }
+      },
+      snapshot.shared,
+    )
+    return sync.projection.set(model, shared)
+  }
 
   const inFlight = new Set<Promise<void>>()
   let latest: Model = install(app.initial)
@@ -182,10 +226,8 @@ export const mount = <
     message: RuntimeMessage,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
     switch (message._tag) {
-      // Known gap: a durable edit whose submit is still waiting for the replica
-      // lock is not in `replica.shared` yet, so a REFRESH landing then hides it
-      // until the next exchange that changes the shared slice. Deferring the
-      // install instead starves remote changes while edits keep overlapping.
+      // Installs at once: edits still waiting for the replica are replayed on
+      // top, so nothing is deferred behind them.
       case REFRESH:
         return { model: install(model) }
       case PERSISTED:
@@ -223,28 +265,37 @@ export const mount = <
           Resources
         >
         if (!durable.has(message._tag)) return result
+        const edit: LocalEdit<Message> = { message: message as Message, started: undefined }
+        edits.push(edit)
+        const previous = tail
+        let settle!: () => void
+        const done = new Promise<void>(resolve => {
+          settle = resolve
+        })
+        tail = done
+        const release = (): void => {
+          const index = edits.indexOf(edit)
+          if (index !== -1) edits.splice(index, 1)
+          inFlight.delete(done)
+          settle()
+        }
         const persist = {
           name: 'foldkit-sync/persist',
           effect: Effect.gen(function* () {
             // Tracked so `dispose` can wait instead of interrupting a persist.
-            let settle!: () => void
-            const done = new Promise<void>(resolve => {
-              settle = resolve
-            })
             inFlight.add(done)
-            // `ensuring`, so a defect in storage still lets `dispose` finish.
-            const outcome = yield* Effect.result(replica.submit(message as Message)).pipe(
-              Effect.ensuring(
-                Effect.sync(() => {
-                  inFlight.delete(done)
-                  settle()
-                }),
-              ),
-            )
+            // One submit at a time, in dispatch order, so `started` is the
+            // sequence this edit takes if its submit succeeds.
+            yield* Effect.promise(() => previous)
+            edit.started = (yield* replica.snapshot).nextLocalSequence
+            const outcome = yield* Effect.result(replica.submit(edit.message))
             return outcome._tag === 'Success'
               ? ({ _tag: PERSISTED } as RuntimeMessage)
               : ({ _tag: FAILED, error: outcome.failure } as RuntimeMessage)
-          }),
+          }).pipe(
+            // `ensuring`, so a defect in storage still releases the next submit and `dispose`.
+            Effect.ensuring(Effect.sync(release)),
+          ),
         }
         return { model: result.model, commands: [...(result.commands ?? []), persist] }
       }
