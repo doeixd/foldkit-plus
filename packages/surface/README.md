@@ -75,6 +75,177 @@ reads purely (`Surface.read(TodoList, model)`), binds a renderer
 `foldkit-agent` derive their work from. `Projection.pick(App.fields.todos)` is
 a writable projection of the same field for a replicator.
 
+## How this relates to Optics and Submodels
+
+Surface sits near two existing ideas in Effect and Foldkit, so the overlap is
+intentional. They operate at different levels:
+
+| Concept | What it answers |
+| --- | --- |
+| **Effect Optic** | "How do I focus, read, or replace this value inside another value?" |
+| **`ModelRef` / `Projection`** | "What application data is this focus or derived value made from?" |
+| **Surface** | "What may this feature observe, and which application Messages may it cause?" |
+| **Foldkit Submodel** | "Which state machine owns this state and these transitions?" |
+
+A useful shorthand is:
+
+```text
+Optic       = structural focus
+Surface     = observation + capability contract
+Submodel    = state-machine ownership boundary
+```
+
+They compose; none replaces the others.
+
+### Surface builds on Optics rather than replacing them
+
+Every generated `ModelRef` contains an Effect `Optic.Optional` underneath it.
+The optic supplies the structural focus. Surface enriches that focus with the
+information the rest of an application architecture needs:
+
+```text
+Effect Optic
+   + Schema
+   + dependency path
+   + application identity
+   + get / set
+        ↓
+     ModelRef
+        ↓
+     Projection
+   + metadata (Remote's requirements, …)
+        ↓
+      Surface
+   + name / params
+   + allowed Messages
+```
+
+For example, `App.fields.todos` is not an alternative to an optic. It is an
+optic-backed reference that also knows that the value is the `todos` field of
+*this* application, how it is encoded, and that a consumer depending on it
+depends on the `todos` Model path. `ModelRef.fromOptic` is the escape hatch when
+you already have an optic and want to add that metadata yourself.
+
+That extra metadata is the reason Surface exists. An optic can focus
+`model.todos`; by itself it cannot tell `foldkit-sync` that `todos` is the slice
+to replicate, `Module` that another contract claims the same path, or
+`foldkit-remote` that a derived projection needs server data. Surface carries
+that last fact as opaque metadata: `foldkit-remote` attaches its requirements
+under its own `Metadata.key` and reads them back, and Surface only merges them.
+
+A `Projection` also need not correspond to one structural focus. It can combine
+several refs or derived values into one read model while preserving the
+dependencies and metadata of every part.
+
+### Surface and Submodels solve different decompositions
+
+A [Foldkit Submodel](https://foldkit.dev/core/submodel) is for a part of the
+application that **owns a state machine**. It has its own Model, Message, update,
+view, and Commands. The parent stores the child Model, routes child Messages,
+and delegates transitions to the child's update.
+
+A Surface owns none of those things. It has no private state, no child update,
+no runtime boundary, no Message wrapping, and no Command lifting. It describes
+a restricted interface to state and Messages that already belong to the
+application.
+
+```text
+Submodel
+  "This child owns how this state changes."
+
+Surface
+  "This consumer may see these values and cause these application Messages."
+```
+
+The most useful way to distinguish them is by the decomposition they create:
+
+```text
+Submodels divide the application by ownership:
+  who owns this state and these transitions?
+
+Surfaces divide the application by consumer needs:
+  what does this screen / agent / subsystem need to observe and cause?
+```
+
+Those boundaries do not need to line up. In fact, a Surface can deliberately
+span several Submodels because observation is not ownership. A page that reads
+the route, a theme owned by `Settings`, and the signed-in user owned by
+`Session` does not need to become a third state machine just to assemble those
+values:
+
+```ts
+const Model = Schema.Struct({
+  route: Route,
+  settings: Settings.Model,
+  session: Session.Model,
+})
+
+const App = Surface.application({ Model, Message, initial, update })
+
+const AccountPage = App.surface('AccountPage', {
+  model: ({ model }) => ({
+    route: model.route,                   // parent-owned
+    theme: model.settings.theme,          // Settings Submodel
+    user: model.session.user,             // Session Submodel
+  }),
+})
+```
+
+Conceptually:
+
+```text
+Root application
+├── route                         parent-owned
+├── settings: Settings.Model      Settings owns transitions
+└── session: Session.Model        Session owns transitions
+        │               │
+        └───────┬───────┘
+                │ observed by
+         AccountPage Surface
+       (+ parent-owned route)
+```
+
+This is a feature of the model, not a leak in it: **Submodels partition
+transition ownership; Surfaces may cut across those partitions to describe a
+consumer-facing read/capability boundary.** A screen, an agent context, or
+another interpreter often needs a coherent read model assembled from several
+owners.
+
+The Surface does **not** weaken any of those Submodel boundaries. Reading
+`model.settings.theme` through a `ModelRef` does not grant permission to change
+it directly. If `Settings` owns that state, changes must still go through the
+Settings state machine: its child Message and update, routed through the normal
+parent/child path (`Update.foldChild`, an exported child helper, or the wrapped
+Message path used by the application).
+
+The same rule applies to Surface capabilities. If `AccountPage` may cause a
+Settings transition, expose the **root application Message constructor that
+routes to Settings** in the Surface's `messages`; do not use the underlying
+optic/setter as a shortcut around the child update.
+
+`FieldRef.set` and writable `Projection`s are structural/infrastructure tools.
+Their existence does not imply ownership of the focused state. A Submodel's
+invariants still belong to its update.
+
+Likewise, Surface does not replace `h.submodel`: `h.submodel` creates the runtime
+child boundary and routes child Messages. A Surface is pure, inspectable data
+that may observe across those runtime boundaries without creating another one.
+
+### Which one should I reach for?
+
+- **You need to focus or update nested immutable data:** start with an Effect
+  Optic; use `ModelRef.fromOptic` if that focus must participate in Surface
+  metadata.
+- **A feature needs its own state, Message vocabulary, update logic, Commands,
+  or reusable stateful lifecycle:** use a Foldkit Submodel.
+- **Something needs an inspectable declaration of what existing application
+  state a feature reads or which existing Messages it may cause:** use a
+  Surface.
+- **A screen or subsystem reads across several Submodels:** use one Surface over
+  those child fields; do not invent a new Submodel merely to aggregate them.
+- **You need both:** keep transition ownership in each Submodel and describe the
+  consumer-facing observation/capability boundary with Surface.
+
 ## Field references
 
 `Surface.application` generates a reference tree from the Model Schema, one node

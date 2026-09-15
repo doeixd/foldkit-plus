@@ -1,23 +1,89 @@
-# foldkit-mixins-ui
+# `foldkit-mixins-ui`
 
-Published slot contracts and mixin adapters for [`@foldkit/ui`](https://www.npmjs.com/package/@foldkit/ui),
-built on [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins).
+Adapts [`@foldkit/ui`](https://www.npmjs.com/package/@foldkit/ui) render seams into
+[`foldkit-mixins`](../mixins) slots.
 
-`@foldkit/ui` components do not own markup. A component works out the attributes
-an accessible button, dialog or calendar needs — roles, `aria-*`, tabindex,
-event handlers — and hands them to your `toView` callback as named bundles; you
-decide the elements. That already lets you style the component, but only by
-hand-merging arrays at each call site, and nothing stops you from clobbering the
-`OnClick` the component installed.
+Use it when an `@foldkit/ui` component already owns the difficult state and
+accessibility behavior, but you want callers to style or decorate the component
+through a typed extension contract instead of copying its markup or manually
+merging attribute arrays.
 
-This package names those bundles. It publishes each component's attribute groups
-as a `foldkit-mixins` `Slots` contract, so a Style or Behavior written once
-attaches to `button` or `panel` or `dayCell` by name. `resolve` merges the
-attached mixins into the component's own bundles through the core resolver:
-base accessibility attributes, event Messages and `ChildAttribute`s are
-preserved, classes are additive, and a Behavior that tries to take over an event
-the component already owns is a `DiagnosticError` rather than a silent second
-handler.
+The ownership rule stays simple:
+
+```text
+@foldkit/ui
+  owns component state
+  owns accessibility behavior
+  owns its base attributes
+
+foldkit-mixins-ui
+  names the component's public attribute bundles as Slots
+
+foldkit-mixins
+  safely merges Style + Behavior into those Slots
+```
+
+This package adds **no component state and no renderer**. It is only a bridge
+between an existing `@foldkit/ui` render seam and the Mixins resolver.
+
+## The mental model
+
+An `@foldkit/ui` component commonly hands its caller one or more attribute
+bundles:
+
+```text
+roles
+aria-*
+tabindex
+event handlers
+ChildAttributes
+...
+```
+
+Those bundles are meaningful, but a raw array is not a public customization
+contract. A caller can accidentally add a second `OnClick`, replace something
+structural, or repeat bespoke merge code at every call site.
+
+`foldkit-mixins-ui` gives each supported bundle a stable Slot name:
+
+```text
+@foldkit/ui component
+        |
+        | attribute bundles
+        v
+foldkit-mixins-ui Slots
+        |
+        | Style + Behavior
+        v
+foldkit-mixins resolver
+        |
+        v
+component-owned attrs + safe additions
+```
+
+So the component author keeps control of the component, while callers get a
+typed place to extend it.
+
+## When to use it
+
+Use this package when:
+
+- you already use `@foldkit/ui`;
+- the component exposes a consumer render seam such as `toView`;
+- you want reusable styling, ARIA decoration, analytics, or element-level
+  behavior around that component;
+- you want conflicts to be diagnosed rather than resolved by attribute order.
+
+Do **not** use it to add application/component state. State belongs in the
+component's Submodel or the application Model. A Mixins `Behavior` contributes
+element-level attributes and optional Mount behavior; it is not a hidden state
+container.
+
+If you are building your own view rather than adapting `@foldkit/ui`, publish
+Slots directly with [`foldkit-mixins`](../mixins).
+
+For Slot / Style / Behavior itself, read [Inside-out view
+composition](../../docs/mixins.md) first.
 
 ## Install
 
@@ -27,14 +93,10 @@ pnpm add foldkit-mixins foldkit-mixins-ui @foldkit/ui
 
 `foldkit`, `effect`, `foldkit-mixins`, and `@foldkit/ui` are peer dependencies.
 
-## Use it when
+## Sixty seconds: style a Button without copying it
 
-You render an `@foldkit/ui` component and want to style or decorate it without
-copying it. Not every component can be adapted — see [Limits](#limits) — and a
-mixin still owns no state: the component's open/selected/value stays in its own
-Submodel.
-
-## Usage
+Start with a normal `@foldkit/ui` Button. The adapter publishes its consumer
+attribute bundle as the `button` Slot.
 
 ```ts
 import type { HtmlBuilder } from 'foldkit/html'
@@ -46,16 +108,20 @@ import { Button, ButtonSlots } from 'foldkit-mixins-ui'
 const Message = defineMessageUnion({ Saved: {} })
 type Message = typeof Message.Type
 
-// Written once, against the contract this package publishes for Button.
-const SaveStyle = Style.forSlots(ButtonSlots)({ button: Style.class('btn btn-primary') })
+const SaveStyle = Style.forSlots(ButtonSlots)({
+  button: Style.class('btn btn-primary'),
+})
 
-// In a view, with the view's own `h`.
 const saveButton = (h: HtmlBuilder<Message>) =>
   UiButton.view(
     {
       onClick: Message.Saved({}),
       toView: attributes => {
-        const slots = Button.resolve(attributes, [SaveStyle.mixin], { input: undefined, h })
+        const slots = Button.resolve(attributes, [SaveStyle.mixin], {
+          input: undefined,
+          h,
+        })
+
         return h.button(slots.button, ['Save'])
       },
     },
@@ -63,17 +129,117 @@ const saveButton = (h: HtmlBuilder<Message>) =>
   )
 ```
 
-`resolve(attributes, mixins, { input, h })` takes the component's own bundles and
-returns them with contributions merged, one resolved array per published slot.
-Anything the component passes that is not a slot (`animatePanel`, `isVisible`,
-`activeIndex`, `selectedValue`) is returned unchanged. `input` is whatever your
-Style/Behavior callbacks read — the model you are rendering, or `undefined` if
-they read nothing.
+The important line is:
 
-Each component is also a namespace: `Button.resolve` and `Button.ButtonSlots`,
-or the flat `ButtonSlots` re-export used above.
+```ts
+Button.resolve(attributes, [SaveStyle.mixin], { input, h })
+```
 
-## Components
+Conceptually:
+
+```text
+attributes from @foldkit/ui
+          +
+Style / Behavior mixins
+          |
+          v
+Button.resolve(...)
+          |
+          v
+resolved slot arrays
+```
+
+The caller never copies Button's internal behavior and never has to know how to
+merge its handlers/ARIA/structural attributes safely.
+
+## What `resolve` does
+
+`resolve(attributes, mixins, { input, h })` receives the shaped value the
+component passed to its render callback and returns the same shape with published
+attribute bundles resolved through Mixins.
+
+For a simple Button:
+
+```text
+{ button: baseAttributes }
+        |
+        v
+Button.resolve(...)
+        |
+        v
+{ button: resolvedAttributes }
+```
+
+For richer components, non-slot values pass through untouched. Values such as
+`animatePanel`, `isVisible`, `activeIndex`, or `selectedValue` remain component
+data rather than becoming Mixins slots.
+
+`input` is whatever attached Style/Behavior callbacks are allowed to read. In a
+feature view that is often the Surface's projected Model; for purely static
+styling it can be `undefined`.
+
+Every adapter is available as both a component namespace (`Button.resolve`,
+`Button.ButtonSlots`) and flat Slot exports such as `ButtonSlots`.
+
+## What the resolver protects
+
+This package delegates merge semantics to core `foldkit-mixins`; it does not
+simply concatenate arrays.
+
+The resolver guarantees that:
+
+- component/base attributes survive;
+- `ChildAttribute`s survive by identity, preserving Submodel routing;
+- classes are additive;
+- inline declarations merge by property;
+- an event or scalar attribute has one owner;
+- structural attributes remain protected;
+- conflicting ownership produces a `DiagnosticError` rather than an accidental
+  second handler.
+
+For example, if the Button already owns its click transition, a Behavior cannot
+silently install a competing `OnClick` at the same Slot.
+
+That is the main reason to use this adapter instead of another `className` or
+`attributes` escape hatch.
+
+## Submodel components remain Submodels
+
+Some `@foldkit/ui` components publish `ChildAttribute`s carrying the child
+state-machine dispatcher.
+
+The resolver preserves those attributes, so adapting the render seam does **not**
+flatten or bypass the child boundary:
+
+```text
+parent view
+   |
+resolved Slot attrs
+   |
+ChildAttribute
+   |
+component Submodel dispatcher
+```
+
+Dialog, Popover, Tooltip, Slider, Tabs, RadioGroup, and Calendar all rely on this
+behavior.
+
+Per-item components can also return structured groups rather than one flat Slot
+array. The adapter preserves that shape. For example:
+
+```text
+Tabs       -> { tablist, tabs, activeIndex }
+RadioGroup -> { group, options, selectedValue, hiddenInput }
+Calendar   -> ResolvedDays | ResolvedMonths | ResolvedYears
+```
+
+One Slot contribution can apply to each repeated item while every item's base
+attributes keep their own event ownership.
+
+## Supported components
+
+This is reference material; you do not need to memorize it to understand the
+adapter.
 
 | Component | Slots |
 | --- | --- |
@@ -93,33 +259,37 @@ or the flat `ButtonSlots` re-export used above.
 | RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
 | Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
 
-Submodel components (Dialog, Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar)
-publish `ChildAttribute`s, which carry the child boundary's dispatcher; the
-resolver preserves them by identity, so spreading a resolved bundle into the
-parent's markup still routes through the component's `toParentMessage`.
+## Why some components cannot be adapted
 
-Tabs, RadioGroup and Calendar have per-item groups, so their `resolve` returns
-the shaped record the component handed it — `{ tablist, tabs, activeIndex }`,
-`{ group, options, selectedValue, hiddenInput }`, and one of `ResolvedDays` /
-`ResolvedMonths` / `ResolvedYears` keyed by `_tag`. One `tab` contribution
-applies to every tab, while each tab's base keeps its own event ownership: a
-disabled tab publishes no click, so a Behavior may add one there and only there.
+The bridge needs a **consumer-visible attribute bundle**. If a component builds
+its entire element tree internally and exposes no `toView`-style seam, there is
+nothing for Mixins to attach to.
 
-## Limits
+Currently `Menu`, `Listbox`, `ComboBox`, and `DatePicker` fall into that category.
+They cannot be adapted here without a change to their upstream component API.
+That is a limitation of the exposed render seam, not of Slot resolution.
 
-The table above is the complete adapted set. `Menu`, `Listbox`, `ComboBox` and
-`DatePicker` **cannot** be adapted: they build their whole element tree
-internally, expose no `toView`, and hand the consumer no attribute bundles, so
-there is nothing for `resolve` to attach to. That is a boundary of the component
-API, not of the mixin model. The remaining `@foldkit/ui` modules — `Toast`,
-`FileDrop`, `VirtualList`, `DragAndDrop`, `Anchor`, `HoverIntent`, `Animation` —
-have no adapter here yet.
+Other `@foldkit/ui` modules—`Toast`, `FileDrop`, `VirtualList`, `DragAndDrop`,
+`Anchor`, `HoverIntent`, and `Animation`—simply do not have adapters here yet.
+`FileDrop` does expose a render seam, so it is an example that could be added
+without changing `@foldkit/ui`.
 
-The API is still settling (`0.1.0`). See [DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md).
+## Status
+
+The API is still settling in the `0.x` series. This package should stay small:
+
+```text
+component state / accessibility -> @foldkit/ui
+merge semantics                 -> foldkit-mixins
+adapter metadata                -> foldkit-mixins-ui
+```
+
+If behavior starts moving from the component into this package, the abstraction
+boundary is going in the wrong direction.
 
 ## See also
 
-- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the mental model,
-  and where `@foldkit/ui` adaptation stops.
-- [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) — the resolver these adapters use.
-- [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — Button and Checkbox resolved through this package.
+- [Inside-out view composition](../../docs/mixins.md) — Slot / Style / Behavior mental model.
+- [`foldkit-mixins`](../mixins) — resolver and extension contracts.
+- [`foldkit-mixins-surface`](../mixins-surface) — derives a SlotView boundary from a Surface.
+- [`examples/todo-app`](../../examples/todo-app) — Button and Checkbox adapted in a complete application.

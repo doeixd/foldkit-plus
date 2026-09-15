@@ -1,6 +1,6 @@
 # foldkit-plus
 
-[![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml)
+[![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/doeixd/foldkit-plus)
 
 > Fifteen packages that extend a [Foldkit](https://foldkit.dev/) application
 > outward — to agents, servers, other devices, the URL, and design systems —
@@ -18,7 +18,210 @@ send Messages `update` already handles. Server data lives in the Model and is
 reconciled by `update`. Replicas replay the same Messages through the same
 `update`. The URL and local storage mirror a slice of the Model; they never own
 one. Views are styled from outside without forking. Each package answers one
-question, and they compose because they all read the same declaration.
+question, and they compose because they meet at explicit application boundaries.
+
+## Sixty seconds of code
+
+The fastest way to understand Foldkit Plus is to watch several packages reuse
+one application declaration. Assume `Model`, `Message`, `initial`, and `update`
+are an ordinary Foldkit app you already wrote. Everything around them derives
+from the same state machine; none of it introduces a second reducer.
+
+```ts
+import { Schema } from 'effect'
+import { Agent } from 'foldkit-agent'
+import { Mirror } from 'foldkit-mirror'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { SurfaceView } from 'foldkit-mixins-surface'
+import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+
+type Principal = { readonly role: 'owner' | 'guest' }
+const isOwner = (principal: Principal) => principal.role === 'owner'
+
+// 1. This is still the application: one Model, one Message union, one update.
+// Surface adds typed references and inspection metadata; it does not add runtime state.
+const App = Surface.application({ Model, Message, initial, update })
+
+// 2. A Surface is a public boundary for a feature: what it may observe and cause.
+// A renderer bound to Board can only construct these two Messages.
+const Board = App.surface('Board', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
+  messages: [Message.ToggledTodo, Message.DeletedTodo],
+})
+
+// A read-only Surface can be reused by something that only needs context.
+const Overview = App.surface('Overview', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
+})
+
+// 3. Mixins separate "where customization is allowed" from "what gets attached there."
+//
+// BoardSlots is the view's public customization contract. It renders nothing by
+// itself. It only names the places the view agrees other code may extend later:
+// `root` will be the outer <section>; `list` will be the <ul>.
+// Capabilities describe what kind of element lives at each point so incompatible
+// Styles or Behaviors can be rejected instead of silently doing the wrong thing.
+const BoardSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  list: Slot.make({ capability: Capability.Collection }),
+})
+
+// Style is data written against that slot contract. Nothing is applied yet, and
+// BoardStyle cannot read or change application state. Because it is created with
+// `forSlots(BoardSlots)`, misspelling a slot or styling one Board never published
+// is a type error rather than a convention.
+const BoardStyle = Style.forSlots(BoardSlots)({
+  root: Style.class('todo-board'), // contribute a class to the `root` slot
+  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }), // style `list`
+})
+
+// SurfaceView.define ties three boundaries together:
+//   Board      -> the projected Model this view receives and the Messages it may emit
+//   BoardSlots -> the places outside customization may attach
+//   render fn  -> the actual markup
+//
+// So `model` is not the whole application Model; it is Board's { todos, filter }.
+// And `h` is typed to the Messages Board declared above.
+export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h) =>
+  h.section(
+    // `.attrs()` is the handoff point between markup and Mixins. It resolves the
+    // view's own attributes plus every Style/Behavior attached to `root` into
+    // ordinary Foldkit attributes for this <section>.
+    slots.root.attrs(),
+    [
+      h.ul(
+        // Same idea here: this exact DOM position is the published `list` slot.
+        slots.list.attrs(),
+        model.todos.map(todo => h.li([], [todo.title])),
+      ),
+    ],
+  ),
+).pipe(
+  // Attach appearance from the outside. BoardView never imports CSS decisions into
+  // its markup, so styles can be swapped/composed without copying the component or
+  // adding a growing collection of styling props.
+  Style.attach(BoardStyle),
+)
+
+// Behavior can attach element-level interaction through those same slots. It may
+// contribute attributes, event handlers, or a Mount, but it still owns no Model;
+// application state and transitions remain Model / Message / update.
+
+// 4. Sync declares ownership of one writable slice and the facts that change it.
+// Projection.pick is writable because checkpoints must install back into Model;
+// replay still runs these Messages through the application's own update.
+const TodoSync = Sync.forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    documentId: DocumentId.make('todos'),
+    shared: Projection.pick(App.fields.todos),
+    durable: MessageSet.make(App, [
+      Message.SubmittedTodo,
+      Message.ToggledTodo,
+      Message.DeletedTodo,
+    ]),
+    authorize: {
+      // Policy lives on the contract and is enforced by the server journal.
+      DeletedTodo: ({ principal }) => isOwner(principal),
+    },
+  })
+
+// The server gets codecs, empty snapshot, replay, and authorization from Sync.
+// There is no second server-side reducer to keep in agreement.
+TodoSync.journalContract()
+
+// 5. First specialize the Agent API to this application and Principal type.
+// `forApplication(...).withPrincipal(...)` does NOT create an agent; it creates
+// a typed builder whose helpers know App's Model, Message union, and Principal.
+const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
+
+// `make` creates the concrete agent contract that MCP/WebMCP/A2A/etc. can serve:
+// what this agent sees, which existing Messages it may cause, and their policy.
+const AssistantAgent = AgentBuilder.make({
+  context: Overview,
+  messages: AgentBuilder.expose(Message, {
+    RequestedTodo: Agent.variant({
+      name: 'add_todo',
+      description: 'Add a todo with the given title',
+
+      // The protocol input can be smaller than the internal Message.
+      input: Schema.Struct({ title: Schema.String }),
+      toMessage: ({ title }) => ({ title }),
+
+      // RequestedTodo is an intent. The tool call completes when update later
+      // applies the correlated durable fact produced by the application's Command.
+      completion: {
+        success: Message.SubmittedTodo,
+        correlate: (request, result) => request.title.trim() === result.title,
+      },
+    }),
+    ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },
+    DeletedTodo: {
+      name: 'delete_todo',
+      description: 'Delete a todo (owner only)',
+      // Same rule, checked early at the agent boundary; the journal still owns trust.
+      authorize: ({ principal }) => isOwner(principal),
+    },
+  }),
+})
+
+// 6. Mirrors do not own state. They are secondary representations of Model fields.
+const Filters = Mirror.url(App, {
+  name: 'filters',
+  fields: [App.fields.filter], // linkable: ?filter=active
+})
+const Prefs = Mirror.kv(App, {
+  key: 'todo/prefs',
+  fields: [App.fields.draft], // remembered on this device
+})
+
+// 7. The architecture itself is data. Validate ownership/capability relationships,
+// or turn the same declarations into documentation and tooling input.
+const Project = Module.make(App, [
+  Board,
+  Overview,
+  TodoSync,
+  AssistantAgent,
+  Filters.contract,
+  Prefs.contract,
+])
+
+Module.validate(Project) // []
+Module.toMermaid(Project) // architecture generated from the declarations above
+```
+
+## What the example is showing
+
+The code is large because the point is composition, not because any one package
+requires all of it.
+
+1. **The application stays the center.** Model, Message, `update`, Commands,
+   Submodels, and Mounts still mean what they mean in Foldkit.
+2. **Surface makes boundaries explicit.** A Projection says what a consumer may
+   observe; a Message subset says what it may cause. Those declarations are data,
+   so other packages can reuse and inspect them.
+3. **Extensions reuse application semantics instead of copying them.** Agents
+   expose existing Messages, Sync replays them, Mirror represents Model fields
+   elsewhere, and Mixins extends views without owning state.
+4. **Ownership stays singular.** A URL mirror does not become a URL store; a
+   replica does not grow a second reducer; a Style does not become view state.
+5. **The architecture itself becomes inspectable.** `Module.validate` can catch
+   conflicting ownership and `Module.toMermaid` can turn the declarations into
+   documentation or tooling input.
+
+The important part is what is **missing**: no agent reducer, sync reducer, URL
+store, persistence state machine, server copy of the shared schema, or forked
+component just to restyle it.
+
+`foldkit-remote` is deliberately not squeezed into this block. Remote is easiest
+to understand with an actual server-owned entity and query; see
+[`examples/remote`](./examples/remote) or the
+[`kitchen-sink`](./examples/kitchen-sink) for that path.
+
+The sample above is type-checked in
+[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
+so the front page cannot quietly drift from the API.
 
 ## Which package do I need?
 
@@ -31,97 +234,11 @@ question, and they compose because they all read the same declaration.
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 
-Every other package is built on `foldkit-surface`, so it comes along with
-whichever you pick.
-
-## The packages
-
-### Start here: `foldkit-surface`
-
-[`foldkit-surface`](./packages/surface) is the observation boundary. From one
-`Surface.application({ Model, Message, initial, update })` it derives typed field
-references (`App.fields.todos`), pure **Projections** of the Model, typed
-**Message subsets**, and feature **Surfaces**: what a part of the UI observes and
-which Messages it may cause. Nothing here runs; it is all data, which is why the
-other packages can share it. A `Module` collects every contract in an app and
-validates that each field has one owner and every Message one home.
-
-**Use it when** two things need to agree on a slice of the Model: a view and an
-agent, a view and a replica, a feature and its tests.
-
-### Agents
-
-[`foldkit-agent`](./packages/agent) turns a Model projection and a chosen subset
-of the Message union into an agent contract: what an agent may **see** and what
-it may **do**. Capabilities are Messages, so an agent cannot do anything the app
-cannot; `available`, `authorize`, typed input, and a **completion** contract
-(the call is done when the correlated fact is applied) live on the contract, and
-an audit log records every decision. Four adapters serve that one contract:
-[`foldkit-agent-webmcp`](./packages/agent-webmcp) in the page through
-`document.modelContext`, [`foldkit-agent-mcp`](./packages/agent-mcp) over stdio
-or Streamable HTTP, [`foldkit-agent-a2a`](./packages/agent-a2a) as an Agent Card
-with tasks, and [`foldkit-agent-native`](./packages/agent-native) as Agent Native
-actions.
-
-**Use it when** you want an assistant, a copilot, or another service to drive
-the app through the same transitions a human does. **Not for** driving the DOM;
-if the behaviour is not a Message, add one.
-
-### Server-derived state
-
-[`foldkit-remote`](./packages/remote) is a normalized cache of server data,
-stored **inside the Model** as a Submodel: entities once by identity, field
-presence tracked (missing, `null`, stale, and not-found are different), and
-connections with honest gaps. A Surface's projection carries its requirements;
-a planner diffs them against the store and fetches only what is missing;
-mutations are optimistic layers released by request id; live changes arrive with
-cursors. [`foldkit-remote-server`](./packages/remote-server) compiles entity,
-query, mutation, and live sources with per-principal authorization into Effect
-RPC handlers, and [`foldkit-remote-drizzle`](./packages/remote-drizzle) compiles
-the selections and queries to Drizzle.
-
-**Use it when** the app shows data another system owns and you are tired of
-per-view fetching, double fetches, and "is this field missing or null?".
-**Not for** state the user authors offline; that is Sync.
-
-### Replicated state
-
-[`foldkit-durable`](./packages/durable) is a durable, ordered operation log on
-SQLite through `effect/unstable/sql`: idempotent append, a snapshot and cursor
-per document, compaction, a change stream, and a durable **effect ledger** with
-a recovery worker. [`foldkit-sync`](./packages/sync) is the local-first replica:
-a persisted outbox, an optimistic projection, reconciliation against the
-server's order, presence, and a reconnecting WebSocket transport. One
-declaration derives both halves, replay is the application's own `update` on
-the shared slice, and `Sync.mount` runs the app over a replica in the browser.
-
-**Use it when** clients must keep working offline and converge later, or a
-server-side agent acts on the same state a user sees. **Not for** peer-to-peer
-CRDTs; this is server-ordered, single-writer-per-document.
-
-### Mirrored state
-
-[`foldkit-mirror`](./packages/mirror) keeps a slice of the Model in step with the
-**URL** query string or Effect's **`KeyValueStore`**: the filter, page, and
-search text a link should carry; the draft or collapsed sidebar a device should
-remember. Defaults, batching, codecs, and links are derived from the app, back
-and forward cannot loop, and a mirror observes fields without owning them.
-
-**Use it when** local state should be linkable or survive a reload. **Not for**
-anything two tabs must agree on; a mirror is last-write-wins with no log.
-
-### View composition
-
-[`foldkit-mixins`](./packages/mixins) lets a view publish the structural points
-it is willing to customize, and lets **Style** (appearance as data) and
-**Behavior** (attributes plus an optional Mount) attach from outside. One
-resolver merges them and refuses two owners of one event.
-[`foldkit-mixins-surface`](./packages/mixins-surface) renders a Surface's
-projection through such a view, and [`foldkit-mixins-ui`](./packages/mixins-ui)
-adapts `@foldkit/ui` components that expose their attribute bundles.
-
-**Use it when** a design system meets components it did not write. **Not for**
-state: a Behavior that "needs state" wants a Submodel.
+`foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
+and the Surface/Mixins bridge. It is not a mandatory base class for the whole
+repository: `foldkit-durable`, core `foldkit-mixins`, and the protocol/UI
+adapters can stand on their own and meet Surface-backed packages at explicit
+boundaries.
 
 ## How they fit together
 
@@ -129,211 +246,150 @@ state: a Behavior that "needs state" wants a Submodel.
 flowchart TB
   app["Foldkit application<br/>Model · Message · update · Commands"]
   surface["foldkit-surface<br/>Projection · field refs · Message subsets · Module"]
-  agent["foldkit-agent<br/>webmcp · mcp · a2a · native"]
+  agent["foldkit-agent"]
+  agentAdapters["webmcp · mcp · a2a · native"]
   remote["foldkit-remote<br/>normalized server cache"]
-  server["foldkit-remote-server<br/>foldkit-remote-drizzle"]
-  durable["foldkit-durable<br/>ordered log"]
+  server["foldkit-remote-server"]
+  drizzle["foldkit-remote-drizzle"]
   sync["foldkit-sync<br/>local replica"]
+  durable["foldkit-durable<br/>ordered server log"]
   mirror["foldkit-mirror<br/>URL · KeyValueStore"]
-  mixins["foldkit-mixins<br/>mixins-surface · mixins-ui"]
-  app -- "observe / project" --> surface
-  surface --> agent
-  surface --> remote
-  surface --> durable
+  mixins["foldkit-mixins<br/>typed view extension points"]
+  mixinsSurface["foldkit-mixins-surface"]
+  mixinsUi["foldkit-mixins-ui"]
+
+  app -- "describe observation / capability" --> surface
+  app --> mixins
+  surface --> agent --> agentAdapters
+  surface --> remote --> server
+  drizzle --> server
+  surface --> sync --> durable
   surface --> mirror
-  surface --> mixins
-  remote --> server
-  durable --> sync
+  surface --> mixinsSurface
+  mixins --> mixinsSurface
+  mixins --> mixinsUi
 ```
 
-None of them reimplements `update`. The agent layer projects it, Remote reduces
-its facts through it, Sync replays the same Messages through it, a mirror's
-`reduce` is a pure Model function the app calls from it, and Mixins never touch
-state at all.
+The arrows are integration boundaries, not new application state machines.
+Agent projects application capabilities. Remote reconciles server facts into the
+Model. Sync replays application Messages against an authoritative server order.
+Mirror keeps a secondary representation of Model fields. Mixins extends view
+structure without touching Model state. Durable can also be used independently
+as an ordered server journal.
 
-The rule that makes this composable is **one owner per datum**. Every piece of
-state has one authoritative owner, and `Module.validate` reports a second:
+The rule that makes the whole graph composable is **one owner per datum**:
 
 | State | Owner | Package |
 | --- | --- | --- |
 | The route, the selection, a transient error | the local Model, plain `update` | — |
-| A filter the URL shows, a draft a device remembers | the local Model | `foldkit-mirror` (observes) |
-| A cache of another system's facts | the server | `foldkit-remote` |
-| Client-authored state that must converge | the durable log | `foldkit-sync` + `foldkit-durable` |
-| What an agent may see and do | the application | `foldkit-agent` (observes, exposes) |
+| A filter the URL shows, a draft a device remembers | the local Model | `foldkit-mirror` observes |
+| Facts owned by another system | the server | `foldkit-remote` caches |
+| Client-authored state that must survive offline and converge | the durable log | `foldkit-sync` + `foldkit-durable` |
+| What an agent may see and do | the application | `foldkit-agent` observes and exposes |
 
-## Sixty seconds of code
+That ownership rule is more important than the package boundaries. A single
+Surface may read across local state, Remote state, and Submodels because a Surface
+is an observation/capability boundary, not a second owner.
 
-From the [todo app](./examples/todo-app), which wires every package into one
-application. One declaration; every contract is derived from it:
+## Try it
 
-```ts
-import { Agent } from 'foldkit-agent'
-import { Mirror } from 'foldkit-mirror'
-import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
+Start with [`examples/todo-app`](./examples/todo-app). It is the browser version
+of the architecture above: local-first state, owner-only rules, WebMCP tools, a
+linkable filter, and view composition around one Foldkit application.
 
-// The application: an ordinary Model, Message union, and update.
-const App = Surface.application({ Model, Message, initial, update })
+For the broadest integration trace, use
+[`examples/kitchen-sink`](./examples/kitchen-sink). For one concept at a time:
 
-// What the board renders, and the only Messages it may cause.
-const Board = App.surface('Board', {
-  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
-  messages: [Message.ToggledTodo, Message.DeletedTodo],
-})
+| Example | Shows |
+| --- | --- |
+| [`examples/todo`](./examples/todo) | Agent contracts and WebMCP |
+| [`examples/sync`](./examples/sync) | durable Messages, replicas, and server ordering |
+| [`examples/remote`](./examples/remote) | normalized server-owned state end to end |
+| [`examples/mixins`](./examples/mixins) | typed view extension points end to end |
 
-// What replicates: this slice, changed by these Messages, replayed through update.
-const TodoSync = Sync.forApplication(App).make({
-  documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),
-  durable: MessageSet.make(App, [Message.SubmittedTodo, Message.ToggledTodo, Message.DeletedTodo]),
-})
-
-// What an agent may see (a Surface) and do (Messages update already handles).
-const TodoAgent = Agent.forApplication(App)
-const AppAgent = TodoAgent.make({
-  context: Board,
-  messages: TodoAgent.expose(Message, {
-    ToggledTodo: { name: 'toggle_todo', description: 'Mark a todo done, or undo that' },
-  }),
-})
-
-// What the URL shows. Reduced back into the Model on navigation.
-const Filters = Mirror.url(App, { fields: [App.fields.filter] })
-
-// The application as data: one owner per field, every Message accounted for.
-Module.validate(Module.make(App, [Board, TodoSync, AppAgent, Filters.contract])) // []
-```
-
-The same `update` serves the view, the replica, the agent, and the journal on
-the server; `TodoSync.journalContract()` hands the server its codecs, reducer,
-and authorization rules, so nothing is declared twice. That sample is
-type-checked in
-[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
-so it cannot drift from the API.
+Every example prints a transcript that its test pins line by line; `pnpm demo`
+runs them all. The [examples index](./examples/README.md) gives the recommended
+reading order.
 
 ## Install
 
+Install the pieces for the boundary you are adding; the packages are designed to
+be adopted independently.
+
 ```bash
-pnpm add foldkit-agent                       # the contract
-pnpm add foldkit-agent foldkit-agent-webmcp  # browser (WebMCP)
-pnpm add foldkit-agent foldkit-agent-mcp     # external MCP
-pnpm add foldkit-agent foldkit-agent-a2a     # A2A
-pnpm add foldkit-agent foldkit-agent-native  # Agent Native
-pnpm add foldkit-durable foldkit-sync        # offline, multiplayer, remote-agent state
-pnpm add foldkit-surface foldkit-remote      # projections; normalized server state
-pnpm add foldkit-remote-server foldkit-remote-drizzle  # the server side of Remote
-pnpm add foldkit-mirror                      # a Model slice in the URL or a key-value store
-pnpm add foldkit-mixins foldkit-mixins-surface foldkit-mixins-ui  # slot contracts for views
+# typed application boundaries
+pnpm add foldkit-surface
+
+# agent capabilities + one protocol adapter
+pnpm add foldkit-agent foldkit-agent-webmcp
+
+# normalized server-owned state
+pnpm add foldkit-surface foldkit-remote
+pnpm add foldkit-remote-server foldkit-remote-drizzle # optional server compilation
+
+# local-first replicated state
+pnpm add foldkit-surface foldkit-sync foldkit-durable
+
+# URL / local key-value representations
+pnpm add foldkit-mirror
+
+# view extension points
+pnpm add foldkit-mixins foldkit-mixins-surface
 ```
+
+Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and
+`foldkit-agent-native`; `foldkit-mixins-ui` adapts compatible `@foldkit/ui`
+components.
 
 `foldkit` and `effect` are peer dependencies. Foldkit `0.158.2` peer-depends on
 `effect@4.0.0-rc.112`, so these packages target Effect 4. `foldkit-durable`
 requires Node 22 for `node:sqlite`. The [release matrix](./docs/releases.md)
-lists every package's version.
+lists every package's current version.
 
-## Examples
+## Go deeper
 
-- [`examples/todo-app`](./examples/todo-app) — **start here.** A local-first,
-  agent-ready todo list that explains each choice: a SQLite journal, two
-  browser tabs converging, owner-only rules, WebMCP tools, a linkable filter,
-  and a styled view. `pnpm dev` runs it in a browser.
-- [`examples/kitchen-sink`](./examples/kitchen-sink) — every package but the
-  mirror in one in-process transcript, no server and no browser.
-- [`examples/todo`](./examples/todo) — `foldkit-agent` alone, with a hand-written
-  host.
-- [`examples/sync`](./examples/sync), [`examples/remote`](./examples/remote),
-  [`examples/mixins`](./examples/mixins) — one extension each.
+The root README is the map. The guides teach the architecture and each package
+README documents its API.
 
-Every example prints a transcript that its test pins line by line; `pnpm demo`
-runs them all.
+| Topic | Guide |
+| --- | --- |
+| Agent contracts and adapters | [Agents](./docs/agents.md) |
+| Server-owned normalized state | [Server-derived state](./docs/remote.md) |
+| Local-first replication and the durable server log | [Replicated state](./docs/replication.md) |
+| URL and key-value mirrors | [Mirrored state](./docs/mirror.md) |
+| Inside-out view composition | [View composition](./docs/mixins.md) |
+| Running a Foldkit app over a replica | [Runtime binding](./docs/sync-runtime-binding.md) |
+| Design lineage and prior art | [Prior art and design lineage](./docs/prior-art.md) |
 
-## Guides
-
-- [Agents](./docs/agents.md) — `foldkit-agent` and its adapters: what an agent
-  may see and do, and why a capability is a Message.
-- [Server-derived state](./docs/remote.md) — the `foldkit-surface` boundary and
-  the `foldkit-remote` Submodel.
-- [Replicated state](./docs/replication.md) — what `foldkit-durable` and
-  `foldkit-sync` do, and when to reach for them.
-- [Mirrored state](./docs/mirror.md) — a Model slice in the URL or a key-value
-  store, and why a mirror is not an owner.
-- [Inside-out view composition](./docs/mixins.md) — slot contracts, Style and
-  Behavior, and the `@foldkit/ui` adapters.
-- [Runtime binding](./docs/sync-runtime-binding.md) — how `Sync.mount` runs an
-  application over a replica, and routes the URL.
-- [Releases](./docs/releases.md) — the version and publish matrix for every
-  workspace package.
-- [Revision plan](./docs/design/REVISION_PLAN.md) — the full design and phase status.
-- [All guides](./docs/README.md), including the [improvement suggestions](./docs/improvements.md).
-- Each package README documents its API.
+The [documentation map](./docs/README.md) gives the full reading order, package
+references, design notes, and historical material. The
+[release matrix](./docs/releases.md) tracks published versions; the
+[revision plan](./docs/design/REVISION_PLAN.md) records ongoing design work.
 
 ## Status
 
-These are `0.x` packages tracking a `0.x` framework and an Effect release
-candidate, so APIs are still settling and minor versions may break; the
-[CHANGELOG](./CHANGELOG.md) says what changed and why. What is here is tested:
-every package has a suite, every example is an asserted transcript that CI
-runs, and the guards in the pure cores were mutation-tested as they were
-written (see [AGENTS.md](./AGENTS.md)). Issues and design discussion are
-welcome; the [revision plan](./docs/design/REVISION_PLAN.md) records where each
-package is heading.
+Foldkit Plus is `0.x`, built against a `0.x` Foldkit and an Effect 4 release
+candidate. APIs are still settling and minor releases may break. The
+[CHANGELOG](./CHANGELOG.md) records what changed and why.
 
-## Repository layout
+The repository is exercised as a system: package tests run in CI, README-facing
+examples are type-checked or pinned as deterministic transcripts, and `pnpm demo`
+runs the worked examples together.
 
-```text
-packages/surface          foldkit-surface
-packages/agent            foldkit-agent
-packages/agent-webmcp     foldkit-agent-webmcp
-packages/agent-mcp        foldkit-agent-mcp
-packages/agent-a2a        foldkit-agent-a2a
-packages/agent-native     foldkit-agent-native
-packages/remote           foldkit-remote
-packages/remote-server    foldkit-remote-server
-packages/remote-drizzle   foldkit-remote-drizzle
-packages/durable          foldkit-durable
-packages/sync             foldkit-sync
-packages/mirror           foldkit-mirror
-packages/mixins           foldkit-mixins
-packages/mixins-surface   foldkit-mixins-surface
-packages/mixins-ui        foldkit-mixins-ui
-examples/todo-app         the todo app: a local-first, agent-ready application
-examples/kitchen-sink     fourteen packages wired in-process, as a deterministic transcript
-examples/todo             foldkit-agent, driven by a human and by an agent over WebMCP
-examples/sync             durable messages and ordered replication
-examples/remote           normalized server state, end to end
-examples/mixins           view mixins, end to end
-```
-
-## Development
+## Contributing and releasing
 
 ```bash
 pnpm install
-pnpm test        # vitest
-pnpm typecheck   # tsc -b
-pnpm build       # tsdown
-pnpm demo        # run the worked examples
-pnpm format      # prettier
-pnpm pack:check  # verify every package packs
+pnpm test
+pnpm typecheck
+pnpm build
+pnpm demo
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the checks before a commit, and
-[AGENTS.md](./AGENTS.md) for the working agreements.
-
-## Releasing
-
-Every package under `packages/*` publishes; the
-[release matrix](./docs/releases.md) lists each one's version. `pnpm release`
-builds, then publishes every non-`private` package, skipping versions the
-registry already has. Publishing must use **pnpm**, not npm: the packages declare
-each other as `workspace:` dependencies, which pnpm rewrites to real ranges when
-it packs.
-
-Bump the versions, add a [CHANGELOG.md](./CHANGELOG.md) entry, run the four
-checks, then push a `vX.Y.Z` tag. The
-[release workflow](./.github/workflows/release.yml) re-runs the checks. It
-publishes with provenance when the `NPM_TOKEN` repository secret is set, and
-otherwise runs the checks and skips publishing.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development workflow and
+[AGENTS.md](./AGENTS.md) for repository working agreements and documentation
+standards. Release mechanics and the package/version matrix live in
+[docs/releases.md](./docs/releases.md).
 
 ## License
 

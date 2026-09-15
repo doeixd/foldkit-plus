@@ -1,145 +1,344 @@
 # Inside-out view composition: `foldkit-mixins`
 
-A Foldkit view is a pure function of the Model. Most of the time that is all you
-need. Two things get awkward as a view grows:
+`foldkit-mixins` gives Foldkit views **typed extension points**.
 
-- **You want to style or restyle it** without copying its markup, and the style
-  lives in a design system the component author never saw.
-- **You want to add interaction** — a tooltip, an observer, an extra handler —
-  without the component growing an options object for every caller.
+A component author decides which structural points may be customized — `root`, `input`, `label`,
+`trigger`, and so on. The caller can later attach appearance and element-level behavior to those
+points without copying the component's markup or asking the component author to add another prop.
 
-`foldkit-mixins` answers both with one idea: a view publishes the **structural
-points it is willing to customize**, and independent Style and Behavior values
-attach to those points from outside.
+That is what "inside-out" means here: customization is authored **outside** the component, but it
+attaches to extension points deliberately published **from inside** the component.
 
-There is no second runtime. State is a Foldkit Model/Submodel, a transition is
-`update`, fetching is a Command, an element-owned effect is a `Mount`, and every
-attribute a mixin builds belongs to the view's own Message universe.
+## The problem it solves
 
-- [`foldkit-mixins`](../packages/mixins) — slot contracts, the resolver, Style,
-  Behavior, Theme, A11y.
-- [`foldkit-mixins-ui`](../packages/mixins-ui) — `@foldkit/ui` adapters that
-  publish a component's attribute bundles as slots.
-- [`foldkit-mixins-surface`](../packages/mixins-surface) — binds a
-  `foldkit-surface` projection and Message subset to a `SlotView`.
+A reusable component often starts simple and accumulates customization requests over time:
 
-## The problem
+```text
+Button
+├─ className
+├─ iconClassName
+├─ compact
+├─ destructive
+├─ showTooltip
+├─ trackClick
+├─ ariaLabelOverride
+├─ onFocusDecoration
+└─ ...
+```
 
-`@foldkit/ui` already gets this half right: its components do not own markup. They
-build typed attribute bundles and hand them to a consumer `toView` callback, so
-the consumer composes the DOM. But "here is an array of attributes" is not a
-contract: nothing says which attribute groups exist, what a caller may add, or
-what happens when two callers add conflicting handlers.
+None of those props is individually unreasonable. The problem is that the component becomes the
+meeting point for every design-system, accessibility and product-specific concern that might ever
+want to decorate it.
 
-The usual failure modes:
+The other common answer is to copy the render body at the call site and edit it. That keeps the
+component API small by giving up reuse.
 
-- restyling means copying the `toView` body into every call site;
-- a wrapper component grows one boolean option per customization, and each one
-  re-renders differently from the original;
-- two "add an onClick" helpers silently install two handlers on one element;
-- an element observer is wired with a raw `useEffect`-shaped idea that fights
-  Foldkit's `Mount` lifecycle and time travel.
+Mixins offer a third option:
 
-## How it fits together
+```text
+Button
+├─ root slot
+├─ icon slot
+└─ label slot
+
+caller
+├─ BrandStyle       → root, icon
+├─ TooltipBehavior  → root
+└─ Analytics        → root
+```
+
+The component publishes the supported extension points once. Independent callers compose around
+that contract.
+
+## The five-term mental model
+
+You can understand the package with five terms:
+
+| Term | Meaning |
+| --- | --- |
+| **Slot** | One named extension point in a view. |
+| **Slots** | The public contract describing all extension points and what each permits. |
+| **Style** | Appearance attached from outside: classes, inline declarations and CSS rules. |
+| **Behavior** | Element-level interaction attached from outside: attributes and an optional Foldkit `Mount`. Never application state. |
+| **SlotView** | The pure Foldkit view that renders those slots. |
+
+Style and Behavior compile to one internal `Mixin` representation. A resolver combines the
+contributions and enforces ownership rules before ordinary Foldkit attributes reach the renderer.
 
 ```mermaid
 flowchart TB
-  slots["Slots contract"]
-  sty["Style<br/>appearance (pure data)"]
-  beh["Behavior<br/>interaction (attrs + optional Mount)"]
-  mixin["Mixin<br/>slot contributions"]
-  resolver["Resolver<br/>one class · one style · one owner per event<br/>opaque ChildAttribute · one OnMount"]
-  html["Foldkit Html"]
-  slots --> sty --> mixin
-  slots --> beh --> mixin
-  mixin --> resolver --> html
+  component["component / SlotView"]
+  slots["Slots contract<br/>where customization is allowed"]
+  style["Style<br/>how it looks"]
+  behavior["Behavior<br/>how the element reacts"]
+  resolver["Resolver<br/>merge + ownership checks"]
+  attrs["ordinary Foldkit attributes"]
+
+  component --> slots
+  slots --> style
+  slots --> behavior
+  style --> resolver
+  behavior --> resolver
+  resolver --> attrs
 ```
 
-A **`Slot`** is named metadata: a capability, the events and attributes it
-exposes, and optionally protected pieces. **`Slots.define`** publishes a map of
-them. **`Style`** and **`Behavior`** compile to the same `Mixin` representation, so
-one resolver owns merge and conflict policy. **`SlotView.define`** is the pure
-view that calls `slots.<name>.attrs(base)` while rendering.
+## Why this is more than `className`
 
-## Those four concerns
+A `className` escape hatch says only "put this class on something." It does not say what that
+something structurally is, which events it exposes, which attributes callers may add, or which
+pieces are too important to replace.
 
-| Layer | Owns |
-| --- | --- |
-| `Slots` | The public attachment points: capability, events, attributes, hidden/protected. |
-| `Style` | Appearance as data: classes, inline declarations, input-driven conditions, recipes, and a deterministic rule compiler (pseudo/media/keyframes/…). |
-| `Behavior` | Interaction attached to a slot: attributes built from the view's input and `h`, plus an optional Foldkit `Mount`. Never state. |
-| `foldkit-mixins-surface` | The bridge to `foldkit-surface`: the renderer's input is the projection, and its builder carries the Surface's Message subset. |
+A slot can express all of those things:
 
-## One owner per datum
+```text
+input slot
+├─ capability: TextInput
+├─ events: input
+├─ attributes: aria-invalid
+├─ protected: role
+└─ hidden: false
+```
 
-Mixins change how a feature looks and reacts; they do not change who owns its
-state.
+That means a Behavior can say "I require a text input that exposes `aria-invalid`" and fail at
+definition time if somebody tries to attach it to an incompatible slot.
 
-| State | Owner |
-| --- | --- |
-| A widget's open/selected/value | a Foldkit Model/Submodel, plain `update` |
-| A network call caused by a Message | `update` → Command |
-| An element-scoped effect (`ResizeObserver`, focus trap) | a `Mount` |
-| Appearance and interaction attached to a slot | `foldkit-mixins` |
+The contract also gives tooling something richer than DOM markup to inspect: a serializable list
+of supported customization points, capabilities, events and attributes.
 
-A Behavior that "needs state" is a signal to reach for a Submodel, not for a
-hidden atom. That boundary is what keeps this package from becoming React hooks
-in Foldkit clothing.
+## Style and Behavior are deliberately different
 
-## The resolver
+The package separates two concerns that ordinary component props often mix together.
 
-Attachments are not concatenated and left to the renderer. They are normalized,
-applied in attachment order, checked for ownership, and emitted canonically:
+**Style** is appearance as data. It can carry classes, inline declarations, recipes, themes,
+pseudo selectors, media queries and other deterministic CSS rules.
 
-- classes are additive and deduplicated into one `Class`;
-- inline styles merge per property, last attachment wins;
-- an event or scalar attribute has one owner; a second owner is a
-  `mixins:event-conflict`/`mixins:attribute-conflict`, not a silent second handler;
-- a `ChildAttribute` (a Submodel's published handler) is preserved by identity;
-- `Key`/`InnerHTML` are structural and cannot be overridden;
-- every mount contribution composes into exactly one `OnMount`.
+**Behavior** is reusable element-level interaction. Useful examples include:
 
-Conflicts throw a `DiagnosticError` with a stable code, so a definition-time
-mistake fails loudly instead of producing a subtly wrong element.
+```text
+tooltip wiring
+analytics click tracking
+ARIA decoration
+keyboard behavior
+focus management
+ResizeObserver
+intersection observer
+```
 
-## `@foldkit/ui`, and where it stops
+A Behavior may contribute attributes and a `Mount`, but it does not own application state.
 
-`foldkit-mixins-ui` formalizes the attribute bundles of components that expose a
-consumer seam — Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip,
-Slider, Tabs, RadioGroup, Calendar, and more — and resolves mixins around them.
+That boundary is important. If a behavior needs a widget's selected value, open state, request
+state or domain data to become its private mutable state, the right abstraction is still Foldkit:
+Model/Submodel + Message + `update` + Commands. Mixins should not become React hooks in Foldkit
+clothing.
 
-It does **not** adapt every component, for two different reasons. `Menu`,
-`Listbox`, `ComboBox` and `DatePicker` build their whole element tree internally
-and expose no `toView`/attribute bundles, so there is nothing to attach to —
-a boundary of the component API, not of the mixin model. `Toast`, `FileDrop`,
-`VirtualList`, `DragAndDrop`, `Anchor`, `HoverIntent` and `Animation` are simply
-not adapted yet; `FileDrop` exposes a `toView` seam, so it could be.
+## A small example
+
+The component author publishes slots:
+
+```ts
+const FieldSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({
+    capability: Capability.TextInput,
+    events: [Event.Input],
+    attributes: [Attr.AriaInvalid],
+  }),
+})
+```
+
+A design system can style those points without editing the view:
+
+```ts
+const FieldStyle = Style.forSlots(FieldSlots)({
+  root: Style.class('field'),
+  input: Style.class('field-input'),
+})
+```
+
+A feature can independently attach behavior:
+
+```ts
+const Validation = Behavior.forSlots(FieldSlots)<FieldInput, Message>({
+  input: Behavior.slot({
+    requires: { capability: Capability.TextInput, attributes: [Attr.AriaInvalid] },
+    attributes: ({ input, h }) => [h.AriaInvalid(input.invalid)],
+  }),
+})
+```
+
+And the view resolves both through the same published points:
+
+```ts
+const Field = SlotView.forMessages<Message>()
+  .define(FieldSlots, (input: FieldInput, slots, h) =>
+    h.label(slots.root.attrs(), [
+      h.input(
+        slots.input.attrs([
+          h.Value(input.value),
+          h.OnInput(value => Message.ChangedValue({ value })),
+        ]),
+      ),
+    ]),
+  )
+  .pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
+```
+
+The important part is not the amount of code. It is where responsibility lives:
+
+```text
+component author  → publishes stable extension points
+style author      → owns appearance
+feature author    → owns element-level behavior
+Foldkit app       → still owns state and transitions
+resolver          → owns merge/conflict policy
+```
+
+## Conflict rules are part of the abstraction
+
+Attachments are not concatenated and left to incidental renderer ordering. The resolver has one
+merge policy:
+
+- classes are additive and deduplicated;
+- inline styles merge per property;
+- an event or scalar attribute has one owner;
+- a second owner produces a stable diagnostic instead of silently winning;
+- `ChildAttribute` values are preserved by identity;
+- `Key` and `InnerHTML` are structural and cannot be overridden;
+- multiple mounts compose into one `OnMount`.
+
+This is what lets a design system and a feature attach independently without each one needing to
+know what the other did.
+
+## Slots are contracts, not DOM nodes
+
+A slot is metadata about an extension point. It may declare:
+
+- a **Capability** such as `Container`, `Interactive` or `TextInput`;
+- published **Event** and **Attr** tokens;
+- platform **Requirement** tokens such as Keyboard, Pointer or Clipboard;
+- `hidden` points that are internal to the component;
+- `protected` events, attributes or style properties that attachments may not replace.
+
+Capability is hierarchical, so a Behavior requiring `Interactive` can attach to a `TextInput`.
+Custom capabilities, events and attributes can be created with their corresponding `.make`
+constructors.
+
+## Surface and Mixins answer different questions
+
+`foldkit-surface` and `foldkit-mixins` compose well because they govern different boundaries:
+
+```text
+Surface
+  What data may this feature observe?
+  Which Messages may it emit?
+
+Slots
+  Which structural points may callers customize?
+  What may they attach there?
+```
+
+`foldkit-mixins-surface` connects the two. The `SlotView` receives the Surface projection rather
+than the root Model, and its builder carries the Surface's Message subset.
+
+```mermaid
+flowchart LR
+  app["Application<br/>Model · Message · update"]
+  surface["Surface<br/>observe / emit boundary"]
+  view["SlotView<br/>structural extension points"]
+  attachments["Style + Behavior"]
+
+  app --> surface --> view
+  attachments --> view
+```
+
+This is why Surface integration should be thought of as an additional boundary, not as something
+you must understand before using mixins.
+
+## `@foldkit/ui`
+
+`@foldkit/ui` components already expose a useful consumer seam when they hand typed attribute
+bundles to `toView`. `foldkit-mixins-ui` turns those bundles into named slots so the same Style and
+Behavior model can apply.
+
+Button, Input, Checkbox, Disclosure, Dialog, Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar
+and more are adapted.
+
+There are two reasons a component may not be covered:
+
+1. `Menu`, `Listbox`, `ComboBox` and `DatePicker` build their full element tree internally and
+   expose no `toView`/attribute bundle seam. There is nowhere for a mixin to attach without a
+   component API change.
+2. `Toast`, `FileDrop`, `VirtualList`, `DragAndDrop`, `Anchor`, `HoverIntent` and `Animation` simply
+   do not have adapters yet. `FileDrop`, for example, exposes the seam an adapter would need.
+
+That distinction matters: one is an architectural boundary, the other is unfinished coverage.
+
+## Accessibility contracts
+
+`A11y.pattern` describes structural accessibility expectations in the same vocabulary as Slots:
+
+```ts
+const DialogPattern = A11y.pattern({
+  trigger: { capability: Capability.Interactive, events: [Event.Click] },
+  content: { capability: Capability.Container },
+})
+
+A11y.validate(DialogPattern, DialogSlots)
+```
+
+Validation is pure and DOM-independent. It checks the declared contract for missing or hidden
+slots, incompatible capabilities, and unpublished events or attributes. It does not inspect the
+rendered DOM and does not claim WCAG certification.
+
+## Style as data
+
+Rule-based Style compiles deterministic rule text to deterministic class names. Equal rules share
+a class; server and client derive the same output without a render-time collector.
+
+That gives the application explicit CSS data:
+
+```text
+Style.pseudo / media / supports / container / nest
+                    ↓
+          deterministic class
+          + deterministic CSS
+```
+
+`Style.stylesheet(...)` combines and deduplicates those rules. Input-dependent rule generation is
+intentionally restricted: `Style.whenInput` may choose static pieces, but it cannot create a new
+rule graph for every render.
+
+## Introspection and tooling
+
+Because Slots and Mixins are data, the package can describe them without rendering a DOM tree.
+That is useful for tests, DevTools, generated documentation and agent tooling.
+
+`Slots.describe`, `Slot.describe` and the Surface bridge expose serializable metadata, while
+resolver failures use stable diagnostic codes and structured details.
 
 ## See the trace
 
-- [`examples/mixins`](../examples/mixins) — Surface → SlotView, with
-  `Style.whenInput`, a Style rule compiled to a class and CSS, a Behavior reading
-  the projected input, and the serializable `SurfaceView.describe` metadata.
-- [`examples/remote`](../examples/remote) — the same view layer over a
-  `foldkit-remote` projection: plan → prefetch → render → mutate → decode failure.
-- [`examples/todo-app`](../examples/todo-app) — a whole application styled this
-  way: `Style.recipe`, `Style.whenInput`, a Theme, Behaviors for the row editor,
-  and `@foldkit/ui` Button and Checkbox through `foldkit-mixins-ui`.
+Use the examples in increasing order of scope:
+
+- [`examples/mixins`](../examples/mixins) — the focused trace: Surface → SlotView → Style → Behavior.
+- [`examples/todo-app`](../examples/todo-app) — a whole application using recipes, input-driven style, Theme, Behaviors and `@foldkit/ui` adapters.
+- [`examples/remote`](../examples/remote) — the same view boundary over server-derived state.
 
 `pnpm demo` runs all three.
 
 ## Limits
 
-- Rule-based Style compiles to deterministic classes and CSS **data**; the
-  application injects the stylesheet. There is no render-time collection or
-  extraction, and rules inside `Style.whenInput` are rejected.
-- Mixins attach where a view publishes slots. A view that publishes none can
-  still be styled the ordinary way.
-- `A11y.validate` checks the declared slot contract; it is not a DOM audit and
-  does not claim WCAG certification.
+- Mixins can only attach where a view deliberately publishes a slot. That is the point: the
+  extension surface is explicit rather than universal.
+- Behavior does not own state. Reach for Model/Submodel when state is required.
+- Rule-based Style produces CSS data; the application is responsible for including the resulting
+  stylesheet.
+- A component that exposes no render/attribute seam cannot be adapted externally.
+- `A11y.validate` checks contracts, not rendered DOM or WCAG compliance.
 
-## See also
+## Package map
 
-- [`packages/mixins/README.md`](../packages/mixins/README.md) — the API.
-- [`docs/design/mixins-DESIGN.md`](./design/mixins-DESIGN.md) — substrate probes
-  and implementation decisions.
+- [`foldkit-mixins`](../packages/mixins) — Slots, resolver, Style, Behavior, Theme and A11y.
+- [`foldkit-mixins-ui`](../packages/mixins-ui) — `@foldkit/ui` adapters.
+- [`foldkit-mixins-surface`](../packages/mixins-surface) — Surface → SlotView bridge.
+- [`docs/design/mixins-DESIGN.md`](./design/mixins-DESIGN.md) — substrate probes and implementation decisions.
