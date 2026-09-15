@@ -383,9 +383,11 @@ describe('cancelling while waiting for completion', () => {
       runtime.messages.dispatch('delete_todo', { id: 'a' }, { signal: controller.signal }),
     )
 
+    // The host had not returned when the abort arrived, so delivery was never
+    // confirmed and the error does not claim it.
     const failure = (result as { failure: { _tag: string; dispatched: boolean } }).failure
     expect(failure._tag).toBe('AgentCancelledError')
-    expect(failure.dispatched).toBe(true)
+    expect(failure.dispatched).toBe(false)
     expect(host.dispatched).toHaveLength(1)
     expect(host.listeners.size).toBe(0)
   })
@@ -433,6 +435,94 @@ describe('cancelling while waiting for completion', () => {
       'AgentCompletionTimeoutError',
     )
     expect(host.listeners.size).toBe(0)
+  })
+})
+
+describe('a host dispatch that never returns', () => {
+  const hangs: ReadonlyArray<readonly [string, () => Promise<void> | Effect.Effect<void>]> = [
+    ['a Promise that never settles', () => new Promise<void>(() => {})],
+    ['an Effect that never completes', () => Effect.never],
+  ]
+
+  const hangingHost = (dispatch: () => Promise<void> | Effect.Effect<void>) => {
+    const listeners = new Set<(message: Message) => void>()
+    return {
+      listeners,
+      host: {
+        model: () => emptyModel,
+        dispatch: (_: Message) => dispatch(),
+        observe: (listener: (message: Message) => void) => {
+          listeners.add(listener)
+          return () => void listeners.delete(listener)
+        },
+      },
+    }
+  }
+
+  it.each(hangs)('is bounded by the completion timeout: %s', async (_label, dispatch) => {
+    const { host, listeners } = hangingHost(dispatch)
+    const runtime = Agent.bind({
+      definition: contractOf({ success: MessageUnion.ReceivedTodos, timeout: Duration.millis(30) }),
+      host,
+    })
+    const started = Date.now()
+
+    const error = await Effect.runPromise(
+      Effect.flip(runtime.messages.dispatch('delete_todo', { id: 'a' })),
+    )
+
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(error._tag).toBe('AgentCompletionTimeoutError')
+    // The host never returned, so the error must not claim delivery.
+    expect(error.message).toMatch(/unknown/)
+    expect(listeners.size).toBe(0)
+  })
+
+  it.each(hangs)('is settled by an abort: %s', async (_label, dispatch) => {
+    const { host, listeners } = hangingHost(dispatch)
+    const runtime = Agent.bind({
+      definition: contractOf({
+        success: MessageUnion.ReceivedTodos,
+        timeout: Duration.seconds(30),
+      }),
+      host,
+    })
+    const controller = new AbortController()
+
+    const pending = Effect.runPromise(
+      Effect.flip(
+        runtime.messages.dispatch('delete_todo', { id: 'a' }, { signal: controller.signal }),
+      ),
+    )
+    await new Promise(resolve => setTimeout(resolve, 5))
+    controller.abort()
+
+    expect(await pending).toMatchObject({ _tag: 'AgentCancelledError', dispatched: false })
+    expect(listeners.size).toBe(0)
+  })
+
+  it('is settled by an abort when the capability declares no completion', async () => {
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        messages: Agent.expose(MessageUnion, { RequestedCreateTodo: 'Create a todo' }),
+      }),
+      host: { model: () => emptyModel, dispatch: (_: Message) => new Promise<void>(() => {}) },
+    })
+    const controller = new AbortController()
+
+    const pending = Effect.runPromise(
+      Effect.flip(
+        runtime.messages.dispatch(
+          'requested_create_todo',
+          { title: 'x' },
+          { signal: controller.signal },
+        ),
+      ),
+    )
+    await new Promise(resolve => setTimeout(resolve, 5))
+    controller.abort()
+
+    expect(await pending).toMatchObject({ _tag: 'AgentCancelledError', dispatched: false })
   })
 })
 

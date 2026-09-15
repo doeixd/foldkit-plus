@@ -1,6 +1,5 @@
 import { Duration, Effect } from 'effect'
 import type { Projection } from 'foldkit-surface'
-import { CompletionTimeoutError } from './errors.js'
 import { messageTags } from './tag.js'
 import type {
   AnyCompletion,
@@ -167,7 +166,11 @@ export const compileCompletion = (
 
 /** Subscribes to the host and resolves once this invocation's contract is met. */
 interface CompletionWaiter {
-  readonly outcome: Effect.Effect<CompletionOutcome, CompletionTimeoutError>
+  /**
+   * Never times out on its own: the caller applies the deadline around dispatch
+   * and this wait together, so a host that never returns is bounded too.
+   */
+  readonly outcome: Effect.Effect<CompletionOutcome>
   /**
    * Releases the subscription. Safe to call more than once.
    *
@@ -177,12 +180,6 @@ interface CompletionWaiter {
   readonly release: () => void
 }
 
-const withDeadline = (timeout: Duration.Duration, capability: string, invocation: Invocation) =>
-  Effect.timeoutOrElse({
-    duration: timeout,
-    orElse: () => Effect.fail(CompletionTimeoutError.of(capability, invocation.id, timeout)),
-  })
-
 /**
  * Starts waiting **before** the Message is dispatched.
  *
@@ -191,12 +188,10 @@ const withDeadline = (timeout: Duration.Duration, capability: string, invocation
  */
 export const awaitCompletion = (options: {
   readonly completion: CompiledMessageCompletion
-  readonly capability: string
   readonly input: unknown
-  readonly invocation: Invocation
   readonly observe: (listener: (message: AnyMessage) => void) => () => void
 }): CompletionWaiter => {
-  const { completion, capability, input, invocation, observe } = options
+  const { completion, input, observe } = options
 
   let settle: ((outcome: CompletionOutcome) => void) | undefined
   let settled: CompletionOutcome | undefined
@@ -239,7 +234,7 @@ export const awaitCompletion = (options: {
       return
     }
     settle = outcome => resume(Effect.succeed(outcome))
-  }).pipe(withDeadline(completion.timeout, capability, invocation))
+  })
 
   return { outcome, release }
 }
@@ -253,13 +248,11 @@ export const awaitCompletion = (options: {
  */
 export const awaitState = (options: {
   readonly completion: CompiledStateCompletion
-  readonly capability: string
   readonly input: unknown
-  readonly invocation: Invocation
   readonly model: () => unknown
   readonly subscribe: (listener: () => void) => () => void
 }): CompletionWaiter => {
-  const { completion, capability, input, invocation, model, subscribe } = options
+  const { completion, input, model, subscribe } = options
 
   let settle: ((result: Effect.Effect<CompletionOutcome>) => void) | undefined
   let settled: Effect.Effect<CompletionOutcome> | undefined
@@ -307,7 +300,7 @@ export const awaitState = (options: {
       return
     }
     settle = resume
-  }).pipe(withDeadline(completion.timeout, capability, invocation))
+  })
 
   return { outcome, release }
 }

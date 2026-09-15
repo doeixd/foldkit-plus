@@ -342,10 +342,16 @@ host: {
 A contract declaring completion is refused at `bind` when the host cannot
 observe, rather than silently reporting every call as complete.
 
-Waiting always has a deadline; it defaults to 30 seconds.
-`AgentCompletionTimeoutError` means the wait ended, **not** that anything was
-undone -- the Message reached `update`. The same is true of cancelling while a
-completion is pending.
+Waiting always has a deadline; it defaults to 30 seconds. It runs from the
+moment the host's `dispatch` is called, so a host that never returns is bounded
+by the same budget. `AgentCompletionTimeoutError` means the wait ended, **not**
+that anything was undone -- the Message reached `update`. The same is true of
+cancelling while a completion is pending.
+
+An abort also settles a host `dispatch` that has not returned, with or without a
+completion contract; without one there is no deadline, so only the signal
+bounds it. Either way the error says delivery is unknown, `AgentCancelledError`
+carries `dispatched: false`, and the audit records `decision: 'unknown'`.
 
 Give `correlate` whenever two invocations of a capability can be in flight at
 once. Without it the first matching Message wins, whichever invocation caused it.

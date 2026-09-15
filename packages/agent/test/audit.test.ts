@@ -579,6 +579,47 @@ describe('a dispatch that was accepted but did not complete', () => {
       { capability: 'delete_todo', tag: 'RequestedDeleteTodo', decision: 'unknown' },
     ])
   })
+
+  // A host that never returns was called, so this is not a refusal; it never
+  // accepted the Message either, so it is not a dispatch.
+  const stuckHost = () => ({
+    ...completingHost({}),
+    dispatch: (_: Message) => new Promise<void>(() => {}),
+  })
+
+  it('records a send that outlived the deadline as unknown', async () => {
+    const audit = Agent.auditLog()
+    const runtime = completingRuntime(audit, stuckHost(), {
+      success: MessageUnion.ReceivedTodos,
+      timeout: Duration.millis(20),
+    })
+
+    await run(runtime.messages.dispatch('delete_todo', { id: 'a' }))
+
+    expect(audit.entries()).toMatchObject([
+      { capability: 'delete_todo', decision: 'unknown', outcome: 'timeout' },
+    ])
+  })
+
+  it('records a send aborted before the host returned as unknown', async () => {
+    const audit = Agent.auditLog()
+    const runtime = completingRuntime(audit, stuckHost(), {
+      success: MessageUnion.ReceivedTodos,
+      timeout: Duration.seconds(30),
+    })
+    const controller = new AbortController()
+
+    const pending = run(
+      runtime.messages.dispatch('delete_todo', { id: 'a' }, { signal: controller.signal }),
+    )
+    await new Promise(resolve => setTimeout(resolve, 5))
+    controller.abort()
+    await pending
+
+    expect(audit.entries()).toMatchObject([
+      { capability: 'delete_todo', decision: 'unknown', outcome: 'AgentCancelledError' },
+    ])
+  })
 })
 
 describe('every failure mode is recorded as what it was', () => {

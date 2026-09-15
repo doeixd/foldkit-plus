@@ -4,6 +4,7 @@ import {
   AuthorizationError,
   CancelledError,
   CapabilityUnavailableError,
+  CompletionTimeoutError,
   type DispatchError,
   InvalidInputError,
   ResourceError,
@@ -414,17 +415,13 @@ export const bind = <
           : compiled._tag === 'State'
             ? awaitState({
                 completion: compiled,
-                capability: name,
                 input: decoded,
-                invocation,
                 model: host.model,
                 subscribe: compiled.subscribe ?? host.subscribe!,
               })
             : awaitCompletion({
                 completion: compiled,
-                capability: name,
                 input: decoded,
-                invocation,
                 observe: host.observe!,
               })
 
@@ -432,6 +429,9 @@ export const bind = <
       // rather than the generator: a JS `try` around `yield*` would not see a
       // rejected Promise or a defecting Effect, which is how the subscription
       // used to leak.
+      // Kept apart from `progress`, which exists only when auditing: the errors
+      // below need it to say whether the host had returned.
+      let sent = false
       const send = Effect.suspend(() => {
         // Marked before the call, not after: a host that raises leaves this at
         // `attempted`, which is all anyone can honestly say about the Message.
@@ -444,31 +444,51 @@ export const bind = <
       }).pipe(
         Effect.tap(() =>
           Effect.sync(() => {
+            sent = true
             if (progress !== undefined) progress.delivery = 'sent'
           }),
         ),
       )
 
+      // The checks above cannot help once the host has been called, so the
+      // signal settles send and wait alike: a host Promise that never resolves
+      // must not outlive the caller's abort. Only the invocation stops; nothing
+      // already in the Runtime is rolled back.
+      const signal = invocation.signal
+      const cancellable = <A, E>(effect: Effect.Effect<A, E>) =>
+        signal === undefined
+          ? effect
+          : Effect.raceFirst(
+              effect,
+              abortedWhile(signal, name, () => sent),
+            )
+
+      // Without a contract there is no declared deadline, so only the signal
+      // bounds a host that never returns.
       if (waiter === undefined) {
-        yield* send
+        yield* cancellable(send)
         return { name, tag: variant.tag, message, invocation } satisfies DispatchResult
       }
 
-      // The two synchronous checks above cannot help once the wait has begun,
-      // so the signal has to settle it. Only the waiting stops: the Message is
-      // already in the Runtime, and nothing is rolled back.
-      const wait =
-        invocation.signal === undefined
-          ? waiter.outcome
-          : Effect.raceFirst(waiter.outcome, abortedWhile(invocation.signal, name))
-
-      // One finalizer covers both windows: the subscription is taken before
-      // dispatch, so a failing dispatch and a failing, timed-out, aborted or
-      // interrupted wait all release it.
-      const completion = yield* Effect.ensuring(
-        Effect.flatMap(send, () => wait),
-        Effect.sync(waiter.release),
+      // One deadline, measured from the start of send, bounds send and wait
+      // together; a slow host spends the same budget the completion has.
+      const timeout = compiled!.timeout
+      const bounded = Effect.flatMap(send, () => waiter.outcome).pipe(
+        Effect.timeoutOrElse({
+          duration: timeout,
+          orElse: () =>
+            Effect.fail(
+              sent
+                ? CompletionTimeoutError.of(name, invocation.id, timeout)
+                : CompletionTimeoutError.whileSending(name, invocation.id, timeout),
+            ),
+        }),
       )
+
+      // One finalizer covers every window: the subscription is taken before
+      // dispatch, so a failing, stuck, timed-out, aborted or interrupted send or
+      // wait all release it.
+      const completion = yield* Effect.ensuring(cancellable(bounded), Effect.sync(waiter.release))
       return { name, tag: variant.tag, message, invocation, completion } satisfies DispatchResult
     }
   })
@@ -553,9 +573,17 @@ const project = (
 const abortedWhile = (
   signal: AbortSignal,
   capability: string,
+  sent: () => boolean,
 ): Effect.Effect<never, DispatchError> =>
   Effect.callback<never, DispatchError>(resume => {
-    const stop = (): void => resume(Effect.fail(CancelledError.whileWaiting(capability)))
+    const stop = (): void =>
+      resume(
+        Effect.fail(
+          sent()
+            ? CancelledError.whileWaiting(capability)
+            : CancelledError.whileSending(capability),
+        ),
+      )
     if (signal.aborted) {
       stop()
       return
