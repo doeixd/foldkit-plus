@@ -157,14 +157,19 @@ export const mount = <
     sync.projection.set(model, Effect.runSync(replica.shared))
 
   const inFlight = new Set<Promise<void>>()
+  let unsettled = 0
+  let stale = false
   let latest: Model = install(app.initial)
   const modelListeners = new Set<() => void>()
   const committedListeners = new Set<() => void>()
-  const notifyCommitted = (): void => {
-    for (const listener of [...committedListeners]) {
-      // A throwing listener must not end the refresh stream it runs inside.
+  const messageListeners = new Set<(message: Message) => void>()
+  // Listeners run inside `update`, a Subscription, and the refresh stream. A
+  // throwing one must not break those or skip the listeners after it, so its
+  // error is reported asynchronously, as an event listener's would be.
+  const notifyEach = <A>(listeners: ReadonlySet<(value: A) => void>, value: A): void => {
+    for (const listener of [...listeners]) {
       try {
-        listener()
+        listener(value)
       } catch (error) {
         queueMicrotask(() => {
           throw error
@@ -172,20 +177,32 @@ export const mount = <
       }
     }
   }
-  const messageListeners = new Set<(message: Message) => void>()
+  const notifyCommitted = (): void => notifyEach(committedListeners, undefined)
 
   const update = (
     model: Model,
     message: RuntimeMessage,
   ): Update.Return<Model, RuntimeMessage, Resources> => {
     switch (message._tag) {
+      // While a durable edit is applied but its submit has not settled, the
+      // replica does not hold it yet: installing then would drop it. Defer the
+      // install until the last outstanding submit settles.
       case REFRESH:
+        if (unsettled > 0) {
+          stale = true
+          return { model }
+        }
         return { model: install(model) }
       case PERSISTED:
-        return { model }
+        unsettled -= 1
+        if (unsettled > 0 || !stale) return { model }
+        stale = false
+        return { model: install(model) }
       case FAILED: {
+        unsettled -= 1
         const { error } = message as Extract<Private, { readonly _tag: typeof FAILED }>
-        const reverted = install(model)
+        stale = unsettled > 0
+        const reverted = stale ? model : install(model)
         return { model: options.onPersistenceFailure?.(reverted, error) ?? reverted }
       }
       case NAVIGATE: {
@@ -209,13 +226,14 @@ export const mount = <
       case NAVIGATED:
         return { model }
       default: {
-        for (const listener of messageListeners) listener(message as Message)
+        notifyEach(messageListeners, message as Message)
         const result = app.update(model, message as Message) as Update.Return<
           Model,
           RuntimeMessage,
           Resources
         >
         if (!durable.has(message._tag)) return result
+        unsettled += 1
         const persist = {
           name: 'foldkit-sync/persist',
           effect: Effect.gen(function* () {
@@ -265,7 +283,7 @@ export const mount = <
       dependenciesSchema: Schema.Struct({}),
       modelToDependencies: (model: Model) => {
         latest = model
-        for (const listener of modelListeners) listener()
+        notifyEach(modelListeners, undefined)
         return {}
       },
       dependenciesToStream: () => Stream.never,

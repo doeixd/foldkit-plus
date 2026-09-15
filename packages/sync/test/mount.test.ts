@@ -285,6 +285,82 @@ describe('Sync.mount', () => {
     expect(pending(replica)).toEqual([])
   })
 
+  const ownCommitted = (id: string, n: number): CommittedOperation => ({
+    ...committed(id, id, n),
+    replicaId: replicaId('a'),
+    localSequence: localSequence(n),
+    opId: opId(`a:${n}`),
+  })
+
+  it.each([
+    ['commits', { operations: [ownCommitted('B', 1)], rejected: [] }],
+    ['only acknowledges', { operations: [], rejected: [], acknowledged: ['a:1'] }],
+    ['rejects', { operations: [], rejected: ['a:1'] }],
+  ])(
+    'keeps an edit still persisting when an exchange that %s an earlier one settles',
+    async (_, response) => {
+      const base = memoryStorage()
+      let gate: Promise<void> | undefined
+      const app = await open({
+        ...base,
+        save: (state, revision) =>
+          gate === undefined
+            ? base.save(state, revision)
+            : Effect.promise(() => gate!).pipe(Effect.andThen(base.save(state, revision))),
+      })
+      app.dispatch(Message.CreatedTodo({ id: 'B', title: 'B' }))
+      await vi.waitFor(() => expect(pending(replica)).toHaveLength(1))
+
+      let release!: () => void
+      gate = new Promise(resolve => {
+        release = resolve
+      })
+      // B's exchange holds the replica lock in its slow persist; A's submit waits behind it.
+      const settling = exchange(replica, response)
+      await new Promise(resolve => setTimeout(resolve, 10))
+      app.dispatch(Message.CreatedTodo({ id: 'A', title: 'A' }))
+      await vi.waitFor(() => expect(app.model().todos.map(todo => todo.id)).toContain('A'))
+
+      release()
+      await settling
+      await vi.waitFor(() => expect(pending(replica).map(op => op.opId)).toContain('a:2'))
+      await vi.waitFor(() =>
+        expect(app.model().todos).toEqual(Effect.runSync(replica.shared).todos),
+      )
+      expect(app.model().todos.map(todo => todo.id)).toContain('A')
+    },
+  )
+
+  it('keeps refreshing and notifying after a committed listener throws', async () => {
+    // The runtime schedules through queueMicrotask too, so wrap it rather than replace it.
+    const reported: unknown[] = []
+    const schedule = globalThis.queueMicrotask
+    vi.stubGlobal('queueMicrotask', (callback: () => void) =>
+      schedule(() => {
+        try {
+          callback()
+        } catch (error) {
+          reported.push(error)
+        }
+      }),
+    )
+    const app = await open()
+    let later = 0
+    app.committed.subscribe(() => {
+      throw new Error('listener bug')
+    })
+    app.committed.subscribe(() => {
+      later += 1
+    })
+    await vi.waitFor(() => expect(later).toBeGreaterThan(0))
+
+    await exchange(replica, { operations: [committed('r', 'Remote', 1)], rejected: [] })
+    await vi.waitFor(() => expect(app.model().todos).toEqual([{ id: 'r', title: 'Remote' }]))
+    await exchange(replica, { operations: [committed('s', 'Second', 2)], rejected: [] })
+    await vi.waitFor(() => expect(app.model().todos.map(todo => todo.id)).toEqual(['r', 's']))
+    expect(reported).toContainEqual(new Error('listener bug'))
+  })
+
   it('never completes an agent on an edit the server rejects', async () => {
     const app = await open()
     const result = Effect.runPromise(
