@@ -101,6 +101,13 @@ on top.
 
 That is what **rebase** means throughout these packages.
 
+Both halves of the equation stay readable. `Replica.shared` is the optimistic
+state; `Replica.committed` (also `ReplicaSnapshot.committed`, and
+`mounted.committed` on a mounted application) is the committed base alone, which
+a pending edit reaches only once the server commits it. An agent that must not
+report success before the server confirms waits on the committed base; see
+[runtime binding](./sync-runtime-binding.md).
+
 ## One durable edit, end to end
 
 Before looking at either package API, follow one edit through the whole system:

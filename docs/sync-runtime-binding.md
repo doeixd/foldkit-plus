@@ -63,16 +63,32 @@ await mounted.dispose()
   `onUrlChange` case; its write entry rides in `subscriptions`, and `resources`
   provides what the entries need.
 - **Reconcile on change.** The replica's `statusChanges` drive a refresh only
-  when the cursor or the rejections move, which is when an exchange or a
-  rejection changed the replica's state. A submit only echoes a local edit, so it
-  does not refresh; refreshing on it would briefly revert a later local edit
-  whose own submit is still in flight.
+  when the cursor moves, the pending count drops, or the rejections change:
+  when an exchange committed, acknowledged, or rejected something. (An
+  acknowledgment that returns no operation moves no cursor but still drops the
+  edit from the outbox.) A submit only echoes a local edit, so it does not
+  refresh; refreshing on it would briefly revert a later local edit whose own
+  submit is still in flight.
+- **Known gap.** A durable edit whose submit is still waiting for the replica
+  lock is not in the replica's shared state yet. A refresh from an exchange that
+  settles in that window installs a slice without it, so the edit is hidden until
+  the next exchange that changes the shared slice. Deferring the install instead
+  would starve remote changes while local edits keep overlapping.
 - **Dispatch and Model.** `dispatch` is one inbound Port carrying the whole
   union. `model()` is read from a subscription entry whose `modelToDependencies`
   runs on every transition; the runtime does not expose the Model otherwise.
   `subscribe` notifies on every transition, and `observe` reports every
   application Message the runtime applies, which a capability with a
   `completion` contract needs to see.
+- **The committed view.** `mounted.committed` is a source, `{ get, subscribe }`,
+  reading `Replica.committed`: the shared slice as the server confirmed it, with
+  no pending edit applied. Its subscribers are told after every exchange status,
+  including a checkpoint at the same cursor, which replaces the committed state
+  without moving it. The Model shows a durable edit at once, so an agent that
+  must not report success before the server commits waits on this view with
+  `Agent.when({ source: mounted.committed, predicate })`; it completes after the
+  committing exchange and never for a rejected edit. It is not a Projection: it
+  does not read the Model, and the mount does not install it anywhere.
 - **Dispose waits.** In-flight persists are tracked and awaited before the
   runtime is disposed, so the outbox is left complete and resumable.
 
@@ -98,7 +114,10 @@ Covered by `packages/sync/test/mount.test.ts` unless noted.
   replica's own test.
 - A rejected operation is reverted. ✔
 - A checkpoint installs without resubmitting pending operations: the replica's
-  own test; the mount sees it as a cursor move.
+  own test. The mount refreshes when the checkpoint moves the cursor or drops
+  pending operations; one at the same cursor with nothing dropped only notifies
+  `committed` subscribers (known gap: the Model keeps the previous slice). ✔
+  (committed notification)
 - Disposal with pending work completes it. ✔
 - Two bound instances of one document do not interleave admittances: not
   supported; one mount per replica.
