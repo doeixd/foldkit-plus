@@ -145,15 +145,32 @@ Surface
 
 That is the whole package.
 
+## Rendering without a runtime
+
+`SurfaceView.render(view, surface, params, root)` projects `root` through the
+Surface and renders the view with `SlotView.inertBuilder`. It returns the
+`Html`, but nothing mounts and handlers are built without ever being
+dispatched. It is for tests, demos, and static output, not a replacement for
+`Surface.view` in a running app.
+
+```ts
+const html = SurfaceView.render(TodoListView, TodoList, undefined, {
+  todos: [{ id: 't1', title: 'Write docs' }],
+  selectedId: 't1',
+  secret: 'not projected',
+})
+```
+
 ## Introspection
 
 `SurfaceView.inspect(view)` returns serializable `{ name, slots, mixins }` with
 no functions. `SurfaceView.describe(surface, params, view)` merges that with
-`Surface.inspect` — what the Surface observes, requires, and may emit, with
-emitted Messages as tags — into one value. `SurfaceView.toMarkdown` renders it
-deterministically for docs or a CI drift check.
+`Surface.inspect` — what the Surface observes, its projection `metadata`, and
+what it may emit, with emitted Messages as tags — into one value.
+`SurfaceView.toMarkdown` renders it deterministically for docs or a CI drift
+check.
 
-Each of `define`, `toRenderer`, `inspect`, `describe`, and `toMarkdown` is also a
+Each of `define`, `toRenderer`, `render`, `inspect`, `describe`, and `toMarkdown` is also a
 direct named export if you prefer that to the `SurfaceView` namespace.
 
 ## Status
