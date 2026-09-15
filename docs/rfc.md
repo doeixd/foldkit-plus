@@ -405,14 +405,14 @@ Conceptually:
 
 ```ts
 interface Projection<Root, Value> {
-  readonly schema: Schema.Schema<Value>
+  readonly Model: Schema.Codec<Value, unknown>
+  readonly dependencies: DependencyTree
+  readonly metadata: Metadata
   readonly read: (root: Root) => Value
-  readonly dependencies: ReadonlyArray<ModelPath>
-  readonly metadata: ReadonlyArray<InterpreterMetadata>
 }
 ```
 
-`metadata` here is deliberately schematic. The important point is that Projection may carry **opaque interpreter-owned declarations** without understanding their domain semantics.
+`Metadata` is opaque: a package makes a typed slot with `Metadata.key<A>(name, { merge, summarize })`, attaches entries with `key.of(...)`, and reads them with `key.get(metadata)`. The important point is that Projection may carry **opaque interpreter-owned declarations** without understanding their domain semantics.
 
 Generated field references make projection construction type-safe:
 
@@ -493,17 +493,18 @@ Instead, an interpreter should construct a branded / opaque declaration that Pro
 Conceptually:
 
 ```ts
-const RemoteRequirementTypeId: unique symbol
+const RemoteRequirements = Metadata.key<Requirement>('remote', {
+  merge: Requirement.merge,
+  summarize: requirement => ...,
+})
 
-interface RemoteRequirement {
-  readonly [RemoteRequirementTypeId]: typeof RemoteRequirementTypeId
-  // Remote-owned structure
-}
+RemoteRequirements.of(requirement) // attach
+RemoteRequirements.get(projection.metadata) // read
 ```
 
-Surface / Projection need not understand it.
+Surface / Projection need not understand it: `Metadata` is opaque, and entries are found by the key object.
 
-Remote can later inspect the Projection and retrieve only metadata it owns.
+Remote can later inspect the Projection and retrieve only metadata it owns, with `requirementsOf(projection)` and `connectionsOf(projection)`. Tooling sees every package's entries through `Metadata.summarize`, as `{ name, entries }[]`.
 
 A future package can contribute another metadata type without editing a central union.
 
@@ -855,17 +856,18 @@ resource finalization
 Examples:
 
 ```ts
-Agent.dispatch(...).pipe(
-  Effect.timeout('10 seconds'),
+agentRuntime.messages.dispatch(...).pipe(
   Effect.retry(policy),
 )
 ```
 
 ```ts
-Remote.refresh(ProjectPage).pipe(
+replica.synchronize.pipe(
   Effect.timeout('5 seconds'),
 )
 ```
+
+A Model transition is not an async operation: `Data.refresh(model, ProjectPage)` is called from `update`, returns the Model, and leaves the I/O to Subscriptions.
 
 This keeps Foldkit aligned with the Effect ecosystem instead of growing an ad-hoc async option language in every package.
 
@@ -1050,12 +1052,15 @@ A refresh path may restate the same data graph:
 Remote can interpret the requirements already carried by the Projection:
 
 ```ts
-Remote.refresh(ProjectPage)
+// in update
+return { model: Data.refresh(model, ProjectPage) }
 ```
 
 meaning:
 
 > Revalidate the Remote requirements contributed by this consumer declaration.
+
+`Data.refresh` performs no I/O. It returns the Model with the selected fields marked `Refreshing` and loaded connections invalidated; the `Data.subscriptions` read entries refetch them, restarting any read already in flight. A refreshed connection's first page replaces its pages. Refreshing again before that lands returns the same Model.
 
 This is **not** a global `Foldkit.refresh`. Remote can implement it because Remote owns the requirement semantics.
 
@@ -1112,7 +1117,7 @@ AsyncData.match(model.user, {
 })
 ```
 
-A small view-oriented interpreter could make the common policy easier:
+A small view-oriented interpreter (planned; not built) could make the common policy easier:
 
 ```ts
 Render.async(model.user, {
@@ -1154,13 +1159,14 @@ visible
 
 If Agent completion only inspects visible Model state, it may return success before the server accepts the operation.
 
-A Sync-aware completion path should be able to wait on the **committed** view:
+A Sync-aware completion path waits on the **committed** view, which `Sync.mount` exposes as a `{ get, subscribe }` source outside the Model:
 
 ```ts
 completion: Agent.when({
-  projection: TodoSync.committed.select(TodoById(input.id)),
-  predicate: (todo, input) =>
-    todo.title === input.title,
+  source: mounted.committed,
+  predicate: (shared, request) =>
+    shared.todos.some(todo =>
+      todo.id === request.id && todo.title === request.title),
 })
 ```
 
@@ -1195,7 +1201,7 @@ visible cache
 
 Normal UI may read visible state while an external capability waits for confirmed state.
 
-Conceptually:
+Conceptually (planned; not built):
 
 ```ts
 Remote.visible(ProjectName)
@@ -1221,18 +1227,16 @@ Without a clear rule, every package may eventually invent:
 With the proposal, package operations compose as Effects:
 
 ```ts
-Agent.dispatch(...).pipe(
-  Effect.timeout('5 seconds'),
-)
-
-Remote.refresh(ProjectPage).pipe(
+agentRuntime.messages.dispatch(...).pipe(
   Effect.retry(policy),
 )
 
-Sync.synchronize(...).pipe(
+replica.synchronize.pipe(
   Effect.race(otherWork),
 )
 ```
+
+A completion wait is the exception worth naming: the Agent runtime owns one deadline, the contract's `timeout`, covering both the host dispatch and the wait, and an invocation's abort signal settles either.
 
 One ecosystem vocabulary handles cancellation, retry, race, timeout, fibers, Scope, and services.
 
@@ -1523,7 +1527,7 @@ completion: Agent.when({
 })
 ```
 
-The state waiter must be race-safe and represented as Effect so timeout/interruption are ordinary Effect composition.
+The state waiter must be race-safe. `Agent.when` also accepts `source: { get, subscribe }` for state outside the Model. The runtime bounds dispatch and wait with one deadline (`timeout`) and honours the invocation's abort signal.
 
 ## Availability and authorization remain separate
 
@@ -1779,14 +1783,14 @@ projection.remoteRequirements
 projection.connections
 ```
 
-Instead, Remote contributes branded metadata and retrieves it through its own interpreter API.
+Instead, Remote contributes metadata under its own `Metadata.key` and retrieves it with `requirementsOf(projection)` / `connectionsOf(projection)`.
 
-## Remote-specific Projection refresh is a strong candidate
+## Remote-specific Projection refresh
 
 Once requirements survive composition, Remote can lawfully offer:
 
 ```ts
-Remote.refresh(ProjectPage)
+Data.refresh(model, ProjectPage)
 ```
 
 without the caller restating every request.
@@ -2177,10 +2181,10 @@ const ProjectPage = Projection.all({
 })
 ```
 
-Remote can interpret it:
+Remote can interpret it from `update`, returning the Model:
 
 ```ts
-Remote.refresh(ProjectPage)
+Data.refresh(model, ProjectPage)
 ```
 
 Core Projection does not know what an Entity, Selection, QueryWindow, or connection is.
@@ -2201,7 +2205,7 @@ const Preferences = Mirror.keyValue({
 
 ## AsyncData rendering helper
 
-Potential ergonomic sugar:
+Potential ergonomic sugar (planned; not built):
 
 ```ts
 Render.async(model.user, {
@@ -2362,7 +2366,7 @@ Message completion
 State completion
 ```
 
-State completion must be race-safe and compose as Effect.
+State completion must be race-safe, with one runtime-owned deadline over dispatch and wait.
 
 Start with one transport; keep the protocol-neutral contract primary.
 
@@ -2371,7 +2375,7 @@ Start with one transport; keep the protocol-neutral contract primary.
 Before upstreaming Remote, validate the metadata seam with a real interpreter:
 
 ```ts
-Remote.refresh(ProjectPage)
+Data.refresh(model, ProjectPage)
 ```
 
 Questions:
@@ -2497,7 +2501,7 @@ before
     refresh manually restates each request
 
 after
-    Remote.refresh(PageProjection)
+    Data.refresh(model, PageProjection)
 ```
 
 Measure whether the API genuinely removes duplicated semantics rather than merely hiding them.

@@ -91,6 +91,33 @@ Remote       Sync       Agent       Mirror
 interpret only the metadata / capabilities they own
 ```
 
+## Implementation status
+
+PRs #108 and #109 implemented decisions 4, 5 and 7 in part. The reasoning below
+is unchanged; sketches that shipped in another shape carry a pointer to this
+section.
+
+| Decision | Shipped as | Differs from the sketch |
+| --- | --- | --- |
+| Opaque Projection metadata | `Metadata.key<A>(name, { merge, summarize })` in [`foldkit-surface`](../../packages/surface/README.md). Entries are private and frozen; combinators merge them per key. Remote owns `RemoteRequirements` / `RemoteConnections`, read with `requirementsOf` / `connectionsOf`. | Not a structural `requirements: RequirementMetadata[]` array. A `Metadata` value cannot be hand-built or copied, so only the owning package's key reads or writes its entries. |
+| Remote refresh | `Data.refresh(model, projection \| Surface)` (`Remote.refresh(bound, …)`) in [`foldkit-remote`](../../packages/remote/README.md), for a Surface without params. | Mark-only: it returns the Model instead of an Effect that fetches. A fetching refresh requested the data a second time beside the Subscription read entry. The read entries refetch, a refresh generation restarts reads in flight, and a refreshed connection's first page replaces its pages. |
+| Agent state completion | `Agent.when({ projection \| source, predicate, timeout? })` in [`foldkit-agent`](../../packages/agent/README.md). Subscribes before reading. | Takes a `timeout` option; the runtime owns one deadline and the abort signal around both the host dispatch and the wait. A wait-only Effect could not bound a host dispatch that never returns. |
+| Sync confirmation | `Replica.committed` and `mounted.committed` in [`foldkit-sync`](../../packages/sync/README.md). | A `{ get, subscribe }` source (`Agent.when({ source: mounted.committed, … })`), not a Projection such as `TodoSync.committed.select(...)`: committed state lives in the replica, not the Model. |
+
+Not built: `Render.async` (phase 4), `Remote.visible` / `Remote.confirmed`, runtime
+activity introspection (phase 5), and the shared `visible` / `pending` /
+`settled` vocabulary beyond Sync's `committed`.
+
+Known issues at ship time:
+
+- **Sync lost edit.** A durable edit still waiting for the replica lock is not
+  in `replica.shared`, so an exchange settling then hides it until the next
+  exchange that changes the shared slice. Deferring the install closed the race
+  but starved remote changes while edits overlapped, so it was reverted.
+- **Refresh restarts every read entry.** The refresh generation lives in the
+  Remote store, so every read entry restarts, not only the one observing the
+  refreshed Projection.
+
 ## Why Solid 2 is relevant
 
 Solid 2 moves async into its reactive graph. Ordinary computations can produce
@@ -530,6 +557,9 @@ interface Projection<Root, A> {
 
 where `RequirementMetadata` is deliberately open-world.
 
+> Shipped differently (opaque `Metadata.key`, not an array); see
+> [Implementation status](#implementation-status).
+
 Remote would create a branded value that only Remote understands:
 
 ```ts
@@ -704,6 +734,9 @@ agentRuntime.messages.dispatch(...).pipe(
 Do not copy Solid's `{ timeout, signal }` options when Effect already has stronger
 structured-concurrency semantics.
 
+> Shipped differently (`Agent.when` takes `timeout`; the runtime bounds dispatch
+> and wait together); see [Implementation status](#implementation-status).
+
 ## Interpreter-specific refresh and confirmation
 
 Solid's `refresh(x)` is compelling because a Solid graph node owns its derivation.
@@ -720,6 +753,9 @@ A Remote Projection already carries requirements. Remote can plausibly support:
 Remote.refresh(UserProjection)
 Remote.refresh(UserPageSurface.model)
 ```
+
+> Shipped differently (mark-only `Data.refresh(model, target)` returning the
+> Model); see [Implementation status](#implementation-status).
 
 meaning:
 
@@ -997,6 +1033,9 @@ can instead expose a package-specific operation:
 Remote.refresh(ProjectPage)
 ```
 
+> Shipped as `Data.refresh(model, ProjectPage)` from `update`, which marks and
+> returns the Model; see [Implementation status](#implementation-status).
+
 Conceptually:
 
 ```text
@@ -1249,6 +1288,9 @@ completion: Agent.when({
 })
 ```
 
+> Shipped differently (`source: mounted.committed`, not a Projection); see
+> [Implementation status](#implementation-status).
+
 Immediately after local submission:
 
 ```text
@@ -1309,6 +1351,8 @@ Remote.visible(ProjectName)
 Remote.confirmed(ProjectName)
 ```
 
+> Not built; see [Implementation status](#implementation-status).
+
 The exact API is open, but the semantic rule is important: Remote owns this
 distinction because Remote understands its own optimistic and server-derived
 layers. Foldkit core does not need a generic `Authority<T>` wrapper.
@@ -1339,6 +1383,9 @@ Remote.refresh(ProjectPage).pipe(
   Effect.timeout('5 seconds'),
 )
 ```
+
+> Shipped differently: refresh returns the Model and `Agent.when` takes
+> `timeout`; see [Implementation status](#implementation-status).
 
 ```ts
 Sync.exchange(...).pipe(
@@ -1490,6 +1537,9 @@ Remote interprets the requirements already carried by the Projection:
 ```ts
 Remote.refresh(ProjectPage.model)
 ```
+
+> `Remote.confirmed` is not built and refresh is mark-only; see
+> [Implementation status](#implementation-status).
 
 Conceptually:
 
@@ -1769,7 +1819,8 @@ Requirements:
 - subscribe-before-read or equivalent race-free implementation
 - no separate `Observation` abstraction
 - waiting represented as Effect
-- timeout / interruption supplied by Effect composition
+- timeout / interruption supplied by Effect composition (shipped as a `timeout`
+  option instead; see [Implementation status](#implementation-status))
 - coexistence with Message-based completion
 
 This validates the Solid `until()` lesson in a subsystem that already has the
