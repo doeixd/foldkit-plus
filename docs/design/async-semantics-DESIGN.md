@@ -110,10 +110,11 @@ activity introspection (phase 5), and the shared `visible` / `pending` /
 
 Known issues at ship time:
 
-- **Sync lost edit.** A durable edit still waiting for the replica lock is not
-  in `replica.shared`, so an exchange settling then hides it until the next
-  exchange that changes the shared slice. Deferring the install closed the race
-  but starved remote changes while edits overlapped, so it was reverted.
+- **Sync lost edit (since fixed).** A durable edit still waiting for the replica
+  lock was not in `replica.shared`, so an exchange settling then hid it until
+  the next exchange. Deferring the install starved remote changes and was
+  reverted; the fix submits one edit at a time and replays the edits the replica
+  does not hold yet on top of one replica snapshot.
 - **Refresh restarts every read entry.** The refresh generation lives in the
   Remote store, so every read entry restarts, not only the one observing the
   refreshed Projection.

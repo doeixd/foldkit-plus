@@ -433,7 +433,9 @@ const status = yield* replica.status
 `replica.statusChanges` emits that status initially and after every submit and
 exchange. `replica.changes` emits the status and optimistic `shared` value
 together from one replica snapshot, so a UI can subscribe once without racing
-two separate reads.
+two separate reads. `replica.snapshot` is the same read, once: the status,
+`shared`, `committed`, and `nextLocalSequence`, the local sequence the next
+submitted operation takes.
 
 ## Sync + Durable
 

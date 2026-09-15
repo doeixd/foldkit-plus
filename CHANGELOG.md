@@ -145,10 +145,16 @@ casts: a cast in a test marked a gap in the API.
   listeners after it or the mount's refresh; its error is re-thrown from a
   microtask.
 - `dispose` no longer hangs when a persist dies with a defect.
-- **Known issue:** a durable edit whose submit is still waiting for the replica
-  can be hidden by an exchange that settles in that moment, until the next
-  exchange that changes the shared slice. This predates this release, except
-  for exchanges that only acknowledge.
+- **A refresh no longer hides a durable edit still waiting for the replica.**
+  An exchange that settled while an edit's submit waited for the replica lock
+  installed a shared slice without it, so the edit vanished until the next
+  exchange. The mount now submits one edit at a time, in dispatch order, and a
+  refresh replays the edits the replica does not hold yet on top of one replica
+  snapshot. Nothing is deferred, so remote changes still show while edits keep
+  overlapping, and no edit is applied twice.
+- `Replica.snapshot` reads the status, `shared`, `committed` and the new
+  `ReplicaSnapshot.nextLocalSequence` from one replica state. `DefinedSync.replay`
+  is the reducer the replica replays durable Messages with.
 - `Sync.forApplication(App).make({ authorize })` types
   `journalContract().authorize` as present.
 

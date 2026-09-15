@@ -69,11 +69,15 @@ await mounted.dispose()
   edit from the outbox.) A submit only echoes a local edit, so it does not
   refresh; refreshing on it would briefly revert a later local edit whose own
   submit is still in flight.
-- **Known gap.** A durable edit whose submit is still waiting for the replica
-  lock is not in the replica's shared state yet. A refresh from an exchange that
-  settles in that window installs a slice without it, so the edit is hidden until
-  the next exchange that changes the shared slice. Deferring the install instead
-  would starve remote changes while local edits keep overlapping.
+- **Edits still waiting for the replica survive a refresh.** A durable edit is
+  in the Model before its submit reaches the replica, and the submit waits for
+  the replica lock. The mount submits one edit at a time, in dispatch order,
+  recording the replica's next local sequence when each submit starts. A refresh
+  reads one replica snapshot and replays, on top of its `shared`, every edit the
+  replica does not hold yet: those still queued, and the one in flight while the
+  sequence has not moved past it. The install is never deferred, so remote
+  changes show while edits keep overlapping, and an edit the replica already
+  holds is not applied twice.
 - **Dispatch and Model.** `dispatch` is one inbound Port carrying the whole
   union. `model()` is read from a subscription entry whose `modelToDependencies`
   runs on every transition; the runtime does not expose the Model otherwise.
