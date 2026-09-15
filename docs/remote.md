@@ -115,7 +115,9 @@ Data.subscriptions({
 
 Each active Surface gives a read entry, which plans and fetches only the missing
 fields through `RemoteClient` and emits a `RemoteMessage` (a fully-known Surface
-emits nothing), and a live entry for what it reads through `Data.live`; one
+emits nothing). Its dependencies are plain data: the planned fields, the queries
+to run, and the Model's refresh generation, so Foldkit restarts it when the plan
+changes or a refresh is requested. Each Surface also gives a live entry for what it reads through `Data.live`; one
 retain entry keeps what the active Surfaces reach. SSR, route/hover prefetch,
 and tests reuse the same plan through `Data.prefetch`.
 
@@ -133,8 +135,23 @@ What a field the store already holds means is a `RemotePolicy` on `observe` and
 `prefetch`: `cacheFirst` (default) fetches only what is missing,
 `staleWhileRevalidate({ maxAge })` refetches an entry older than the window, and
 `networkOnly` fetches every selected field. A policy compiles to planner options;
-it is not a second cache. A refreshing policy emits `RefreshStarted` before the
-read, which marks the refetched fields stale.
+it is not a second cache. A refreshing policy emits `RefreshStarted` with the
+read's `ReadStarted`, which marks the refetched fields stale.
+
+To revalidate on demand — a refresh button, a regained focus — `update` returns
+`Data.refresh(model, projection)` (or a Surface without params). It performs no
+I/O: it marks the selected fields the store holds stale, so they read
+`Refreshing` over their old value, invalidates the loaded connections, and bumps
+the refresh generation. The read entries already observing that projection plan
+stale data again under every policy, so the data is fetched once, by the entry,
+instead of by a Command racing it. The projection must therefore be observed; for
+one nothing observes, use `Data.prefetch` with `networkOnly`. A read in flight
+from before the refresh restarts rather than landing after it, and a refreshed
+connection's first page replaces its loaded pages, so removed or reordered items
+follow the server and later pages are paged again. Refreshing what is already
+refreshing returns the same Model. The package README's
+[Refreshing from `update`](../packages/remote/README.md#refreshing-from-update)
+has the example.
 
 Reads through `Remote.clientLayer` coalesce: requirements issued together are one
 batch, a requirement already in flight is joined, and every waiter gets the

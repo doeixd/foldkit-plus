@@ -159,6 +159,12 @@ const withStore = (model: typeof App.initial, store: EntityStore): typeof App.in
   remote: { ...model.remote, entities: store },
 })
 
+// The server's facts, which the refresh step changes behind the client's back.
+const server: { names: Record<string, string>; owned: ReadonlyArray<string> } = {
+  names: { p1: 'Apollo' },
+  owned: ['p1'],
+}
+
 /** An in-process `RemoteClient`; no server, but the whole path is the real one. */
 const FakeClient = Layer.succeed(RemoteClient, {
   read: batch =>
@@ -166,15 +172,15 @@ const FakeClient = Layer.succeed(RemoteClient, {
       entities: batch.requests.map(request => ({
         entity: request.entity,
         id: request.id,
-        values: { id: request.id, name: 'Apollo', status: 'active' },
+        values: { id: request.id, name: server.names[request.id], status: 'active' },
       })),
     })),
   query: () =>
-    Effect.succeed({
-      edges: [{ entity: 'Project', id: 'p1', key: 'Project:p1' }],
+    Effect.sync(() => ({
+      edges: server.owned.map(id => ({ entity: 'Project', id, key: `Project:${id}` })),
       start: { _tag: 'Terminal' as const },
       end: { _tag: 'Terminal' as const },
-    }),
+    })),
   mutate: request =>
     Effect.sync(() => {
       const input = request.input as { readonly id: string; readonly name: string }
@@ -186,7 +192,40 @@ const FakeClient = Layer.succeed(RemoteClient, {
   live: () => Stream.empty,
 })
 
+const projects = Data.query(
+  ProjectsByOwner,
+  { ownerId: 'u1' },
+  { select: ProjectSummary, first: 25 },
+)
+
+// A Surface without params, so `Data.refresh` takes it directly.
+const Dashboard = App.surface('Dashboard', {
+  model: () => ({ project: Data.get(ProjectSummary, 'p1'), projects }),
+})
+
+/** Runs the Dashboard's read entry, as the mounted Subscription would, until it plans nothing. */
+const observeDashboard = async (
+  model: Model,
+): Promise<{ readonly model: Model; readonly tags: ReadonlyArray<string> }> => {
+  const entry = Data.subscriptions({ dashboard: Dashboard })['dashboard.read']
+  let current = model
+  const tags: string[] = []
+  // The page first, then the items it newly references; the cap only stops a runaway loop.
+  for (let pass = 0; pass < 3; pass += 1) {
+    const dependencies = entry.modelToDependencies(current)
+    if (dependencies.requirements.length === 0 && dependencies.queries.length === 0) break
+    const messages = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(dependencies)).pipe(Effect.provide(FakeClient)),
+    )
+    tags.push(...Array.from(messages, message => message._tag))
+    current = messages.reduce(Data.reduce, current)
+  }
+  return { model: current, tags }
+}
+
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
+  server.names = { p1: 'Apollo' }
+  server.owned = ['p1']
   const lines: string[] = ['surface: ProjectPage']
 
   const initial = App.initial
@@ -232,11 +271,6 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // items. The prefetch runs the query, then one read for whatever the page's
   // items still lack (nothing here: p1 is already known), and `Data.next` is
   // the following page, or nothing at the end.
-  const projects = Data.query(
-    ProjectsByOwner,
-    { ownerId: 'u1' },
-    { select: ProjectSummary, first: 25 },
-  )
   const queried = await Effect.runPromise(
     Data.prefetch(loaded, projects).pipe(Effect.provide(FakeClient)),
   )
@@ -305,6 +339,20 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     writeEntity(Data.storeOf(loaded), entityKey('Project', 'p1'), { status: 42 }),
   )
   lines.push(`corrupt store: ${describeData(projection.read(corrupted))}`)
+
+  // The server renames p1 and moves the list to p2 alone. `Data.refresh` is what
+  // a ClickedRefresh branch of `update` returns: no I/O, only marks. The read
+  // entry then refetches the marked fields and the invalidated connection.
+  server.names = { p1: 'Artemis', p2: 'Borealis' }
+  server.owned = ['p2']
+  const marked = Data.refresh(queried, Dashboard)
+  lines.push(
+    `refresh: ${describeData(projection.read(marked))}; list ${describePage(projects.read(marked))}; again unchanged: ${Data.refresh(marked, Dashboard) === marked}`,
+  )
+  const reloaded = await observeDashboard(marked)
+  lines.push(
+    `after refresh: ${reloaded.tags.join(', ')}; ${describeData(projection.read(reloaded.model))}; list ${describePage(projects.read(reloaded.model))}`,
+  )
 
   return lines
 }
