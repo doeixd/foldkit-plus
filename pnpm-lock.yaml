@@ -45,6 +45,31 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@26.1.0)
 
+  examples/bundle:
+    dependencies:
+      '@foldkit/ui':
+        specifier: 0.158.2
+        version: 0.158.2(effect@4.0.0-rc.112)(foldkit@0.158.2(effect@4.0.0-rc.112))
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../../packages/bundle
+      foldkit-bundle-surface:
+        specifier: workspace:*
+        version: link:../../packages/bundle-surface
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../../packages/surface
+    devDependencies:
+      effect:
+        specifier: 4.0.0-rc.112
+        version: 4.0.0-rc.112
+      foldkit:
+        specifier: 0.158.2
+        version: 0.158.2(effect@4.0.0-rc.112)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.7.2
+
   examples/kitchen-sink:
     dependencies:
       drizzle-orm:
@@ -531,6 +556,39 @@ importers:
 
   packages/react:
     devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      effect:
+        specifier: 4.0.0-rc.112
+        version: 4.0.0-rc.112
+      foldkit:
+        specifier: 0.158.2
+        version: 0.158.2(effect@4.0.0-rc.112)
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      react:
+        specifier: 19.2.0
+        version: 19.2.0
+      react-dom:
+        specifier: 19.2.0
+        version: 19.2.0(react@19.2.0)
+      tsdown:
+        specifier: 0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
+      typescript:
+        specifier: 5.7.2
+        version: 5.7.2
+
+  packages/react-codegen:
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.2
+        version: 22.10.2
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -3453,6 +3511,9 @@ packages:
   '@types/node@18.19.130':
     resolution: {integrity: sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==}
 
+  '@types/node@22.10.2':
+    resolution: {integrity: sha512-Xxr6BBRCAOQixvonOye19wnzyDiUtTeqldOOmj3CkeblonbccA12PFwlufvRdrpjXxqnmUaeiU5EOA+7s5diUQ==}
+
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
@@ -6357,6 +6418,9 @@ packages:
 
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
+
+  undici-types@6.20.0:
+    resolution: {integrity: sha512-Ny6QZ2Nju20vw1SRHe3d9jVu6gJ+4e3+MMpqu7pqE5HT6WsTSlce++GQmK5UXS8mzV8DSYHrQH+Xrf2jVcuKNg==}
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
@@ -9628,6 +9692,10 @@ snapshots:
     dependencies:
       undici-types: 5.26.5
 
+  '@types/node@22.10.2':
+    dependencies:
+      undici-types: 6.20.0
+
   '@types/node@22.20.1':
     dependencies:
       undici-types: 6.21.0
@@ -12671,6 +12739,8 @@ snapshots:
     optional: true
 
   undici-types@5.26.5: {}
+
+  undici-types@6.20.0: {}
 
   undici-types@6.21.0: {}
 
