@@ -45,8 +45,12 @@ transition goes through the parent's `update`. A placement is therefore an
 ## Deferred
 
 - **Per-key keep-alive for collections.** Adding one item restarts every item's
-  stream for that entry. A per-key fiber map is possible with
-  `keepAliveEquivalence` and `readDependencies`, but not built.
+  stream for that entry. Keeping the others running needs the running stream to
+  learn that the item keys changed, but Foldkit 0.158.2 only offers
+  `readDependencies`, which is pull-only (its one user, `@foldkit/ui`
+  drag-and-drop, polls it each animation frame). Without polling every
+  collection, this needs a dependency-change signal from Foldkit's runtime, such
+  as a Stream of dependencies alongside `readDependencies`.
 - **Resources in collections.** Needs either a pooled parent resource or a
   keyed `ManagedResource` upstream.
 - **Re-rooted Surfaces per placement.** A Surface names Messages by parent
