@@ -4,6 +4,7 @@
  * for what an application supplies.
  */
 import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -126,3 +127,19 @@ const clientLayer = Remote.clientLayer(rpcClient)
 
 void subscriptions
 void clientLayer
+
+// 7. One list instead of steps 2–6 by hand. This fixture's union has its own
+// Messages with Commands, so its section-5 update stays on as `own` — and the
+// parent declares `RemoteClient` for it — while the README's Remote-only union
+// needs neither.
+const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
+const wiring = Page.assemble(
+  Data.wiring({
+    page: Surface.at(ProjectPage, model =>
+      model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+    ),
+  }),
+)
+const wiredUpdate = wiring.update(update)
+
+void wiredUpdate

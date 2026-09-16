@@ -219,6 +219,19 @@ replay function, operation codecs, and server journal contract from the same
 application declaration. There is no parallel sync-specific version of
 `update` to keep aligned.
 
+## Wiring: the contract joins an assembly
+
+The contract joins a `foldkit-bundle` assembly contract-only, so the Module
+sees it:
+
+```ts
+const wiring = TodoSync.wiring()
+```
+
+It routes nothing, runs nothing, and subscribes to nothing — Sync owns the
+runtime through `mount` rather than joining it — and `wiring.contract` is the
+same contract above.
+
 ## What makes a Message durable?
 
 A durable Message must be something another machine can replay later and obtain

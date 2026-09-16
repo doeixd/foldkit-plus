@@ -306,6 +306,27 @@ The important part is what did **not** change: `sidebar` and `draft` are still
 ordinary Model fields. The key-value store is merely how those fields are
 remembered between sessions.
 
+## One list per application with wiring
+
+The hand-wiring above — reduce by tag, restore at startup, spread the
+Subscriptions — is one value when the application uses `foldkit-bundle`:
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+
+const Page = Bundle.parent({ Model, Message })
+const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
+const update = wiring.update(model => ({ model }))
+const subscriptions = wiring.subscriptions()
+const url = wiring.url(url => Message.UrlChanged({ url }))
+```
+
+`Filters.wiring('UrlChanged')` routes the application's URL Message into
+`Filters.reduce` and reads the URL at startup; `Prefs.wiring()` routes its own
+`MirrorRestored` into `Prefs.reduce` and runs `Prefs.restore` at startup. Two
+key-value mirrors share the `MirrorRestored` tag, so each wiring routes only
+its own mirror's Message and the assembly accepts both.
+
 ## Slice = field refs or a writable Projection
 
 A mirror accepts either field refs directly:

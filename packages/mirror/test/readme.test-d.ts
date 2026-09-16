@@ -4,6 +4,7 @@
  */
 import { Schema } from 'effect'
 import type { KeyValueStore } from 'effect/unstable/persistence'
+import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -68,3 +69,14 @@ const link: string = Filters.href(initial, { page: 2 })
 void init
 void subscriptions
 void link
+
+// One list instead of the hand-wiring above.
+const Page = Bundle.parent({ Model, Message })
+const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
+const wiredUpdate = wiring.update(model => ({ model }))
+const wiredSubscriptions = wiring.subscriptions()
+const wiredUrl = wiring.url(url => Message.UrlChanged({ url }))
+
+void wiredUpdate
+void wiredSubscriptions
+void wiredUrl

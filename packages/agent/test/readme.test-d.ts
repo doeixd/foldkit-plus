@@ -4,7 +4,7 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from 'foldkit-surface'
+import { Projection, Surface, type Wiring } from 'foldkit-surface'
 import { Agent } from '../src/index.js'
 
 const Todo = Schema.Struct({
@@ -68,3 +68,8 @@ export const agentRuntime = TodoAgent.bind({
     subscribe: onModelChange,
   },
 })
+
+// The contract joins an assembly contract-only, so the Module sees it.
+const agentWiring: Wiring<Model, never> = AppAgent.wiring()
+
+void agentWiring

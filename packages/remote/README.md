@@ -293,6 +293,32 @@ const clientLayer = Remote.clientLayer(rpcClient)
 `RemoteClient` service used by subscriptions and Commands. The transport itself
 is not owned by Remote.
 
+## One list per application with `Data.wiring`
+
+The integration steps above — spread `Remote.messages`, reduce by tag, derive
+`Data.subscriptions`, provide the client — are one value when the application
+uses `foldkit-bundle`:
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+
+const Page = Bundle.parent({ Model, Message })
+const wiring = Page.assemble(
+  Data.wiring({
+    project: Surface.at(ProjectPage, model =>
+      model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+    ),
+  }),
+)
+const update = wiring.update(model => ({ model }))
+```
+
+`Data.wiring` routes Remote's Messages into `Data.reduce`, brings the active
+Surfaces' Subscriptions and the domain's contract, and requires `RemoteClient`
+from the runtime's resources — the same client layer from above. One assembly
+holds at most one Remote domain: every domain claims the same Message tags,
+and the assembly refuses a second claimant at startup, naming both.
+
 ## `RemoteData`: what does the Model know right now?
 
 A Remote Projection never lies by pretending an absent value is present. It

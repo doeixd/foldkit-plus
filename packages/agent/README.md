@@ -123,6 +123,18 @@ The host must accept every Message the contract can construct -- a wider union
 is fine, a narrower one is a type error -- and a contract whose hooks read a
 principal must be given a `principal` provider of the matching type.
 
+### Wiring
+
+The contract joins a `foldkit-bundle` assembly contract-only, so the Module
+sees it:
+
+```ts
+const wiring = AppAgent.wiring()
+```
+
+It routes nothing and subscribes to nothing -- an agent adds no state -- and
+`wiring.contract` is the same contract above.
+
 ## API
 
 | Function | Purpose |
