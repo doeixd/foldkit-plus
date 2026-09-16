@@ -1292,10 +1292,12 @@ export interface Wiring<Model, Message, R = never> {
   readonly handles: readonly string[]
   /** Tags several integrations may handle, each for its own values (Mirror's `MirrorRestored`, by name). */
   readonly shared?: readonly string[] | undefined
-  /** Folds a Message this integration handles; `None` for any other. */
-  readonly route?:
-    | ((model: Model, message: Message) => Option.Option<Update.Return<Model, Message, R>>)
-    | undefined
+  /**
+   * Folds a Message this integration handles; `None` for any other. A method, so
+   * a wiring that routes only its own variants fits an assembly over the whole
+   * application union.
+   */
+  route?(model: Model, message: Message): Option.Option<Update.Return<Model, Message, R>>
   /** Runs once when the application starts, after placements: a restore Command, a warm-up. */
   readonly init?: Update.Step<Model, Message, R> | undefined
   /** Applies the URL to the Model, at startup and whenever the URL changes. */

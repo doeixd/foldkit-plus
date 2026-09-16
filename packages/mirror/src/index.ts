@@ -9,13 +9,21 @@
  * and it is last-write-wins with no log, which is what separates it from
  * `foldkit-sync`. See `docs/design/MIRROR.md`.
  */
-import { Duration, Effect, Result, Schema, Stream } from 'effect'
+import { Duration, Effect, Option, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import type { Command } from 'foldkit/command'
 import * as Navigation from 'foldkit/navigation'
+import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
-import { Projection, type Contract, type FieldRef, type WritableProjection } from 'foldkit-surface'
+import {
+  Projection,
+  type Contract,
+  type FieldRef,
+  type Wiring,
+  type WritableProjection,
+} from 'foldkit-surface'
 
 // ---------------------------------------------------------------------------
 // Stores
@@ -437,6 +445,34 @@ export interface UrlMirror<
   readonly kind: 'url'
   /** The Model with the URL's keys (a Foldkit `Url` or an href) as the whole slice: `fromKeys`. */
   readonly reduce: (model: AppModel, url: Url | string) => AppModel
+  /**
+   * How this mirror joins an assembly: it routes the application's URL Message
+   * (a variant with a `url` field, tagged `tag`) into `reduce`, reads the URL at
+   * startup, and brings its Subscriptions and contract. Several URL mirrors share
+   * the URL Message.
+   */
+  readonly wiring: <const Tag extends string>(tag: Tag) => UrlMirrorWiring<AppModel, Tag>
+}
+
+/** The Message a URL mirror routes: the application's URL variant. */
+export type UrlChangedMessage<Tag extends string> = {
+  readonly _tag: Tag
+  readonly url: Url
+}
+
+export type UrlMirrorWiring<AppModel, Tag extends string> = Wiring<
+  AppModel,
+  UrlChangedMessage<Tag>
+> & {
+  readonly onUrl: (model: AppModel, url: Url) => AppModel
+}
+
+export type KvMirrorWiring<AppModel> = Wiring<
+  AppModel,
+  MirrorRestored,
+  KeyValueStore.KeyValueStore
+> & {
+  readonly init: Update.Step<AppModel, MirrorRestored, KeyValueStore.KeyValueStore>
 }
 
 /** A slice kept in Effect's `KeyValueStore`. */
@@ -448,6 +484,12 @@ export interface KvMirror<
   readonly kind: 'kv'
   /** The Model with a `MirrorRestored` for this mirror applied: `restoreKeys`; another mirror's is ignored. */
   readonly reduce: (model: AppModel, message: MirrorRestored) => AppModel
+  /**
+   * How this mirror joins an assembly: it routes its own `MirrorRestored` into
+   * `reduce`, runs `restore` at startup, and brings its Subscriptions and
+   * contract. Other key-value mirrors share the `MirrorRestored` tag.
+   */
+  readonly wiring: () => KvMirrorWiring<AppModel>
 }
 
 const nameOf = (
@@ -663,6 +705,13 @@ const make = <S extends Slice, R, Name extends string>(
   return { mirror, keysOfUrl }
 }
 
+// A mirror's Subscription entries are unbranded so an application can spread them
+// into its own `Subscription.make`; wiring hands them over as a branded record.
+const brandEntries = <AppModel, R>(
+  entries: Readonly<Record<string, EntryWithoutKeepAlive<AppModel, never, MirrorDependencies, R>>>,
+): Subscription.Subscriptions<AppModel, never, R> =>
+  Subscription.make<AppModel, never, R>()(() => entries)
+
 export const Mirror = {
   /** Mirror's Message cases, to spread into the application's union. */
   messages: mirrorMessageCases,
@@ -696,10 +745,22 @@ export const Mirror = {
       config,
       config.throttle ?? '50 millis',
     )
+    const reduce = (model: SliceRoot<S>, url: Url | string) =>
+      mirror.fromKeys(model, keysOfUrl(url))
     return {
       ...mirror,
       kind: 'url',
-      reduce: (model, url) => mirror.fromKeys(model, keysOfUrl(url)),
+      reduce,
+      wiring: tag => ({
+        key: `mirror:${mirror.name}`,
+        handles: [tag],
+        shared: [tag],
+        route: (model, message) =>
+          message._tag === tag ? Option.some({ model: reduce(model, message.url) }) : Option.none(),
+        onUrl: reduce,
+        subscriptions: brandEntries(mirror.subscriptions),
+        contract: mirror.contract,
+      }),
     }
   },
 
@@ -722,11 +783,25 @@ export const Mirror = {
       { ...config, name: config.name ?? config.key },
       config.throttle ?? '250 millis',
     )
+    const reduce = (model: SliceRoot<S>, message: MirrorRestored) =>
+      message.name === mirror.name ? mirror.restoreKeys(model, message.keys) : model
     return {
       ...mirror,
       kind: 'kv',
-      reduce: (model, message) =>
-        message.name === mirror.name ? mirror.restoreKeys(model, message.keys) : model,
+      reduce,
+      wiring: () => ({
+        key: `mirror:${mirror.name}`,
+        handles: ['MirrorRestored'],
+        shared: ['MirrorRestored'],
+        // Another mirror's restore is not this one's: `None` lets the next mirror take it.
+        route: (model, message) =>
+          message._tag === 'MirrorRestored' && message.name === mirror.name
+            ? Option.some({ model: reduce(model, message) })
+            : Option.none(),
+        init: model => ({ model, commands: [mirror.restore] }),
+        subscriptions: brandEntries(mirror.subscriptions),
+        contract: mirror.contract,
+      }),
     }
   },
 
