@@ -107,3 +107,17 @@ instantiations per call. The view now infers the builder type itself and
 extracts its Message with one conditional, which halved the view cost and
 brought the 100-placement check from 6.6 s to 2.0 s. Growth is linear in the
 number of placements.
+
+### The parent scope
+
+The same 100 placements written with `Bundle.parent` and `Bundle.declare`
+(no type arguments) against the curried form, both using `update()` and
+`onOut: Bundle.ignore`:
+
+| 100 placements | instantiations | check time |
+| --- | ---: | ---: |
+| `Link.field<Model>()` + `Bundle.assemble<Model, Message>()` | 289,148 | 2.02 s |
+| `Bundle.parent` + `declare` + `Page.at` | 369,245 | 2.23 s |
+
+Inferring from the scope costs about 800 more instantiations per placement and
+10% more check time, inside the 25% budget the DX plan set.

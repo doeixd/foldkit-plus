@@ -12,7 +12,8 @@ import type { Placed } from './placed.js'
 /** `search` → `GotSearchMessage`. */
 export type WrapperTag<Field extends string> = `Got${Capitalize<Field>}Message`
 
-type Parts<B> =
+/** The type parameters of a Bundle, by name. */
+export type BundleParts<B> =
   B extends Bundle<
     infer Name,
     infer Args,
@@ -41,73 +42,73 @@ type Parts<B> =
 
 export interface Declared<B extends AnyBundle, Field extends string> {
   readonly field: Field
-  readonly wrapper: Wrapper<WrapperTag<Field>, Parts<B>['Message']>
+  readonly wrapper: Wrapper<WrapperTag<Field>, BundleParts<B>['Message']>
   /** Spread into the parent's `Schema.Struct`. */
-  readonly fields: { readonly [K in Field]: Schema.Codec<Parts<B>['Model'], unknown> }
+  readonly fields: { readonly [K in Field]: Schema.Codec<BundleParts<B>['Model'], unknown> }
   /** Spread into the parent's `defineMessageUnion`. */
-  readonly cases: Wrapper<WrapperTag<Field>, Parts<B>['Message']>['cases']
+  readonly cases: Wrapper<WrapperTag<Field>, BundleParts<B>['Message']>['cases']
   /** Places the bundle in a parent whose `Field` holds the bundle's Model. */
-  readonly at: <Parent extends { readonly [K in Field]: Parts<B>['Model'] }>() => <
+  readonly at: <Parent extends { readonly [K in Field]: BundleParts<B>['Model'] }>() => <
     OutStepMessage = never,
     R2 = never,
   >(
     ...config: PlaceConfigParam<
-      Parts<B>['Args'],
+      BundleParts<B>['Args'],
       Parent,
-      Wrapped<WrapperTag<Field>, Parts<B>['Message']>,
-      Parts<B>['Message'],
-      Parts<B>['OutMessage'],
+      Wrapped<WrapperTag<Field>, BundleParts<B>['Message']>,
+      BundleParts<B>['Message'],
+      BundleParts<B>['OutMessage'],
       OutStepMessage,
       R2
     >
   ) => Placed<
-    Parts<B>['Name'],
+    BundleParts<B>['Name'],
     Parent,
-    Wrapped<WrapperTag<Field>, Parts<B>['Message']> | OutStepMessage,
-    Parts<B>['Model'],
-    Parts<B>['Message'],
-    Parts<B>['R'] | R2,
-    Parts<B>['S'],
-    Parts<B>['ViewInputs'],
-    Parts<B>['Resources'],
-    Parts<B>['Helpers']
+    Wrapped<WrapperTag<Field>, BundleParts<B>['Message']> | OutStepMessage,
+    BundleParts<B>['Model'],
+    BundleParts<B>['Message'],
+    BundleParts<B>['R'] | R2,
+    BundleParts<B>['S'],
+    BundleParts<B>['ViewInputs'],
+    BundleParts<B>['Resources'],
+    BundleParts<B>['Helpers']
   >
 }
 
 export interface DeclaredEach<B extends AnyBundle, Field extends string> {
   readonly field: Field
-  readonly wrapper: KeyedWrapper<WrapperTag<Field>, Parts<B>['Message']>
+  readonly wrapper: KeyedWrapper<WrapperTag<Field>, BundleParts<B>['Message']>
   /** Spread into the parent's `Schema.Struct`: a record of items by key. */
   readonly fields: {
     readonly [K in Field]: Schema.$Record<
       typeof Schema.String,
-      Schema.Codec<Parts<B>['Model'], unknown>
+      Schema.Codec<BundleParts<B>['Model'], unknown>
     >
   }
-  readonly cases: KeyedWrapper<WrapperTag<Field>, Parts<B>['Message']>['cases']
+  readonly cases: KeyedWrapper<WrapperTag<Field>, BundleParts<B>['Message']>['cases']
   /** Places the bundle once per key of the parent's `Field`. */
   readonly each: <
-    Parent extends { readonly [K in Field]: Readonly<Record<string, Parts<B>['Model']>> },
+    Parent extends { readonly [K in Field]: Readonly<Record<string, BundleParts<B>['Model']>> },
   >() => <OutStepMessage = never, R2 = never>(
     ...config: EachConfigParam<
-      Parts<B>['Args'],
+      BundleParts<B>['Args'],
       Parent,
-      KeyedWrapped<WrapperTag<Field>, Parts<B>['Message']>,
-      Parts<B>['Message'],
-      Parts<B>['OutMessage'],
+      KeyedWrapped<WrapperTag<Field>, BundleParts<B>['Message']>,
+      BundleParts<B>['Message'],
+      BundleParts<B>['OutMessage'],
       OutStepMessage,
       R2
     >
   ) => PlacedCollection<
-    Parts<B>['Name'],
+    BundleParts<B>['Name'],
     Parent,
-    KeyedWrapped<WrapperTag<Field>, Parts<B>['Message']> | OutStepMessage,
-    Parts<B>['Model'],
-    Parts<B>['Message'],
-    Parts<B>['R'] | R2,
-    Parts<B>['S'],
-    Parts<B>['ViewInputs'],
-    Parts<B>['Helpers']
+    KeyedWrapped<WrapperTag<Field>, BundleParts<B>['Message']> | OutStepMessage,
+    BundleParts<B>['Model'],
+    BundleParts<B>['Message'],
+    BundleParts<B>['R'] | R2,
+    BundleParts<B>['S'],
+    BundleParts<B>['ViewInputs'],
+    BundleParts<B>['Helpers']
   >
 }
 
