@@ -88,6 +88,7 @@ const MESSAGE_EVENTS: Readonly<Record<string, string>> = {
   OnMouseLeave: 'onMouseLeave',
   OnMouseOver: 'onMouseOver',
   OnMouseOut: 'onMouseOut',
+  OnMouseMove: 'onMouseMove',
   OnFocus: 'onFocus',
   OnBlur: 'onBlur',
 }

@@ -234,6 +234,7 @@ so the front page cannot quietly drift from the API.
 | Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
 | Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
+| Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
@@ -348,6 +349,7 @@ pnpm add foldkit-mixins foldkit-mixins-surface
 
 # React interop in either direction
 pnpm add foldkit-react react react-dom
+pnpm add -D foldkit-react-codegen # views to TSX source
 ```
 
 Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and

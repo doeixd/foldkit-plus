@@ -84,7 +84,7 @@ Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
 Submodels        foldkit-bundle + bundle-surface
 Views            foldkit-mixins + mixins-surface / mixins-ui
-React interop    foldkit-react
+React interop    foldkit-react + react-codegen
 ```
 
 The names indicate roles, not a requirement that every package depend on every

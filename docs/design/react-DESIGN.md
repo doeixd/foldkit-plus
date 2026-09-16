@@ -6,8 +6,18 @@
 > with these deviations: the host binding uses Foldkit's public
 > `CustomElement.define` (property `input`, not `__foldkitReact`); sources are
 > `.ts` using `createElement`, so the package needs no JSX build step; the
-> Foldkit peer is `^0.158.2`, the version the repository pins. Sections 20–26
-> (Resource bridge and `@foldkit/react-codegen`) remain proposals.
+> Foldkit peer is `^0.158.2`, the version the repository pins.
+>
+> **Codegen: view mode implemented as
+> [`foldkit-react-codegen`](../../packages/react-codegen/README.md).** Sections
+> 21–24 are built: TypeScript AST lowering with a located diagnostic for each
+> refusal, plus a CLI that writes only when every file compiles and skips
+> unchanged bytes. The builder parameter becomes `dispatch` on the same
+> function rather than a `View` component, so helper views keep composing.
+> `wrapper` mode (section 25) is not built: `FoldkitComponent.define({ make })`
+> is already the one-line wrapper, so generating it adds no semantics. Not yet
+> built: source maps and watch mode (26), and Submodel, CustomElement, and lazy
+> lowering (24). Section 20 (Resource bridge) remains a proposal.
 
 Based on Foldkit's current architecture, this would be implemented as **two
 packages**, deliberately avoiding a second renderer in the first release.
