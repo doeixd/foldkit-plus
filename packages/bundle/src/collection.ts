@@ -104,7 +104,19 @@ export interface PlacedCollection<
   readonly helpers: CollectionHelpers<Parent, ParentMessage, R, Helpers, Key>
 }
 
-export type AnyPlacedCollection = PlacedCollection<string, any, any, any, any, any, any, any, any>
+export type AnyPlacedCollection = PlacedCollection<
+  string,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
 
 export const isPlacedCollection = (value: unknown): value is AnyPlacedCollection =>
   typeof value === 'object' && value !== null && PlacedCollectionTypeId in value

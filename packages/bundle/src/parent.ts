@@ -198,7 +198,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
   readonly assemble: <
     const Ps extends ReadonlyArray<
       | Placed<string, Model, Message, any, any, any, any, any, any, any>
-      | PlacedCollection<string, Model, Message, any, any, any, any, any, any>
+      | PlacedCollection<string, Model, Message, any, any, any, any, any, any, any, any>
     >,
   >(
     ...placements: Ps

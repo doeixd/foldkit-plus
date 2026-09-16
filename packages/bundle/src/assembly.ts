@@ -8,7 +8,7 @@ import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { AnyMessage } from './link.js'
-import type { PlacedCollection } from './collection.js'
+import { isPlacedCollection, type PlacedCollection } from './collection.js'
 import { isPlaced, type Invalid, type Placed } from './placed.js'
 
 const Wired: unique symbol = Symbol.for('foldkit-bundle/Wired')
@@ -19,28 +19,30 @@ export type WiredRecord<Record> = Record & { readonly [Wired]: true }
 /** A single placement or a collection, in this parent. */
 type PlacedIn<Model, Message> =
   | Placed<string, Model, Message, any, any, any, any, any, any, any>
-  | PlacedCollection<string, Model, Message, any, any, any, any, any, any>
+  | PlacedCollection<string, Model, Message, any, any, any, any, any, any, any, any>
 
 type RequirementsOf<P> =
   P extends Placed<string, any, any, any, any, infer R, any, any, any, any>
     ? R
-    : P extends PlacedCollection<string, any, any, any, any, infer R, any, any, any>
+    : P extends PlacedCollection<string, any, any, any, any, infer R, any, any, any, any, any>
       ? R
       : never
 type ServicesOf<P> =
   P extends Placed<string, any, any, any, any, any, infer S, any, any, any>
     ? S
-    : P extends PlacedCollection<string, any, any, any, any, any, infer S, any, any>
+    : P extends PlacedCollection<string, any, any, any, any, any, infer S, any, any, any, any>
       ? S
       : never
 type FieldOf<P> =
   P extends Placed<string, any, any, any, any, any, any, any, any, any, infer F>
     ? F
-    : P extends PlacedCollection<string, any, any, any, any, any, any, any, any, infer F>
+    : P extends PlacedCollection<string, any, any, any, any, any, any, any, any, infer F, any>
       ? F
       : never
 type CollectionFieldOf<P> =
-  P extends PlacedCollection<string, any, any, any, any, any, any, any, any, infer F> ? F : never
+  P extends PlacedCollection<string, any, any, any, any, any, any, any, any, infer F, any>
+    ? F
+    : never
 
 /**
  * What `initial` needs besides the placements: exactly the fields no placement
@@ -85,7 +87,7 @@ export interface Assembly<
   ) => Update.Return<Model, Message, RequirementsOf<Ps[number]> | Services>
   /**
    * The parent's initial Model and Commands: `rest` for the fields no placement
-   * owns, each single placement's `init`, and `{}` for a collection `rest` leaves
+   * owns, each single placement's `init`, and empty storage for a collection `rest` leaves
    * out. A placement whose field `rest` gives keeps that value and skips its
    * `init`, so an optional child can start as `None`. For `init` in the runtime config.
    */
@@ -214,14 +216,15 @@ export const assemble =
           )) as Assembly<Model, Message, Ps, Services>['update'],
       init,
       initial: rest => {
-        // Collections at a top-level field start empty. A single placement's init
+        // Collections at a top-level field start as their Link's empty storage. A single placement's init
         // writes its slice unless `rest` already gives that field, which is how an
         // optional child (Link.optional) starts absent.
         const given = new Set(Object.keys(rest))
         const collections = Object.fromEntries(
           placements
-            .filter(placement => !isPlaced(placement) && placement.link.path.length === 1)
-            .map(placement => [placement.link.path[0], {}]),
+            .filter(isPlacedCollection)
+            .filter(collection => collection.link.path.length === 1)
+            .map(collection => [collection.link.path[0], collection.link.empty]),
         )
         const inits: ReadonlyArray<Update.Step<Model, Message, RequirementsOf<Ps[number]>>> =
           singles.filter(placed => !given.has(placed.link.path[0] ?? '')).map(placed => placed.init)

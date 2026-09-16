@@ -35,6 +35,11 @@ const b = UploadId.make('b')
 const ten = UploadId.make('10')
 
 describe('typed keys and array storage', () => {
+  it('starts an array collection as [] in initial', () => {
+    const placements = Bundle.assemble<Model, typeof Message.Type>()([Uploads])
+    expect(placements.initial({}).model).toEqual({ uploads: [] })
+  })
+
   it('appends new ids in order and keeps that order, even for integer-like ids', () => {
     const empty: Model = { uploads: [] }
     const added = [b, ten, a].reduce(

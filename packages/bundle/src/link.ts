@@ -283,6 +283,8 @@ export interface CollectionLink<
   ChildMessage,
   Key extends string = string,
 > {
+  /** The storage with no items, for a parent's initial Model. */
+  readonly empty: unknown
   readonly entries: (parent: Parent) => ReadonlyArray<readonly [key: Key, child: Child]>
   readonly get: (parent: Parent, key: Key) => Option.Option<Child>
   /** Writes one item; `None` removes it. */
@@ -330,6 +332,7 @@ const collection =
     type Child = RecordValue<Parent[Field]>
     const items = (parent: Parent) => parent[field] as Readonly<Record<string, Child>>
     return {
+      empty: {},
       // Record keys are the collection's keys, written only through `write`.
       entries: parent =>
         Object.entries(items(parent)).map(([key, child]) => [key as Key, child] as const),
@@ -384,6 +387,7 @@ const collectionById =
     type Child = ArrayItem<Parent[Field]>
     const items = (parent: Parent) => parent[field] as ReadonlyArray<Child>
     return {
+      empty: [],
       entries: parent => items(parent).map(item => [options.id(item), item] as const),
       get: (parent, key) => Array.findFirst(items(parent), item => options.id(item) === key),
       write: (parent, key, child) => {
