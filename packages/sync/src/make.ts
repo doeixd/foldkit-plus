@@ -14,6 +14,7 @@ import {
   type MergeConstructors,
   type MergeFields,
   type RunnableApplication,
+  type Wiring,
   type WritableProjection,
 } from 'foldkit-surface'
 import type { DocumentId } from './ids.js'
@@ -180,6 +181,12 @@ export interface DefinedSync<
   readonly messages: Ms
   /** For `Module`: this contract owns the shared projection's paths and records the durable tags. */
   readonly contract: Contract
+  /**
+   * How this contract joins an assembly: contract-only, so the Module sees it.
+   * It routes nothing, runs nothing, and subscribes to nothing; Sync owns the
+   * runtime through `mount` rather than joining it.
+   */
+  readonly wiring: () => Wiring<AppModel, never>
   /** The durable journal's codecs, reducer, and, when declared, authorization. */
   readonly journalContract: () => Authorized extends true
     ? PolicyJournalContract<Operation, Schema.Struct.Type<Fields>, Principal> &
@@ -417,6 +424,7 @@ const build = <
       replay,
       messages: durable.constructors,
       contract,
+      wiring: () => ({ key: `sync:${contract.name}`, handles: [], contract }),
     }
   }
 

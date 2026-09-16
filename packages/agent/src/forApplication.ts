@@ -5,6 +5,7 @@ import {
   type Application,
   type Contract,
   type Surface,
+  type Wiring,
   type WritableProjection,
 } from 'foldkit-surface'
 import { type DefinitionOf, make } from './make.js'
@@ -76,6 +77,11 @@ export interface ApplicationAgent<Model, Principal> extends Omit<
     readonly resources?: ReadonlyArray<Resource<Model, any>> | undefined
   }) => DefinitionOf<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
     readonly contract: Contract
+    /**
+     * How this contract joins an assembly: contract-only, so the Module sees
+     * it. An agent adds no state and no Subscriptions.
+     */
+    readonly wiring: () => Wiring<Model, never>
   }
   /**
    * Fixes the `Principal` that `authorize` and the host's `principal` see. A
@@ -107,6 +113,7 @@ const buildAgent = <Model, Principal>(
     readonly resources?: ReadonlyArray<Resource<Model, any>> | undefined
   }): DefinitionOf<Model, ProjectionValue<R>, Principal, ByName, ByTag> & {
     readonly contract: Contract
+    readonly wiring: () => Wiring<Model, never>
   } => {
     const context =
       options.context === undefined
@@ -119,17 +126,19 @@ const buildAgent = <Model, Principal>(
       messages: options.messages,
       resources: options.resources,
     })
+    const contract: Contract = {
+      kind: 'agent',
+      name: options.name ?? 'agent',
+      owner: app.owner,
+      owns: [],
+      observes: context?.dependencies ?? [],
+      messages: options.messages.variants.map(variant => variant.tag),
+      metadata: context === undefined ? [] : Metadata.summarize(context.metadata),
+    }
     return {
       ...definition,
-      contract: {
-        kind: 'agent',
-        name: options.name ?? 'agent',
-        owner: app.owner,
-        owns: [],
-        observes: context?.dependencies ?? [],
-        messages: options.messages.variants.map(variant => variant.tag),
-        metadata: context === undefined ? [] : Metadata.summarize(context.metadata),
-      },
+      contract,
+      wiring: () => ({ key: `agent:${contract.name}`, handles: [], contract }),
     }
   }
 
