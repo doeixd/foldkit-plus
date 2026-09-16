@@ -94,8 +94,24 @@ const MESSAGE_EVENTS: Readonly<Record<string, string>> = {
 
 const DISPATCH = 'dispatch'
 
-const isHtmlType = (node: ts.Node) =>
-  ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName) && node.typeName.text === 'Html'
+/** The local name `Html` is imported under from `foldkit/html`, if it is. */
+const importedHtmlName = (file: ts.SourceFile) => {
+  for (const statement of file.statements) {
+    if (
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === 'foldkit/html' &&
+      statement.importClause?.namedBindings &&
+      ts.isNamedImports(statement.importClause.namedBindings)
+    ) {
+      const specifier = statement.importClause.namedBindings.elements.find(
+        element => (element.propertyName ?? element.name).text === 'Html',
+      )
+      if (specifier) return specifier.name.text
+    }
+  }
+  return undefined
+}
 
 const reactNodeType = () => f.createTypeReferenceNode('ReactNode')
 
@@ -104,8 +120,8 @@ const kebabToCamel = (name: string) =>
     ? name
     : name.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
 
-const ariaName = (name: string) =>
-  `aria-${name.slice('Aria'.length).replace(/[A-Z]/g, (letter, index: number) => `${index === 0 ? '' : '-'}${letter.toLowerCase()}`)}`
+// ARIA attribute names are one lowercase word: AriaLabelledBy is aria-labelledby.
+const ariaName = (name: string) => `aria-${name.slice('Aria'.length).toLowerCase()}`
 
 const isBuilderParameter = (parameter: ts.ParameterDeclaration) =>
   parameter.type !== undefined &&
@@ -135,6 +151,12 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
     ts.ScriptKind.TS,
   )
   const diagnostics: Array<Diagnostic> = []
+  const htmlName = importedHtmlName(source)
+  const isHtmlType = (node: ts.Node) =>
+    htmlName !== undefined &&
+    ts.isTypeReferenceNode(node) &&
+    ts.isIdentifier(node.typeName) &&
+    node.typeName.text === htmlName
   const report = (node: ts.Node, code: string, message: string) => {
     const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source))
     diagnostics.push({ code, message, fileName, line: line + 1, column: character + 1 })
@@ -295,7 +317,8 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
       const child = (node: ts.Expression): ts.JsxChild => {
         if (
           ts.isStringLiteralLike(node) &&
-          !/[{}<>]/.test(node.text) &&
+          // JSX text decodes entities, so text containing `&` stays a string expression.
+          !/[{}<>&]/.test(node.text) &&
           node.text.trim() === node.text
         ) {
           return f.createJsxText(node.text)

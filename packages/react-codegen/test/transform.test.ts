@@ -213,6 +213,19 @@ export const Message = {
     expect(diagnostic!.message).toContain(fragment)
   })
 
+  it('names ARIA attributes, escapes entity text, and keeps a local Html type', () => {
+    const code = compile(`import type { HtmlBuilder } from 'foldkit/html'
+type Html = { readonly local: true }
+export const view = (h: HtmlBuilder<M>, extra: Html) =>
+  h.p([h.AriaLabelledBy('title'), h.AriaHasPopup('true')], ['Tom &amp; Jerry', 'plain'])
+`)
+    expect(code).toContain('aria-labelledby={')
+    expect(code).toContain('aria-haspopup={')
+    expect(code).toContain(`{'Tom &amp; Jerry'}`)
+    expect(code).toContain(`{'Tom &amp; Jerry'}plain</p>`)
+    expect(code).toContain('extra: Html')
+  })
+
   it('leaves a module without views unchanged apart from the header', () => {
     const result = transformSourceFile(
       'src/util.ts',
