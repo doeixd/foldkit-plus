@@ -33,6 +33,7 @@ export const DiagnosticCode = {
   DynamicAttributes: 'FKREACT0003',
   EscapedBuilder: 'FKREACT0004',
   UnsupportedAttributeArgument: 'FKREACT0005',
+  LazySlot: 'FKREACT0006',
 } as const
 
 /** Foldkit attributes that are the same DOM attribute or property under a React prop name. */
@@ -111,25 +112,6 @@ const DISPATCH = 'dispatch'
 const withSourceOf = <T extends ts.Node>(node: T, original: ts.Node): T =>
   ts.setSourceMapRange(ts.setOriginalNode(node, original), original)
 
-/** The local name `Html` is imported under from `foldkit/html`, if it is. */
-const importedHtmlName = (file: ts.SourceFile) => {
-  for (const statement of file.statements) {
-    if (
-      ts.isImportDeclaration(statement) &&
-      ts.isStringLiteral(statement.moduleSpecifier) &&
-      statement.moduleSpecifier.text === 'foldkit/html' &&
-      statement.importClause?.namedBindings &&
-      ts.isNamedImports(statement.importClause.namedBindings)
-    ) {
-      const specifier = statement.importClause.namedBindings.elements.find(
-        element => (element.propertyName ?? element.name).text === 'Html',
-      )
-      if (specifier) return specifier.name.text
-    }
-  }
-  return undefined
-}
-
 const reactNodeType = () => f.createTypeReferenceNode('ReactNode')
 
 const kebabToCamel = (name: string) =>
@@ -153,6 +135,78 @@ const isViewFunction = (node: ts.Node): node is ViewFunction =>
   (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) &&
   node.parameters.some(isBuilderParameter)
 
+/** A view function, the parameter that receives the builder, and its Message type. */
+interface ViewSite {
+  readonly view: ViewFunction
+  readonly node: ts.Node
+  readonly builderParameter: ts.ParameterDeclaration
+  readonly messageType: ts.TypeNode | undefined
+  /** Types for untyped parameters, by position, that the removed `defineView` call supplied. */
+  readonly parameterTypes: ReadonlyArray<ts.TypeNode | undefined>
+}
+
+const annotatedView = (node: ts.Node): ViewSite | undefined => {
+  if (!isViewFunction(node)) return undefined
+  const builderParameter = node.parameters.find(isBuilderParameter)!
+  return {
+    view: node,
+    node,
+    builderParameter,
+    messageType: (builderParameter.type as ts.TypeReferenceNode).typeArguments?.[0],
+    parameterTypes: [],
+  }
+}
+
+/**
+ * `Submodel.defineView<Model, Message>((model, h) => …)`, whose builder is the
+ * untyped last parameter. The call becomes the compiled function; the brand
+ * only exists for `h.submodel`'s type check.
+ */
+const definedView = (node: ts.Node): ViewSite | undefined => {
+  if (!ts.isCallExpression(node) || node.arguments.length !== 1) return undefined
+  const callee = node.expression
+  const name = ts.isIdentifier(callee)
+    ? callee.text
+    : ts.isPropertyAccessExpression(callee)
+      ? callee.name.text
+      : undefined
+  const view = node.arguments[0]!
+  if (name !== 'defineView' || !(ts.isArrowFunction(view) || ts.isFunctionExpression(view))) {
+    return undefined
+  }
+  const builderParameter = view.parameters.at(-1)
+  if (builderParameter === undefined || !ts.isIdentifier(builderParameter.name)) return undefined
+  const [model, message, viewInputs] = node.typeArguments ?? []
+  return {
+    view,
+    node,
+    builderParameter,
+    messageType: message,
+    parameterTypes: view.parameters.length === 3 ? [model, viewInputs] : [model],
+  }
+}
+
+const viewSite = (node: ts.Node) => annotatedView(node) ?? definedView(node)
+
+/** Local names of the named imports from `module`, keyed by imported name. */
+const importedNames = (file: ts.SourceFile, module: string) => {
+  const names = new Map<string, string>()
+  for (const statement of file.statements) {
+    if (
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === module &&
+      statement.importClause?.namedBindings &&
+      ts.isNamedImports(statement.importClause.namedBindings)
+    ) {
+      for (const element of statement.importClause.namedBindings.elements) {
+        names.set((element.propertyName ?? element.name).text, element.name.text)
+      }
+    }
+  }
+  return names
+}
+
 /**
  * Compiles every Foldkit view function in a module (any function with an
  * `HtmlBuilder` parameter) to a function returning React elements, taking
@@ -172,7 +226,31 @@ export const transformSourceFile = (
     ts.ScriptKind.TS,
   )
   const diagnostics: Array<Diagnostic> = []
-  const htmlName = importedHtmlName(source)
+  const htmlImports = importedNames(source, 'foldkit/html')
+  const htmlName = htmlImports.get('Html')
+  const lazyFactories = new Map(
+    ['createLazy', 'createKeyedLazy'].flatMap(imported => {
+      const local = htmlImports.get(imported)
+      return local === undefined ? [] : [[local, imported === 'createKeyedLazy'] as const]
+    }),
+  )
+  // Memoization slots (`const rowSlot = createLazy()`), by whether they are keyed.
+  const slots = new Map<string, boolean>()
+  const findSlots = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer !== undefined &&
+      ts.isCallExpression(node.initializer) &&
+      ts.isIdentifier(node.initializer.expression) &&
+      lazyFactories.has(node.initializer.expression.text) &&
+      node.initializer.arguments.length === 0
+    ) {
+      slots.set(node.name.text, lazyFactories.get(node.initializer.expression.text)!)
+    }
+    ts.forEachChild(node, findSlots)
+  }
+  findSlots(source)
   const isHtmlType = (node: ts.Node) =>
     htmlName !== undefined &&
     ts.isTypeReferenceNode(node) &&
@@ -185,10 +263,136 @@ export const transformSourceFile = (
   let converted = false
 
   const transformer: ts.TransformerFactory<ts.SourceFile> = context => {
-    const visitView = (view: ViewFunction): ts.Node => {
-      const builderParameter = view.parameters.find(isBuilderParameter)!
+    const slotCall = (node: ts.Node | undefined) =>
+      node !== undefined &&
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      slots.has(node.expression.text)
+        ? node
+        : undefined
+
+    /** `slot(view, args)` or `keyedSlot(key, view, args)` becomes `view(...args)`: memoization changes no output. */
+    const lowerSlot = (call: ts.CallExpression, visitor: (node: ts.Node) => ts.Node) => {
+      const keyed = slots.get((call.expression as ts.Identifier).text)!
+      const [view, args] = keyed ? call.arguments.slice(1) : call.arguments
+      if (view === undefined || args === undefined || call.arguments.length !== (keyed ? 3 : 2)) {
+        report(
+          call,
+          DiagnosticCode.LazySlot,
+          keyed
+            ? 'A createKeyedLazy slot is called as slot(key, view, args).'
+            : 'A createLazy slot is called as slot(view, args).',
+        )
+        return call
+      }
+      return withSourceOf(
+        f.createCallExpression(
+          visitor(view) as ts.Expression,
+          undefined,
+          ts.isArrayLiteralExpression(args)
+            ? args.elements.map(element => visitor(element) as ts.Expression)
+            : [f.createSpreadElement(visitor(args) as ts.Expression)],
+        ),
+        call,
+      )
+    }
+
+    /** Reports a slot or lazy factory used other than as `const slot = createLazy()` and `slot(...)`. */
+    const isEscapedLazy = (node: ts.Node) => {
+      if (!ts.isIdentifier(node) || !(slots.has(node.text) || lazyFactories.has(node.text))) {
+        return false
+      }
+      const parent = node.parent
+      if (ts.isImportSpecifier(parent)) return false
+      report(
+        node,
+        DiagnosticCode.LazySlot,
+        `${node.text} can only be declared as \`const slot = ${lazyFactories.has(node.text) ? node.text : 'createLazy'}()\` and called directly; other uses cannot be compiled.`,
+      )
+      return true
+    }
+
+    const visitView = (site: ViewSite): ts.Node => {
+      const { view, builderParameter } = site
       const builder = (builderParameter.name as ts.Identifier).text
       converted = true
+      const dispatchCall = (message: ts.Expression) =>
+        f.createCallExpression(f.createIdentifier(DISPATCH), undefined, [message])
+
+      /** `h.submodel({ model, view, toParentMessage })`: call the child view with a lifting dispatch. */
+      const submodel = (node: ts.CallExpression): ts.Node => {
+        const config = node.arguments[0]
+        const refuse = (at: ts.Node, message: string) => {
+          report(at, DiagnosticCode.UnsupportedBuilder, message)
+          return node
+        }
+        if (
+          node.arguments.length !== 1 ||
+          config === undefined ||
+          !ts.isObjectLiteralExpression(config)
+        ) {
+          return refuse(node, `${builder}.submodel needs an object literal config to be compiled.`)
+        }
+        const fields = new Map<string, ts.Expression>()
+        for (const property of config.properties) {
+          if (ts.isPropertyAssignment(property) && ts.isIdentifier(property.name)) {
+            fields.set(property.name.text, property.initializer)
+          } else if (ts.isShorthandPropertyAssignment(property)) {
+            fields.set(property.name.text, property.name)
+          } else {
+            return refuse(
+              property,
+              `${builder}.submodel config entries must be plain \`name: value\` properties.`,
+            )
+          }
+        }
+        const unknown = [...fields.keys()].find(
+          key => !['slotId', 'model', 'view', 'toParentMessage', 'viewInputs'].includes(key),
+        )
+        if (unknown !== undefined) {
+          return refuse(
+            config,
+            `${builder}.submodel config field '${unknown}' has no React translation.`,
+          )
+        }
+        const childView = fields.get('view')
+        const model = fields.get('model')
+        const toParentMessage = fields.get('toParentMessage')
+        if (!childView || !model || !toParentMessage) {
+          return refuse(config, `${builder}.submodel needs view, model, and toParentMessage.`)
+        }
+        const viewInputs = fields.get('viewInputs')
+        // slotId only names the Foldkit boundary; the lifting dispatch is the whole boundary here.
+        const lift = f.createArrowFunction(
+          undefined,
+          undefined,
+          [f.createParameterDeclaration(undefined, undefined, 'submodelMessage')],
+          undefined,
+          f.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+          dispatchCall(
+            f.createCallExpression(
+              f.createParenthesizedExpression(visit(toParentMessage) as ts.Expression),
+              undefined,
+              [f.createIdentifier('submodelMessage')],
+            ),
+          ),
+        )
+        const callee = visit(childView) as ts.Expression
+        return withSourceOf(
+          f.createCallExpression(
+            ts.isIdentifier(callee) || ts.isPropertyAccessExpression(callee)
+              ? callee
+              : f.createParenthesizedExpression(callee),
+            undefined,
+            [
+              visit(model) as ts.Expression,
+              ...(viewInputs === undefined ? [] : [visit(viewInputs) as ts.Expression]),
+              lift,
+            ],
+          ),
+          node,
+        )
+      }
 
       const attribute = (node: ts.Expression): ts.JsxAttribute | undefined => {
         if (
@@ -225,9 +429,6 @@ export const transformSourceFile = (
             f.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
             body,
           )
-        const dispatch = (message: ts.Expression) =>
-          f.createCallExpression(f.createIdentifier(DISPATCH), undefined, [message])
-
         const mapped = PROPS[name]
         if (mapped !== undefined && args.length === 1) return prop(mapped, args[0]!)
         if (name.startsWith('Aria') && name.length > 4 && args.length === 1) {
@@ -243,7 +444,7 @@ export const transformSourceFile = (
             )
             return undefined
           }
-          return prop(event, handler(dispatch(args[0]!)))
+          return prop(event, handler(dispatchCall(args[0]!)))
         }
         if ((name === 'OnKeyDown' || name === 'OnKeyUp') && args.length === 1) {
           const event = f.createIdentifier('event')
@@ -258,7 +459,7 @@ export const transformSourceFile = (
           return prop(
             name === 'OnKeyDown' ? 'onKeyDown' : 'onKeyUp',
             handler(
-              dispatch(
+              dispatchCall(
                 f.createCallExpression(f.createParenthesizedExpression(args[0]!), undefined, [
                   f.createPropertyAccessExpression(event, 'key'),
                   modifiers,
@@ -277,7 +478,7 @@ export const transformSourceFile = (
           return prop(
             'onChange',
             handler(
-              dispatch(
+              dispatchCall(
                 f.createCallExpression(f.createParenthesizedExpression(args[0]!), undefined, [
                   value,
                 ]),
@@ -298,7 +499,7 @@ export const transformSourceFile = (
             'onSubmit',
             handler(
               f.createBlock(
-                [preventDefault, f.createExpressionStatement(dispatch(args[0]!))],
+                [preventDefault, f.createExpressionStatement(dispatchCall(args[0]!))],
                 true,
               ),
               'event',
@@ -463,7 +664,18 @@ export const transformSourceFile = (
 
       const visit = (node: ts.Node): ts.Node => {
         if (isHtmlType(node)) return reactNodeType()
-        if (node !== view && isViewFunction(node)) return visitView(node)
+        const nested = viewSite(node)
+        if (nested !== undefined && nested.view !== view) return visitView(nested)
+        const slot = slotCall(node)
+        if (slot !== undefined) return lowerSlot(slot, visit)
+        if (
+          ts.isCallExpression(node) &&
+          isBuilderAccess(node.expression) &&
+          node.expression.name.text === 'submodel'
+        ) {
+          return submodel(node)
+        }
+        if (isEscapedLazy(node)) return node
         const call = elementCall(node)
         if (call !== undefined) return f.createParenthesizedExpression(element(call))
         if (
@@ -493,7 +705,12 @@ export const transformSourceFile = (
         }
         if (ts.isIdentifier(node) && node.text === builder) {
           const parent = node.parent
-          if (ts.isCallExpression(parent) && parent.arguments.includes(node)) {
+          const passedToView =
+            (ts.isCallExpression(parent) && parent.arguments.includes(node)) ||
+            // A memoized helper receives the builder in its slot's args array.
+            (ts.isArrayLiteralExpression(parent) &&
+              slotCall(parent.parent)?.arguments.at(-1) === parent)
+          if (passedToView) {
             // A helper view receives dispatch in place of the builder.
             return withSourceOf(f.createIdentifier(DISPATCH), node)
           }
@@ -508,10 +725,22 @@ export const transformSourceFile = (
         return ts.visitEachChild(node, visit, context)
       }
 
-      const messageType =
-        (builderParameter.type as ts.TypeReferenceNode).typeArguments?.[0] ??
-        f.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
-      const parameters = view.parameters.map(parameter =>
+      const messageType = site.messageType ?? f.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+      const typed = (parameter: ts.ParameterDeclaration, index: number) => {
+        const type = site.parameterTypes[index]
+        return parameter.type !== undefined || type === undefined
+          ? parameter
+          : f.updateParameterDeclaration(
+              parameter,
+              parameter.modifiers,
+              parameter.dotDotDotToken,
+              parameter.name,
+              parameter.questionToken,
+              type,
+              parameter.initializer,
+            )
+      }
+      const parameters = view.parameters.map((parameter, index) =>
         parameter === builderParameter
           ? f.createParameterDeclaration(
               undefined,
@@ -532,7 +761,7 @@ export const transformSourceFile = (
                 f.createKeywordTypeNode(ts.SyntaxKind.VoidKeyword),
               ),
             )
-          : (ts.visitEachChild(parameter, visit, context) as ts.ParameterDeclaration),
+          : typed(ts.visitEachChild(parameter, visit, context) as ts.ParameterDeclaration, index),
       )
       const body = view.body && (visit(view.body) as ts.ConciseBody)
       const type = view.type && (visit(view.type) as ts.TypeNode)
@@ -574,7 +803,20 @@ export const transformSourceFile = (
 
     const visitTop = (node: ts.Node): ts.Node => {
       if (isHtmlType(node)) return reactNodeType()
-      if (isViewFunction(node)) return visitView(node)
+      const site = viewSite(node)
+      if (site !== undefined) return visitView(site)
+      const slot = slotCall(node)
+      if (slot !== undefined) return lowerSlot(slot, visitTop)
+      if (
+        ts.isVariableStatement(node) &&
+        node.declarationList.declarations.every(
+          declaration => ts.isIdentifier(declaration.name) && slots.has(declaration.name.text),
+        )
+      ) {
+        // The slot's calls are lowered to direct calls, so the slot itself goes.
+        return undefined as unknown as ts.Node
+      }
+      if (isEscapedLazy(node)) return node
       return ts.visitEachChild(node, visitTop, context)
     }
 
@@ -600,38 +842,62 @@ export const transformSourceFile = (
   return { ok: true, code: header + printed.code, map: JSON.stringify(map), diagnostics: [] }
 }
 
-/** Drops the Foldkit html types the output no longer uses and imports `ReactNode`. */
+const FOLDKIT_MODULES = new Set(['foldkit', 'foldkit/html', 'foldkit/submodel'])
+
+/** Identifier names referenced outside import declarations, including in synthesized nodes. */
+const referencedNames = (file: ts.SourceFile) => {
+  const names = new Set<string>()
+  const walk = (node: ts.Node): void => {
+    if (ts.isIdentifier(node)) names.add(node.text)
+    ts.forEachChild(node, walk)
+  }
+  file.statements.filter(statement => !ts.isImportDeclaration(statement)).forEach(walk)
+  return names
+}
+
+/**
+ * Drops Foldkit imports the compiled output no longer references (`Html`,
+ * `HtmlBuilder`, lazy factories, the Submodel namespace) and imports `ReactNode`.
+ */
 const rewriteImports = (file: ts.SourceFile): ts.SourceFile => {
+  const used = referencedNames(file)
   const statements: Array<ts.Statement> = []
   for (const statement of file.statements) {
+    const clause = ts.isImportDeclaration(statement) ? statement.importClause : undefined
     if (
-      ts.isImportDeclaration(statement) &&
-      ts.isStringLiteral(statement.moduleSpecifier) &&
-      statement.moduleSpecifier.text === 'foldkit/html' &&
-      statement.importClause?.namedBindings &&
-      ts.isNamedImports(statement.importClause.namedBindings)
+      !ts.isImportDeclaration(statement) ||
+      clause === undefined ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      !FOLDKIT_MODULES.has(statement.moduleSpecifier.text)
     ) {
-      const kept = statement.importClause.namedBindings.elements.filter(
-        specifier => !['Html', 'HtmlBuilder'].includes(specifier.name.text),
-      )
-      if (kept.length === 0 && !statement.importClause.name) continue
-      statements.push(
-        f.updateImportDeclaration(
-          statement,
-          statement.modifiers,
-          f.updateImportClause(
-            statement.importClause,
-            statement.importClause.isTypeOnly,
-            statement.importClause.name,
-            f.updateNamedImports(statement.importClause.namedBindings, kept),
-          ),
-          statement.moduleSpecifier,
-          statement.attributes,
-        ),
-      )
+      statements.push(statement)
       continue
     }
-    statements.push(statement)
+    const name = clause.name !== undefined && used.has(clause.name.text) ? clause.name : undefined
+    const bindings = clause.namedBindings
+    const namedBindings =
+      bindings === undefined
+        ? undefined
+        : ts.isNamespaceImport(bindings)
+          ? used.has(bindings.name.text)
+            ? bindings
+            : undefined
+          : bindings.elements.some(element => used.has(element.name.text))
+            ? f.updateNamedImports(
+                bindings,
+                bindings.elements.filter(element => used.has(element.name.text)),
+              )
+            : undefined
+    if (name === undefined && namedBindings === undefined) continue
+    statements.push(
+      f.updateImportDeclaration(
+        statement,
+        statement.modifiers,
+        f.updateImportClause(clause, clause.isTypeOnly, name, namedBindings),
+        statement.moduleSpecifier,
+        statement.attributes,
+      ),
+    )
   }
   const reactImport = f.createImportDeclaration(
     undefined,

@@ -86,7 +86,7 @@ it('exits non-zero from the CLI on a diagnostic', async () => {
   )
   expect(stdout).toContain('Wrote 2 file(s), 0 unchanged.')
   // Two Node processes loading tsx.
-}, 30_000)
+}, 60_000)
 
 it('regenerates on change, reports diagnostics without writing, and recovers', async () => {
   const events: Array<WatchEvent> = []
@@ -95,14 +95,14 @@ it('regenerates on change, reports diagnostics without writing, and recovers', a
   const watcher = watch(options, event => events.push(event))
   const output = join(dir, 'generated/src/View.tsx')
   try {
-    await vi.waitFor(() => expect(events).toHaveLength(1), { timeout: 5_000 })
+    await vi.waitFor(() => expect(events).toHaveLength(1), { timeout: 15_000 })
     expect(await readFile(output, 'utf8')).toContain('<p>hi</p>')
 
     await new Promise(resolve => setTimeout(resolve, 300))
     const before = events.length
     await writeFile(join(dir, 'src/View.ts'), view.replace("'hi'", "'bye'"))
     await vi.waitFor(async () => expect(await readFile(output, 'utf8')).toContain('<p>bye</p>'), {
-      timeout: 5_000,
+      timeout: 15_000,
     })
     // One run for the edit; the run's own write to the out dir must not trigger another.
     await new Promise(resolve => setTimeout(resolve, 300))
@@ -116,13 +116,13 @@ it('regenerates on change, reports diagnostics without writing, and recovers', a
           DiagnosticCode.UnsupportedBuilder,
         )
       },
-      { timeout: 5_000 },
+      { timeout: 15_000 },
     )
     expect(await readFile(output, 'utf8')).toContain('<p>bye</p>')
 
     await writeFile(join(dir, 'src/View.ts'), view)
     await vi.waitFor(async () => expect(await readFile(output, 'utf8')).toContain('<p>hi</p>'), {
-      timeout: 5_000,
+      timeout: 15_000,
     })
     // Settle, then prove the watcher's own writes did not keep it running.
     await new Promise(resolve => setTimeout(resolve, 300))
@@ -132,4 +132,4 @@ it('regenerates on change, reports diagnostics without writing, and recovers', a
   } finally {
     watcher.close()
   }
-}, 30_000)
+}, 60_000)

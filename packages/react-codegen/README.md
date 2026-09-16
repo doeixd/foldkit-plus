@@ -84,6 +84,10 @@ it.
 | `h.div(attributes, children)`, any HTML/SVG/MathML tag | `<div …>…</div>` |
 | `h.keyed('li')(key, attributes, children)` | `<li key={key} …>` |
 | `h.empty` | `null` |
+| `h.submodel({ model, view, toParentMessage, viewInputs? })` | `view(model, viewInputs?, m => dispatch(toParentMessage(m)))` |
+| `Submodel.defineView<Model, Message>((model, h) => …)` | the compiled function, with `Model` on its parameter |
+| `const slot = createLazy()`, `slot(view, [a, h])` | `view(a, dispatch)`; the slot is removed |
+| `createKeyedLazy()` slots, `slot(key, view, args)` | `view(...args)` |
 | `Class`, `Id`, `Key`, `For`, `Tabindex`, `Readonly`, … | `className`, `id`, `key`, `htmlFor`, `tabIndex`, `readOnly`, … |
 | `AriaLabelledBy(x)` and every `Aria*` | `aria-labelledby={x}` |
 | `Attribute('k', v)`, `DataAttribute('k', v)` | `k={v}`, `data-k={v}` |
@@ -104,11 +108,12 @@ diagnostic, the CLI writes nothing and exits with status 1.
 
 | Code | Cause |
 | --- | --- |
-| `FKREACT0001` | A builder with no standalone JSX form: `h.submodel`, or `h.keyed` with a computed tag |
+| `FKREACT0001` | A builder with no standalone JSX form: `h.submodel` without a literal `{ model, view, toParentMessage }` config, or `h.keyed` with a computed tag |
 | `FKREACT0002` | An attribute without a faithful React equivalent: `OnMount`, `OnUnmount`, `OnChange` (the native `change` event, which React's `onChange` is not), `InnerHTML`, and anything not in the table |
 | `FKREACT0003` | Attributes the compiler cannot see: a non-literal attribute array, a spread, or an attribute built outside an element |
 | `FKREACT0004` | The builder stored or used other than calling it or passing it to a helper view |
 | `FKREACT0005` | An argument it cannot lower: click options, `Style` without an object literal, `Attribute` with a computed name |
+| `FKREACT0006` | A lazy slot or factory used other than `const slot = createLazy()` and a direct `slot(...)` call |
 
 For any of these, keep that part in Foldkit and use `foldkit-react`, or write
 it in React.
@@ -118,6 +123,12 @@ it in React.
 - **Messages are built when the event fires.** Foldkit builds the Message when
   the view renders; the compiled handler builds it on click. The two are the
   same when Message constructors are pure, which Foldkit views assume.
+- **Memoization is dropped, and boundaries become functions.** A lazy slot
+  only skipped rebuilding identical output, so calling the view directly
+  renders the same thing; wrap the caller in `React.memo` if it matters. A
+  Submodel's `slotId` has no counterpart: the lifting `dispatch` is the whole
+  boundary. Foldkit imports the output no longer references are removed, so a
+  compiled module does not load the Foldkit runtime.
 - **Keys are React's.** Foldkit's keyed lists do not need keys. React warns
   about unkeyed lists, so use `h.keyed` or `h.Key` in lists you compile.
 - **Only the listed attributes are checked against Foldkit's behavior.** An
@@ -173,5 +184,4 @@ rather than emitting a wrong one.
 
 ## Not yet
 
-Submodels, `OnMount`, and custom elements are not
-supported yet.
+`OnMount` and custom elements are not supported yet.

@@ -1,34 +1,9 @@
 // @vitest-environment jsdom
-import { createRequire } from 'node:module'
-import { resolve } from 'node:path'
 import { createElement, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import ts from 'typescript'
 import { describe, expect, it, vi } from 'vitest'
 import { DiagnosticCode, transformSourceFile } from '../src/index.js'
-
-const require = createRequire(import.meta.url)
-
-const compile = (source: string) => {
-  const result = transformSourceFile('src/View.ts', source)
-  if (!result.ok) throw new Error(JSON.stringify(result.diagnostics, null, 2))
-  return result.code
-}
-
-/** Type-strips and evaluates generated TSX, returning its exports. */
-const load = (code: string, modules: Record<string, unknown> = {}) => {
-  const { outputText } = ts.transpileModule(code, {
-    compilerOptions: {
-      jsx: ts.JsxEmit.ReactJSX,
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-    },
-  })
-  const exports: Record<string, any> = {}
-  const load = (name: string) => modules[name] ?? require(name)
-  new Function('exports', 'require', outputText)(exports, load)
-  return exports
-}
+import { compile, load, typecheck } from './harness.js'
 
 const view = `
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -72,11 +47,9 @@ describe('transformSourceFile', () => {
   })
 
   it('emits TSX that type-checks against React', () => {
-    // jsdom replaces import.meta.url's scheme, so resolve from the package directory.
-    const root = `${resolve(process.cwd(), 'packages/react-codegen')}/`
     const files: Record<string, string> = {
-      [`${root}virtual/View.tsx`]: compile(view),
-      [`${root}virtual/message.ts`]: `export type Model = { readonly query: string; readonly items: ReadonlyArray<string> }
+      'View.tsx': compile(view),
+      'message.ts': `export type Model = { readonly query: string; readonly items: ReadonlyArray<string> }
 export type Message = { readonly _tag: 'Picked'; readonly label: string } | { readonly _tag: 'Submitted' } | { readonly _tag: 'Typed'; readonly query: string } | { readonly _tag: 'Pressed'; readonly key: string; readonly shift: boolean }
 export const Message = {
   Picked: (fields: { readonly label: string }): Message => ({ _tag: 'Picked', ...fields }),
@@ -86,36 +59,7 @@ export const Message = {
 }
 `,
     }
-    const options: ts.CompilerOptions = {
-      jsx: ts.JsxEmit.ReactJSX,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      target: ts.ScriptTarget.ES2022,
-      strict: true,
-      noEmit: true,
-      skipLibCheck: true,
-      types: [],
-    }
-    const host = ts.createCompilerHost(options)
-    const normalize = (name: string) => name.replace(/\\/g, '/')
-    const virtual = (name: string) =>
-      Object.entries(files).find(([path]) => normalize(path) === normalize(name))?.[1]
-    const { fileExists, readFile, getSourceFile } = host
-    host.fileExists = name => virtual(name) !== undefined || fileExists.call(host, name)
-    host.readFile = name => virtual(name) ?? readFile.call(host, name)
-    const { directoryExists } = host
-    host.directoryExists = name =>
-      normalize(name).endsWith('/virtual') || (directoryExists?.call(host, name) ?? false)
-    host.getSourceFile = (name, language) => {
-      const text = virtual(name)
-      return text === undefined
-        ? getSourceFile.call(host, name, language)
-        : ts.createSourceFile(name, text, language)
-    }
-    const program = ts.createProgram([`${root}virtual/View.tsx`], options, host)
-    const errors = ts
-      .getPreEmitDiagnostics(program)
-      .map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '))
+    const errors = typecheck(files, 'View.tsx')
     expect(errors).toEqual([])
   })
 
