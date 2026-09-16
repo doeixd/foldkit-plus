@@ -218,5 +218,46 @@ export const make = <
   return bundle
 }
 
+/**
+ * A bundle from a component that ships its parts separately, like the
+ * `@foldkit/ui` components: `init` returns only the Model, and `parts` is the
+ * `{ update, view }` pair their `create()` returns.
+ */
+export const fromParts = <
+  const Name extends string,
+  Model,
+  Message extends AnyMessage,
+  Args = void,
+  OutMessage = never,
+  R = never,
+  S = never,
+  ViewInputs = void,
+  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+>(config: {
+  readonly name: Name
+  readonly Model: Schema.Codec<Model, unknown>
+  readonly Message: Schema.Codec<Message, unknown>
+  readonly init: (args: Args) => Model
+  readonly parts: {
+    readonly update: (
+      model: Model,
+      message: Message,
+    ) => Update.ReturnWithOutMessage<Model, Message, OutMessage, R>
+    readonly view?: Submodel.View<Model, Message, ViewInputs>
+  }
+  readonly subscriptions?: (args: Args) => Subscription.Subscriptions<Model, Message, S>
+  readonly helpers?: Helpers
+}): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, {}, Helpers> =>
+  make<Name, Model, Message, Args, OutMessage, R, S, ViewInputs, {}, Helpers>({
+    name: config.name,
+    Model: config.Model,
+    Message: config.Message,
+    init: args => ({ model: config.init(args) }),
+    update: (model, message) => config.parts.update(model, message),
+    ...(config.parts.view === undefined ? {} : { view: config.parts.view }),
+    ...(config.subscriptions === undefined ? {} : { subscriptions: config.subscriptions }),
+    ...(config.helpers === undefined ? {} : { helpers: config.helpers }),
+  })
+
 export { assemble } from './assembly.js'
 export type { Assembly, WiredRecord } from './assembly.js'

@@ -44,6 +44,7 @@
     "foldkit": "^0.158.2"
   },
   "devDependencies": {
+    "@foldkit/ui": "0.158.2",
     "effect": "4.0.0-rc.112",
     "foldkit": "0.158.2",
     "jsdom": "26.1.0",
