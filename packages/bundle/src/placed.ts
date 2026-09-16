@@ -42,6 +42,7 @@ export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, Out
   ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
+  readonly when?: (parent: Parent) => boolean
 }
 
 /** A lifted resource record: each child entry in parent terms, keyed by the placement. */
@@ -208,7 +209,8 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
 
   const isOpen = (parent: unknown): boolean =>
     Option.isSome(link.read(parent)) &&
-    Option.match(link.when, { onNone: () => true, onSome: when => when(parent) })
+    Option.match(link.when, { onNone: () => true, onSome: when => when(parent) }) &&
+    (config.when === undefined || config.when(parent))
 
   const subscriptions = bundle.subscriptions
     ? prefixKeys(

@@ -117,6 +117,32 @@ describe('Bundle.parent', () => {
     expect(result.commands).toHaveLength(2)
   })
 
+  it('gates a declared placement and a collection through the placement config', () => {
+    const Gated = Page.place(Plain, 'inline', {
+      args,
+      onOut: Bundle.ignore,
+      when: model => model.reached.length === 0,
+    })
+    const entry = Gated.subscriptions['Plain@inline/ticks']!
+    expect(entry.modelToDependencies(initial)).toEqual({
+      maybeDependencies: Option.some({ running: false }),
+    })
+    expect(entry.modelToDependencies({ ...initial, reached: [1] })).toEqual({
+      maybeDependencies: Option.none(),
+    })
+    const GatedRows = Page.each(Rows, {
+      args,
+      onOut: Bundle.ignore,
+      when: (_model, key) => key !== 'b',
+    })
+    const rowsEntry = GatedRows.subscriptions['Plain@rows[]/ticks']!
+    expect(rowsEntry.modelToDependencies({ ...initial, rows: { a: counter, b: counter } })).toEqual(
+      {
+        items: [['a', { running: false }]],
+      },
+    )
+  })
+
   it('merges every placement’s Subscriptions', () => {
     expect(Object.keys(placements.subscriptions())).toEqual([
       'Counter@left/ticks',

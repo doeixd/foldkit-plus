@@ -143,6 +143,8 @@ export interface Bundle<
 export type PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = {
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
+  /** A gate beside the Link's own: the child's Subscriptions and resources run only while both hold. */
+  readonly when?: (parent: Parent) => boolean
 } & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }
@@ -163,6 +165,8 @@ export type PlaceConfigParam<Args, Parent, LinkMessage, Message, OutMessage, Out
 
 type EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = {
   readonly key?: string
+  /** A gate per item beside the Link's own: an item's Subscriptions run only while both hold. */
+  readonly when?: (parent: Parent, key: string) => boolean
 } & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }

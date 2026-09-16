@@ -25,6 +25,7 @@ export interface EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutS
   ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the collection's Subscription keys. Defaults to `Name@path[]`. */
   readonly key?: string
+  readonly when?: (parent: Parent, key: string) => boolean
 }
 
 export type CollectionView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
@@ -163,7 +164,8 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     })
 
   const isOpen = (parent: unknown, key: string): boolean =>
-    Option.match(link.when, { onNone: () => true, onSome: when => when(parent, key) })
+    Option.match(link.when, { onNone: () => true, onSome: when => when(parent, key) }) &&
+    (config.when === undefined || config.when(parent, key))
 
   type Items = ReadonlyArray<readonly [string, unknown]>
 
