@@ -38,7 +38,8 @@ reconciler and no shared ownership to reason about.
 pnpm add foldkit-react foldkit effect react react-dom
 ```
 
-React 19 is required.
+React 19 is required. [`examples/react`](../../examples/react) runs both
+directions, plus codegen, as a pinned transcript.
 
 ## React inside Foldkit
 

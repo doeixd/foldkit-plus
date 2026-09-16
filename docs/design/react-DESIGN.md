@@ -17,6 +17,8 @@
 > `wrapper` mode (section 25) is not built: `FoldkitComponent.define({ make })`
 > is already the one-line wrapper, so generating it adds no semantics. Source maps and watch mode (26) are built. Submodel, lazy, and CustomElement lowering (24)
 > are built. Section 20 (Resource bridge) remains a proposal.
+> Step 9's examples live in [`examples/react`](../../examples/react), with plain
+> React components rather than MUI or Base UI to keep dependencies small.
 
 Based on Foldkit's current architecture, this would be implemented as **two
 packages**, deliberately avoiding a second renderer in the first release.

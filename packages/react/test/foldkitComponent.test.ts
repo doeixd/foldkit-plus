@@ -75,7 +75,14 @@ const makeCounter = (container: HTMLElement, props: { readonly initialCount: num
       ),
     })),
     view: (model: Model, h: HtmlBuilder<Message>) =>
-      h.button([h.Class('increment'), h.OnClick(Message.Incremented())], [String(model.count)]),
+      h.button(
+        [
+          h.Class('increment'),
+          h.DataAttribute('step', String(model.step)),
+          h.OnClick(Message.Incremented()),
+        ],
+        [String(model.count)],
+      ),
   })
 }
 
@@ -92,6 +99,12 @@ const Counter = FoldkitComponent.define({
   outbound: { countChanged: (count, props) => props.onCountChange?.(count) },
   restartKey: props => props.user,
 })
+
+/** Ports deliver asynchronously, so a click must wait until the program has the step. */
+const waitForStep = (step: number) =>
+  vi.waitFor(() =>
+    expect(document.querySelector('.increment')?.getAttribute('data-step')).toBe(String(step)),
+  )
 
 const roots: Array<() => void> = []
 afterEach(() => {
@@ -118,7 +131,7 @@ it('feeds props through Ports, reports to the latest callback, and disposes on u
   await vi.waitFor(() => expect(first).toEqual([5]))
 
   show(createElement(Counter, { initialCount: 99, step: 10, onCountChange: c => second.push(c) }))
-  await settle()
+  await waitForStep(10)
   click('.increment')
   await vi.waitFor(() => expect(text('.increment')).toBe('15'))
   await vi.waitFor(() => expect(second).toEqual([15]))
@@ -145,6 +158,7 @@ it('runs one live program under Strict Mode', async () => {
   await vi.waitFor(() => expect(text('.increment')).toBe('0'))
   expect(document.querySelectorAll('.increment')).toHaveLength(1)
 
+  await waitForStep(2)
   click('.increment')
   await vi.waitFor(() => expect(text('.increment')).toBe('2'))
   await settle()
@@ -168,7 +182,8 @@ it('replaces the runtime once when the restart key changes', async () => {
   await vi.waitFor(() => expect(text('.increment')).toBe('1'))
   expect(started).toBe(2)
   await vi.waitFor(() => expect(stopped).toBe(1))
-  // The fresh runtime received the current step, not the Port's default.
+  // The fresh runtime receives the current step, not the Port's default.
+  await waitForStep(3)
   click('.increment')
   await vi.waitFor(() => expect(text('.increment')).toBe('4'))
   expect(document.querySelectorAll('.increment')).toHaveLength(1)
