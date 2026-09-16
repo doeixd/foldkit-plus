@@ -85,8 +85,9 @@ export interface Assembly<
   ) => Update.Return<Model, Message, RequirementsOf<Ps[number]> | Services>
   /**
    * The parent's initial Model and Commands: `rest` for the fields no placement
-   * owns, every single placement's `init`, and `{}` for a collection `rest`
-   * leaves out. For `init` in the runtime config.
+   * owns, each single placement's `init`, and `{}` for a collection `rest` leaves
+   * out. A placement whose field `rest` gives keeps that value and skips its
+   * `init`, so an optional child can start as `None`. For `init` in the runtime config.
    */
   readonly initial: (
     rest: InitialRest<Model, Ps>,
@@ -213,15 +214,18 @@ export const assemble =
           )) as Assembly<Model, Message, Ps, Services>['update'],
       init,
       initial: rest => {
-        // Collections at a top-level field start empty; each single placement
-        // writes its own slice through its Link. The placements' fields are
-        // absent from `rest` until their inits write them.
+        // Collections at a top-level field start empty. A single placement's init
+        // writes its slice unless `rest` already gives that field, which is how an
+        // optional child (Link.optional) starts absent.
+        const given = new Set(Object.keys(rest))
         const collections = Object.fromEntries(
           placements
             .filter(placement => !isPlaced(placement) && placement.link.path.length === 1)
             .map(placement => [placement.link.path[0], {}]),
         )
-        return init({ ...collections, ...rest } as Model)
+        const inits: ReadonlyArray<Update.Step<Model, Message, RequirementsOf<Ps[number]>>> =
+          singles.filter(placed => !given.has(placed.link.path[0] ?? '')).map(placed => placed.init)
+        return Update.combine({ ...collections, ...rest } as Model, inits)
       },
       subscriptions: own =>
         brand(

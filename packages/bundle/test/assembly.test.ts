@@ -118,3 +118,27 @@ describe('Bundle.assemble', () => {
     expect(() => assembly.resources(clash)).toThrow(/duplicate key "Counter@a\/socket"/)
   })
 })
+
+describe('initial with an optional child', () => {
+  const GotMaybe = Link.wrapper('GotMaybeMessage', CounterMessage)
+  const GotOther = Link.wrapper('GotOtherMessage', CounterMessage)
+  const MaybeModel = Schema.Struct({ maybe: Schema.Option(CounterModel), other: CounterModel })
+  type MaybeModel = typeof MaybeModel.Type
+  const MaybeMessage = defineMessageUnion({ ...GotMaybe.cases, ...GotOther.cases })
+  type MaybeMessage = typeof MaybeMessage.Type
+  const Maybe = Plain.at(Link.optional<MaybeModel>()('maybe', GotMaybe), {
+    args: { limit: 9, start: 4 },
+    onOut: Bundle.ignore,
+  })
+  const Other = Plain.at(Link.field<MaybeModel>()('other', GotOther), {
+    args: { limit: 9, start: 1 },
+    onOut: Bundle.ignore,
+  })
+  const maybeAssembly = Bundle.assemble<MaybeModel, MaybeMessage>()([Maybe, Other])
+
+  it('keeps a field rest gives and runs the other inits', () => {
+    const result = maybeAssembly.initial({ maybe: Option.none() })
+    expect(result.model).toEqual({ maybe: Option.none(), other: { count: 1, running: false } })
+    expect(maybeAssembly.initial({}).model.maybe).toEqual(Option.some({ count: 4, running: false }))
+  })
+})
