@@ -38,7 +38,7 @@ export type ViewOptions<Props, Events extends keyof Props, Message> = ({} extend
 export interface ReactComponent<Props, Events extends keyof Props> {
   /** Renders the component as an island that React owns and Foldkit places. */
   readonly view: <Message>(
-    options: ViewOptions<Props, Events, Message>,
+    options: ViewOptions<Props, Events, NoInfer<Message>>,
     h: HtmlBuilder<Message>,
   ) => Html
 }

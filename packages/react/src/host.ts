@@ -133,7 +133,11 @@ const defineHostElement = () => {
   customElements.define(HOST_TAG, FoldkitReactHost)
 }
 
-/** Registers `<foldkit-react-host>` on first use rather than at import, keeping the package side-effect free. */
+/**
+ * Registers `<foldkit-react-host>` on first use rather than at import, keeping
+ * the package side-effect free. A server render has no registry and emits the
+ * empty host, which the client upgrades.
+ */
 export const ensureHostElementDefined = () => {
-  if (!customElements.get(HOST_TAG)) defineHostElement()
+  if (typeof customElements !== 'undefined' && !customElements.get(HOST_TAG)) defineHostElement()
 }
