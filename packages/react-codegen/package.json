@@ -1,0 +1,60 @@
+{
+  "name": "foldkit-react-codegen",
+  "version": "0.0.0",
+  "description": "Compile Foldkit view functions to React TSX, with a diagnostic for every construct that cannot be translated faithfully.",
+  "keywords": [
+    "foldkit",
+    "react",
+    "codegen",
+    "tsx"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/react-codegen"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/react-codegen#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "bin": {
+    "foldkit-react-codegen": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "peerDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "jsdom": "26.1.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "tsdown": "0.23.0",
+    "typescript": "5.7.2"
+  }
+}

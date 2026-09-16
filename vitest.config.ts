@@ -28,6 +28,9 @@ export default defineConfig({
       'foldkit-surface': fileURLToPath(new URL('./packages/surface/src/index.ts', import.meta.url)),
       'foldkit-bundle': fileURLToPath(new URL('./packages/bundle/src/index.ts', import.meta.url)),
       'foldkit-react': fileURLToPath(new URL('./packages/react/src/index.ts', import.meta.url)),
+      'foldkit-react-codegen': fileURLToPath(
+        new URL('./packages/react-codegen/src/index.ts', import.meta.url),
+      ),
       'foldkit-bundle-surface': fileURLToPath(
         new URL('./packages/bundle-surface/src/index.ts', import.meta.url),
       ),
