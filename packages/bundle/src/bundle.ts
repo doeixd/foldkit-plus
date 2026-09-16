@@ -10,7 +10,9 @@ import type * as Submodel from 'foldkit/submodel'
 import type * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import type { AnyMessage, Link } from './link.js'
-import { place, type PlaceConfig, type Placed } from './placed.js'
+import { each, type EachConfig, type PlacedCollection } from './collection.js'
+import { place, type Invalid, type PlaceConfig, type Placed } from './placed.js'
+import type { CollectionLink } from './link.js'
 
 const BundleTypeId: unique symbol = Symbol.for('foldkit-bundle/Bundle')
 
@@ -90,6 +92,31 @@ export interface Bundle<
     Resources,
     Helpers
   >
+  /** Places the bundle once per key of the record `link` points at. */
+  readonly each: [keyof Resources] extends [never]
+    ? <Parent, LinkMessage, OutStepMessage = never, R2 = never>(
+        link: CollectionLink<Parent, LinkMessage, Model, Message>,
+        ...config: EachConfigParam<
+          Args,
+          Parent,
+          LinkMessage,
+          Message,
+          OutMessage,
+          OutStepMessage,
+          R2
+        >
+      ) => PlacedCollection<
+        Name,
+        Parent,
+        LinkMessage | OutStepMessage,
+        Model,
+        Message,
+        R | R2,
+        S,
+        ViewInputs,
+        Helpers
+      >
+    : Invalid<'Bundle.each does not support Managed Resources yet: the runtime provides a resource by one tag, so items would share it'>
 }
 
 /**
@@ -116,6 +143,25 @@ export type PlaceConfigParam<Args, Parent, LinkMessage, Message, OutMessage, Out
     ? [config?: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
     : [config: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
   : [config: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
+
+type EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = {
+  readonly key?: string
+} & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
+  ([OutMessage] extends [never]
+    ? { readonly onOut?: never }
+    : {
+        readonly onOut: Required<
+          EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
+        >['onOut']
+      })
+
+export type EachConfigParam<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = [
+  Args,
+] extends [void]
+  ? [OutMessage] extends [never]
+    ? [config?: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
+    : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
+  : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
 
 /** Any bundle, for APIs that accept one without caring about its types. */
 export type AnyBundle = Bundle<string, any, any, any, any, any, any, any, any, any>
@@ -152,6 +198,22 @@ export const make = <
     ...spec,
     [BundleTypeId]: BundleTypeId,
     at: (link, ...[config]) => place(bundle, link, config),
+    // The conditional type only hides `each` from bundles with resources; the function is the same.
+    each: ((
+      link: CollectionLink<any, any, Model, Message>,
+      config?: EachConfig<any, any, any, Message, OutMessage, any, any>,
+    ) => each(bundle, link, config)) as unknown as Bundle<
+      Name,
+      Args,
+      Model,
+      Message,
+      OutMessage,
+      R,
+      S,
+      ViewInputs,
+      Resources,
+      Helpers
+    >['each'],
   }
   return bundle
 }

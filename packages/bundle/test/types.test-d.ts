@@ -91,3 +91,23 @@ const GotToggle = Link.wrapper('GotToggleMessage', Toggle.Message)
 const ToggleParent = Schema.Struct({ toggle: Toggle.Model })
 const toggle = Toggle.at(Link.field<typeof ToggleParent.Type>()('toggle', GotToggle))
 expectTypeOf(toggle.init).returns.toExtend<{ readonly model: typeof ToggleParent.Type }>()
+
+// --- Collections ---
+
+const GotItem = Link.keyedWrapper('GotItemMessage', CounterMessage)
+const ToggleItems = Schema.Struct({ items: Schema.Record(Schema.String, Toggle.Model) })
+const GotToggleItem = Link.keyedWrapper('GotToggleItemMessage', Toggle.Message)
+const toggles = Toggle.each(Link.collection<typeof ToggleItems.Type>()('items', GotToggleItem))
+expectTypeOf(toggles.add).toEqualTypeOf<
+  (key: string) => Update.Step<typeof ToggleItems.Type, typeof GotToggleItem.Schema.Type, never>
+>()
+
+// A bundle with Managed Resources cannot be placed per key: items would share one resource tag.
+const CounterItems = Schema.Struct({ items: Schema.Record(Schema.String, CounterModel) })
+expectTypeOf(Counter.each).toExtend<{ readonly invalid: string }>()
+// @ts-expect-error: Bundle.each does not support Managed Resources yet
+Counter.each(Link.collection<typeof CounterItems.Type>()('items', GotItem), {})
+
+// A collection link must point at a record field.
+// @ts-expect-error: `title` is not a record of items
+Link.collection<Model>()('title', GotItem)
