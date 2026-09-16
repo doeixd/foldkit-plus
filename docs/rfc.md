@@ -2054,6 +2054,51 @@ A wiring joins an application either way: placements route by wrapper, and an
 integration's `Wiring.route` folds its flat cases. The assembly checks both
 with the same claimant rule.
 
+## Joining an application: the wiring list
+
+Bundles package the child side. The integration side — Remote, Mirror, Sync,
+Agent — used to join by hand, each in several places: spread the Messages,
+add the reduce branch, derive the Subscriptions, provide the client, reduce
+the URL at startup, dispatch the restore after mounting. Every step compiles
+when missed and silently does nothing.
+
+A **Wiring** states how one integration joins, as data: which Message tags it
+folds (`handles`, with `shared` for tags several wirings split by value),
+what it runs at startup (`init`), what it subscribes (`subscriptions`), how
+it reads the URL (`onUrl`), and what it owns (`contract`). The assembly takes
+one wiring per integration beside the placements and derives the runtime
+config from the list:
+
+```text
+Wiring + Wiring + placement + … ──assemble──▶ update / initial / subscriptions / url / module
+derived config ──complete──▶ checked at the property, unchanged at runtime
+```
+
+The rule this establishes:
+
+```text
+a missed derivation
+    = a type error at the property (`complete` only accepts assembly-built values)
+
+two claimants of one tag
+    = a startup error naming both (unless the tag is shared and each routes its own values)
+
+a deleted wiring
+    != an error (the list cannot check its own membership — behavior catches it)
+```
+
+The last line is deliberate honesty, not a gap to close later: `complete`
+checks that derivations come from the assembly, not that any particular
+wiring is present. Deleting a line still compiles; pinned transcripts and
+dispatch-level tests catch the loss. What the list removes is the middle
+failure — everything present, everything running, one step silently skipped.
+
+A review rule follows: **an integration joins through a wiring in one
+assembly; a hand-built subscriptions record or reduce branch beside one is a
+second, unchecked list.** The [wiring guide](./wiring.md) teaches the calls;
+the [design note](./design/wiring-DESIGN.md) records where the build departed
+from the proposal.
+
 ---
 
 # 16. Proposed Foldkit architecture after these changes
