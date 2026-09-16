@@ -65,6 +65,25 @@ unmount dispose the runtime. For direct handle access, use
 `useFoldkitElement({ make, restartKey?, onEmbed? })`, which returns
 `{ ref, handle }`.
 
+## Compiling views to TSX: foldkit-react-codegen
+
+A build-time tool, not runtime interop. It turns each function with an
+`HtmlBuilder` parameter into one taking `dispatch` and returning `ReactNode`:
+
+```sh
+pnpm foldkit-react-codegen src --out-dir generated
+```
+
+- It lowers elements, `h.keyed`, `h.empty`, a table of attributes (`Class` to
+  `className`, `Aria*`, `Style`), and message events (`OnInput` becomes React
+  `onChange`).
+- It refuses with `file:line:column - error FKREACT000N` for `OnMount`,
+  `OnChange` (native change), `h.submodel`, computed attribute arrays, and
+  anything not in its table. It writes nothing and exits 1 on any refusal.
+- The output is only the view. State, `update`, Commands, and Subscriptions stay
+  with whatever calls it; to keep Foldkit semantics, embed the program with
+  `FoldkitComponent` instead.
+
 ## Gotchas
 
 - No Foldkit children inside an island; pass React children in `props`.

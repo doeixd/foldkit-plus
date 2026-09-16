@@ -85,4 +85,5 @@ it('exits non-zero from the CLI on a diagnostic', async () => {
     { cwd: dir },
   )
   expect(stdout).toContain('Wrote 2 file(s), 0 unchanged.')
-})
+  // Two Node processes loading tsx.
+}, 30_000)
