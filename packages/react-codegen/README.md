@@ -126,7 +126,7 @@ it in React.
 ## CLI
 
 ```text
-foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <directory>] [--watch]
+foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <directory>] [--watch] [--source-map]
 ```
 
 - Directories are searched for `.ts` files, skipping `.d.ts` and `.test.ts`.
@@ -141,15 +141,19 @@ foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <
   keeps running after diagnostics, leaving the last good output in place, and
   ignores its own writes when the out dir is inside an input. Deleting a source
   does not delete its output.
+- `--source-map` writes `<output>.tsx.map` beside each output and appends a
+  `sourceMappingURL` comment. Each JSX element and prop maps to the builder
+  call it came from, so a stack trace or breakpoint in generated code lands
+  on the Foldkit source.
 
 ## Library API
 
 ```ts
 import { formatDiagnostic, generate, transformSourceFile, watch } from 'foldkit-react-codegen'
 
-const result = transformSourceFile('src/SaveButton.ts', sourceText)
+const result = transformSourceFile('src/SaveButton.ts', sourceText, { sourceMap: true })
 if (result.ok) {
-  console.log(result.code)
+  console.log(result.code, result.map)
 } else {
   result.diagnostics.map(formatDiagnostic).forEach(line => console.error(line))
 }
@@ -162,9 +166,12 @@ const watcher = watch({ inputs: ['src'], outDir: 'generated' }, event => {
 watcher.close()
 ```
 
-`transformSourceFile` is pure: text in, text or diagnostics out.
+`transformSourceFile` is pure: text in, text (and a map, if asked) or
+diagnostics out. Source maps rely on TypeScript printer internals; on a
+TypeScript version without them, asking for a map throws a clear error
+rather than emitting a wrong one.
 
 ## Not yet
 
-Source maps, Submodels, `OnMount`, and custom elements are not
+Submodels, `OnMount`, and custom elements are not
 supported yet.

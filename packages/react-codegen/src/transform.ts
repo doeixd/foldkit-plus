@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { printFile, printWithSourceMap } from './print.js'
 import { TAGS } from './tags.js'
 
 const f = ts.factory
@@ -11,8 +12,19 @@ export interface Diagnostic {
   readonly column: number
 }
 
+export interface TransformOptions {
+  /** Also produce a source map from the output back to `fileName`. */
+  readonly sourceMap?: boolean
+}
+
 export type TransformResult =
-  | { readonly ok: true; readonly code: string; readonly diagnostics: readonly [] }
+  | {
+      readonly ok: true
+      readonly code: string
+      /** Source map JSON, present when `sourceMap` was requested. `sources` is `[fileName]`. */
+      readonly map?: string
+      readonly diagnostics: readonly []
+    }
   | { readonly ok: false; readonly diagnostics: ReadonlyArray<Diagnostic> }
 
 export const DiagnosticCode = {
@@ -95,6 +107,10 @@ const MESSAGE_EVENTS: Readonly<Record<string, string>> = {
 
 const DISPATCH = 'dispatch'
 
+/** Points a synthesized node's source map entry at the syntax it replaces. */
+const withSourceOf = <T extends ts.Node>(node: T, original: ts.Node): T =>
+  ts.setSourceMapRange(ts.setOriginalNode(node, original), original)
+
 /** The local name `Html` is imported under from `foldkit/html`, if it is. */
 const importedHtmlName = (file: ts.SourceFile) => {
   for (const statement of file.statements) {
@@ -143,7 +159,11 @@ const isViewFunction = (node: ts.Node): node is ViewFunction =>
  * `dispatch` where it took `h`. Fails with diagnostics rather than emitting
  * code for a construct it cannot translate with the same meaning.
  */
-export const transformSourceFile = (fileName: string, sourceText: string): TransformResult => {
+export const transformSourceFile = (
+  fileName: string,
+  sourceText: string,
+  options: TransformOptions = {},
+): TransformResult => {
   const source = ts.createSourceFile(
     fileName,
     sourceText,
@@ -187,9 +207,12 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
         const name = node.expression.name.text
         const args = node.arguments.map(argument => visit(argument) as ts.Expression)
         const prop = (propName: string, value: ts.Expression) =>
-          f.createJsxAttribute(
-            f.createIdentifier(propName),
-            f.createJsxExpression(undefined, value),
+          withSourceOf(
+            f.createJsxAttribute(
+              f.createIdentifier(propName),
+              f.createJsxExpression(undefined, value),
+            ),
+            node,
           )
         const handler = (body: ts.ConciseBody, parameter?: string) =>
           f.createArrowFunction(
@@ -363,13 +386,14 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
         readonly tag: string
         readonly key: ts.Expression | undefined
         readonly arguments: ReadonlyArray<ts.Expression>
+        readonly node: ts.CallExpression
       }
 
       /** `h.div(attributes, children)`, or `h.keyed('li')(key, attributes, children)`. */
       const elementCall = (node: ts.Node): ElementCall | undefined => {
         if (!ts.isCallExpression(node)) return undefined
         if (isBuilderAccess(node.expression) && TAGS.has(node.expression.name.text)) {
-          return { tag: node.expression.name.text, key: undefined, arguments: node.arguments }
+          return { tag: node.expression.name.text, key: undefined, arguments: node.arguments, node }
         }
         const factory = node.expression
         if (
@@ -383,7 +407,7 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
           const [key, ...rest] = node.arguments
           return key === undefined
             ? undefined
-            : { tag: factory.arguments[0].text, key, arguments: rest }
+            : { tag: factory.arguments[0].text, key, arguments: rest, node }
         }
         return undefined
       }
@@ -392,6 +416,7 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
         tag,
         key,
         arguments: [attributesArgument, childrenArgument],
+        node,
       }: ElementCall): ts.JsxElement | ts.JsxSelfClosingElement => {
         const attributes: Array<ts.JsxAttribute> = []
         if (key !== undefined) {
@@ -424,13 +449,16 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
               : [f.createJsxExpression(undefined, visit(childrenArgument) as ts.Expression)]
         const name = f.createIdentifier(tag)
         const props = f.createJsxAttributes(attributes)
-        return children.length === 0
-          ? f.createJsxSelfClosingElement(name, undefined, props)
-          : f.createJsxElement(
-              f.createJsxOpeningElement(name, undefined, props),
-              children,
-              f.createJsxClosingElement(name),
-            )
+        return withSourceOf(
+          children.length === 0
+            ? f.createJsxSelfClosingElement(name, undefined, props)
+            : f.createJsxElement(
+                f.createJsxOpeningElement(name, undefined, props),
+                children,
+                f.createJsxClosingElement(name),
+              ),
+          node,
+        )
       }
 
       const visit = (node: ts.Node): ts.Node => {
@@ -443,7 +471,7 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
           node.name.text === 'empty' &&
           !ts.isCallExpression(node.parent)
         ) {
-          return f.createNull()
+          return withSourceOf(f.createNull(), node)
         }
         if (
           ts.isCallExpression(node) &&
@@ -467,7 +495,7 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
           const parent = node.parent
           if (ts.isCallExpression(parent) && parent.arguments.includes(node)) {
             // A helper view receives dispatch in place of the builder.
-            return f.createIdentifier(DISPATCH)
+            return withSourceOf(f.createIdentifier(DISPATCH), node)
           }
           if (parent === builderParameter) return node
           report(
@@ -561,10 +589,15 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
 
   let output = result.transformed[0]!
   if (converted) output = rewriteImports(output)
-  result.dispose()
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed })
   const header = `// @generated by foldkit-react-codegen from ${fileName.replace(/\\/g, '/')}. Do not edit.\n`
-  return { ok: true, code: header + printer.printFile(output), diagnostics: [] }
+  // Printed before dispose, which discards the source map ranges set during the transform.
+  const printed = options.sourceMap ? printWithSourceMap(output) : { code: printFile(output) }
+  result.dispose()
+  if (!('map' in printed)) return { ok: true, code: header + printed.code, diagnostics: [] }
+  // The header adds one generated line before the printed code.
+  const map = JSON.parse(printed.map) as { mappings: string }
+  map.mappings = `;${map.mappings}`
+  return { ok: true, code: header + printed.code, map: JSON.stringify(map), diagnostics: [] }
 }
 
 /** Drops the Foldkit html types the output no longer uses and imports `ReactNode`. */

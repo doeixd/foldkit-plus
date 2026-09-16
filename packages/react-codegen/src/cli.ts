@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util'
 import { formatDiagnostic, generate, watch, type GenerateResult } from './generate.js'
 
-const usage = `Usage: foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <directory>] [--watch]
+const usage = `Usage: foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <directory>] [--watch] [--source-map]
 
 Compiles Foldkit view functions to React TSX. Exits with status 1, writing
 nothing, if any construct cannot be compiled. With --watch it recompiles on
@@ -15,6 +15,7 @@ const main = async () => {
       'out-dir': { type: 'string' },
       'root-dir': { type: 'string' },
       watch: { type: 'boolean', short: 'w' },
+      'source-map': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   })
@@ -27,6 +28,7 @@ const main = async () => {
     inputs: positionals,
     outDir,
     ...(values['root-dir'] === undefined ? {} : { rootDir: values['root-dir'] }),
+    sourceMap: values['source-map'] === true,
   }
   if (values.watch) {
     watch(options, event => {

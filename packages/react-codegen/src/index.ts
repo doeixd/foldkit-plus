@@ -2,6 +2,7 @@ export {
   DiagnosticCode,
   transformSourceFile,
   type Diagnostic,
+  type TransformOptions,
   type TransformResult,
 } from './transform.js'
 export {

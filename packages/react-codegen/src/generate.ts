@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { watch as fsWatch } from 'node:fs'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { transformSourceFile, type Diagnostic } from './transform.js'
 
 export interface GenerateOptions {
@@ -9,6 +9,8 @@ export interface GenerateOptions {
   readonly outDir: string
   /** Output paths mirror input paths relative to this directory. Defaults to the working directory. */
   readonly rootDir?: string
+  /** Write `<output>.tsx.map` beside each output, pointing back to the source. */
+  readonly sourceMap?: boolean
 }
 
 export interface GenerateResult {
@@ -42,6 +44,7 @@ export const generate = async (options: GenerateOptions): Promise<GenerateResult
     .flat()
     .sort()
   const outputs: Array<{ readonly path: string; readonly code: string }> = []
+  const sourceMap = options.sourceMap === true
   const diagnostics: Array<Diagnostic> = []
 
   for (const file of files) {
@@ -49,12 +52,20 @@ export const generate = async (options: GenerateOptions): Promise<GenerateResult
     if (name.startsWith('../')) {
       throw new Error(`${file} is outside the root directory ${rootDir}.`)
     }
-    const result = transformSourceFile(name, await readFile(file, 'utf8'))
+    const result = transformSourceFile(name, await readFile(file, 'utf8'), { sourceMap })
     if (result.ok) {
-      outputs.push({
-        path: join(resolve(options.outDir), name.replace(/\.ts$/, '.tsx')),
-        code: result.code,
-      })
+      const path = join(resolve(options.outDir), name.replace(/\.ts$/, '.tsx'))
+      if (result.map === undefined) {
+        outputs.push({ path, code: result.code })
+      } else {
+        const map = JSON.parse(result.map) as { file: string; sources: Array<string> }
+        map.file = basename(path)
+        map.sources = [relative(dirname(path), file).replace(/\\/g, '/')]
+        outputs.push(
+          { path, code: `${result.code}//# sourceMappingURL=${basename(path)}.map\n` },
+          { path: `${path}.map`, code: JSON.stringify(map) },
+        )
+      }
     } else {
       diagnostics.push(...result.diagnostics)
     }
