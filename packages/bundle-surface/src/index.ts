@@ -1,7 +1,8 @@
 /**
- * foldkit-bundle placements in a foldkit-surface Module: each placement is a
- * contract that owns the Model path its Link points at, so `Module.validate`
- * checks it against every other owner (Sync, Remote, another placement).
+ * foldkit-bundle assemblies in a foldkit-surface Module: each placement is a
+ * contract that owns the Model path its Link points at, and each integration's
+ * wiring brings its own contract, so `Module.validate` checks every owner in
+ * the one list.
  */
 import { Option, type Schema } from 'effect'
 import {
@@ -10,6 +11,7 @@ import {
   type AnyMessage,
   type AnyPlaced,
   type AnyPlacedCollection,
+  type AnyWiring,
   type Wrapper,
 } from 'foldkit-bundle'
 import {
@@ -21,6 +23,16 @@ import {
 } from 'foldkit-surface'
 
 type AnyPlacement = AnyPlaced | AnyPlacedCollection
+
+/** What an assembly lists: placements, collections, and integration wiring. */
+type AssemblyItems = { readonly placements: ReadonlyArray<AnyPlacement | AnyWiring> }
+
+const isPlacement = (item: AnyPlacement | AnyWiring): item is AnyPlacement => 'link' in item
+
+// Wiring declares its contract loosely (as `object`) so foldkit-bundle need not
+// import Surface; every integration builds it from Surface's own `Contract`.
+const wiringContract = (wiring: AnyWiring): ReadonlyArray<Contract> =>
+  wiring.contract === undefined ? [] : [wiring.contract as Contract]
 
 /**
  * A Link from a Surface field ref: `App.model.search`. The contract of a
@@ -65,16 +77,22 @@ const contract = <
     placement.argsSummary === undefined ? [] : [{ name: 'args', entries: [placement.argsSummary] }],
 })
 
-/** A Module of an assembly's placements plus any other contracts of the application. */
+/** A Module of an assembly's placements and wiring, plus any other contracts of the application. */
 const module = <
   Root,
   F extends Schema.Struct.Fields,
   Cases extends Record<string, Schema.Struct.Fields>,
 >(
   app: AppScope<Root, F, Cases>,
-  assembly: { readonly placements: ReadonlyArray<AnyPlacement> },
+  assembly: AssemblyItems,
   items: readonly ModuleItem<Root>[] = [],
-) => Module.make(app, [...assembly.placements.map(placement => contract(app, placement)), ...items])
+) =>
+  Module.make(app, [
+    ...assembly.placements.flatMap(item =>
+      isPlacement(item) ? [contract(app, item)] : wiringContract(item),
+    ),
+    ...items,
+  ])
 
 /**
  * The parent scope of `foldkit-bundle`, built from a Surface application, with
@@ -96,11 +114,9 @@ const parent = <
   })
   return {
     ...scope,
-    /** A Module of these placements plus the application's other contracts. */
-    module: (
-      assembly: { readonly placements: ReadonlyArray<AnyPlacement> },
-      items: readonly ModuleItem<Root>[] = [],
-    ) => module(app, assembly, items),
+    /** A Module of these placements and wiring plus the application's other contracts. */
+    module: (assembly: AssemblyItems, items: readonly ModuleItem<Root>[] = []) =>
+      module(app, assembly, items),
   }
 }
 

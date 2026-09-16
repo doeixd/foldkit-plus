@@ -151,3 +151,23 @@ describe('placement args in the contract', () => {
     expect(BundleSurface.contract(App, SearchPlaced).metadata).toEqual([])
   })
 })
+
+describe('wiring contracts in the Module', () => {
+  it('brings each wiring’s contract into the Module beside the placements', () => {
+    const todosWiring = { key: 'sync:Todos', handles: [], contract: syncOf('todos') }
+    const noContract = { key: 'agent:helper', handles: [] }
+    const withWiring = Bundle.assemble<Model, Message>()([SearchPlaced, todosWiring, noContract])
+    const module = BundleSurface.module(App, withWiring)
+    expect(Module.validate(module)).toEqual([])
+    expect(module.contracts.map(entry => `${entry.kind}:${entry.name}`)).toEqual([
+      'bundle:Search@search',
+      'sync:Todos',
+    ])
+  })
+
+  it('reports a wiring contract that owns a placement’s path', () => {
+    const overlapping = { key: 'sync:Rows', handles: [], contract: syncOf('search') }
+    const both = Bundle.assemble<Model, Message>()([SearchPlaced, overlapping])
+    expect(rules(BundleSurface.module(App, both))).toEqual(['ownership-overlap'])
+  })
+})

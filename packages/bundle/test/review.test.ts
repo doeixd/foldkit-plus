@@ -87,7 +87,7 @@ describe('Bundle.assemble refuses silent collisions', () => {
     const A = Plain.at(Link.field<Model>()('a', GotShared), { args, onOut: Bundle.ignore })
     const B = Plain.at(Link.field<Model>()('b', GotShared), { args, onOut: Bundle.ignore })
     expect(() => Bundle.assemble<Model, Message>()([A, B])).toThrow(
-      /Plain@a and Plain@b use the same wrapper "GotSharedMessage"/,
+      /Plain@a and Plain@b both handle "GotSharedMessage"/,
     )
   })
 
@@ -111,7 +111,7 @@ describe('Bundle.assemble refuses silent collisions', () => {
       }),
     }))
     expect(() => placements.resources(own)).toThrow(
-      /the parent's resource "socket" and Counter@a both use the Managed Resource "counter-socket"/,
+      /Counter@a and the parent's own resources both use the Managed Resource "counter-socket"/,
     )
   })
 })

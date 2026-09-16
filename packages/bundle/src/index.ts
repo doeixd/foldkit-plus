@@ -27,3 +27,5 @@ export type {
   EachConfig,
   PlacedCollection,
 } from './collection.js'
+export { isWiring } from './wiring.js'
+export type { AnyWiring, Wiring } from './wiring.js'

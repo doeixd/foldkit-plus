@@ -24,6 +24,7 @@ import {
   type Wrapper,
 } from './link.js'
 import type { Invalid, Placed } from './placed.js'
+import type { Wiring } from './wiring.js'
 
 type P<B> = BundleParts<B>
 
@@ -198,11 +199,12 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
     Field
   >
 
-  /** The one list of the parent's placements and collections. */
+  /** The one list of the parent's placements, collections, and integration wiring. */
   readonly assemble: <
     const Ps extends ReadonlyArray<
       | Placed<string, Model, Message, any, any, any, any, any, any, any>
       | PlacedCollection<string, Model, Message, any, any, any, any, any, any, any, any>
+      | Wiring<Model, Message, any>
     >,
   >(
     ...placements: Ps
