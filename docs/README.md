@@ -35,6 +35,7 @@ cover all fifteen packages.
 | **`update`** | The application's transition function. Foldkit Plus tries hard not to create a second reducer beside it. |
 | **Projection** | A pure, typed view of part of the Model, plus metadata about what it observes or requires. |
 | **Surface** | A named feature boundary: what it may observe and which Messages it may emit. |
+| **Wiring** | How one integration joins the application: which Messages it folds, what it runs at startup, what it subscribes to, and what it owns. |
 | **Owner** | The one authoritative source for a datum. Mirrors observe; Remote caches server-owned facts; Sync owns replicated client-authored state through the durable log. |
 
 Those terms are enough to understand most of the repository. Package-specific
@@ -49,6 +50,8 @@ vocabulary should refine them, not replace them.
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
 | Keep local Model state in the URL or a device store without making that store authoritative | [Mirrored state](./mirror.md) | `foldkit-mirror` |
 | Package a Submodel once and place it several times or per key, with its Subscriptions, resources, and view wired | [`foldkit-bundle` README](../packages/bundle) | `foldkit-bundle`, `foldkit-bundle-surface` |
+| Join several integrations and placements through one checked list instead of hand-wiring each | [Wiring](./wiring.md) | `foldkit-bundle`, `foldkit-bundle-surface`, `foldkit-surface` |
+| Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
 
