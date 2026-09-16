@@ -111,8 +111,8 @@ export interface Bundle<
   >
   /** Places the bundle once per key of the record `link` points at. */
   readonly each: [keyof Resources] extends [never]
-    ? <Parent, LinkMessage, OutStepMessage = never, R2 = never>(
-        link: CollectionLink<Parent, LinkMessage, Model, Message>,
+    ? <Parent, LinkMessage, Key extends string, OutStepMessage = never, R2 = never>(
+        link: CollectionLink<Parent, LinkMessage, Model, Message, Key>,
         ...config: EachConfigParam<
           Args,
           Parent,
@@ -120,7 +120,8 @@ export interface Bundle<
           Message,
           OutMessage,
           OutStepMessage,
-          R2
+          R2,
+          Key
         >
       ) => PlacedCollection<
         Name,
@@ -131,7 +132,9 @@ export interface Bundle<
         R | R2,
         S,
         ViewInputs,
-        Helpers
+        Helpers,
+        string,
+        Key
       >
     : Invalid<'Bundle.each does not support Managed Resources yet: the runtime provides a resource by one tag, so items would share it'>
 }
@@ -163,26 +166,53 @@ export type PlaceConfigParam<Args, Parent, LinkMessage, Message, OutMessage, Out
     : [config: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
   : [config: PlacementConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
 
-type EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = {
+type EachOptions<
+  Args,
+  Parent,
+  LinkMessage,
+  Message,
+  OutMessage,
+  OutStepMessage,
+  R2,
+  Key extends string = string,
+> = {
   readonly key?: string
   /** A gate per item beside the Link's own: an item's Subscriptions run only while both hold. */
-  readonly when?: (parent: Parent, key: string) => boolean
+  readonly when?: (parent: Parent, key: Key) => boolean
 } & ([Args] extends [void] ? { readonly args?: never } : { readonly args: Args }) &
   ([OutMessage] extends [never]
     ? { readonly onOut?: never }
     : {
         readonly onOut: Required<
-          EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>
+          EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>
         >['onOut']
       })
 
-export type EachConfigParam<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> = [
+export type EachConfigParam<
   Args,
-] extends [void]
+  Parent,
+  LinkMessage,
+  Message,
+  OutMessage,
+  OutStepMessage,
+  R2,
+  Key extends string = string,
+> = [Args] extends [void]
   ? [OutMessage] extends [never]
-    ? [config?: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
-    : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
-  : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>]
+    ? [
+        config?: EachOptions<
+          Args,
+          Parent,
+          LinkMessage,
+          Message,
+          OutMessage,
+          OutStepMessage,
+          R2,
+          Key
+        >,
+      ]
+    : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>]
+  : [config: EachOptions<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>]
 
 /** Any bundle, for APIs that accept one without caring about its types. */
 export type AnyBundle = Bundle<string, any, any, any, any, any, any, any, any, any>

@@ -14,36 +14,43 @@ import { checkArgs, type ViewBuilder } from './placed.js'
 
 const PlacedCollectionTypeId: unique symbol = Symbol.for('foldkit-bundle/PlacedCollection')
 
-export interface EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> {
+export interface EachConfig<
+  Args,
+  Parent,
+  LinkMessage,
+  Message,
+  OutMessage,
+  OutStepMessage,
+  R2,
+  Key extends string = string,
+> {
   /** The args every item's `init` and `update` receive. */
   readonly args?: Args
   /** Handles an item's OutMessage in parent terms, with the item already written back. */
   readonly onOut?: (
     outMessage: OutMessage,
-    key: string,
+    key: Key,
     context: Update.FoldContext<Message, LinkMessage>,
   ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the collection's Subscription keys. Defaults to `Name@path[]`. */
   readonly key?: string
-  readonly when?: (parent: Parent, key: string) => boolean
+  readonly when?: (parent: Parent, key: Key) => boolean
 }
 
-export type CollectionView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
-  ? <H extends HtmlBuilder<any>>(
-      parent: Parent,
-      h: ViewBuilder<H, ParentMessage>,
-      key: string,
-    ) => Html
+export type CollectionView<Parent, ParentMessage, ViewInputs, Key extends string = string> = [
+  ViewInputs,
+] extends [void]
+  ? <H extends HtmlBuilder<any>>(parent: Parent, h: ViewBuilder<H, ParentMessage>, key: Key) => Html
   : <H extends HtmlBuilder<any>>(
       parent: Parent,
       h: ViewBuilder<H, ParentMessage>,
-      key: string,
+      key: Key,
       viewInputs: ViewInputs,
     ) => Html
 
-export type CollectionHelpers<Parent, ParentMessage, R, Helpers> = {
+export type CollectionHelpers<Parent, ParentMessage, R, Helpers, Key extends string = string> = {
   readonly [K in keyof Helpers]: Helpers[K] extends (model: any, ...input: infer Input) => any
-    ? (key: string, ...input: Input) => Update.Step<Parent, ParentMessage, R>
+    ? (key: Key, ...input: Input) => Update.Step<Parent, ParentMessage, R>
     : never
 }
 
@@ -58,6 +65,7 @@ export interface PlacedCollection<
   ViewInputs,
   Helpers,
   Field extends string = string,
+  Key extends string = string,
 > {
   readonly [PlacedCollectionTypeId]: typeof PlacedCollectionTypeId
   /** Types only: the record field this collection owns, or `string` when unknown. */
@@ -67,7 +75,7 @@ export interface PlacedCollection<
   readonly key: string
   /** The encoded args as text, when the bundle has an args Schema. */
   readonly argsSummary: string | undefined
-  readonly link: CollectionLink<Parent, ParentMessage, Model, Message>
+  readonly link: CollectionLink<Parent, ParentMessage, Model, Message, Key>
   /** Folds the Message into its item; `None` when it is not this collection's. A missing key leaves the parent unchanged. */
   readonly update: (
     parent: Parent,
@@ -79,21 +87,21 @@ export interface PlacedCollection<
    * An existing item is replaced.
    */
   readonly add: (
-    key: string,
+    key: Key,
     prepare?: (model: Model) => Model,
   ) => Update.Step<Parent, ParentMessage, R>
   /** Removes an item; its Subscriptions stop with it, and later Messages for it are ignored. */
-  readonly remove: (key: string) => Update.Step<Parent, ParentMessage, never>
+  readonly remove: (key: Key) => Update.Step<Parent, ParentMessage, never>
   readonly subscriptions: Subscription.Subscriptions<Parent, ParentMessage, S>
   /** One item's view; nothing when the key is missing. */
-  readonly view: CollectionView<Parent, ParentMessage, ViewInputs>
-  /** Every item's view, in the record's key order. */
+  readonly view: CollectionView<Parent, ParentMessage, ViewInputs, Key>
+  /** Every item's view, in the order of the Link's `entries`. */
   readonly viewAll: <H extends HtmlBuilder<any>>(
     parent: Parent,
     h: ViewBuilder<H, ParentMessage>,
     ...viewInputs: [ViewInputs] extends [void] ? [] : [viewInputs: ViewInputs]
   ) => ReadonlyArray<Html>
-  readonly helpers: CollectionHelpers<Parent, ParentMessage, R, Helpers>
+  readonly helpers: CollectionHelpers<Parent, ParentMessage, R, Helpers, Key>
 }
 
 export type AnyPlacedCollection = PlacedCollection<string, any, any, any, any, any, any, any, any>
@@ -116,10 +124,11 @@ export type Each = <
   LinkMessage,
   OutStepMessage,
   R2,
+  Key extends string,
 >(
   bundle: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-  link: CollectionLink<Parent, LinkMessage, Model, Message>,
-  config?: EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2>,
+  link: CollectionLink<Parent, LinkMessage, Model, Message, Key>,
+  config?: EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2, Key>,
 ) => PlacedCollection<
   Name,
   Parent,
@@ -129,7 +138,9 @@ export type Each = <
   R | R2,
   S,
   ViewInputs,
-  Helpers
+  Helpers,
+  string,
+  Key
 >
 
 type ErasedSpec = BundleSpec<string, any, any, any, any, any, any, any, any, any>
@@ -145,7 +156,7 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
   const argsSummary = checkArgs(bundle, args, prefix) ?? bundle.preset
 
   const itemLink = (key: string) => ({
-    read: (parent: unknown) => Record.get(link.read(parent), key),
+    read: (parent: unknown) => link.get(parent, key),
     write: (parent: unknown, child: unknown) => link.write(parent, key, Option.some(child)),
     toParentMessage: (message: unknown) => link.toParentMessage(key, message),
   })
@@ -198,7 +209,8 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
         items: Schema.Array(Schema.Tuple([Schema.String, entry.dependenciesSchema])),
       }),
       modelToDependencies: (parent: unknown) => ({
-        items: Object.entries(link.read(parent))
+        items: link
+          .entries(parent)
           .filter(([key]) => isOpen(parent, key))
           .map(([key, child]) => [key, entry.modelToDependencies(child)] as const),
       }),
@@ -239,7 +251,7 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
   const view = (parent: unknown, h: HtmlBuilder<any>, key: string, viewInputs?: unknown): Html =>
     childView === undefined
       ? null
-      : Option.match(Record.get(link.read(parent), key), {
+      : Option.match(link.get(parent, key), {
           onNone: () => null,
           onSome: model =>
             viewInputs === undefined
@@ -286,7 +298,7 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     subscriptions,
     view,
     viewAll: (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown) =>
-      Array.map(Object.keys(link.read(parent)), key => view(parent, h, key, viewInputs)),
+      Array.map(link.entries(parent), ([key]) => view(parent, h, key, viewInputs)),
     helpers: Record.map(
       bundle.helpers ?? {},
       (helper: ErasedHelper) =>
