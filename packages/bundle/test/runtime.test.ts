@@ -133,7 +133,13 @@ it('runs two placements of one bundle independently on the Foldkit runtime', asy
     placements.complete({
       Model,
       container,
-      init: () => placements.init({ a: empty, b: empty }),
+      // B starts live, so its socket and its first tick prove the resource and Subscription
+      // fibers are attached before the test changes the Model; they do not replay earlier changes.
+      // placements.init writes each child's own initial Model, so B goes live after it.
+      init: () => {
+        const initial = placements.init({ a: empty, b: empty })
+        return { ...initial, model: { ...initial.model, b: { ...initial.model.b, live: true } } }
+      },
       update: (model: Model, message: Message) =>
         Option.getOrElse(placements.update(model, message), () => ({ model })),
       view: (model: Model, h: HtmlBuilder<Message>) =>
@@ -147,18 +153,15 @@ it('runs two placements of one bundle independently on the Foldkit runtime', asy
   )
   const handle = Runtime.embed(program)
   try {
-    await vi.waitFor(() => expect(text('#a .count')).toBe('0'))
+    Effect.runSync(Queue.offer(ticks.b, undefined))
+    await vi.waitFor(() => expect(text('#b .socket')).toBe('ws://b'))
+    await vi.waitFor(() => expect(text('#b .count')).toBe('1'))
+    expect(text('#a .socket')).toBe('closed')
 
     click('#a .count')
     await vi.waitFor(() => expect(text('#a .count')).toBe('1'))
-    expect(text('#b .count')).toBe('0')
+    expect(text('#b .count')).toBe('1')
 
-    click('#b .toggle')
-    await vi.waitFor(() => expect(text('#b .socket')).toBe('ws://b'))
-    expect(text('#a .socket')).toBe('closed')
-
-    Effect.runSync(Queue.offer(ticks.b, undefined))
-    await vi.waitFor(() => expect(text('#b .count')).toBe('1'))
     // A is not live, so its Subscription is not running and its tick waits in the queue.
     Effect.runSync(Queue.offer(ticks.a, undefined))
     await new Promise(resolve => setTimeout(resolve, 50))
