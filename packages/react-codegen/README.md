@@ -88,6 +88,7 @@ it.
 | `Submodel.defineView<Model, Message>((model, h) => …)` | the compiled function, with `Model` on its parameter |
 | `const slot = createLazy()`, `slot(view, [a, h])` | `view(a, dispatch)`; the slot is removed |
 | `createKeyedLazy()` slots, `slot(key, view, args)` | `view(...args)` |
+| `const el = spec.withMessage(h)`, `el([el.Color(c), el.OnColorChanged(f)], [])` | `<color-picker color={c} oncolor-changed={(event: CustomEvent) => dispatch(f(event.detail))} />` |
 | `Class`, `Id`, `Key`, `For`, `Tabindex`, `Readonly`, … | `className`, `id`, `key`, `htmlFor`, `tabIndex`, `readOnly`, … |
 | `AriaLabelledBy(x)` and every `Aria*` | `aria-labelledby={x}` |
 | `Attribute('k', v)`, `DataAttribute('k', v)` | `k={v}`, `data-k={v}` |
@@ -96,6 +97,15 @@ it.
 | `OnInput(f)` | `onChange={event => dispatch(f(event.currentTarget.value))}` |
 | `OnKeyDown(f)`, `OnKeyUp(f)` | `onKeyDown={event => dispatch(f(event.key, { shiftKey, ctrlKey, altKey, metaKey }))}` |
 | `OnSubmit(message)` | `onSubmit={event => { event.preventDefault(); dispatch(message) }}` |
+
+Custom elements work because React 19 writes a prop as a DOM property when the
+element has that property, and listens for exactly the event name after `on`.
+Define the element before React renders it, as Foldkit also needs; otherwise
+React falls back to an attribute. A spec used only in compiled views is
+removed; an exported one is kept for other modules. For the output to
+type-check, the compiler appends a `declare module 'react'` entry typing each
+tag's props as `Record<string, unknown>`; a hand-written declaration for the
+same tag must use that type.
 
 `OnInput` becomes React's `onChange` on purpose. On a text control, React's
 `onChange` fires on every native `input` event, and pairing it with `value`
@@ -114,6 +124,7 @@ diagnostic, the CLI writes nothing and exits with status 1.
 | `FKREACT0004` | The builder stored or used other than calling it or passing it to a helper view |
 | `FKREACT0005` | An argument it cannot lower: click options, `Style` without an object literal, `Attribute` with a computed name |
 | `FKREACT0006` | A lazy slot or factory used other than `const slot = createLazy()` and a direct `slot(...)` call |
+| `FKREACT0007` | A custom element whose spec is not a literal `CustomElement.define({ tag, properties, events })` in the same module, a factory it does not declare, or a spec or bound builder used other than `spec.withMessage(h)` and calling it |
 
 For any of these, keep that part in Foldkit and use `foldkit-react`, or write
 it in React.
@@ -184,4 +195,4 @@ rather than emitting a wrong one.
 
 ## Not yet
 
-`OnMount` and custom elements are not supported yet.
+`OnMount` and `OnUnmount` are not supported yet.

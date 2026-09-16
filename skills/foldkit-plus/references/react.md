@@ -74,11 +74,11 @@ A build-time tool, not runtime interop. It turns each function with an
 pnpm foldkit-react-codegen src --out-dir generated
 ```
 
-- It lowers elements, `h.keyed`, `h.empty`, `h.submodel`, lazy slots, a table of attributes (`Class` to
+- It lowers elements, `h.keyed`, `h.empty`, `h.submodel`, lazy slots, custom elements, a table of attributes (`Class` to
   `className`, `Aria*`, `Style`), and message events (`OnInput` becomes React
   `onChange`).
 - It refuses with `file:line:column - error FKREACT000N` for `OnMount`,
-  `OnChange` (native change), `h.submodel`, computed attribute arrays, and
+  `OnChange` (native change), computed attribute arrays, and
   anything not in its table. It writes nothing and exits 1 on any refusal.
 - The output is only the view. State, `update`, Commands, and Subscriptions stay
   with whatever calls it; to keep Foldkit semantics, embed the program with

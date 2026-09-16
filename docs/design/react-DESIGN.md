@@ -15,8 +15,8 @@
 > unchanged bytes. The builder parameter becomes `dispatch` on the same
 > function rather than a `View` component, so helper views keep composing.
 > `wrapper` mode (section 25) is not built: `FoldkitComponent.define({ make })`
-> is already the one-line wrapper, so generating it adds no semantics. Source maps and watch mode (26) are built. Submodel and lazy lowering (24) are built. Not
-> yet built: CustomElement lowering (24). Section 20 (Resource bridge) remains a proposal.
+> is already the one-line wrapper, so generating it adds no semantics. Source maps and watch mode (26) are built. Submodel, lazy, and CustomElement lowering (24)
+> are built. Section 20 (Resource bridge) remains a proposal.
 
 Based on Foldkit's current architecture, this would be implemented as **two
 packages**, deliberately avoiding a second renderer in the first release.

@@ -34,6 +34,7 @@ export const DiagnosticCode = {
   EscapedBuilder: 'FKREACT0004',
   UnsupportedAttributeArgument: 'FKREACT0005',
   LazySlot: 'FKREACT0006',
+  CustomElement: 'FKREACT0007',
 } as const
 
 /** Foldkit attributes that are the same DOM attribute or property under a React prop name. */
@@ -187,27 +188,28 @@ const definedView = (
 }
 
 /**
- * Recognizes Foldkit's `defineView` only: imported from `foldkit/submodel`, or
- * reached through that module's namespace or `Submodel` from `foldkit`.
+ * Recognizes a Foldkit function only when it is Foldkit's: `name` imported from
+ * `foldkit/<module>`, or reached through that module's namespace or
+ * `<namespace>` from `foldkit`.
  */
-const foldkitDefineView = (file: ts.SourceFile) => {
+const foldkitFunction = (file: ts.SourceFile, module: string, name: string, namespace: string) => {
   const direct = new Set<string>()
   const namespaces = new Set<string>()
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue
     }
-    const module = statement.moduleSpecifier.text
+    const from = statement.moduleSpecifier.text
     const bindings = statement.importClause?.namedBindings
     if (bindings === undefined) continue
     if (ts.isNamespaceImport(bindings)) {
-      if (module === 'foldkit/submodel') namespaces.add(bindings.name.text)
+      if (from === `foldkit/${module}`) namespaces.add(bindings.name.text)
       continue
     }
     for (const element of bindings.elements) {
       const imported = (element.propertyName ?? element.name).text
-      if (module === 'foldkit/submodel' && imported === 'defineView') direct.add(element.name.text)
-      if (module === 'foldkit' && imported === 'Submodel') namespaces.add(element.name.text)
+      if (from === `foldkit/${module}` && imported === name) direct.add(element.name.text)
+      if (from === 'foldkit' && imported === namespace) namespaces.add(element.name.text)
     }
   }
   return (callee: ts.Expression) =>
@@ -216,7 +218,77 @@ const foldkitDefineView = (file: ts.SourceFile) => {
       : ts.isPropertyAccessExpression(callee) &&
         ts.isIdentifier(callee.expression) &&
         namespaces.has(callee.expression.text) &&
-        callee.name.text === 'defineView'
+        callee.name.text === name
+}
+
+/** A `CustomElement.define` spec whose tag, properties, and events are literals in this module. */
+interface CustomElementSpec {
+  readonly tag: string
+  /** By factory name: `Color` is the `color` property, `OnColorChanged` the `color-changed` event. */
+  readonly factories: ReadonlyMap<
+    string,
+    { readonly kind: 'property' | 'event'; readonly name: string }
+  >
+  readonly exported: boolean
+}
+
+const kebabToPascal = (name: string) =>
+  name
+    .split('-')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('')
+
+const literalKeys = (node: ts.Expression | undefined) =>
+  node !== undefined && ts.isObjectLiteralExpression(node)
+    ? node.properties.map(property =>
+        property.name !== undefined &&
+        (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+          ? property.name.text
+          : undefined,
+      )
+    : undefined
+
+const customElementSpec = (
+  declaration: ts.VariableDeclaration,
+  isDefine: (callee: ts.Expression) => boolean,
+): CustomElementSpec | undefined => {
+  const call = declaration.initializer
+  if (call === undefined || !ts.isCallExpression(call) || !isDefine(call.expression))
+    return undefined
+  const [config] = call.arguments
+  if (config === undefined || !ts.isObjectLiteralExpression(config)) return undefined
+  const field = (key: string) => {
+    const property = config.properties.find(
+      entry => entry.name !== undefined && ts.isIdentifier(entry.name) && entry.name.text === key,
+    )
+    return property !== undefined && ts.isPropertyAssignment(property)
+      ? property.initializer
+      : undefined
+  }
+  const tag = field('tag')
+  const properties = literalKeys(field('properties'))
+  const events = literalKeys(field('events'))
+  if (tag === undefined || !ts.isStringLiteralLike(tag) || !properties || !events) return undefined
+  if ([...properties, ...events].includes(undefined)) return undefined
+  const factories = new Map<string, { kind: 'property' | 'event'; name: string }>()
+  for (const property of properties as Array<string>) {
+    factories.set(property.charAt(0).toUpperCase() + property.slice(1), {
+      kind: 'property',
+      name: property,
+    })
+  }
+  for (const event of events as Array<string>) {
+    factories.set(`On${kebabToPascal(event)}`, { kind: 'event', name: event })
+  }
+  const statement = declaration.parent.parent
+  return {
+    tag: tag.text,
+    factories,
+    exported:
+      ts.isVariableStatement(statement) &&
+      (statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) ??
+        false),
+  }
 }
 
 /** Local names of the named imports from `module`, keyed by imported name. */
@@ -257,7 +329,10 @@ export const transformSourceFile = (
     ts.ScriptKind.TS,
   )
   const diagnostics: Array<Diagnostic> = []
-  const isDefineView = foldkitDefineView(source)
+  const isDefineView = foldkitFunction(source, 'submodel', 'defineView', 'Submodel')
+  const isCustomElementDefine = foldkitFunction(source, 'customElement', 'define', 'CustomElement')
+  const specs = new Map<string, CustomElementSpec>()
+  const customTags = new Set<string>()
   const viewSite = (node: ts.Node) => annotatedView(node) ?? definedView(node, isDefineView)
   const htmlImports = importedNames(source, 'foldkit/html')
   const htmlName = htmlImports.get('Html')
@@ -280,6 +355,10 @@ export const transformSourceFile = (
       node.initializer.arguments.length === 0
     ) {
       slots.set(node.name.text, lazyFactories.get(node.initializer.expression.text)!)
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const spec = customElementSpec(node, isCustomElementDefine)
+      if (spec !== undefined) specs.set(node.name.text, spec)
     }
     ts.forEachChild(node, findSlots)
   }
@@ -330,6 +409,17 @@ export const transformSourceFile = (
       )
     }
 
+    /** Reports an unexported spec used other than `spec.withMessage(h)`: its definition is removed. */
+    const isEscapedSpec = (node: ts.Node) => {
+      if (!ts.isIdentifier(node) || specs.get(node.text)?.exported !== false) return false
+      report(
+        node,
+        DiagnosticCode.CustomElement,
+        `${node.text} can only be used as ${node.text}.withMessage(h) in a view; other uses cannot be compiled.`,
+      )
+      return true
+    }
+
     /** Reports a slot or lazy factory used other than as `const slot = createLazy()` and `slot(...)`. */
     const isEscapedLazy = (node: ts.Node) => {
       if (!ts.isIdentifier(node) || !(slots.has(node.text) || lazyFactories.has(node.text))) {
@@ -349,6 +439,33 @@ export const transformSourceFile = (
       const { view, builderParameter } = site
       const builder = (builderParameter.name as ts.Identifier).text
       converted = true
+      // Element builders bound in this view: `const picker = spec.withMessage(h)`.
+      const binders = new Map<string, CustomElementSpec>()
+
+      /** The spec `spec.withMessage(h)` binds; reports a spec this module does not define literally. */
+      const withMessage = (node: ts.Node): CustomElementSpec | undefined => {
+        if (
+          !ts.isCallExpression(node) ||
+          !ts.isPropertyAccessExpression(node.expression) ||
+          node.expression.name.text !== 'withMessage' ||
+          node.arguments.length !== 1
+        ) {
+          return undefined
+        }
+        const [argument] = node.arguments
+        if (!ts.isIdentifier(argument!) || argument.text !== builder) return undefined
+        const target = node.expression.expression
+        const spec = ts.isIdentifier(target) ? specs.get(target.text) : undefined
+        if (spec === undefined) {
+          report(
+            node,
+            DiagnosticCode.CustomElement,
+            'Define the custom element in this module as CustomElement.define({ tag, properties, events }) with literal keys, so its tag and factories can be compiled.',
+          )
+        }
+        return spec
+      }
+
       const dispatchCall = (message: ts.Expression) =>
         f.createCallExpression(f.createIdentifier(DISPATCH), undefined, [message])
 
@@ -427,7 +544,61 @@ export const transformSourceFile = (
         )
       }
 
-      const attribute = (node: ts.Expression): ts.JsxAttribute | undefined => {
+      const attribute = (
+        node: ts.Expression,
+        custom: CustomElementCall | undefined,
+      ): ts.JsxAttribute | undefined => {
+        if (
+          custom?.binder !== undefined &&
+          ts.isCallExpression(node) &&
+          ts.isPropertyAccessExpression(node.expression) &&
+          ts.isIdentifier(node.expression.expression) &&
+          node.expression.expression.text === custom.binder
+        ) {
+          const factoryName = node.expression.name.text
+          const factory = custom.spec.factories.get(factoryName)
+          const [argument] = node.arguments
+          if (factory === undefined || argument === undefined || node.arguments.length !== 1) {
+            report(
+              node,
+              DiagnosticCode.CustomElement,
+              `${custom.binder}.${factoryName} is not a declared property or event of <${custom.spec.tag}>.`,
+            )
+            return undefined
+          }
+          const value = visit(argument) as ts.Expression
+          const lowered =
+            factory.kind === 'property'
+              ? value
+              : // React 19 listens for exactly the event name after `on` on a custom element.
+                f.createArrowFunction(
+                  undefined,
+                  undefined,
+                  [
+                    f.createParameterDeclaration(
+                      undefined,
+                      undefined,
+                      'event',
+                      undefined,
+                      f.createTypeReferenceNode('CustomEvent'),
+                    ),
+                  ],
+                  undefined,
+                  f.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                  dispatchCall(
+                    f.createCallExpression(f.createParenthesizedExpression(value), undefined, [
+                      f.createPropertyAccessExpression(f.createIdentifier('event'), 'detail'),
+                    ]),
+                  ),
+                )
+          return withSourceOf(
+            f.createJsxAttribute(
+              f.createIdentifier(factory.kind === 'property' ? factory.name : `on${factory.name}`),
+              f.createJsxExpression(undefined, lowered),
+            ),
+            node,
+          )
+        }
         if (
           !ts.isCallExpression(node) ||
           !ts.isPropertyAccessExpression(node.expression) ||
@@ -621,13 +792,38 @@ export const transformSourceFile = (
         readonly key: ts.Expression | undefined
         readonly arguments: ReadonlyArray<ts.Expression>
         readonly node: ts.CallExpression
+        readonly custom: CustomElementCall | undefined
+      }
+
+      interface CustomElementCall {
+        readonly spec: CustomElementSpec
+        /** The bound builder's name, whose factories become props; absent for `spec.withMessage(h)(…)`. */
+        readonly binder: string | undefined
       }
 
       /** `h.div(attributes, children)`, or `h.keyed('li')(key, attributes, children)`. */
       const elementCall = (node: ts.Node): ElementCall | undefined => {
         if (!ts.isCallExpression(node)) return undefined
         if (isBuilderAccess(node.expression) && TAGS.has(node.expression.name.text)) {
-          return { tag: node.expression.name.text, key: undefined, arguments: node.arguments, node }
+          return {
+            tag: node.expression.name.text,
+            key: undefined,
+            arguments: node.arguments,
+            node,
+            custom: undefined,
+          }
+        }
+        const bound = ts.isIdentifier(node.expression)
+          ? binders.get(node.expression.text)
+          : undefined
+        if (bound !== undefined) {
+          const custom = { spec: bound, binder: (node.expression as ts.Identifier).text }
+          return { tag: bound.tag, key: undefined, arguments: node.arguments, node, custom }
+        }
+        const inline = withMessage(node.expression)
+        if (inline !== undefined) {
+          const custom = { spec: inline, binder: undefined }
+          return { tag: inline.tag, key: undefined, arguments: node.arguments, node, custom }
         }
         const factory = node.expression
         if (
@@ -641,7 +837,7 @@ export const transformSourceFile = (
           const [key, ...rest] = node.arguments
           return key === undefined
             ? undefined
-            : { tag: factory.arguments[0].text, key, arguments: rest, node }
+            : { tag: factory.arguments[0].text, key, arguments: rest, node, custom: undefined }
         }
         return undefined
       }
@@ -651,6 +847,7 @@ export const transformSourceFile = (
         key,
         arguments: [attributesArgument, childrenArgument],
         node,
+        custom,
       }: ElementCall): ts.JsxElement | ts.JsxSelfClosingElement => {
         const attributes: Array<ts.JsxAttribute> = []
         if (key !== undefined) {
@@ -664,7 +861,7 @@ export const transformSourceFile = (
         if (attributesArgument !== undefined) {
           if (ts.isArrayLiteralExpression(attributesArgument)) {
             for (const entry of attributesArgument.elements) {
-              const lowered = attribute(entry)
+              const lowered = attribute(entry, custom)
               if (lowered) attributes.push(lowered)
             }
           } else {
@@ -681,6 +878,7 @@ export const transformSourceFile = (
             : ts.isArrayLiteralExpression(childrenArgument)
               ? childrenArgument.elements.map(child)
               : [f.createJsxExpression(undefined, visit(childrenArgument) as ts.Expression)]
+        if (custom !== undefined) customTags.add(tag)
         const name = f.createIdentifier(tag)
         const props = f.createJsxAttributes(attributes)
         return withSourceOf(
@@ -697,6 +895,27 @@ export const transformSourceFile = (
 
       const visit = (node: ts.Node): ts.Node => {
         if (isHtmlType(node)) return reactNodeType()
+        if (ts.isVariableStatement(node)) {
+          const bound = node.declarationList.declarations.map(declaration =>
+            ts.isIdentifier(declaration.name) && declaration.initializer !== undefined
+              ? ([declaration.name.text, withMessage(declaration.initializer)] as const)
+              : undefined,
+          )
+          if (bound.every(entry => entry?.[1] !== undefined)) {
+            for (const entry of bound) binders.set(entry![0], entry![1]!)
+            // Each use becomes a JSX element, so the binding itself goes.
+            return undefined as unknown as ts.Node
+          }
+        }
+        if (ts.isIdentifier(node) && binders.has(node.text)) {
+          report(
+            node,
+            DiagnosticCode.CustomElement,
+            `${node.text} can only be called as an element, with its factories inline in the attribute array.`,
+          )
+          return node
+        }
+        if (isEscapedSpec(node)) return node
         const nested = viewSite(node)
         if (nested !== undefined && nested.view !== view) return visitView(nested)
         const slot = slotCall(node)
@@ -838,6 +1057,18 @@ export const transformSourceFile = (
       if (isHtmlType(node)) return reactNodeType()
       const site = viewSite(node)
       if (site !== undefined) return visitView(site)
+      if (
+        ts.isVariableStatement(node) &&
+        node.declarationList.declarations.every(
+          declaration =>
+            ts.isIdentifier(declaration.name) &&
+            specs.get(declaration.name.text)?.exported === false,
+        )
+      ) {
+        // Every use of an unexported spec is compiled to its tag, so the definition goes.
+        return undefined as unknown as ts.Node
+      }
+      if (isEscapedSpec(node)) return node
       const slot = slotCall(node)
       if (slot !== undefined) return lowerSlot(slot, visitTop)
       if (
@@ -864,6 +1095,9 @@ export const transformSourceFile = (
 
   let output = result.transformed[0]!
   if (converted) output = rewriteImports(output)
+  if (customTags.size > 0) {
+    output = f.updateSourceFile(output, [...output.statements, intrinsicElements(customTags)])
+  }
   const header = `// @generated by foldkit-react-codegen from ${fileName.replace(/\\/g, '/')}. Do not edit.\n`
   // Printed before dispose, which discards the source map ranges set during the transform.
   const printed = options.sourceMap ? printWithSourceMap(output) : { code: printFile(output) }
@@ -874,6 +1108,44 @@ export const transformSourceFile = (
   map.mappings = `;${map.mappings}`
   return { ok: true, code: header + printed.code, map: JSON.stringify(map), diagnostics: [] }
 }
+
+/**
+ * `declare module 'react'` entries for compiled custom element tags, so the
+ * output type-checks. Props are untyped: Foldkit's Schema types are not known here.
+ */
+const intrinsicElements = (tags: ReadonlySet<string>) =>
+  f.createModuleDeclaration(
+    [f.createModifier(ts.SyntaxKind.DeclareKeyword)],
+    f.createStringLiteral('react'),
+    f.createModuleBlock([
+      f.createModuleDeclaration(
+        undefined,
+        f.createIdentifier('JSX'),
+        f.createModuleBlock([
+          f.createInterfaceDeclaration(
+            undefined,
+            'IntrinsicElements',
+            undefined,
+            undefined,
+            [...tags]
+              .sort()
+              .map(tag =>
+                f.createPropertySignature(
+                  undefined,
+                  f.createStringLiteral(tag),
+                  undefined,
+                  f.createTypeReferenceNode('Record', [
+                    f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+                    f.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+                  ]),
+                ),
+              ),
+          ),
+        ]),
+        ts.NodeFlags.Namespace,
+      ),
+    ]),
+  )
 
 const FOLDKIT_MODULES = new Set(['foldkit', 'foldkit/html', 'foldkit/submodel'])
 
