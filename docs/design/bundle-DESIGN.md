@@ -41,6 +41,11 @@ transition goes through the parent's `update`. A placement is therefore an
 | Collections (`each`) use string keys in a `Record` field and one parent Subscription entry per child entry | Restart semantics are simple and correct; keep-alive child entries keep alive per item. |
 | `add(key, prepare)` | An item cannot see its key; the parent writes what only it knows, such as the id. |
 | `each` rejects bundles with resources at the type level | Items would share one resource tag. |
+| `Bundle.parent({ Model, Message })` scope with one signature per method | Parent types inferred from the Schemas; errors land on the wrong argument. See the [DX plan outcome](./bundle-DX-PLAN.md#outcome). |
+| `placements.initial(rest)` with `rest` typed as the fields no placement owns | Placements carry their field literal as a type parameter, so a missing own field and a placement's field in `rest` are both type errors. |
+| Args as a Schema, checked at placement and listed in Module metadata | `init` and `update` need no annotations, and presets (`bundle.with`) keep their args visible. |
+| Pipeable bundles and Links with data-last combinators | Extending a bundle does not fork it, and callbacks are typed from the bundle in a pipe. |
+| `CollectionLink` owns its storage (`entries`, `get`, `write`, `empty`) | Record and array-by-id storage share one collection implementation; an array keeps its order. |
 
 ## Deferred
 

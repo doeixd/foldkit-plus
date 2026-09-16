@@ -1,8 +1,8 @@
 # foldkit-bundle: developer-experience plan
 
-> **Status:** plan, not built. `foldkit-bundle` and `foldkit-bundle-surface`
-> are unpublished (0.1.0), so every change here may break the current API.
-> [bundle-DESIGN.md](./bundle-DESIGN.md) records what exists today.
+> **Status:** built through W7. The sections below are the plan as written;
+> [Outcome](#outcome) records where the build departed from it and why.
+> [bundle-DESIGN.md](./bundle-DESIGN.md) records the resulting design.
 
 ## Why
 
@@ -252,3 +252,18 @@ type-checking benchmark and record it in `docs/benchmarks.md`.
 - **Should `declare` survive W2's inline overload?** Keeping it lets the parent
   Message be built from `cases` before the scope exists, which the inline form
   cannot do. Planned: keep both, and document `declare` as the default.
+
+## Outcome
+
+Built as planned, except:
+
+| Plan | Built | Why |
+| --- | --- | --- |
+| One overloaded `Page.at` / `Page.each` for declarations, field names, and Links | `Page.at` and `Page.each` for declarations, `Page.place` and `Page.placeEach` for field names; a custom Link uses `bundle.at(Page.link.field(…))` | With overloads, a wrong field read "No overload matches this call" with every signature listed. One signature per method reports the wrong field, the missing variant, or the missing `onOut` on its own line. |
+| `placements.update(own)` generic over the own update's services | `update(own)` is not generic; services are named once with `Page.withServices<S>()` or `Bundle.assemble<Model, Message, S>()` | A generic call written inline in `complete`'s config stopped TypeScript inferring that config, so every check reported a false error. |
+| `declared.pipe(Link.when(…))` for a gate on a declared placement | `when` in the placement config | A declaration is not a Link, and the parent type is known only at placement. |
+| Typed keys through a key codec, and `HashMap` storage | Keys constrained to `string` (branded ids work), record and array-by-id storage | Keys stay strings at runtime, so Subscription dependencies and record fields need no encoding; `HashMap` Models are rare in Foldkit. |
+| `initial(rest)` mounts every single placement | `rest` may give a custom-Link placement's field, which then skips its `init` | A `Link.optional` placement could otherwise never start as `None`. |
+
+The scope's inference costs about 10% more check time at 100 placements
+(2.23 s against 2.02 s), inside the 25% budget ([benchmarks](../benchmarks.md)).
