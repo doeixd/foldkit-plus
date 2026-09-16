@@ -44,6 +44,8 @@ export interface Link<Parent, ParentMessage, Child, ChildMessage> {
   readonly when: Option.Option<(parent: Parent) => boolean>
   /** Where the child lives, for placement keys and diagnostics. */
   readonly path: ReadonlyArray<string>
+  /** The parent Message tags this link's Messages travel under, outermost first. */
+  readonly messages: ReadonlyArray<string>
 }
 
 export const isLink = (value: unknown): value is Link<unknown, unknown, unknown, unknown> =>
@@ -86,6 +88,7 @@ const make = <Parent, const Tag extends string, Child, ChildMessage>(
   fromParentMessage: config.wrapper.fromParentMessage,
   when: Option.fromNullishOr(config.when),
   path: config.path,
+  messages: [config.wrapper.tag],
 })
 
 /**
@@ -156,6 +159,7 @@ const compose = <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
       ),
   }),
   path: [...outer.path, ...inner.path],
+  messages: [...outer.messages, ...inner.messages],
 })
 
 /** The parent Message variant `Tag({ key, message })` that carries one collection item's Messages. */
@@ -210,6 +214,8 @@ export interface CollectionLink<Parent, ParentMessage, Child, ChildMessage> {
   /** The parent's gate per item: while it returns `false`, that item's Subscriptions stop. */
   readonly when: Option.Option<(parent: Parent, key: string) => boolean>
   readonly path: ReadonlyArray<string>
+  /** The parent Message tag this collection's Messages travel under. */
+  readonly messages: ReadonlyArray<string>
 }
 
 type RecordKeys<Parent> = {
@@ -245,6 +251,7 @@ const collection =
     fromParentMessage: wrap.fromParentMessage,
     when: Option.fromNullishOr(options.when),
     path: [key],
+    messages: [wrap.tag],
   })
 
 export const Link = { wrapper, make, field, optional, compose, keyedWrapper, collection } as const

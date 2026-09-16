@@ -208,6 +208,8 @@ describe('Link.compose', () => {
       onOut: () => model => ({ model }),
     })
     expect(Nested.key).toBe('Counter@inner.counter')
+    expect(Nested.link.messages).toEqual(['GotInnerMessage', 'GotCounterMessage'])
+    expect(Left.link.messages).toEqual(['GotLeftMessage'])
     const present: Outer = { inner: Option.some({ counter }) }
     const message = GotInner.make(GotCounter.make(CounterMessage.Incremented()))
     const result = Option.getOrThrow(Nested.update(present, message))

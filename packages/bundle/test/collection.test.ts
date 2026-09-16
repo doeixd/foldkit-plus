@@ -102,6 +102,7 @@ describe('Link.keyedWrapper', () => {
 
 describe('Bundle.each', () => {
   it('adds an item from init, lifting its Commands with the key', () => {
+    expect(Items.link.messages).toEqual(['GotItemMessage'])
     const added = Items.add('a')(empty)
     expect(added.model.items).toEqual({ a: { count: 0, live: false } })
     expect(commandMessages(added)).toEqual([GotItemMessage.make('a', ItemMessage.Toggled())])
