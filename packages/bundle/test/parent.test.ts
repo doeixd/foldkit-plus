@@ -103,6 +103,20 @@ describe('Bundle.parent', () => {
     ).toBe(true)
   })
 
+  it('initial builds the parent Model from the placements’ inits and the rest', () => {
+    const scoped = Page.assemble(LeftPlaced, Inline, RowsPlaced)
+    const result = scoped.initial({ right: counter, boxes: {}, reached: [] })
+    expect(result.model).toEqual({
+      left: { count: 0, running: false },
+      inline: { count: 0, running: false },
+      rows: {},
+      right: counter,
+      boxes: {},
+      reached: [],
+    })
+    expect(result.commands).toHaveLength(2)
+  })
+
   it('merges every placement’s Subscriptions', () => {
     expect(Object.keys(placements.subscriptions())).toEqual([
       'Counter@left/ticks',

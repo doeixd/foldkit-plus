@@ -32,7 +32,14 @@ type VariantCheck<Variant, Message> = [Variant] extends [Message]
   ? unknown
   : Invalid<"The parent Message does not include this placement's wrapper variant; spread its cases into defineMessageUnion">
 
-type PlacedBy<B extends AnyBundle, Model, LinkMessage, OutStepMessage, R2> = Placed<
+type PlacedBy<
+  B extends AnyBundle,
+  Model,
+  LinkMessage,
+  OutStepMessage,
+  R2,
+  Field extends string,
+> = Placed<
   P<B>['Name'],
   Model,
   LinkMessage | OutStepMessage,
@@ -42,10 +49,18 @@ type PlacedBy<B extends AnyBundle, Model, LinkMessage, OutStepMessage, R2> = Pla
   P<B>['S'],
   P<B>['ViewInputs'],
   P<B>['Resources'],
-  P<B>['Helpers']
+  P<B>['Helpers'],
+  Field
 >
 
-type CollectionBy<B extends AnyBundle, Model, LinkMessage, OutStepMessage, R2> = PlacedCollection<
+type CollectionBy<
+  B extends AnyBundle,
+  Model,
+  LinkMessage,
+  OutStepMessage,
+  R2,
+  Field extends string,
+> = PlacedCollection<
   P<B>['Name'],
   Model,
   LinkMessage | OutStepMessage,
@@ -54,7 +69,8 @@ type CollectionBy<B extends AnyBundle, Model, LinkMessage, OutStepMessage, R2> =
   P<B>['R'] | R2,
   P<B>['S'],
   P<B>['ViewInputs'],
-  P<B>['Helpers']
+  P<B>['Helpers'],
+  Field
 >
 
 /** Keys of the parent Model whose value is exactly the bundle's Model. */
@@ -100,7 +116,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       R2
     > &
       VariantCheck<Wrapped<WrapperTag<Field>, P<B>['Message']>, Message>
-  ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2>
+  ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>
 
   /** A bundle in a field of the parent, with the wrapper `Got<Field>Message`. */
   readonly place: <
@@ -121,7 +137,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       R2
     > &
       VariantCheck<Wrapped<WrapperTag<Field>, P<B>['Message']>, Message>
-  ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2>
+  ) => PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>
 
   /** A collection declared with `Bundle.declareEach`. */
   readonly each: <
@@ -141,7 +157,14 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       R2
     > &
       VariantCheck<KeyedWrapped<WrapperTag<Field>, P<B>['Message']>, Message>
-  ) => CollectionBy<B, Model, KeyedWrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2>
+  ) => CollectionBy<
+    B,
+    Model,
+    KeyedWrapped<WrapperTag<Field>, P<B>['Message']>,
+    OutStepMessage,
+    R2,
+    Field
+  >
 
   /** A bundle per key of a record field, with the wrapper `Got<Field>Message`. */
   readonly placeEach: <
@@ -162,7 +185,14 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       R2
     > &
       VariantCheck<KeyedWrapped<WrapperTag<Field>, P<B>['Message']>, Message>
-  ) => CollectionBy<B, Model, KeyedWrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2>
+  ) => CollectionBy<
+    B,
+    Model,
+    KeyedWrapped<WrapperTag<Field>, P<B>['Message']>,
+    OutStepMessage,
+    R2,
+    Field
+  >
 
   /** The one list of the parent's placements and collections. */
   readonly assemble: <

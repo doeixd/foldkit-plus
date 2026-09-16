@@ -56,8 +56,11 @@ export interface PlacedCollection<
   S,
   ViewInputs,
   Helpers,
+  Field extends string = string,
 > {
   readonly [PlacedCollectionTypeId]: typeof PlacedCollectionTypeId
+  /** Types only: the record field this collection owns, or `string` when unknown. */
+  readonly field?: Field
   readonly name: Name
   /** `Name@path[]`, or the configured `key`: the prefix of every Subscription key. */
   readonly key: string

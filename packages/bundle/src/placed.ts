@@ -62,8 +62,11 @@ export interface Placed<
   ViewInputs,
   Resources,
   Helpers,
+  Field extends string = string,
 > {
   readonly [PlacedTypeId]: typeof PlacedTypeId
+  /** Types only: the top-level Model field this placement owns, or `string` when unknown. */
+  readonly field?: Field
   readonly name: Name
   /** `Name@path`, or the configured `key`: the prefix of every Subscription and resource key. */
   readonly key: string

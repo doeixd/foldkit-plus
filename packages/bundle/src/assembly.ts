@@ -33,6 +33,26 @@ type ServicesOf<P> =
     : P extends PlacedCollection<string, any, any, any, any, any, infer S, any, any>
       ? S
       : never
+type FieldOf<P> =
+  P extends Placed<string, any, any, any, any, any, any, any, any, any, infer F>
+    ? F
+    : P extends PlacedCollection<string, any, any, any, any, any, any, any, any, infer F>
+      ? F
+      : never
+type CollectionFieldOf<P> =
+  P extends PlacedCollection<string, any, any, any, any, any, any, any, any, infer F> ? F : never
+
+/**
+ * What `initial` needs besides the placements: exactly the fields no placement
+ * owns, with collection fields optional. When a placement came from a custom
+ * Link its field is unknown, so every field is optional.
+ */
+export type InitialRest<Model, Ps extends ReadonlyArray<unknown>> =
+  string extends FieldOf<Ps[number]>
+    ? Partial<Model>
+    : Omit<Model, FieldOf<Ps[number]>> &
+        Partial<Pick<Model, CollectionFieldOf<Ps[number]> & keyof Model>>
+
 type ResourceEntriesOf<P> = P extends { readonly resources: infer Resources }
   ? Resources[keyof Resources]
   : never
@@ -63,6 +83,14 @@ export interface Assembly<
     model: Model,
     message: Message,
   ) => Update.Return<Model, Message, RequirementsOf<Ps[number]> | Services>
+  /**
+   * The parent's initial Model and Commands: `rest` for the fields no placement
+   * owns, every single placement's `init`, and `{}` for a collection `rest`
+   * leaves out. For `init` in the runtime config.
+   */
+  readonly initial: (
+    rest: InitialRest<Model, Ps>,
+  ) => Update.Return<Model, Message, RequirementsOf<Ps[number]>>
   /** Every single placement's init, in list order. Collections start empty; add items with `add`. */
   readonly init: Update.Step<Model, Message, RequirementsOf<Ps[number]>>
   /** The placements' Subscriptions merged with the parent's own. Throws on a duplicate key. */
@@ -171,6 +199,10 @@ export const assemble =
         Array.findFirst(placed => placed.update(model, message)),
       )
 
+    const init: Update.Step<Model, Message, RequirementsOf<Ps[number]>> = Update.combine(
+      singles.map(placed => placed.init),
+    )
+
     return {
       placements,
       route,
@@ -179,7 +211,18 @@ export const assemble =
           Option.getOrElse(route(model, message), () =>
             own === undefined ? { model } : own(model, message),
           )) as Assembly<Model, Message, Ps, Services>['update'],
-      init: Update.combine(singles.map(placed => placed.init)),
+      init,
+      initial: rest => {
+        // Collections at a top-level field start empty; each single placement
+        // writes its own slice through its Link. The placements' fields are
+        // absent from `rest` until their inits write them.
+        const collections = Object.fromEntries(
+          placements
+            .filter(placement => !isPlaced(placement) && placement.link.path.length === 1)
+            .map(placement => [placement.link.path[0], {}]),
+        )
+        return init({ ...collections, ...rest } as Model)
+      },
       subscriptions: own =>
         brand(
           Subscription.aggregate<Model, Message, any>()(

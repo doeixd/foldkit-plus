@@ -52,3 +52,22 @@ interface Clock {
 declare const own: (model: Model, message: Message) => Update.Return<Model, Message, Clock>
 const withClock = Page.withServices<Clock>().assemble(placed)
 expectTypeOf(withClock.update(own)).returns.toEqualTypeOf<Update.Return<Model, Message, Clock>>()
+
+// initial: exactly the fields no placement owns.
+const Items = Bundle.declareEach(Counter, 'items')
+const WithItems = Bundle.parent({
+  Model: Schema.Struct({ ...Box.fields, ...Items.fields, title: Schema.String }),
+  Message: defineMessageUnion({ ...Box.cases, ...Items.cases }),
+})
+const { resources: _r, at: _a, each: _e, ...plain } = Counter
+const PlainCounter = Bundle.make({ ...plain, name: 'PlainCounter' })
+const scoped = WithItems.assemble(
+  WithItems.at(Box, { args: { limit: 1, start: 0 }, onOut }),
+  WithItems.placeEach(PlainCounter, 'items', { args: { limit: 1, start: 0 }, onOut }),
+)
+scoped.initial({ title: 'x' })
+scoped.initial({ title: 'x', items: {} })
+// @ts-expect-error: `title` is not owned by a placement, so it is required
+scoped.initial({})
+// @ts-expect-error: `box` is written by its placement's init
+scoped.initial({ title: 'x', box: { count: 0, running: false } })
