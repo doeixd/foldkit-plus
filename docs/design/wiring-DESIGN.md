@@ -1,8 +1,12 @@
 # Wiring: one list for every integration
 
-> **Status:** proposal, not built. It generalises the assembly `foldkit-bundle`
-> already ships ([bundle-DESIGN.md](./bundle-DESIGN.md)) so Remote, Mirror, Sync,
-> Agent, and bundle placements join an application the same way.
+> **Status:** steps 1–6 built (wiring type, assembly, `Mirror.wiring`,
+> `Remote.wiring`, Sync/Agent contract wirings, both example migrations).
+> What changed from the proposal is recorded under [Deviations](#deviations).
+
+A **Wiring** generalises the assembly `foldkit-bundle` already ships
+([bundle-DESIGN.md](./bundle-DESIGN.md)) so Remote, Mirror, Sync, and Agent
+join an application the same way placements do.
 
 ## The problem
 
@@ -109,8 +113,8 @@ returns: `route` from `Remote.reduces` and `Data.reduce`, `handles` from the
 Remote Message tags, `subscriptions` from `Data.subscriptions(active, options)`,
 `services` as `RemoteClient`, and `contract` from `Data.contract`.
 
-**Mirror.** `Filters.wiring({ onUrlChange: Message.UrlChanged })` for a URL mirror
-routes the application's URL Message into `Filters.reduce` and sets `onUrl`.
+**Mirror.** `Filters.wiring(tag)` for a URL mirror takes the application's URL
+Message tag and routes that variant into `Filters.reduce`, and sets `onUrl`.
 `Prefs.wiring()` for a key-value mirror routes `MirrorRestored` for its own name,
 puts `Prefs.restore` in `init`, and carries its subscriptions and contract.
 Two key-value mirrors share the `MirrorRestored` tag, so Mirror's `route` checks
@@ -136,7 +140,7 @@ contract-only, for the Module.
 const wiring = Page.assemble(
   Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }),
   Data.wiring({ board: BoardSurface }),
-  Filters.wiring({ onUrlChange: Message.UrlChanged }),
+  Filters.wiring('UrlChanged'),
   Prefs.wiring(),
   TodoAgent.wiring(),
 )
@@ -147,7 +151,7 @@ const config = wiring.complete({
   view,
   subscriptions: wiring.subscriptions(),
   managedResources: wiring.resources(),
-  url: wiring.url(Message.UrlChanged),
+  url: wiring.url(url => Message.UrlChanged({ url })),
 })
 
 const AppModule = wiring.module(App, [BoardSurface])
@@ -186,26 +190,30 @@ Before, the Mirror and Sync wiring spans `app.ts`, `surface.ts`, and
 
 ```ts
 // surface.ts
-export const wiring = Page.assemble(
-  Filters.wiring({ onUrlChange: Message.UrlChanged }),
-  Prefs.wiring(),
-  TodoSync.wiring(),
-  TodoAgent.wiring(),
-)
+export const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
 export const update = wiring.update(ownUpdate)
 
 // runtime.ts
-Sync.mount(replica, wiring.complete({
-  init: wiring.initial(initialFields),
-  update,
+const start = wiring.initial(initialModel)
+const mounted = mountTodos(replica, {
+  container,
   view,
   subscriptions: wiring.subscriptions(),
-  url: wiring.url(Message.UrlChanged),
-}))
+  resources: storage,
+  url: wiring.url(url => Message.UrlChanged({ url })),
+})
+for (const command of start.commands ?? []) {
+  void Effect.runPromise(command.effect.pipe(Effect.provide(storage))).then(message =>
+    mounted.dispatch(message),
+  )
+}
 ```
 
 The manual `Prefs.restore` dispatch after mounting goes away (it is `Prefs`'s
-`init`), and forgetting any line above is a type error.
+`init`), and forgetting any line above is a type error. Sync and Agent stay
+out of this list: their contracts derive from `App`, so importing them here
+would cycle back into this module; their contracts join the Module directly
+(see [Deviations](#deviations)).
 
 ## Other design improvements this surfaces
 
@@ -261,6 +269,44 @@ Each step lands as small, reviewed commits with tests that can fail.
 **Acceptance:** in both examples, removing any single Wiring line is a type error
 or a startup error naming the integration; the pinned transcripts are unchanged;
 type-check time for each example rises by no more than 25%.
+
+Steps 1–6 are built; step 7 is this document's remaining section and the README
+and skill updates. The transcripts are unchanged. Type-check time was not
+measured; the assemblies add no new package dependencies beyond
+`foldkit-bundle` in the two examples.
+
+## Deviations
+
+What the build taught the proposal:
+
+- **One list per application became two, split by the module graph.** Sync and
+  Agent contracts derive from `App` at module-evaluation time, so the module
+  that builds `App` cannot import them back: the runtime assembly
+  (`update`, `initial`, `subscriptions`, `url`) lives beside the mirrors and
+  covers Remote/Mirror wirings, while Sync/Agent contracts join the Module
+  directly. A contract-only wiring still exists for each, so the Module can be
+  derived from one list later without changing the packages.
+- **Services ride along in `update`'s return type.** An assembly's `update`
+  carries every wiring's services (`App.Resources` becomes `KeyValueStore` or
+  `RemoteClient`), because `Wiring` has one `R` for route, init, and entries.
+  Examples annotate `update` to break the resulting inference cycle, and
+  anything that runs `update`'s Commands provides the layer; the headless demo
+  store and `mountTodos` were adjusted accordingly.
+- **`route` is a method, not a property.** A wiring that routes only its own
+  variants must fit an assembly over the whole application union, which needs
+  parameter bivariance.
+- **`Remote.wiring` keeps `Data.subscriptions`' exact keys at runtime only.**
+  The branded record cannot preserve the generic `Active` key mapping through
+  `Subscription.make`, so `RemoteWiring` does not redeclare the exact keys;
+  its test asserts them behaviorally.
+- **`Sync.mount` needed no change.** Its options already accept the assembly's
+  derivations (`subscriptions`, `url`, and the runtime `resources` layer).
+- **Removing a wiring line is quieter than the acceptance criterion asks.**
+  Forgetting a derivation in `complete()` is a type error, and two claimants of
+  one tag fail at startup naming both — but removing a wiring from `assemble`
+  itself still compiles and silently drops its routing, init, and Subscriptions.
+  The parity tests pin what each wiring contributes; a removal is caught by
+  behaviour (the pinned transcripts), not by construction.
 
 ## Open questions
 
