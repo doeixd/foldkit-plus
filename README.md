@@ -346,6 +346,18 @@ components.
 requires Node 22 for `node:sqlite`. The [release matrix](./docs/releases.md)
 lists every package's current version.
 
+### Agent skill
+
+[`skills/foldkit-plus`](./skills/foldkit-plus/SKILL.md) is an
+[Agent Skill](https://agentskills.io) that teaches a coding agent what each
+package owns, when to reach for it, and a basic example of each. Install it into
+Claude Code, Cursor, OpenCode, and other agents with
+[skills.sh](https://skills.sh):
+
+```bash
+npx skills add doeixd/foldkit-plus --skill foldkit-plus
+```
+
 ## Go deeper
 
 The root README is the map. The guides teach the architecture and each package

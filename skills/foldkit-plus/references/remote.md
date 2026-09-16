@@ -1,0 +1,295 @@
+# Remote: server-owned data cached in the Model
+
+`foldkit-remote` keeps a **normalized, disposable cache of server-owned facts
+inside the Foldkit Model**. Features declare which entity fields they need;
+active Surfaces turn those needs into reads; results come back as ordinary
+Messages reduced by one pure reducer. There is no hidden cache next to the app.
+
+> A Remote Projection does not fetch. It declares requirements. I/O happens in
+> Subscriptions/Commands, and results reduce back into the Model.
+
+## When to use it
+
+| State | Owner |
+| --- | --- |
+| Route, selection, form drafts, transient UI errors | app Model + `update` |
+| Server-owned facts that can be refetched | `foldkit-remote` |
+| Client-authored edits that must survive offline/restart and converge | `foldkit-sync` (+ `foldkit-durable`) |
+| Local state reflected in the URL or a preference store | app Model, observed by `foldkit-mirror` |
+
+Remote recovery is "discard and refetch". If losing an unsent edit is data loss,
+it is not Remote. A Remote mutation is an immediate server request, **not** an
+offline outbox. Also not for local-only state or single-endpoint request caching.
+
+Packages:
+- `foldkit-remote` (client): entities, normalized store, `Remote.Model` + reducer, queries, optimistic overlays, live cursors, `RemoteClient`.
+- `foldkit-remote-server`: interprets requirements against your Sources with field authorization and a live hub; not transport, auth, or a DB.
+- `foldkit-remote-drizzle` (provisional): compiles selections and queries into Drizzle SELECTs; needs a `DrizzleDatabase` you provide.
+
+## Mental model
+
+```text
+Entity.make + .select           what a fact looks like / what a consumer needs
+Data.get / live / query         pure Projection; requirements ride in Projection metadata
+Data.subscriptions({...})       per active Surface: `<key>.read`, `<key>.live`, plus one `retain`
+RemoteClient (Effect service)   read / query / mutate / live I/O
+Remote Messages                 ReadStarted, ReadReceived, ConnectionMerged, MutationSucceeded, ...
+Data.reduce(model, message)     the only way the cache changes
+```
+
+The read entry diffs requirements against the store and fetches only missing or
+stale fields. An inactive Surface creates no work. `RemoteData` is a closed union
+(`RemoteData.match` is exhaustive):
+
+- `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
+- `Loading`: absent, a read is in flight.
+- `Ready`: all selected fields present and decode.
+- `Refreshing`: old value still visible while refetching.
+- `Failed`: stored data does not decode against the Selection.
+- `NotFound`: tombstone (server said the entity is absent).
+
+## Minimal client
+
+```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
+import { Entity, Remote, RemoteClient, RemoteData, type RemoteRpcClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+
+const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Project = Entity.make('Project', Schema.Struct({
+  id: Schema.String, name: Schema.String, owner: Entity.ref(User), // refs, not nested copies
+}))
+const ProjectSummary = Project.select({ id: true, name: true, owner: User.select({ id: true, name: true }) })
+
+const Model = Schema.Struct({ projectId: Schema.NullOr(Schema.String), remote: Remote.Model })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Remote.messages })
+type Message = typeof Message.Type
+
+// Annotate update's return type: Data is bound to App, App is built from update.
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
+  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
+  return { model }
+}
+
+const App = Surface.application({ Model, Message, initial: { projectId: null, remote: Remote.initial }, update })
+
+const Data = Remote.make({ model: App.model.remote, entities: [User, Project] }) // App.fields.remote also works
+
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }), // no I/O
+})
+
+const label = (data: RemoteData<{ readonly name: string }>) =>
+  RemoteData.match(data, {
+    Initial: () => 'not requested', Loading: () => 'loading',
+    Ready: p => p.name, Refreshing: p => `${p.name} (refreshing)`,
+    Failed: () => 'bad data', NotFound: () => 'gone',
+  })
+
+const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
+  Data.subscriptions({
+    // `undefined` params = Surface inactive = no reads.
+    page: Surface.at(ProjectPage, m => (m.projectId === null ? undefined : { projectId: m.projectId })),
+  }),
+)
+
+declare const rpcClient: RemoteRpcClient
+const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the runtime
+```
+
+`Remote.Model` is a Submodel, not a second store. `Data` is the bound domain API.
+Every entity/query/mutation used through `Data` must be registered in
+`Remote.make` (unregistered descriptors are type errors).
+
+## Common tasks
+
+Register queries and mutations: `Remote.make({ model, entities, queries: [ProjectsByOwner], mutations: [RenameProject] })`.
+
+```ts
+import { Mutation, Query, RemotePolicy } from 'foldkit-remote'
+
+const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema.String }, Result: Project })
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String }, Output: { id: Schema.String },
+})
+
+// Query Projection: RemoteData<Page<Value>>; Initial until the page AND every item's selected fields are present.
+const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
+
+// Data.live: same as get, but also opens a live stream while the Surface is active.
+// model: ({ params }) => ({ project: Data.live(ProjectSummary, params.projectId), projects })
+
+// Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
+// Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
+
+// In update (Message cases ClickedRename {id,name}, ClickedMore {}, ClickedRefresh {}):
+case 'ClickedRename': {
+  const { model: started, command } = Data.mutate(model, RenameProject,
+    { id: message.id, name: message.name },
+    { optimistic: [Project.patch(message.id, { name: message.name })] })
+  return { model: started, commands: [command] } // command yields MutationSucceeded/MutationFailed
+}
+case 'ClickedMore': {
+  const next = Data.next(model, projects) // QueryRef | undefined (also Data.previous)
+  return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
+}
+case 'ClickedRefresh': {
+  if (model.projectId === null) return { model }
+  // Mark-only, no I/O: fields read Refreshing, connections invalidated, refresh generation bumped.
+  return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.projectId })) }
+}
+```
+
+- Optimistic patches are **layers** over the base store (recomputed base +
+  pending layers), released on settle by `requestId`; settlement is idempotent.
+  Optimistic list edits: `optimistic: ({ tempId }) => [Project.patch(tempId, {...}), ConnectionChange.prepend(projects.ref, Project.ref(tempId))]`,
+  where `projects` is the `Data.query(...)` Projection above.
+- `Data.refresh(model, target)` accepts a Projection or a Surface **without
+  params**. It only works if something observes that Projection (an active
+  read entry). For unobserved data use `Data.prefetch` with `RemotePolicy.networkOnly`.
+
+Prefetch (SSR, route/hover, tests) and persistence:
+
+```ts
+import { Effect } from 'effect'
+import { RemotePersistence, emptyStore } from 'foldkit-remote'
+
+const ssr = Effect.gen(function* () {
+  // Performs I/O explicitly; returns the Model with results reduced in.
+  const loaded = yield* Data.prefetch(App.initial, ProjectPage.projection({ projectId: 'p1' }), {
+    policy: RemotePolicy.networkOnly,
+  })
+  const snapshot = RemotePersistence.dehydrate(Data.storeOf(loaded), { scope: 'user-1' }) // string
+  // client side:
+  return Data.reduce(App.initial, {
+    _tag: 'Hydrated',
+    entities: RemotePersistence.hydrate(snapshot, { scope: 'user-1' }) ?? emptyStore,
+    merge: 'preserve-existing', // or 'replace'
+  })
+}).pipe(Effect.provide(clientLayer))
+```
+
+`RemotePersistence.save(store, { key, scope, maxBytes })` / `restore({ key, scope, maxBytes })`
+use Effect's `KeyValueStore`. Snapshots hold only the entity store (never cursors,
+optimistic layers, gaps). Wrong version/scope, oversized, or malformed snapshots
+yield `undefined` from `hydrate` (`restore` yields `emptyStore` and removes the key). An oversized
+`save` removes the key instead of writing.
+
+Debugging: `Data.plan(model, projection)` shows what is missing;
+`Data.inspect(model)` is a serializable cache summary.
+
+## Server: `foldkit-remote-server`
+
+```ts
+import { RemoteServer } from 'foldkit-remote-server'
+
+type Principal = { readonly isAdmin: boolean }
+declare const loadProjects: (req: { ids: ReadonlyArray<string>; fields: ReadonlyArray<string> }) =>
+  Effect.Effect<ReadonlyArray<{ id: string; values: Record<string, unknown> }>>
+
+// Pass the principal type explicitly; it defaults to `unknown`.
+const ProjectSource = RemoteServer.entity<Principal>(Project, {
+  authorize: (principal, fields) => fields.filter(f => f !== 'owner' || principal.isAdmin), // may only remove
+  read: ({ ids, fields }) => loadProjects({ ids, fields }), // only declared + authorized fields arrive
+})
+const RenameSource = RemoteServer.mutation(RenameProject, ({ input }) =>
+  Effect.succeed({
+    output: { id: input.id },
+    entities: [Entity.patch(Project.ref(input.id), { name: input.name })],
+  }))
+
+const Server = RemoteServer.make({ entities: [ProjectSource], mutations: [RenameSource] })
+RemoteServer.validate(Remote.define({ entities: [User, Project], mutations: [RenameProject] }), Server)
+
+declare const principal: Principal // authentication happens outside this package
+const handlers = RemoteServer.handlers(Server, principal) // once per authenticated principal
+const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
+// across a process boundary: RemoteRpc.toLayer(handlers) + your Effect RPC transport
+```
+
+Also: `RemoteServer.query(Q, ({ input, window, principal }) => ...)` returning
+`{ edges, start, end }` with `Boundary` values; `RemoteServer.live(Entity, { subscribe })`;
+`const hub = yield* RemoteServer.liveHub(entitySources)` then `handlers(Server, principal, { live: hub })`
+and, inside a mutation's Effect, `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)`; connection changes
+from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
+`maxIdsPerEntity` (default 1000), `maxDepth` (default 8).
+
+## Drizzle: `foldkit-remote-drizzle`
+
+`foldkit-remote-drizzle` pins `drizzle-orm` `1.0.0-rc.4` as a dependency; the
+app's `drizzle-orm` must be the same version.
+
+```ts
+import { eq } from 'drizzle-orm'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Layer, Schema } from 'effect'
+import { Query, Remote } from 'foldkit-remote'
+import { databaseLayer, entity, one, query, source } from 'foldkit-remote-drizzle'
+import { RemoteServer } from 'foldkit-remote-server'
+
+const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(), name: text('name').notNull(), ownerId: text('owner_id').notNull(),
+})
+
+// The binding IS the Remote EntityDescriptor: use it on the client too (User.select(...)).
+const User = entity('User', users) // table must have an `id` column
+const Project = entity('Project', projects, { relations: { owner: one(User, { field: projects.ownerId }) } })
+const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema.String }, Result: Project })
+
+const Server = RemoteServer.make({
+  entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy
+  queries: [query(ProjectsByOwner, {
+    entity: Project,
+    orderBy: [{ column: projects.id, direction: 'desc' }], // keyset pagination; end with a unique column
+    where: input => eq(projects.ownerId, input.ownerId),
+  })],
+})
+declare const db: Parameters<typeof databaseLayer>[0]
+const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-1')).pipe(
+  Layer.provide(databaseLayer(db)), // handlers require DrizzleDatabase because the Sources do
+)
+```
+
+Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL
+becomes a present null). `many(...)` + `computed: { count: { relation } }` exist.
+No mutation DSL: write mutations with `RemoteServer.mutation`. Page size default
+20, max 100; pagination semantics follow Postgres NULL ordering.
+
+## Gotchas
+
+- A Projection used by no active Surface stays `Initial` forever; do not render
+  `Initial` as a spinner. Check `Data.plan` and your `Surface.at` wiring.
+- Give `update` an explicit `Update.Return<...>` / `{ model: Model }` return type;
+  otherwise `App` and `Data` are mutually inferred and TypeScript errors.
+- `Data.refresh` returns the **same Model** when nothing is refreshable or it is
+  already refreshing.
+- Selections must pick at least one field (`Selection.make` throws otherwise).
+- Presence is not `value === undefined`: missing, present-undefined, present-null,
+  stale, and not-found are distinct.
+- Retention: after the `grace` period, data no active Surface reaches is
+  garbage-collected (safe; it refetches).
+- `staleWhileRevalidate` ages entities only; connections refetch only when
+  invalidated or under `networkOnly`.
+- Live cursors: duplicates ignored, an ahead-of-cursor event is a **gap** (not
+  applied, recorded in `remote.gaps`); resync rather than ignoring it.
+- Coalescing is per `RemoteClient` layer; separate layers do not share batches.
+- `RemotePersistence.dehydrate` with `maxBytes` returns `undefined` when too big.
+- Wire limits: 256 fields per entity request, relation depth 8; protocol version
+  mismatch fails with `RemoteProtocolError`.
+- `RemoteServer.handlers` takes an already-authenticated principal; it never reads
+  headers/cookies. Query/mutation authorization belongs inside those Sources.
+
+## See also
+
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/remote/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/remote-server/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/remote-drizzle/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/remote (asserted client trace)
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink (real server + Drizzle + liveHub)

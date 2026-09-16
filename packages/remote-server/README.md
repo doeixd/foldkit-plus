@@ -97,7 +97,10 @@ const Project = Entity.make(
 Give that Entity one Source:
 
 ```ts
-const ProjectSource = RemoteServer.entity(Project, {
+// Your authentication's principal type; without it `principal` is `unknown`.
+type Principal = { readonly isAdmin: boolean }
+
+const ProjectSource = RemoteServer.entity<Principal>(Project, {
   // Authentication already resolved `principal` before RemoteServer sees it.
   // Return only fields this caller may read.
   authorize: (principal, fields) =>

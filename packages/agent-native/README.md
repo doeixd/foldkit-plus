@@ -72,8 +72,8 @@ application and principal:
 const runtimeFor = (context: HostContext) =>
   AgentBuilder.bind({
     definition: AssistantAgent,
-    host: hostFor(context),
-    principal: () => principalFor(context),
+    // The principal is part of the host, beside `model` and `dispatch`.
+    host: { ...hostFor(context), principal: () => principalFor(context) },
   })
 ```
 
