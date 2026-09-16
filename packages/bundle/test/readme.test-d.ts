@@ -18,8 +18,7 @@ type MediaQueryModel = typeof MediaQueryModel.Type
 const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
 type MediaQueryMessage = typeof MediaQueryMessage.Type
 
-export const MediaQuery = Bundle.make({
-  name: 'MediaQuery',
+export const MediaQuery = Bundle.make('MediaQuery', {
   Model: MediaQueryModel,
   Message: MediaQueryMessage,
   init: (_: { readonly query: string }) => ({ model: { matches: false } }),
@@ -91,8 +90,7 @@ export const reset = Left.helpers.reset(7)
 const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
 const RowMessage = defineMessageUnion({ Clicked: {} })
 
-const Row = Bundle.make({
-  name: 'Row',
+const Row = Bundle.make('Row', {
   Model: RowModel,
   Message: RowMessage,
   init: () => ({ model: { id: '', count: 0 } }),

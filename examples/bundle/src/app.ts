@@ -24,8 +24,7 @@ type MediaQueryMessage = typeof MediaQueryMessage.Type
 /** A stand-in for `matchMedia`, so the example runs outside a browser. */
 export const matchMediaChanges = (_query: string): Stream.Stream<boolean> => Stream.make(true)
 
-export const MediaQuery = Bundle.make({
-  name: 'MediaQuery',
+export const MediaQuery = Bundle.make('MediaQuery', {
   Model: MediaQueryModel,
   Message: MediaQueryMessage,
   init: (_: { readonly query: string }) => ({ model: { matches: false } }),
@@ -46,8 +45,7 @@ export const UploadMessage = defineMessageUnion({ Progressed: { percent: Schema.
 export const Finished = Schema.TaggedStruct('Finished', { name: Schema.String })
 type Finished = typeof Finished.Type
 
-export const Upload = Bundle.make({
-  name: 'Upload',
+export const Upload = Bundle.make('Upload', {
   Model: UploadModel,
   Message: UploadMessage,
   init: () => ({ model: { name: '', percent: 0 } }),
@@ -72,8 +70,7 @@ type Section = typeof Section.Type
 
 // Not exported: its view type names a Foldkit-internal module, so a declaration
 // file could not name it (TS2742). Exported values below avoid the view's type.
-const SectionTabs = Bundle.fromParts({
-  name: 'SectionTabs',
+const SectionTabs = Bundle.fromParts('SectionTabs', {
   Model: Tabs.Model,
   Message: Tabs.Message,
   init: (config: Tabs.InitConfig) => Tabs.init(config),

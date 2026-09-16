@@ -61,8 +61,7 @@ type MediaQueryModel = typeof MediaQueryModel.Type
 const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
 type MediaQueryMessage = typeof MediaQueryMessage.Type
 
-export const MediaQuery = Bundle.make({
-  name: 'MediaQuery',
+export const MediaQuery = Bundle.make('MediaQuery', {
   Model: MediaQueryModel,
   Message: MediaQueryMessage,
   init: (_: { readonly query: string }) => ({ model: { matches: false } }),
@@ -116,7 +115,8 @@ const config = placements.complete({
 ```
 
 Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement` with
-the rest of your options.
+the rest of your options. When the parent's own update needs services, name them
+once: `Bundle.assemble<Model, Message, AppServices>()`.
 
 ### What each call does
 
@@ -128,8 +128,11 @@ the rest of your options.
   `Update.foldChildStep`, Subscriptions through `Subscription.lift`, resources
   through `ManagedResource.lift`, and the view through `h.submodel`. It performs
   no I/O.
-- **`Bundle.assemble`** is the one list of placements. `update` returns `None`
-  for the parent's own Messages, so the parent handles those.
+- **`Bundle.assemble`** is the one list of placements.
+- **`placements.update(own)`** is the parent's update: a placement's Message goes
+  to that placement, and every other Message to `own`, the parent's own update.
+  Without `own` they leave the Model unchanged. `placements.route(model, message)`
+  is the same routing as an `Option`, for composing by hand.
 - **`placements.complete`** returns the config unchanged. It exists to report
   wiring mistakes, below.
 
@@ -178,8 +181,7 @@ this sketch, reduced from [`test/fixture.ts`](test/fixture.ts), `update`
 emits an OutMessage when the count reaches the limit:
 
 ```ts
-const Counter = Bundle.make({
-  name: 'Counter',
+const Counter = Bundle.make('Counter', {
   Model: CounterModel,
   Message: CounterMessage,
   init: ({ start }: { readonly limit: number; readonly start: number }) => ({
@@ -208,6 +210,8 @@ const Left = Counter.at(Link.field<Model>()('left', GotLeftMessage), {
 Left.helpers.reset(7) // Update.Step<Model, Message>
 ```
 
+To drop an OutMessage on purpose, write `onOut: Bundle.ignore`.
+
 `args` is required when `init` takes them, and `onOut` is required when the
 bundle has an OutMessage. An OutMessage cannot be dropped by leaving it out.
 
@@ -220,8 +224,7 @@ only the Model, and `create()` returns their `{ update, view }` pair.
 ```ts
 import * as Tabs from '@foldkit/ui/tabs'
 
-const SectionTabs = Bundle.fromParts({
-  name: 'SectionTabs',
+const SectionTabs = Bundle.fromParts('SectionTabs', {
   Model: Tabs.Model,
   Message: Tabs.Message,
   init: (config: Tabs.InitConfig) => Tabs.init(config),
@@ -265,8 +268,7 @@ GotRowMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written b
 const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
 const RowMessage = defineMessageUnion({ Clicked: {} })
 
-const Row = Bundle.make({
-  name: 'Row',
+const Row = Bundle.make('Row', {
   Model: RowModel,
   Message: RowMessage,
   init: () => ({ model: { id: '', count: 0 } }),

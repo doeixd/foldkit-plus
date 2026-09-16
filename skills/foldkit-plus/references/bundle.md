@@ -39,8 +39,7 @@ type MediaQueryModel = typeof MediaQueryModel.Type
 const MediaQueryMessage = defineMessageUnion({ Changed: { matches: Schema.Boolean } })
 type MediaQueryMessage = typeof MediaQueryMessage.Type
 
-const MediaQuery = Bundle.make({
-  name: 'MediaQuery',
+const MediaQuery = Bundle.make('MediaQuery', {
   Model: MediaQueryModel,
   Message: MediaQueryMessage,
   init: (_: { readonly query: string }) => ({ model: { matches: false } }),
@@ -89,8 +88,11 @@ Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
   `Bundle.declareEach(Row, 'rows')` does the same with `each<Model>()`. Use
   `Link.field` directly for a `when` gate or a nested path.
 - **OutMessage:** a bundle whose `update` returns `outMessage` must be placed
-  with `onOut: outMessage => model => ({ model: … })`. It is a type error to
-  omit it.
+  with `onOut: outMessage => model => ({ model: … })`, or `onOut: Bundle.ignore`
+  to drop it deliberately. It is a type error to omit it.
+- **Parent update:** `update: placements.update(ownUpdate)` routes placement
+  Messages and passes the rest to `ownUpdate`. Name the parent's services once:
+  `Bundle.assemble<Model, Message, AppServices>()`.
 - **Args:** `init` may take args; `update` receives them as a third parameter.
   `args` is required in the placement config exactly when `init` takes them.
 - **Helpers:** `helpers: { open: (model, …input) => ({ model }) }` become

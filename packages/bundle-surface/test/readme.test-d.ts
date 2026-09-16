@@ -9,8 +9,7 @@ import { BundleSurface } from '../src/index.js'
 
 const SearchModel = Schema.Struct({ query: Schema.String })
 const SearchMessage = defineMessageUnion({ Typed: { query: Schema.String } })
-const Search = Bundle.make({
-  name: 'Search',
+const Search = Bundle.make('Search', {
   Model: SearchModel,
   Message: SearchMessage,
   init: () => ({ model: { query: '' } }),
