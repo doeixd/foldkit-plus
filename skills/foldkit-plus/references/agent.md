@@ -66,6 +66,9 @@ const AppAgent = TodoAgent.make({
   }),
 })
 
+// The contract joins an assembly contract-only, so the Module sees it.
+const wiring = AppAgent.wiring()
+
 declare const currentModel: () => Model
 declare const sendToRuntime: (message: Message) => void
 declare const onModelChange: (listener: () => void) => () => void

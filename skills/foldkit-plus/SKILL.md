@@ -117,6 +117,10 @@ server data, `Mirror.url(App, …)` puts fields in the URL, and
   Behaviors dispatch existing Messages; they never mutate the Model.
 - **Rendering performs no I/O.** Fetching, syncing, and mirroring run in
   Commands and Subscriptions derived from the Model.
+- **Join integrations through one wiring list.** `Page.assemble` takes bundle
+  placements and integration wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`,
+  contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
+  Module derive from the list. See `bundle.md` and the integration's page.
 - **Install only what the boundary needs.** The packages are adopted
   independently. `effect` is a peer of every package and `foldkit` of every
   client-side one (not `foldkit-durable`, `foldkit-remote-server`,

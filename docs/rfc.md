@@ -2029,6 +2029,31 @@ work.
 A review rule follows: **a reused ownership unit should be a Bundle, and every
 placement should be a Module contract.**
 
+## Flat and wrapped Messages
+
+A child machine's Messages are wrapped: the parent owns routing to a slice, so
+the wrapper names the path. An integration's Messages are flat cases of the
+application union: they are facts about the whole application that agents and
+journals name directly.
+
+```text
+child machine's Messages are wrapped
+    -> the parent owns routing to a slice (`GotDarkMessage` carries the field)
+
+an integration's Messages are flat
+    -> they are whole-application facts (`MirrorRestored`, Remote's cases)
+
+wrapping an integration's Messages
+    != more safety (the router would just unwrap them)
+
+flattening a child's Messages
+    != simpler (two placements would claim the same tags)
+```
+
+A wiring joins an application either way: placements route by wrapper, and an
+integration's `Wiring.route` folds its flat cases. The assembly checks both
+with the same claimant rule.
+
 ---
 
 # 16. Proposed Foldkit architecture after these changes

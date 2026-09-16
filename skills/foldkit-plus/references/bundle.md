@@ -85,6 +85,29 @@ export const config = placements.complete({
 
 Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
 
+## Joining integrations
+
+Placements are not the only thing an assembly holds. Remote, Mirror, Sync,
+and Agent each produce a **wiring**: the same shape (`key`, `handles`,
+`route`, `init`, `subscriptions`, `contract`), so routing, startup Commands,
+Subscriptions, and the Module derive from one list instead of hand-wiring per
+package:
+
+- `Data.wiring({ board: BoardSurface })` routes Remote's Messages into
+  `Data.reduce`, brings the active Surfaces' Subscriptions and the contract,
+  and requires `RemoteClient`. One assembly holds at most one Remote domain.
+- `Filters.wiring('UrlChanged')` routes the URL Message and reads the URL at
+  startup; `Prefs.wiring()` routes its own `MirrorRestored` and restores at
+  startup. `MirrorRestored` is shared, so two key-value mirrors assemble side
+  by side.
+- `TodoSync.wiring()` and `AppAgent.wiring()` are contract-only, so the Module
+  sees Sync and Agent without routing anything through them.
+
+Two items claiming one Message tag fail `assemble` at startup, naming both —
+unless the tag is declared `shared` and each wiring routes only its own
+values. `complete` then checks the config uses every derivation the items
+need (`init` when a wiring restores, `url` when one reads the URL).
+
 ## Common tasks
 
 - **Initial Model:** `placements.initial(rest)` takes exactly the fields no

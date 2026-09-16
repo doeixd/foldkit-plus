@@ -52,6 +52,7 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 
 ```ts
 import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -100,11 +101,23 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
 
 declare const rpcClient: RemoteRpcClient
 const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the runtime
+
+// One list instead of the four hand-wiring steps above.
+const Page = Bundle.parent({ Model, Message })
+const wiring = Page.assemble(
+  Data.wiring({
+    page: Surface.at(ProjectPage, m => (m.projectId === null ? undefined : { projectId: m.projectId })),
+  }),
+)
+const wiredUpdate = wiring.update(model => ({ model }))
 ```
 
 `Remote.Model` is a Submodel, not a second store. `Data` is the bound domain API.
 Every entity/query/mutation used through `Data` must be registered in
-`Remote.make` (unregistered descriptors are type errors).
+`Remote.make` (unregistered descriptors are type errors). `wiring` is the one
+list for this integration: routing, Subscriptions, and the contract derive from
+it, and `RemoteClient` joins the assembly's services. One assembly holds at
+most one Remote domain.
 
 ## Common tasks
 
