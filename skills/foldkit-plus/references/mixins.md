@@ -1,0 +1,255 @@
+# Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
+
+## 1. Purpose
+
+Inside-out view composition. A view **declares once** where it may be customized (typed
+*slots*); callers **attach** appearance (`Style`) and element-level interaction (`Behavior`)
+from outside. Everything resolves to ordinary Foldkit attributes. No new runtime, no state.
+
+| Package | Owns |
+| --- | --- |
+| `foldkit-mixins` | Slot contracts, Style, Behavior, SlotView, the resolver, diagnostics |
+| `foldkit-mixins-surface` | Binds a `foldkit-surface` projection + Message subset to a SlotView |
+| `foldkit-mixins-ui` | Names `@foldkit/ui` components' attribute bundles as Slots (`resolve`) |
+
+**Use when** a view should be restyled/decorated where it is *used*, with checks: design-system
+styling of a feature view, tooltips, analytics, ARIA decoration, focus/resize Mounts, variants.
+
+**Do not use for state.** Open/selected/value belong in the Model or a Submodel; transitions in
+`update`; I/O is Message -> Command; element effects are a `Mount`. A Behavior that "needs
+state" means you need a Submodel. For a one-off component with no external customizers, plain
+attributes are simpler.
+
+## 2. Mental model
+
+```text
+Slots.define({ name: Slot.make({ capability, events, attributes, hidden, protected }) })
+      |                                   (public contract, pure metadata)
+      +-- Style.forSlots(S)({ name: StyleValue })            -> { mixin, css, ... }
+      +-- Behavior.forSlots(S)<Input, Message>({ name: Behavior.slot({...}) })
+      |
+SlotView.define(S, (input, slots, h) => h.x(slots.name.attrs(base), ...))
+      .pipe(Style.attach(style), Behavior.attach(behavior))  -> new view (original unchanged)
+      |
+resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
+```
+
+- **Capability** hierarchy: `Base -> Interactive -> { Container, Focusable -> TextInput, Draggable }`,
+  `Base -> Collection`; extend with `Capability.make(name, { extends })`. A behavior requiring
+  `Interactive` fits a `TextInput` slot.
+- **Event / Attr** tokens (`Event.Click`, `Attr.AriaInvalid`, `Event.make`, `Attr.make`) are
+  metadata; declaring them installs nothing.
+- `Behavior.slot({ requires, attributes: ({ input, h }) => [...], mount })` — `requires`
+  (capability/events/attributes) is checked against the slot **when `forSlots` runs**.
+- `hidden: true` slots are omitted from public Style/Behavior spec keys.
+- `protected: { events, attributes, style }` forbids attachments from supplying those.
+- **Resolver rules:** classes additive + deduped into one `Class`; inline style merged per
+  property (later wins); each event / scalar attribute has exactly one owner (base or one mixin);
+  `ChildAttribute` preserved by identity and reserves its event; `Key`/`InnerHTML` cannot come
+  from a mixin; all mounts compose into one `OnMount`.
+- Diagnostics you will hit (`Diagnostics.DiagnosticError`, `.diagnostic.code`):
+  `mixins:unknown-slot`, `mixins:capability-mismatch`, `mixins:event-conflict`,
+  `mixins:attribute-conflict`.
+
+## 3. Minimal example (`foldkit-mixins` alone)
+
+```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+
+const Message = defineMessageUnion({ ChangedValue: { value: Schema.String } })
+type Message = typeof Message.Type
+type FieldInput = { readonly value: string; readonly invalid: boolean }
+
+const FieldSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({
+    capability: Capability.TextInput,
+    events: [Event.Input],
+    attributes: [Attr.AriaInvalid],
+    protected: { attributes: [Attr.Role] },
+  }),
+})
+
+const FieldStyle = Style.forSlots(FieldSlots)({
+  root: Style.compose(Style.class('field'), Style.inline({ display: 'grid' })),
+  input: Style.class('field-input'),
+})
+
+const Validation = Behavior.forSlots(FieldSlots)<FieldInput, Message>({
+  input: Behavior.slot({
+    requires: { capability: Capability.TextInput, attributes: [Attr.AriaInvalid] },
+    attributes: ({ input, h }) => [h.AriaInvalid(input.invalid)],
+  }),
+})
+
+const Field = SlotView.forMessages<Message>()
+  .define(FieldSlots, (input: FieldInput, slots, h) =>
+    h.label(slots.root.attrs(), [
+      h.input(
+        slots.input.attrs([
+          h.Value(input.value),
+          h.OnInput(value => Message.ChangedValue({ value })),
+        ]),
+      ),
+    ]),
+  )
+  .pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
+```
+
+`Field` is still a pure `(input, h) => Html` view. `slots.input.attrs(base)` returns base
+attributes plus resolved contributions; the view owns `OnInput`, so a Behavior adding a second
+`OnInput` would throw `mixins:event-conflict` at render.
+
+Build outward: `Style.when`, `Style.whenInput(pred, piece)`, `Style.recipe({ base, variants,
+defaults, compound })`, rule-based `Style.pseudo/media/supports/container/nest/keyframes/global`
+(compiled to a deterministic hashed class; read `FieldStyle.css` or
+`Style.stylesheet(...styles)`), `Theme.define`. For repeated items (tabs, rows) use
+`SlotView.buildersFor(slots, [style.mixin, ...], { input, h })` per item. Introspect with
+`Slots.describe(contract)`; combine with `Mixin.compose`.
+
+## 4. `foldkit-mixins-surface`
+
+Use only if the feature already renders through a `foldkit-surface` Surface. `SurfaceView.define`
+makes the SlotView's input exactly the Surface projection and its Message universe exactly the
+exposed subset, so no annotations are needed and Behaviors cannot read unprojected fields or emit
+unexposed Messages. It adds no state and no renderer.
+
+```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Behavior, Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
+import { SurfaceView } from 'foldkit-mixins-surface'
+import { Surface } from 'foldkit-surface'
+
+const Model = Schema.Struct({
+  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
+  selectedId: Schema.NullOr(Schema.String),
+  secret: Schema.String,
+})
+const Message = defineMessageUnion({
+  SelectedTodo: { id: Schema.String },
+  ArchivedTodo: { id: Schema.String },
+  ClearedSecret: {},
+})
+const App = Surface.application({ Model, Message })
+
+const TodoList = App.surface('TodoList', {
+  model: ({ model }) => ({ todos: model.todos, selectedId: model.selectedId }),
+  messages: [Message.SelectedTodo, Message.ArchivedTodo],
+})
+
+const TodoSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  archive: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+})
+
+type Projected = {
+  readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }>
+  readonly selectedId: string | null
+}
+
+const ArchiveSelected = Behavior.forSlots(TodoSlots)<
+  Projected,
+  typeof Message.SelectedTodo.Type | typeof Message.ArchivedTodo.Type
+>({
+  archive: Behavior.slot({
+    requires: { events: [Event.Click] },
+    attributes: ({ input, h }) =>
+      input.selectedId === null ? [] : [h.OnClick(Message.ArchivedTodo({ id: input.selectedId }))],
+  }),
+})
+
+const TodoListView = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) =>
+  h.div(slots.root.attrs(), [
+    h.ul([], model.todos.map(todo => h.li([], [todo.title]))),
+    h.button(slots.archive.attrs(), ['Archive']),
+  ]),
+).pipe(
+  Style.attach(Style.forSlots(TodoSlots)({ root: Style.class('todo-list') })),
+  Behavior.attach(ArchiveSelected),
+)
+
+// Running app: the one boundary adaptation.
+const renderer = Surface.view(TodoList, SurfaceView.toRenderer(TodoListView))
+
+// Static output / tests: projects root, renders with an inert builder (nothing mounts).
+const html = SurfaceView.render(TodoListView, TodoList, undefined, {
+  todos: [{ id: 't1', title: 'Write docs' }],
+  selectedId: 't1',
+  secret: 'not projected',
+})
+```
+
+`SurfaceView.inspect`, `describe`, and `toMarkdown` give serializable, deterministic metadata for CI drift checks.
+
+## 5. `foldkit-mixins-ui`
+
+`@foldkit/ui` keeps component state, accessibility and base attributes; the adapter names its
+`toView` attribute bundles as Slots and `X.resolve(attributes, mixins, { input, h })` returns the
+same shape with bundles resolved (non-slot data such as `activeIndex` passes through).
+
+```ts
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as UiButton from '@foldkit/ui/button'
+import { Style } from 'foldkit-mixins'
+import { Button, ButtonSlots } from 'foldkit-mixins-ui'
+
+const Message = defineMessageUnion({ Saved: {} })
+type Message = typeof Message.Type
+
+const SaveStyle = Style.forSlots(ButtonSlots)({ button: Style.class('btn btn-primary') })
+
+export const saveButton = (h: HtmlBuilder<Message>) =>
+  UiButton.view(
+    {
+      onClick: Message.Saved({}),
+      toView: attributes => {
+        const slots = Button.resolve(attributes, [SaveStyle.mixin], { input: undefined, h })
+        return h.button(slots.button, ['Save'])
+      },
+    },
+    h,
+  )
+```
+
+Adapters: Button, Input, Textarea, Select, Checkbox, Switch, Fieldset, Disclosure, Dialog,
+Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar (namespace + flat `XSlots`). Pass mixins as
+`style.mixin` / `behavior.mixin`. Other components (Menu, Listbox, ComboBox, Toast, ...) have no
+adapter.
+
+## 6. Testing helpers
+
+- `SlotView.inertBuilder<Message>()` is an `HtmlBuilder` with no runtime: call `View(input, h)`
+  to build real attributes, then read them with `Attributes.find(bundle, 'Class')?.value`.
+
+## 7. Gotchas (verified)
+
+- **When errors fire:** unknown/hidden slot and `requires` mismatches throw in `Style.forSlots` /
+  `Behavior.forSlots` (definition time). Ownership conflicts, protected violations and duplicate
+  mount names throw when `slots.x.attrs()` resolves (render time).
+- **Message inference:** plain `SlotView.define` infers `Message` only from an explicit
+  `h: HtmlBuilder<Message>` annotation; otherwise it becomes `unknown` with confusing variance
+  errors. Prefer `SlotView.forMessages<Message>().define(...)`.
+- **Behavior Input is invariant:** `Behavior.attach` requires the behavior's `Input` to be the
+  view's full input type (the whole projection under Surface), not the subset it reads.
+- **A mixin cannot replace a base attribute:** adding `h.AriaDisabled(false)` over a
+  `@foldkit/ui` Button that set it, or a second `OnClick`, throws. Adding an attribute the base
+  lacks is fine.
+- `Style.whenInput` cannot contain rule-based pieces (`style:conditional-rules-unsupported`).
+- `Style.attach`/`Behavior.attach` return new views; the original is untouched.
+- Rule-based CSS is data: put `Style.stylesheet(StyleA, StyleB)` (global then scoped, deduped)
+  into a `<style>` element yourself.
+
+## 8. See also
+
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-surface/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-ui/README.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app (`src/view.ts`, `src/style.ts`)
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/design/mixins-DESIGN.md
