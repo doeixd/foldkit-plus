@@ -60,3 +60,21 @@ const foreign = Counter.at(Link.field<typeof Other.Type>()('counter', GotCounter
 })
 // @ts-expect-error: the placement's parent is not this Model
 Bundle.assemble<Model, Message>()([foreign])
+
+// A collection joins the same list, and resources are not demanded for it.
+const GotRow = Link.keyedWrapper('GotRowMessage', CounterMessage)
+const RowsModel = Schema.Struct({ rows: Schema.Record(Schema.String, CounterModel) })
+type RowsModel = typeof RowsModel.Type
+const RowsMessage = defineMessageUnion({ ...GotRow.cases })
+type RowsMessage = typeof RowsMessage.Type
+const { resources: _socket, at: _at, each: _each, ...plainSpec } = Counter
+const rows = Bundle.make({ ...plainSpec, name: 'Plain' }).each(
+  Link.collection<RowsModel>()('rows', GotRow),
+  { args: { limit: 1, start: 0 }, onOut: () => model => ({ model }) },
+)
+const rowsAssembly = Bundle.assemble<RowsModel, RowsMessage>()([rows])
+rowsAssembly.complete({
+  update: (model: RowsModel, message: RowsMessage) =>
+    Option.getOrElse(rowsAssembly.update(model, message), () => ({ model })),
+  subscriptions: rowsAssembly.subscriptions(),
+})

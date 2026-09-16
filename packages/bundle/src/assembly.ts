@@ -8,19 +8,31 @@ import * as ManagedResource from 'foldkit/managedResource'
 import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { AnyMessage } from './link.js'
-import type { Invalid, Placed } from './placed.js'
+import type { PlacedCollection } from './collection.js'
+import { isPlaced, type Invalid, type Placed } from './placed.js'
 
 const Wired: unique symbol = Symbol.for('foldkit-bundle/Wired')
 
 /** A record that came from an assembly, so `complete` can tell it includes the placements. */
 export type WiredRecord<Record> = Record & { readonly [Wired]: true }
 
-type PlacedIn<Model, Message> = Placed<string, Model, Message, any, any, any, any, any, any, any>
+/** A single placement or a collection, in this parent. */
+type PlacedIn<Model, Message> =
+  | Placed<string, Model, Message, any, any, any, any, any, any, any>
+  | PlacedCollection<string, Model, Message, any, any, any, any, any, any>
 
 type RequirementsOf<P> =
-  P extends Placed<string, any, any, any, any, infer R, any, any, any, any> ? R : never
+  P extends Placed<string, any, any, any, any, infer R, any, any, any, any>
+    ? R
+    : P extends PlacedCollection<string, any, any, any, any, infer R, any, any, any>
+      ? R
+      : never
 type ServicesOf<P> =
-  P extends Placed<string, any, any, any, any, any, infer S, any, any, any> ? S : never
+  P extends Placed<string, any, any, any, any, any, infer S, any, any, any>
+    ? S
+    : P extends PlacedCollection<string, any, any, any, any, any, infer S, any, any>
+      ? S
+      : never
 type ResourceEntriesOf<P> = P extends { readonly resources: infer Resources }
   ? Resources[keyof Resources]
   : never
@@ -32,7 +44,7 @@ export interface Assembly<Model, Message, Ps extends ReadonlyArray<PlacedIn<Mode
     model: Model,
     message: Message,
   ) => Option.Option<Update.Return<Model, Message, RequirementsOf<Ps[number]>>>
-  /** Every placement's init, in list order. */
+  /** Every single placement's init, in list order. Collections start empty; add items with `add`. */
   readonly init: Update.Step<Model, Message, RequirementsOf<Ps[number]>>
   /** The placements' Subscriptions merged with the parent's own. Throws on a duplicate key. */
   readonly subscriptions: <S = never>(
@@ -93,7 +105,9 @@ type CompletenessChecks<Config, Message, Ps extends ReadonlyArray<unknown>> = (C
 const brand = <A extends object>(record: A): WiredRecord<A> =>
   Object.defineProperty(record, Wired, { value: true, enumerable: false }) as WiredRecord<A>
 
-const assertDistinctResources = (placements: ReadonlyArray<PlacedIn<any, any>>): void => {
+const assertDistinctResources = (
+  placements: ReadonlyArray<Placed<string, any, any, any, any, any, any, any, any, any>>,
+): void => {
   const owners = new Map<string, string>()
   for (const placed of placements) {
     for (const entry of Object.values(placed.resources)) {
@@ -119,7 +133,9 @@ export const assemble =
   <const Ps extends ReadonlyArray<PlacedIn<Model, Message>>>(
     placements: Ps,
   ): Assembly<Model, Message, Ps> => {
-    assertDistinctResources(placements)
+    // Collections have no resources and no init: `each` rejects bundles with resources.
+    const singles = placements.filter(isPlaced)
+    assertDistinctResources(singles)
     const keys = new Set<string>()
     for (const placed of placements) {
       if (keys.has(placed.key)) {
@@ -137,7 +153,7 @@ export const assemble =
           placements,
           Array.findFirst(placed => placed.update(model, message)),
         ),
-      init: Update.combine(placements.map(placed => placed.init)),
+      init: Update.combine(singles.map(placed => placed.init)),
       subscriptions: own =>
         brand(
           Subscription.aggregate<Model, Message, any>()(
@@ -148,7 +164,7 @@ export const assemble =
       resources: own =>
         brand(
           ManagedResource.aggregate<Model, Message>()(
-            ...placements.map(placed => placed.resources),
+            ...singles.map(placed => placed.resources),
             own ?? {},
           ),
         ),

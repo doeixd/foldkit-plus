@@ -22,7 +22,7 @@ const initial: Model = { a: counter, b: counter, ticks: 0 }
 const onOut = () => (model: Model) => ({ model })
 
 // Counter uses the `Socket` resource tag, so placing it twice needs a resourceless variant.
-const { resources: _socket, at: _at, ...withoutResources } = Counter
+const { resources: _socket, at: _at, each: _each, ...withoutResources } = Counter
 const Plain = Bundle.make({ ...withoutResources, name: 'Plain' })
 const A = Counter.at(Link.field<Model>()('a', GotA), { args: { limit: 9, start: 1 }, onOut })
 const B = Plain.at(Link.field<Model>()('b', GotB), { args: { limit: 9, start: 2 }, onOut })
