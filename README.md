@@ -342,7 +342,7 @@ pnpm add foldkit-surface foldkit-sync foldkit-durable
 pnpm add foldkit-mirror
 
 # reusable Submodels placed with every part wired
-pnpm add foldkit-bundle foldkit-bundle-surface
+pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
 
 # view extension points
 pnpm add foldkit-mixins foldkit-mixins-surface

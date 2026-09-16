@@ -98,7 +98,7 @@ Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
   `onOut: Bundle.ignore` to drop it deliberately. Omitting it is a type error.
 - **Presets:** `MediaQuery.with({ query })` binds args; place it with no `args`.
   `Page.place(bundle, 'field', config)` places without a separate `declare`.
-- **Helpers:** `helpers: { reset: (model, to: number) => ({ model }) }` become
+- **Helpers:** `helpers: { reset: (model: CounterModel, to: number) => ({ model }) }` become
   `placed.helpers.reset(to)`, an `Update.Step` of the parent.
 - **Views:** `placed.view(model, h, viewInputs?)` renders through `h.submodel`
   (nothing while the child is absent); `placed.viewIn('mobile')` renders the same
@@ -110,7 +110,7 @@ Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
   `placed.add(key, model => ({ ...model, id: key }))` (an item cannot see its key)
   and `placed.remove(key)`.
 - **Typed keys and order:** `Link.keyedWrapper(tag, Message, UploadId)` with
-  `Link.collectionById<Model>()('uploads', wrapper, { id: item => item.id })`, then
+  `Page.link.collectionById('uploads', wrapper, { id: item => item.id })`, then
   `Upload.each(link, config)`: keys are `UploadId`, and order follows the array.
 - **Extending:** `Counter.pipe(Bundle.rename('Clicks'), Bundle.mapUpdate(update =>
   (model, message, args) => …), Bundle.withHelpers({ … }))`; also `mapInit`,
@@ -119,19 +119,22 @@ Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
   Link.andThen(inner), Link.when(gate)), config)`; `Page.link.optional` for an
   `Option` field.
 - **@foldkit/ui components:** `Bundle.fromParts('Tabs', { Model: Tabs.Model,
-  Message: Tabs.Message, init: config => Tabs.init(config), parts:
-  Tabs.create<Value>() })`.
+  Message: Tabs.Message, init: (config: Tabs.InitConfig) => Tabs.init(config),
+  parts: Tabs.create<Value>() })`.
 - **Module ownership:** `const Page = BundleSurface.parent(App)` from
   `foldkit-bundle-surface`, then
   `Module.validate(Page.module(placements, [otherContracts]))`.
 
 ## Gotchas
 
-- `placements.complete` reports, at the wrong property: a parent Message missing
-  a wrapper variant (`update`), `subscriptions` not from
+- `placements.complete` reports, at the wrong property: an `update` that does not
+  accept the whole parent Message (`update`), `subscriptions` not from
   `placements.subscriptions(own)`, and `managedResources` not from
-  `placements.resources(own)` when a placement has resources. `Page.at` already
-  reports a wrong field or a missing variant at the placement.
+  `placements.resources(own)` when a placement has resources. `Page.at` reports a
+  wrong field or a missing wrapper variant at the placement.
+- `assemble` throws at startup when two placements share a key, a wrapper, or a
+  Managed Resource tag, and `placements.resources(own)` when the parent's own
+  resource shares a placement's tag.
 - **Managed Resources are provided by tag.** Two placements of one bundle with
   the same `ManagedResource.tag` would replace each other; `assemble` throws.
   Make the bundle from a function that takes the tag. `each` rejects bundles

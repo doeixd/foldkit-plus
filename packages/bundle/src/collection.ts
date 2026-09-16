@@ -1,7 +1,7 @@
 /**
- * A bundle placed many times: one child per key in a record. Routing, init,
- * and folds work per item; each child Subscription becomes one parent entry
- * over every item.
+ * A bundle placed many times: one child per key of a collection whose storage
+ * its Link owns (a record, or an array by id). Routing, init, and folds work per
+ * item; each child Subscription becomes one parent entry over every item.
  */
 import { Array, Option, Record, Schema, Stream } from 'effect'
 import * as Command from 'foldkit/command'

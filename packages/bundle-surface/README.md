@@ -24,6 +24,9 @@ pnpm add foldkit-bundle-surface foldkit-bundle foldkit-surface effect foldkit
 ## Sixty seconds
 
 ```ts
+// Search and Row are bundles, Todo a Schema, and TodoSync the application's Sync contract.
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { BundleSurface } from 'foldkit-bundle-surface'
 import { Module, Surface } from 'foldkit-surface'
@@ -49,7 +52,7 @@ Module.validate(AppModule) // []
 - **`BundleSurface.contract(app, placement)`** is one contract, for
   `Module.make` or `Module.add`. It owns the placement's path, names the parent
   Message tags its Messages travel under, and lists its args as `args`
-  metadata when the bundle has an args Schema.
+  metadata when the bundle has an args Schema or is a `bundle.with` preset.
 - **`BundleSurface.link(fieldRef, wrapper)`** is `Link.make` over a Surface field
   ref, for a custom placement. Its contract names the ref's application.
 - **`BundleSurface.module(app, assembly, items)`** is `Page.module` without a
@@ -103,7 +106,7 @@ placement's fields and name the wrapper variant in its `messages`.
 
 ## Limits
 
-- A Link composed with `Link.compose` from a ref-built Link names the
+- A Link composed with `Link.andThen` (or `Link.compose`) from a ref-built Link names the
   application passed to `contract`, not the ref's.
 - Surfaces cannot expose a placement's individual child Messages, for the
   reason above.

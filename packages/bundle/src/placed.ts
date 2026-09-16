@@ -48,6 +48,7 @@ export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, Out
   ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
+  /** A gate beside the Link's own: Subscriptions and resources run only while both hold. */
   readonly when?: (parent: Parent) => boolean
 }
 
@@ -128,7 +129,7 @@ export type PlacedView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends
       viewInputs: ViewInputs,
     ) => Html
 
-/** Readable failure when the parent's Message union lacks this placement's variant. */
+/** A readable type error: intersected onto a parameter, its message names the fix. */
 export interface Invalid<Message extends string> {
   readonly invalid: Message
 }

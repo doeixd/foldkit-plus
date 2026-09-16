@@ -109,7 +109,7 @@ export interface Bundle<
     Resources,
     Helpers
   >
-  /** Places the bundle once per key of the record `link` points at. */
+  /** Places the bundle once per key of the collection `link` points at. */
   readonly each: [keyof Resources] extends [never]
     ? <Parent, LinkMessage, Key extends string, OutStepMessage = never, R2 = never>(
         link: CollectionLink<Parent, LinkMessage, Model, Message, Key>,

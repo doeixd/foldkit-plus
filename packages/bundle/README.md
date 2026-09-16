@@ -98,7 +98,8 @@ const placements = Page.assemble(
 )
 ```
 
-**Wire it once.** The assembly builds the parent's initial Model and update:
+**Wire it once.** The assembly builds the parent's initial Model and update.
+`ownUpdate` is the parent's own update for `ClickedHelp`, and `view` its view:
 
 ```ts
 const config = placements.complete({
@@ -128,7 +129,8 @@ rest of your options.
 - **`Page.assemble(...placements)`** is the one list of placements.
 - **`placements.initial(rest)`** is the parent's initial Model and Commands:
   `rest` gives exactly the fields no placement owns, and each placement's `init`
-  writes its own slice.
+  writes its own slice. That check needs every placement's field, so a placement
+  through a custom Link (below) relaxes `rest` to `Partial<Model>`.
 - **`placements.update(own)`** is the parent's update: a placement's Message goes
   to that placement and every other Message to `own`. Without `own` they leave
   the Model unchanged.
@@ -156,7 +158,8 @@ collide in `Subscription.aggregate`.
 
 `update` receives the args as its third parameter, so behaviour can depend on
 configuration without storing it in the Model. This counter emits an OutMessage
-when it reaches its limit:
+when it reaches its limit. `CounterModel`, `CounterMessage`, and the
+`LimitReached` Schema are ordinary Schemas:
 
 ```ts
 const Counter = Bundle.make('Counter', {
@@ -181,6 +184,12 @@ parent as a Step. The Step sees the parent with the child already written back,
 and its `model` is typed from the scope:
 
 ```ts
+const Clicks = Bundle.declare(Counter, 'clicks')
+const CounterPage = Bundle.parent({
+  Model: Schema.Struct({ ...Clicks.fields, reached: Schema.Number }),
+  Message: defineMessageUnion({ ...Clicks.cases }),
+})
+
 const ClicksPlaced = CounterPage.at(Clicks, {
   args: { limit: 10 },
   onOut: outMessage => model => ({ model: { ...model, reached: outMessage.count } }),
@@ -190,8 +199,8 @@ ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
 ```
 
 - **`args`** is required when the bundle takes them, and checked against the
-  args Schema when placed; a value that bypassed the types throws naming the
-  placement.
+  args Schema when placed (or when a preset is made with `with`); a value that
+  bypassed the types throws naming the placement.
 - **`onOut`** is required when the bundle has an OutMessage, so one cannot be
   dropped by omission. Write `onOut: Bundle.ignore` to drop it on purpose.
 - **Without an args Schema**, `Args` is inferred from `init`'s parameter
@@ -220,6 +229,7 @@ GotRowsMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written 
 ```
 
 ```ts
+// Row is a bundle whose Model is { id: string, count: number }.
 const RowsDeclared = Bundle.declareEach(Row, 'rows') // a record field and GotRowsMessage
 const RowsPage = Bundle.parent({
   Model: Schema.Struct({ ...RowsDeclared.fields }),
@@ -247,14 +257,16 @@ Rows.remove('b')
 
 Pass a key Schema, such as a branded id, and the key type follows through `add`,
 `remove`, helpers, views, and `onOut`. Store items in an array when order
-matters: a record puts integer-like keys such as `"2"` first.
+matters: a record puts integer-like keys such as `"2"` first. Ids in an array
+must be unique.
 
 ```ts
 const RowId = Schema.String.pipe(Schema.brand('RowId'))
 const GotOrderedRowMessage = Link.keyedWrapper('GotOrderedRowMessage', RowMessage, RowId)
 
+// OrderedRow is a bundle whose Model has `id: RowId`; OrderedPage's Model has `rows: Array<…>`.
 const OrderedRows = OrderedRow.each(
-  Link.collectionById<OrderedModel>()('rows', GotOrderedRowMessage, { id: row => row.id }),
+  OrderedPage.link.collectionById('rows', GotOrderedRowMessage, { id: row => row.id }),
 )
 OrderedRows.remove(RowId.make('first')) // a RowId, not a string
 ```
@@ -275,6 +287,8 @@ only the Model, and `create()` returns their `{ update, view }` pair.
 ```ts
 import * as Tabs from '@foldkit/ui/tabs'
 
+type Section = 'general' | 'billing'
+
 const SectionTabs = Bundle.fromParts('SectionTabs', {
   Model: Tabs.Model,
   Message: Tabs.Message,
@@ -282,6 +296,7 @@ const SectionTabs = Bundle.fromParts('SectionTabs', {
   parts: Tabs.create<Section>(),
 })
 
+// TabsPage is a parent scope whose Model has the declaration's `tabs` field and a `section`.
 const TabsPlaced = TabsPage.at(Bundle.declare(SectionTabs, 'tabs'), {
   args: { id: 'sections' },
   onOut: selected => model => ({ model: { ...model, section: selected.value } }),
@@ -330,10 +345,11 @@ A child that is not a top-level field is placed through a Link, with
 without restating the parent, and Links are pipeable:
 
 ```ts
+// SidebarPage's Model is { sidebar, open }; GotSidebarMessage is Link.wrapper('GotSidebarMessage', MediaQueryMessage).
 const Sidebar = MediaQuery.at(
   SidebarPage.link
     .field('sidebar', GotSidebarMessage)
-    .pipe(Link.when((model: SidebarModel) => model.open)),
+    .pipe(Link.when((model: typeof SidebarPage.Model.Type) => model.open)),
   { args: { query: '(min-width: 60rem)' } },
 )
 ```
@@ -343,22 +359,26 @@ const Sidebar = MediaQuery.at(
 | `Page.link.field(key, wrapper)` or `Link.field<Parent>()(…)` | a struct field, always present |
 | `Page.link.optional(key, wrapper)` or `Link.optional<Parent>()(…)` | an `Option` field; absent while `None` |
 | `Page.link.collection(key, keyedWrapper)` or `Link.collection<Parent>()(…)` | a record of items by key |
-| `Link.collectionById<Parent>()(key, keyedWrapper, { id })` | an array of items, in order |
+| `Page.link.collectionById(key, keyedWrapper, { id })` or `Link.collectionById<Parent>()(…)` | an array of items, in order |
 | `outer.pipe(Link.andThen(inner))` | inside another placed child |
 | `link.pipe(Link.when(predicate))` | gated by the parent |
 | `Link.make({ read, write, wrapper, path })` | anywhere a lens can reach |
 
 `Link.wrapper(tag, ChildMessage)` and `Link.keyedWrapper(tag, ChildMessage, key?)`
-build the parent variants a Link carries. `placements.initial` gives a
-custom-Link placement's field the value in `rest` when there is one, so an
-optional child can start as `None`.
+build the parent variants a Link carries. When `rest` gives a placement's
+top-level field, `placements.initial` keeps that value and skips its `init`, so
+an optional child can start as `None`. A nested placement is always initialised,
+inside whatever `rest` gave, and outer placements initialise before nested ones.
 
 ## Services
 
 When the parent's own update needs services, name them on the scope:
 
 ```ts
-Page.withServices<Clock>().assemble(...placements).update(clockUpdate)
+// clockUpdate: (model: Model, message: Message) => Update.Return<Model, Message, Clock>
+Page.withServices<Clock>()
+  .assemble(Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }))
+  .update(clockUpdate)
 ```
 
 ## Completeness: the three wiring mistakes
@@ -368,17 +388,20 @@ property that is wrong:
 
 | Mistake | Reported at |
 | --- | --- |
-| The parent Message union lacks a placement's wrapper variant | `update` |
+| An `update` that does not accept the whole parent Message, such as one written by hand with a narrower union | `update` |
 | `subscriptions` not built with `placements.subscriptions(own)` | `subscriptions` |
 | `managedResources` not built with `placements.resources(own)`, when a placement has resources | `managedResources` |
 
 Pass the parent's own records through the same call:
 `placements.subscriptions(ownSubscriptions)`. A duplicate key throws at startup,
-as `Subscription.aggregate` does. The scope's `Page.at` and `Page.place` already
-report a wrong field or a missing variant at the placement.
+as `Subscription.aggregate` does. A placement whose wrapper variant is missing from
+the parent Message is reported earlier: at `Page.at`, `Page.place`, or `Page.each`,
+or by `assemble`'s own type check.
 
-`Page.assemble` also fails at startup, naming both placements, when two share a
-key or a Managed Resource tag.
+`Page.assemble` also fails at startup when two placements share a key, and,
+naming both, when two share a wrapper (routing would send one's Messages to the
+other) or a Managed Resource tag. `placements.resources(own)` fails the same way
+when the parent's own resource shares a placement's tag.
 
 ## Lower-level API
 

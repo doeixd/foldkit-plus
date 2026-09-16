@@ -179,6 +179,7 @@ const LoggedCounter = Counter.pipe(
   Bundle.rename('LoggedCounter'),
 )
 
+// Sketch; built as Page.link.field(key, wrapper) and Link.andThen(Link.field<Parent>()(key, wrapper)).
 const link = Page.link.field('filters').pipe(
   Link.when(model => model.open),
   Link.andThen(Link.field('search')),
@@ -265,6 +266,10 @@ Built as planned, except:
 | Typed keys through a key codec, and `HashMap` storage | Keys constrained to `string` (branded ids work), record and array-by-id storage | Keys stay strings at runtime, so Subscription dependencies and record fields need no encoding; `HashMap` Models are rare in Foldkit. |
 | `initial(rest)` mounts every single placement | `rest` may give a custom-Link placement's field, which then skips its `init` | A `Link.optional` placement could otherwise never start as `None`. |
 | Remove `Bundle.assemble<Model, Message>()`, `declared.at<Model>()`, and `BundleSurface.link` | Kept, documented as lower-level API after the scope | They compose by hand where no scope exists, and removing them buys nothing for code that uses the scope. |
+| W3: collections start as `{}` in `initial` | Collections start as their Link's `empty` storage (`{}` or `[]`), for top-level collection fields | Array storage (W6) needs `[]`. |
+| W4: args decoded once at placement | Args validated against the Schema (`Schema.asserts`) and encoded for Module; a preset is checked when `with` is called | Placement receives args already in their Type form, so there is nothing to decode. |
+| W5: `Bundle.withResources` and `Link.key` | Not built | No use yet: a resource must be tied to a placement's tag (see Later), and `key` is already a placement config option. |
+| W6: `declareEach(bundle, field, { key })` | `declareEach` takes no key Schema; typed keys use `Link.keyedWrapper(tag, Message, key)` with `Link.collection` or `collectionById` | The declaration form stays one argument pair; typed keys need the storage choice anyway. |
 
 The scope's inference costs about 10% more check time at 100 placements
 (2.23 s against 2.02 s), inside the 25% budget ([benchmarks](../benchmarks.md)).

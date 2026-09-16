@@ -103,7 +103,6 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
   readonly withServices: <S>() => Parent<Model, Message, S>
 
   /** A placement declared with `Bundle.declare`. */
-  /** A placement declared with `Bundle.declare`. */
   readonly at: <
     B extends AnyBundle,
     const Field extends FieldsHolding<Model, P<B>['Model']>,
@@ -222,6 +221,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
     ) => LinkType<Model, Wrapped<Tag, ChildMessage>, Model[Key], ChildMessage>
     readonly optional: ReturnType<typeof Link.optional<Model>>
     readonly collection: ReturnType<typeof Link.collection<Model>>
+    readonly collectionById: ReturnType<typeof Link.collectionById<Model>>
   }
 }
 
@@ -258,6 +258,7 @@ const make = <Model, Message extends AnyMessage, Services>(
     field: (key, wrapper, options) => Link.field<Model>()(key, wrapper, options),
     optional: Link.optional<Model>(),
     collection: Link.collection<Model>(),
+    collectionById: Link.collectionById<Model>(),
   },
 })
 
