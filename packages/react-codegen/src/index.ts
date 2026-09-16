@@ -7,6 +7,8 @@ export {
 export {
   formatDiagnostic,
   generate,
+  watch,
   type GenerateOptions,
   type GenerateResult,
+  type WatchEvent,
 } from './generate.js'

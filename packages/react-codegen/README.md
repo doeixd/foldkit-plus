@@ -126,7 +126,7 @@ it in React.
 ## CLI
 
 ```text
-foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <directory>]
+foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <directory>] [--watch]
 ```
 
 - Directories are searched for `.ts` files, skipping `.d.ts` and `.test.ts`.
@@ -137,11 +137,15 @@ foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <
 - Files without views are copied with a header, so relative imports between
   compiled files resolve inside the out dir. Imports of files you did not
   compile will not resolve from there.
+- `--watch` compiles, then recompiles after each change under the inputs. It
+  keeps running after diagnostics, leaving the last good output in place, and
+  ignores its own writes when the out dir is inside an input. Deleting a source
+  does not delete its output.
 
 ## Library API
 
 ```ts
-import { formatDiagnostic, generate, transformSourceFile } from 'foldkit-react-codegen'
+import { formatDiagnostic, generate, transformSourceFile, watch } from 'foldkit-react-codegen'
 
 const result = transformSourceFile('src/SaveButton.ts', sourceText)
 if (result.ok) {
@@ -151,11 +155,16 @@ if (result.ok) {
 }
 
 await generate({ inputs: ['src'], outDir: 'generated' })
+
+const watcher = watch({ inputs: ['src'], outDir: 'generated' }, event => {
+  if (event._tag === 'Generated') console.log(event.result.written)
+})
+watcher.close()
 ```
 
 `transformSourceFile` is pure: text in, text or diagnostics out.
 
 ## Not yet
 
-Source maps, watch mode, Submodels, `OnMount`, and custom elements are not
+Source maps, Submodels, `OnMount`, and custom elements are not
 supported yet.

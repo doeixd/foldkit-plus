@@ -3,8 +3,8 @@ import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
-import { afterEach, beforeEach, expect, it } from 'vitest'
-import { DiagnosticCode, formatDiagnostic, generate } from '../src/index.js'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { DiagnosticCode, formatDiagnostic, generate, watch, type WatchEvent } from '../src/index.js'
 
 const view = `import type { Html, HtmlBuilder } from 'foldkit/html'
 export const view = (h: HtmlBuilder<never>): Html => h.p([], ['hi'])
@@ -86,4 +86,50 @@ it('exits non-zero from the CLI on a diagnostic', async () => {
   )
   expect(stdout).toContain('Wrote 2 file(s), 0 unchanged.')
   // Two Node processes loading tsx.
+}, 30_000)
+
+it('regenerates on change, reports diagnostics without writing, and recovers', async () => {
+  const events: Array<WatchEvent> = []
+  // The out dir sits inside the watched input, so the watcher must ignore its own writes.
+  const options = { inputs: [dir], outDir: join(dir, 'generated'), rootDir: dir }
+  const watcher = watch(options, event => events.push(event))
+  const output = join(dir, 'generated/src/View.tsx')
+  try {
+    await vi.waitFor(() => expect(events).toHaveLength(1), { timeout: 5_000 })
+    expect(await readFile(output, 'utf8')).toContain('<p>hi</p>')
+
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const before = events.length
+    await writeFile(join(dir, 'src/View.ts'), view.replace("'hi'", "'bye'"))
+    await vi.waitFor(async () => expect(await readFile(output, 'utf8')).toContain('<p>bye</p>'), {
+      timeout: 5_000,
+    })
+    // One run for the edit; the run's own write to the out dir must not trigger another.
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(events).toHaveLength(before + 1)
+
+    await writeFile(join(dir, 'src/View.ts'), view.replace("h.p([], ['hi'])", 'h.submodel(x)'))
+    await vi.waitFor(
+      () => {
+        const last = events.at(-1)
+        expect(last?._tag === 'Generated' && last.result.diagnostics[0]?.code).toBe(
+          DiagnosticCode.UnsupportedBuilder,
+        )
+      },
+      { timeout: 5_000 },
+    )
+    expect(await readFile(output, 'utf8')).toContain('<p>bye</p>')
+
+    await writeFile(join(dir, 'src/View.ts'), view)
+    await vi.waitFor(async () => expect(await readFile(output, 'utf8')).toContain('<p>hi</p>'), {
+      timeout: 5_000,
+    })
+    // Settle, then prove the watcher's own writes did not keep it running.
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const settled = events.length
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(events).toHaveLength(settled)
+  } finally {
+    watcher.close()
+  }
 }, 30_000)

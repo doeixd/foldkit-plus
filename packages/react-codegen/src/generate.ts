@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import { watch as fsWatch } from 'node:fs'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { transformSourceFile, type Diagnostic } from './transform.js'
 
 export interface GenerateOptions {
@@ -77,3 +78,63 @@ export const generate = async (options: GenerateOptions): Promise<GenerateResult
 
 export const formatDiagnostic = (diagnostic: Diagnostic) =>
   `${diagnostic.fileName}:${diagnostic.line}:${diagnostic.column} - error ${diagnostic.code}: ${diagnostic.message}`
+
+export type WatchEvent =
+  | { readonly _tag: 'Generated'; readonly result: GenerateResult }
+  | { readonly _tag: 'Failed'; readonly error: unknown }
+
+/**
+ * Runs `generate` now and again after each change under the inputs, one run at
+ * a time; changes during a run cause exactly one more. Changes inside
+ * `outDir` are ignored, so an out dir nested in an input does not loop.
+ */
+export const watch = (
+  options: GenerateOptions,
+  onEvent: (event: WatchEvent) => void,
+): { readonly close: () => void } => {
+  const outDir = resolve(options.outDir)
+  let running = false
+  let pending = false
+  let closed = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  const run = async () => {
+    if (running) {
+      pending = true
+      return
+    }
+    running = true
+    try {
+      do {
+        pending = false
+        const event: WatchEvent = await generate(options).then(
+          result => ({ _tag: 'Generated', result }),
+          (error: unknown) => ({ _tag: 'Failed', error }),
+        )
+        if (!closed) onEvent(event)
+      } while (pending && !closed)
+    } finally {
+      running = false
+    }
+  }
+
+  const watchers = options.inputs.map(input => {
+    const path = resolve(input)
+    return fsWatch(path, { recursive: true }, (_, file) => {
+      const changed = file === null ? path : resolve(path, file.toString())
+      if (closed || changed === outDir || changed.startsWith(outDir + sep)) return
+      // Editors write a file in several steps; one run per burst.
+      clearTimeout(timer)
+      timer = setTimeout(() => void run(), 50)
+    })
+  })
+  void run()
+
+  return {
+    close: () => {
+      closed = true
+      clearTimeout(timer)
+      watchers.forEach(watcher => watcher.close())
+    },
+  }
+}
