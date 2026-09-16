@@ -141,7 +141,7 @@ type ErasedEntry = Subscription.Subscription<any, any, any, any>
 const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig = {}) => {
   const args = config.args
   const prefix = config.key ?? `${bundle.name}@${link.path.join('.')}[]`
-  const argsSummary = checkArgs(bundle, args, prefix)
+  const argsSummary = checkArgs(bundle, args, prefix) ?? bundle.preset
 
   const itemLink = (key: string) => ({
     read: (parent: unknown) => Record.get(link.read(parent), key),

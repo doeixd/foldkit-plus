@@ -192,7 +192,7 @@ type ErasedHelper = Helper<any, any, any, any>
 const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig = {}) => {
   const args = config.args
   const key = config.key ?? `${bundle.name}@${link.path.join('.')}`
-  const argsSummary = checkArgs(bundle, args, key)
+  const argsSummary = checkArgs(bundle, args, key) ?? bundle.preset
   const onOut = config.onOut ?? ((): ErasedStep => parent => ({ model: parent }))
 
   const foldStep = (

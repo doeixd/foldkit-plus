@@ -55,6 +55,8 @@ export interface BundleSpec<
    * are checked against it, and Module lists them.
    */
   readonly args?: Schema.Codec<Args, unknown>
+  /** Set by `with`: the bound args, encoded as text, for Module. */
+  readonly preset?: string | undefined
   /** Runs when the bundle is placed; its Commands start with the placement. */
   readonly init: (args: Args) => Update.Return<Model, Message, R>
   readonly update: (
@@ -210,9 +212,10 @@ const build = <
     ...spec,
     [BundleTypeId]: BundleTypeId,
     with: args => {
-      checkArgs(spec, args, spec.name)
+      const preset = checkArgs(spec, args, spec.name)
       return build({
         name: spec.name,
+        preset,
         Model: spec.Model,
         Message: spec.Message,
         init: () => spec.init(args),

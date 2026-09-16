@@ -44,7 +44,7 @@ describe('args as a Schema', () => {
       narrow: { matches: false, query: '' },
     })
     expect(initial.model.dark).toEqual({ matches: false, query: '(prefers-color-scheme: dark)' })
-    expect(placed.argsSummary).toBeUndefined()
+    expect(placed.argsSummary).toBe('{"query":"(prefers-color-scheme: dark)"}')
   })
 
   it('records a placement’s args encoded, for Module', () => {
