@@ -108,3 +108,16 @@ const Rows = Row.each(Link.collection<RowsModel>()('rows', GotRowMessage))
 
 export const addRow = Rows.add('b', row => ({ ...row, id: 'b' }))
 export const removeRow = Rows.remove('b')
+
+// --- Shorter: one declaration per placement ---
+
+const DarkDeclared = Bundle.declare(MediaQuery, 'dark') // wrapper GotDarkMessage
+
+const DeclaredModel = Schema.Struct({ ...DarkDeclared.fields, title: Schema.String })
+type DeclaredModel = typeof DeclaredModel.Type
+export const DeclaredMessage = defineMessageUnion({ ...DarkDeclared.cases, ClickedHelp: {} })
+
+export const DarkPlaced = DarkDeclared.at<DeclaredModel>()({
+  args: { query: '(prefers-color-scheme: dark)' },
+})
+export const RowsDeclared = Bundle.declareEach(Row, 'rows')

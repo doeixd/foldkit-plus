@@ -134,6 +134,26 @@ the rest of your options.
 - **`placements.complete`** returns the config unchanged. It exists to report
   wiring mistakes, below.
 
+### Shorter: one declaration per placement
+
+`Bundle.declare` derives the wrapper, the Model field, and the Message cases from
+the field name, using Foldkit's `Got<Field>Message` convention:
+
+```ts
+const Dark = Bundle.declare(MediaQuery, 'dark') // wrapper GotDarkMessage
+
+const Model = Schema.Struct({ ...Dark.fields, title: Schema.String })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Dark.cases, ClickedHelp: {} })
+
+const DarkPlaced = Dark.at<Model>()({ args: { query: '(prefers-color-scheme: dark)' } })
+```
+
+`at<Model>()` requires `Model.dark` to hold the bundle's Model. For a keyed
+collection, `Bundle.declareEach(Row, 'rows')` gives a record field and
+`each<Model>()`. Use `Link.field` directly when the placement needs a `when`
+gate or a Model path other than a top-level field.
+
 ## The placed parts
 
 Each placement exposes the lifted parts, in parent terms:

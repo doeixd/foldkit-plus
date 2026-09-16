@@ -58,8 +58,9 @@ transition goes through the parent's `update`. A placement is therefore an
   placement's Messages travel under one wrapper variant. Exposing them one by one
   needs Surface and Agent to understand wrapped variants. Projections and Mirrors
   over a placement already work through the application's ref tree.
-- **Ergonomic shorthands** (automatic wrapper names, `Bundle.place`, Model fields
-  derived from placements) wait for use in real applications.
+- **Further shorthands.** `Bundle.declare` and `declareEach` derive the wrapper
+  name, Model field, and Message cases from a field name. Deriving the whole
+  parent Model and Message from an assembly waits for use in real applications.
 
 ## Evidence
 
