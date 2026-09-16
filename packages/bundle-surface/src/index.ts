@@ -64,7 +64,8 @@ const contract = <
   owns: [placement.link.path],
   observes: [],
   messages: placement.link.messages,
-  metadata: [],
+  metadata:
+    placement.argsSummary === undefined ? [] : [{ name: 'args', entries: [placement.argsSummary] }],
 })
 
 /** A Module of an assembly's placements plus any other contracts of the application. */

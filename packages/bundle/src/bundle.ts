@@ -11,7 +11,7 @@ import type * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import type { AnyMessage, Link } from './link.js'
 import { each, type EachConfig, type PlacedCollection } from './collection.js'
-import { place, type Invalid, type PlaceConfig, type Placed } from './placed.js'
+import { checkArgs, place, type Invalid, type PlaceConfig, type Placed } from './placed.js'
 import type { CollectionLink } from './link.js'
 
 const BundleTypeId: unique symbol = Symbol.for('foldkit-bundle/Bundle')
@@ -50,6 +50,11 @@ export interface BundleSpec<
   readonly name: Name
   readonly Model: Schema.Codec<Model, unknown>
   readonly Message: Schema.Codec<Message, unknown>
+  /**
+   * The args Schema. When given, `Args` is inferred from it, a placement's args
+   * are checked against it, and Module lists them.
+   */
+  readonly args?: Schema.Codec<Args, unknown>
   /** Runs when the bundle is placed; its Commands start with the placement. */
   readonly init: (args: Args) => Update.Return<Model, Message, R>
   readonly update: (
@@ -76,6 +81,13 @@ export interface Bundle<
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
 > extends BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers> {
   readonly [BundleTypeId]: typeof BundleTypeId
+  /**
+   * A preset: the same bundle with its args bound, so placements need no `args`.
+   * The args are checked against the args Schema when there is one.
+   */
+  readonly with: (
+    args: Args,
+  ) => Bundle<Name, void, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
   /** Places the bundle where `link` points. */
   readonly at: <Parent, LinkMessage, OutStepMessage = never, R2 = never>(
     link: Link<Parent, LinkMessage, Model, Message>,
@@ -197,6 +209,22 @@ const build = <
   > = {
     ...spec,
     [BundleTypeId]: BundleTypeId,
+    with: args => {
+      checkArgs(spec, args, spec.name)
+      return build({
+        name: spec.name,
+        Model: spec.Model,
+        Message: spec.Message,
+        init: () => spec.init(args),
+        update: (model, message) => spec.update(model, message, args),
+        ...(spec.subscriptions === undefined
+          ? {}
+          : { subscriptions: () => spec.subscriptions!(args) }),
+        ...(spec.resources === undefined ? {} : { resources: () => spec.resources!(args) }),
+        ...(spec.view === undefined ? {} : { view: spec.view }),
+        ...(spec.helpers === undefined ? {} : { helpers: spec.helpers }),
+      })
+    },
     at: (link, ...[config]) => place(bundle, link, config),
     // The conditional type only hides `each` from bundles with resources; the function is the same.
     each: ((

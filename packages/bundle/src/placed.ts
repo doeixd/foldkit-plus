@@ -3,7 +3,7 @@
  * part is built from the Foldkit lift that exists for it, so a placement adds
  * no store, reducer, or render path.
  */
-import { Option, Record } from 'effect'
+import { Option, Record, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as ManagedResource from 'foldkit/managedResource'
@@ -14,6 +14,24 @@ import type { AnyMessage, Link } from './link.js'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 
 const PlacedTypeId: unique symbol = Symbol.for('foldkit-bundle/Placed')
+
+/**
+ * Checks args against the bundle's args Schema, naming where they were given,
+ * and returns their encoded form as text for Module, or `undefined` without a Schema.
+ */
+export const checkArgs = (
+  bundle: { readonly args?: Schema.Codec<any, unknown> },
+  args: unknown,
+  where: string,
+): string | undefined => {
+  if (bundle.args === undefined) return undefined
+  try {
+    Schema.asserts(bundle.args, args)
+    return JSON.stringify(Schema.encodeSync(bundle.args)(args))
+  } catch (error) {
+    throw new Error(`${where}: args do not match the bundle's args Schema. ${String(error)}`)
+  }
+}
 
 export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, OutStepMessage, R2> {
   readonly args?: Args
@@ -70,6 +88,8 @@ export interface Placed<
   readonly name: Name
   /** `Name@path`, or the configured `key`: the prefix of every Subscription and resource key. */
   readonly key: string
+  /** The encoded args as text, when the bundle has an args Schema. */
+  readonly argsSummary: string | undefined
   readonly link: Link<Parent, ParentMessage, Model, Message>
   /** Writes the child's initial Model and starts its `init` Commands. */
   readonly init: Update.Step<Parent, ParentMessage, R>
@@ -172,6 +192,7 @@ type ErasedHelper = Helper<any, any, any, any>
 const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig = {}) => {
   const args = config.args
   const key = config.key ?? `${bundle.name}@${link.path.join('.')}`
+  const argsSummary = checkArgs(bundle, args, key)
   const onOut = config.onOut ?? ((): ErasedStep => parent => ({ model: parent }))
 
   const foldStep = (
@@ -242,6 +263,7 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     [PlacedTypeId]: PlacedTypeId,
     name: bundle.name,
     key,
+    argsSummary,
     link,
     init: (parent: unknown) => {
       const initial = bundle.init(args)

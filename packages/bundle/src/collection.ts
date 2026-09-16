@@ -10,7 +10,7 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import type { AnyMessage, CollectionLink } from './link.js'
-import type { ViewBuilder } from './placed.js'
+import { checkArgs, type ViewBuilder } from './placed.js'
 
 const PlacedCollectionTypeId: unique symbol = Symbol.for('foldkit-bundle/PlacedCollection')
 
@@ -64,6 +64,8 @@ export interface PlacedCollection<
   readonly name: Name
   /** `Name@path[]`, or the configured `key`: the prefix of every Subscription key. */
   readonly key: string
+  /** The encoded args as text, when the bundle has an args Schema. */
+  readonly argsSummary: string | undefined
   readonly link: CollectionLink<Parent, ParentMessage, Model, Message>
   /** Folds the Message into its item; `None` when it is not this collection's. A missing key leaves the parent unchanged. */
   readonly update: (
@@ -139,6 +141,7 @@ type ErasedEntry = Subscription.Subscription<any, any, any, any>
 const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig = {}) => {
   const args = config.args
   const prefix = config.key ?? `${bundle.name}@${link.path.join('.')}[]`
+  const argsSummary = checkArgs(bundle, args, prefix)
 
   const itemLink = (key: string) => ({
     read: (parent: unknown) => Record.get(link.read(parent), key),
@@ -258,6 +261,7 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
     [PlacedCollectionTypeId]: PlacedCollectionTypeId,
     name: bundle.name,
     key: prefix,
+    argsSummary,
     link,
     update: (parent: unknown, message: AnyMessage) =>
       Option.map(link.fromParentMessage(message), ([key, childMessage]) =>

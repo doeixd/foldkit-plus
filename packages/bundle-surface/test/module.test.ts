@@ -123,3 +123,22 @@ describe('BundleSurface.parent', () => {
     ])
   })
 })
+
+describe('placement args in the contract', () => {
+  it('lists a placement’s encoded args as metadata', () => {
+    const Query = Bundle.make('Query', {
+      Model: SearchModel,
+      Message: SearchMessage,
+      args: Schema.Struct({ placeholder: Schema.String }),
+      init: () => ({ model: { query: '' } }),
+      update: (_model, message) => ({ model: { query: message.query } }),
+    })
+    const placed = Query.at(Link.field<Model>()('filter', GotFilterMessage), {
+      args: { placeholder: 'Find' },
+    })
+    expect(BundleSurface.contract(App, placed).metadata).toEqual([
+      { name: 'args', entries: ['{"placeholder":"Find"}'] },
+    ])
+    expect(BundleSurface.contract(App, SearchPlaced).metadata).toEqual([])
+  })
+})
