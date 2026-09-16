@@ -8,7 +8,8 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
-      "foldkit-surface": ["../surface/src/index.ts"]
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-mirror": ["../mirror/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -18,6 +19,9 @@
     },
     {
       "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../mirror/tsconfig.build.json"
     }
   ]
 }

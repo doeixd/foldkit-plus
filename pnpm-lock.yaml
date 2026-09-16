@@ -415,6 +415,9 @@ importers:
       foldkit:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
+      foldkit-mirror:
+        specifier: workspace:*
+        version: link:../mirror
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

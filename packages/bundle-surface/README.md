@@ -59,8 +59,43 @@ Module.validate(AppModule) // []
 `Module.manifest` and `Module.toMarkdown` list each placement as the owner of
 its path.
 
+## Reading a placement: projections and Mirrors
+
+A placement's state is part of the parent Model, so its fields are already in
+the application's ref tree. Observing one needs no bundle API:
+`App.fields.search.query`, `App.fields.search.select(projection)`.
+
+To mirror two placements of one bundle, give each mirror its own keys:
+
+```ts
+const SearchUrl = Mirror.url(App, {
+  name: 'search',
+  fields: [App.fields.search.query],
+  keys: { query: { key: 'search.q' } },
+})
+const FilterUrl = Mirror.url(App, {
+  name: 'filter',
+  fields: [App.fields.filter.query],
+  keys: { query: { key: 'filter.q' } },
+})
+```
+
+[`test/mirror.test.ts`](test/mirror.test.ts) writes and reads both.
+
+## Why placements are not re-rooted Surfaces
+
+A Surface names the Messages a feature may cause by their parent constructors,
+and an agent adapter exposes one capability per constructor. Every Message of a
+placement travels under one wrapper variant, `GotSearchMessage({ message })`,
+so a re-rooted Surface could only offer that single variant, not the child's
+individual Messages. Exposing a placement's Messages one by one needs Surface
+and Agent to understand wrapped variants, which is a change to those packages
+rather than a helper here. Until then, declare a parent Surface over the
+placement's fields and name the wrapper variant in its `messages`.
+
 ## Limits
 
 - A Link composed with `Link.compose` from a ref-built Link names the
   application passed to `contract`, not the ref's.
-- Relative Surfaces and Mirror declarations per placement are not built yet.
+- Surfaces cannot expose a placement's individual child Messages, for the
+  reason above.
