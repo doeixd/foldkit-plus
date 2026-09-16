@@ -32,8 +32,7 @@ const Placed = SectionTabs.at(Link.field<Model>()('tabs', GotTabsMessage), {
 })
 const placements = Bundle.assemble<Model, Message>()([Placed])
 
-const update = (model: Model, message: Message) =>
-  Option.getOrElse(placements.update(model, message), () => ({ model }))
+const update = placements.update()
 
 describe('Bundle.fromParts', () => {
   it('wraps init’s Model as an update return', () => {

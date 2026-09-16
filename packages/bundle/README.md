@@ -109,8 +109,7 @@ Wire the assembly into the runtime config once. `empty` is
 ```ts
 const config = placements.complete({
   init: () => placements.init({ dark: empty, narrow: empty }),
-  update: (model: Model, message: Message) =>
-    Option.getOrElse(placements.update(model, message), () => ({ model })),
+  update: placements.update(),
   view,
   subscriptions: placements.subscriptions(),
 })

@@ -22,7 +22,7 @@ export interface EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutS
     outMessage: OutMessage,
     key: string,
     context: Update.FoldContext<Message, LinkMessage>,
-  ) => Update.Step<Parent, OutStepMessage, R2>
+  ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the collection's Subscription keys. Defaults to `Name@path[]`. */
   readonly key?: string
 }

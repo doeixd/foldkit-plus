@@ -37,13 +37,32 @@ type ResourceEntriesOf<P> = P extends { readonly resources: infer Resources }
   ? Resources[keyof Resources]
   : never
 
-export interface Assembly<Model, Message, Ps extends ReadonlyArray<PlacedIn<Model, Message>>> {
+/** `Services` are what the parent's own update may require, as in `Update.Commands<Message, Services>`. */
+export interface Assembly<
+  Model,
+  Message,
+  Ps extends ReadonlyArray<PlacedIn<Model, Message>>,
+  Services = never,
+> {
   readonly placements: Ps
   /** The update of the placement a Message belongs to; `None` for the parent's own Messages. */
-  readonly update: (
+  readonly route: (
     model: Model,
     message: Message,
   ) => Option.Option<Update.Return<Model, Message, RequirementsOf<Ps[number]>>>
+  /**
+   * The parent's update: a placement's Message goes to that placement, and every
+   * other Message to `own`. Without `own`, other Messages leave the Model unchanged.
+   */
+  // Deliberately not generic: a generic call written inline in `complete`'s config
+  // stops TypeScript inferring that config, so the parent's services are stated once
+  // on `assemble`.
+  readonly update: (
+    own?: (model: Model, message: Message) => Update.Return<Model, Message, Services>,
+  ) => (
+    model: Model,
+    message: Message,
+  ) => Update.Return<Model, Message, RequirementsOf<Ps[number]> | Services>
   /** Every single placement's init, in list order. Collections start empty; add items with `add`. */
   readonly init: Update.Step<Model, Message, RequirementsOf<Ps[number]>>
   /** The placements' Subscriptions merged with the parent's own. Throws on a duplicate key. */
@@ -63,7 +82,7 @@ export interface Assembly<Model, Message, Ps extends ReadonlyArray<PlacedIn<Mode
    * `Runtime.makeApplication` or `makeElement`.
    */
   readonly complete: <Config extends CompletableConfig<Model>>(
-    config: Config & CompletenessChecks<Config, Message, Ps>,
+    config: Config & NoInfer<CompletenessChecks<Config, Message, Ps>>,
   ) => Config
 }
 
@@ -129,10 +148,10 @@ const assertDistinctResources = (
  * stated once and every placement is checked against them.
  */
 export const assemble =
-  <Model, Message extends AnyMessage>() =>
+  <Model, Message extends AnyMessage, Services = never>() =>
   <const Ps extends ReadonlyArray<PlacedIn<Model, Message>>>(
     placements: Ps,
-  ): Assembly<Model, Message, Ps> => {
+  ): Assembly<Model, Message, Ps, Services> => {
     // Collections have no resources and no init: `each` rejects bundles with resources.
     const singles = placements.filter(isPlaced)
     assertDistinctResources(singles)
@@ -146,13 +165,20 @@ export const assemble =
       keys.add(placed.key)
     }
 
+    const route = (model: Model, message: Message) =>
+      pipe(
+        placements,
+        Array.findFirst(placed => placed.update(model, message)),
+      )
+
     return {
       placements,
-      update: (model, message) =>
-        pipe(
-          placements,
-          Array.findFirst(placed => placed.update(model, message)),
-        ),
+      route,
+      update: ((own?: (model: Model, message: Message) => Update.Return<Model, Message, unknown>) =>
+        (model: Model, message: Message) =>
+          Option.getOrElse(route(model, message), () =>
+            own === undefined ? { model } : own(model, message),
+          )) as Assembly<Model, Message, Ps, Services>['update'],
       init: Update.combine(singles.map(placed => placed.init)),
       subscriptions: own =>
         brand(

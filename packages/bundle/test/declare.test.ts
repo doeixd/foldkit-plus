@@ -43,11 +43,11 @@ describe('Bundle.declare', () => {
     expect(initial.model.left).toEqual({ count: 2, running: false })
     const added = RowsPlaced.add('a')(initial.model)
     const routed = Option.getOrThrow(
-      placements.update(added.model, Rows.wrapper.make('a', CounterMessage.Incremented())),
+      placements.route(added.model, Rows.wrapper.make('a', CounterMessage.Incremented())),
     )
     expect(routed.model.rows).toEqual({ a: { count: 1, running: false } })
     const left = Option.getOrThrow(
-      placements.update(routed.model, Left.wrapper.make(CounterMessage.Incremented())),
+      placements.route(routed.model, Left.wrapper.make(CounterMessage.Incremented())),
     )
     expect(left.model.left.count).toBe(3)
     expect(LeftPlaced.key).toBe('Counter@left')

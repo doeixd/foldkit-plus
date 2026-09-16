@@ -140,8 +140,7 @@ it('runs two placements of one bundle independently on the Foldkit runtime', asy
         const initial = placements.init({ a: empty, b: empty })
         return { ...initial, model: { ...initial.model, b: { ...initial.model.b, live: true } } }
       },
-      update: (model: Model, message: Message) =>
-        Option.getOrElse(placements.update(model, message), () => ({ model })),
+      update: placements.update(),
       view: (model: Model, h: HtmlBuilder<Message>) =>
         h.main(
           [],

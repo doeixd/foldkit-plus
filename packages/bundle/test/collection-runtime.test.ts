@@ -70,17 +70,16 @@ type Message = typeof Message.Type
 const Rows = Row.each(Link.collection<Model>()('rows', GotRowMessage))
 const placements = Bundle.assemble<Model, Message>()([Rows])
 
-const update = (model: Model, message: Message) =>
-  Option.getOrElse(placements.update(model, message), () => {
-    switch (message._tag) {
-      case 'ClickedAdd':
-        return Rows.add(message.id, row => ({ ...row, id: message.id }))(model)
-      case 'ClickedRemove':
-        return Rows.remove(message.id)(model)
-      default:
-        return { model }
-    }
-  })
+const update = placements.update((model, message) => {
+  switch (message._tag) {
+    case 'ClickedAdd':
+      return Rows.add(message.id, row => ({ ...row, id: message.id }))(model)
+    case 'ClickedRemove':
+      return Rows.remove(message.id)(model)
+    default:
+      return { model }
+  }
+})
 
 const view = (model: Model, h: HtmlBuilder<Message>) =>
   h.main(

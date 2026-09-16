@@ -20,8 +20,7 @@ const placed = Counter.at(Link.field<Model>()('counter', GotCounter), {
 })
 const assembly = Bundle.assemble<Model, Message>()([placed])
 
-const update = (model: Model, message: Message) =>
-  Option.getOrElse(assembly.update(model, message), () => ({ model }))
+const update = assembly.update()
 
 // Wired: accepted, and returned unchanged.
 const config = assembly.complete({
@@ -74,7 +73,6 @@ const rows = Bundle.make({ ...plainSpec, name: 'Plain' }).each(
 )
 const rowsAssembly = Bundle.assemble<RowsModel, RowsMessage>()([rows])
 rowsAssembly.complete({
-  update: (model: RowsModel, message: RowsMessage) =>
-    Option.getOrElse(rowsAssembly.update(model, message), () => ({ model })),
+  update: rowsAssembly.update(),
   subscriptions: rowsAssembly.subscriptions(),
 })

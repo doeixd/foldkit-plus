@@ -140,17 +140,16 @@ export const empty: Model = {
   savedAt: null,
 }
 
-export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
-  Option.getOrElse(placements.update(model, message), () => {
-    switch (message._tag) {
-      case 'ChoseFile':
-        return Uploads.add(message.id, upload => ({ ...upload, name: message.name }))(model)
-      case 'ClickedRestart':
-        return Uploads.helpers.restart(message.id)(model)
-      default:
-        return { model }
-    }
-  })
+export const update = placements.update((model, message) => {
+  switch (message._tag) {
+    case 'ChoseFile':
+      return Uploads.add(message.id, upload => ({ ...upload, name: message.name }))(model)
+    case 'ClickedRestart':
+      return Uploads.helpers.restart(message.id)(model)
+    default:
+      return { model }
+  }
+})
 
 export const view = (model: Model, h: HtmlBuilder<Message>) =>
   h.main(

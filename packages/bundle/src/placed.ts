@@ -21,7 +21,7 @@ export interface PlaceConfig<Args, Parent, LinkMessage, Message, OutMessage, Out
   readonly onOut?: (
     outMessage: OutMessage,
     context: Update.FoldContext<Message, LinkMessage>,
-  ) => Update.Step<Parent, OutStepMessage, R2>
+  ) => Update.Step<NoInfer<Parent>, OutStepMessage, R2>
   /** Prefix for the placement's Subscription and resource keys. Defaults to `Name@path`. */
   readonly key?: string
 }

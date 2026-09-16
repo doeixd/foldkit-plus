@@ -73,8 +73,7 @@ const placements = Bundle.assemble<Model, Message>()([Dark, Narrow])
 // `complete` returns the config unchanged; it exists to report wiring mistakes.
 export const config = placements.complete({
   init: () => placements.init({ dark: { matches: false }, narrow: { matches: false } }),
-  update: (model: Model, message: Message) =>
-    Option.getOrElse(placements.update(model, message), () => ({ model })),
+  update: placements.update(),
   view: (model: Model, h: HtmlBuilder<Message>) => h.p([], [model.dark.matches ? 'dark' : 'light']),
   subscriptions: placements.subscriptions(),
 })

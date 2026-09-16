@@ -50,8 +50,7 @@ const assembly = Bundle.assemble<Model, Message>()([placed])
 
 const byHandUpdate = (model: Model, message: Message): Update.Return<Model, Message> =>
   message._tag === 'GotCounterMessage' ? byHand.fold(model, message.message) : { model }
-const placedUpdate = (model: Model, message: Message): Update.Return<Model, Message> =>
-  Option.getOrElse(assembly.update(model, message), () => ({ model }))
+const placedUpdate = assembly.update()
 
 const commandMessages = (result: Update.Return<Model, Message>) =>
   Effect.runSync(Effect.all((result.commands ?? []).map(command => command.effect)))

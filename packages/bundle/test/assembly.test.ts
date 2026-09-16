@@ -32,11 +32,32 @@ const assembly = Bundle.assemble<Model, Message>()([A, B])
 describe('Bundle.assemble', () => {
   it('routes placement Messages and leaves the parent’s own Messages to the parent', () => {
     const routed = Option.getOrThrow(
-      assembly.update(initial, GotB.make(CounterMessage.Incremented())),
+      assembly.route(initial, GotB.make(CounterMessage.Incremented())),
     )
     expect(routed.model.b.count).toBe(1)
     expect(routed.model.a).toBe(initial.a)
-    expect(assembly.update(initial, Message.Ticked())).toEqual(Option.none())
+    expect(assembly.route(initial, Message.Ticked())).toEqual(Option.none())
+  })
+
+  it('update(own) sends placement Messages to the placement and only the rest to own', () => {
+    const seen: Array<string> = []
+    const update = assembly.update((model, message) => {
+      seen.push(message._tag)
+      return message._tag === 'Ticked' ? { model: { ...model, ticks: model.ticks + 1 } } : { model }
+    })
+    expect(update(initial, GotA.make(CounterMessage.Incremented())).model.a.count).toBe(1)
+    expect(update(initial, Message.Ticked()).model.ticks).toBe(1)
+    expect(seen).toEqual(['Ticked'])
+    expect(assembly.update()(initial, Message.Ticked()).model).toBe(initial)
+  })
+
+  it('Bundle.ignore drops an OutMessage deliberately', () => {
+    const Quiet = Counter.at(Link.field<Model>()('a', GotA), {
+      args: { limit: 1, start: 0 },
+      onOut: Bundle.ignore,
+    })
+    const result = Option.getOrThrow(Quiet.update(initial, GotA.make(CounterMessage.Incremented())))
+    expect(result.model).toEqual({ ...initial, a: { count: 1, running: false } })
   })
 
   it('runs every init in list order and keeps each placement’s Commands', () => {

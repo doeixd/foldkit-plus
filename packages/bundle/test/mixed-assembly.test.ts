@@ -35,14 +35,14 @@ describe('an assembly with a collection', () => {
   it('routes to the collection item and to the single placement', () => {
     const model: Model = { main: counter, rows: { x: counter } }
     const row = Option.getOrThrow(
-      assembly.update(model, GotRow.make('x', CounterMessage.Incremented())),
+      assembly.route(model, GotRow.make('x', CounterMessage.Incremented())),
     )
     expect(row.model.rows).toEqual({ x: { count: 1, running: false } })
     const main = Option.getOrThrow(
-      assembly.update(model, GotMain.make(CounterMessage.Incremented())),
+      assembly.route(model, GotMain.make(CounterMessage.Incremented())),
     )
     expect(main.model.main.count).toBe(1)
-    expect(assembly.update(model, Message.Noop())).toEqual(Option.none())
+    expect(assembly.route(model, Message.Noop())).toEqual(Option.none())
   })
 
   it('initialises only single placements; the collection starts as the parent left it', () => {

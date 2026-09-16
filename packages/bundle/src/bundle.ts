@@ -358,6 +358,16 @@ export function fromParts(
   })
 }
 
+/**
+ * An `onOut` that deliberately drops the OutMessage. `onOut` stays required, so
+ * dropping one is a visible choice rather than an omission.
+ */
+// The returned Step is generic rather than `ignore` itself, so the placement still
+// infers its parent from the Link.
+export const ignore =
+  (..._: ReadonlyArray<unknown>) =>
+  <Parent>(parent: Parent): Update.Return<Parent, never, never> => ({ model: parent })
+
 export { assemble } from './assembly.js'
 export type { Assembly, WiredRecord } from './assembly.js'
 export { declare, declareEach } from './declare.js'

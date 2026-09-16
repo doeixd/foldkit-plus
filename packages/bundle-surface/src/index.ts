@@ -4,13 +4,7 @@
  * checks it against every other owner (Sync, Remote, another placement).
  */
 import { Option, type Schema } from 'effect'
-import {
-  Link,
-  type AnyPlaced,
-  type AnyPlacedCollection,
-  type Bundle,
-  type Wrapper,
-} from 'foldkit-bundle'
+import { Link, type AnyPlaced, type AnyPlacedCollection, type Wrapper } from 'foldkit-bundle'
 import {
   Module,
   type AppScope,
@@ -73,7 +67,7 @@ const module = <
   Cases extends Record<string, Schema.Struct.Fields>,
 >(
   app: AppScope<Root, F, Cases>,
-  assembly: Bundle.Assembly<Root, any, ReadonlyArray<AnyPlacement>>,
+  assembly: { readonly placements: ReadonlyArray<AnyPlacement> },
   items: readonly ModuleItem<Root>[] = [],
 ) => Module.make(app, [...assembly.placements.map(placement => contract(app, placement)), ...items])
 

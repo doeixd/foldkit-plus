@@ -61,8 +61,7 @@ const placements = Bundle.assemble<Model, Message>()([Dark, Narrow])
 const empty = { matches: false }
 const init = () => placements.init({ dark: empty, narrow: empty })
 
-const update = (model: Model, message: Message) =>
-  Option.getOrElse(placements.update(model, message), () => ({ model }))
+const update = placements.update()
 
 const view = (model: Model, h: HtmlBuilder<Message>) =>
   h.main([], [model.dark.matches ? 'dark' : 'light', model.narrow.matches ? ' · narrow' : ''])
