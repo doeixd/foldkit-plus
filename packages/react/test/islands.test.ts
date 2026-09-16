@@ -5,6 +5,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import { createElement, lazy, useState, type ComponentType } from 'react'
 import { expect, it, vi } from 'vitest'
 import { ReactComponent } from '../src/index.js'
@@ -146,5 +147,47 @@ it('renders the error fallback and reports the crash as a Message', async () => 
   } finally {
     handle.dispose()
     vi.restoreAllMocks()
+  }
+})
+
+it('routes an island event through the Submodel boundary it renders in', async () => {
+  const ChildMessage = defineMessageUnion({ Picked: { value: Schema.String } })
+  type ChildMessage = typeof ChildMessage.Type
+  const ParentMessage = defineMessageUnion({ GotChild: { value: Schema.String } })
+  type ParentMessage = typeof ParentMessage.Type
+
+  const Button = ({ onPick }: { readonly onPick?: (value: string) => void }) =>
+    createElement('button', { className: 'child-pick', onClick: () => onPick?.('x') }, 'pick')
+  const ReactButton = ReactComponent.define(Button, { events: ['onPick'] })
+  const childView = Submodel.defineView<null, ChildMessage>((_, h) =>
+    ReactButton.view({ messages: { onPick: value => ChildMessage.Picked({ value }) } }, h),
+  )
+
+  const Model = Schema.Struct({ log: Schema.Array(Schema.String) })
+  const handle = mount<typeof Model.Type, ParentMessage>({
+    Model,
+    init: { log: [] },
+    update: (model, message) => ({ log: [...model.log, `${message._tag}:${message.value}`] }),
+    view: (model, h) =>
+      h.div(
+        [],
+        [
+          h.p([h.Class('parent-log')], [model.log.join(',')]),
+          h.submodel({
+            slotId: 'picker',
+            model: null,
+            view: childView,
+            toParentMessage: message =>
+              ParentMessage.GotChild({ value: `lifted-${message.value}` }),
+          }),
+        ],
+      ),
+  })
+  try {
+    await vi.waitFor(() => expect(text('.child-pick')).toBe('pick'))
+    click('.child-pick')
+    await vi.waitFor(() => expect(text('.parent-log')).toBe('GotChild:lifted-x'))
+  } finally {
+    handle.dispose()
   }
 })
