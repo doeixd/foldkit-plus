@@ -25,6 +25,7 @@ export const mount = <Model, Message extends { readonly _tag: string }>(config: 
   readonly init: Model
   readonly update: (model: Model, message: Message) => Model
   readonly view: (model: Model, h: HtmlBuilder<Message>) => Html
+  readonly devTools?: Runtime.DevToolsConfig
 }) => {
   const container = document.createElement('div')
   // The runtime renders into its container by id.
@@ -36,6 +37,7 @@ export const mount = <Model, Message extends { readonly _tag: string }>(config: 
     init: () => ({ model: config.init }),
     update: (model: Model, message: Message) => ({ model: config.update(model, message) }),
     view: config.view,
+    ...(config.devTools === undefined ? {} : { devTools: config.devTools }),
   })
   return Runtime.embed(program)
 }

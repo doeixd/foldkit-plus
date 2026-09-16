@@ -118,6 +118,11 @@ every unknown element is; style it if the component needs a block.
 ReactCounter.view({ props: { id: row.id }, hostAttributes: [h.Key(row.id), h.Class('row')] }, h)
 ```
 
+With Foldkit DevTools time travel, jumping to a past Model re-renders the same
+React root with that Model's props; React's internal state is not rewound, since
+Foldkit does not own it. Island events while paused reach no Model, like any
+other handler in the replayed view, and resuming restores the live props.
+
 An island removed by Foldkit unmounts its React tree, running effect cleanups.
 A keyed move keeps it mounted, because the host defers unmounting until after
 the move completes.
