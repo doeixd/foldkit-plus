@@ -1,7 +1,8 @@
 import type { HtmlBuilder } from 'foldkit/html'
+import type { Inbound, Outbound } from 'foldkit/port'
 import type { ReactNode } from 'react'
 import { expectTypeOf } from 'vitest'
-import { ReactComponent } from '../src/index.js'
+import { FoldkitComponent, ReactComponent, type Program } from '../src/index.js'
 
 type Message = { readonly _tag: 'Picked'; readonly value: string } | { readonly _tag: 'Closed' }
 declare const h: HtmlBuilder<Message>
@@ -83,3 +84,48 @@ Island.view(
 // A component whose props are all optional needs no `props`.
 declare const Plain: (props: { readonly onClose?: () => void }) => ReactNode
 ReactComponent.define(Plain, { events: ['onClose'] }).view({ messages: { onClose: Closed } }, h)
+
+// FoldkitComponent: bindings are typed by the program's Ports.
+declare const program: Program<{
+  readonly inbound: { readonly stepChanged: Inbound<number, string> }
+  readonly outbound: { readonly countChanged: Outbound<number, string> }
+}>
+interface CounterProps {
+  readonly step: number
+  readonly onCount?: (count: string) => void
+}
+
+const Counter = FoldkitComponent.define({
+  make: (_container, _props: CounterProps) => program,
+  // The host sends the Encoded side.
+  inbound: { stepChanged: props => String(props.step) },
+  outbound: {
+    countChanged: (count, props) => {
+      expectTypeOf(count).toEqualTypeOf<string>()
+      props.onCount?.(count)
+    },
+  },
+})
+expectTypeOf<Parameters<typeof Counter>[0]>().toMatchTypeOf<CounterProps>()
+
+FoldkitComponent.define({
+  make: (_container, _props: CounterProps) => program,
+  // @ts-expect-error
+  inbound: { stepChanged: props => props.step },
+})
+
+FoldkitComponent.define({
+  make: (_container, _props: CounterProps) => program,
+  inbound: {
+    // @ts-expect-error
+    unknownPort: props => String(props.step),
+  },
+})
+
+FoldkitComponent.define({
+  make: (_container, _props: CounterProps) => program,
+  outbound: {
+    // @ts-expect-error
+    stepChanged: () => {},
+  },
+})
