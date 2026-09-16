@@ -63,8 +63,15 @@ export interface PlacedCollection<
     parent: Parent,
     message: AnyMessage,
   ) => Option.Option<Update.Return<Parent, ParentMessage, R>>
-  /** Writes a new item from `init` and starts its Commands. An existing item is replaced. */
-  readonly add: (key: string) => Update.Step<Parent, ParentMessage, R>
+  /**
+   * Writes a new item from `init` and starts its Commands. `prepare` adjusts the
+   * initial Model first, for what only the parent knows, such as the item's id.
+   * An existing item is replaced.
+   */
+  readonly add: (
+    key: string,
+    prepare?: (model: Model) => Model,
+  ) => Update.Step<Parent, ParentMessage, R>
   /** Removes an item; its Subscriptions stop with it, and later Messages for it are ignored. */
   readonly remove: (key: string) => Update.Step<Parent, ParentMessage, never>
   readonly subscriptions: Subscription.Subscriptions<Parent, ParentMessage, S>
@@ -250,11 +257,11 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
         foldItem(key, model => bundle.update(model, childMessage, args))(parent),
       ),
     add:
-      (key: string): ErasedStep =>
+      (key: string, prepare: (model: unknown) => unknown = model => model): ErasedStep =>
       parent => {
         const initial = bundle.init(args)
         return {
-          model: link.write(parent, key, Option.some(initial.model)),
+          model: link.write(parent, key, Option.some(prepare(initial.model))),
           commands: Command.mapMessages(initial.commands, message =>
             link.toParentMessage(key, message),
           ),

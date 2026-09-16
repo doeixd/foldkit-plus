@@ -107,6 +107,11 @@ describe('Bundle.each', () => {
     expect(commandMessages(added)).toEqual([GotItemMessage.make('a', ItemMessage.Toggled())])
   })
 
+  it('lets the parent prepare the initial Model with what only it knows', () => {
+    const added = Items.add('a', model => ({ ...model, count: 40 }))(empty)
+    expect(added.model.items).toEqual({ a: { count: 40, live: false } })
+  })
+
   it('routes a Message to its item only and folds the OutMessage with its key', () => {
     const model = withItems({ a: { count: 1, live: false }, b: { count: 0, live: false } })
     const result = Option.getOrThrow(

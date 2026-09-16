@@ -99,7 +99,10 @@ const ToggleItems = Schema.Struct({ items: Schema.Record(Schema.String, Toggle.M
 const GotToggleItem = Link.keyedWrapper('GotToggleItemMessage', Toggle.Message)
 const toggles = Toggle.each(Link.collection<typeof ToggleItems.Type>()('items', GotToggleItem))
 expectTypeOf(toggles.add).toEqualTypeOf<
-  (key: string) => Update.Step<typeof ToggleItems.Type, typeof GotToggleItem.Schema.Type, never>
+  (
+    key: string,
+    prepare?: (model: { readonly on: boolean }) => { readonly on: boolean },
+  ) => Update.Step<typeof ToggleItems.Type, typeof GotToggleItem.Schema.Type, never>
 >()
 
 // A bundle with Managed Resources cannot be placed per key: items would share one resource tag.
