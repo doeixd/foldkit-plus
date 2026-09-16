@@ -95,8 +95,8 @@ on the same machine; check time is noisy, instantiation counts are not.
 
 | placements | instantiations | check time |
 | ---: | ---: | ---: |
-| 1 | 201,400 | 1.8 s |
-| 30 | 250,280 | 4.9 s |
+| 1, before | 201,400 | 1.8 s |
+| 30, before | 250,280 | 4.9 s |
 | 100, before | 368,230 | 6.6 s |
 | 100, after | 264,947 | 2.0 s |
 
