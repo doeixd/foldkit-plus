@@ -191,3 +191,45 @@ it('routes an island event through the Submodel boundary it renders in', async (
     handle.dispose()
   }
 })
+
+it('confines an uncaught render error to its own island', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  // React reports the uncaught error to the window; keep it from failing the run.
+  const swallow = (event: ErrorEvent) => event.preventDefault()
+  window.addEventListener('error', swallow)
+  const Bomb = ({ armed }: { readonly armed: boolean }) => {
+    if (armed) throw new Error('boom')
+    return createElement('span', { className: 'bomb' }, 'calm')
+  }
+  const ReactBomb = ReactComponent.define(Bomb)
+  const Model = Schema.Struct({ armed: Schema.Boolean })
+  const handle = mount<typeof Model.Type, Message>({
+    Model,
+    init: { armed: false },
+    update: model => ({ armed: !model.armed }),
+    view: (model, h) =>
+      h.div(
+        [],
+        [
+          h.button([h.Class('arm'), h.OnClick(Message.Toggled())], []),
+          ReactBomb.view({ props: { armed: model.armed } }, h),
+          ReactCounter.view({ props: { id: 'n' } }, h),
+        ],
+      ),
+  })
+  try {
+    await vi.waitFor(() => expect(text('.bomb')).toBe('calm'))
+    click('.counter-n')
+    await vi.waitFor(() => expect(text('.counter-n')).toBe('n:1'))
+    click('.arm')
+    await vi.waitFor(() => expect(document.querySelector('.bomb')).toBeNull())
+    expect(text('.counter-n')).toBe('n:1')
+    click('.counter-n')
+    await vi.waitFor(() => expect(text('.counter-n')).toBe('n:2'))
+  } finally {
+    handle.dispose()
+    window.removeEventListener('error', swallow)
+    vi.restoreAllMocks()
+  }
+})
