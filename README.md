@@ -231,6 +231,7 @@ so the front page cannot quietly drift from the API.
 | Cache server entities once, know what is missing, mutate optimistically, get live updates | `foldkit-remote` (+ `-server`, `-drizzle` on the server) | [Server-derived state](./docs/remote.md) |
 | Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
+| Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
 | Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
@@ -255,12 +256,16 @@ flowchart TB
   sync["foldkit-sync<br/>local replica"]
   durable["foldkit-durable<br/>ordered server log"]
   mirror["foldkit-mirror<br/>URL · KeyValueStore"]
+  bundle["foldkit-bundle<br/>Submodel placements"]
+  bundleSurface["foldkit-bundle-surface"]
   mixins["foldkit-mixins<br/>typed view extension points"]
   mixinsSurface["foldkit-mixins-surface"]
   mixinsUi["foldkit-mixins-ui"]
 
   app -- "describe observation / capability" --> surface
   app --> mixins
+  app --> bundle --> bundleSurface
+  surface --> bundleSurface
   surface --> agent --> agentAdapters
   surface --> remote --> server
   drizzle --> server
@@ -283,6 +288,7 @@ The rule that makes the whole graph composable is **one owner per datum**:
 | State | Owner | Package |
 | --- | --- | --- |
 | The route, the selection, a transient error | the local Model, plain `update` | — |
+| A reusable child machine's slice, placed once or per key | the parent Model | `foldkit-bundle` places |
 | A filter the URL shows, a draft a device remembers | the local Model | `foldkit-mirror` observes |
 | Facts owned by another system | the server | `foldkit-remote` caches |
 | Client-authored state that must survive offline and converge | the durable log | `foldkit-sync` + `foldkit-durable` |
@@ -333,6 +339,9 @@ pnpm add foldkit-surface foldkit-sync foldkit-durable
 
 # URL / local key-value representations
 pnpm add foldkit-mirror
+
+# reusable Submodels placed with every part wired
+pnpm add foldkit-bundle foldkit-bundle-surface
 
 # view extension points
 pnpm add foldkit-mixins foldkit-mixins-surface

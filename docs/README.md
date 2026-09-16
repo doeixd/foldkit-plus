@@ -48,6 +48,7 @@ vocabulary should refine them, not replace them.
 | Put server-owned entities in the Model without per-view fetch/cache logic | [Server-derived state](./remote.md) | `foldkit-remote`, `foldkit-remote-server`, optional `foldkit-remote-drizzle` |
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
 | Keep local Model state in the URL or a device store without making that store authoritative | [Mirrored state](./mirror.md) | `foldkit-mirror` |
+| Package a Submodel once and place it several times or per key, with its Subscriptions, resources, and view wired | [`foldkit-bundle` README](../packages/bundle) | `foldkit-bundle`, `foldkit-bundle-surface` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
 
@@ -81,6 +82,7 @@ Agents           foldkit-agent + agent-webmcp / agent-mcp / agent-a2a / agent-na
 Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
+Submodels        foldkit-bundle + bundle-surface
 Views            foldkit-mixins + mixins-surface / mixins-ui
 React interop    foldkit-react
 ```
