@@ -44,6 +44,9 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html =>
 - The Message type comes from `h`; messages go through Foldkit's event path,
   so Submodel `toParentMessage` lifts them.
 - Each island is its own React root with its own Suspense boundary.
+- `readAsyncData(model.user)` suspends an island on Model-owned `AsyncData`
+  (Idle/Loading suspend, Failure throws `AsyncDataFailure`, Refreshing and
+  Stale keep data). It starts no work: a Command loads.
 
 ## Foldkit inside React
 

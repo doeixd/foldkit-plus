@@ -8,7 +8,14 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Port from 'foldkit/port'
 import * as Runtime from 'foldkit/runtime'
 import { createElement, useEffect, type ReactNode } from 'react'
-import { FoldkitComponent, ReactComponent, useFoldkitElement } from '../src/index.js'
+import type * as AsyncData from 'foldkit/asyncData'
+import {
+  AsyncDataFailure,
+  FoldkitComponent,
+  ReactComponent,
+  readAsyncData,
+  useFoldkitElement,
+} from '../src/index.js'
 
 // --- React inside Foldkit ---
 
@@ -117,3 +124,31 @@ export const HookCounter = ({ step }: { readonly step: number }) => {
   }, [handle, step])
   return createElement('div', { ref })
 }
+
+// --- Waiting on Model data ---
+
+interface User {
+  readonly name: string
+}
+
+const Profile = ({ user }: { readonly user: AsyncData.AsyncData<User, string> }) => {
+  const { data, isRefreshing } = readAsyncData(user)
+  return createElement('p', null, isRefreshing ? `${data.name} (refreshing)` : data.name)
+}
+const ReactProfile = ReactComponent.define(Profile)
+
+export const profile = (
+  model: { readonly user: AsyncData.AsyncData<User, string> },
+  h: HtmlBuilder<Message>,
+) =>
+  ReactProfile.view(
+    {
+      props: { user: model.user },
+      suspenseFallback: createElement(Spinner),
+      errorBoundary: {
+        fallback: error =>
+          error instanceof AsyncDataFailure ? `Not found: ${error.error}` : 'Crashed',
+      },
+    },
+    h,
+  )

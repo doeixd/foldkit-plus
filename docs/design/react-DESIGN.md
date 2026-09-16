@@ -668,6 +668,48 @@ const user = FoldkitReact.useResource(User, id)
 This deserves its own design and does **not** block `@foldkit/react` v1. (See
 also [async-semantics-DESIGN.md](./async-semantics-DESIGN.md).)
 
+### 20a. Decision: Suspense interprets `AsyncData`; it does not load
+
+The sketch above conflicts with the accepted
+[async-semantics decision](./async-semantics-DESIGN.md#executive-decision):
+rendering must not initiate I/O, `AsyncData` stays the semantic async state in
+the Model, and there is no "Foldkit Suspense". `Resource.define` would also be
+Foldkit core API, which this repository does not own.
+
+What React needs is narrower: a component that should wait for data should be
+able to suspend on the Model's own async state. So the bridge is a reader, not a
+loader:
+
+```text
+Command (Foldkit owns the work)
+   ↓
+Message → update → Model.user: AsyncData<User, E>
+   ↓ island prop, or outbound Port → React state
+readAsyncData(user)
+   Idle | Loading   → suspend (nearest Suspense fallback)
+   Failure(error)   → throw AsyncDataFailure(error) (nearest error boundary)
+   Success(data)    → { data }
+   Refreshing(data) → { data, isRefreshing: true }   no suspension: keep data visible
+   Stale(error, data) → { data, maybeStaleError }
+```
+
+Design points:
+
+- **Nothing starts in render.** `readAsyncData` reads a value; the request is a
+  Foldkit Command, deduplication and cancellation stay in Effect.
+- **Suspending needs no resolvable promise.** React retries a suspended tree when
+  new props or state reach it (verified on React 19.2), and the Model's next
+  `AsyncData` arrives exactly that way: as new island props, or as React state set
+  from an outbound Port. One module-level promise that never settles is thrown.
+  A value that reaches the component any other way (a mutable ref, a store React
+  does not subscribe to) would never retry; that is documented as the contract.
+- **Refreshing and Stale do not suspend.** This matches the "keep useful data
+  visible" policy in the async-semantics doc's rendering helper.
+- **Failure uses the error boundary** an island already has (`errorBoundary`),
+  with the Model's error on `AsyncDataFailure.error`.
+
+Implemented as `readAsyncData` and `AsyncDataFailure` in `foldkit-react`.
+
 ---
 
 ## 21. `@foldkit/react-codegen`

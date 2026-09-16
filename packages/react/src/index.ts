@@ -6,3 +6,4 @@ export {
   type FoldkitElementOptions,
   type Program,
 } from './useFoldkitElement.js'
+export { AsyncDataFailure, readAsyncData, type AsyncDataReady } from './asyncData.js'

@@ -108,6 +108,42 @@ error. With it, the island shows `fallback` and, if given,
 `toMessage` dispatches a Message so the Model can record the crash. The
 fallback stays until the island is removed.
 
+### Waiting on Model data: `readAsyncData`
+
+Loading belongs to Foldkit: a Command fetches, `update` stores an `AsyncData` in
+the Model. An island can suspend on that value instead of branching on its tag:
+
+```ts
+const Profile = ({ user }: { readonly user: AsyncData.AsyncData<User, string> }) => {
+  const { data, isRefreshing } = readAsyncData(user)
+  return createElement('p', null, isRefreshing ? `${data.name} (refreshing)` : data.name)
+}
+
+ReactProfile.view(
+  {
+    props: { user: model.user },
+    suspenseFallback: createElement(Spinner),
+    errorBoundary: {
+      fallback: error => (error instanceof AsyncDataFailure ? `Not found: ${error.error}` : 'Crashed'),
+    },
+  },
+  h,
+)
+```
+
+```text
+Idle | Loading       -> suspends: the island's suspenseFallback
+Failure(error)       -> throws AsyncDataFailure: the island's errorBoundary
+Success(data)        -> { data }
+Refreshing(data)     -> { data, isRefreshing: true }        no suspension
+Stale(error, data)   -> { data, maybeStaleError: Some(error) }
+```
+
+`readAsyncData` starts nothing and caches nothing. The suspended component
+retries when the next value reaches it as props or React state, which is how
+island props and outbound Port values arrive; a value read from anywhere else
+would never retry.
+
 ### The host element
 
 `hostAttributes` go on `<foldkit-react-host>`, which Foldkit owns: keys for
