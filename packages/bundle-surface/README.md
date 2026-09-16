@@ -24,28 +24,36 @@ pnpm add foldkit-bundle-surface foldkit-bundle foldkit-surface effect foldkit
 ## Sixty seconds
 
 ```ts
-import { Bundle, Link } from 'foldkit-bundle'
+import { Bundle } from 'foldkit-bundle'
 import { BundleSurface } from 'foldkit-bundle-surface'
 import { Module, Surface } from 'foldkit-surface'
 
-const App = Surface.application({ Model, Message, initial, update })
+const Searchbox = Bundle.declare(Search, 'search')
+const Rows = Bundle.declareEach(Row, 'rows')
 
-// A Link from the application's own field ref.
-const SearchPlaced = Search.at(BundleSurface.link(App.model.search, GotSearchMessage))
-const Rows = Row.each(Link.collection<Model>()('rows', GotRowMessage))
-const placements = Bundle.assemble<Model, Message>()([SearchPlaced, Rows])
+const Model = Schema.Struct({ ...Searchbox.fields, ...Rows.fields, todos: Schema.Array(Todo) })
+const Message = defineMessageUnion({ ...Searchbox.cases, ...Rows.cases })
+const App = Surface.application({ Model, Message })
 
-const AppModule = BundleSurface.module(App, placements, [TodoSync])
+const Page = BundleSurface.parent(App)
+const placements = Page.assemble(Page.at(Searchbox), Page.each(Rows))
+
+const AppModule = Page.module(placements, [TodoSync])
 Module.validate(AppModule) // []
 ```
 
-- **`BundleSurface.module(app, assembly, items)`** makes one `bundle` contract
-  per placement and adds your other contracts. It performs no I/O.
+- **`BundleSurface.parent(app)`** is `Bundle.parent` built from the application's
+  own Model and Message, with `module` bound to that application.
+- **`Page.module(assembly, items)`** makes one `bundle` contract per placement and
+  adds your other contracts. It performs no I/O.
 - **`BundleSurface.contract(app, placement)`** is one contract, for
-  `Module.make` or `Module.add`. It owns the placement's path and names the
-  parent Message tags its Messages travel under.
-- **`BundleSurface.link(fieldRef, wrapper)`** is `Link.make` over a Surface
-  field ref. Its contract names the ref's application.
+  `Module.make` or `Module.add`. It owns the placement's path, names the parent
+  Message tags its Messages travel under, and lists its args as `args`
+  metadata when the bundle has an args Schema.
+- **`BundleSurface.link(fieldRef, wrapper)`** is `Link.make` over a Surface field
+  ref, for a custom placement. Its contract names the ref's application.
+- **`BundleSurface.module(app, assembly, items)`** is `Page.module` without a
+  scope.
 
 ## What the existing rules catch
 

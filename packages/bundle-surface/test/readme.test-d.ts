@@ -3,7 +3,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Bundle, Link } from 'foldkit-bundle'
+import { Bundle } from 'foldkit-bundle'
 import { Module, Surface, type Contract } from 'foldkit-surface'
 import { BundleSurface } from '../src/index.js'
 
@@ -17,26 +17,18 @@ const Search = Bundle.make('Search', {
 })
 const Row = Search
 
-const GotSearchMessage = Link.wrapper('GotSearchMessage', SearchMessage)
-const GotRowMessage = Link.keyedWrapper('GotRowMessage', SearchMessage)
-const Model = Schema.Struct({
-  search: SearchModel,
-  rows: Schema.Record(Schema.String, SearchModel),
-  todos: Schema.Array(Schema.String),
-})
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...GotSearchMessage.cases, ...GotRowMessage.cases })
-type Message = typeof Message.Type
-const initial: Model = { search: { query: '' }, rows: {}, todos: [] }
-const update = (model: Model) => ({ model })
+const Searchbox = Bundle.declare(Search, 'search')
+const Rows = Bundle.declareEach(Row, 'rows')
+
+const Todo = Schema.String
+const Model = Schema.Struct({ ...Searchbox.fields, ...Rows.fields, todos: Schema.Array(Todo) })
+const Message = defineMessageUnion({ ...Searchbox.cases, ...Rows.cases })
 declare const TodoSync: Contract
 
-const App = Surface.application({ Model, Message, initial, update })
+const App = Surface.application({ Model, Message })
 
-// A Link from the application's own field ref.
-const SearchPlaced = Search.at(BundleSurface.link(App.model.search, GotSearchMessage))
-const Rows = Row.each(Link.collection<Model>()('rows', GotRowMessage))
-const placements = Bundle.assemble<Model, Message>()([SearchPlaced, Rows])
+const Page = BundleSurface.parent(App)
+const placements = Page.assemble(Page.at(Searchbox), Page.each(Rows))
 
-const AppModule = BundleSurface.module(App, placements, [TodoSync])
+const AppModule = Page.module(placements, [TodoSync])
 export const findings = Module.validate(AppModule) // []
