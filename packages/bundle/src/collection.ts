@@ -148,32 +148,64 @@ const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig =
   const isOpen = (parent: unknown, key: string): boolean =>
     Option.match(link.when, { onNone: () => true, onSome: when => when(parent, key) })
 
+  type Items = ReadonlyArray<readonly [string, unknown]>
+
   // Each child entry becomes one parent entry whose dependencies list every open
-  // item's own dependencies by key. Any change restarts the entry's streams.
-  const liftEntry = (entry: ErasedEntry) => ({
-    dependenciesSchema: Schema.Struct({
-      items: Schema.Array(Schema.Tuple([Schema.String, entry.dependenciesSchema])),
-    }),
-    modelToDependencies: (parent: unknown) => ({
-      items: Object.entries(link.read(parent))
-        .filter(([key]) => isOpen(parent, key))
-        .map(([key, child]) => [key, entry.modelToDependencies(child)] as const),
-    }),
-    dependenciesToStream: ({
-      items,
-    }: {
-      readonly items: ReadonlyArray<readonly [string, unknown]>
-    }) =>
+  // item's own dependencies by key. A change restarts the entry's streams, unless
+  // the child entry keeps alive: then the parent keeps alive while the keys are
+  // unchanged and every item's dependencies are equivalent, and each item reads
+  // its own latest dependencies.
+  const liftEntry = (entry: ErasedEntry) => {
+    const childEquivalence = entry.keepAliveEquivalence
+    const toStream = (items: Items, readItems: () => Items) =>
       Stream.mergeAll(
-        items.map(([key, dependencies]) =>
-          Stream.map(
-            entry.dependenciesToStream(dependencies, () => dependencies),
-            message => link.toParentMessage(key, message),
-          ),
-        ),
+        items.map(([key, dependencies]) => {
+          const readDependencies = () =>
+            Option.getOrElse(
+              Option.map(
+                Array.findFirst(readItems(), ([itemKey]) => itemKey === key),
+                ([, latest]) => latest,
+              ),
+              () => dependencies,
+            )
+          return Stream.map(entry.dependenciesToStream(dependencies, readDependencies), message =>
+            link.toParentMessage(key, message),
+          )
+        }),
         { concurrency: 'unbounded' },
-      ),
-  })
+      )
+    return {
+      dependenciesSchema: Schema.Struct({
+        items: Schema.Array(Schema.Tuple([Schema.String, entry.dependenciesSchema])),
+      }),
+      modelToDependencies: (parent: unknown) => ({
+        items: Object.entries(link.read(parent))
+          .filter(([key]) => isOpen(parent, key))
+          .map(([key, child]) => [key, entry.modelToDependencies(child)] as const),
+      }),
+      ...(childEquivalence === undefined
+        ? {
+            dependenciesToStream: ({ items }: { readonly items: Items }) =>
+              toStream(items, () => items),
+          }
+        : {
+            keepAliveEquivalence: (
+              self: { readonly items: Items },
+              that: { readonly items: Items },
+            ) =>
+              self.items.length === that.items.length &&
+              self.items.every(
+                ([key, dependencies], index) =>
+                  that.items[index]![0] === key &&
+                  childEquivalence(dependencies, that.items[index]![1]),
+              ),
+            dependenciesToStream: (
+              { items }: { readonly items: Items },
+              readDependencies: () => { readonly items: Items },
+            ) => toStream(items, () => readDependencies().items),
+          }),
+    }
+  }
 
   const subscriptions = bundle.subscriptions
     ? Subscription.make<any, any, any>()(() =>

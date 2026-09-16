@@ -188,6 +188,65 @@ describe('collection subscriptions', () => {
   })
 })
 
+describe('keep-alive child subscriptions', () => {
+  // A child entry that keeps its stream alive and reads the latest count while running.
+  const Pointer = Bundle.make({
+    name: 'Pointer',
+    Model: ItemModel,
+    Message: ItemMessage,
+    init: () => ({ model: { count: 0, live: false } }),
+    update: model => ({ model }),
+    subscriptions: () =>
+      Subscription.make<ItemModel, ItemMessage>()(entry => ({
+        follow: entry(
+          { count: Schema.Number },
+          {
+            modelToDependencies: model => ({ count: model.count }),
+            keepAliveEquivalence: () => true,
+            dependenciesToStream: (_dependencies, readDependencies) =>
+              Stream.fromEffect(
+                Effect.sync(() =>
+                  readDependencies().count > 0 ? ItemMessage.Ticked() : ItemMessage.Toggled(),
+                ),
+              ),
+          },
+        ),
+      })),
+  })
+  const GotPointer = Link.keyedWrapper('GotPointerMessage', ItemMessage)
+  const Pointers = Pointer.each(Link.collection<Model>()('items', GotPointer))
+  const entry = Pointers.subscriptions['Pointer@items[]/follow']!
+
+  it('keeps alive while the keys are unchanged and every item is equivalent', () => {
+    const equivalence = entry.keepAliveEquivalence!
+    const before = entry.modelToDependencies(withItems({ a: { count: 0, live: false } }))
+    const moved = entry.modelToDependencies(withItems({ a: { count: 5, live: false } }))
+    const added = entry.modelToDependencies(
+      withItems({ a: { count: 0, live: false }, b: { count: 0, live: false } }),
+    )
+    expect(equivalence(before, moved)).toBe(true)
+    expect(equivalence(before, added)).toBe(false)
+  })
+
+  it('lets each item read its own latest dependencies', async () => {
+    const started = entry.modelToDependencies(
+      withItems({ a: { count: 0, live: false }, b: { count: 0, live: false } }),
+    )
+    const latest = entry.modelToDependencies(
+      withItems({ a: { count: 0, live: false }, b: { count: 3, live: false } }),
+    )
+    const messages = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(started, () => latest)),
+    )
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        GotPointer.make('a', ItemMessage.Toggled()),
+        GotPointer.make('b', ItemMessage.Ticked()),
+      ]),
+    )
+  })
+})
+
 describe('collection views', () => {
   const update = (model: Model, message: Message) =>
     Option.getOrElse(Items.update(model, message), () => ({ model }))
