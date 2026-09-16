@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import {
   Entity,
   Remote,
+  RemotePolicy,
   type RemoteClient,
   type RemoteMessage,
   type RemoteMessageInput,
@@ -53,14 +54,15 @@ const allTags: ReadonlyArray<RemoteMessageTag> = [
 ]
 
 describe('RemoteDomain.wiring', () => {
+  const receivedAda = Message.ReadReceived({
+    requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
+    result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }] },
+    now: 0,
+  })
+
   it('routes Remote Messages into reduce, as an application would by hand', () => {
-    const incoming = Message.ReadReceived({
-      requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
-      result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }] },
-      now: 0,
-    })
-    const routed = Option.getOrThrow(asWiring.route!(initial, incoming))
-    expect(routed.model).toEqual(Data.reduce(initial, incoming))
+    const routed = Option.getOrThrow(asWiring.route!(initial, receivedAda))
+    expect(routed.model).toEqual(Data.reduce(initial, receivedAda))
     expect(Data.get(summary, 'u1').read(routed.model)).toEqual({
       _tag: 'Ready',
       value: { name: 'ada' },
@@ -89,8 +91,14 @@ describe('RemoteDomain.wiring', () => {
   })
 
   it('passes options through to the entries', () => {
-    expect(Object.keys(Data.wiring({ home: Home }, { grace: '5 seconds' }).subscriptions!)).toEqual(
-      Object.keys(wiring.subscriptions!),
-    )
+    const loaded = Data.reduce(initial, receivedAda)
+    // Cache-first sees nothing to fetch; network-only refetches what the store holds.
+    const cached = wiring.subscriptions!['home.read']!.modelToDependencies(loaded)
+    expect(cached.requirements).toEqual([])
+    const refetch = Data.wiring(
+      { home: Home },
+      { policy: RemotePolicy.networkOnly },
+    ).subscriptions!['home.read']!.modelToDependencies(loaded)
+    expect(refetch.requirements).toEqual([{ entity: 'User', id: 'u1', fields: ['name'] }])
   })
 })

@@ -4,6 +4,7 @@
  * run `restore`, and bring its Subscriptions and contract.
  */
 import { Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import { Url, fromString } from 'foldkit/url'
 import { Surface } from 'foldkit-surface'
@@ -75,5 +76,21 @@ describe('Mirror.kv(...).wiring', () => {
     expect(wiring.shared).toEqual(['MirrorRestored'])
     expect(Object.keys(wiring.subscriptions!)).toEqual(['prefs.mirror'])
     expect(wiring.contract).toBe(Prefs.contract)
+  })
+})
+
+describe('MirrorRestored sharing in an assembly', () => {
+  it('routes each mirror’s restore to its own wiring and runs both restores', () => {
+    const Page = Bundle.parent({ Model, Message })
+    const assembly = Page.assemble(Prefs.wiring(), Other.wiring())
+    const own = { _tag: 'MirrorRestored' as const, name: 'prefs', keys: { draft: '"Call"' } }
+    const others = { ...own, name: 'other' }
+    expect(Option.getOrThrow(assembly.route(initial, own)).model).toEqual(
+      Prefs.reduce(initial, own),
+    )
+    expect(Option.getOrThrow(assembly.route(initial, others)).model).toEqual(
+      Other.reduce(initial, others),
+    )
+    expect(assembly.initial(initial).commands).toEqual([Prefs.restore, Other.restore])
   })
 })
