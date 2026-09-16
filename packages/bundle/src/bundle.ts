@@ -169,7 +169,7 @@ export type AnyBundle = Bundle<string, any, any, any, any, any, any, any, any, a
 export const isBundle = (value: unknown): value is AnyBundle =>
   typeof value === 'object' && value !== null && BundleTypeId in value
 
-export const make = <
+const build = <
   const Name extends string,
   Model,
   Message extends AnyMessage,
@@ -218,12 +218,28 @@ export const make = <
   return bundle
 }
 
+/** A spec without its name, for the `make(name, spec)` form; `name` is given once. */
+export type NamelessSpec<
+  Name extends string,
+  Args,
+  Model,
+  Message extends AnyMessage,
+  OutMessage,
+  R,
+  S,
+  ViewInputs,
+  Resources extends ResourceEntries<Model, Message>,
+  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+> = Omit<
+  BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+  'name'
+> & { readonly name?: never }
+
 /**
- * A bundle from a component that ships its parts separately, like the
- * `@foldkit/ui` components: `init` returns only the Model, and `parts` is the
- * `{ update, view }` pair their `create()` returns.
+ * Collects a child machine's parts into a bundle. Name it first,
+ * `make('Search', { Model, Message, init, update })`, or inside the spec.
  */
-export const fromParts = <
+export function make<
   const Name extends string,
   Model,
   Message extends AnyMessage,
@@ -232,8 +248,44 @@ export const fromParts = <
   R = never,
   S = never,
   ViewInputs = void,
+  Resources extends ResourceEntries<Model, Message> = {},
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
->(config: {
+>(
+  name: Name,
+  spec: NamelessSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
+export function make<
+  const Name extends string,
+  Model,
+  Message extends AnyMessage,
+  Args = void,
+  OutMessage = never,
+  R = never,
+  S = never,
+  ViewInputs = void,
+  Resources extends ResourceEntries<Model, Message> = {},
+  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+>(
+  spec: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
+export function make(
+  nameOrSpec: string | BundleSpec<string, any, any, any, any, any, any, any, any, any>,
+  spec?: Omit<BundleSpec<string, any, any, any, any, any, any, any, any, any>, 'name'>,
+): AnyBundle {
+  return build(typeof nameOrSpec === 'string' ? { ...spec!, name: nameOrSpec } : nameOrSpec)
+}
+
+export interface PartsConfig<
+  Name extends string,
+  Args,
+  Model,
+  Message extends AnyMessage,
+  OutMessage,
+  R,
+  S,
+  ViewInputs,
+  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+> {
   readonly name: Name
   readonly Model: Schema.Codec<Model, unknown>
   readonly Message: Schema.Codec<Message, unknown>
@@ -247,8 +299,54 @@ export const fromParts = <
   }
   readonly subscriptions?: (args: Args) => Subscription.Subscriptions<Model, Message, S>
   readonly helpers?: Helpers
-}): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, {}, Helpers> =>
-  make<Name, Model, Message, Args, OutMessage, R, S, ViewInputs, {}, Helpers>({
+}
+
+type ErasedPartsConfig = PartsConfig<string, any, any, any, any, any, any, any, any>
+
+/**
+ * A bundle from a component that ships its parts separately, like the
+ * `@foldkit/ui` components: `init` returns only the Model, and `parts` is the
+ * `{ update, view }` pair their `create()` returns.
+ */
+export function fromParts<
+  const Name extends string,
+  Model,
+  Message extends AnyMessage,
+  Args = void,
+  OutMessage = never,
+  R = never,
+  S = never,
+  ViewInputs = void,
+  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+>(
+  name: Name,
+  config: Omit<
+    PartsConfig<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Helpers>,
+    'name'
+  > & {
+    readonly name?: never
+  },
+): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, {}, Helpers>
+export function fromParts<
+  const Name extends string,
+  Model,
+  Message extends AnyMessage,
+  Args = void,
+  OutMessage = never,
+  R = never,
+  S = never,
+  ViewInputs = void,
+  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+>(
+  config: PartsConfig<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Helpers>,
+): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, {}, Helpers>
+export function fromParts(
+  nameOrConfig: string | ErasedPartsConfig,
+  maybeConfig?: Omit<ErasedPartsConfig, 'name'>,
+): AnyBundle {
+  const config: ErasedPartsConfig =
+    typeof nameOrConfig === 'string' ? { ...maybeConfig!, name: nameOrConfig } : nameOrConfig
+  return build({
     name: config.name,
     Model: config.Model,
     Message: config.Message,
@@ -258,6 +356,7 @@ export const fromParts = <
     ...(config.subscriptions === undefined ? {} : { subscriptions: config.subscriptions }),
     ...(config.helpers === undefined ? {} : { helpers: config.helpers }),
   })
+}
 
 export { assemble } from './assembly.js'
 export type { Assembly, WiredRecord } from './assembly.js'
