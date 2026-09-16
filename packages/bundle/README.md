@@ -1,7 +1,7 @@
 # `foldkit-bundle`
 
 Packages a Foldkit child machine, a Submodel, **once**, and places it anywhere
-in a parent with one value, **without adding a store, a reducer, or a runtime**.
+in a parent, **without adding a store, a reducer, or a runtime**.
 
 A Submodel in Foldkit is wired by hand in five places: the update fold, the
 init, the Subscription lift, the Managed Resource lift, and the view. Placing
@@ -27,14 +27,15 @@ see exactly what they saw before.
 | Situation | Use |
 | --- | --- |
 | A child machine placed two or more times, or published for others | a Bundle |
-| A child with Subscriptions or resources you keep forgetting to lift | a Bundle, then `assembly.complete` |
+| A child with Subscriptions or resources you keep forgetting to lift | a Bundle, then `placements.complete` |
 | A one-off child used in a single place | a hand-wired Submodel is fine |
 | Something without its own Model: a one-shot effect, a DOM attachment | a Command or a Mount, not a Bundle |
 
 A Bundle owns nothing at runtime. **The parent Model owns the child's state**;
 the bundle describes the transitions of that slice, and the Link says which
 slice. Two placements are two independent slices with two independent sets of
-Subscriptions.
+Subscriptions. To check that ownership beside Sync and Remote, see
+[`foldkit-bundle-surface`](../bundle-surface).
 
 ## Install
 
@@ -46,15 +47,16 @@ pnpm add foldkit-bundle effect foldkit
 
 ## Sixty seconds: one media query, placed twice
 
-Define the child once. It is the same Model, Message, init, update, and
-Subscriptions a Submodel would have, collected into one value.
-`matchMediaChanges` stands for your own `Stream<boolean>` over `matchMedia`:
+**Define it once.** It is the Model, Message, init, update, and Subscriptions a
+Submodel would have, collected into one value. `args` is a Schema, so `init`,
+`update`, and `subscriptions` are typed without annotations. `matchMediaChanges`
+stands for your own `Stream<boolean>` over `matchMedia`:
 
 ```ts
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
-import { Bundle, Link } from 'foldkit-bundle'
+import { Bundle } from 'foldkit-bundle'
 
 const MediaQueryModel = Schema.Struct({ matches: Schema.Boolean })
 type MediaQueryModel = typeof MediaQueryModel.Type
@@ -64,7 +66,8 @@ type MediaQueryMessage = typeof MediaQueryMessage.Type
 export const MediaQuery = Bundle.make('MediaQuery', {
   Model: MediaQueryModel,
   Message: MediaQueryMessage,
-  init: (_: { readonly query: string }) => ({ model: { matches: false } }),
+  args: Schema.Struct({ query: Schema.String }),
+  init: () => ({ model: { matches: false } }),
   update: (_model, message) => ({ model: { matches: message.matches } }),
   subscriptions: ({ query }) =>
     Subscription.make<MediaQueryModel, MediaQueryMessage>()(() => ({
@@ -75,90 +78,66 @@ export const MediaQuery = Bundle.make('MediaQuery', {
 })
 ```
 
-Place it. Each placement gets a wrapper variant, whose `cases` go into the
-parent Message, and a Link to a Model field:
+**Place it, twice.** A declaration gives each placement its Model field and its
+Message variant, named by Foldkit's `Got<Field>Message` convention:
 
 ```ts
-const GotDarkMessage = Link.wrapper('GotDarkMessage', MediaQueryMessage)
-const GotNarrowMessage = Link.wrapper('GotNarrowMessage', MediaQueryMessage)
+const Dark = Bundle.declare(MediaQuery, 'dark') // wrapper GotDarkMessage
+const Narrow = Bundle.declare(MediaQuery, 'narrow') // wrapper GotNarrowMessage
 
-const Model = Schema.Struct({ dark: MediaQueryModel, narrow: MediaQueryModel })
+const Model = Schema.Struct({ ...Dark.fields, ...Narrow.fields, helpOpen: Schema.Boolean })
 type Model = typeof Model.Type
-
-const Message = defineMessageUnion({
-  ClickedHelp: {},
-  ...GotDarkMessage.cases,
-  ...GotNarrowMessage.cases,
-})
+const Message = defineMessageUnion({ ...Dark.cases, ...Narrow.cases, ClickedHelp: {} })
 type Message = typeof Message.Type
 
-const Dark = MediaQuery.at(Link.field<Model>()('dark', GotDarkMessage), {
-  args: { query: '(prefers-color-scheme: dark)' },
-})
-const Narrow = MediaQuery.at(Link.field<Model>()('narrow', GotNarrowMessage), {
-  args: { query: '(max-width: 40rem)' },
-})
+const Page = Bundle.parent({ Model, Message })
 
-const placements = Bundle.assemble<Model, Message>()([Dark, Narrow])
+const placements = Page.assemble(
+  Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }),
+  Page.at(Narrow, { args: { query: '(max-width: 40rem)' } }),
+)
 ```
 
-Wire the assembly into the runtime config once. `empty` is
-`{ matches: false }` and `view` is your parent view:
+**Wire it once.** The assembly builds the parent's initial Model and update:
 
 ```ts
 const config = placements.complete({
-  init: () => placements.init({ dark: empty, narrow: empty }),
-  update: placements.update(),
+  init: () => placements.initial({ helpOpen: false }),
+  update: placements.update(ownUpdate),
   view,
   subscriptions: placements.subscriptions(),
 })
 ```
 
-Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement` with
-the rest of your options. When the parent's own update needs services, name them
-once: `Bundle.assemble<Model, Message, AppServices>()`.
+Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement` with the
+rest of your options.
 
 ### What each call does
 
-- **`Bundle.make`** only collects the parts. It runs nothing and holds no state.
-- **`Link.wrapper(tag, ChildMessage)`** builds the parent variant
-  `tag({ message })`. Its `cases` belong in the parent's `defineMessageUnion`, so
-  the variant is part of the parent Message Schema.
-- **`bundle.at(link, config)`** lifts every part: `update` through
-  `Update.foldChildStep`, Subscriptions through `Subscription.lift`, resources
-  through `ManagedResource.lift`, and the view through `h.submodel`. It performs
-  no I/O.
-- **`Bundle.assemble`** is the one list of placements.
+- **`Bundle.make(name, spec)`** only collects the parts. It runs nothing and
+  holds no state. `Bundle.make({ name, ...spec })` is the same.
+- **`Bundle.declare(bundle, field)`** names where a placement will live: `fields`
+  for the parent `Schema.Struct`, `cases` for its `defineMessageUnion`.
+- **`Bundle.parent({ Model, Message })`** states the parent once, as the Schemas
+  it already has, so nothing after it takes a type argument.
+- **`Page.at(declared, config)`** places the bundle. It checks that the field
+  holds the bundle's Model and that the parent Message has the wrapper variant,
+  and lifts every part: `update` through `Update.foldChildStep`, Subscriptions
+  through `Subscription.lift`, resources through `ManagedResource.lift`, and the
+  view through `h.submodel`. It performs no I/O.
+- **`Page.assemble(...placements)`** is the one list of placements.
+- **`placements.initial(rest)`** is the parent's initial Model and Commands:
+  `rest` gives exactly the fields no placement owns, and each placement's `init`
+  writes its own slice.
 - **`placements.update(own)`** is the parent's update: a placement's Message goes
-  to that placement, and every other Message to `own`, the parent's own update.
-  Without `own` they leave the Model unchanged. `placements.route(model, message)`
-  is the same routing as an `Option`, for composing by hand.
-- **`placements.complete`** returns the config unchanged. It exists to report
-  wiring mistakes, below.
-
-### Shorter: one declaration per placement
-
-`Bundle.declare` derives the wrapper, the Model field, and the Message cases from
-the field name, using Foldkit's `Got<Field>Message` convention:
-
-```ts
-const Dark = Bundle.declare(MediaQuery, 'dark') // wrapper GotDarkMessage
-
-const Model = Schema.Struct({ ...Dark.fields, title: Schema.String })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Dark.cases, ClickedHelp: {} })
-
-const DarkPlaced = Dark.at<Model>()({ args: { query: '(prefers-color-scheme: dark)' } })
-```
-
-`at<Model>()` requires `Model.dark` to hold the bundle's Model. For a keyed
-collection, `Bundle.declareEach(Row, 'rows')` gives a record field and
-`each<Model>()`. Use `Link.field` directly when the placement needs a `when`
-gate or a Model path other than a top-level field.
+  to that placement and every other Message to `own`. Without `own` they leave
+  the Model unchanged.
+- **`placements.complete(config)`** returns the config unchanged. It exists to
+  report wiring mistakes, below.
 
 ## The placed parts
 
-Each placement exposes the lifted parts, in parent terms:
+Each placement exposes its parts in parent terms:
 
 | Part | Type | Built from |
 | --- | --- | --- |
@@ -175,21 +154,21 @@ collide in `Subscription.aggregate`.
 
 ## Args, OutMessages, and helpers
 
-`init` may take args. `update` receives the same args as its third parameter,
-so behaviour can depend on configuration without storing it in the Model. In
-this sketch, reduced from [`test/fixture.ts`](test/fixture.ts), `update`
-emits an OutMessage when the count reaches the limit:
+`update` receives the args as its third parameter, so behaviour can depend on
+configuration without storing it in the Model. This counter emits an OutMessage
+when it reaches its limit:
 
 ```ts
 const Counter = Bundle.make('Counter', {
   Model: CounterModel,
   Message: CounterMessage,
-  init: ({ start }: { readonly limit: number; readonly start: number }) => ({
-    model: { count: start, running: false },
-  }),
-  update: (model, message, { limit }) => {
-    // ...
-    return count === limit ? { model: next, outMessage: LimitReached.make({ count }) } : { model: next }
+  args: Schema.Struct({ limit: Schema.Number }),
+  init: () => ({ model: { count: 0 } }),
+  update: (model, _message, { limit }) => {
+    const count = model.count + 1
+    return count === limit
+      ? { model: { count }, outMessage: LimitReached.make({ count }) }
+      : { model: { count } }
   },
   helpers: {
     reset: (model: CounterModel, to: number) => ({ model: { ...model, count: to } }),
@@ -197,23 +176,95 @@ const Counter = Bundle.make('Counter', {
 })
 ```
 
-A bundle that returns an OutMessage must be placed with `onOut`, which folds it
-into the parent as a Step. The Step sees the parent with the child already
-written back:
+A bundle with an OutMessage must be placed with `onOut`, which folds it into the
+parent as a Step. The Step sees the parent with the child already written back,
+and its `model` is typed from the scope:
 
 ```ts
-const Left = Counter.at(Link.field<Model>()('left', GotLeftMessage), {
-  args: { limit: 2, start: 0 },
+const ClicksPlaced = CounterPage.at(Clicks, {
+  args: { limit: 10 },
   onOut: outMessage => model => ({ model: { ...model, reached: outMessage.count } }),
 })
 
-Left.helpers.reset(7) // Update.Step<Model, Message>
+ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
 ```
 
-To drop an OutMessage on purpose, write `onOut: Bundle.ignore`.
+- **`args`** is required when the bundle takes them, and checked against the
+  args Schema when placed; a value that bypassed the types throws naming the
+  placement.
+- **`onOut`** is required when the bundle has an OutMessage, so one cannot be
+  dropped by omission. Write `onOut: Bundle.ignore` to drop it on purpose.
+- **Without an args Schema**, `Args` is inferred from `init`'s parameter
+  annotation instead.
 
-`args` is required when `init` takes them, and `onOut` is required when the
-bundle has an OutMessage. An OutMessage cannot be dropped by leaving it out.
+## Presets
+
+`bundle.with(args)` binds the args, so a placement gives none:
+
+```ts
+const PrefersDark = MediaQuery.with({ query: '(prefers-color-scheme: dark)' })
+Page.place(PrefersDark, 'dark')
+```
+
+`Page.place(bundle, field, config)` is `Page.at` without a separate declaration,
+for a Message union built another way.
+
+## Many of one: collections
+
+A collection places a bundle once per key. The parent Model still owns every
+item; the collection routes by key:
+
+```text
+Parent Model.rows = { a: Row.Model, b: Row.Model }
+GotRowsMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written back
+```
+
+```ts
+const RowsDeclared = Bundle.declareEach(Row, 'rows') // a record field and GotRowsMessage
+const RowsPage = Bundle.parent({
+  Model: Schema.Struct({ ...RowsDeclared.fields }),
+  Message: defineMessageUnion({ ...RowsDeclared.cases }),
+})
+const Rows = RowsPage.each(RowsDeclared)
+
+Rows.add('b', row => ({ ...row, id: 'b' })) // init, then prepare
+Rows.remove('b')
+```
+
+- **`add(key, prepare?)`** writes the item from `init` and lifts its Commands. An
+  item cannot see its key, so `prepare` lets the parent store what only it
+  knows, such as the id. Adding an existing key replaces the item.
+- **`remove(key)`** deletes the item. A Message that arrives later for that key
+  leaves the parent unchanged.
+- **`update`**, **`helpers.name(key, ...input)`**, and `onOut(outMessage, key)`
+  work per item. `args` are given once, for every item.
+- **`view(parent, h, key)`** renders one item and **`viewAll(parent, h)`** renders
+  all of them, each in its own slot.
+- **`Page.placeEach(bundle, field, config)`** places without a declaration.
+- **`placements.initial`** starts a collection empty unless `rest` gives it.
+
+### Typed keys and order
+
+Pass a key Schema, such as a branded id, and the key type follows through `add`,
+`remove`, helpers, views, and `onOut`. Store items in an array when order
+matters: a record puts integer-like keys such as `"2"` first.
+
+```ts
+const RowId = Schema.String.pipe(Schema.brand('RowId'))
+const GotOrderedRowMessage = Link.keyedWrapper('GotOrderedRowMessage', RowMessage, RowId)
+
+const OrderedRows = OrderedRow.each(
+  Link.collectionById<OrderedModel>()('rows', GotOrderedRowMessage, { id: row => row.id }),
+)
+OrderedRows.remove(RowId.make('first')) // a RowId, not a string
+```
+
+**Subscriptions restart together.** Each child Subscription becomes one parent
+entry over every item. Adding or removing an item, or changing any item's
+dependencies, restarts that entry's stream for every item. A child entry with
+`keepAliveEquivalence` stays alive while the keys are unchanged, and each item
+reads its own latest dependencies. A bundle with Managed Resources cannot be
+placed per key; the type says why.
 
 ## Components with separate parts: `Bundle.fromParts`
 
@@ -231,79 +282,84 @@ const SectionTabs = Bundle.fromParts('SectionTabs', {
   parts: Tabs.create<Section>(),
 })
 
-const Placed = SectionTabs.at(Link.field<Model>()('tabs', GotTabsMessage), {
+const TabsPlaced = TabsPage.at(Bundle.declare(SectionTabs, 'tabs'), {
   args: { id: 'sections' },
   onOut: selected => model => ({ model: { ...model, section: selected.value } }),
 })
 ```
 
-The component's view inputs pass through: `Placed.view(model, h, { tabs, selectedValue, ariaLabel, toView })`.
+The component's view inputs pass through:
+`TabsPlaced.view(model, h, { tabs, selectedValue, ariaLabel, toView })`.
 `fromParts` accepts `subscriptions` and `helpers` too, but no Managed Resources.
 [`test/fromParts.test.ts`](test/fromParts.test.ts) runs this example.
 
-## Where a child lives: Links
+## Extending a bundle
+
+Bundles are pipeable. Each combinator returns a new bundle and leaves the
+original unchanged, and its callbacks are typed from the bundle:
+
+```ts
+const LoggedCounter = Counter.pipe(
+  Bundle.rename('LoggedCounter'),
+  Bundle.mapUpdate(update => (model, message, args) => {
+    console.log(message._tag)
+    return update(model, message, args)
+  }),
+  Bundle.withHelpers({ clear: (model: CounterModel) => ({ model: { ...model, count: 0 } }) }),
+)
+```
+
+`mapInit`, `mapView`, and `withSubscriptions` complete the set. `mapUpdate`
+layers run outer then inner.
+
+## Gates and custom Links
+
+`when` in a placement config is the parent's own gate: while it returns
+`false`, the placement's Subscriptions and resources stop. An absent child also
+stops them, renders nothing, and ignores its Messages.
+
+```ts
+Page.place(MediaQuery, 'narrow', {
+  args: { query: '(max-width: 40rem)' },
+  when: model => !model.helpOpen,
+})
+```
+
+A child that is not a top-level field is placed through a Link, with
+`bundle.at(link, config)` and `bundle.each(link, config)`. The scope builds Links
+without restating the parent, and Links are pipeable:
+
+```ts
+const Sidebar = MediaQuery.at(
+  SidebarPage.link
+    .field('sidebar', GotSidebarMessage)
+    .pipe(Link.when((model: SidebarModel) => model.open)),
+  { args: { query: '(min-width: 60rem)' } },
+)
+```
 
 | Link | The child is |
 | --- | --- |
-| `Link.field<Parent>()(key, wrapper)` | a struct field, always present |
-| `Link.optional<Parent>()(key, wrapper)` | an `Option` field; absent while `None` |
-| `Link.compose(outer, inner)` | inside another placed child |
+| `Page.link.field(key, wrapper)` or `Link.field<Parent>()(…)` | a struct field, always present |
+| `Page.link.optional(key, wrapper)` or `Link.optional<Parent>()(…)` | an `Option` field; absent while `None` |
+| `Page.link.collection(key, keyedWrapper)` or `Link.collection<Parent>()(…)` | a record of items by key |
+| `Link.collectionById<Parent>()(key, keyedWrapper, { id })` | an array of items, in order |
+| `outer.pipe(Link.andThen(inner))` | inside another placed child |
+| `link.pipe(Link.when(predicate))` | gated by the parent |
 | `Link.make({ read, write, wrapper, path })` | anywhere a lens can reach |
 
-`field` and `optional` also take `{ when }`, the parent's own gate. While it
-returns `false`, the placement's Subscriptions and resources stop. An absent
-child also stops them, renders nothing, and ignores its Messages.
+`Link.wrapper(tag, ChildMessage)` and `Link.keyedWrapper(tag, ChildMessage, key?)`
+build the parent variants a Link carries. `placements.initial` gives a
+custom-Link placement's field the value in `rest` when there is one, so an
+optional child can start as `None`.
 
-## Many of one: collections
+## Services
 
-`bundle.each` places a bundle once per key of a `Record<string, Child>` field.
-The parent Model still owns every item; the collection routes by key:
-
-```text
-Parent Model.rows = { a: Row.Model, b: Row.Model }
-GotRowMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written back
-```
+When the parent's own update needs services, name them on the scope:
 
 ```ts
-const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
-const RowMessage = defineMessageUnion({ Clicked: {} })
-
-const Row = Bundle.make('Row', {
-  Model: RowModel,
-  Message: RowMessage,
-  init: () => ({ model: { id: '', count: 0 } }),
-  update: model => ({ model: { ...model, count: model.count + 1 } }),
-})
-
-const GotRowMessage = Link.keyedWrapper('GotRowMessage', RowMessage)
-const Model = Schema.Struct({ rows: Schema.Record(Schema.String, RowModel) })
-type Model = typeof Model.Type
-
-const Rows = Row.each(Link.collection<Model>()('rows', GotRowMessage))
-
-// In the parent update:
-Rows.add('b', row => ({ ...row, id: 'b' })) // Update.Step: init, then prepare
-Rows.remove('b') // Update.Step: the item and its Subscriptions go away
+Page.withServices<Clock>().assemble(...placements).update(clockUpdate)
 ```
-
-- **`add(key, prepare?)`** writes the item from `init` and lifts its Commands.
-  An item cannot see its key, so `prepare` lets the parent store what only the
-  parent knows, such as the id. Adding an existing key replaces the item.
-- **`remove(key)`** deletes the item. A Message that arrives later for that key
-  leaves the parent unchanged.
-- **`update`**, **`helpers.name(key, ...input)`**, and `onOut(outMessage, key)`
-  work per item. `args` are given once, for every item.
-- **`view(parent, h, key)`** renders one item and **`viewAll(parent, h)`**
-  renders all of them, in the record's key order, each in its own slot.
-- A collection joins the same `Bundle.assemble` list. `placements.init` skips
-  it: a collection starts as the parent left it.
-
-**Subscriptions restart together.** Each child Subscription becomes one parent
-entry over every item. Adding or removing an item, or changing any item's
-dependencies, restarts that entry's stream for every item. A child entry with
-`keepAliveEquivalence` stays alive while the keys are unchanged, and each item
-reads its own latest dependencies. A bundle with Managed Resources cannot be
-placed with `each`; the type says why.
 
 ## Completeness: the three wiring mistakes
 
@@ -318,30 +374,41 @@ property that is wrong:
 
 Pass the parent's own records through the same call:
 `placements.subscriptions(ownSubscriptions)`. A duplicate key throws at startup,
-as `Subscription.aggregate` does.
+as `Subscription.aggregate` does. The scope's `Page.at` and `Page.place` already
+report a wrong field or a missing variant at the placement.
 
-`Bundle.assemble` also fails at startup, naming both placements, when two
-placements share a key or a Managed Resource tag.
+`Page.assemble` also fails at startup, naming both placements, when two share a
+key or a Managed Resource tag.
+
+## Lower-level API
+
+The scope is sugar over these, which remain for code that composes by hand:
+
+| Call | What it is |
+| --- | --- |
+| `Bundle.assemble<Model, Message, Services>()([...])` | `Page.assemble` without a scope |
+| `placements.route(model, message)` | `update`'s routing, as an `Option` |
+| `placements.init` | every single placement's init as one `Update.Step` |
+| `declared.at<Model>()(config)`, `declaredEach.each<Model>()(config)` | a declaration placed without a scope |
 
 ## Limits
 
 - **Managed Resources are provided by tag.** The Foldkit runtime provides a
   resource through its `ManagedResource.tag`, so two placements of one bundle
-  that use the same tag would replace each other. `Bundle.assemble` refuses
-  that. When a bundle with resources is placed more than once, make the bundle
-  from a function that takes the tag, one tag per placement, as
+  that use the same tag would replace each other. `Page.assemble` refuses that.
+  When a bundle with resources is placed more than once, make the bundle from a
+  function that takes the tag, one tag per placement, as
   [`test/runtime.test.ts`](test/runtime.test.ts) does.
-- **Collections restart item streams together.** Per-key keep-alive, where
-  adding one item leaves the other items' streams running, is not built yet.
+- **Collections restart item streams together.** Keeping other items' streams
+  running while one is added needs a dependency-change signal from Foldkit's
+  runtime; see the [design note](../../docs/design/bundle-DESIGN.md).
 - **Collections cannot hold resources**, for the tag reason above.
-- **Record key order.** `viewAll` and the Subscription order follow JavaScript
-  record order, which puts integer-like keys such as `"2"` before other keys.
-- **No Surface integration yet.** Module contracts, relative Surfaces, and
-  Mirror declarations for placements are planned for a companion
-  `foldkit-bundle-surface` package.
 
 ## See also
 
-- [Phase 0 verification notes](../../docs/design/bundle-spike.md): which Foldkit
-  APIs a placement compiles to, and the runtime facts that shaped the design.
-- [`foldkit-surface`](../surface): the access boundary a placement will publish.
+- [`foldkit-bundle-surface`](../bundle-surface): placements as Module contracts,
+  and the scope from a Surface application.
+- [`examples/bundle`](../../examples/bundle): a settings page built from
+  placements, with its transcript pinned.
+- [Design note](../../docs/design/bundle-DESIGN.md) and
+  [DX plan](../../docs/design/bundle-DX-PLAN.md).
