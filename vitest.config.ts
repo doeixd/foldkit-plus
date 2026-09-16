@@ -27,6 +27,7 @@ export default defineConfig({
       'foldkit-sync': fileURLToPath(new URL('./packages/sync/src/index.ts', import.meta.url)),
       'foldkit-surface': fileURLToPath(new URL('./packages/surface/src/index.ts', import.meta.url)),
       'foldkit-bundle': fileURLToPath(new URL('./packages/bundle/src/index.ts', import.meta.url)),
+      'foldkit-react': fileURLToPath(new URL('./packages/react/src/index.ts', import.meta.url)),
       'foldkit-mirror': fileURLToPath(new URL('./packages/mirror/src/index.ts', import.meta.url)),
       'foldkit-remote': fileURLToPath(new URL('./packages/remote/src/index.ts', import.meta.url)),
       'foldkit-remote-server': fileURLToPath(
