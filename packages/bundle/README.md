@@ -192,6 +192,33 @@ Left.helpers.reset(7) // Update.Step<Model, Message>
 `args` is required when `init` takes them, and `onOut` is required when the
 bundle has an OutMessage. An OutMessage cannot be dropped by leaving it out.
 
+## Components with separate parts: `Bundle.fromParts`
+
+`@foldkit/ui` components export `Model`, `Message`, and an `init` that returns
+only the Model, and `create()` returns their `{ update, view }` pair.
+`Bundle.fromParts` takes them as they are:
+
+```ts
+import * as Tabs from '@foldkit/ui/tabs'
+
+const SectionTabs = Bundle.fromParts({
+  name: 'SectionTabs',
+  Model: Tabs.Model,
+  Message: Tabs.Message,
+  init: (config: Tabs.InitConfig) => Tabs.init(config),
+  parts: Tabs.create<Section>(),
+})
+
+const Placed = SectionTabs.at(Link.field<Model>()('tabs', GotTabsMessage), {
+  args: { id: 'sections' },
+  onOut: selected => model => ({ model: { ...model, section: selected.value } }),
+})
+```
+
+The component's view inputs pass through: `Placed.view(model, h, { tabs, selectedValue, ariaLabel, toView })`.
+`fromParts` accepts `subscriptions` and `helpers` too, but no Managed Resources.
+[`test/fromParts.test.ts`](test/fromParts.test.ts) runs this example.
+
 ## Where a child lives: Links
 
 | Link | The child is |
