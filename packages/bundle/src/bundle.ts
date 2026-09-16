@@ -155,3 +155,6 @@ export const make = <
   }
   return bundle
 }
+
+export { assemble } from './assembly.js'
+export type { Assembly, WiredRecord } from './assembly.js'
