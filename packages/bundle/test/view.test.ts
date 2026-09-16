@@ -47,6 +47,25 @@ const scene = (model: Model, ...steps: Parameters<typeof Scene.scene<Model, Mess
   )
 
 describe('placed view', () => {
+  it('renders one placement in two slots, both driving the same child', () => {
+    Scene.scene(
+      {
+        update,
+        view: (model, h) =>
+          h.main(
+            [],
+            [
+              h.section([h.Id('desktop')], [First.view(model, h)]),
+              h.section([h.Id('mobile')], [First.viewIn('mobile')(model, h)]),
+            ],
+          ),
+      },
+      Scene.given<Model>({ first: { count: 1, running: false }, second: Option.none() }),
+      Scene.click('#mobile .counter'),
+      Scene.expect(Scene.selector('#desktop .counter')).toHaveText('2'),
+    )
+  })
+
   it('routes a click in one placement to that placement only', () => {
     scene(
       { first: { count: 3, running: false }, second: Option.some({ count: 7, running: false }) },

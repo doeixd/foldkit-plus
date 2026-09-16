@@ -81,11 +81,18 @@ export interface Placed<
    * Renders the child through `h.submodel`; nothing while the child is absent.
    * Generic over the parent's whole Message, which must include this placement's.
    */
-  readonly view: [ViewInputs] extends [void]
-    ? <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>) => Html
-    : <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>, viewInputs: ViewInputs) => Html
+  readonly view: PlacedView<Parent, ParentMessage, ViewInputs>
+  /**
+   * The same view in another slot, for rendering one placement in two DOM
+   * positions (desktop and mobile). `h.submodel` throws on a repeated slot.
+   */
+  readonly viewIn: (slot: string) => PlacedView<Parent, ParentMessage, ViewInputs>
   readonly helpers: PlacedHelpers<Parent, ParentMessage, R, Helpers>
 }
+
+export type PlacedView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
+  ? <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>) => Html
+  : <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>, viewInputs: ViewInputs) => Html
 
 /** Readable failure when the parent's Message union lacks this placement's variant. */
 export interface Invalid<Message extends string> {
@@ -190,29 +197,31 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     : {}
 
   const childView: ErasedView | undefined = bundle.view
-  const view = (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown): Html =>
-    childView === undefined
-      ? null
-      : Option.match(link.read(parent), {
-          onNone: () => null,
-          onSome: model =>
-            // `h.submodel` passes inputs positionally whenever the key is present.
-            viewInputs === undefined
-              ? h.submodel({
-                  slotId: key,
-                  model,
-                  view: childView,
-                  toParentMessage: link.toParentMessage,
-                })
-              : h.submodel({
-                  slotId: key,
-                  model,
-                  view: childView,
-                  toParentMessage: link.toParentMessage,
-                  // With `ViewInputs` erased, Foldkit's conditional config cannot name the inputs' type.
-                  viewInputs: viewInputs as never,
-                }),
-        })
+  const viewIn =
+    (slotId: string) =>
+    (parent: unknown, h: HtmlBuilder<any>, viewInputs?: unknown): Html =>
+      childView === undefined
+        ? null
+        : Option.match(link.read(parent), {
+            onNone: () => null,
+            onSome: model =>
+              // `h.submodel` passes inputs positionally whenever the key is present.
+              viewInputs === undefined
+                ? h.submodel({
+                    slotId,
+                    model,
+                    view: childView,
+                    toParentMessage: link.toParentMessage,
+                  })
+                : h.submodel({
+                    slotId,
+                    model,
+                    view: childView,
+                    toParentMessage: link.toParentMessage,
+                    // With `ViewInputs` erased, Foldkit's conditional config cannot name the inputs' type.
+                    viewInputs: viewInputs as never,
+                  }),
+          })
 
   return {
     [PlacedTypeId]: PlacedTypeId,
@@ -232,7 +241,8 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
       ),
     subscriptions,
     resources,
-    view,
+    view: viewIn(key),
+    viewIn: (slot: string) => viewIn(`${key}#${slot}`),
     helpers: Record.map(
       bundle.helpers ?? {},
       (helper: ErasedHelper) =>

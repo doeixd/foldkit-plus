@@ -9,5 +9,6 @@ export type {
   Placed,
   PlacedHelpers,
   PlacedResources,
+  PlacedView,
   ViewBuilder,
 } from './placed.js'

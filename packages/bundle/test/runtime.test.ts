@@ -35,7 +35,11 @@ const ChildMessage = defineMessageUnion({
 })
 type ChildMessage = typeof ChildMessage.Type
 
-const ticks = Effect.runSync(Queue.unbounded<string>())
+// One tick source per placement, so neither placement's stream can consume the other's ticks.
+const ticks = {
+  a: Effect.runSync(Queue.unbounded<void>()),
+  b: Effect.runSync(Queue.unbounded<void>()),
+}
 const released: Array<string> = []
 
 const makeTicker = (resourceKey: string) =>
@@ -43,7 +47,9 @@ const makeTicker = (resourceKey: string) =>
     name: 'Ticker',
     Model: ChildModel,
     Message: ChildMessage,
-    init: (_: { readonly id: string }) => ({ model: { count: 0, live: false, socket: 'closed' } }),
+    init: (_: { readonly id: 'a' | 'b' }) => ({
+      model: { count: 0, live: false, socket: 'closed' },
+    }),
     update: (model, message) => {
       switch (message._tag) {
         case 'Clicked':
@@ -67,10 +73,7 @@ const makeTicker = (resourceKey: string) =>
             modelToDependencies: model => ({ live: model.live }),
             dependenciesToStream: ({ live }) =>
               live
-                ? Stream.fromQueue(ticks).pipe(
-                    Stream.filter(target => target === id),
-                    Stream.map(() => ChildMessage.Ticked()),
-                  )
+                ? Stream.fromQueue(ticks[id]).pipe(Stream.map(() => ChildMessage.Ticked()))
                 : Stream.empty,
           },
         ),
@@ -154,15 +157,21 @@ it('runs two placements of one bundle independently on the Foldkit runtime', asy
     await vi.waitFor(() => expect(text('#b .socket')).toBe('ws://b'))
     expect(text('#a .socket')).toBe('closed')
 
-    Effect.runSync(Queue.offer(ticks, 'b'))
+    Effect.runSync(Queue.offer(ticks.b, undefined))
     await vi.waitFor(() => expect(text('#b .count')).toBe('1'))
-    // A's Subscription is gated off by its own Model, so a tick for A is not delivered.
-    Effect.runSync(Queue.offer(ticks, 'a'))
+    // A is not live, so its Subscription is not running and its tick waits in the queue.
+    Effect.runSync(Queue.offer(ticks.a, undefined))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(text('#a .count')).toBe('1')
+    click('#a .toggle')
+    await vi.waitFor(() => expect(text('#a .count')).toBe('2'))
+    click('#a .toggle')
+    await vi.waitFor(() => expect(text('#a .socket')).toBe('closed'))
 
     click('#b .toggle')
     await vi.waitFor(() => expect(text('#b .socket')).toBe('closed'))
-    expect(released).toEqual(['ws://b'])
-    expect(text('#a .count')).toBe('1')
+    expect(released).toEqual(['ws://a', 'ws://b'])
+    expect(text('#a .count')).toBe('2')
   } finally {
     handle.dispose()
   }

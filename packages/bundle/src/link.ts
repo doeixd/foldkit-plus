@@ -88,7 +88,10 @@ const make = <Parent, const Tag extends string, Child, ChildMessage>(
   path: config.path,
 })
 
-/** A child held in a struct field of the parent. */
+/**
+ * A child held in a struct field of the parent. Writes copy the parent with an
+ * object spread, so a class-based parent Model needs `Link.make` instead.
+ */
 const field =
   <Parent>() =>
   <const Key extends keyof Parent & string, const Tag extends string, ChildMessage>(

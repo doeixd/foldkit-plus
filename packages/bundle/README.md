@@ -145,6 +145,7 @@ Each placement exposes the lifted parts, in parent terms:
 | `placed.subscriptions` | a Subscriptions record keyed `Name@path/key` | `Subscription.lift` with a gate |
 | `placed.resources` | a Managed Resources record keyed `Name@path/key` | `ManagedResource.lift` |
 | `placed.view(parent, h, viewInputs?)` | `Html`; nothing while the child is absent | `h.submodel` |
+| `placed.viewIn(slot)` | the same view under another slot id, to render one placement in two positions | `h.submodel` |
 | `placed.helpers.name(...input)` | `Update.Step` for a programmatic entry point | `Update.foldChildStep` |
 
 Keys are prefixed with the placement, so two placements of one bundle never
