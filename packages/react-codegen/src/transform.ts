@@ -221,6 +221,29 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
           }
           return prop(event, handler(dispatch(args[0]!)))
         }
+        if ((name === 'OnKeyDown' || name === 'OnKeyUp') && args.length === 1) {
+          const event = f.createIdentifier('event')
+          const modifiers = f.createObjectLiteralExpression(
+            ['shiftKey', 'ctrlKey', 'altKey', 'metaKey'].map(modifier =>
+              f.createPropertyAssignment(
+                modifier,
+                f.createPropertyAccessExpression(event, modifier),
+              ),
+            ),
+          )
+          return prop(
+            name === 'OnKeyDown' ? 'onKeyDown' : 'onKeyUp',
+            handler(
+              dispatch(
+                f.createCallExpression(f.createParenthesizedExpression(args[0]!), undefined, [
+                  f.createPropertyAccessExpression(event, 'key'),
+                  modifiers,
+                ]),
+              ),
+              'event',
+            ),
+          )
+        }
         if (name === 'OnInput' && args.length === 1) {
           // React's onChange on a text control is the native input event, and keeps a controlled value warning-free.
           const value = f.createPropertyAccessExpression(
@@ -323,28 +346,61 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
         ) {
           return f.createJsxText(node.text)
         }
-        const tag = elementTag(node)
-        if (tag !== undefined) return element(node as ts.CallExpression, tag)
+        const call = elementCall(node)
+        if (call !== undefined) return element(call)
         if (ts.isSpreadElement(node))
           return f.createJsxExpression(undefined, visit(node.expression) as ts.Expression)
         return f.createJsxExpression(undefined, visit(node) as ts.Expression)
       }
 
-      const elementTag = (node: ts.Node) =>
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        ts.isIdentifier(node.expression.expression) &&
-        node.expression.expression.text === builder &&
-        TAGS.has(node.expression.name.text)
-          ? node.expression.name.text
-          : undefined
+      const isBuilderAccess = (node: ts.Node): node is ts.PropertyAccessExpression =>
+        ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === builder
 
-      const element = (
-        call: ts.CallExpression,
-        tag: string,
-      ): ts.JsxElement | ts.JsxSelfClosingElement => {
-        const [attributesArgument, childrenArgument] = call.arguments
+      interface ElementCall {
+        readonly tag: string
+        readonly key: ts.Expression | undefined
+        readonly arguments: ReadonlyArray<ts.Expression>
+      }
+
+      /** `h.div(attributes, children)`, or `h.keyed('li')(key, attributes, children)`. */
+      const elementCall = (node: ts.Node): ElementCall | undefined => {
+        if (!ts.isCallExpression(node)) return undefined
+        if (isBuilderAccess(node.expression) && TAGS.has(node.expression.name.text)) {
+          return { tag: node.expression.name.text, key: undefined, arguments: node.arguments }
+        }
+        const factory = node.expression
+        if (
+          ts.isCallExpression(factory) &&
+          isBuilderAccess(factory.expression) &&
+          factory.expression.name.text === 'keyed' &&
+          factory.arguments.length === 1 &&
+          ts.isStringLiteralLike(factory.arguments[0]!) &&
+          TAGS.has(factory.arguments[0].text)
+        ) {
+          const [key, ...rest] = node.arguments
+          return key === undefined
+            ? undefined
+            : { tag: factory.arguments[0].text, key, arguments: rest }
+        }
+        return undefined
+      }
+
+      const element = ({
+        tag,
+        key,
+        arguments: [attributesArgument, childrenArgument],
+      }: ElementCall): ts.JsxElement | ts.JsxSelfClosingElement => {
         const attributes: Array<ts.JsxAttribute> = []
+        if (key !== undefined) {
+          attributes.push(
+            f.createJsxAttribute(
+              f.createIdentifier('key'),
+              f.createJsxExpression(undefined, visit(key) as ts.Expression),
+            ),
+          )
+        }
         if (attributesArgument !== undefined) {
           if (ts.isArrayLiteralExpression(attributesArgument)) {
             for (const entry of attributesArgument.elements) {
@@ -379,6 +435,15 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
       const visit = (node: ts.Node): ts.Node => {
         if (isHtmlType(node)) return reactNodeType()
         if (node !== view && isViewFunction(node)) return visitView(node)
+        const call = elementCall(node)
+        if (call !== undefined) return f.createParenthesizedExpression(element(call))
+        if (
+          isBuilderAccess(node) &&
+          node.name.text === 'empty' &&
+          !ts.isCallExpression(node.parent)
+        ) {
+          return f.createNull()
+        }
         if (
           ts.isCallExpression(node) &&
           ts.isPropertyAccessExpression(node.expression) &&
@@ -386,7 +451,6 @@ export const transformSourceFile = (fileName: string, sourceText: string): Trans
           node.expression.expression.text === builder
         ) {
           const name = node.expression.name.text
-          if (TAGS.has(name)) return f.createParenthesizedExpression(element(node, name))
           report(
             node,
             /^[A-Z]/.test(name)
