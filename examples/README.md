@@ -17,6 +17,7 @@ there.
 | [`sync`](./sync) | Offline/local-first replication: outbox, reconciliation, transport, presence, LWW fields, and the durable journal seam | Focused client/server trace |
 | [`mixins`](./mixins) | Typed view extension points: Surface → SlotView → Style/Behavior, plus A11y/introspection | Focused render trace |
 | [`todo`](./todo) | `foldkit-agent` by itself: a contract, a hand-written host, and agent protocol adapters without Sync | Small agent-focused example |
+| [`react`](./react) | React interop in both directions, and compiling a Foldkit view to TSX | Focused jsdom trace |
 | [`kitchen-sink`](./kitchen-sink) | How fourteen packages compose at once, including Remote + Drizzle, Sync/Durable, all agent adapters, and Mixins | Broad deterministic in-process integration trace |
 
 `foldkit-mirror` is deliberately absent from the kitchen sink because its most

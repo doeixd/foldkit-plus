@@ -153,6 +153,46 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  examples/react:
+    dependencies:
+      foldkit-react:
+        specifier: workspace:*
+        version: link:../../packages/react
+      foldkit-react-codegen:
+        specifier: workspace:*
+        version: link:../../packages/react-codegen
+    devDependencies:
+      '@types/jsdom':
+        specifier: 21.1.7
+        version: 21.1.7
+      '@types/node':
+        specifier: 22.10.2
+        version: 22.10.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      effect:
+        specifier: 4.0.0-rc.112
+        version: 4.0.0-rc.112
+      foldkit:
+        specifier: 0.158.2
+        version: 0.158.2(effect@4.0.0-rc.112)
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      react:
+        specifier: 19.2.0
+        version: 19.2.0
+      react-dom:
+        specifier: 19.2.0
+        version: 19.2.0(react@19.2.0)
+      typescript:
+        specifier: 5.7.2
+        version: 5.7.2
+
   examples/remote:
     dependencies:
       foldkit-mixins:
@@ -9656,13 +9696,13 @@ snapshots:
 
   '@types/jsdom@21.1.7':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 22.10.2
       '@types/tough-cookie': 4.0.5
       parse5: 7.3.0
 
   '@types/jsonwebtoken@9.0.6':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 22.10.2
 
   '@types/linkify-it@3.0.5': {}
 
@@ -9718,7 +9758,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 22.10.2
 
   '@types/zen-observable@0.8.3': {}
 

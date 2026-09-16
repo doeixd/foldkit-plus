@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "foldkit-react": ["../../packages/react/src/index.ts"],
+      "foldkit-react-codegen": ["../../packages/react-codegen/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    { "path": "../../packages/react/tsconfig.build.json" },
+    { "path": "../../packages/react-codegen/tsconfig.build.json" }
+  ]
+}
