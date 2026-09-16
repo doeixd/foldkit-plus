@@ -46,6 +46,8 @@ export interface Link<Parent, ParentMessage, Child, ChildMessage> extends Pipeab
   readonly path: ReadonlyArray<string>
   /** The parent Message tags this link's Messages travel under, outermost first. */
   readonly messages: ReadonlyArray<string>
+  /** The application a Link built from a Surface field ref belongs to, for its Module contract. */
+  readonly owner?: object | undefined
 }
 
 export const isLink = (value: unknown): value is Link<unknown, unknown, unknown, unknown> =>
@@ -76,6 +78,7 @@ interface MakeConfig<Parent, Tag extends string, Child, ChildMessage> {
   readonly wrapper: Wrapper<Tag, ChildMessage>
   readonly when?: (parent: Parent) => boolean
   readonly path: ReadonlyArray<string>
+  readonly owner?: object | undefined
 }
 
 type LinkFields<Parent, ParentMessage, Child, ChildMessage> = Omit<
@@ -105,6 +108,7 @@ const make = <Parent, const Tag extends string, Child, ChildMessage>(
     when: Option.fromNullishOr(config.when),
     path: config.path,
     messages: [config.wrapper.tag],
+    owner: config.owner,
   })
 
 /**
@@ -176,6 +180,7 @@ const compose = <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
     }),
     path: [...outer.path, ...inner.path],
     messages: [...outer.messages, ...inner.messages],
+    owner: outer.owner ?? inner.owner,
   })
 
 /**

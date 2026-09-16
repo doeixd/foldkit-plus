@@ -27,9 +27,15 @@ export const checkArgs = (
   if (bundle.args === undefined) return undefined
   try {
     Schema.asserts(bundle.args, args)
-    return JSON.stringify(Schema.encodeSync(bundle.args)(args))
   } catch (error) {
     throw new Error(`${where}: args do not match the bundle's args Schema. ${String(error)}`)
+  }
+  try {
+    return JSON.stringify(Schema.encodeSync(bundle.args)(args))
+  } catch (error) {
+    throw new Error(
+      `${where}: args match the args Schema but could not be encoded as JSON for Module. ${String(error)}`,
+    )
   }
 }
 

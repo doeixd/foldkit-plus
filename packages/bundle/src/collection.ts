@@ -163,6 +163,13 @@ type ErasedHelper = Helper<any, any, any, any>
 type ErasedEntry = Subscription.Subscription<any, any, any, any>
 
 const eachErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig = {}) => {
+  // The types reject this through `bundle.each`; a scope or declaration reaching
+  // here from a loosely typed bundle must not drop the resources silently.
+  if (bundle.resources !== undefined) {
+    throw new Error(
+      `Bundle.each: ${bundle.name} has Managed Resources, which a collection cannot place: the runtime provides a resource by one tag, so every item would share it.`,
+    )
+  }
   const args = config.args
   const prefix = config.key ?? `${bundle.name}@${link.path.join('.')}[]`
   const argsSummary = checkArgs(bundle, args, prefix) ?? bundle.preset

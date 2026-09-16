@@ -8,6 +8,7 @@ import type { AnyBundle, Bundle, EachConfigParam, PlaceConfigParam } from './bun
 import type { PlacedCollection } from './collection.js'
 import { Link, type KeyedWrapped, type KeyedWrapper, type Wrapped, type Wrapper } from './link.js'
 import type { Placed } from './placed.js'
+import type { WithoutResources } from './parent.js'
 
 /** `search` → `GotSearchMessage`. */
 export type WrapperTag<Field extends string> = `Got${Capitalize<Field>}Message`
@@ -140,7 +141,7 @@ export const declare = <B extends AnyBundle, const Field extends string>(
 }
 
 export const declareEach = <B extends AnyBundle, const Field extends string>(
-  bundle: B,
+  bundle: B & WithoutResources<B>,
   field: Field,
 ): DeclaredEach<B, Field> => {
   const wrapper = Link.keyedWrapper(wrapperTag(field), bundle.Message)

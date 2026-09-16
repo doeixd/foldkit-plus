@@ -22,9 +22,6 @@ import {
 
 type AnyPlacement = AnyPlaced | AnyPlacedCollection
 
-// The application a ref-built Link came from, so its contract can name that owner.
-const linkOwners = new WeakMap<object, object>()
-
 /**
  * A Link from a Surface field ref: `App.model.search`. The contract of a
  * placement through it names the ref's application, so placing a child through
@@ -40,9 +37,9 @@ const link = <Root, Value, const Tag extends string, ChildMessage>(
     write: ref.set,
     wrapper,
     path: ref.dependency,
+    owner: ref.owner,
     ...options,
   })
-  linkOwners.set(made, ref.owner)
   return made
 }
 
@@ -60,7 +57,7 @@ const contract = <
 ): Contract => ({
   kind: 'bundle',
   name: placement.key,
-  owner: linkOwners.get(placement.link) ?? app.owner,
+  owner: ('owner' in placement.link ? placement.link.owner : undefined) ?? app.owner,
   owns: [placement.link.path],
   observes: [],
   messages: placement.link.messages,

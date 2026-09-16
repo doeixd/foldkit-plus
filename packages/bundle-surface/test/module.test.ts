@@ -97,6 +97,15 @@ describe('BundleSurface.module', () => {
     expect(rules(BundleSurface.module(App, foreign))).toEqual(['foreign-contract'])
   })
 
+  it('keeps the ref’s application when the Link is piped', () => {
+    const OtherApp = Surface.application({ Model, Message, initial, update: model => ({ model }) })
+    const piped = BundleSurface.link(OtherApp.model.search, GotSearchMessage).pipe(
+      Link.when((model: Model) => model.todos.length > 0),
+    )
+    const foreign = Bundle.assemble<Model, Message>()([Search.at(piped)])
+    expect(rules(BundleSurface.module(App, foreign))).toEqual(['foreign-contract'])
+  })
+
   it('reports a wrapper the application’s Message does not declare', () => {
     const GotStrayMessage = Link.wrapper('GotStrayMessage', SearchMessage)
     const Stray = Search.at(Link.field<Model>()('filter', GotStrayMessage))

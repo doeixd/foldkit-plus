@@ -27,6 +27,11 @@ import type { Invalid, Placed } from './placed.js'
 
 type P<B> = BundleParts<B>
 
+/** Collections cannot place a bundle with Managed Resources; reported at the bundle. */
+export type WithoutResources<B> = [keyof P<B>['Resources']] extends [never]
+  ? unknown
+  : Invalid<'A collection cannot place a bundle with Managed Resources: the runtime provides a resource by one tag, so every item would share it'>
+
 /** Reported at the placement when the parent Message lacks its wrapper variant. */
 type VariantCheck<Variant, Message> = [Variant] extends [Message]
   ? unknown
@@ -173,7 +178,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
     OutStepMessage = never,
     R2 = never,
   >(
-    bundle: B,
+    bundle: B & WithoutResources<B>,
     field: Field,
     ...config: EachConfigParam<
       P<B>['Args'],

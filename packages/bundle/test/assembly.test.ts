@@ -86,6 +86,10 @@ describe('Bundle.assemble', () => {
     const subscriptions = assembly.subscriptions(own)
     expect(Object.keys(subscriptions)).toEqual(['Counter@a/ticks', 'Plain@b/ticks', 'clock'])
     expect(Object.keys(assembly.resources())).toEqual(['Counter@a/socket'])
+    // The brand is a symbol the runtime's entry iteration must not see.
+    const brandKeys = Object.getOwnPropertySymbols(subscriptions)
+    expect(brandKeys).toHaveLength(1)
+    expect(Object.getOwnPropertyDescriptor(subscriptions, brandKeys[0]!)?.enumerable).toBe(false)
   })
 
   it('refuses two placements that share a resource tag, naming both', () => {

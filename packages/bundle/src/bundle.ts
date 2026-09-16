@@ -252,7 +252,8 @@ const build = <
       return Pipeable.pipeArguments(this, arguments)
     },
     with: args => {
-      const preset = checkArgs(spec, args, spec.name)
+      // A preset of a preset has no args Schema left, so it keeps the first preset's args.
+      const preset = checkArgs(spec, args, spec.name) ?? spec.preset
       return build({
         name: spec.name,
         preset,

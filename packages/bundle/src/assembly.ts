@@ -174,6 +174,25 @@ const assertDistinctResources = (
   }
 }
 
+const assertOwnResourcesDistinct = (
+  placements: ReadonlyArray<Placed<string, any, any, any, any, any, any, any, any, any>>,
+  own: Readonly<Record<string, ManagedResource.Entry<any, any, any, any, any>>>,
+): void => {
+  const placedTags = new Map(
+    placements.flatMap(placed =>
+      Object.values(placed.resources).map(entry => [entry.resource.key, placed.key] as const),
+    ),
+  )
+  for (const [name, entry] of Object.entries(own)) {
+    const owner = placedTags.get(entry.resource.key)
+    if (owner !== undefined) {
+      throw new Error(
+        `Bundle.assemble: the parent's resource "${name}" and ${owner} both use the Managed Resource "${entry.resource.key}". The runtime provides a resource by its tag, so one would replace the other.`,
+      )
+    }
+  }
+}
+
 /**
  * Collects a parent's placements. Curried so the parent Model and Message are
  * stated once and every placement is checked against them.
@@ -195,6 +214,19 @@ export const assemble =
       }
       keys.add(placed.key)
     }
+    // Routing takes the first placement whose wrapper matches, so a shared wrapper
+    // would send one placement's Messages to another.
+    const wrappers = new Map<string, string>()
+    for (const placed of placements) {
+      const wrapper = placed.link.messages.join(' > ')
+      const other = wrappers.get(wrapper)
+      if (other !== undefined) {
+        throw new Error(
+          `Bundle.assemble: ${other} and ${placed.key} use the same wrapper "${wrapper}", so Messages for one would reach the other. Give each placement its own wrapper.`,
+        )
+      }
+      wrappers.set(wrapper, placed.key)
+    }
 
     const route = (model: Model, message: Message) =>
       pipe(
@@ -202,8 +234,11 @@ export const assemble =
         Array.findFirst(placed => placed.update(model, message)),
       )
 
+    // Shallower placements first, so an outer child's init cannot replace a nested
+    // child that was already initialised inside it.
+    const byDepth = [...singles].sort((a, b) => a.link.path.length - b.link.path.length)
     const init: Update.Step<Model, Message, RequirementsOf<Ps[number]>> = Update.combine(
-      singles.map(placed => placed.init),
+      byDepth.map(placed => placed.init),
     )
 
     return {
@@ -216,9 +251,10 @@ export const assemble =
           )) as Assembly<Model, Message, Ps, Services>['update'],
       init,
       initial: rest => {
-        // Collections at a top-level field start as their Link's empty storage. A single placement's init
-        // writes its slice unless `rest` already gives that field, which is how an
-        // optional child (Link.optional) starts absent.
+        // Collections at a top-level field start as their Link's empty storage. A
+        // placement at a top-level field is initialised unless `rest` gives that
+        // field, which is how an optional child (Link.optional) starts absent. A
+        // nested placement is always initialised, inside whatever `rest` gave.
         const given = new Set(Object.keys(rest))
         const collections = Object.fromEntries(
           placements
@@ -227,7 +263,9 @@ export const assemble =
             .map(collection => [collection.link.path[0], collection.link.empty]),
         )
         const inits: ReadonlyArray<Update.Step<Model, Message, RequirementsOf<Ps[number]>>> =
-          singles.filter(placed => !given.has(placed.link.path[0] ?? '')).map(placed => placed.init)
+          byDepth
+            .filter(placed => !(placed.link.path.length === 1 && given.has(placed.link.path[0]!)))
+            .map(placed => placed.init)
         return Update.combine({ ...collections, ...rest } as Model, inits)
       },
       subscriptions: own =>
@@ -237,13 +275,15 @@ export const assemble =
             own ?? {},
           ),
         ),
-      resources: own =>
-        brand(
+      resources: own => {
+        if (own !== undefined) assertOwnResourcesDistinct(singles, own)
+        return brand(
           ManagedResource.aggregate<Model, Message>()(
             ...singles.map(placed => placed.resources),
             own ?? {},
           ),
-        ),
+        )
+      },
       complete: config => config,
     }
   }

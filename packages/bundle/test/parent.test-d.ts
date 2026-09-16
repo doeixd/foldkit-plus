@@ -54,13 +54,15 @@ const withClock = Page.withServices<Clock>().assemble(placed)
 expectTypeOf(withClock.update(own)).returns.toEqualTypeOf<Update.Return<Model, Message, Clock>>()
 
 // initial: exactly the fields no placement owns.
-const Items = Bundle.declareEach(Counter, 'items')
+const { resources: _r, at: _a, each: _e, ...plain } = Counter
+const PlainCounter = Bundle.make({ ...plain, name: 'PlainCounter' })
+// @ts-expect-error: a collection cannot place a bundle with Managed Resources
+Bundle.declareEach(Counter, 'items')
+const Items = Bundle.declareEach(PlainCounter, 'items')
 const WithItems = Bundle.parent({
   Model: Schema.Struct({ ...Box.fields, ...Items.fields, title: Schema.String }),
   Message: defineMessageUnion({ ...Box.cases, ...Items.cases }),
 })
-const { resources: _r, at: _a, each: _e, ...plain } = Counter
-const PlainCounter = Bundle.make({ ...plain, name: 'PlainCounter' })
 const scoped = WithItems.assemble(
   WithItems.at(Box, { args: { limit: 1, start: 0 }, onOut }),
   WithItems.placeEach(PlainCounter, 'items', { args: { limit: 1, start: 0 }, onOut }),
