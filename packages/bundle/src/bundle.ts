@@ -4,7 +4,7 @@
  * and programmatic entry points. It holds no state; placing it with a Link
  * compiles each part to the Foldkit lift that already exists for it.
  */
-import type { Option, Schema } from 'effect'
+import { Pipeable, type Option, type Schema } from 'effect'
 import type * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
 import type * as Subscription from 'foldkit/subscription'
@@ -81,7 +81,10 @@ export interface Bundle<
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
   Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
-> extends BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers> {
+>
+  extends
+    BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+    Pipeable.Pipeable {
   readonly [BundleTypeId]: typeof BundleTypeId
   /**
    * A preset: the same bundle with its args bound, so placements need no `args`.
@@ -211,6 +214,9 @@ const build = <
   > = {
     ...spec,
     [BundleTypeId]: BundleTypeId,
+    pipe() {
+      return Pipeable.pipeArguments(this, arguments)
+    },
     with: args => {
       const preset = checkArgs(spec, args, spec.name)
       return build({
@@ -407,3 +413,11 @@ export { parent } from './parent.js'
 export type { Parent } from './parent.js'
 export type { BundleParts } from './declare.js'
 export type { InitialRest } from './assembly.js'
+export {
+  mapInit,
+  mapUpdate,
+  mapView,
+  rename,
+  withHelpers,
+  withSubscriptions,
+} from './combinators.js'

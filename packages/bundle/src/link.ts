@@ -2,7 +2,7 @@
  * A Link says where a child machine lives in a parent: a lens onto the child
  * Model and the parent Message variant that carries the child's Messages.
  */
-import { Option, Record, Schema } from 'effect'
+import { Function, Option, Pipeable, Record, Schema } from 'effect'
 import { taggedStruct, type CallableTaggedStruct } from 'foldkit/schema'
 
 const LinkTypeId: unique symbol = Symbol.for('foldkit-bundle/Link')
@@ -33,7 +33,7 @@ export interface Wrapper<Tag extends string, ChildMessage> {
 /** Every Foldkit Message is tagged; routing only needs the tag. */
 export type AnyMessage = { readonly _tag: string }
 
-export interface Link<Parent, ParentMessage, Child, ChildMessage> {
+export interface Link<Parent, ParentMessage, Child, ChildMessage> extends Pipeable.Pipeable {
   readonly [LinkTypeId]: typeof LinkTypeId
   readonly read: (parent: Parent) => Option.Option<Child>
   readonly write: (parent: Parent, child: Child) => Parent
@@ -78,18 +78,34 @@ interface MakeConfig<Parent, Tag extends string, Child, ChildMessage> {
   readonly path: ReadonlyArray<string>
 }
 
+type LinkFields<Parent, ParentMessage, Child, ChildMessage> = Omit<
+  Link<Parent, ParentMessage, Child, ChildMessage>,
+  typeof LinkTypeId | 'pipe'
+>
+
+/** Brands plain link fields as a pipeable Link. */
+const toLink = <Parent, ParentMessage, Child, ChildMessage>(
+  fields: LinkFields<Parent, ParentMessage, Child, ChildMessage>,
+): Link<Parent, ParentMessage, Child, ChildMessage> => ({
+  ...fields,
+  [LinkTypeId]: LinkTypeId,
+  pipe() {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+})
+
 const make = <Parent, const Tag extends string, Child, ChildMessage>(
   config: MakeConfig<Parent, Tag, Child, ChildMessage>,
-): Link<Parent, Wrapped<Tag, ChildMessage>, Child, ChildMessage> => ({
-  [LinkTypeId]: LinkTypeId,
-  read: config.read,
-  write: config.write,
-  toParentMessage: config.wrapper.toParentMessage,
-  fromParentMessage: config.wrapper.fromParentMessage,
-  when: Option.fromNullishOr(config.when),
-  path: config.path,
-  messages: [config.wrapper.tag],
-})
+): Link<Parent, Wrapped<Tag, ChildMessage>, Child, ChildMessage> =>
+  toLink({
+    read: config.read,
+    write: config.write,
+    toParentMessage: config.wrapper.toParentMessage,
+    fromParentMessage: config.wrapper.fromParentMessage,
+    when: Option.fromNullishOr(config.when),
+    path: config.path,
+    messages: [config.wrapper.tag],
+  })
 
 /**
  * A child held in a struct field of the parent. Writes copy the parent with an
@@ -138,29 +154,73 @@ const optional =
 const compose = <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
   outer: Link<A, AMessage, B, BMessage>,
   inner: Link<B, BMessage, C, CMessage>,
-): Link<A, AMessage, C, CMessage> => ({
-  [LinkTypeId]: LinkTypeId,
-  read: parent => Option.flatMap(outer.read(parent), inner.read),
-  write: (parent, child) =>
-    Option.match(outer.read(parent), {
-      onNone: () => parent,
-      onSome: b => outer.write(parent, inner.write(b, child)),
+): Link<A, AMessage, C, CMessage> =>
+  toLink({
+    read: parent => Option.flatMap(outer.read(parent), inner.read),
+    write: (parent, child) =>
+      Option.match(outer.read(parent), {
+        onNone: () => parent,
+        onSome: b => outer.write(parent, inner.write(b, child)),
+      }),
+    toParentMessage: message => outer.toParentMessage(inner.toParentMessage(message)),
+    fromParentMessage: message =>
+      Option.flatMap(outer.fromParentMessage(message), inner.fromParentMessage),
+    when: Option.match(inner.when, {
+      onNone: () => outer.when,
+      onSome: innerWhen =>
+        Option.some(
+          (parent: A) =>
+            Option.match(outer.when, { onNone: () => true, onSome: when => when(parent) }) &&
+            Option.match(outer.read(parent), { onNone: () => false, onSome: innerWhen }),
+        ),
     }),
-  toParentMessage: message => outer.toParentMessage(inner.toParentMessage(message)),
-  fromParentMessage: message =>
-    Option.flatMap(outer.fromParentMessage(message), inner.fromParentMessage),
-  when: Option.match(inner.when, {
-    onNone: () => outer.when,
-    onSome: innerWhen =>
-      Option.some(
-        (parent: A) =>
-          Option.match(outer.when, { onNone: () => true, onSome: when => when(parent) }) &&
-          Option.match(outer.read(parent), { onNone: () => false, onSome: innerWhen }),
+    path: [...outer.path, ...inner.path],
+    messages: [...outer.messages, ...inner.messages],
+  })
+
+/**
+ * Adds a gate: the child's Subscriptions and resources run only while every gate
+ * on its Link returns `true`. `link.pipe(Link.when(model => model.open))`.
+ */
+const when: {
+  <Parent>(
+    predicate: (parent: Parent) => boolean,
+  ): <ParentMessage, Child, ChildMessage>(
+    self: Link<Parent, ParentMessage, Child, ChildMessage>,
+  ) => Link<Parent, ParentMessage, Child, ChildMessage>
+  <Parent, ParentMessage, Child, ChildMessage>(
+    self: Link<Parent, ParentMessage, Child, ChildMessage>,
+    predicate: (parent: Parent) => boolean,
+  ): Link<Parent, ParentMessage, Child, ChildMessage>
+} = Function.dual(
+  2,
+  <Parent, ParentMessage, Child, ChildMessage>(
+    self: Link<Parent, ParentMessage, Child, ChildMessage>,
+    predicate: (parent: Parent) => boolean,
+  ): Link<Parent, ParentMessage, Child, ChildMessage> =>
+    toLink({
+      ...self,
+      when: Option.some(
+        (parent: Parent) =>
+          Option.match(self.when, { onNone: () => true, onSome: gate => gate(parent) }) &&
+          predicate(parent),
       ),
-  }),
-  path: [...outer.path, ...inner.path],
-  messages: [...outer.messages, ...inner.messages],
-})
+    }),
+)
+
+/**
+ * Continues a Link into a child of its child: `outer.pipe(Link.andThen(inner))`.
+ * Lenses, Messages, gates, and paths chain, as in `compose`.
+ */
+const andThen: {
+  <B, BMessage extends AnyMessage, C, CMessage>(
+    inner: Link<B, BMessage, C, CMessage>,
+  ): <A, AMessage>(outer: Link<A, AMessage, B, BMessage>) => Link<A, AMessage, C, CMessage>
+  <A, AMessage, B, BMessage extends AnyMessage, C, CMessage>(
+    outer: Link<A, AMessage, B, BMessage>,
+    inner: Link<B, BMessage, C, CMessage>,
+  ): Link<A, AMessage, C, CMessage>
+} = Function.dual(2, compose)
 
 /** The parent Message variant `Tag({ key, message })` that carries one collection item's Messages. */
 export type KeyedWrapped<Tag extends string, ChildMessage> = {
@@ -254,4 +314,14 @@ const collection =
     messages: [wrap.tag],
   })
 
-export const Link = { wrapper, make, field, optional, compose, keyedWrapper, collection } as const
+export const Link = {
+  wrapper,
+  make,
+  field,
+  optional,
+  compose,
+  andThen,
+  when,
+  keyedWrapper,
+  collection,
+} as const
