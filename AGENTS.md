@@ -464,6 +464,10 @@ installed `.d.ts` before reaching for a remembered API.
   test per guard.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
+- **Cleaning up the DOM can hide a leaked runtime.** Removing the embed
+  container on unmount made a `FoldkitComponent` that never called `dispose`
+  look identical to one that did. Assert on something only a live runtime does,
+  such as a Subscription finalizer running.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
@@ -485,6 +489,9 @@ installed `.d.ts` before reaching for a remembered API.
   the escape as an invisible character in `replace('\u0000', ' ')`. After
   writing code that contains control-character escapes, check
   `git diff --stat` for `Bin` and grep for the escape.
+- **Python's text mode writes CRLF on Windows.** Scripted edits with
+  `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
+  that failed `format:check`. Pass `newline=''` when reading and writing.
 - **Format with `pnpm format`, never bare `prettier`.** The config matches the
   style already in the tree; without it prettier rewrites files to its own
   defaults. Markdown is deliberately ignored, because prettier pads table
