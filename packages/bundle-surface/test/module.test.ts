@@ -22,6 +22,7 @@ const Search = Bundle.make({
 const GotSearchMessage = Link.wrapper('GotSearchMessage', SearchMessage)
 const GotFilterMessage = Link.wrapper('GotFilterMessage', SearchMessage)
 const GotRowMessage = Link.keyedWrapper('GotRowMessage', SearchMessage)
+const GotRowsMessage = Link.keyedWrapper('GotRowsMessage', SearchMessage)
 
 const Model = Schema.Struct({
   search: SearchModel,
@@ -34,6 +35,7 @@ const Message = defineMessageUnion({
   ...GotSearchMessage.cases,
   ...GotFilterMessage.cases,
   ...GotRowMessage.cases,
+  ...GotRowsMessage.cases,
 })
 type Message = typeof Message.Type
 
@@ -100,6 +102,24 @@ describe('BundleSurface.module', () => {
     const Stray = Search.at(Link.field<Model>()('filter', GotStrayMessage))
     expect(rules(Module.make(App, [BundleSurface.contract(App, Stray)]))).toEqual([
       'unknown-message',
+    ])
+  })
+})
+
+describe('BundleSurface.parent', () => {
+  it('places from the application’s Schemas and validates with its module', () => {
+    const Page = BundleSurface.parent(App)
+    const placed = Page.at(Bundle.declare(Search, 'search'))
+    const filter = Page.place(Search, 'filter')
+    const rows = Page.placeEach(Search, 'rows')
+    const pageAssembly = Page.assemble(placed, filter, rows)
+    const module = Page.module(pageAssembly, [syncOf('todos')])
+    expect(Module.validate(module)).toEqual([])
+    expect(Module.manifest(module).ownership.map(row => row.owner?.name)).toEqual([
+      'Search@search',
+      'Search@filter',
+      'Search@rows[]',
+      'Todos',
     ])
   })
 })

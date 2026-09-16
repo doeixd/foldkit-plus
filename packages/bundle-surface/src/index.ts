@@ -4,7 +4,14 @@
  * checks it against every other owner (Sync, Remote, another placement).
  */
 import { Option, type Schema } from 'effect'
-import { Link, type AnyPlaced, type AnyPlacedCollection, type Wrapper } from 'foldkit-bundle'
+import {
+  Bundle,
+  Link,
+  type AnyMessage,
+  type AnyPlaced,
+  type AnyPlacedCollection,
+  type Wrapper,
+} from 'foldkit-bundle'
 import {
   Module,
   type AppScope,
@@ -71,4 +78,32 @@ const module = <
   items: readonly ModuleItem<Root>[] = [],
 ) => Module.make(app, [...assembly.placements.map(placement => contract(app, placement)), ...items])
 
-export const BundleSurface = { link, contract, module } as const
+/**
+ * The parent scope of `foldkit-bundle`, built from a Surface application, with
+ * `module` bound to it: `const Page = BundleSurface.parent(App)`.
+ */
+const parent = <
+  Root,
+  F extends Schema.Struct.Fields,
+  Cases extends Record<string, Schema.Struct.Fields>,
+>(
+  app: AppScope<Root, F, Cases>,
+) => {
+  const scope = Bundle.parent({
+    Model: app.Model as unknown as Schema.Codec<Root, unknown>,
+    Message: app.Message as unknown as Schema.Codec<
+      Schema.Schema.Type<typeof app.Message> & AnyMessage,
+      unknown
+    >,
+  })
+  return {
+    ...scope,
+    /** A Module of these placements plus the application's other contracts. */
+    module: (
+      assembly: { readonly placements: ReadonlyArray<AnyPlacement> },
+      items: readonly ModuleItem<Root>[] = [],
+    ) => module(app, assembly, items),
+  }
+}
+
+export const BundleSurface = { link, contract, module, parent } as const
