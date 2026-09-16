@@ -1993,6 +1993,42 @@ interpreter metadata
     != state ownership
 ```
 
+## Reusable ownership units: Bundles
+
+Surface describes an **access** boundary. Foldkit has no value for the other
+half: a reusable **ownership** unit. A Submodel is still a hand-wired pattern,
+repeated in the update fold, init, Subscription lift, resource lift, and view
+for every place it is used.
+
+`foldkit-bundle` packages those parts once and places them through a Link:
+
+```text
+Bundle placed at path P
+    = owns P's transitions, through the parent's update
+
+Link
+    = where ownership lives, not a second owner
+
+two placements of one Bundle
+    = two owners of two paths
+```
+
+It passes the constraints of section 1: it is optional, holds no hidden state,
+compiles to `Update.foldChildStep`, `Subscription.lift`,
+`ManagedResource.lift`, and `h.submodel`, and every write is still a Message.
+A parity test shows a placement produces the same Models, Commands, and
+Subscription dependencies as the same child wired by hand.
+
+Two Foldkit facts constrain an upstream version. A Managed Resource is provided
+by its tag, so two placements of one child with resources collide; and a
+Surface cannot expose a placement's individual Messages, because they all
+travel under one wrapper variant. The
+[bundle design note](./design/bundle-DESIGN.md) records these and the deferred
+work.
+
+A review rule follows: **a reused ownership unit should be a Bundle, and every
+placement should be a Module contract.**
+
 ---
 
 # 16. Proposed Foldkit architecture after these changes
