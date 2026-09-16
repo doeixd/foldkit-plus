@@ -205,6 +205,58 @@ bundle has an OutMessage. An OutMessage cannot be dropped by leaving it out.
 returns `false`, the placement's Subscriptions and resources stop. An absent
 child also stops them, renders nothing, and ignores its Messages.
 
+## Many of one: collections
+
+`bundle.each` places a bundle once per key of a `Record<string, Child>` field.
+The parent Model still owns every item; the collection routes by key:
+
+```text
+Parent Model.rows = { a: Row.Model, b: Row.Model }
+GotRowMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written back
+```
+
+```ts
+const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
+const RowMessage = defineMessageUnion({ Clicked: {} })
+
+const Row = Bundle.make({
+  name: 'Row',
+  Model: RowModel,
+  Message: RowMessage,
+  init: () => ({ model: { id: '', count: 0 } }),
+  update: model => ({ model: { ...model, count: model.count + 1 } }),
+})
+
+const GotRowMessage = Link.keyedWrapper('GotRowMessage', RowMessage)
+const Model = Schema.Struct({ rows: Schema.Record(Schema.String, RowModel) })
+type Model = typeof Model.Type
+
+const Rows = Row.each(Link.collection<Model>()('rows', GotRowMessage))
+
+// In the parent update:
+Rows.add('b', row => ({ ...row, id: 'b' })) // Update.Step: init, then prepare
+Rows.remove('b') // Update.Step: the item and its Subscriptions go away
+```
+
+- **`add(key, prepare?)`** writes the item from `init` and lifts its Commands.
+  An item cannot see its key, so `prepare` lets the parent store what only the
+  parent knows, such as the id. Adding an existing key replaces the item.
+- **`remove(key)`** deletes the item. A Message that arrives later for that key
+  leaves the parent unchanged.
+- **`update`**, **`helpers.name(key, ...input)`**, and `onOut(outMessage, key)`
+  work per item. `args` are given once, for every item.
+- **`view(parent, h, key)`** renders one item and **`viewAll(parent, h)`**
+  renders all of them, in the record's key order, each in its own slot.
+- A collection joins the same `Bundle.assemble` list. `placements.init` skips
+  it: a collection starts as the parent left it.
+
+**Subscriptions restart together.** Each child Subscription becomes one parent
+entry over every item. Adding or removing an item, or changing any item's
+dependencies, restarts that entry's stream for every item. A child entry with
+`keepAliveEquivalence` stays alive while the keys are unchanged, and each item
+reads its own latest dependencies. A bundle with Managed Resources cannot be
+placed with `each`; the type says why.
+
 ## Completeness: the three wiring mistakes
 
 `placements.complete(config)` turns each of these into a type error at the
@@ -231,8 +283,11 @@ placements share a key or a Managed Resource tag.
   that. When a bundle with resources is placed more than once, make the bundle
   from a function that takes the tag, one tag per placement, as
   [`test/runtime.test.ts`](test/runtime.test.ts) does.
-- **One Model per placement.** Keyed collections of placements
-  (`Bundle.each`) are not built yet.
+- **Collections restart item streams together.** Per-key keep-alive, where
+  adding one item leaves the other items' streams running, is not built yet.
+- **Collections cannot hold resources**, for the tag reason above.
+- **Record key order.** `viewAll` and the Subscription order follow JavaScript
+  record order, which puts integer-like keys such as `"2"` before other keys.
 - **No Surface integration yet.** Module contracts, relative Surfaces, and
   Mirror declarations for placements are planned for a companion
   `foldkit-bundle-surface` package.

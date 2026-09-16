@@ -86,3 +86,25 @@ const Left = Counter.at(Link.field<CounterParent>()('left', GotLeftMessage), {
 })
 
 export const reset = Left.helpers.reset(7)
+
+// --- Many of one: collections ---
+
+const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
+const RowMessage = defineMessageUnion({ Clicked: {} })
+
+const Row = Bundle.make({
+  name: 'Row',
+  Model: RowModel,
+  Message: RowMessage,
+  init: () => ({ model: { id: '', count: 0 } }),
+  update: model => ({ model: { ...model, count: model.count + 1 } }),
+})
+
+const GotRowMessage = Link.keyedWrapper('GotRowMessage', RowMessage)
+const RowsModel = Schema.Struct({ rows: Schema.Record(Schema.String, RowModel) })
+type RowsModel = typeof RowsModel.Type
+
+const Rows = Row.each(Link.collection<RowsModel>()('rows', GotRowMessage))
+
+export const addRow = Rows.add('b', row => ({ ...row, id: 'b' }))
+export const removeRow = Rows.remove('b')
