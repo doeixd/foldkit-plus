@@ -82,6 +82,7 @@ Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
 Views            foldkit-mixins + mixins-surface / mixins-ui
+React interop    foldkit-react
 ```
 
 The names indicate roles, not a requirement that every package depend on every

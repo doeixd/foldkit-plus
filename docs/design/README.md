@@ -18,7 +18,7 @@ to know why the public API has the shape it does.
 | [agent-DESIGN.md](./agent-DESIGN.md) | `foldkit-agent` contract, authority boundaries, completion, and adapter rationale. |
 | [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md) | Design decisions and remaining constraints for `foldkit-remote-drizzle`. |
 | [surface-BACKBONE.md](./surface-BACKBONE.md) | Why Surface is a shared semantic seam for packages that need observation/capability metadata. |
-| [react-DESIGN.md](./react-DESIGN.md) | Proposed (not implemented) plan for React interop: a runtime bridge package (React islands inside Foldkit via a custom-element host, Foldkit inside React via `Runtime.embed` and Ports) shipped before a separate TSX codegen package. |
+| [react-DESIGN.md](./react-DESIGN.md) | React interop plan: a runtime bridge (React islands in Foldkit via a custom-element host, Foldkit in React via `Runtime.embed` and Ports), implemented as `foldkit-react`, and a TSX codegen package, not started. |
 | [async-semantics-DESIGN.md](./async-semantics-DESIGN.md) | What Foldkit should learn from Solid 2's async model: keep semantic async state in Model, keep Effect as the execution substrate, make Projection metadata more extensible, add state-based completion where it has a concrete owner, and show the before/after capabilities this enables across Agent, Remote, Sync, AsyncData, Module, and third-party interpreters. |
 
 ## Provenance and earlier exploration

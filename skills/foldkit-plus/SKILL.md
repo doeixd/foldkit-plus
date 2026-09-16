@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, or view styling, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, or Mixins.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, or React interop, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, or FoldkitComponent.
 license: MIT
 metadata:
   version: '0.5.0'
@@ -35,6 +35,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A filter in the URL, a draft or preference remembered on a device | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
 | Restyling or adding behaviour to views, including `@foldkit/ui` | the view contract | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
+| A React component in a Foldkit view, or a Foldkit program in a React app | the Model / the embedded program | `foldkit-react` | [react.md](references/react.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example

@@ -1,9 +1,13 @@
 # React interop: `@foldkit/react` and `@foldkit/react-codegen`
 
-> **Status: proposed plan, not implemented.** Nothing below exists in the
-> repository yet. The package names follow the proposal as written; packages in
-> this repository are published as `foldkit-*` (for example `foldkit-bundle`), so
-> the final names may become `foldkit-react` and `foldkit-react-codegen`.
+> **Status: runtime bridge implemented as
+> [`foldkit-react`](../../packages/react/README.md); codegen not started.**
+> Sections 1–19 are built (package name `foldkit-react`, not `@foldkit/react`),
+> with these deviations: the host binding uses Foldkit's public
+> `CustomElement.define` (property `input`, not `__foldkitReact`); sources are
+> `.ts` using `createElement`, so the package needs no JSX build step; the
+> Foldkit peer is `^0.158.2`, the version the repository pins. Sections 20–26
+> (Resource bridge and `@foldkit/react-codegen`) remain proposals.
 
 Based on Foldkit's current architecture, this would be implemented as **two
 packages**, deliberately avoiding a second renderer in the first release.

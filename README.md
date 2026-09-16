@@ -232,6 +232,7 @@ so the front page cannot quietly drift from the API.
 | Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
+| Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
@@ -335,6 +336,9 @@ pnpm add foldkit-mirror
 
 # view extension points
 pnpm add foldkit-mixins foldkit-mixins-surface
+
+# React interop in either direction
+pnpm add foldkit-react react react-dom
 ```
 
 Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and
