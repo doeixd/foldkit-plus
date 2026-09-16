@@ -7,7 +7,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { expectTypeOf } from 'vitest'
-import { Bundle, Link } from '../src/index.js'
+import { Bundle, Link, type Wrapped } from '../src/index.js'
 import {
   Counter,
   CounterMessage,
@@ -114,3 +114,20 @@ Counter.each(Link.collection<typeof CounterItems.Type>()('items', GotItem), {})
 // A collection link must point at a record field.
 // @ts-expect-error: `title` is not a record of items
 Link.collection<Model>()('title', GotItem)
+
+// --- Bundle.declare ---
+
+const DeclaredCounter = Bundle.declare(Counter, 'counter')
+expectTypeOf(DeclaredCounter.wrapper.tag).toEqualTypeOf<'GotCounterMessage'>()
+const declaredPlacement = DeclaredCounter.at<Model>()({
+  args: { limit: 1, start: 0 },
+  onOut: () => model => ({ model }),
+})
+// Its Messages are exactly the declared wrapper variant.
+expectTypeOf(declaredPlacement.init).toEqualTypeOf<
+  Update.Step<Model, Wrapped<'GotCounterMessage', CounterMessage>, never>
+>()
+// @ts-expect-error: `title` holds a string, not the bundle's Model
+Bundle.declare(Counter, 'title').at<Model>()
+// @ts-expect-error: args and onOut are still required
+DeclaredCounter.at<Model>()()

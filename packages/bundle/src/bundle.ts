@@ -261,3 +261,5 @@ export const fromParts = <
 
 export { assemble } from './assembly.js'
 export type { Assembly, WiredRecord } from './assembly.js'
+export { declare, declareEach } from './declare.js'
+export type { Declared, DeclaredEach, WrapperTag } from './declare.js'
