@@ -47,8 +47,9 @@ Module.validate(AppModule) // []
 
 - **`BundleSurface.parent(app)`** is `Bundle.parent` built from the application's
   own Model and Message, with `module` bound to that application.
-- **`Page.module(assembly, items)`** makes one `bundle` contract per placement and
-  adds your other contracts. It performs no I/O.
+- **`Page.module(assembly, items)`** makes one `bundle` contract per placement,
+  brings each wiring's contract as-is, and adds your other contracts. It
+  performs no I/O.
 - **`BundleSurface.contract(app, placement)`** is one contract, for
   `Module.make` or `Module.add`. It owns the placement's path, names the parent
   Message tags its Messages travel under, and lists its args as `args`

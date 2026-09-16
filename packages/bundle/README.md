@@ -126,14 +126,21 @@ rest of your options.
   and lifts every part: `update` through `Update.foldChildStep`, Subscriptions
   through `Subscription.lift`, resources through `ManagedResource.lift`, and the
   view through `h.submodel`. It performs no I/O.
-- **`Page.assemble(...placements)`** is the one list of placements.
+- **`Page.assemble(...items)`** is the one list of what joins the parent:
+  placements, collections, and integration wiring. An integration's wiring
+  brings its routing, startup step, Subscriptions, and contract the same way a
+  placement brings its parts; see [Wiring](../../docs/wiring.md).
 - **`placements.initial(rest)`** is the parent's initial Model and Commands:
-  `rest` gives exactly the fields no placement owns, and each placement's `init`
-  writes its own slice. That check needs every placement's field, so a placement
+  `rest` gives exactly the fields no placement owns, each placement's `init`
+  writes its own slice, and each wiring's `init` runs after the placements',
+  in list order. That check needs every placement's field, so a placement
   through a custom Link (below) relaxes `rest` to `Partial<Model>`.
-- **`placements.update(own)`** is the parent's update: a placement's Message goes
-  to that placement and every other Message to `own`. Without `own` they leave
-  the Model unchanged.
+- **`placements.update(own)`** is the parent's update: a placement's or
+  wiring's Message goes to its item and every other Message to `own`. Without
+  `own` they leave the Model unchanged.
+- **`placements.url(onUrlChange)`** is the runtime URL config: `init` applies
+  every wiring's `onUrl` to the Model, and a URL change becomes
+  `onUrlChange`'s Message, which a wiring routes.
 - **`placements.complete(config)`** returns the config unchanged. It exists to
   report wiring mistakes, below.
 
@@ -381,7 +388,7 @@ Page.withServices<Clock>()
   .update(clockUpdate)
 ```
 
-## Completeness: the three wiring mistakes
+## Completeness: the wiring mistakes
 
 `placements.complete(config)` turns each of these into a type error at the
 property that is wrong:
@@ -391,6 +398,8 @@ property that is wrong:
 | An `update` that does not accept the whole parent Message, such as one written by hand with a narrower union | `update` |
 | `subscriptions` not built with `placements.subscriptions(own)` | `subscriptions` |
 | `managedResources` not built with `placements.resources(own)`, when a placement has resources | `managedResources` |
+| `init` not returning `placements.initial(rest)`, when a wiring runs startup Commands | `init` |
+| `url` not built with `placements.url(onUrlChange)`, when a wiring reads the URL | `url` |
 
 Pass the parent's own records through the same call:
 `placements.subscriptions(ownSubscriptions)`. A duplicate key throws at startup,
@@ -398,10 +407,11 @@ as `Subscription.aggregate` does. A placement whose wrapper variant is missing f
 the parent Message is reported earlier: at `Page.at`, `Page.place`, or `Page.each`,
 or by `assemble`'s own type check.
 
-`Page.assemble` also fails at startup when two placements share a key, and,
-naming both, when two share a wrapper (routing would send one's Messages to the
-other) or a Managed Resource tag. `placements.resources(own)` fails the same way
-when the parent's own resource shares a placement's tag.
+`Page.assemble` also fails at startup when two items share a key, and, naming
+both, when two claim one Message tag (two placements sharing a wrapper, or
+two wirings handling one tag that neither declares `shared`) or a Managed
+Resource tag. `placements.resources(own)` fails the same way when the
+parent's own resource shares an item's tag.
 
 ## Lower-level API
 
@@ -411,7 +421,7 @@ The scope is sugar over these, which remain for code that composes by hand:
 | --- | --- |
 | `Bundle.assemble<Model, Message, Services>()([...])` | `Page.assemble` without a scope |
 | `placements.route(model, message)` | `update`'s routing, as an `Option` |
-| `placements.init` | every single placement's init as one `Update.Step` |
+| `placements.init` | every single placement's init, then each wiring's, as one `Update.Step` |
 | `declared.at<Model>()(config)`, `declaredEach.each<Model>()(config)` | a declaration placed without a scope |
 
 ## Limits
@@ -433,5 +443,8 @@ The scope is sugar over these, which remain for code that composes by hand:
   and the scope from a Surface application.
 - [`examples/bundle`](../../examples/bundle): a settings page built from
   placements, with its transcript pinned.
+- [Wiring](../../docs/wiring.md): Remote, Mirror, Sync, and Agent join the
+  same assembly through wiring, so routing, startup, Subscriptions, and the
+  Module derive from one list.
 - [Design note](../../docs/design/bundle-DESIGN.md) and
   [DX plan](../../docs/design/bundle-DX-PLAN.md).

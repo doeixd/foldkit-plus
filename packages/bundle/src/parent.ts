@@ -207,7 +207,7 @@ export interface Parent<Model, Message extends AnyMessage, Services = never> {
       | Wiring<Model, Message, any>
     >,
   >(
-    ...placements: Ps
+    ...items: Ps
   ) => Assembly<Model, Message, Ps, Services>
 
   /** Links into this parent, without restating its type. */
@@ -250,12 +250,8 @@ const make = <Model, Message extends AnyMessage, Services>(
     Message,
     Services
   >['placeEach'],
-  assemble: ((...placements: ReadonlyArray<any>) =>
-    assemble<Model, Message, Services>()(placements)) as Parent<
-    Model,
-    Message,
-    Services
-  >['assemble'],
+  assemble: ((...items: ReadonlyArray<any>) =>
+    assemble<Model, Message, Services>()(items)) as Parent<Model, Message, Services>['assemble'],
   link: {
     field: (key, wrapper, options) => Link.field<Model>()(key, wrapper, options),
     optional: Link.optional<Model>(),
