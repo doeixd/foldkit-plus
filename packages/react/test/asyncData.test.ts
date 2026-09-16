@@ -6,7 +6,8 @@
 import { Option, Schema } from 'effect'
 import * as AsyncData from 'foldkit/asyncData'
 import { defineMessageUnion } from 'foldkit/message'
-import { createElement } from 'react'
+import { Suspense, createElement, useEffect, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { AsyncDataFailure, ReactComponent, readAsyncData } from '../src/index.js'
 import { click, mount, settle, text } from './foldkit.js'
@@ -123,4 +124,32 @@ it('returns data without suspending for every state that has data', () => {
     Option.some('e'),
   )
   expect(() => readAsyncData(AsyncData.Idle())).toThrow(expect.any(Promise))
+})
+
+it('retries when the next value arrives as React state, as an outbound Port value does', async () => {
+  let publish!: (user: AsyncData.AsyncData<string, string>) => void
+  const Reader = ({ user }: { readonly user: AsyncData.AsyncData<string, string> }) =>
+    createElement('b', { className: 'reader' }, readAsyncData(user).data)
+  const App = () => {
+    const [user, setUser] = useState<AsyncData.AsyncData<string, string>>(AsyncData.Loading())
+    useEffect(() => {
+      publish = setUser
+    }, [])
+    return createElement(
+      Suspense,
+      { fallback: createElement('i', { className: 'reader' }, 'waiting') },
+      createElement(Reader, { user }),
+    )
+  }
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  root.render(createElement(App))
+  try {
+    await vi.waitFor(() => expect(text('.reader')).toBe('waiting'))
+    publish(AsyncData.succeed('Grace'))
+    await vi.waitFor(() => expect(text('.reader')).toBe('Grace'))
+  } finally {
+    root.unmount()
+  }
 })
