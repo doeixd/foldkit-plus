@@ -84,6 +84,11 @@ Spread `config` into `Runtime.makeApplication` or `Runtime.makeElement`.
 
 ## Common tasks
 
+- **Less wiring:** `const Dark = Bundle.declare(MediaQuery, 'dark')` gives
+  `Dark.fields` and `Dark.cases` to spread into the parent Model and Message
+  (wrapper `GotDarkMessage`), then `Dark.at<Model>()(config)`.
+  `Bundle.declareEach(Row, 'rows')` does the same with `each<Model>()`. Use
+  `Link.field` directly for a `when` gate or a nested path.
 - **OutMessage:** a bundle whose `update` returns `outMessage` must be placed
   with `onOut: outMessage => model => ({ model: … })`. It is a type error to
   omit it.
