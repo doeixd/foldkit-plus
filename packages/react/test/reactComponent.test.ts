@@ -4,46 +4,11 @@
  * remounting, events become exactly one Message, and removal unmounts React.
  */
 import { Schema } from 'effect'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import * as Runtime from 'foldkit/runtime'
 import { createElement, useEffect, useState, type ReactNode } from 'react'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { ReactComponent } from '../src/index.js'
-
-beforeEach(() => {
-  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-    setTimeout(() => callback(performance.now()), 0),
-  )
-  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  document.body.innerHTML = ''
-})
-
-const text = (selector: string) => document.querySelector(selector)?.textContent
-const click = (selector: string) => (document.querySelector(selector) as HTMLElement).click()
-
-const mount = <Model, Message extends { readonly _tag: string }>(config: {
-  readonly Model: Schema.Codec<Model, any>
-  readonly init: Model
-  readonly update: (model: Model, message: Message) => Model
-  readonly view: (model: Model, h: HtmlBuilder<Message>) => Html
-}) => {
-  const container = document.createElement('div')
-  container.id = 'app'
-  document.body.appendChild(container)
-  const program = Runtime.makeElement({
-    Model: config.Model,
-    container,
-    init: () => ({ model: config.init }),
-    update: (model: Model, message: Message) => ({ model: config.update(model, message) }),
-    view: config.view,
-  })
-  return Runtime.embed(program)
-}
+import { click, mount, settle, text } from './foldkit.js'
 
 const Model = Schema.Struct({
   label: Schema.String,
@@ -150,7 +115,7 @@ it('follows the Model without remounting and turns events into one Message each'
 
     click('.pick')
     await vi.waitFor(() => expect(text('.log')).toBe('picked-1'))
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await settle()
     expect(text('.log')).toBe('picked-1')
 
     click('.toggle')
