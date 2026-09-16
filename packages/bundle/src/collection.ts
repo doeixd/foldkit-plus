@@ -28,10 +28,14 @@ export interface EachConfig<Args, Parent, LinkMessage, Message, OutMessage, OutS
 }
 
 export type CollectionView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
-  ? <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>, key: string) => Html
-  : <M>(
+  ? <H extends HtmlBuilder<any>>(
       parent: Parent,
-      h: ViewBuilder<M, ParentMessage>,
+      h: ViewBuilder<H, ParentMessage>,
+      key: string,
+    ) => Html
+  : <H extends HtmlBuilder<any>>(
+      parent: Parent,
+      h: ViewBuilder<H, ParentMessage>,
       key: string,
       viewInputs: ViewInputs,
     ) => Html
@@ -78,9 +82,9 @@ export interface PlacedCollection<
   /** One item's view; nothing when the key is missing. */
   readonly view: CollectionView<Parent, ParentMessage, ViewInputs>
   /** Every item's view, in the record's key order. */
-  readonly viewAll: <M>(
+  readonly viewAll: <H extends HtmlBuilder<any>>(
     parent: Parent,
-    h: ViewBuilder<M, ParentMessage>,
+    h: ViewBuilder<H, ParentMessage>,
     ...viewInputs: [ViewInputs] extends [void] ? [] : [viewInputs: ViewInputs]
   ) => ReadonlyArray<Html>
   readonly helpers: CollectionHelpers<Parent, ParentMessage, R, Helpers>

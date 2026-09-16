@@ -91,16 +91,28 @@ export interface Placed<
 }
 
 export type PlacedView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
-  ? <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>) => Html
-  : <M>(parent: Parent, h: ViewBuilder<M, ParentMessage>, viewInputs: ViewInputs) => Html
+  ? <H extends HtmlBuilder<any>>(parent: Parent, h: ViewBuilder<H, ParentMessage>) => Html
+  : <H extends HtmlBuilder<any>>(
+      parent: Parent,
+      h: ViewBuilder<H, ParentMessage>,
+      viewInputs: ViewInputs,
+    ) => Html
 
 /** Readable failure when the parent's Message union lacks this placement's variant. */
 export interface Invalid<Message extends string> {
   readonly invalid: Message
 }
 
-export type ViewBuilder<M, ParentMessage> = HtmlBuilder<M> &
-  ([ParentMessage] extends [M]
+type BuilderMessage<H> = H extends HtmlBuilder<infer M> ? M : never
+
+/**
+ * The parent's `h`, checked to accept this placement's Messages. Generic over the
+ * whole builder rather than its Message: inferring a Message through
+ * `HtmlBuilder` costs thousands of type instantiations per call, while the
+ * builder infers as itself and its Message is extracted once per builder type.
+ */
+export type ViewBuilder<H, ParentMessage> = H &
+  ([ParentMessage] extends [BuilderMessage<H>]
     ? unknown
     : Invalid<"The parent Message does not include this placement's wrapper variant; spread its Link.wrapper(...).cases into defineMessageUnion">)
 
