@@ -264,6 +264,7 @@ Built as planned, except:
 | `declared.pipe(Link.when(…))` for a gate on a declared placement | `when` in the placement config | A declaration is not a Link, and the parent type is known only at placement. |
 | Typed keys through a key codec, and `HashMap` storage | Keys constrained to `string` (branded ids work), record and array-by-id storage | Keys stay strings at runtime, so Subscription dependencies and record fields need no encoding; `HashMap` Models are rare in Foldkit. |
 | `initial(rest)` mounts every single placement | `rest` may give a custom-Link placement's field, which then skips its `init` | A `Link.optional` placement could otherwise never start as `None`. |
+| Remove `Bundle.assemble<Model, Message>()`, `declared.at<Model>()`, and `BundleSurface.link` | Kept, documented as lower-level API after the scope | They compose by hand where no scope exists, and removing them buys nothing for code that uses the scope. |
 
 The scope's inference costs about 10% more check time at 100 placements
 (2.23 s against 2.02 s), inside the 25% budget ([benchmarks](../benchmarks.md)).
