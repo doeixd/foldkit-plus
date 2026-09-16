@@ -115,6 +115,23 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   )
 })
 
+it('recognizes defineView only when it is imported from Foldkit', () => {
+  const body = `const child = defineView<number, M>((count, h) =>
+  h.p([], [String(count)]),
+)
+`
+  const foldkit = compile(`import { defineView } from 'foldkit/submodel'
+${body}`)
+  expect(foldkit).toContain('(count: number, dispatch: (message: M) => void) => (<p>')
+  const other = compile(`import { defineView } from 'another-library'
+${body}`)
+  expect(other).toContain('defineView<number, M>((count, h) =>')
+  expect(
+    compile(`import { Submodel } from 'foldkit'
+${body.replace('defineView', 'Submodel.defineView')}`),
+  ).toContain('(count: number, dispatch: (message: M) => void) =>')
+})
+
 const header = `import type { HtmlBuilder } from 'foldkit/html'\nimport { createLazy } from 'foldkit/html'\n`
 
 it.each([

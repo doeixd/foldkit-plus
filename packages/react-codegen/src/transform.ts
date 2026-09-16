@@ -162,16 +162,16 @@ const annotatedView = (node: ts.Node): ViewSite | undefined => {
  * untyped last parameter. The call becomes the compiled function; the brand
  * only exists for `h.submodel`'s type check.
  */
-const definedView = (node: ts.Node): ViewSite | undefined => {
+const definedView = (
+  node: ts.Node,
+  isDefineView: (callee: ts.Expression) => boolean,
+): ViewSite | undefined => {
   if (!ts.isCallExpression(node) || node.arguments.length !== 1) return undefined
-  const callee = node.expression
-  const name = ts.isIdentifier(callee)
-    ? callee.text
-    : ts.isPropertyAccessExpression(callee)
-      ? callee.name.text
-      : undefined
   const view = node.arguments[0]!
-  if (name !== 'defineView' || !(ts.isArrowFunction(view) || ts.isFunctionExpression(view))) {
+  if (
+    !isDefineView(node.expression) ||
+    !(ts.isArrowFunction(view) || ts.isFunctionExpression(view))
+  ) {
     return undefined
   }
   const builderParameter = view.parameters.at(-1)
@@ -186,7 +186,38 @@ const definedView = (node: ts.Node): ViewSite | undefined => {
   }
 }
 
-const viewSite = (node: ts.Node) => annotatedView(node) ?? definedView(node)
+/**
+ * Recognizes Foldkit's `defineView` only: imported from `foldkit/submodel`, or
+ * reached through that module's namespace or `Submodel` from `foldkit`.
+ */
+const foldkitDefineView = (file: ts.SourceFile) => {
+  const direct = new Set<string>()
+  const namespaces = new Set<string>()
+  for (const statement of file.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+      continue
+    }
+    const module = statement.moduleSpecifier.text
+    const bindings = statement.importClause?.namedBindings
+    if (bindings === undefined) continue
+    if (ts.isNamespaceImport(bindings)) {
+      if (module === 'foldkit/submodel') namespaces.add(bindings.name.text)
+      continue
+    }
+    for (const element of bindings.elements) {
+      const imported = (element.propertyName ?? element.name).text
+      if (module === 'foldkit/submodel' && imported === 'defineView') direct.add(element.name.text)
+      if (module === 'foldkit' && imported === 'Submodel') namespaces.add(element.name.text)
+    }
+  }
+  return (callee: ts.Expression) =>
+    ts.isIdentifier(callee)
+      ? direct.has(callee.text)
+      : ts.isPropertyAccessExpression(callee) &&
+        ts.isIdentifier(callee.expression) &&
+        namespaces.has(callee.expression.text) &&
+        callee.name.text === 'defineView'
+}
 
 /** Local names of the named imports from `module`, keyed by imported name. */
 const importedNames = (file: ts.SourceFile, module: string) => {
@@ -226,6 +257,8 @@ export const transformSourceFile = (
     ts.ScriptKind.TS,
   )
   const diagnostics: Array<Diagnostic> = []
+  const isDefineView = foldkitDefineView(source)
+  const viewSite = (node: ts.Node) => annotatedView(node) ?? definedView(node, isDefineView)
   const htmlImports = importedNames(source, 'foldkit/html')
   const htmlName = htmlImports.get('Html')
   const lazyFactories = new Map(
