@@ -1,6 +1,6 @@
 {
   "name": "foldkit-react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Run React components inside a Foldkit view and Foldkit programs inside React, with Messages and Ports as the only boundary.",
   "keywords": [
     "foldkit",
