@@ -31,6 +31,11 @@ describe('Tween transitions', () => {
       value: 0,
       running: false,
     })
+    const offset = Page.at(Slide, { args: { from: 50, to: 100, ms: 1000 } })
+    expect(offset.init({ slide: { value: 0, running: false } }).model.slide).toEqual({
+      value: 50,
+      running: false,
+    })
     const running = Option.getOrThrow(
       placed.update(
         { slide: { value: 0, running: false } },
