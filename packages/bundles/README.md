@@ -120,6 +120,17 @@ at startup and kept current by the window's `online`/`offline` events. One
 Message `Changed { online }`, no args, no OutMessage. Without a window the
 stream is empty and the slice stays at its default, so SSR renders online.
 
+`websocket({ name, createSocket? })` makes a duplex socket bundle: the Model
+holds `{ url, status, lastError }` with `status` moving
+closed → connecting → open. The resource owns the socket (one assembly holds
+one); `send` is a placed helper whose command writes through the resource tag
+and yields `Sent` on dispatch, `SendFailed` when no connection is open — a
+closed socket's `send` is a silent no-op per spec, so the bundle checks first.
+Incoming `Received` notifies without storing: project the payload into your
+own field to keep it. `createSocket` defaults to the platform WebSocket, read
+lazily so tests substitute a double; the socket service rides the assembly
+into the application's resources, as `RemoteClient` does for Remote.
+
 ## Time: `foldkit-bundles/time`
 
 `Timer` counts ticks while running. Model `{ count, running }`, Messages
