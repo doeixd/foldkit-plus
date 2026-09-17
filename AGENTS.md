@@ -530,6 +530,11 @@ installed `.d.ts` before reaching for a remembered API.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.
+- **Package and root typechecks can use different TypeScript versions.**
+  `packages/bundles` resolves TS 5.7.2 while the root resolves 5.9.3, whose
+  tighter match-arm inference failed `Idle`/`Interval` updates the package
+  check passed. The root check is what CI runs: verify with it (or plain
+  `npx tsc -b <project>`) before committing, not just the package script.
 - **Map every workspace dep in a composite example's `paths`.** A package's
   `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
   import through `exports` fails on a clean checkout; a stale local `dist` hides
