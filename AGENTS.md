@@ -443,8 +443,11 @@ installed `.d.ts` before reaching for a remembered API.
 - **Bundle authoring needs explicit types in three places; inference drops
   precision in each.** A service-requiring bundle helper pins the whole spec's
   `R` to `never` (annotate `make`'s generics explicitly); literal Model fields
-  widen to `string` through inference (same fix); and `Message.match` unifies
-  diverse arm shapes to the first arm (pin its output at the call).
+  widen to `string` through inference — and an empty `{}`/`[]` in `init`
+  widens the whole inferred Model (Virtual's `heights` became `{}`), so
+  prefer explicit `make` generics whenever `init` holds an empty container;
+  and `Message.match` unifies diverse arm shapes to the first arm (pin its
+  output at the call).
 
 **Async**
 

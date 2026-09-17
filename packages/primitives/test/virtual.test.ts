@@ -122,6 +122,15 @@ describe('Virtual transitions', () => {
     expect(fold(fresh, VirtualMessage.Measured({ key: 'b', height: -1 }))).toEqual(fresh.list)
   })
 
+  it('prunes heights for departed keys and keeps the rest', () => {
+    const full: Model = { list: { scrollTop: 0, heights: { a: 10, b: 20, c: 30 } } }
+    expect(fold(full, VirtualMessage.Prune({ keys: ['a', 'c', 'd'] }))).toEqual({
+      scrollTop: 0,
+      heights: { a: 10, c: 30 },
+    })
+    expect(fold(full, VirtualMessage.Prune({ keys: [] }))).toEqual({ scrollTop: 0, heights: {} })
+  })
+
   it('rejects bad options at placement', () => {
     expect(() => Page.at(List, { args: { estimatedHeight: 0, overscan: 1 } })).toThrow(
       /args do not match/,

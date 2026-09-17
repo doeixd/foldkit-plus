@@ -15,6 +15,7 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
+import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 
 export interface VirtualWindow {
@@ -115,6 +116,9 @@ export type VirtualModel = typeof VirtualModel.Type
 export const VirtualMessage = defineMessageUnion({
   Scrolled: { top: Schema.Number },
   Measured: { key: Schema.String, height: Schema.Number },
+  /** Drops heights for keys no longer listed: the bundle never sees the key
+    order, so the application tells it what left. */
+  Prune: { keys: Schema.Array(Schema.String) },
 })
 export type VirtualMessage = typeof VirtualMessage.Type
 
@@ -151,7 +155,12 @@ const saneTop = (top: number): number | null => (Number.isFinite(top) ? Math.max
 const saneMeasured = (height: number): number | null =>
   Number.isFinite(height) && height >= 0 ? height : null
 
-export const Virtual = Bundle.make('Virtual', {
+export const Virtual = Bundle.make<
+  'Virtual',
+  VirtualModel,
+  VirtualMessage,
+  { readonly estimatedHeight: number; readonly overscan: number }
+>('Virtual', {
   Model: VirtualModel,
   Message: VirtualMessage,
   args: Schema.Struct({
@@ -163,18 +172,29 @@ export const Virtual = Bundle.make('Virtual', {
   }),
   init: () => ({ model: { scrollTop: 0, heights: {} } }),
   update: (model, message) =>
-    VirtualMessage.match(message, {
-      Scrolled: ({ top }) => {
-        const sane = saneTop(top)
-        return sane === null ? { model } : { model: { ...model, scrollTop: sane } }
+    VirtualMessage.match<Update.ReturnWithOutMessage<VirtualModel, VirtualMessage, never>>(
+      message,
+      {
+        Scrolled: ({ top }) => {
+          const sane = saneTop(top)
+          return sane === null ? { model } : { model: { ...model, scrollTop: sane } }
+        },
+        Measured: ({ key, height }) => {
+          const sane = saneMeasured(height)
+          return sane === null
+            ? { model }
+            : { model: { ...model, heights: { ...model.heights, [key]: sane } } }
+        },
+        Prune: ({ keys }) => {
+          const kept = new Set(keys)
+          const heights: Record<string, number> = {}
+          for (const [key, height] of Object.entries(model.heights)) {
+            if (kept.has(key)) heights[key] = height
+          }
+          return { model: { ...model, heights } }
+        },
       },
-      Measured: ({ key, height }) => {
-        const sane = saneMeasured(height)
-        return sane === null
-          ? { model }
-          : { model: { ...model, heights: { ...model.heights, [key]: sane } } }
-      },
-    }),
+    ),
 })
 
 export const ViewportScrolled = Schema.TaggedStruct('ViewportScrolled', { top: Schema.Number })
@@ -188,8 +208,11 @@ export type ViewportScrolled = typeof ViewportScrolled.Type
 export const Viewport = Mount.defineStream('Viewport', {
   messages: [ViewportScrolled],
   execute: ({ element }) => {
-    const read = (): ViewportScrolled =>
-      ViewportScrolled.make({ top: (element as Element).scrollTop ?? 0 })
+    // The mount needs only a scroll position, not a full Element.
+    const read = (): ViewportScrolled => {
+      const scroller = element as unknown as { readonly scrollTop: number }
+      return ViewportScrolled.make({ top: scroller.scrollTop })
+    }
     return Stream.concat(
       Stream.make(read()),
       Stream.fromEventListener(element, 'scroll').pipe(Stream.map(read)),
