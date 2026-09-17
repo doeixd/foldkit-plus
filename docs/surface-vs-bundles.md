@@ -125,6 +125,45 @@ application that agents and journals name directly.
 - A Surface's `messages` list is neither: it is an allowlist of what a
   feature may construct, enforced by the builder's type, not a routing table.
 
+## Where Command, Mount, Subscription, and ManagedResource fit
+
+Bundles and Surfaces compile down to (or derive from) the Foldkit effect
+categories. They do not replace them:
+
+| Primitive | Answers | Owns state? | Speaks via |
+| --- | --- | --- | --- |
+| `Command` | "Do this once because a transition said so." | No | Runs once, reports back as a declared `Message` |
+| `Subscription` | "Keep doing this while this Model slice says so." | No | `Stream` of `Message`s; restarts when its slice changes |
+| `Mount` | "Do this while this DOM element is live." | No | Emits `Message`s; cleans up on unmount |
+| `ManagedResource` | "Provide this stateful handle while this Model slice says so." | No — provides a dependency by tag | Effect service used by `Command`s / `Subscription`s while live |
+| `Submodel` | "Which state machine owns this slice and these transitions?" | Yes — slice of parent `Model` | Wrapped parent `Message` variant routed to child `update` |
+| `Bundle` | Same as `Submodel`, packaged once for repeated placement | Yes — same as `Submodel` | Same as `Submodel`; also contributes lifted `Subscription`s / resources / view |
+| `Surface` | "What may this feature observe, and which `Message`s may it cause?" | No | Allowlist only; routes nothing, runs nothing |
+
+A placement contributes all of its child's parts: `update` through
+`Update.foldChildStep`, Subscriptions through `Subscription.lift`, resources
+through `ManagedResource.lift`, view through `h.submodel`. A wiring's
+`subscriptions` / `resources` / `init` fields are the same categories, derived
+from one list instead of hand-wired per package.
+
+## Is a Bundle like a ManagedResource?
+
+No, though a Bundle may provide one. The confusion comes from both having a
+lifetime tied to Model state:
+
+* A Bundle owns application truth: it adds `Model` fields and `Message` cases
+  to the parent, and its `update` decides the next slice. Replay, DevTools,
+  and persistence see it.
+* A ManagedResource owns no truth: it provides a handle (socket, EventSource,
+  client) by tag that `Command`s and `Subscription`s use. It never appears in
+  the `Model`, never has an `update`, and never produces a `Message` by itself.
+
+Consequences: two placements of one bundle are two independent Model slices;
+two users of one resource tag would replace each other, so `assemble` refuses
+the second. A bundle with resources cannot be placed per key, for the same tag
+reason. `placements.resources(own)` merges the parent's own resources with each
+placement's, keyed by tag.
+
 ## Common confusions, corrected
 
 - **"A Surface is a lightweight Submodel."** It is not a Submodel at all. No
@@ -133,6 +172,14 @@ application that agents and journals name directly.
 - **"A Bundle is a component."** It has a view part, but its job is the
   transitions, init, Subscriptions, and resources behind the view. A component
   without those is not a Bundle-shaped problem.
+- **"A Bundle is like a ManagedResource."** Lifetimes rhyme; ownership does
+  not. A Bundle adds Model fields and Message cases and decides transitions.
+  A ManagedResource provides a handle by tag for Commands/Subscriptions and
+  owns no Model, Message, or update. A Bundle may *provide* ManagedResources.
+- **"A Bundle is for any reusable behaviour."** One-shot work is a Command
+  (`copyText`); element-scoped observation is a Mount (`Resize`,
+  `Intersection`); a bare ongoing stream is a Subscription entry. Reach for a
+  Bundle when there is a state slice plus transitions to own.
 - **"A writable projection owns its slice."** `Projection.pick` and
   `FieldRef.set` are plumbing: Sync installs reconciled state through the
   shared projection (`sync.projection.set(model, shared)` on every exchange).

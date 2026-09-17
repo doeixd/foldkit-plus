@@ -1,0 +1,3045 @@
+# `foldkit-ssr`
+
+**Location:** `doeixd/foldkit-plus/packages/ssr`
+**Package:** `foldkit-ssr`
+**Status:** experimental / design proposal
+
+## Goal
+
+Start by reproducing Foldkit's existing SSR behavior behind a standalone `foldkit-ssr` package, then progressively improve it so that:
+
+1. server rendering remains one-shot and deterministic;
+2. request/server data does not have to be serialized again just because it produced HTML;
+3. the browser does not rerun `init`;
+4. server-only portions of the view are not rerendered during hydration;
+5. only client-owned Model state crosses the server/client boundary;
+6. `Surface` becomes the declaration of client observation requirements;
+7. `Remote` can hydrate only the exact recoverable server facts interactive Surfaces need;
+8. eventually, server-only render code itself can disappear from the client bundle;
+9. a later phase can explore true binding-level resumability.
+
+The conceptual shift is:
+
+```text
+current Foldkit SSR
+
+Flags
+  │
+  ├─────────────── server
+  │                  │
+  │                 init
+  │                  │
+  │                Model
+  │                  │
+  │                 view
+  │                  │
+  │                 HTML
+  │
+  └─────────────── serialized Flags
+                     │
+                     ▼
+                   browser
+                     │
+                    init
+                     │
+                   Model
+                     │
+                    view
+                     │
+                 DOM adoption
+```
+
+becoming:
+
+```text
+foldkit-ssr
+
+                    server Model
+                         │
+             ┌───────────┴────────────┐
+             │                        │
+             ▼                        ▼
+       complete server view      Resume Projection
+             │                        │
+             ▼                        ▼
+           HTML                 small state payload
+             │                        │
+             └───────────┬────────────┘
+                         ▼
+                      browser
+                         │
+              baseline Model + payload
+                         │
+                         ▼
+                  client Model
+                         │
+                client-owned view
+                         │
+             adopt existing server DOM
+```
+
+Foldkit already gives us the first server-side optimization: current SSR resolves `init`, runs the pure view once, and does not run `update`, Subscriptions, or Managed Resources on the server. The current client hydration path then reads serialized Flags, calls `init` again, executes the same view, and adopts matching DOM.
+
+So `foldkit-ssr` should concentrate primarily on **the handoff and client startup**, not reinvent server rendering.
+
+---
+
+# 1. First principle
+
+The main rule should be:
+
+> **The Model used to render the complete server HTML is not automatically the state that must cross to the browser.**
+
+More specifically:
+
+```text
+server render ownership
+    ≠
+client runtime ownership
+```
+
+A page may use:
+
+```ts
+type Model = {
+  post: {
+    id: string
+    title: string
+    body: string
+    liked: boolean
+  }
+}
+```
+
+but the browser may only need:
+
+```ts
+{
+  post: {
+    id: string
+    liked: boolean
+  }
+}
+```
+
+because:
+
+```text
+title ─┐
+       ├──> server HTML only
+body ──┘
+
+id ────┐
+       ├──> live client behavior
+liked ─┘
+```
+
+That distinction should become explicit rather than being inferred from "whatever happened to be in Flags."
+
+---
+
+# 2. Why `Surface` is the right substrate
+
+This package should **not invent another component or projection system**.
+
+`foldkit-surface` already says exactly what we need:
+
+> a Surface declares which part of the application's Model a consumer observes and which Messages it may cause.
+
+Its `Projection`s already carry a codec, pure reader, dependency paths, metadata, and — for writable projections such as `Projection.pick` — `get` and `set`.
+
+That gives SSR a very natural interpretation:
+
+```text
+Surface
+   │
+   ├── Model dependencies
+   │        ↓
+   │   data client code actually needs
+   │
+   └── Message subset
+            ↓
+       behavior client must activate
+```
+
+So the architecture should become:
+
+```text
+                 Foldkit Model
+                       │
+          ┌────────────┴────────────┐
+          │                         │
+    complete server view      active Surfaces
+          │                         │
+          ▼                         ▼
+        HTML                client dependency closure
+                                    │
+                                    ▼
+                              Resume state
+```
+
+This is a direct extension of what `Surface` already does for Remote, Sync, Agents, and other interpreters rather than a new state architecture.
+
+---
+
+# 3. Package structure
+
+I would create:
+
+```text
+packages/ssr/
+├── package.json
+├── README.md
+├── LICENSE
+├── tsconfig.json
+├── tsconfig.build.json
+├── tsdown.config.ts
+│
+├── src/
+│   ├── index.ts
+│   ├── plan.ts
+│   ├── protocol.ts
+│   ├── static.ts
+│   ├── context.ts
+│   ├── errors.ts
+│   ├── inspect.ts
+│   │
+│   ├── server.ts
+│   ├── client.ts
+│   │
+│   └── vite.ts              # later phase
+│
+└── test/
+    ├── parity.test.ts
+    ├── protocol.test.ts
+    ├── plan.test.ts
+    ├── static.test.ts
+    ├── hydrate.test.ts
+    ├── security.test.ts
+    ├── surface.test.ts
+    ├── payload.test.ts
+    └── fixtures/
+        ├── counter/
+        ├── article/
+        ├── remote-article/
+        └── routing/
+```
+
+Public exports:
+
+```json
+{
+  ".": "./dist/index.mjs",
+  "./server": "./dist/server.mjs",
+  "./client": "./dist/client.mjs",
+  "./vite": "./dist/vite.mjs"
+}
+```
+
+The split matters because:
+
+```text
+foldkit-ssr
+    tiny isomorphic declarations
+
+foldkit-ssr/server
+    Effect + server rendering
+
+foldkit-ssr/client
+    hydration/resumption runtime
+
+foldkit-ssr/vite
+    build transforms
+```
+
+No `parse5` or server implementation should accidentally enter the client bundle.
+
+---
+
+# 4. Phase 0 — clone Foldkit SSR behavior exactly
+
+Do **not** begin by copying `server.ts` line-for-line.
+
+The current implementation reaches deeply into private Foldkit internals: hydration markers, Snabbdom VNodes, runtime singleton state, DOM reflection, serialization, boundary bookkeeping, etc.
+
+Instead, clone its **public behavior and test contract**.
+
+Initially:
+
+```ts
+// foldkit-ssr/server
+
+import * as FoldkitServer from 'foldkit/experimental/server'
+
+export const renderToString = FoldkitServer.renderToString
+export const injectIntoTemplate = FoldkitServer.injectIntoTemplate
+export const toResponse = FoldkitServer.toResponse
+```
+
+and similarly:
+
+```ts
+// foldkit-ssr/client
+
+import * as Runtime from 'foldkit/runtime'
+
+export const hydrate = Runtime.hydrate
+```
+
+Then port or recreate upstream SSR integration tests into `packages/ssr/test/parity.test.ts`.
+
+The first milestone is:
+
+```text
+foldkit-ssr behavior
+        ==
+foldkit/experimental/server behavior
+```
+
+before adding anything.
+
+This matters because Foldkit's existing SSR already contains a lot of hard-won correctness around HTML parser behavior, build IDs, keyed identity, controlled inputs, custom elements, `InnerHTML`, and hydration mismatches. The existing server implementation also stamps a deployment build ID specifically to prevent stale HTML from hydrating against incompatible client code.
+
+### Phase 0 acceptance criterion
+
+This:
+
+```ts
+import * as Server from 'foldkit-ssr/server'
+```
+
+should be a drop-in replacement for:
+
+```ts
+import * as Server from 'foldkit/experimental/server'
+```
+
+for existing SSR examples.
+
+No optimization yet.
+
+---
+
+# 5. Phase 1 — introduce a versioned Resume Plan
+
+Next add the first new Foldkit Plus primitive:
+
+```ts
+const Resume = SSR.plan(App, {
+  id: 'main',
+  state: ClientState,
+})
+```
+
+where `ClientState` is a writable Projection.
+
+For example:
+
+```ts
+const ClientState = Projection.compose(
+  Projection.pick(
+    App.fields.route,
+    App.fields.viewer,
+  ),
+  Projection.pick(
+    App.fields.post.id,
+    App.fields.post.liked,
+  ),
+)
+
+export const Resume = SSR.plan(App, {
+  id: 'post-page',
+  state: ClientState,
+})
+```
+
+Conceptually:
+
+```ts
+interface ResumePlan<Model, State> {
+  readonly id: string
+
+  readonly state: {
+    readonly schema: Schema.Codec<State>
+    readonly get: (model: Model) => State
+    readonly set: (model: Model, state: State) => Model
+    readonly dependencies: DependencySet
+  }
+
+  readonly baseline: () => Model
+}
+```
+
+For a `RunnableApplication`, `baseline` defaults to:
+
+```ts
+() => App.initial
+```
+
+Otherwise the user supplies it explicitly.
+
+### Why a baseline Model?
+
+Because we don't actually want a partial invalid Foldkit Model.
+
+Client startup becomes:
+
+```text
+App.initial
+    │
+    ▼
+valid complete baseline Model
+    │
+    + resumed client state
+    │
+    ▼
+valid complete client Model
+```
+
+So if:
+
+```ts
+App.initial = {
+  route: Home,
+  post: {
+    id: '',
+    title: '',
+    body: '',
+    liked: false,
+  },
+}
+```
+
+and the resume state contains:
+
+```ts
+{
+  route: Post('123'),
+  id: '123',
+  liked: true,
+}
+```
+
+we reconstruct a fully valid Model:
+
+```ts
+{
+  route: Post('123'),
+  post: {
+    id: '123',
+    title: '',
+    body: '',
+    liked: true,
+  },
+}
+```
+
+The browser never receives the large `title`/`body`.
+
+Whether those omitted baseline values are safe is addressed by static boundaries below.
+
+---
+
+# 6. The new handoff protocol
+
+Current Foldkit hydration sends:
+
+```html
+<script
+  type="application/json"
+  data-foldkit-flags="root"
+>
+  ...
+</script>
+```
+
+`foldkit-ssr` should introduce:
+
+```html
+<script
+  type="application/json"
+  data-foldkit-resume="root"
+>
+{
+  "v": 1,
+  "plan": "post-page",
+  "state": { ... }
+}
+</script>
+```
+
+Effect Schema:
+
+```ts
+const ResumeEnvelope = Schema.Struct({
+  v: Schema.Literal(1),
+  plan: Schema.String,
+  state: Schema.Unknown,
+})
+```
+
+`state` is subsequently decoded using the `ResumePlan`'s own state Schema.
+
+I would **not** repeat these in the JSON:
+
+```text
+runtimeId
+buildId
+field paths
+Schema names
+Surface names
+Message names
+```
+
+unless needed.
+
+The surrounding markup already identifies `runtimeId` and Foldkit's root already carries the `buildId`.
+
+The `plan` ID distinguishes multiple SSR plans within one build.
+
+### Payload safety
+
+Implement a dedicated JSON-script encoder:
+
+```ts
+serializeJsonScript(value)
+```
+
+which escapes at least:
+
+```text
+<
+>
+&
+U+2028
+U+2029
+```
+
+so user data cannot terminate the `<script>` element.
+
+Never emit executable JS:
+
+```html
+<script>
+window.__STATE__ = ...
+</script>
+```
+
+Always:
+
+```html
+<script type="application/json">
+```
+
+---
+
+# 7. How we remove serialized Flags without changing Foldkit core
+
+This is the useful trick.
+
+Current Foldkit SSR does roughly:
+
+```text
+Flags
+  ↓
+init
+  ↓
+Model
+  ↓
+view
+```
+
+and then serializes Flags so `Runtime.hydrate` can reconstruct the Model.
+
+Instead, `foldkit-ssr/server` can do:
+
+```text
+original Flags
+      │
+      ▼
+original init
+      │
+      ▼
+server Model
+      │
+      ├── ResumePlan.get(model)
+      │        ↓
+      │    resume payload
+      │
+      ▼
+adapted no-Flags Foldkit app
+      │
+      ▼
+upstream renderToString
+```
+
+The adapted config is essentially:
+
+```ts
+const serverModel = originalInit(...).model
+
+const adapted = {
+  ...config,
+
+  // Remove Flags from the handoff.
+  Flags: undefined,
+
+  // Upstream Foldkit calls this, but it merely returns
+  // the Model we have already constructed.
+  init: () => ({
+    model: serverModel,
+  }),
+}
+```
+
+Then delegate the actual VDOM serialization, hydration markers, build IDs, parser checks, head handling, etc. to upstream Foldkit.
+
+Because Foldkit sees a no-Flags application, it has no reason to emit a Flags payload.
+
+That lets us preserve Foldkit's server correctness instead of copying its internals.
+
+### Important parity detail
+
+Current Foldkit Schema-normalizes Flags before feeding them back into hydration/init. We should preserve that normalization in our wrapper before calling the original `init`.
+
+---
+
+# 8. Client startup skips the real `init`
+
+The exact inverse works in the browser.
+
+Instead of:
+
+```text
+deserialize Flags
+      ↓
+init
+      ↓
+Model
+      ↓
+view
+```
+
+do:
+
+```text
+Resume payload
+      ↓
+decode ResumePlan state
+      ↓
+App.initial
+      ↓
+ResumePlan.state.set(...)
+      ↓
+client Model
+```
+
+Then adapt the application passed to Foldkit:
+
+```ts
+const adapted = {
+  ...config,
+  Flags: undefined,
+
+  init: () => ({
+    model: resumedModel,
+  }),
+}
+```
+
+and finally:
+
+```ts
+Runtime.hydrate(adapted, {
+  buildId,
+  runtimeId,
+})
+```
+
+So the existing Foldkit runtime still owns:
+
+```text
+Messages
+update
+Commands
+Subscriptions
+Mounts
+Managed Resources
+routing
+DOM patching
+```
+
+We're only replacing its **initial state source**.
+
+This is important architecturally:
+
+> `foldkit-ssr` should not become a second Foldkit runtime.
+
+---
+
+# 9. The remaining problem: client `view`
+
+At this point we've eliminated duplicate Flags.
+
+But Foldkit's hydration still runs:
+
+```ts
+view(resumedModel, h)
+```
+
+The Model might now contain:
+
+```ts
+post.body === ''
+```
+
+while the DOM contains:
+
+```html
+<p>
+  50 KB article...
+</p>
+```
+
+Normal hydration would see a mismatch and rebuild it.
+
+So we need a way to say:
+
+> "This region is server-owned HTML. Do not reevaluate it in the browser."
+
+This is the second major primitive.
+
+---
+
+# 10. `SSR.static`
+
+Introduce:
+
+```ts
+SSR.static(
+  'post-copy',
+  ih => [
+    ih.h1([], [model.post.title]),
+    ih.p([], [model.post.body]),
+  ],
+)
+```
+
+The callback receives Foldkit's **inert builder**, not the application's normal `HtmlBuilder<Message>`.
+
+That means server-static markup cannot accidentally declare Foldkit Message handlers at the type level.
+
+Foldkit publicly exposes `inertHtml`; it is an `HtmlBuilder<never>`.
+
+A complete page might look like:
+
+```ts
+const PostActionsView = Surface.rootView(
+  PostActions,
+  undefined,
+  (model, h) =>
+    h.div([], [
+      h.button(
+        [h.OnClick(Message.ToggledLike({ id: model.id }))],
+        [model.liked ? 'Unlike' : 'Like'],
+      ),
+    ]),
+)
+
+const view = (model: Model, h: HtmlBuilder<Message>) =>
+  Document.make(
+    h.main([], [
+      SSR.static('post-copy', ih => [
+        ih.h1([], [model.post.title]),
+        ih.p([], [model.post.body]),
+      ]),
+
+      PostActionsView(model, h),
+    ]),
+  )
+```
+
+Ownership is obvious:
+
+```text
+main
+├── post-copy
+│     SERVER STATIC
+│     title
+│     body
+│
+└── PostActions Surface
+      CLIENT
+      id
+      liked
+      ToggleLike
+```
+
+---
+
+# 11. We can prototype `SSR.static` without changing Foldkit
+
+This is the nicest implementation detail I found.
+
+Foldkit already has exactly the primitive we need:
+
+```ts
+h.InnerHTML(...)
+```
+
+Foldkit's SSR implementation explicitly treats trusted `InnerHTML` as owning an opaque parser-produced subtree, and its hydration implementation compares equivalent parsed `InnerHTML` without reconstructing its children. Current Foldkit notes that equivalent trusted `InnerHTML` preserves existing child identities during hydration.
+
+We can exploit that.
+
+### Server rendering
+
+`SSR.static` produces:
+
+```html
+<div data-foldkit-static="post-copy">
+  <h1>Hello</h1>
+  <p>Huge body...</p>
+</div>
+```
+
+On the server the callback executes normally.
+
+### Before client hydration
+
+`Client.hydrate` scans:
+
+```ts
+root.querySelectorAll('[data-foldkit-static]')
+```
+
+and records:
+
+```ts
+Map {
+  'post-copy' => element.innerHTML
+}
+```
+
+### Client rendering
+
+When the client executes:
+
+```ts
+SSR.static('post-copy', expensiveServerThunk)
+```
+
+the thunk is **not executed**.
+
+Instead it returns conceptually:
+
+```ts
+ih.div([
+  ih.Attribute('data-foldkit-static', 'post-copy'),
+  ih.InnerHTML(snapshot),
+])
+```
+
+where `snapshot` is the already-existing browser DOM.
+
+So:
+
+```text
+server
+
+model.post.body
+      ↓
+SSR.static thunk
+      ↓
+HTML
+```
+
+but:
+
+```text
+client
+
+SSR.static
+      ↓
+lookup existing DOM
+      ↓
+trusted InnerHTML placeholder
+
+NO model.post.body read
+NO static child VDOM construction
+```
+
+This gives us a selective-hydration prototype **without modifying Foldkit core**.
+
+That is a huge advantage.
+
+---
+
+# 12. Render context
+
+`SSR.static` needs to know whether it's rendering for:
+
+```text
+normal SPA
+server SSR
+hydration/resumed client
+```
+
+Implement an internal synchronous render context:
+
+```ts
+type RenderContext =
+  | { mode: 'server' }
+  | {
+      mode: 'resume'
+      staticHtml: ReadonlyMap<string, string>
+    }
+```
+
+and:
+
+```ts
+withRenderContext(context, () =>
+  view(model, h),
+)
+```
+
+Behavior:
+
+```text
+no SSR context
+    SSR.static executes thunk
+    normal SPA behavior
+
+server context
+    SSR.static executes thunk
+    emits static boundary
+
+resume context
+    SSR.static DOES NOT execute thunk
+    uses captured server DOM instead
+```
+
+The context only exists around the synchronous pure `view` call, so a simple stack is sufficient.
+
+Do not keep request-global state active while asynchronous `init` work is happening.
+
+---
+
+# 13. Static boundary semantics
+
+`SSR.static` should have very strict semantics:
+
+> **The server owns this subtree for the lifetime of this document.**
+
+That means the subtree may contain:
+
+```text
+text
+images
+links
+semantic markup
+native forms
+server-produced HTML
+code highlighting
+large article bodies
+product descriptions
+tables
+documentation
+etc.
+```
+
+but may not contain Foldkit-managed interaction that must become live.
+
+Because its builder is:
+
+```ts
+HtmlBuilder<never>
+```
+
+this already prevents normal Foldkit Message handlers.
+
+If content needs to change because of a Message:
+
+```text
+it is not static
+```
+
+Move it into a Surface.
+
+### Static content updates
+
+A static boundary changes on:
+
+```text
+full navigation
+reload
+new SSR document
+```
+
+not on client Model updates.
+
+That makes the rule very easy to understand.
+
+---
+
+# 14. The client side should be Surface-oriented
+
+The recommended pattern becomes:
+
+```ts
+const ArticleActions = App.surface('ArticleActions', {
+  model: ({ model }) => ({
+    id: model.article.id,
+    liked: model.article.liked,
+  }),
+
+  messages: [
+    Message.ToggledLike,
+  ],
+})
+
+const ArticleActionsRoot = Surface.rootView(
+  ArticleActions,
+  undefined,
+  renderArticleActions,
+)
+```
+
+and:
+
+```ts
+const view = (model, h) =>
+  h.main([], [
+    SSR.static('article-copy', ih => [
+      ...
+    ]),
+
+    ArticleActionsRoot(model, h),
+  ])
+```
+
+Now the distinction is structural:
+
+```text
+SSR.static
+    server-owned view
+
+Surface.rootView
+    client-owned view
+```
+
+This is much cleaner than adding:
+
+```text
+server:
+client:
+resume:
+remote:
+```
+
+fields to every Surface.
+
+`Surface` already means:
+
+```text
+what this client-facing consumer observes
++
+what it may cause
+```
+
+SSR should interpret that declaration rather than mutate its meaning.
+
+---
+
+# 15. Resume-state validation
+
+`SSR.plan` should optionally accept the Surfaces that may be active:
+
+```ts
+const Resume = SSR.plan(App, {
+  id: 'post-page',
+
+  state: ClientState,
+
+  surfaces: [
+    Surface.at(Header),
+
+    Surface.at(PostActions, model =>
+      model.route._tag === 'post'
+        ? { id: model.route.id }
+        : undefined,
+    ),
+  ],
+})
+```
+
+At server render time:
+
+```text
+active Surface
+      ↓
+Surface projection
+      ↓
+dependency paths
+      ↓
+compare against Resume state
+```
+
+If:
+
+```text
+PostActions reads:
+
+post.id
+post.liked
+```
+
+but Resume only contains:
+
+```text
+post.id
+```
+
+development should fail:
+
+```text
+[foldkit-ssr]
+
+Surface "PostActions" reads client state that is not
+available in the resume plan:
+
+  post.liked
+
+Add it to the Resume Projection,
+satisfy it through a resume adapter,
+or move the consumer into SSR.static().
+```
+
+That is the important correctness check.
+
+---
+
+# 16. The eventual "client closure"
+
+Initially the state Projection should be explicit.
+
+Later we can derive it.
+
+Conceptually:
+
+```text
+client closure =
+    active Surface Model dependencies
+  + state required to determine active Surfaces
+  + client-owned local state
+  + Subscription activation state
+  + Mount state
+  + explicitly retained state
+```
+
+Everything else is eligible not to cross the wire.
+
+But I would **not implement automatic closure derivation first**.
+
+Start conservative.
+
+Explicit:
+
+```ts
+SSR.plan({
+  state: ClientState,
+})
+```
+
+then validation.
+
+After the semantics are proven, automate it.
+
+---
+
+# 17. Local state should default to retained
+
+We should not aggressively remove arbitrary Model fields merely because a Surface does not currently read them.
+
+Why?
+
+Because:
+
+```ts
+update(model, message)
+```
+
+can read any Model field.
+
+Unlike a Surface renderer, its dependencies are not statically declared.
+
+Therefore the safe default should be:
+
+> **Client-owned local state crosses the boundary unless explicitly classified otherwise.**
+
+The biggest optimization opportunity isn't usually local UI state anyway.
+
+It's:
+
+```text
+server data
+article bodies
+entity records
+query results
+CMS content
+large loader payloads
+```
+
+which fits beautifully with `foldkit-remote`.
+
+---
+
+# 18. `foldkit-remote` integration
+
+This is where the design becomes especially strong.
+
+`foldkit-remote` already keeps server-owned facts in a normalized cache **inside the Foldkit Model**, and its requirement planner already derives what active Surfaces need.
+
+That means SSR can eventually distinguish:
+
+```text
+Remote fact needed only by SSR.static
+    ↓
+do not hydrate it
+
+Remote fact needed by active client Surface
+    ↓
+include exactly that fact
+
+Remote fact needed later
+    ↓
+do not hydrate
+    refetch when requirement activates
+```
+
+For example:
+
+```text
+Remote cache on server
+
+Project:p1
+├── id
+├── title
+├── 50 KB body
+├── author
+└── liked
+
+Article page
+├── SSR.static
+│     title
+│     body
+│     author
+│
+└── LikeButton Surface
+      id
+      liked
+```
+
+wire payload:
+
+```text
+HTML
+  title
+  body
+  author
+
+Resume Remote cache
+  Project:p1.id
+  Project:p1.liked
+```
+
+not:
+
+```text
+HTML
++
+the entire Project entity again
+```
+
+This is basically the ideal solution to the original double-data problem.
+
+---
+
+# 19. Resume adapters
+
+To support Remote and future packages without teaching SSR about every state owner, define an extensible adapter interface.
+
+Something like:
+
+```ts
+interface ResumePart<Model, Wire> {
+  readonly id: string
+
+  capture(
+    model: Model,
+    context: ResumeContext,
+  ): Effect.Effect<Wire>
+
+  restore(
+    model: Model,
+    value: Wire,
+  ): Effect.Effect<Model>
+
+  inspect(): ResumePartInspection
+}
+```
+
+Built-in:
+
+```ts
+SSR.projection(ClientState)
+```
+
+Future:
+
+```ts
+Remote.resume(Data)
+Sync.resume(...)
+Durable.resume(...)
+Mirror.resume(...)
+```
+
+Then:
+
+```ts
+const Resume = SSR.plan(App, {
+  id: 'post-page',
+
+  parts: [
+    SSR.projection(ClientState),
+    Remote.resume(Data),
+  ],
+})
+```
+
+Composition:
+
+```text
+baseline Model
+      │
+      ▼
+Projection resume
+      │
+      ▼
+Remote resume
+      │
+      ▼
+complete client Model
+```
+
+No hidden store.
+
+Every adapter merely constructs the same root Model.
+
+---
+
+# 20. Remote policy
+
+The Remote adapter should probably support:
+
+```ts
+Remote.resume(Data, {
+  policy: 'active-surfaces',
+})
+```
+
+Meaning:
+
+> include only cache facts required for the initial client-owned Surfaces.
+
+Other possibilities later:
+
+```text
+'none'
+    hydrate no remote cache
+
+'active-surfaces'
+    only initial client requirements
+
+'all'
+    entire current cache
+
+custom(requirements => ...)
+```
+
+`active-surfaces` should be the preferred default for SSR.
+
+---
+
+# 21. Full request flow
+
+## Server
+
+```text
+Request
+   │
+   ▼
+Flags
+   │
+   ▼
+Schema normalize
+   │
+   ▼
+original init
+   │
+   ▼
+Server Model
+   │
+   ├───────────────────────────┐
+   │                           │
+   ▼                           ▼
+wrapped view               ResumePlan.capture
+   │                           │
+SSR.static thunks              │
+execute                         │
+   │                           │
+   ▼                           ▼
+Full HTML                  client state
+   │                           │
+   └─────────────┬─────────────┘
+                 ▼
+             response
+```
+
+## Browser
+
+```text
+existing HTML
+      │
+      ├── scan SSR.static boundaries
+      │
+      ▼
+static DOM snapshots
+
+resume payload
+      │
+      ▼
+Schema decode
+      │
+      ▼
+baseline Model
+      │
+ResumePlan.restore
+      │
+      ▼
+client Model
+      │
+      ▼
+adapted Foldkit init
+      │
+      ▼
+client view
+      │
+      ├── SSR.static
+      │      thunk skipped
+      │      existing DOM represented as InnerHTML
+      │
+      └── Surfaces
+             rendered normally
+      │
+      ▼
+Runtime.hydrate
+      │
+      ▼
+live Foldkit application
+```
+
+---
+
+# 22. What improves immediately?
+
+Consider:
+
+```text
+100 KB article
++
+tiny Like button
+```
+
+Current architecture:
+
+```text
+HTML
+  ~100 KB
+
+Flags / loader data
+  ~100 KB
+
+total before compression
+  ~200 KB
+```
+
+Selective SSR:
+
+```text
+HTML
+  ~100 KB
+
+Resume state
+  maybe 50–500 bytes
+
+total
+  ~100 KB
+```
+
+And client startup eliminates:
+
+```text
+real init()
+static article VDOM construction
+static subtree comparison
+```
+
+The static body still exists in browser DOM, obviously.
+
+But it does not also have to exist in the hydration payload.
+
+---
+
+# 23. One limitation of the initial `InnerHTML` implementation
+
+The first implementation would snapshot:
+
+```ts
+element.innerHTML
+```
+
+for every static boundary.
+
+So although static data is not duplicated **over the network**, it temporarily exists in browser memory as:
+
+```text
+DOM
++
+snapshot string
+```
+
+That is acceptable for the experimental implementation because it proves the semantics without a Foldkit core patch.
+
+But it should not be the final implementation.
+
+---
+
+# 24. Phase 4 — native opaque boundaries
+
+Once the approach works, upstream one very small Foldkit primitive.
+
+Something conceptually like:
+
+```ts
+h.Opaque(...)
+```
+
+or a reserved VNode property:
+
+```ts
+data.foldkitOpaque = true
+```
+
+Then the hydrator knows:
+
+> adopt this element, do not descend into its children.
+
+The client VNode becomes:
+
+```text
+selector
+attributes
+existing DOM reference
+opaque = true
+```
+
+rather than:
+
+```text
+selector
+InnerHTML snapshot string
+```
+
+That eliminates the memory duplication.
+
+Importantly, this is a **small renderer primitive**, not a special SSR runtime.
+
+It could be useful to Foldkit outside this package too.
+
+---
+
+# 25. Phase 5 — erase static view code from the client bundle
+
+Even after eliminating duplicate data, this code still ships to the browser:
+
+```ts
+SSR.static('article', ih => [
+  ih.h1([], [model.article.title]),
+  ih.p([], [model.article.body]),
+])
+```
+
+The browser doesn't execute it, but its JavaScript exists.
+
+Add:
+
+```text
+foldkit-ssr/vite
+```
+
+which transforms client builds.
+
+Server build:
+
+```ts
+SSR.static('article', () => {
+  // full implementation
+})
+```
+
+Client build:
+
+```ts
+SSR.staticRef('article')
+```
+
+Now the server-only rendering code itself disappears.
+
+Tree-shaking can consequently eliminate imports used only by static thunks.
+
+So:
+
+```ts
+import { renderMarkdown } from './markdown.server'
+```
+
+used only inside:
+
+```ts
+SSR.static(...)
+```
+
+doesn't need to enter the client graph.
+
+That gives us:
+
+```text
+server data
+  not shipped
+
+server VDOM generation
+  not executed client-side
+
+server render code
+  not shipped client-side
+```
+
+which begins looking much more like a genuine server/client ownership system.
+
+---
+
+# 26. Phase 6 — true Surface hydration boundaries
+
+The current selective design still executes the top-level client view, although static thunks do almost no work.
+
+A further optimization can make `Surface` itself the unit of hydration.
+
+Server:
+
+```html
+<main>
+  <div data-foldkit-static="article">
+    ...
+  </div>
+
+  <div
+    data-foldkit-surface="PostActions"
+    data-foldkit-instance="p1"
+  >
+    <button>Like</button>
+  </div>
+</main>
+```
+
+The client could then instantiate only:
+
+```text
+PostActions
+```
+
+rather than execute the complete root view.
+
+At that point:
+
+```text
+Surface
+    =
+smallest client-owned observation +
+interaction +
+rendering boundary
+```
+
+That requires a somewhat deeper Foldkit runtime seam because there must still be **one root Model and one root update function**.
+
+Do not solve it by creating one independent Foldkit runtime per Surface.
+
+That would destroy the architecture.
+
+Instead, the upstream runtime would need to support:
+
+```text
+one Model/update runtime
+        │
+        ├── renderer: Surface A
+        ├── renderer: Surface B
+        └── renderer: Surface C
+```
+
+with projection-based invalidation.
+
+I would treat this as a later Foldkit-core proposal after the simpler approach proves the semantics.
+
+---
+
+# 27. Phase 7 — binding-level resumability
+
+This is optional and much more ambitious.
+
+Right now client Surface renderers must execute once so Foldkit can reconstruct handlers such as:
+
+```ts
+h.OnInput(value =>
+  Message.ChangedSearch({ value }),
+)
+```
+
+That closure cannot simply be JSON serialized.
+
+True "execute no view at startup" resumability would require build-assigned binding identities.
+
+Conceptually:
+
+```html
+<input data-fk-binding="b17">
+```
+
+with the client bundle containing:
+
+```ts
+bindings['b17'] = value =>
+  Message.ChangedSearch({ value })
+```
+
+Then the resume manifest could say:
+
+```text
+DOM b17
+  input
+  → binding b17
+  → Message
+```
+
+and no initial Surface render would be necessary.
+
+This would be Foldkit's equivalent of genuine resumability.
+
+But it should be research work **after** selective SSR ships.
+
+The likely benefit curve is:
+
+```text
+legacy hydration
+      │
+      ▼
+selective state handoff       HUGE WIN
+      │
+      ▼
+static boundary skipping      LARGE WIN
+      │
+      ▼
+client code erasure           GOOD WIN
+      │
+      ▼
+Surface-only hydration        GOOD WIN
+      │
+      ▼
+binding resumability          diminishing / workload-specific
+```
+
+Do not begin at the bottom.
+
+---
+
+# 28. Public API I would target for v0.1
+
+## Shared
+
+```ts
+import { SSR } from 'foldkit-ssr'
+
+const ClientState = Projection.compose(
+  Projection.pick(App.fields.route),
+  Projection.pick(
+    App.fields.post.id,
+    App.fields.post.liked,
+  ),
+)
+
+export const Resume = SSR.plan(App, {
+  id: 'post',
+  state: ClientState,
+})
+```
+
+Static content:
+
+```ts
+SSR.static('post-copy', ih => [
+  ih.h1([], [model.post.title]),
+  ih.p([], [model.post.body]),
+])
+```
+
+## Server
+
+```ts
+import * as Server from 'foldkit-ssr/server'
+
+const rendered = yield* Server.renderToString(
+  config,
+  {
+    flags,
+    url: request.url,
+    buildId: import.meta.env.FOLDKIT_BUILD_ID,
+    resume: Resume,
+  },
+)
+```
+
+Without `resume`:
+
+```ts
+Server.renderToString(config, options)
+```
+
+behaves exactly like upstream Foldkit.
+
+## Client
+
+```ts
+import * as Client from 'foldkit-ssr/client'
+
+Client.hydrate(
+  config,
+  {
+    buildId: import.meta.env.FOLDKIT_BUILD_ID,
+    resume: Resume,
+  },
+)
+```
+
+Again, no `resume`:
+
+```ts
+Client.hydrate(config, options)
+```
+
+delegates to normal:
+
+```ts
+Runtime.hydrate(...)
+```
+
+So adoption can be incremental.
+
+---
+
+# 29. Debug inspection
+
+Because this is Foldkit Plus, everything should be inspectable.
+
+Provide:
+
+```ts
+SSR.inspect(Resume)
+```
+
+returning something like:
+
+```ts
+{
+  id: 'post',
+  stateDependencies: [
+    'route',
+    'post.id',
+    'post.liked',
+  ],
+  surfaces: [
+    'PostActions',
+  ],
+}
+```
+
+and:
+
+```ts
+SSR.toMarkdown(Resume)
+SSR.toMermaid(Resume)
+```
+
+Eventually DevTools could show:
+
+```text
+SSR Resume
+
+HTML
+├── Static post-copy
+│   ├── post.title
+│   └── post.body
+│
+└── Client PostActions
+    ├── post.id
+    └── post.liked
+
+Server Model
+   104.3 KB
+
+Resume Payload
+   82 B
+
+Eliminated
+   104.2 KB
+```
+
+That would make this feature very understandable.
+
+---
+
+# 30. Development diagnostics
+
+Good diagnostics are important.
+
+### Missing resume dependency
+
+```text
+[foldkit-ssr] Missing client state
+
+Surface "PostActions" depends on:
+
+  post.liked
+
+but Resume Plan "post" does not restore it.
+
+Add the field to the Resume Projection or satisfy it
+through a registered resume adapter.
+```
+
+### Duplicate static ID
+
+```text
+[foldkit-ssr] Duplicate static boundary
+
+The id "post-copy" was rendered more than once.
+
+Static boundary ids must be unique within one Foldkit root.
+```
+
+### Missing server boundary
+
+```text
+[foldkit-ssr] Static boundary mismatch
+
+The client view requested:
+
+  post-copy
+
+but no matching [data-foldkit-static="post-copy"]
+exists in the server DOM.
+
+This usually means the server and client took different
+initial view branches.
+```
+
+### Unexpected interactive content
+
+Where detectable:
+
+```text
+[foldkit-ssr] Static content cannot own Foldkit interaction.
+
+Move this element into a client Surface.
+```
+
+---
+
+# 31. Fail closed on protocol mismatch
+
+Follow Foldkit's current SSR philosophy.
+
+If any of these differ:
+
+```text
+build id
+runtime id
+resume protocol
+plan id
+Schema decode
+static boundary topology
+```
+
+do not make a best-effort guess.
+
+Refuse hydration.
+
+The existing Foldkit build-ID mechanism specifically exists because semantically mismatched old HTML can be more dangerous than an obvious hydration failure.
+
+---
+
+# 32. Tests
+
+## Compatibility
+
+Port upstream behavior tests for:
+
+```text
+SSR roots
+build IDs
+routing
+Flags
+head/document metadata
+HTML parser corrections
+custom elements
+controlled inputs
+InnerHTML
+keyed hydration
+```
+
+Phase 0 should pass these unchanged where applicable.
+
+## Resume protocol
+
+Test:
+
+```text
+encode → decode
+wrong protocol
+wrong plan id
+invalid Schema
+script escaping
+duplicate payload
+missing payload
+wrong runtime id
+```
+
+## State
+
+Given:
+
+```ts
+{
+  title: 'HUGE',
+  body: 'HUGE',
+  liked: true,
+}
+```
+
+and resume Projection:
+
+```ts
+{
+  liked: true,
+}
+```
+
+assert response payload does **not** contain:
+
+```text
+HUGE
+```
+
+except in the rendered HTML.
+
+This is the central regression test.
+
+## Static
+
+Assert:
+
+```text
+server thunk executes once
+client thunk executes zero times
+static DOM node identity survives hydration
+static children survive later Messages
+static content isn't rebuilt
+```
+
+A particularly useful test:
+
+```ts
+SSR.static('bomb', () => {
+  if (typeof window !== 'undefined') {
+    throw new Error('STATIC VIEW EXECUTED CLIENT SIDE')
+  }
+
+  return ...
+})
+```
+
+Hydration must succeed.
+
+## Interaction
+
+Assert:
+
+```text
+button listener attaches
+Message dispatches
+update runs
+client-owned DOM changes
+static sibling remains same DOM node
+```
+
+## SPA fallback
+
+If no SSR context exists:
+
+```ts
+Runtime.run(...)
+```
+
+`SSR.static` should execute normally and produce visible content.
+
+So applications don't become SSR-only.
+
+---
+
+# 33. Benchmark fixture
+
+Build a dedicated fixture:
+
+```text
+/article/:id
+```
+
+with:
+
+```text
+title          1 KB
+body           100 KB
+metadata       10 KB
+comments       100 KB
+liked          Boolean
+viewerId       small
+```
+
+Variants:
+
+```text
+A. upstream Foldkit SSR
+B. foldkit-ssr selective
+C. selective + Vite static erasure
+D. future native opaque boundary
+```
+
+Measure:
+
+```text
+raw response bytes
+gzip response bytes
+brotli response bytes
+hydration payload bytes
+client JS bytes
+server render time
+client init time
+first view time
+hydration main-thread time
+VNode count
+DOM mutations
+heap after hydration
+time until Like button works
+```
+
+Do not just benchmark uncompressed bytes.
+
+Repeated HTML/JSON compresses reasonably well, so the strongest wins may show up in:
+
+```text
+JSON parse
+Schema decode
+Model construction
+client VDOM construction
+memory
+main-thread time
+```
+
+as well as wire bytes.
+
+---
+
+# 34. Implementation sequence
+
+I would implement it in these commits.
+
+### 1. `feat(ssr): add upstream-compatible SSR package`
+
+Create package, exports, build config, parity wrappers, parity tests.
+
+No new behavior.
+
+### 2. `feat(ssr): add versioned resume protocol`
+
+Implement:
+
+```text
+ResumePlan
+ResumeEnvelope
+Schema encode/decode
+safe JSON script serialization
+plan inspection
+```
+
+Still don't change rendering.
+
+### 3. `feat(ssr): add selective Model handoff`
+
+Server:
+
+```text
+run original init
+capture Resume Projection
+adapt config to no-Flags init
+delegate rendering upstream
+emit Resume payload
+```
+
+Client:
+
+```text
+decode payload
+baseline + Projection.set
+adapt init
+delegate Runtime.hydrate
+```
+
+At this point small apps work if omitted fields do not affect initial view.
+
+### 4. `feat(ssr): add static server-owned boundaries`
+
+Implement:
+
+```ts
+SSR.static(...)
+```
+
+using:
+
+```text
+inertHtml
+data-foldkit-static
+client DOM snapshot
+h.InnerHTML
+render context
+```
+
+This is the point where the double-data article example becomes fully useful.
+
+### 5. `feat(ssr): validate Surface dependency coverage`
+
+Add:
+
+```ts
+SSR.plan(App, {
+  state,
+  surfaces,
+})
+```
+
+and diagnostics for client Surface dependencies missing from the handoff.
+
+### 6. `feat(ssr): add payload and hydration devtools`
+
+Add:
+
+```text
+SSR.inspect
+SSR.stats
+SSR.toMarkdown
+```
+
+and development logs comparing server Model/resume sizes.
+
+### 7. `feat(remote): add SSR resume adapter`
+
+Have Remote produce the exact normalized cache fragment required by initial active client Surfaces.
+
+This is probably the most important ecosystem integration.
+
+### 8. `feat(ssr): add Vite static-thunk erasure`
+
+Client transforms:
+
+```ts
+SSR.static(id, thunk)
+```
+
+into:
+
+```ts
+SSR.staticRef(id)
+```
+
+Server build unchanged.
+
+### 9. Upstream proposal: native opaque DOM boundary
+
+Once semantics are proven, propose a very small Foldkit rendering primitive so we no longer retain `innerHTML` snapshots.
+
+### 10. Research: Surface-only startup / binding resumability
+
+Only then investigate avoiding the initial client view altogether.
+
+---
+
+# 35. MVP scope
+
+I would define the first publishable version as:
+
+```text
+foldkit-ssr 0.1
+
+✓ full compatibility mode
+✓ selective Resume Projection
+✓ no serialized Flags in selective mode
+✓ no real client init
+✓ SSR.static
+✓ static thunk skipped client-side
+✓ static DOM adoption through InnerHTML
+✓ Surface dependency validation
+✓ build-ID protection
+✓ Effect Schema handoff
+✓ routing support
+✓ SSR + SSG
+```
+
+Do **not** block v0.1 on:
+
+```text
+automatic closure inference
+Remote integration
+Vite erasure
+native opaque VNodes
+Surface-only rendering
+full resumability
+```
+
+Those should be follow-on releases.
+
+---
+
+# 36. The v0.1 mental model
+
+The documentation can almost reduce to three concepts:
+
+```text
+SSR.plan(...)
+    What state must the browser receive?
+
+SSR.static(...)
+    What HTML belongs only to the server?
+
+Surface
+    What state does interactive client UI observe?
+```
+
+Or visually:
+
+```text
+                         MODEL
+                           │
+               ┌───────────┴───────────┐
+               │                       │
+          SERVER-OWNED             CLIENT-OWNED
+               │                       │
+          SSR.static                 Surface
+               │                       │
+               ▼                       ▼
+             HTML               Resume Projection
+               │                       │
+               └───────────┬───────────┘
+                           ▼
+                        BROWSER
+```
+
+That is the core architecture.
+
+---
+
+# 37. Why this feels Foldkit-native
+
+The design does **not** introduce:
+
+```text
+a React-style server component state system
+a second store
+a second reducer
+component-local hydration state
+hidden async resources
+a second Message channel
+one runtime per island
+```
+
+It keeps:
+
+```text
+one Model Schema
+one Message union
+one update
+one Foldkit runtime
+Effect for effects
+Surface for observation/capability
+Remote for recoverable server state
+```
+
+SSR merely determines:
+
+```text
+which Model information must survive the server/client boundary
+```
+
+and:
+
+```text
+which DOM ownership transfers to the client
+```
+
+That is exactly the kind of interpreter-level extension `foldkit-plus` is already organized around.
+
+---
+
+# Final target
+
+The end-state should be:
+
+```text
+                         request
+                            │
+                            ▼
+                      server Model
+                            │
+          ┌─────────────────┼──────────────────┐
+          │                 │                  │
+          ▼                 ▼                  ▼
+    static server DOM   client Surface    recoverable Remote
+          │             dependencies          requirements
+          │                 │                  │
+          │                 └────────┬─────────┘
+          │                          │
+          ▼                          ▼
+        HTML                  Resume Manifest
+          │                          │
+          └────────────┬─────────────┘
+                       ▼
+                    browser
+                       │
+              restore client Model
+                       │
+              adopt static server DOM
+                       │
+               activate client views
+                       │
+                       ▼
+                 normal Foldkit
+```
+
+The optimization then falls out of the ownership model:
+
+> **If data only produced server-owned HTML, it does not cross the wire as state.**
+
+> **If data is needed by a live Surface, it does.**
+
+> **If data is server-owned and recoverable, Remote decides whether to hydrate it or fetch it later.**
+
+That's the design I would build.
+
+
+Yes. Looking at Foldkit’s current implementation, I’d upstream **small rendering/runtime primitives**, not the `Surface`/resume policy itself. `foldkit-plus` should decide *what* is server-owned or resumable; core Foldkit should make those policies possible without hacks.
+
+The single PR I’d try first is:
+
+## 1. Add an “externally owned children” / opaque subtree primitive
+
+Something like:
+
+```ts
+h.div(
+  [
+    h.UnmanagedChildren(),
+  ],
+  [],
+)
+```
+
+Name is bikesheddable:
+
+```text
+UnmanagedChildren
+OpaqueChildren
+PreserveChildren
+ExternalChildren
+AdoptChildren
+```
+
+I think **`UnmanagedChildren`** communicates the semantics best:
+
+> Foldkit owns this element, its attributes, listeners, lifecycle, etc., but **does not own or reconcile its child DOM**.
+
+This actually fits Foldkit's existing hydration architecture unusually well. Hydration already walks the client VNode tree alongside the server DOM, creates a cloned VNode tree pointing at adopted DOM nodes, then performs an ordinary patch so modules can attach listeners/props/etc.
+
+So for:
+
+```html
+<div id="article">
+  <h1>Huge title</h1>
+  <p>100 KB article...</p>
+</div>
+```
+
+the client could render:
+
+```ts
+h.div(
+  [
+    h.Id('article'),
+    h.UnmanagedChildren(),
+  ],
+  [],
+)
+```
+
+and hydration would conceptually do:
+
+```text
+<div>
+  ├── adopt host
+  ├── attach Foldkit behavior to host
+  │
+  └── children
+        ↓
+      DON'T WALK
+      DON'T VNODE-IFY
+      DON'T PATCH
+      DON'T DELETE
+```
+
+The implementation should also preserve those children on later patches while the marker remains present.
+
+This isn't even inherently an SSR feature. It enables:
+
+```text
+server-rendered static content
+third-party DOM widgets
+syntax highlighters
+maps/editors owning their interior DOM
+legacy integrations
+externally managed DOM
+progressive enhancement
+partial hydration
+```
+
+So it has a strong case for belonging upstream.
+
+### Why I think this PR is especially defensible
+
+Foldkit **basically already has this semantic internally through `InnerHTML`**.
+
+Current hydration special-cases trusted `InnerHTML`, treating the subtree as parser-produced content rather than recursively reconciling its VNode children; equivalent `InnerHTML` can preserve the existing child nodes during hydration.
+
+We're essentially generalizing:
+
+```ts
+h.InnerHTML(hugeString)
+```
+
+into:
+
+```ts
+h.UnmanagedChildren()
+```
+
+without requiring the content to exist as a second giant JavaScript string.
+
+That is a clean conceptual extension.
+
+For `foldkit-ssr`, it removes our ugly intermediate hack:
+
+```text
+server DOM
+   ↓
+element.innerHTML
+   ↓
+giant JS string
+   ↓
+h.InnerHTML(...)
+```
+
+and turns it into:
+
+```text
+server DOM
+   ↓
+adopt host
+   ↓
+leave children alone
+```
+
+Much better.
+
+---
+
+## 2. A second small upstream PR: render an already-created Model
+
+Current `renderToString` owns:
+
+```text
+Flags
+  ↓
+init
+  ↓
+Model
+  ↓
+view
+  ↓
+serialize
+```
+
+Internally it literally computes the `initReturn`, takes `.model`, and runs the view over it.
+
+I'd expose the lower-level operation.
+
+Maybe:
+
+```ts
+Server.renderModelToString(
+  {
+    view,
+  },
+  {
+    model,
+    url,
+    buildId,
+  },
+)
+```
+
+or perhaps a more Foldkit-ish name:
+
+```ts
+Server.renderPrepared(...)
+```
+
+Then normal `renderToString` becomes conceptually:
+
+```ts
+const { model } = init(flags, url)
+
+return renderModelToString(
+  { view },
+  { model, url, buildId },
+)
+```
+
+Why useful?
+
+Because `foldkit-ssr` wants:
+
+```text
+run/init/load server data
+          ↓
+      server Model
+          │
+          ├── derive selective resume payload
+          │
+          └── render HTML
+```
+
+Right now we'd have to trick upstream SSR with:
+
+```ts
+const model = originalInit(...).model
+
+const fakeConfig = {
+  init: () => ({ model }),
+  view,
+}
+
+Server.renderToString(fakeConfig, ...)
+```
+
+That works, but it's an adapter around an artificial `init`.
+
+A lower-level API would make Foldkit's server renderer useful as a genuine interpreter:
+
+```text
+anything that can produce a Model
+             │
+             ▼
+       Foldkit serializer
+             │
+             ▼
+           HTML
+```
+
+That's also useful outside your project for databases, Effect HttpApi, SSG pipelines, tests, cached models, server actions, etc.
+
+And since server rendering is explicitly still experimental, now is exactly the time to create this layering.
+
+---
+
+## 3. The bigger upstream improvement: separate DOM adoption from boot-state reconstruction
+
+This is the architectural one I'd probably make an RFC before submitting code.
+
+Right now:
+
+```ts
+Runtime.hydrate(app, {
+  buildId,
+})
+```
+
+has essentially one hydration protocol:
+
+```text
+read Flags from HTML
+        ↓
+Schema.decode
+        ↓
+init(flags)
+        ↓
+Model
+        ↓
+first view
+        ↓
+adopt DOM
+```
+
+The public `HydrateOptions` literally contains only `buildId`, and the documented behavior says hydration reconstructs the Model from the server-embedded Flags.
+
+But those are actually two separate concerns:
+
+```text
+1. How do I obtain the initial client Model?
+
+2. Should this first render adopt existing DOM?
+```
+
+I'd separate them.
+
+Something conceptually like:
+
+```ts
+Runtime.adopt(
+  app,
+  {
+    buildId,
+
+    boot: Effect.succeed({
+      model,
+      commands,
+    }),
+  },
+)
+```
+
+Then:
+
+```ts
+Runtime.hydrate(app, { buildId })
+```
+
+could simply remain the normal convenience API:
+
+```text
+deserialize Flags
+    ↓
+init
+    ↓
+Update.Return
+    ↓
+Runtime.adopt(...)
+```
+
+while `foldkit-ssr` could do:
+
+```text
+decode ResumeState
+    ↓
+restore Model
+    ↓
+resume startup Commands
+    ↓
+Runtime.adopt(...)
+```
+
+That would be a significant architectural improvement because Foldkit's existing concepts become:
+
+```text
+run
+    Fresh DOM
+    +
+    fresh boot source
+
+hydrate
+    Adopt DOM
+    +
+    Flags/init boot source
+
+adopt
+    Adopt DOM
+    +
+    caller-defined boot source
+```
+
+### Important: use `Update.Return`, not just `Model`
+
+This is something I would change from our earlier design.
+
+Don't expose:
+
+```ts
+Runtime.hydrateModel(app, model)
+```
+
+because `init` isn't only a Model constructor.
+
+It can also return Commands.
+
+If we skip:
+
+```ts
+init()
+```
+
+and inject only:
+
+```ts
+model
+```
+
+we may silently lose boot-time Commands.
+
+Instead the low-level primitive should start from something equivalent to:
+
+```ts
+Update.Return<Model, Message, Resources>
+```
+
+so:
+
+```ts
+{
+  model: resumedModel,
+  commands: resumeCommands,
+}
+```
+
+is possible.
+
+That keeps Foldkit's lifecycle semantics intact.
+
+I actually think **this decomposition is valuable to Foldkit independently of resumability**. DOM adoption shouldn't fundamentally care whether the Model came from Flags, persisted storage, a server payload, a snapshot, devtools, a remote cache, or something else.
+
+---
+
+## 4. Then Foldkit's architecture becomes beautifully layered
+
+I would aim for this upstream:
+
+```text
+                    Foldkit core
+
+                    View / VDOM
+                        │
+          ┌─────────────┴──────────────┐
+          │                            │
+          ▼                            ▼
+    DOM ownership                 boot source
+          │                            │
+    fresh / adopt              Update.Return
+          │                            │
+          └──────────────┬─────────────┘
+                         ▼
+                       Runtime
+```
+
+with separate server rendering:
+
+```text
+Model
+  │
+  ▼
+renderModelToString
+  │
+  ▼
+HTML
+```
+
+Then `foldkit-plus` can build much richer policy *without Foldkit knowing about it*:
+
+```text
+                    foldkit-ssr
+
+                        Model
+                    ┌────┴────┐
+                    │         │
+                    ▼         ▼
+             server HTML   resume state
+                    │         │
+                    ▼         ▼
+        UnmanagedChildren   restore
+                    │         │
+                    └────┬────┘
+                         ▼
+                  Runtime.adopt
+```
+
+That's exactly the relationship you want between core and Plus.
+
+---
+
+## What I would upstream vs keep in Plus
+
+| Feature                       | Where                            |
+| ----------------------------- | -------------------------------- |
+| `UnmanagedChildren()`         | **Foldkit core**                 |
+| Render an existing Model      | **Foldkit server**               |
+| Generic DOM-adoption boot API | **Foldkit runtime**              |
+| Build-skew checks             | **Foldkit core**                 |
+| DOM adoption algorithm        | **Foldkit core**                 |
+| Resume Projection             | `foldkit-ssr`                    |
+| Surface dependency closure    | `foldkit-ssr`                    |
+| Server/client ownership rules | `foldkit-ssr`                    |
+| `SSR.static`                  | `foldkit-ssr`                    |
+| Remote selective hydration    | `foldkit-remote` + `foldkit-ssr` |
+| Resume manifest format        | `foldkit-ssr`                    |
+| Static-code Vite erasure      | `foldkit-ssr/vite`               |
+
+That boundary is important. I **wouldn't PR “partial hydration” into Foldkit** yet. That's a whole framework policy.
+
+I'd PR primitives that make partial hydration, third-party DOM ownership, alternate hydration protocols, persistence restoration, etc. possible.
+
+## The PR I'd actually start with
+
+**`feat(html): add unmanaged child DOM boundaries`**
+
+API:
+
+```ts
+const view = (model: Model, h: HtmlBuilder<Message>) =>
+  h.div(
+    [
+      h.Class('article-body'),
+      h.UnmanagedChildren(),
+    ],
+    [],
+  )
+```
+
+Semantics:
+
+```text
+Foldkit owns:
+  host element
+  host attrs
+  host props
+  host classes
+  host styles
+  host events
+  host Mount
+
+Foldkit does not own:
+  host.childNodes
+```
+
+Hydration:
+
+```text
+adopt host
+skip recursive child matching
+```
+
+Patch:
+
+```text
+old unmanaged + new unmanaged
+    → preserve children
+
+old unmanaged + new managed
+    → establish normal Foldkit ownership,
+      replacing/reconciling children
+
+old managed + new unmanaged
+    → stop touching existing children
+```
+
+Fresh render:
+
+```text
+unmanaged + no existing children
+    → simply produces an empty host
+```
+
+And then `foldkit-ssr` handles the server/client difference:
+
+```ts
+SSR.static('article', serverChildren)
+```
+
+compiles/interprets to roughly:
+
+```ts
+// server
+h.div(
+  [h.Attribute('data-fk-static', 'article')],
+  serverChildren,
+)
+
+// resumed client
+h.div(
+  [
+    h.Attribute('data-fk-static', 'article'),
+    h.UnmanagedChildren(),
+  ],
+  [],
+)
+```
+
+That removes almost all of the grossness from the prototype.
+
+Then I'd follow it with **`Server.renderModelToString`** because that's another small, easily justified primitive.
+
+Only after `foldkit-ssr` demonstrates the need would I propose the bigger **`Runtime.adopt`** abstraction.
+
+So the upstream path becomes:
+
+```text
+PR 1
+UnmanagedChildren
+      ↓
+PR 2
+render existing Model
+      ↓
+build foldkit-ssr prototype
+      ↓
+collect benchmarks / real experience
+      ↓
+RFC
+generic Runtime.adopt
+      ↓
+possibly later
+deeper resumability primitives
+```
+
+That approach also gives the Foldkit maintainer something much easier to evaluate than “here is a giant resumability architecture.” Each upstream change stands on its own, while together they make your entire SSR design much cleaner.
+

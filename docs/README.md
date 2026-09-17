@@ -33,8 +33,14 @@ cover all fifteen packages.
 | **Model** | The application's state. Local state still belongs here unless another system is its authoritative owner. |
 | **Message** | Something that happened or an intent the application knows how to handle. Agent and Sync reuse this vocabulary instead of inventing their own actions. |
 | **`update`** | The application's transition function. Foldkit Plus tries hard not to create a second reducer beside it. |
+| **Submodel** | A child state machine embedded in the parent: its own Model slice, Message, and `update`. The parent stores the child Model, routes wrapped Messages to it, and the child can surface facts upward via `outMessage`. |
+| **Bundle** | A Submodel packaged once so it can be placed one or many times with every part wired (init, update, Subscriptions, resources, view, helpers). Holds no state itself; the parent Model owns each placed slice. |
 | **Projection** | A pure, typed view of part of the Model, plus metadata about what it observes or requires. |
-| **Surface** | A named feature boundary: what it may observe and which Messages it may emit. |
+| **Surface** | A named feature boundary: what it may observe and which Messages it may emit. Observes; never owns transitions. |
+| **Command** | One-shot work caused by a transition. Runs once, then reports back as a Message. |
+| **Subscription** | Ongoing work whose lifetime follows Model state. Scoped by a slice; restarts when that slice changes. |
+| **Mount** | Element-scoped imperative work. Emits Messages while the element is live; cleans up on unmount. |
+| **Resource / ManagedResource** | A dependency shared with Commands and Subscriptions, not a Message source. A `Resource` lives for the app lifetime; a `ManagedResource` is a stateful handle whose lifetime follows a Model slice. |
 | **Wiring** | How one integration joins the application: which Messages it folds, what it runs at startup, what it subscribes to, and what it owns. |
 | **Owner** | The one authoritative source for a datum. Mirrors observe; Remote caches server-owned facts; Sync owns replicated client-authored state through the durable log. |
 
@@ -86,7 +92,7 @@ Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
 Submodels        foldkit-bundle + bundle-surface
-Primitives       foldkit-bundles (media, net, time, state, observers, dom)
+Primitives       foldkit-primitives (media, net, time, state, motion, device, events, observers, dom)
 Views            foldkit-mixins + mixins-surface / mixins-ui
 React interop    foldkit-react + react-codegen
 ```
