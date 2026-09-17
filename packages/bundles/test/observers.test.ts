@@ -6,7 +6,14 @@
 import { Effect, Fiber } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Intersection, IntersectionChanged, Resized, Resize } from '../src/observers/index.js'
+import {
+  Intersection,
+  IntersectionChanged,
+  Mutated,
+  Mutation,
+  Resized,
+  Resize,
+} from '../src/observers/index.js'
 import { takeMessages } from './support.js'
 
 type ResizeHandler = (
@@ -78,6 +85,47 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+type MutationHandler = (
+  records: ReadonlyArray<{
+    type: string
+    addedNodes: ReadonlyArray<{ nodeName: string }>
+    removedNodes: ReadonlyArray<{ nodeName: string }>
+    attributeName: string | null
+  }>,
+) => void
+
+const installMutationObserver = () => {
+  const instances: Array<{
+    readonly handler: MutationHandler
+    observed: Array<Element>
+    options: Array<Record<string, boolean>>
+    disconnected: boolean
+    fire: (records: Parameters<MutationHandler>[0]) => void
+  }> = []
+  class FakeMutationObserver {
+    readonly handler: MutationHandler
+    observed: Array<Element> = []
+    options: Array<Record<string, boolean>> = []
+    disconnected = false
+    constructor(handler: MutationHandler) {
+      this.handler = handler
+      instances.push(this)
+    }
+    observe = (element: Element, options: Record<string, boolean>) => {
+      this.observed.push(element)
+      this.options.push(options)
+    }
+    disconnect = () => {
+      this.disconnected = true
+    }
+    fire = (records: Parameters<MutationHandler>[0]) => {
+      this.handler(records)
+    }
+  }
+  vi.stubGlobal('MutationObserver', FakeMutationObserver)
+  return instances
+}
+
 const element = () => document.createElement('div')
 
 describe('Resize', () => {
@@ -138,5 +186,87 @@ describe('Intersection', () => {
       IntersectionChanged.make({ isIntersecting: false, ratio: 0 }),
     ])
     expect(instances[0]!.disconnected).toBe(true)
+  })
+})
+
+describe('Mutation', () => {
+  it('reports child, attribute, and text changes as Mutated', async () => {
+    const instances = installMutationObserver()
+    const el = element()
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(Mutation().f(el, Mount.liveViewStateChanges), 3),
+        )
+        for (let i = 0; i < 100 && instances.length === 0; i++) {
+          yield* Effect.yieldNow
+        }
+        expect(instances).toHaveLength(1)
+        expect(instances[0]!.observed).toEqual([el])
+        expect(instances[0]!.options).toEqual([
+          { childList: true, attributes: true, characterData: true, subtree: true },
+        ])
+        instances[0]!.fire([
+          {
+            type: 'childList',
+            addedNodes: [{ nodeName: 'DIV' }],
+            removedNodes: [{ nodeName: 'SPAN' }],
+            attributeName: null,
+          },
+        ])
+        instances[0]!.fire([
+          { type: 'attributes', addedNodes: [], removedNodes: [], attributeName: 'class' },
+        ])
+        instances[0]!.fire([
+          { type: 'characterData', addedNodes: [], removedNodes: [], attributeName: null },
+        ])
+        return yield* Fiber.join(fiber)
+      }),
+    )
+    expect(values).toEqual([
+      Mutated.make({ type: 'childList', added: ['DIV'], removed: ['SPAN'], attribute: null }),
+      Mutated.make({ type: 'attributes', added: [], removed: [], attribute: 'class' }),
+      Mutated.make({ type: 'characterData', added: [], removed: [], attribute: null }),
+    ])
+    expect(instances[0]!.disconnected).toBe(true)
+  })
+
+  it('ignores unknown record types', async () => {
+    const instances = installMutationObserver()
+    const el = element()
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(Mutation().f(el, Mount.liveViewStateChanges), 1, '100 millis'),
+        )
+        for (let i = 0; i < 100 && instances.length === 0; i++) {
+          yield* Effect.yieldNow
+        }
+        instances[0]!.fire([
+          { type: 'mystery', addedNodes: [], removedNodes: [], attributeName: null },
+        ])
+        instances[0]!.fire([
+          {
+            type: 'childList',
+            addedNodes: [{ nodeName: 'P' }],
+            removedNodes: [],
+            attributeName: null,
+          },
+        ])
+        return yield* Fiber.join(fiber)
+      }),
+    )
+    expect(values).toEqual([
+      Mutated.make({ type: 'childList', added: ['P'], removed: [], attribute: null }),
+    ])
+  })
+
+  it('emits nothing without MutationObserver', async () => {
+    vi.stubGlobal('MutationObserver', undefined)
+    await expect(
+      Effect.runPromise(
+        takeMessages(Mutation().f(element(), Mount.liveViewStateChanges), 1, '100 millis'),
+      ),
+    ).rejects.toThrow(/stalled/)
   })
 })
