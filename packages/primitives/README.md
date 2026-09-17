@@ -135,9 +135,10 @@ the largest name at or below the width (ties break alphabetically); SSR
 starts at width 0 with `null`. Placing both `Breakpoints` and `WindowSize`
 doubles resize listeners — pick the one the view reads.
 
-`platformFromUA(ua)` reads `mac | windows | linux | android | ios | unknown`
+`platformFromUA(ua, hints?)` reads `mac | windows | linux | android | ios | unknown`
 from a passed user-agent string (mobile checks first: Android contains
-"Linux", iPhones mention "Mac"); `isBrowser()`/`isServer()` split SSR from
+"Linux", iPhones mention "Mac"); Client Hints `platform` wins when
+recognized, and a multi-touch Mac UA reads as iOS. `isBrowser()`/`isServer()` split SSR from
 client for init defaults.
 
 ## Net: `foldkit-primitives/net`
