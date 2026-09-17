@@ -38,6 +38,10 @@
       "types": "./dist/device/index.d.mts",
       "import": "./dist/device/index.mjs"
     },
+    "./events": {
+      "types": "./dist/events/index.d.mts",
+      "import": "./dist/events/index.mjs"
+    },
     "./media": {
       "types": "./dist/media/index.d.mts",
       "import": "./dist/media/index.mjs"

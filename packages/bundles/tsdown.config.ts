@@ -5,6 +5,7 @@ export default defineConfig({
     'src/index.ts',
     'src/device/index.ts',
     'src/dom/index.ts',
+    'src/events/index.ts',
     'src/media/index.ts',
     'src/motion/index.ts',
     'src/net/index.ts',
