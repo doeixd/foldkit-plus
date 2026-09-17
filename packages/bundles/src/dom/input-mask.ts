@@ -1,7 +1,7 @@
 /**
  * An input mask as a Mount plus a pure mask function. The pattern language
- * is three placeholders — `#` digit, `A` letter, `*` either — with every
- * other character literal. Literals appear only once a later placeholder
+ * is three placeholders — `#` digit, `A` letter, `*` either, all ASCII —
+ * with every other character literal. Literals appear only once a later placeholder
  * consumes input, so partial values never dangle a separator. The Mount
  * rewrites the field, restores the caret approximately, and emits `Input`
  * with both the masked and raw values; the parent owns the state, like any

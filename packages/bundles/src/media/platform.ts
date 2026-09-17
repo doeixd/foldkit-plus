@@ -3,7 +3,8 @@
  * string (passed in, so tests pin it without stubbing globals); order
  * matters — Android contains "Linux", iPhones mention "Mac" — so mobile
  * checks come first. `isBrowser`/`isServer` split SSR from client for init
- * defaults.
+ * defaults. Desktop-mode iPads report `mac` — their UA hides the tablet;
+ * touch detection stays the application's job.
  */
 export const Platform = ['mac', 'windows', 'linux', 'android', 'ios', 'unknown'] as const
 export type Platform = (typeof Platform)[number]

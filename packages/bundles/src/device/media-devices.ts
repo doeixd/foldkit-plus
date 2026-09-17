@@ -96,15 +96,13 @@ export const mediaDevices = <const Name extends string>(config: {
       catch: (error: unknown) => error,
     }),
     {
-      onFailure: (error: unknown): Effect.Effect<MediaDevicesMessage, never, never> =>
+      onFailure: error =>
         Effect.succeed(
           isDenied(error)
             ? MediaDevicesMessage.Denied()
             : MediaDevicesMessage.Failed({ message: failMessage(error) }),
         ),
-      onSuccess: (
-        devices: ReadonlyArray<MediaDevice>,
-      ): Effect.Effect<MediaDevicesMessage, never, never> =>
+      onSuccess: devices =>
         Effect.succeed(MediaDevicesMessage.Refreshed({ devices: [...devices] })),
     },
   )
@@ -114,6 +112,8 @@ export const mediaDevices = <const Name extends string>(config: {
   const changedStream = (): Stream.Stream<MediaDevicesMessage> => {
     const devices = handle()
     if (devices === null) return Stream.empty
+    // The handle carries only the slice the bundle needs, not the full
+    // EventTarget surface, so the listener attaches through a cast.
     return Stream.fromEventListener(devices as unknown as EventTarget, 'devicechange').pipe(
       Stream.map(() => MediaDevicesMessage.DevicesChanged()),
     )
