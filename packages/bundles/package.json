@@ -38,6 +38,10 @@
       "types": "./dist/media/index.d.mts",
       "import": "./dist/media/index.mjs"
     },
+    "./motion": {
+      "types": "./dist/motion/index.d.mts",
+      "import": "./dist/motion/index.mjs"
+    },
     "./net": {
       "types": "./dist/net/index.d.mts",
       "import": "./dist/net/index.mjs"

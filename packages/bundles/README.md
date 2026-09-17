@@ -1,10 +1,12 @@
 # `foldkit-bundles`
 
 Ready-made [`foldkit-bundle`](./bundle) primitives: media queries, presence,
-timers, pagination, history, sockets, observers, and clipboard. Each is an
-ordinary bundle — Model, Message, init, update, and Subscriptions collected in
+timers, pagination, history, sockets, observers, and clipboard. Most are
+ordinary bundles — Model, Message, init, update, and Subscriptions collected in
 one value — published under a tree-shakeable subpath, so an application pays
-only for the primitives it places.
+only for the primitives it places. The exceptions keep their own form:
+`Resize` and `Intersection` are Mounts (element-scoped observation, attached
+with `h.OnMount`), and `copyText` is a Command (one-shot, no Model).
 
 ```ts
 import { MediaQuery } from 'foldkit-bundles/media'
@@ -52,8 +54,8 @@ pnpm add foldkit-bundles foldkit-bundle effect foldkit
 
 `effect` and `foldkit` are peer dependencies. Import per subpath —
 `foldkit-bundles/media`, `foldkit-bundles/net`, `foldkit-bundles/time`,
-`foldkit-bundles/state`, `foldkit-bundles/observers`, `foldkit-bundles/dom` —
-so bundlers drop the primitives you never import.
+`foldkit-bundles/state`, `foldkit-bundles/motion`, `foldkit-bundles/observers`,
+`foldkit-bundles/dom` — so bundlers drop the primitives you never import.
 
 ## Sixty seconds: follow the color scheme
 
@@ -191,6 +193,16 @@ import { history } from 'foldkit-bundles/state'
 const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })
 const Doc = Bundle.declare(EditHistory, 'doc')
 ```
+
+## Motion: `foldkit-bundles/motion`
+
+`Tween` animates one number from `from` to `to` over `ms` milliseconds.
+Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args
+`{ from, to, ms }` (a non-positive duration is rejected at placement).
+Progress comes from Effect's clock, so tests advance it with TestClock; the
+stream ends with `Finished` carrying the exact end value, and the value rests
+at `to` either way. Linear interpolation only: easing curves stay the
+application's job.
 
 ## Failure and recovery
 
