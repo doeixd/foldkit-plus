@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { evo } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 
@@ -24,18 +25,18 @@ export const initialModel: Model = { todos: [], selectedTodoId: null, lastError:
 // IDs and all other nondeterministic inputs come from the Message.
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => ({
   model: Message.match(message, {
-    CreatedTodo: ({ id, title }) => ({
-      ...model,
-      todos: model.todos.some(todo => todo.id === id)
-        ? model.todos
-        : [...model.todos, { id, title }],
-    }),
-    RenamedTodo: ({ id, title }) => ({
-      ...model,
-      todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
-    }),
-    DeletedTodo: ({ id }) => ({ ...model, todos: model.todos.filter(todo => todo.id !== id) }),
-    SelectedTodo: ({ id }) => ({ ...model, selectedTodoId: id }),
+    CreatedTodo: ({ id, title }) =>
+      evo(model, {
+        todos: () =>
+          model.todos.some(todo => todo.id === id) ? model.todos : [...model.todos, { id, title }],
+      }),
+    RenamedTodo: ({ id, title }) =>
+      evo(model, {
+        todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      }),
+    DeletedTodo: ({ id }) =>
+      evo(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
+    SelectedTodo: ({ id }) => evo(model, { selectedTodoId: () => id }),
   }),
 })
 
