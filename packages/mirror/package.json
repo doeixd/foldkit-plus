@@ -54,6 +54,6 @@
     "foldkit-bundle": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
-    "typescript": "^5.7.2"
+    "typescript": "5.9.3"
   }
 }

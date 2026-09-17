@@ -54,6 +54,6 @@
     "@effect/sql-sqlite-node": "4.0.0-rc.112",
     "effect": "4.0.0-rc.112",
     "tsdown": "^0.23.0",
-    "typescript": "^5.7.2"
+    "typescript": "5.9.3"
   }
 }

@@ -36,7 +36,7 @@ importers:
         specifier: ^4.23.13
         version: 4.23.13
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
       unrun:
         specifier: ^0.3.1
@@ -67,8 +67,8 @@ importers:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
       typescript:
-        specifier: ^5.7.2
-        version: 5.7.2
+        specifier: 5.9.3
+        version: 5.9.3
 
   examples/kitchen-sink:
     dependencies:
@@ -131,7 +131,7 @@ importers:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   examples/mixins:
@@ -153,7 +153,7 @@ importers:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   examples/react:
@@ -193,8 +193,8 @@ importers:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
       typescript:
-        specifier: 5.7.2
-        version: 5.7.2
+        specifier: 5.9.3
+        version: 5.9.3
 
   examples/remote:
     dependencies:
@@ -218,7 +218,7 @@ importers:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   examples/sync:
@@ -261,7 +261,7 @@ importers:
         specifier: 26.1.0
         version: 26.1.0
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 5.4.21
@@ -286,7 +286,7 @@ importers:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   examples/todo-app:
@@ -347,7 +347,7 @@ importers:
         specifier: 26.1.0
         version: 26.1.0
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 5.4.21
@@ -369,7 +369,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/agent-a2a:
@@ -387,7 +387,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/agent-mcp:
@@ -408,7 +408,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/agent-native:
@@ -429,7 +429,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/agent-webmcp:
@@ -447,7 +447,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/bundle:
@@ -468,7 +468,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/bundle-surface:
@@ -494,10 +494,10 @@ importers:
         version: 26.1.0
       tsdown:
         specifier: ^0.23.0
-        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
-        version: 5.7.2
+        specifier: 5.9.3
+        version: 5.9.3
 
   packages/durable:
     dependencies:
@@ -512,7 +512,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/mirror:
@@ -537,7 +537,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/mixins:
@@ -552,7 +552,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/mixins-surface:
@@ -579,7 +579,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/mixins-ui:
@@ -600,7 +600,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/primitives:
@@ -623,10 +623,10 @@ importers:
         version: 26.1.0
       tsdown:
         specifier: ^0.23.0
-        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
-        version: 5.7.2
+        specifier: 5.9.3
+        version: 5.9.3
       ws:
         specifier: ^8.18.0
         version: 8.21.3
@@ -656,10 +656,10 @@ importers:
         version: 19.2.0(react@19.2.0)
       tsdown:
         specifier: 0.23.0
-        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: 5.7.2
-        version: 5.7.2
+        specifier: 5.9.3
+        version: 5.9.3
 
   packages/react-codegen:
     devDependencies:
@@ -689,10 +689,10 @@ importers:
         version: 19.2.0(react@19.2.0)
       tsdown:
         specifier: 0.23.0
-        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: 5.7.2
-        version: 5.7.2
+        specifier: 5.9.3
+        version: 5.9.3
 
   packages/remote:
     dependencies:
@@ -713,7 +713,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/remote-drizzle:
@@ -735,7 +735,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/remote-server:
@@ -754,7 +754,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/surface:
@@ -769,7 +769,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/sync:
@@ -794,7 +794,7 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
       typescript:
-        specifier: ^5.7.2
+        specifier: 5.9.3
         version: 5.9.3
 
 packages:
@@ -6469,11 +6469,6 @@ packages:
   type-is@2.1.0:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
-
-  typescript@5.7.2:
-    resolution: {integrity: sha512-i5t66RHxDvVN40HfDd1PsEThGNnlMCMT3jMUuoh9/0TaqWevNontacunWyN02LA9/fIbEWlcHZcgTKb9QoaLfg==}
-    engines: {node: '>=14.17'}
-    hasBin: true
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
@@ -12298,20 +12293,6 @@ snapshots:
 
   ret@0.5.0: {}
 
-  rolldown-plugin-dts@0.28.5(rolldown@1.2.8)(typescript@5.7.2):
-    dependencies:
-      dts-resolver: 3.0.0
-      get-tsconfig: 5.0.0-beta.6
-      obug: 2.2.1
-      rolldown: 1.2.8
-      yuku-ast: 0.9.5
-      yuku-codegen: 0.9.5
-      yuku-parser: 0.9.5
-    optionalDependencies:
-      typescript: 5.7.2
-    transitivePeerDependencies:
-      - oxc-resolver
-
   rolldown-plugin-dts@0.28.5(rolldown@1.2.8)(typescript@5.9.3):
     dependencies:
       dts-resolver: 3.0.0
@@ -12725,32 +12706,6 @@ snapshots:
       '@ts-morph/common': 0.29.0
       code-block-writer: 13.0.3
 
-  tsdown@0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1):
-    dependencies:
-      cac: 7.0.0
-      defu: 6.1.7
-      empathic: 2.0.1
-      hookable: 6.1.1
-      import-without-cache: 0.4.0
-      obug: 2.2.1
-      picomatch: 4.0.7
-      rolldown: 1.2.8
-      rolldown-plugin-dts: 0.28.5(rolldown@1.2.8)(typescript@5.7.2)
-      tinyexec: 1.3.1
-      tinyglobby: 0.2.17
-      tree-kill: 1.2.2
-      unconfig-core: 7.5.0
-      verkit: 0.4.0
-    optionalDependencies:
-      tsx: 4.23.13
-      typescript: 5.7.2
-      unrun: 0.3.1
-    transitivePeerDependencies:
-      - '@typescript/native-preview'
-      - '@volar/typescript'
-      - oxc-resolver
-      - vue-tsc
-
   tsdown@0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1):
     dependencies:
       cac: 7.0.0
@@ -12798,8 +12753,6 @@ snapshots:
       content-type: 2.1.0
       media-typer: 1.1.1
       mime-types: 3.0.2
-
-  typescript@5.7.2: {}
 
   typescript@5.9.3: {}
 
