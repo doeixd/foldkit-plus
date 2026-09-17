@@ -40,8 +40,12 @@ const preset = WidePage.assemble(
   WidePage.place(PrefersReducedMotion, 'motion'),
 )
 
+// The README's preset line, on the sixty-second scope above.
+const darkOnly = Page.assemble(Page.place(PrefersDark, 'dark'))
+
 void config
 void preset
+void darkOnly
 
 // State: undo/redo over any value Schema.
 const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })

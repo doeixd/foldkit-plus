@@ -70,7 +70,12 @@ describe('Pagination transitions', () => {
   it('derives pageCount and offset', () => {
     expect(pageCount(loaded.pages)).toBe(10)
     expect(pageCount({ page: 1, perPage: 10, total: null })).toBeNull()
+    expect(pageCount({ page: 1, perPage: 10, total: 0 })).toBe(1)
     expect(offset({ page: 3, perPage: 10, total: 95 })).toBe(20)
+  })
+
+  it('ignores a negative total', () => {
+    expect(at(loaded, PaginationMessage.SetTotal({ total: -5 }))).toEqual(loaded.pages)
   })
 })
 

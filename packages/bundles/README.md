@@ -35,14 +35,14 @@ Messages. The same rule as everywhere else: observation is not ownership.
 ```text
 browser / clock / server ──facts as Messages──▶ update ──▶ Model slice
                                                     ▲
- Nationals: init is pure, so SSR renders the default; the stream corrects it live.
+Note the direction: init is pure, so SSR renders the default; the stream corrects it live.
 ```
 
 Every primitive follows one lifecycle: `init` returns a safe default without
-touching the environment (SSR-safe by construction), and the Subscription
-stream emits the live value first, then changes. A primitive that cannot
-observe (no `window`, no API) yields an empty stream instead of throwing, so
-the slice keeps its default.
+touching the environment (SSR-safe by construction). Streams report live
+facts — MediaQuery reads the current match first, then changes; Timer ticks
+while running. A primitive that cannot observe (no `window`, no API) yields
+an empty stream instead of throwing, so the slice keeps its default.
 
 ## Install
 
@@ -164,7 +164,8 @@ throwing. No Model involved: the clipboard is not application state.
 `Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`
 while unknown. Every transition clamps into range: past the last page lands on
 it, below one lands on one, and a smaller total pulls the page back. New sizes
-and totals arrive as Messages (`SetPerPage` ignores a non-positive size).
+and totals arrive as Messages (`SetPerPage` ignores a non-positive size, and
+`SetTotal` ignores a negative total).
 `pageCount` returns null while the total is unknown; `offset` gives the first
 item's index for a slice or a query. Loading data stays the application's job:
 this bundle owns the page, not the items.
@@ -190,7 +191,7 @@ const Doc = Bundle.declare(EditHistory, 'doc')
 | --- | --- |
 | No `window` (SSR) or no API (old browser, minimal DOM) | stream is empty; the slice keeps its default |
 | Listener removed (unmount, gate closed) | finalizer disconnects; resubscribing re-reads the current value |
-| A `Changed` for an unplaced query | impossible: each placement subscribes only its own query |
+| A Message for an unplaced child | never routes: wrappers only match placed variants |
 
 ## Limits
 

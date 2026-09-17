@@ -62,8 +62,11 @@ export const Pagination = Bundle.make('Pagination', {
         perPage > 0
           ? { model: { ...model, perPage, page: clampPage(model.page, perPage, model.total) } }
           : { model },
-      SetTotal: ({ total }) => ({
-        model: { ...model, total, page: clampPage(model.page, model.perPage, total) },
-      }),
+      SetTotal: ({ total }) =>
+        total === null || total >= 0
+          ? {
+              model: { ...model, total, page: clampPage(model.page, model.perPage, total) },
+            }
+          : { model },
     }),
 })

@@ -62,7 +62,7 @@ WebSocket is a helper; `copyText` is a Command; `Resize()` and
 - **One assembly holds one socket.** The resource tag is per module; a second
   placement of the same socket bundle collides at `assemble`.
 - **Init is a safe default, not a read.** `matches: false`, `online: true`,
-  count zero: SSR renders these, and the stream corrects them live.
+  count zero: SSR renders these, and subscriptions then report live facts.
 
 ## See also
 

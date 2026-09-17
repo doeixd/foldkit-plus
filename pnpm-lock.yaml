@@ -506,8 +506,8 @@ importers:
         version: link:../bundle
     devDependencies:
       '@types/ws':
-        specifier: 8.5.12
-        version: 8.5.12
+        specifier: ^8.5.12
+        version: 8.18.1
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
@@ -524,8 +524,8 @@ importers:
         specifier: ^5.7.2
         version: 5.7.2
       ws:
-        specifier: 8.18.0
-        version: 8.18.0
+        specifier: ^8.18.0
+        version: 8.21.3
 
   packages/durable:
     dependencies:
@@ -3619,9 +3619,6 @@ packages:
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
-
-  '@types/ws@8.5.12':
-    resolution: {integrity: sha512-3tPRkv1EtkDpzlgyKyI8pGsGZAGPEaXeu0DOj5DI25Ja91bdAYddYHbADRYVrZMRbfW+1l5YwXVDKohDJNQxkQ==}
 
   '@types/zen-observable@0.8.3':
     resolution: {integrity: sha512-fbF6oTd4sGGy0xjHPKAt+eS2CrxJ3+6gQ3FGcBoIJR2TLAyCkCyI8JqZNy+FeON0AhVgNJoUumVoZQjBFUqHkw==}
@@ -9812,10 +9809,6 @@ snapshots:
   '@types/use-sync-external-store@0.0.6': {}
 
   '@types/ws@8.18.1':
-    dependencies:
-      '@types/node': 22.10.2
-
-  '@types/ws@8.5.12':
     dependencies:
       '@types/node': 22.10.2
 
