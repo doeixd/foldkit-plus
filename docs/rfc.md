@@ -2017,7 +2017,9 @@ It passes the constraints of section 1: it is optional, holds no hidden state,
 compiles to `Update.foldChildStep`, `Subscription.lift`,
 `ManagedResource.lift`, and `h.submodel`, and every write is still a Message.
 A parity test shows a placement produces the same Models, Commands, and
-Subscription dependencies as the same child wired by hand.
+Subscription dependencies as the same child wired by hand. The pattern has
+scaled past examples: `foldkit-primitives` ships dozens of ready-made
+bundles, entries, Mounts, and Commands across nine subpaths.
 
 Two Foldkit facts constrain an upstream version. A Managed Resource is provided
 by its tag, so two placements of one child with resources collide; and a

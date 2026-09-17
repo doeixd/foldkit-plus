@@ -173,3 +173,4 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 
 More: https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle and the
 example https://github.com/doeixd/foldkit-plus/tree/main/examples/bundle
+Ready-made bundles live in https://github.com/doeixd/foldkit-plus/tree/main/packages/primitives

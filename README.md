@@ -232,6 +232,7 @@ so the front page cannot quietly drift from the API.
 | Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
 | Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
+| Reach for everyday browser primitives instead of hand-wiring them: media queries, timers, sockets, device state, observers, clipboard | `foldkit-primitives` | [package README](./packages/primitives) |
 | Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
 | Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
 | Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
@@ -259,6 +260,7 @@ flowchart TB
   mirror["foldkit-mirror<br/>URL · KeyValueStore"]
   bundle["foldkit-bundle<br/>Submodel placements"]
   bundleSurface["foldkit-bundle-surface"]
+  primitives["foldkit-primitives<br/>ready-made bundles · entries · Mounts"]
   mixins["foldkit-mixins<br/>typed view extension points"]
   mixinsSurface["foldkit-mixins-surface"]
   mixinsUi["foldkit-mixins-ui"]
@@ -266,6 +268,8 @@ flowchart TB
   app -- "describe observation / capability" --> surface
   app --> mixins
   app --> bundle --> bundleSurface
+  app --> primitives
+  bundle --> primitives
   surface --> bundleSurface
   surface --> agent --> agentAdapters
   surface --> remote --> server
@@ -281,7 +285,8 @@ The arrows are integration boundaries, not new application state machines.
 Agent projects application capabilities. Remote reconciles server facts into the
 Model. Sync replays application Messages against an authoritative server order.
 Mirror keeps a secondary representation of Model fields. Mixins extends view
-structure without touching Model state. Durable can also be used independently
+structure without touching Model state. Primitives packages reusable
+browser and clock behaviour without hiding state. Durable can also be used independently
 as an ordered server journal.
 
 The rule that makes the whole graph composable is **one owner per datum**:
@@ -290,6 +295,7 @@ The rule that makes the whole graph composable is **one owner per datum**:
 | --- | --- | --- |
 | The route, the selection, a transient error | the local Model, plain `update` | — |
 | A reusable child machine's slice, placed once or per key | the parent Model | `foldkit-bundle` places |
+| A media query, timer reading, socket state, device list, or clipboard result | the parent Model | `foldkit-primitives` places |
 | A filter the URL shows, a draft a device remembers | the local Model | `foldkit-mirror` observes |
 | Facts owned by another system | the server | `foldkit-remote` caches |
 | Client-authored state that must survive offline and converge | the durable log | `foldkit-sync` + `foldkit-durable` |
@@ -343,6 +349,9 @@ pnpm add foldkit-mirror
 
 # reusable Submodels placed with every part wired
 pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
+
+# ready-made primitives: media, timers, sockets, observers, clipboard
+pnpm add foldkit-primitives
 
 # view extension points
 pnpm add foldkit-mixins foldkit-mixins-surface
