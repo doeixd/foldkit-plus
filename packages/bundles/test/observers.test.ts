@@ -7,8 +7,10 @@ import { Effect, Fiber } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  Bounds,
   Intersection,
   IntersectionChanged,
+  Measured,
   Mutated,
   Mutation,
   Resized,
@@ -268,5 +270,95 @@ describe('Mutation', () => {
         takeMessages(Mutation().f(element(), Mount.liveViewStateChanges), 1, '100 millis'),
       ),
     ).rejects.toThrow(/stalled/)
+  })
+})
+
+describe('Bounds', () => {
+  const rect = (x: number, y: number, width: number, height: number) => ({ x, y, width, height })
+
+  const stubRect = (
+    el: Element,
+    values: { x: number; y: number; width: number; height: number },
+  ) => {
+    Object.defineProperty(el, 'getBoundingClientRect', {
+      value: () => ({ ...values }),
+      configurable: true,
+    })
+  }
+
+  it('measures now, then on observer, scroll, and resize', async () => {
+    const instances = installResizeObserver()
+    const el = element()
+    stubRect(el, rect(1, 2, 100, 50))
+    let added = 0
+    let removed = 0
+    const origAdd = window.addEventListener
+    const origRemove = window.removeEventListener
+    window.addEventListener = ((...args: Array<unknown>) => {
+      added++
+      return (origAdd as (...a: Array<unknown>) => void)(...args)
+    }) as typeof window.addEventListener
+    window.removeEventListener = ((...args: Array<unknown>) => {
+      removed++
+      return (origRemove as (...a: Array<unknown>) => void)(...args)
+    }) as typeof window.removeEventListener
+    try {
+      const values = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(Bounds().f(el, Mount.liveViewStateChanges), 4),
+          )
+          for (let i = 0; i < 100 && instances.length === 0; i++) {
+            yield* Effect.yieldNow
+          }
+          expect(instances).toHaveLength(1)
+          stubRect(el, rect(1, 2, 200, 50))
+          instances[0]!.fire(200, 50)
+          for (let i = 0; i < 10; i++) {
+            yield* Effect.yieldNow
+          }
+          stubRect(el, rect(5, 10, 200, 50))
+          window.dispatchEvent(new window.Event('scroll'))
+          for (let i = 0; i < 10; i++) {
+            yield* Effect.yieldNow
+          }
+          stubRect(el, rect(5, 10, 300, 50))
+          window.dispatchEvent(new window.Event('resize'))
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(values).toEqual([
+        Measured.make(rect(1, 2, 100, 50)),
+        Measured.make(rect(1, 2, 200, 50)),
+        Measured.make(rect(5, 10, 200, 50)),
+        Measured.make(rect(5, 10, 300, 50)),
+      ])
+      expect(instances[0]!.disconnected).toBe(true)
+      expect(added).toBe(2)
+      expect(removed).toBe(2)
+    } finally {
+      window.addEventListener = origAdd
+      window.removeEventListener = origRemove
+    }
+  })
+
+  it('still measures on window events without ResizeObserver', async () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    const el = element()
+    stubRect(el, rect(0, 0, 10, 10))
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(Bounds().f(el, Mount.liveViewStateChanges), 2),
+        )
+        for (let i = 0; i < 100; i++) {
+          yield* Effect.yieldNow
+        }
+        stubRect(el, rect(0, 5, 10, 10))
+        window.dispatchEvent(new window.Event('scroll'))
+        return yield* Fiber.join(fiber)
+      }),
+    )
+    expect(values).toEqual([Measured.make(rect(0, 0, 10, 10)), Measured.make(rect(0, 5, 10, 10))])
   })
 })
