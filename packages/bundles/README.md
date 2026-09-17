@@ -211,8 +211,8 @@ application `update`, not here.
 window on subscribe and kept current by one `resize` listener. SSR starts
 at zero; teardown removes the listener.
 
-`Idle` keeps `idle: boolean` in the Model, args `{ timeoutMs }` (positive and finite).
-While active, activity (mouse, keys, pointer, scroll) debounced past the
+`Idle` keeps `idle: boolean` in the Model, args `{ timeoutMs }` (positive
+and finite). While active, activity (mouse, keys, pointer, scroll) debounced past the
 timeout settles to `BecameIdle`; while idle, the first activity wakes to
 `BecameActive` and the dependency flip restarts the watch. Starts active —
 a lurker idles when the silence elapses, because subscribe time seeds the
@@ -275,9 +275,10 @@ subscription. `Snapshot` replaces the states map, `Changed` merges one,
 names and unknown state strings fail the acquire — never Model facts.
 
 `enterFullscreen(element)` / `exitFullscreen()` are Commands yielding
-`Entered`/`Exited` or `Failed` (rejected request, missing capability);
-`fullscreenChanges()` starts with the current answer then follows flips as
-`Changed { active }`. No Model: the document owns fullscreen state.
+`Entered`/`Exited` or `Failed` (rejected request, missing capability, with a
+legacy `webkit` fallback); `fullscreenChanges()` starts with the current
+answer then follows flips as `Changed { active }`. No Model: the document
+owns fullscreen state.
 
 ## DOM: `foldkit-bundles/dom`
 
@@ -290,7 +291,8 @@ throwing. No Model involved: the clipboard is not application state.
 on success, `Dismissed` on sheet cancel (its own outcome, not a failure),
 `ShareFailed` otherwise. `loadScript(src)` appends a head script unless one
 carries the URL already — idempotent by URL, so concurrent placements
-collapse onto the first tag — yielding `Loaded` or `LoadFailed`.
+collapse onto the first tag and share its fate — yielding `Loaded` or
+`LoadFailed`. A dead tag is removed, so a retry fetches afresh.
 
 `Autofocus()` focuses the element on insert, then emits `Focused` (requested,
 not landed: a non-focusable element may decline). `InputMask({ pattern })`
@@ -330,7 +332,7 @@ startup with the configured `default` as fallback; `SetLocale` switches it.
 `SelectionSet` keeps string ids in first-selection order: `Select` (keeps
 position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
 `Clear`. `isSelected` reads membership. Both are pure logic, no streams.
-`range(start, end, step?)` counts half-open integers — the pagination page
+`range(start, end, step?)` counts half-open numbers — the pagination page
 list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
 throws, naming it.
 
@@ -347,8 +349,8 @@ application uses.
 
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
 Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args
-`{ from, to, ms }` (a non-positive or non-finite duration is rejected at placement).
-Progress comes from Effect's clock, so tests advance it with TestClock; the
+`{ from, to, ms }` (a non-positive or non-finite duration is rejected at
+placement). Progress comes from Effect's clock, so tests advance it with TestClock; the
 stream ends with `Finished` carrying the exact end value, and the value rests
 at `to` either way. Linear interpolation only: easing curves stay the
 application's job.
@@ -357,8 +359,8 @@ application's job.
 `{ phase, generation }` with `phase` moving shown → hiding → hidden:
 `Hide` starts the timed `hiding` phase, and the `Hidden` fact it yields
 carries its generation, so a `Show` in between wins and the late fact is
-ignored. Args `{ durationMs }` (positive and finite). `isVisible` reads whether content
-renders (shown or mid-exit). The timeout Command is the default owner; a
+ignored. Args `{ durationMs }` (positive and finite). `isVisible` reads
+whether content renders (shown or mid-exit). The timeout Command is the default owner; a
 `transitionend` Mount stays a future opt-in, not a second timer.
 
 `Spring` pulls one number toward `to` with `{ stiffness, damping }` physics
