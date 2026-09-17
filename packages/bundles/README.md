@@ -120,6 +120,13 @@ at startup and kept current by the window's `online`/`offline` events. One
 Message `Changed { online }`, no args, no OutMessage. Without a window the
 stream is empty and the slice stays at its default, so SSR renders online.
 
+`sse({ name, createSource? })` is the one-directional sibling: the Model
+holds `{ url, status, lastError }`, the resource owns the EventSource, and a
+subscription streams its messages. No `send` — the server speaks, the Model
+listens. A `Failed` records the error but stays `connecting`: the browser
+reconnects dropped streams itself. Event payloads are always text per the
+SSE spec.
+
 `websocket({ name, createSocket? })` makes a duplex socket bundle: the Model
 holds `{ url, status, lastError }` with `status` moving
 closed → connecting → open. The resource owns the socket (one assembly holds
