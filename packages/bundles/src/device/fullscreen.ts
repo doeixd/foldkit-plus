@@ -22,8 +22,9 @@ const failMessage = (error: unknown): string =>
 
 /**
  * Requests fullscreen for an element. The capability is feature-checked on
- * the element itself (SVG and HTML elements both qualify), so a platform
- * without it yields `Failed` instead of throwing.
+ * the element itself (SVG and HTML elements both qualify), falling back to
+ * the legacy `webkit` prefix; a platform with neither yields `Failed`
+ * instead of throwing.
  */
 export const enterFullscreen = (element: Element): Command<FullscreenMessage, never, never> => ({
   name: 'Fullscreen.enter',
@@ -33,11 +34,13 @@ export const enterFullscreen = (element: Element): Command<FullscreenMessage, ne
       try: () => {
         const requestable = element as unknown as {
           readonly requestFullscreen?: unknown
+          readonly webkitRequestFullscreen?: unknown
         }
-        if (typeof requestable.requestFullscreen !== 'function') {
+        const request = requestable.requestFullscreen ?? requestable.webkitRequestFullscreen
+        if (typeof request !== 'function') {
           throw new Error('fullscreen is unavailable')
         }
-        return (requestable.requestFullscreen as () => Promise<void>).call(element)
+        return (request as () => Promise<void>).call(element)
       },
       catch: (error: unknown) => error,
     }),
@@ -48,17 +51,25 @@ export const enterFullscreen = (element: Element): Command<FullscreenMessage, ne
   ),
 })
 
-/** Leaves fullscreen. Without a document API it yields `Failed`, not a throw. */
+/** Leaves fullscreen, with the same legacy fallback. Without a document API it yields `Failed`, not a throw. */
 export const exitFullscreen = (): Command<FullscreenMessage, never, never> => ({
   name: 'Fullscreen.exit',
   args: {},
   effect: Effect.matchEffect(
     Effect.tryPromise({
       try: () => {
-        if (typeof document === 'undefined' || typeof document.exitFullscreen !== 'function') {
+        if (typeof document === 'undefined') {
           throw new Error('fullscreen is unavailable')
         }
-        return document.exitFullscreen()
+        const api = document as unknown as {
+          readonly exitFullscreen?: unknown
+          readonly webkitExitFullscreen?: unknown
+        }
+        const exit = api.exitFullscreen ?? api.webkitExitFullscreen
+        if (typeof exit !== 'function') {
+          throw new Error('fullscreen is unavailable')
+        }
+        return (exit as () => Promise<void>).call(document)
       },
       catch: (error: unknown) => error,
     }),

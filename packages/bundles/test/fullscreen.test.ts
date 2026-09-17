@@ -44,6 +44,20 @@ describe('enterFullscreen', () => {
       FullscreenMessage.Failed({ message: 'fullscreen is unavailable' }),
     )
   })
+
+  it('falls back to the legacy prefix', async () => {
+    let requested = 0
+    const legacy = {
+      webkitRequestFullscreen: () => {
+        requested++
+        return Promise.resolve()
+      },
+    } as unknown as Element
+    expect(await Effect.runPromise(enterFullscreen(legacy).effect)).toEqual(
+      FullscreenMessage.Entered(),
+    )
+    expect(requested).toBe(1)
+  })
 })
 
 describe('exitFullscreen', () => {
@@ -80,15 +94,48 @@ describe('exitFullscreen', () => {
     }
   })
 
-  it('yields Failed without the document capability', async () => {
-    const original = document.exitFullscreen
+  it('falls back to the legacy prefix', async () => {
+    const originalExit = document.exitFullscreen
+    const originalWebkit = (document as unknown as Record<string, unknown>).webkitExitFullscreen
+    let exited = 0
     Object.defineProperty(document, 'exitFullscreen', { value: undefined, configurable: true })
+    Object.defineProperty(document, 'webkitExitFullscreen', {
+      value: () => {
+        exited++
+        return Promise.resolve()
+      },
+      configurable: true,
+    })
+    try {
+      expect(await Effect.runPromise(exitFullscreen().effect)).toEqual(FullscreenMessage.Exited())
+      expect(exited).toBe(1)
+    } finally {
+      Object.defineProperty(document, 'exitFullscreen', { value: originalExit, configurable: true })
+      Object.defineProperty(document, 'webkitExitFullscreen', {
+        value: originalWebkit,
+        configurable: true,
+      })
+    }
+  })
+
+  it('yields Failed without the document capability', async () => {
+    const originalExit = document.exitFullscreen
+    const originalWebkit = (document as unknown as Record<string, unknown>).webkitExitFullscreen
+    Object.defineProperty(document, 'exitFullscreen', { value: undefined, configurable: true })
+    Object.defineProperty(document, 'webkitExitFullscreen', {
+      value: undefined,
+      configurable: true,
+    })
     try {
       expect(await Effect.runPromise(exitFullscreen().effect)).toEqual(
         FullscreenMessage.Failed({ message: 'fullscreen is unavailable' }),
       )
     } finally {
-      Object.defineProperty(document, 'exitFullscreen', { value: original, configurable: true })
+      Object.defineProperty(document, 'exitFullscreen', { value: originalExit, configurable: true })
+      Object.defineProperty(document, 'webkitExitFullscreen', {
+        value: originalWebkit,
+        configurable: true,
+      })
     }
   })
 })
