@@ -114,6 +114,8 @@ corrects it on subscribe. The Solid equivalent this replaces:
 
 ## Media: `foldkit-primitives/media`
 
+> Reference: [`./media/README.md`](./media/README.md)
+
 `MediaQuery` follows one CSS media query. Model `{ matches: boolean }`,
 one Message `Changed { matches }`, args `{ query: string }`. The stream emits
 the current value on subscribe, then every change; without `matchMedia` it is
@@ -142,6 +144,8 @@ recognized, and a multi-touch Mac UA reads as iOS. `isBrowser()`/`isServer()` sp
 client for init defaults.
 
 ## Net: `foldkit-primitives/net`
+
+> Reference: [`./net/README.md`](./net/README.md)
 
 `Online` keeps `online: boolean` in the Model, read from `navigator.onLine`
 at startup and kept current by the window's `online`/`offline` events. One
@@ -176,6 +180,8 @@ the Command fails, instead of throwing.
 
 ## Time: `foldkit-primitives/time`
 
+> Reference: [`./time/README.md`](./time/README.md)
+
 `Timer` counts ticks while running. Model `{ count, running }`, Messages
 `Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive and finite —
 anything else is rejected at placement). The tick stream runs on
@@ -207,6 +213,8 @@ platform, not a phrase table. There is deliberately no `now` helper:
 `Clock.currentTimeMillis` already is it.
 
 ## Events: `foldkit-primitives/events`
+
+> Reference: [`./events/README.md`](./events/README.md)
 
 `Visibility` keeps `visible: boolean` in the Model, read from the document
 at startup (SSR assumes visible) and kept current by `visibilitychange`:
@@ -241,6 +249,8 @@ a window each stream is empty instead of throwing.
 
 ## Observers: `foldkit-primitives/observers`
 
+> Reference: [`./observers/README.md`](./observers/README.md)
+
 `Resize` and `Intersection` are Mounts, not bundles: element-scoped
 observation attaches in views, not Model slots. Attach `Resize()` (or
 `Intersection()`) with `h.OnMount` on the element. There are no ref objects
@@ -260,6 +270,8 @@ disconnects. They keep observing across time-travel pause — replay traffic
 is same-valued and harmless.
 
 ## Device: `foldkit-primitives/device`
+
+> Reference: [`./device/README.md`](./device/README.md)
 
 `Geolocation` watches the device position while placed. Model `{ status,
 coords, lastError }` with `status` unknown → ready; denial is its own status
@@ -297,6 +309,8 @@ owns fullscreen state.
 
 ## DOM: `foldkit-primitives/dom`
 
+> Reference: [`./dom/README.md`](./dom/README.md)
+
 `copyText` copies text as a Command: use it in `update` beside any bundle.
 It yields `Copied` on success and `CopyFailed` otherwise — denial, insecure
 context, or no clipboard API (SSR) all become the failure Message instead of
@@ -317,6 +331,8 @@ rewrites the field with approximate caret restore, and emits
 state, like any controlled input.
 
 ## State: `foldkit-primitives/state`
+
+> Reference: [`./state/README.md`](./state/README.md)
 
 `Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`
 while unknown. Every transition clamps into range: past the last page lands on
@@ -397,6 +413,8 @@ unions. The field refs and wrapper Messages are the same ones the rest of the
 application uses.
 
 ## Motion: `foldkit-primitives/motion`
+
+> Reference: [`./motion/README.md`](./motion/README.md)
 
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
 Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args
