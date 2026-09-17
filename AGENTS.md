@@ -440,6 +440,12 @@ installed `.d.ts` before reaching for a remembered API.
   would need library internals to satisfy an argument, the library should read
   them itself.
 
+- **A service-requiring bundle helper pins the whole spec's `R` to `never`.**
+  `Bundle.make` infers `R` across init, update, subscriptions, resources, and
+  helpers; one helper whose Commands need a service does not widen it, and the
+  mismatch surfaces as `never` everywhere else. Annotate `make`'s generics
+  explicitly (`R` and `S` as the service) instead of fighting inference.
+
 **Async**
 
 - **Re-check invariants after every `await`.** A `disposed` flag read once
