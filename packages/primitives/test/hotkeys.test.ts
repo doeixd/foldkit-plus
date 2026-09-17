@@ -37,6 +37,14 @@ describe('matchHotkey', () => {
     expect(matchHotkey('control+k', press({ ctrl: true }))).toBe(true)
   })
 
+  it('reads key aliases', () => {
+    expect(matchHotkey('space', press({ key: ' ' }))).toBe(true)
+    expect(matchHotkey(' ', press({ key: ' ' }))).toBe(true)
+    expect(matchHotkey('esc', press({ key: 'Escape' }))).toBe(true)
+    expect(matchHotkey('escape', press({ key: 'Escape' }))).toBe(true)
+    expect(matchHotkey('space', press({ key: 'Enter' }))).toBe(false)
+  })
+
   it('requires exact modifiers: extras fail', () => {
     expect(matchHotkey('ctrl+k', press({ ctrl: true, shift: true }))).toBe(false)
     expect(matchHotkey('k', press({ meta: true }))).toBe(false)

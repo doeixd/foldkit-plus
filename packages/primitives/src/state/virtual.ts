@@ -403,7 +403,7 @@ export interface MasonryPlacement {
  * item packed into the currently shortest column. Unmeasured items use the
  * estimate; poisoned heights fall back the same way. This is layout only,
  * not windowing — every placed item renders, so it fits hundreds of images,
- * not hundred-thousands. needing a windowed grid is a different algorithm.
+ * not hundred-thousands. Needing a windowed grid is a different algorithm.
  */
 export const masonry = (
   keys: ReadonlyArray<string>,
