@@ -13,11 +13,11 @@ imports.
 
 | State | Owner | Form |
 | --- | --- | --- |
-| A media query match, breakpoint, presence, tick count, tween value, page, undo stack, locale, selection, or position | the parent Model | bundle, placed like any other |
+| A placed slice: match, count, page, value, selection, locale, scroll position, heights | the parent Model | bundle, placed like any other |
 | Key presses, pointer moves, scroll positions, focus identity | the parent Model, if kept | entry mapped to the parent's Message |
-| Element size, visibility, mutations, bounds, focus | the element, observed | Mount attached in the view |
-| A clipboard write, share, script load, fullscreen switch | nothing (one-shot) | Command in `update` |
-| A page list, relative time, platform | nothing (derived) | pure function |
+| Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
+| A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
+| A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
 
 A bundle holds no state. Placing it twice observes twice; share the field
 instead. The browser, clock, or server only reports facts as Messages.
@@ -85,7 +85,7 @@ into a chord answer. Slices that must survive reload persist through
   bundle collides at `assemble`.
 - **OutMessages are never dropped by omission.** `Debounce` and `Throttle`
   require `onOut` at placement; `Bundle.ignore` drops one on purpose.
-- **Presence and Timer run on Effect's clock.** `TestClock.adjust` advances
+- **Timers, tweens, debounces, and presence run on Effect's clock.** `TestClock.adjust` advances
   them in tests; a placed Presence hides through a real `sleep` otherwise.
 - **Init is a safe default, not a read.** `matches: false`, `online: true`,
   count zero: SSR renders these, and subscriptions then report live facts.
