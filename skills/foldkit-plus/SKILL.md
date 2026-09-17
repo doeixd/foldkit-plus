@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react, foldkit-react-codegen, foldkit-bundle, foldkit-bundle-surface), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, or reusable Submodels, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, or Bundle.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react, foldkit-react-codegen, foldkit-bundle, foldkit-bundle-surface, foldkit-bundles), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, or reusable Submodels, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, or Bundle.
 license: MIT
 metadata:
   version: '0.5.0'
@@ -36,6 +36,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
 | Restyling or adding behaviour to views, including `@foldkit/ui` | the view contract | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
+| A media query, presence, timer, pagination, undo history, socket, resize, or clipboard | the parent Model | `foldkit-bundles` | [bundles.md](references/bundles.md) |
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
@@ -57,7 +58,7 @@ Foldkit app (Model · Message · update)
        ├─ foldkit-mirror
        └─ foldkit-mixins-surface
 foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui
-foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface)
+foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-bundles (primitives)
 ```
 
 `foldkit-surface` is the shared seam: most packages consume a Projection
