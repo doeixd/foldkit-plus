@@ -73,7 +73,7 @@ friends lift with `Subscription.persistent`.
 
 - **One placement observes one query.** Two `MediaQuery` placements with the
   same query open two listeners; share the field instead.
-- **A non-positive timer interval is rejected** at placement, naming it.
+- **A non-positive or non-finite timer interval is rejected** at placement, naming it.
 - **`Received` and `Sent` leave the Model unchanged.** They exist so agents,
   journals, and DevTools see the traffic.
 - **One assembly holds one socket, stream, or watch.** The resource tag is per

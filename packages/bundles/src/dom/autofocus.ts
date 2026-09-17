@@ -14,7 +14,7 @@ export type Focused = typeof Focused.Type
 export const Autofocus = Mount.define('Autofocus', {
   messages: [Focused],
   execute: ({ element }) =>
-    Effect.gen(function* () {
+    Effect.sync(() => {
       const focusable = element as unknown as { readonly focus?: unknown }
       if (typeof focusable.focus === 'function') {
         ;(focusable.focus as () => void).call(element)

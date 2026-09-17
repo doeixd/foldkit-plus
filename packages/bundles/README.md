@@ -122,7 +122,8 @@ const placements = Page.assemble(Page.place(PrefersDark, 'dark'))
 ```
 
 `Breakpoints` derives names from one `resize` listener: args
-`{ breakpoints }` map names to mobile-first min-widths, Model
+`{ breakpoints }` map names to mobile-first min-widths (finite — anything
+else is rejected at placement), Model
 `{ width, breakpoint }`, one Message `Changed { width }`. The breakpoint is
 the largest name at or below the width (ties break alphabetically); SSR
 starts at width 0 with `null`. Placing both `Breakpoints` and `WindowSize`
@@ -169,8 +170,8 @@ the Command fails, instead of throwing.
 ## Time: `foldkit-bundles/time`
 
 `Timer` counts ticks while running. Model `{ count, running }`, Messages
-`Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive — a
-non-positive interval is rejected at placement). The tick stream runs on
+`Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive and finite —
+anything else is rejected at placement). The tick stream runs on
 Effect's clock, so tests advance it with TestClock instead of waiting; while
 stopped the stream is empty. Restarting keeps the count; only `Ticked`
 advances it.
@@ -210,7 +211,7 @@ application `update`, not here.
 window on subscribe and kept current by one `resize` listener. SSR starts
 at zero; teardown removes the listener.
 
-`Idle` keeps `idle: boolean` in the Model, args `{ timeoutMs }` (positive).
+`Idle` keeps `idle: boolean` in the Model, args `{ timeoutMs }` (positive and finite).
 While active, activity (mouse, keys, pointer, scroll) debounced past the
 timeout settles to `BecameIdle`; while idle, the first activity wakes to
 `BecameActive` and the dependency flip restarts the watch. Starts active —
@@ -346,7 +347,7 @@ application uses.
 
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
 Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args
-`{ from, to, ms }` (a non-positive duration is rejected at placement).
+`{ from, to, ms }` (a non-positive or non-finite duration is rejected at placement).
 Progress comes from Effect's clock, so tests advance it with TestClock; the
 stream ends with `Finished` carrying the exact end value, and the value rests
 at `to` either way. Linear interpolation only: easing curves stay the
@@ -356,12 +357,12 @@ application's job.
 `{ phase, generation }` with `phase` moving shown → hiding → hidden:
 `Hide` starts the timed `hiding` phase, and the `Hidden` fact it yields
 carries its generation, so a `Show` in between wins and the late fact is
-ignored. Args `{ durationMs }` (positive). `isVisible` reads whether content
+ignored. Args `{ durationMs }` (positive and finite). `isVisible` reads whether content
 renders (shown or mid-exit). The timeout Command is the default owner; a
 `transitionend` Mount stays a future opt-in, not a second timer.
 
 `Spring` pulls one number toward `to` with `{ stiffness, damping }` physics
-(positive): Model `{ value, velocity, running }`, Messages
+(positive and finite): Model `{ value, velocity, running }`, Messages
 `Started`/`Stopped`/`Ticked`/`Finished`, args `{ from, to, stiffness,
 damping }`. Fixed 16ms semi-implicit Euler makes the trajectory identical on
 the live clock and TestClock; the stream ends with `Finished` carrying the

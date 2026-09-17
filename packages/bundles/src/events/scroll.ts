@@ -13,13 +13,14 @@ export const ScrollMessage = defineMessageUnion({
 export type ScrollMessage = typeof ScrollMessage.Type
 
 /**
- * Scrolls on the window. Without a window the stream is empty instead of
- * throwing. Lift with `Subscription.persistent`, mapping into the parent's
- * Message.
+ * Scrolls on the window, in the capture phase so container scrolls (which
+ * do not bubble) report too. Without a window the stream is empty instead
+ * of throwing. Lift with `Subscription.persistent`, mapping into the
+ * parent's Message.
  */
 export const scrollEvents = (): Stream.Stream<ScrollMessage> => {
   if (typeof window === 'undefined') return Stream.empty
-  return Stream.fromEventListener(window, 'scroll').pipe(
+  return Stream.fromEventListener(window, 'scroll', { capture: true }).pipe(
     Stream.map(() => ScrollMessage.Scrolled({ x: window.scrollX, y: window.scrollY })),
   )
 }
