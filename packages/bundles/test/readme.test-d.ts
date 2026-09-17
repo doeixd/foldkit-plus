@@ -8,6 +8,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { MediaQuery, PrefersDark, PrefersReducedMotion } from '../src/media/index.js'
+import { history } from '../src/state/index.js'
 
 const Dark = Bundle.declare(MediaQuery, 'dark')
 
@@ -41,3 +42,9 @@ const preset = WidePage.assemble(
 
 void config
 void preset
+
+// State: undo/redo over any value Schema.
+const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })
+const Doc = Bundle.declare(EditHistory, 'doc')
+
+void Doc
