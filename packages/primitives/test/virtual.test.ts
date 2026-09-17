@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isAtEnd,
   offsetFor,
+  stickyHeader,
   totalHeight,
   Virtual,
   VirtualMessage,
@@ -314,5 +315,33 @@ describe('Virtual in an assembly', () => {
       ...config,
     })
     expect(Object.keys(assembly.subscriptions())).toEqual([])
+  })
+})
+
+describe('stickyHeader', () => {
+  const sections = [
+    { key: 'a-m', index: 0 },
+    { key: 'n-z', index: 12 },
+  ]
+
+  it('sticks the last section at or before the window start', () => {
+    expect(stickyHeader(sections, 0)).toBe('a-m')
+    expect(stickyHeader(sections, 11)).toBe('a-m')
+    expect(stickyHeader(sections, 12)).toBe('n-z')
+    expect(stickyHeader(sections, 99)).toBe('n-z')
+  })
+
+  it('sticks nothing above the first section or without sections', () => {
+    expect(stickyHeader([{ key: 'n-z', index: 12 }], 0)).toBe(null)
+    expect(stickyHeader([], 5)).toBe(null)
+  })
+
+  it('answers unsorted input all the same', () => {
+    const shuffled = [
+      { key: 'n-z', index: 12 },
+      { key: 'a-m', index: 0 },
+    ]
+    expect(stickyHeader(shuffled, 12)).toBe('n-z')
+    expect(stickyHeader(shuffled, 5)).toBe('a-m')
   })
 })

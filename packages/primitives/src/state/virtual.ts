@@ -366,3 +366,25 @@ export const MeasureRow = Mount.defineStream('MeasureRow', {
       }),
     ),
 })
+
+/**
+ * Which section header sticks for a window: the last section starting at
+ * or before the first rendered row, or null above the first section. Order
+ * independent — the scan takes the maximum, so unsorted input still
+ * answers. CSS `position: sticky` does the sticking; this answers *what*
+ * sticks, for styling and callbacks.
+ */
+export const stickyHeader = (
+  sections: ReadonlyArray<{ readonly key: string; readonly index: number }>,
+  startIndex: number,
+): string | null => {
+  let current: string | null = null
+  let currentIndex = -1
+  for (const section of sections) {
+    if (section.index <= startIndex && section.index > currentIndex) {
+      current = section.key
+      currentIndex = section.index
+    }
+  }
+  return current
+}

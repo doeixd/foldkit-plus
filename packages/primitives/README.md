@@ -370,10 +370,11 @@ scrolled lists, map the scroll entry into `Scrolled`; for follow-bottom,
 hold the end while `isAtEnd` and scroll on extend; to anchor a prepend,
 re-`Scrolled` by the totals' delta. Render each row keyed (with
 `aria-rowcount`/`posinset` from the window) so per-row placements keep
-identity. The sums never name an axis: pass column widths as heights and a
-horizontal offset as scroll position to window a carousel the same way —
-no parallel horizontal bundle. Sticky headers, lanes, and per-index
-estimates stay out by design.
+identity. `stickyHeader(sections, start)` answers which section header
+sticks — CSS `position: sticky` does the sticking. The sums never name an
+axis: pass column widths as heights and a horizontal offset as scroll
+position to window a carousel the same way — no parallel horizontal
+bundle. Lanes and per-index estimates stay out by design.
 
 Persisted state lives one package over: `Mirror.kv(App, { key, fields })`
 keeps a Model slice in Effect's `KeyValueStore` (localStorage in the
