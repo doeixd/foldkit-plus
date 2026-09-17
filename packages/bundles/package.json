@@ -38,6 +38,10 @@
       "types": "./dist/net/index.d.mts",
       "import": "./dist/net/index.mjs"
     },
+    "./observers": {
+      "types": "./dist/observers/index.d.mts",
+      "import": "./dist/observers/index.mjs"
+    },
     "./state": {
       "types": "./dist/state/index.d.mts",
       "import": "./dist/state/index.mjs"

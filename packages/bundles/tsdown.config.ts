@@ -5,6 +5,7 @@ export default defineConfig({
     'src/index.ts',
     'src/media/index.ts',
     'src/net/index.ts',
+    'src/observers/index.ts',
     'src/state/index.ts',
     'src/time/index.ts',
   ],

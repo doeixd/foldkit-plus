@@ -140,6 +140,23 @@ Effect's clock, so tests advance it with TestClock instead of waiting; while
 stopped the stream is empty. Restarting keeps the count; only `Ticked`
 advances it.
 
+## Observers: `foldkit-bundles/observers`
+
+`Resize` and `Intersection` are Mounts, not bundles: element-scoped
+observation attaches in views, not Model slots.
+
+```ts
+import { Intersection, Resize } from 'foldkit-bundles/observers'
+
+h.div([h.OnMount(Resize())], [content])
+```
+
+`Resize()` reports `Resized { width, height }` from the element's content
+box; `Intersection()` reports `IntersectionChanged { isIntersecting, ratio }`
+on viewport crossings. Without the observer API (SSR, old browser) they emit
+nothing instead of throwing; teardown disconnects. They keep observing across
+time-travel pause — replay traffic is same-valued and harmless.
+
 ## State: `foldkit-bundles/state`
 
 `Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`
