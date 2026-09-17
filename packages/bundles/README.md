@@ -120,6 +120,15 @@ at startup and kept current by the window's `online`/`offline` events. One
 Message `Changed { online }`, no args, no OutMessage. Without a window the
 stream is empty and the slice stays at its default, so SSR renders online.
 
+## Time: `foldkit-bundles/time`
+
+`Timer` counts ticks while running. Model `{ count, running }`, Messages
+`Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive — a
+non-positive interval is rejected at placement). The tick stream runs on
+Effect's clock, so tests advance it with TestClock instead of waiting; while
+stopped the stream is empty. Restarting keeps the count; only `Ticked`
+advances it.
+
 ## Failure and recovery
 
 | Failure | Behaviour |

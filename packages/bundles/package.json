@@ -38,6 +38,10 @@
       "types": "./dist/net/index.d.mts",
       "import": "./dist/net/index.mjs"
     },
+    "./time": {
+      "types": "./dist/time/index.d.mts",
+      "import": "./dist/time/index.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
