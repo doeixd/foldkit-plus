@@ -30,6 +30,10 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./dom": {
+      "types": "./dist/dom/index.d.mts",
+      "import": "./dist/dom/index.mjs"
+    },
     "./media": {
       "types": "./dist/media/index.d.mts",
       "import": "./dist/media/index.mjs"

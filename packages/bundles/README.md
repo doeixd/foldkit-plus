@@ -157,6 +157,13 @@ on viewport crossings. Without the observer API (SSR, old browser) they emit
 nothing instead of throwing; teardown disconnects. They keep observing across
 time-travel pause — replay traffic is same-valued and harmless.
 
+## DOM: `foldkit-bundles/dom`
+
+`copyText` copies text as a Command: use it in `update` beside any bundle.
+It yields `Copied` on success and `CopyFailed` otherwise — denial, insecure
+context, or no clipboard API (SSR) all become the failure Message instead of
+throwing. No Model involved: the clipboard is not application state.
+
 ## State: `foldkit-bundles/state`
 
 `Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`

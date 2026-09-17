@@ -1,3 +1,4 @@
+export * from './dom/index.js'
 export * from './media/index.js'
 export * from './net/index.js'
 export * from './observers/index.js'
