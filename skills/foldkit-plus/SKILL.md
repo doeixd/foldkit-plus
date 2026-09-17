@@ -3,7 +3,7 @@ name: foldkit-plus
 description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react, foldkit-react-codegen, foldkit-bundle, foldkit-bundle-surface, foldkit-primitives), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, or reusable Submodels, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, or Bundle.
 license: MIT
 metadata:
-  version: '0.5.0'
+  version: '0.6.0'
   repository: https://github.com/doeixd/foldkit-plus
 ---
 
