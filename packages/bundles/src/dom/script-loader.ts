@@ -18,34 +18,55 @@ export type ScriptMessage = typeof ScriptMessage.Type
 const failMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+// Tags still fetching, by URL: concurrent loads share one tag and its fate.
+const inflight = new Map<string, Promise<void>>()
+
 /** Loads a script by URL, once per URL. */
 export const loadScript = (src: string): Command<ScriptMessage, never, never> => ({
   name: 'Script.load',
   args: { src },
   effect: Effect.matchEffect(
     Effect.tryPromise({
-      try: () =>
-        new Promise<void>((resolve, reject) => {
-          if (typeof document === 'undefined') {
-            reject(new Error('script loading is unavailable'))
-            return
-          }
-          // getAttribute, not .src: the property resolves to an absolute URL
-          // and would never equal the given string.
-          const present = Array.from(document.getElementsByTagName('script')).some(
-            element => element.getAttribute('src') === src,
-          )
-          if (present) {
-            resolve()
-            return
-          }
+      try: () => {
+        if (typeof document === 'undefined') {
+          return Promise.reject(new Error('script loading is unavailable'))
+        }
+        // Concurrent loads share one tag and its fate, instead of racing
+        // past the presence check and fetching twice: the in-flight entry
+        // is checked before presence, in the same synchronous block that
+        // appends, so a second load cannot slip between them.
+        const running = inflight.get(src)
+        if (running !== undefined) return running
+        // getAttribute, not .src: the property resolves to an absolute URL
+        // and would never equal the given string.
+        const present = Array.from(document.getElementsByTagName('script')).some(
+          element => element.getAttribute('src') === src,
+        )
+        if (present) return Promise.resolve()
+        const completion = new Promise<void>((resolve, reject) => {
           const element = document.createElement('script')
           element.src = src
           element.async = true
           element.onload = () => resolve()
-          element.onerror = () => reject(new Error(`failed to load script: ${src}`))
+          element.onerror = () => {
+            // A dead tag must not satisfy later presence checks.
+            element.remove()
+            reject(new Error(`failed to load script: ${src}`))
+          }
           document.head.appendChild(element)
-        }),
+        })
+        const tracked = completion.then(
+          () => {
+            inflight.delete(src)
+          },
+          (error: unknown) => {
+            inflight.delete(src)
+            throw error
+          },
+        )
+        inflight.set(src, tracked)
+        return tracked
+      },
       catch: (error: unknown) => error,
     }),
     {

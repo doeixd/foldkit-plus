@@ -47,6 +47,64 @@ describe('loadScript', () => {
     }
   })
 
+  it('concurrent loads share one tag and its fate', async () => {
+    const src = 'https://example.com/d.js'
+    try {
+      const both = await Effect.runPromise(
+        Effect.gen(function* () {
+          const first = yield* Effect.forkChild(loadScript(src).effect)
+          const second = yield* Effect.forkChild(loadScript(src).effect)
+          for (let i = 0; i < 100 && withSrc(src).length === 0; i++) {
+            yield* Effect.yieldNow
+          }
+          expect(withSrc(src)).toHaveLength(1)
+          fire(src, 'load')
+          return [yield* Fiber.join(first), yield* Fiber.join(second)] as const
+        }),
+      )
+      expect(both).toEqual([ScriptMessage.Loaded(), ScriptMessage.Loaded()])
+    } finally {
+      document.head.querySelectorAll(`script[src="${src}"]`).forEach(element => element.remove())
+    }
+  })
+
+  it('concurrent loads share a failure', async () => {
+    const src = 'https://example.com/e.js'
+    try {
+      const both = await Effect.runPromise(
+        Effect.gen(function* () {
+          const first = yield* Effect.forkChild(loadScript(src).effect)
+          const second = yield* Effect.forkChild(loadScript(src).effect)
+          for (let i = 0; i < 100 && withSrc(src).length === 0; i++) {
+            yield* Effect.yieldNow
+          }
+          fire(src, 'error')
+          return [yield* Fiber.join(first), yield* Fiber.join(second)] as const
+        }),
+      )
+      expect(both).toEqual([
+        ScriptMessage.LoadFailed({ message: `failed to load script: ${src}` }),
+        ScriptMessage.LoadFailed({ message: `failed to load script: ${src}` }),
+      ])
+      // The dead tag was removed, so a retry fetches afresh.
+      expect(withSrc(src)).toHaveLength(0)
+      const retry = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(loadScript(src).effect)
+          for (let i = 0; i < 100 && withSrc(src).length === 0; i++) {
+            yield* Effect.yieldNow
+          }
+          expect(withSrc(src)).toHaveLength(1)
+          fire(src, 'load')
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(retry).toEqual(ScriptMessage.Loaded())
+    } finally {
+      document.head.querySelectorAll(`script[src="${src}"]`).forEach(element => element.remove())
+    }
+  })
+
   it('yields LoadFailed on error', async () => {
     const src = 'https://example.com/c.js'
     const message = await Effect.runPromise(
