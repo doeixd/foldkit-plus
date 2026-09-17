@@ -1,5 +1,5 @@
 /**
- * An integer range as an array: `range(1, 4)` is `[1, 2, 3]`, inclusive of
+ * A numeric range as an array: `range(1, 4)` is `[1, 2, 3]`, inclusive of
  * the start and exclusive of the end, like `Array.from` length math. The
  * pagination companion: `range(1, (pageCount(model) ?? 0) + 1)` is the page
  * list. A zero or non-finite step would loop forever, so it throws, naming
