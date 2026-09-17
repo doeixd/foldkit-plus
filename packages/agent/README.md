@@ -516,6 +516,12 @@ not matter.
 snippets written against Effect 3 need translating: `Schema.OptionFromSelf` is
 `Schema.Option` here.
 
+**Why capabilities expose Messages, never setters.** An agent changes the
+application exactly the way a person does: by causing a Message the
+application already handles, which `update` (normally via `evo`) reduces.
+There is no agent-side Model write, so nothing the agent does can bypass
+transition semantics or diverge from what replay shows.
+
 The [design rationale](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/agent-DESIGN.md) records the
 alternatives that were considered and rejected.
 

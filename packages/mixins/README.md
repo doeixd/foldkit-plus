@@ -245,7 +245,8 @@ while the condition is not.
 
 A Behavior is a reusable bundle of element-level interaction that does **not** own application
 state. Its attributes are built while resolving from the view's `input` and `h`, so it can only
-emit Messages from the view's own Message universe.
+emit Messages from the view's own Message universe. Like an agent capability,
+a Behavior points one way — toward a Message — and never gets a Model setter.
 
 ```ts
 const Focus = Behavior.forSlots(FieldSlots)<FieldInput, Message>({

@@ -423,6 +423,14 @@ popstate
   -> no second navigation write
 ```
 
+## How state changes here
+
+Ordinary edits use Message/`update`/`evo` like anywhere else; the mirror
+observes and represents. Restoration runs the other direction: the
+declared writable projection installs the URL/KV value into the Model on
+startup. The projection is declared up front, so restoration can only ever
+write the fields the application already linked.
+
 ## URL history behavior
 
 URL keys default to `history: 'push'`. A field such as free-form search text can

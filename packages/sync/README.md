@@ -956,6 +956,15 @@ Sync does **not** own:
 - peer-to-peer CRDT convergence;
 - application Message/shared-state migrations.
 
+## How state changes here
+
+Durable Messages replay the normal application `update` — which is where
+`evo` lives — so deterministic replay and optimistic application are the
+same code path, not two reducers. Checkpoints and adopted server state
+arrive the other way: structurally installed through the declared writable
+projection. Sync already verifies that durable Messages touch only the
+declared projection; treat any other write as a bug.
+
 ## Limits
 
 - IndexedDB is the built-in storage adapter today.

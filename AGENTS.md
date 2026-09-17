@@ -123,6 +123,11 @@ must make that visible.
   derives a contract consumed by another, show that handoff as architecture,
   not as two unrelated API snippets.
 - State what the package **does not own** when that boundary is important.
+- Ordinary application Model changes happen in `update`, normally using
+  `evo`; `ModelRef.set`/`modify` and `WritableProjection.set` are
+  infrastructure seams for installing already-derived values (checkpoints,
+  restoration, reconciliation) — never a shortcut around a Message. See
+  `docs/state-model.md`.
 
 A Surface may span several owners precisely because it observes rather than
 claims ownership. Apply the same reasoning throughout the docs: structural
