@@ -1,9 +1,11 @@
 # foldkit-bundles
 
 Ready-made [`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle)
-primitives: media queries, presence, timers, tweens, pagination, undo history,
-locales, selections, geolocation, sockets, server-sent events, observers, and
-clipboard. Each is an ordinary bundle (or Mount, or Command) under a
+primitives: media queries, breakpoints, visibility, presence, timers,
+intervals, debounce, tweens, springs, pagination, undo history, locales,
+selections, ranges, geolocation, cameras, permissions, fullscreen, sockets,
+broadcasts, observers, autofocus, masks, shares, and clipboard. Each is an
+ordinary bundle (or entry, Mount, Command, or pure function) under a
 tree-shakeable subpath, so an application pays only for the primitives it
 imports.
 
@@ -11,9 +13,11 @@ imports.
 
 | State | Owner | Form |
 | --- | --- | --- |
-| A media query match, presence, tick count, tween value, page, undo stack, locale, selection, or position | the parent Model | bundle, placed like any other |
-| Element size or visibility | the element, observed | Mount attached in the view |
-| A clipboard write | nothing (one-shot) | Command in `update` |
+| A media query match, breakpoint, presence, tick count, tween value, page, undo stack, locale, selection, or position | the parent Model | bundle, placed like any other |
+| Key presses, pointer moves, scroll positions, focus identity | the parent Model, if kept | entry mapped to the parent's Message |
+| Element size, visibility, mutations, bounds, focus | the element, observed | Mount attached in the view |
+| A clipboard write, share, script load, fullscreen switch | nothing (one-shot) | Command in `update` |
+| A page list, relative time, platform | nothing (derived) | pure function |
 
 A bundle holds no state. Placing it twice observes twice; share the field
 instead. The browser, clock, or server only reports facts as Messages.
@@ -37,13 +41,22 @@ const update = placements.update(model => ({ model }))
 ```
 
 `PrefersDark` and `PrefersReducedMotion` are presets that place with no args.
-`Online` (no args), `Timer` (`{ intervalMs }`), `Tween` (`{ from, to, ms }`),
-`Pagination` (`{ perPage }`), `Locale` (`{ default }`), `SelectionSet` (no
-args), `Geolocation` (no args), and `history({ name, value })` place the same
-way. `sse({ name })` and `websocket({ name })` are factories over a resource
-tag; `Presence` times its exit with a Command. `chat.helpers.send('hi')`
-sends on a placed socket; `copyText` is a Command; `Resize()` and
-`Intersection()` attach with `h.OnMount` in the view.
+`Online`, `Visibility`, and `WindowSize` (no args), `Timer` and `Interval`
+(`{ intervalMs }`), `Tween` (`{ from, to, ms }`), `Spring` (`{ from, to,
+stiffness, damping }`), `Pagination` (`{ perPage }`), `Locale` (`{ default
+}`), `SelectionSet` (no args), `Geolocation` (no args), `Idle` (`{
+timeoutMs }`), `Presence` (`{ durationMs }`), and `history({ name, value })`
+place the same way. `sse({
+name })`, `websocket({ name })`, `mediaDevices({ name })`, `mediaStream({
+name })`, and `permissions({ name })` are factories over a resource tag;
+`debounce({ name, value })` is a factory whose settled value surfaces as an
+OutMessage the placement handles with `onOut` — required, so it cannot be
+dropped. `Throttle` pairs leading-edge against that trailing edge.
+`chat.helpers.send('hi')` sends on a placed socket; `copyText`, `share`,
+`loadScript`, `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
+Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
+`Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
+friends lift with `Subscription.persistent`.
 
 ## Common tasks
 
@@ -63,9 +76,11 @@ sends on a placed socket; `copyText` is a Command; `Resize()` and
 - **A non-positive timer interval is rejected** at placement, naming it.
 - **`Received` and `Sent` leave the Model unchanged.** They exist so agents,
   journals, and DevTools see the traffic.
-- **One assembly holds one socket or stream.** The resource tag is per
-  module; a second placement of the same socket or SSE bundle collides at
-  `assemble`.
+- **One assembly holds one socket, stream, or watch.** The resource tag is per
+  module; a second placement of the same socket, SSE, camera, or permissions
+  bundle collides at `assemble`.
+- **OutMessages are never dropped by omission.** `Debounce` and `Throttle`
+  require `onOut` at placement; `Bundle.ignore` drops one on purpose.
 - **Presence and Timer run on Effect's clock.** `TestClock.adjust` advances
   them in tests; a placed Presence hides through a real `sleep` otherwise.
 - **Init is a safe default, not a read.** `matches: false`, `online: true`,

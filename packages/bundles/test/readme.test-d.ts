@@ -52,3 +52,36 @@ const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacit
 const Doc = Bundle.declare(EditHistory, 'doc')
 
 void Doc
+
+// Time: debounce settles through an OutMessage the placement handles.
+import { Interval, Timer, debounce, Throttle } from '../src/time/index.js'
+
+const Query = debounce({ name: 'Query', value: Schema.String })
+const SearchBox = Bundle.declare(Query, 'search')
+const SearchModel = Schema.Struct({ ...SearchBox.fields, fired: Schema.Array(Schema.String) })
+type SearchModel = typeof SearchModel.Type
+const SearchMessage = defineMessageUnion({ ...SearchBox.cases })
+const SearchPage = Bundle.parent({ Model: SearchModel, Message: SearchMessage })
+const search = SearchPage.assemble(
+  SearchPage.at(SearchBox, {
+    args: { delayMs: 300 },
+    onOut: out => model => ({ model: { ...model, fired: [...model.fired, out.value] } }),
+  }),
+)
+
+const Save = Bundle.declare(Throttle, 'save')
+const ThrottleModel = Schema.Struct({ ...Save.fields, fired: Schema.Array(Schema.Number) })
+type ThrottleModel = typeof ThrottleModel.Type
+const ThrottleMessage = defineMessageUnion({ ...Save.cases })
+const ThrottlePage = Bundle.parent({ Model: ThrottleModel, Message: ThrottleMessage })
+const throttled = ThrottlePage.assemble(
+  ThrottlePage.at(Save, {
+    args: { intervalMs: 1000 },
+    onOut: out => model => ({ model: { ...model, fired: [...model.fired, out.at] } }),
+  }),
+)
+
+void search
+void throttled
+void Timer
+void Interval
