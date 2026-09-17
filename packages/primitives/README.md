@@ -390,6 +390,20 @@ exact end value even when an underdamped spring overshoots on the way.
 `Tween` (fixed duration, linear) versus `Spring` (physics, settles) — pick
 the motion, not both.
 
+## Testing placements
+
+Every primitive is testable without the platform, following one pattern
+with three ingredients. First, substitute the environment: factories take
+`create` (streams, devices, permissions) or `request` (camera) doubles, so
+tests pass fakes instead of stubbing globals. Second, advance time instead
+of waiting it: anything on Effect's clock (debounce, throttle, presence,
+idle, timers, tweens) runs under `TestClock.adjust`. Third, never hang on a
+quiet stream: collect with a bounded `takeMessages`, which fails fast naming
+the stall. The settle-before-adjust rule applies throughout — yield after
+forking before the first `TestClock.adjust`, or dispatched events hit
+unregistered listeners. Each ingredient is demonstrated in this package's
+`test/` directory, named after its primitive.
+
 ## Failure and recovery
 
 | Failure | Behaviour |
