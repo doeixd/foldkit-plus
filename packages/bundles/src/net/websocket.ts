@@ -135,11 +135,22 @@ export const websocket = <const Name extends string>(config: {
             Effect.gen(function* () {
               const events = yield* Queue.unbounded<WebSocketMessage>()
               const socket = createSocket(url)
-              const offer = (message: WebSocketMessage) =>
-                Effect.runFork(Queue.offer(events, message))
+              // Offers run in arrival order: an async decode (Blob text) must
+              // not overtake a later message. Rejections settle the chain
+              // without breaking it; shutdown races are expected at teardown.
+              let tail: Promise<void> = Promise.resolve()
+              const enqueue = (effect: Effect.Effect<unknown>): void => {
+                const run = () =>
+                  Effect.runPromise(effect).then(
+                    () => undefined,
+                    () => undefined,
+                  )
+                tail = tail.then(run, run)
+              }
+              const offer = (message: WebSocketMessage) => enqueue(Queue.offer(events, message))
               socket.onopen = () => offer(WebSocketMessage.Opened())
               socket.onmessage = event => {
-                Effect.runFork(
+                enqueue(
                   Effect.flatMap(textOf(event.data), text =>
                     Queue.offer(events, WebSocketMessage.Received({ data: text })),
                   ),

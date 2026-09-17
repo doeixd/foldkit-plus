@@ -47,6 +47,10 @@ describe('Pagination transitions', () => {
     expect(at(unknown, PaginationMessage.GoToPage({ page: 40 })).page).toBe(40)
   })
 
+  it('treats a fractional page as page one', () => {
+    expect(at(loaded, PaginationMessage.GoToPage({ page: 2.5 })).page).toBe(1)
+  })
+
   it('a smaller total pulls the page back; a new size keeps the page when it fits', () => {
     expect(at(loaded, PaginationMessage.SetTotal({ total: 5 }))).toEqual({
       page: 1,

@@ -143,13 +143,8 @@ advances it.
 ## Observers: `foldkit-bundles/observers`
 
 `Resize` and `Intersection` are Mounts, not bundles: element-scoped
-observation attaches in views, not Model slots.
-
-```ts
-import { Intersection, Resize } from 'foldkit-bundles/observers'
-
-h.div([h.OnMount(Resize())], [content])
-```
+observation attaches in views, not Model slots. Attach `Resize()` (or
+`Intersection()`) with `h.OnMount` on the element.
 
 `Resize()` reports `Resized { width, height }` from the element's content
 box; `Intersection()` reports `IntersectionChanged { isIntersecting, ratio }`

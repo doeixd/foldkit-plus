@@ -128,3 +128,54 @@ describe('WebSocket against a server', () => {
     expect(returned.commands![0]!.args).toEqual({ data: 'hi' })
   })
 })
+
+describe('WebSocket assembly', () => {
+  it('refuses a second socket in one assembly', () => {
+    const ChatA = Bundle.declare(Chat, 'chatA')
+    const ChatB = Bundle.declare(Chat, 'chatB')
+    const TwoModel = Schema.Struct({ ...ChatA.fields, ...ChatB.fields })
+    type TwoModel = typeof TwoModel.Type
+    const TwoMessage = defineMessageUnion({ ...ChatA.cases, ...ChatB.cases })
+    const TwoPage = Bundle.parent({ Model: TwoModel, Message: TwoMessage })
+    expect(() =>
+      TwoPage.assemble(
+        TwoPage.at(ChatA, { args: { url: 'ws://a/chat' } }),
+        TwoPage.at(ChatB, { args: { url: 'ws://b/chat' } }),
+      ),
+    ).toThrow(/both use the Managed Resource "websocket"/)
+  })
+})
+
+describe('WebSocket message decoding', () => {
+  const fake = {
+    readyState: 1,
+    send: (_data: string) => undefined,
+    close: () => undefined,
+    onopen: null as ((event: any) => void) | null,
+    onmessage: null as ((event: any) => void) | null,
+    onclose: null as ((event: any) => void) | null,
+    onerror: null as ((event: any) => void) | null,
+  }
+  const fire = (data: unknown) => {
+    if (fake.onmessage === null) throw new Error('socket never attached')
+    fake.onmessage({ data })
+  }
+  const Binary = websocket({ name: 'Binary', createSocket: () => fake })
+
+  it('decodes string, Blob, and binary payloads as text', async () => {
+    const entry = Binary.resources!({ url: 'ws://test/chat' }).socket!
+    const acquired = await Effect.runPromise(Effect.scoped(entry.acquire('ws://test/chat')))
+    fire('hi')
+    fire(new Blob(['blob']))
+    fire(new Uint8Array([104, 105]))
+    const events = await Effect.runPromise(
+      takeMessages(Stream.fromQueue(acquired.events), 3, '5 seconds'),
+    )
+    expect(events).toEqual([
+      WebSocketMessage.Received({ data: 'hi' }),
+      WebSocketMessage.Received({ data: 'blob' }),
+      WebSocketMessage.Received({ data: 'hi' }),
+    ])
+    await Effect.runPromise(entry.release(acquired))
+  })
+})
