@@ -37,6 +37,12 @@ A bundle holds no state and performs no I/O by itself. The parent Model owns
 the placed slice; the browser (or server, or clock) only reports facts as
 Messages. The same rule as everywhere else: observation is not ownership.
 
+Solid developers will notice missing plumbing: there is no event bus
+because Messages are the bus, no memo because derivations are pure reads
+over the Model, and no reactive map or store because the Model holds plain
+data (Effect collections where mutation matters). None of it is missing by
+accident — one state machine leaves nowhere for a second one to live.
+
 ## The mental model
 
 ```text
@@ -232,7 +238,9 @@ Message; without a window each stream is empty instead of throwing.
 
 `Resize` and `Intersection` are Mounts, not bundles: element-scoped
 observation attaches in views, not Model slots. Attach `Resize()` (or
-`Intersection()`) with `h.OnMount` on the element.
+`Intersection()`) with `h.OnMount` on the element. There are no ref objects
+to thread: a Mount receives its element directly, and views take the rest
+as plain arguments.
 
 `Resize()` reports `Resized { width, height }` from the element's content
 box; `Intersection()` reports `IntersectionChanged { isIntersecting, ratio }`
@@ -334,6 +342,8 @@ startup with the configured `default` as fallback; `SetLocale` switches it.
 `SelectionSet` keeps string ids in first-selection order: `Select` (keeps
 position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
 `Clear`. `isSelected` reads membership. Both are pure logic, no streams.
+Keyed children — lists with stable identity — place through the bundle
+mechanism's `each`.
 `range(start, end, step?)` counts half-open numbers — the pagination page
 list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
 throws, naming it.
