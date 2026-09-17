@@ -231,8 +231,12 @@ repeat and modifiers) and releases, moves `{ x, y }`, scroll positions, and
 focus `{ tag, id }` — elements cross as tag and id, never as live nodes.
 `matchHotkey("ctrl+shift+k", press)` answers whether a press is a shortcut,
 so `update` stays a table of chords; matching is exact and auto-repeat never
-matches. Lift with `Subscription.persistent`, mapping into the parent's
-Message; without a window each stream is empty instead of throwing.
+matches. When the observed target itself depends on state, scope the entry
+through subscription dependencies and it restreams on change. When the
+handler must cancel the browser default, core
+`Subscription.fromEventFilterMap` maps synchronously inside dispatch. Lift
+with `Subscription.persistent`, mapping into the parent's Message; without
+a window each stream is empty instead of throwing.
 
 ## Observers: `foldkit-primitives/observers`
 
