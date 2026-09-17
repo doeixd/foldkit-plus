@@ -58,6 +58,9 @@ describe('Tween transitions', () => {
     expect(() => Page.at(Slide, { args: { ...args, ms: Number.POSITIVE_INFINITY } })).toThrow(
       /args do not match/,
     )
+    expect(() => Page.at(Slide, { args: { ...args, from: Number.NaN } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

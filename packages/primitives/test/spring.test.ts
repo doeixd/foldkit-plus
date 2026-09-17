@@ -74,6 +74,9 @@ describe('Spring transitions', () => {
     expect(() =>
       Page.at(Bounce, { args: { ...args, stiffness: Number.POSITIVE_INFINITY } }),
     ).toThrow(/args do not match/)
+    expect(() => Page.at(Bounce, { args: { ...args, to: Number.NaN } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

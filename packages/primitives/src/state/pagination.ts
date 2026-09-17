@@ -45,7 +45,7 @@ export const Pagination = Bundle.make('Pagination', {
       Schema.check(Schema.isGreaterThan(0)),
       Schema.check(Schema.isFinite()),
     ),
-    total: Schema.optional(Schema.NullOr(Schema.Number)),
+    total: Schema.optional(Schema.NullOr(Schema.Number.pipe(Schema.check(Schema.isFinite())))),
   }),
   init: args => ({
     model: { page: 1, perPage: args.perPage, total: args.total ?? null },

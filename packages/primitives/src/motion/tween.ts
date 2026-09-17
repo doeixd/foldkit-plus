@@ -25,8 +25,8 @@ export const Tween = Bundle.make('Tween', {
   Model: TweenModel,
   Message: TweenMessage,
   args: Schema.Struct({
-    from: Schema.Number,
-    to: Schema.Number,
+    from: Schema.Number.pipe(Schema.check(Schema.isFinite())),
+    to: Schema.Number.pipe(Schema.check(Schema.isFinite())),
     ms: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0)), Schema.check(Schema.isFinite())),
   }),
   init: args => ({ model: { value: args.from, running: false } }),

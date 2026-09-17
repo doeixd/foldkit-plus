@@ -29,6 +29,12 @@ describe('Pagination placement', () => {
       /args do not match/,
     )
   })
+
+  it('rejects a non-finite total', () => {
+    expect(() => Page.at(Pages, { args: { perPage: 10, total: Number.NaN } })).toThrow(
+      /args do not match/,
+    )
+  })
 })
 
 describe('Pagination transitions', () => {

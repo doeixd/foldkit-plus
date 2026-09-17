@@ -41,8 +41,8 @@ export const Spring = Bundle.make('Spring', {
   Model: SpringModel,
   Message: SpringMessage,
   args: Schema.Struct({
-    from: Schema.Number,
-    to: Schema.Number,
+    from: Schema.Number.pipe(Schema.check(Schema.isFinite())),
+    to: Schema.Number.pipe(Schema.check(Schema.isFinite())),
     stiffness: Schema.Number.pipe(
       Schema.check(Schema.isGreaterThan(0)),
       Schema.check(Schema.isFinite()),

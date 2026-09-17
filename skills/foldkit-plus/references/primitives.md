@@ -46,7 +46,8 @@ const update = placements.update(model => ({ model }))
 stiffness, damping }`), `Pagination` (`{ perPage }`), `Locale` (`{ default
 }`), `SelectionSet` (no args), `Geolocation` (no args), `Idle` (`{
 timeoutMs }`), `Presence` (`{ durationMs }`), `Virtual` (`{
-estimatedHeight, overscan }`), and `history({ name, value })`
+estimatedHeight, overscan, gap, paddingStart, paddingEnd }`, plus optional
+restore and settle options), and `history({ name, value })`
 place the same way. `sse({
 name })`, `websocket({ name })`, `mediaDevices({ name })`, `mediaStream({
 name })`, and `permissions({ name })` are factories over a resource tag;
