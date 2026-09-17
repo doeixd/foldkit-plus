@@ -54,8 +54,9 @@ pnpm add foldkit-bundles foldkit-bundle effect foldkit
 
 `effect` and `foldkit` are peer dependencies. Import per subpath —
 `foldkit-bundles/media`, `foldkit-bundles/net`, `foldkit-bundles/time`,
-`foldkit-bundles/state`, `foldkit-bundles/motion`, `foldkit-bundles/observers`,
-`foldkit-bundles/dom` — so bundlers drop the primitives you never import.
+`foldkit-bundles/state`, `foldkit-bundles/motion`, `foldkit-bundles/device`,
+`foldkit-bundles/observers`, `foldkit-bundles/dom` — so bundlers drop the
+primitives you never import.
 
 ## Sixty seconds: follow the color scheme
 
@@ -160,6 +161,14 @@ box; `Intersection()` reports `IntersectionChanged { isIntersecting, ratio }`
 on viewport crossings. Without the observer API (SSR, old browser) they emit
 nothing instead of throwing; teardown disconnects. They keep observing across
 time-travel pause — replay traffic is same-valued and harmless.
+
+## Device: `foldkit-bundles/device`
+
+`Geolocation` watches the device position while placed. Model `{ status,
+coords, lastError }` with `status` unknown → ready; denial is its own status
+(actionable UI), transient failures keep the last fix and note the error.
+Permission code 1 maps to `Denied`, anything else to `Failed`. Without a
+geolocation API the stream is empty instead of throwing.
 
 ## DOM: `foldkit-bundles/dom`
 

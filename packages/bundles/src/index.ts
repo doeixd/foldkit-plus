@@ -1,4 +1,5 @@
 export * from './dom/index.js'
+export * from './device/index.js'
 export * from './media/index.js'
 export * from './motion/index.js'
 export * from './net/index.js'
