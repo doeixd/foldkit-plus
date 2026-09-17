@@ -1,4 +1,5 @@
 import { Option, Schema } from 'effect'
+import { evo } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
 
 /** The application half of the example: an ordinary Foldkit Model and Message union. */
@@ -57,36 +58,38 @@ let nextId = 1
  */
 export const update = (model: Model, message: Message): Model =>
   Message.match(message, {
-    RequestedCreateTodo: ({ title }) => ({
-      ...model,
-      todos: [...model.todos, { id: `todo-${nextId++}`, title, completed: false }],
-    }),
+    RequestedCreateTodo: ({ title }) =>
+      evo(model, {
+        todos: () => [...model.todos, { id: `todo-${nextId++}`, title, completed: false }],
+      }),
 
-    RequestedRenameTodo: ({ id, title }) => ({
-      ...model,
-      todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
-    }),
+    RequestedRenameTodo: ({ id, title }) =>
+      evo(model, {
+        todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+      }),
 
-    RequestedDeleteTodo: ({ id }) => ({
-      ...model,
-      todos: model.todos.filter(todo => todo.id !== id),
-      selectedTodoId: Option.filter(model.selectedTodoId, selected => selected !== id),
-    }),
+    RequestedDeleteTodo: ({ id }) =>
+      evo(model, {
+        todos: () => model.todos.filter(todo => todo.id !== id),
+        selectedTodoId: () => Option.filter(model.selectedTodoId, selected => selected !== id),
+      }),
 
-    RequestedToggleTodo: ({ id }) => ({
-      ...model,
-      todos: model.todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo,
-      ),
-    }),
+    RequestedToggleTodo: ({ id }) =>
+      evo(model, {
+        todos: () =>
+          model.todos.map(todo =>
+            todo.id === id ? { ...todo, completed: !todo.completed } : todo,
+          ),
+      }),
 
-    SelectedTodo: ({ id }) => ({ ...model, selectedTodoId: Option.some(id) }),
+    SelectedTodo: ({ id }) => evo(model, { selectedTodoId: () => Option.some(id) }),
 
-    ClearedSelection: () => ({ ...model, selectedTodoId: Option.none() }),
+    ClearedSelection: () => evo(model, { selectedTodoId: () => Option.none() }),
 
-    ReceivedTodos: ({ todos }) => ({ ...model, todos }),
+    ReceivedTodos: ({ todos }) => evo(model, { todos: () => todos }),
 
-    FailedToLoadTodos: ({ message }) => ({ ...model, lastError: Option.some(message) }),
+    FailedToLoadTodos: ({ message }) =>
+      evo(model, { lastError: () => Option.some(message) }),
   })
 
 /** Resets the id counter, so a demo run is reproducible. */
