@@ -352,15 +352,23 @@ mechanism's `each`.
 list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
 throws, naming it.
 
-`Virtual` owns a virtualized list's scroll position and measured heights:
-Model `{ scrollTop, heights }`, Messages `Scrolled`/`Measured`, args
-`{ estimatedHeight, overscan }` (a positive estimate, an integer overscan).
-`Viewport` reports the container's own scrolls and `MeasureRow({ key })`
-reports row heights, both as Mounts; `windowFor(model, keys,
-viewportHeight, options)` answers which rows to render plus the spacer
-height, and `totalHeight`/`offsetFor` expose the sums underneath. Render
-each row keyed, and per-row placements keep identity. Poisoned positions
-and heights are ignored, never stored.
+`Virtual` owns a virtualized list's scroll position, measured heights, and
+layout: Model `{ scrollTop, heights, estimatedHeight, overscan, gap,
+paddingStart, paddingEnd }`, Messages `Scrolled`/`Measured`/`Prune`, args
+for the layout plus optional `initialScrollTop`/`initialHeights` restores
+(measurements sanitized like live ones). `Viewport` reports the container's
+own scrolls and `MeasureRow({ key })` reports row heights, both as Mounts;
+`windowFor(model, keys, viewportHeight)` answers which rows to render plus
+the spacer height, `isAtEnd(model, keys, viewportHeight, threshold)` is the
+infinite-scroll check (an empty list counts as ended), and `offsetFor`
+computes programmatic scroll targets the application actuates itself.
+`Prune` drops heights for departed keys — the bundle never sees key order.
+Poisoned positions and heights are ignored, never stored. For window-
+scrolled lists, map the scroll entry into `Scrolled`; for follow-bottom,
+hold the end while `isAtEnd` and scroll on extend; to anchor a prepend,
+re-`Scrolled` by the totals' delta. Render each row keyed (with
+`aria-rowcount`/`posinset` from the window) so per-row placements keep
+identity. Sticky headers, horizontal lists, and lanes stay out by design.
 
 Persisted state lives one package over: `Mirror.kv(App, { key, fields })`
 keeps a Model slice in Effect's `KeyValueStore` (localStorage in the

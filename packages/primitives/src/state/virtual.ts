@@ -25,6 +25,14 @@ export interface VirtualWindow {
   readonly end: number
 }
 
+/** Layout constants: per-row estimate, inter-row gap, and end padding. */
+export interface VirtualLayout {
+  readonly estimatedHeight: number
+  readonly gap: number
+  readonly paddingStart: number
+  readonly paddingEnd: number
+}
+
 const saneHeight = (height: number, estimatedHeight: number): number =>
   Number.isFinite(height) && height >= 0 ? height : estimatedHeight
 
@@ -32,37 +40,38 @@ const heightAt = (
   index: number,
   heights: Readonly<Record<string, number>>,
   keys: ReadonlyArray<string>,
-  estimatedHeight: number,
+  layout: VirtualLayout,
 ): number => {
   const key = keys[index]
-  if (key === undefined) return estimatedHeight
-  return saneHeight(heights[key] ?? estimatedHeight, estimatedHeight)
+  if (key === undefined) return layout.estimatedHeight
+  return saneHeight(heights[key] ?? layout.estimatedHeight, layout.estimatedHeight)
 }
 
-/** Total scrollable height: measured rows plus estimates for the rest. */
+/** Total scrollable height: padding, measured rows, estimates, and gaps. */
 export const totalHeight = (
   keys: ReadonlyArray<string>,
   heights: Readonly<Record<string, number>>,
-  estimatedHeight: number,
+  layout: VirtualLayout,
 ): number => {
-  let total = 0
+  let total = layout.paddingStart + layout.paddingEnd
   for (let index = 0; index < keys.length; index++) {
-    total += heightAt(index, heights, keys, estimatedHeight)
+    total += heightAt(index, heights, keys, layout)
+    if (index < keys.length - 1) total += layout.gap
   }
   return total
 }
 
-/** Pixel offset of a row's top edge: the prefix sum before it. */
+/** Pixel offset of a row's top edge: padding plus the prefix before it. */
 export const offsetFor = (
   index: number,
   keys: ReadonlyArray<string>,
   heights: Readonly<Record<string, number>>,
-  estimatedHeight: number,
+  layout: VirtualLayout,
 ): number => {
   const clamped = Math.max(0, Math.min(index, keys.length))
-  let offset = 0
+  let offset = layout.paddingStart
   for (let i = 0; i < clamped; i++) {
-    offset += heightAt(i, heights, keys, estimatedHeight)
+    offset += heightAt(i, heights, keys, layout) + layout.gap
   }
   return offset
 }
@@ -70,13 +79,14 @@ export const offsetFor = (
 /**
  * Which rows to render for a scroll position: the rows intersecting
  * `[scrollTop, scrollTop + viewportHeight)`, widened by `overscan` on both
- * sides and clamped to `[0, count]`. An overscan of zero renders exactly
- * the visible rows; larger values pre-render scrolled-into content.
+ * sides and clamped to `[0, count]`. Gaps and padding are dead space — no
+ * row — so boxes are tested, not cumulative coverage. An overscan of zero
+ * renders exactly the visible rows.
  */
 export const visibleRange = (
   keys: ReadonlyArray<string>,
   heights: Readonly<Record<string, number>>,
-  estimatedHeight: number,
+  layout: VirtualLayout,
   scrollTop: number,
   viewportHeight: number,
   overscan: number,
@@ -84,21 +94,22 @@ export const visibleRange = (
   const count = keys.length
   if (count === 0 || viewportHeight <= 0) return { start: 0, end: 0 }
   const top = Math.max(0, scrollTop)
+  const bottom = top + viewportHeight
   let start = 0
-  let offset = 0
+  let offset = layout.paddingStart
   for (let index = 0; index < count; index++) {
-    const height = heightAt(index, heights, keys, estimatedHeight)
+    const height = heightAt(index, heights, keys, layout)
     if (offset + height <= top) {
       start = index + 1
-      offset += height
+      offset += height + layout.gap
     } else {
       break
     }
   }
   let end = start
-  let covered = offset
-  while (end < count && covered < top + viewportHeight) {
-    covered += heightAt(end, heights, keys, estimatedHeight)
+  let cursor = offset
+  while (end < count && cursor < bottom) {
+    cursor += heightAt(end, heights, keys, layout) + layout.gap
     end += 1
   }
   return {
@@ -110,6 +121,11 @@ export const visibleRange = (
 export const VirtualModel = Schema.Struct({
   scrollTop: Schema.Number,
   heights: Schema.Record(Schema.String, Schema.Number),
+  estimatedHeight: Schema.Number,
+  overscan: Schema.Number,
+  gap: Schema.Number,
+  paddingStart: Schema.Number,
+  paddingEnd: Schema.Number,
 })
 export type VirtualModel = typeof VirtualModel.Type
 
@@ -122,32 +138,51 @@ export const VirtualMessage = defineMessageUnion({
 })
 export type VirtualMessage = typeof VirtualMessage.Type
 
-export interface WindowOptions {
-  readonly estimatedHeight: number
-  readonly overscan: number
-}
+const layoutOf = (model: VirtualModel): VirtualLayout => ({
+  estimatedHeight: model.estimatedHeight,
+  gap: model.gap,
+  paddingStart: model.paddingStart,
+  paddingEnd: model.paddingEnd,
+})
 
 /**
  * The rows to render plus the spacer height, from the Model, the key order,
- * the viewport height, and the placement options. Keys stay the
- * application's: render each row keyed, and per-row placements keep
- * identity.
+ * and the viewport height. Layout and overscan come from the Model, so the
+ * call cannot disagree with the placement. Keys stay the application's:
+ * render each row keyed, and per-row placements keep identity.
  */
 export const windowFor = (
   model: VirtualModel,
   keys: ReadonlyArray<string>,
   viewportHeight: number,
-  options: WindowOptions,
 ): VirtualWindow & { readonly totalHeight: number } => {
+  const layout = layoutOf(model)
   const window = visibleRange(
     keys,
     model.heights,
-    options.estimatedHeight,
+    layout,
     model.scrollTop,
     viewportHeight,
-    options.overscan,
+    model.overscan,
   )
-  return { ...window, totalHeight: totalHeight(keys, model.heights, options.estimatedHeight) }
+  return { ...window, totalHeight: totalHeight(keys, model.heights, layout) }
+}
+
+/**
+ * Whether the viewport rests at (or past) the end, within `threshold`
+ * pixels: the infinite-scroll check. An empty list counts as ended — there
+ * is nothing to scroll, so more should load. Thresholds below zero clamp
+ * to zero.
+ */
+export const isAtEnd = (
+  model: VirtualModel,
+  keys: ReadonlyArray<string>,
+  viewportHeight: number,
+  threshold = 0,
+): boolean => {
+  const total = totalHeight(keys, model.heights, layoutOf(model))
+  if (total <= 0) return true
+  return model.scrollTop + viewportHeight >= total - Math.max(0, threshold)
 }
 
 const saneTop = (top: number): number | null => (Number.isFinite(top) ? Math.max(0, top) : null)
@@ -159,7 +194,15 @@ export const Virtual = Bundle.make<
   'Virtual',
   VirtualModel,
   VirtualMessage,
-  { readonly estimatedHeight: number; readonly overscan: number }
+  {
+    readonly estimatedHeight: number
+    readonly overscan: number
+    readonly gap: number
+    readonly paddingStart: number
+    readonly paddingEnd: number
+    readonly initialScrollTop?: number | undefined
+    readonly initialHeights?: Readonly<Record<string, number>> | undefined
+  }
 >('Virtual', {
   Model: VirtualModel,
   Message: VirtualMessage,
@@ -169,8 +212,46 @@ export const Virtual = Bundle.make<
       Schema.check(Schema.isFinite()),
     ),
     overscan: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
+    gap: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+    paddingStart: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+    paddingEnd: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+    initialScrollTop: Schema.optional(
+      Schema.Number.pipe(
+        Schema.check(Schema.isGreaterThanOrEqualTo(0)),
+        Schema.check(Schema.isFinite()),
+      ),
+    ),
+    initialHeights: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
   }),
-  init: () => ({ model: { scrollTop: 0, heights: {} } }),
+  init: args => {
+    // Restored measurements pass through the same sanitation as live ones,
+    // so a poisoned cache cannot wedge the sums.
+    const heights: Record<string, number> = {}
+    for (const [key, height] of Object.entries(args.initialHeights ?? {})) {
+      const sane = saneMeasured(height)
+      if (sane !== null) heights[key] = sane
+    }
+    return {
+      model: {
+        scrollTop: args.initialScrollTop ?? 0,
+        heights,
+        estimatedHeight: args.estimatedHeight,
+        overscan: args.overscan,
+        gap: args.gap,
+        paddingStart: args.paddingStart,
+        paddingEnd: args.paddingEnd,
+      },
+    }
+  },
   update: (model, message) =>
     VirtualMessage.match<Update.ReturnWithOutMessage<VirtualModel, VirtualMessage, never>>(
       message,
