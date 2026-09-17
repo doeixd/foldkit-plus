@@ -1,10 +1,17 @@
 import { execFile } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DiagnosticCode, formatDiagnostic, generate, watch, type WatchEvent } from '../src/index.js'
+
+// Absolute loader URL: the CLI runs with a temp cwd, where a bare 'tsx'
+// specifier has nothing to resolve against (it only worked locally by
+// accident of an ancestor node_modules).
+const tsxLoader = pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href
 
 const view = `import type { Html, HtmlBuilder } from 'foldkit/html'
 export const view = (h: HtmlBuilder<never>): Html => h.p([], ['hi'])
@@ -70,7 +77,7 @@ it('exits non-zero from the CLI on a diagnostic', async () => {
   const run = promisify(execFile)
   const error = await run(
     process.execPath,
-    ['--import', 'tsx', cli, 'src', '--out-dir', 'generated'],
+    ['--import', tsxLoader, cli, 'src', '--out-dir', 'generated'],
     { cwd: dir },
   ).catch((failure: { code: number; stderr: string }) => failure)
   expect(error).toMatchObject({ code: 1 })
@@ -81,7 +88,7 @@ it('exits non-zero from the CLI on a diagnostic', async () => {
   await rm(join(dir, 'src/Bad.ts'))
   const { stdout } = await run(
     process.execPath,
-    ['--import', 'tsx', cli, 'src', '--out-dir', 'generated'],
+    ['--import', tsxLoader, cli, 'src', '--out-dir', 'generated'],
     { cwd: dir },
   )
   expect(stdout).toContain('Wrote 2 file(s), 0 unchanged.')
