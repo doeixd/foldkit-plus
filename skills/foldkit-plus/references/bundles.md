@@ -1,16 +1,17 @@
 # foldkit-bundles
 
 Ready-made [`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle)
-primitives: media queries, presence, timers, pagination, undo history,
-sockets, observers, and clipboard. Each is an ordinary bundle (or Mount, or
-Command) under a tree-shakeable subpath, so an application pays only for the
-primitives it imports.
+primitives: media queries, presence, timers, tweens, pagination, undo history,
+locales, selections, geolocation, sockets, server-sent events, observers, and
+clipboard. Each is an ordinary bundle (or Mount, or Command) under a
+tree-shakeable subpath, so an application pays only for the primitives it
+imports.
 
 ## Ownership
 
 | State | Owner | Form |
 | --- | --- | --- |
-| A media query match, presence, tick count, page, undo stack | the parent Model | bundle, placed like any other |
+| A media query match, presence, tick count, tween value, page, undo stack, locale, selection, or position | the parent Model | bundle, placed like any other |
 | Element size or visibility | the element, observed | Mount attached in the view |
 | A clipboard write | nothing (one-shot) | Command in `update` |
 
@@ -36,9 +37,12 @@ const update = placements.update(model => ({ model }))
 ```
 
 `PrefersDark` and `PrefersReducedMotion` are presets that place with no args.
-`Online` (no args), `Timer` (`{ intervalMs }`), `Pagination` (`{ perPage }`),
-and `history({ name, value })` place the same way. `send` for a placed
-WebSocket is a helper; `copyText` is a Command; `Resize()` and
+`Online` (no args), `Timer` (`{ intervalMs }`), `Tween` (`{ from, to, ms }`),
+`Pagination` (`{ perPage }`), `Locale` (`{ default }`), `SelectionSet` (no
+args), `Geolocation` (no args), and `history({ name, value })` place the same
+way. `sse({ name })` and `websocket({ name })` are factories over a resource
+tag; `Presence` times its exit with a Command. `chat.helpers.send('hi')`
+sends on a placed socket; `copyText` is a Command; `Resize()` and
 `Intersection()` attach with `h.OnMount` in the view.
 
 ## Common tasks
@@ -59,8 +63,11 @@ WebSocket is a helper; `copyText` is a Command; `Resize()` and
 - **A non-positive timer interval is rejected** at placement, naming it.
 - **`Received` and `Sent` leave the Model unchanged.** They exist so agents,
   journals, and DevTools see the traffic.
-- **One assembly holds one socket.** The resource tag is per module; a second
-  placement of the same socket bundle collides at `assemble`.
+- **One assembly holds one socket or stream.** The resource tag is per
+  module; a second placement of the same socket or SSE bundle collides at
+  `assemble`.
+- **Presence and Timer run on Effect's clock.** `TestClock.adjust` advances
+  them in tests; a placed Presence hides through a real `sleep` otherwise.
 - **Init is a safe default, not a read.** `matches: false`, `online: true`,
   count zero: SSR renders these, and subscriptions then report live facts.
 

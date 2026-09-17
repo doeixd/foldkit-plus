@@ -209,6 +209,15 @@ startup with the configured `default` as fallback; `SetLocale` switches it.
 position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
 `Clear`. `isSelected` reads membership. Both are pure logic, no streams.
 
+## With Surface and Mirror
+
+Placed state is ordinary Model, so the surrounding tools apply unchanged —
+no bundle-specific Surface or Mirror API exists, by design. Declare a Surface
+over the placed fields to render them or expose them to an agent; point
+`Mirror.url` at them to link them; spread the bundle's cases into the same
+unions. The field refs and wrapper Messages are the same ones the rest of the
+application uses.
+
 ## Motion: `foldkit-bundles/motion`
 
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
