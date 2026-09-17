@@ -121,6 +121,17 @@ describe('Permissions acquire and stream', () => {
     )
   })
 
+  it('a later name failing attaches nothing to the earlier ones', async () => {
+    const entry = Site.resources!({ names: ['camera', 'microphone'] }).watch!
+    const before = api.instances.length
+    await expect(
+      Effect.runPromise(Effect.scoped(entry.acquire(['camera', 'teapot']))),
+    ).rejects.toThrow('unknown permission: teapot')
+    const added = api.instances.slice(before)
+    expect(added).toHaveLength(1)
+    expect(added[0]!.onchange).toBe(null)
+  })
+
   it('fails acquire on an unknown state string', async () => {
     const Odd = permissions({
       name: 'Odd',

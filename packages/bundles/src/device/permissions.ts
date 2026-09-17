@@ -43,6 +43,7 @@ export interface PermissionsHandle {
 
 interface Acquired {
   readonly statuses: ReadonlyMap<string, PermissionStatusHandle>
+  readonly snapshot: Readonly<Record<string, PermissionState>>
   readonly events: Queue.Queue<PermissionsMessage>
 }
 
@@ -116,7 +117,7 @@ export const permissions = <const Name extends string>(config: {
       ManagedResource.make<PermissionsModel, PermissionsMessage>()(entry => ({
         watch: entry(Schema.Option(Schema.Array(Schema.String)), {
           resource: Watch,
-          modelToMaybeRequirements: () => Option.some([...args.names]),
+          modelToMaybeRequirements: () => Option.some([...new Set(args.names)]),
           acquire: (names: ReadonlyArray<string>) =>
             Effect.gen(function* () {
               const api = handle()
@@ -133,11 +134,18 @@ export const permissions = <const Name extends string>(config: {
                   )
                 tail = tail.then(run, run)
               }
+              // Two phases: query and validate everything first, so a later
+              // name failing cannot abandon handlers attached to earlier ones.
+              const queried: Array<readonly [string, PermissionStatusHandle, PermissionState]> = []
               for (const name of names) {
                 const status = yield* Effect.tryPromise({
                   try: () => api.query({ name }),
                   catch: (error: unknown) => error,
                 })
+                queried.push([name, status, readState(status.state, name)] as const)
+              }
+              const snapshot: Record<string, PermissionState> = {}
+              for (const [name, status, state] of queried) {
                 status.onchange = () => {
                   try {
                     offer(
@@ -153,20 +161,14 @@ export const permissions = <const Name extends string>(config: {
                     )
                   }
                 }
-                // Validate now: an unknown initial state fails the acquire
-                // before onAcquired could throw re-reading it.
-                readState(status.state, name)
                 statuses.set(name, status)
+                snapshot[name] = state
               }
-              return { statuses, events }
+              return { statuses, snapshot, events }
             }),
-          onAcquired: ({ statuses }) => {
-            const states: Record<string, PermissionState> = {}
-            for (const [name, status] of statuses) {
-              states[name] = readState(status.state, name)
-            }
-            return PermissionsMessage.Snapshot({ states })
-          },
+          // The snapshot is captured during acquire, so onAcquired cannot
+          // throw re-reading a state that changed mid-acquire.
+          onAcquired: ({ snapshot }) => PermissionsMessage.Snapshot({ states: { ...snapshot } }),
           onReleased: () => PermissionsMessage.Cleared(),
           onAcquireError: error => PermissionsMessage.Failed({ message: failMessage(error) }),
           release: ({ statuses, events }) =>
