@@ -88,8 +88,7 @@ export const update = (model: Model, message: Message): Model =>
 
     ReceivedTodos: ({ todos }) => evo(model, { todos: () => todos }),
 
-    FailedToLoadTodos: ({ message }) =>
-      evo(model, { lastError: () => Option.some(message) }),
+    FailedToLoadTodos: ({ message }) => evo(model, { lastError: () => Option.some(message) }),
   })
 
 /** Resets the id counter, so a demo run is reproducible. */

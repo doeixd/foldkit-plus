@@ -136,10 +136,7 @@ const reactInsideFoldkit = async (lines: Array<string>) => {
 
     click('.star-5')
     // Both renders: the Foldkit model text and the React island catching up.
-    await waitFor(
-      'the rating',
-      () => text('.model').includes('5 stars') && stars() === '★★★★★',
-    )
+    await waitFor('the rating', () => text('.model').includes('5 stars') && stars() === '★★★★★')
     lines.push(`React onRate(5) -> Message Rated -> ${text('.model')}; island shows ${stars()}`)
 
     click('.preview')

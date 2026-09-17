@@ -194,9 +194,7 @@ export const makeUpdate =
         model: evo(model, { todos: () => model.todos.filter(todo => !todo.completed) }),
       }),
       RenamedList: ({ title }) =>
-        title.trim() === ''
-          ? { model }
-          : { model: evo(model, { listTitle: () => title.trim() }) },
+        title.trim() === '' ? { model } : { model: evo(model, { listTitle: () => title.trim() }) },
 
       // Local.
       DraftChanged: ({ value }) => ({ model: evo(model, { draft: () => value }) }),
