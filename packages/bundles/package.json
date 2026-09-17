@@ -34,6 +34,10 @@
       "types": "./dist/media/index.d.mts",
       "import": "./dist/media/index.mjs"
     },
+    "./net": {
+      "types": "./dist/net/index.d.mts",
+      "import": "./dist/net/index.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [

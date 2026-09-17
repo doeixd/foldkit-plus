@@ -113,6 +113,13 @@ import { PrefersDark, PrefersReducedMotion } from 'foldkit-bundles/media'
 const placements = Page.assemble(Page.place(PrefersDark, 'dark'))
 ```
 
+## Net: `foldkit-bundles/net`
+
+`Online` keeps `online: boolean` in the Model, read from `navigator.onLine`
+at startup and kept current by the window's `online`/`offline` events. One
+Message `Changed { online }`, no args, no OutMessage. Without a window the
+stream is empty and the slice stays at its default, so SSR renders online.
+
 ## Failure and recovery
 
 | Failure | Behaviour |
