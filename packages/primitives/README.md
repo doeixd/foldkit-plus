@@ -270,7 +270,7 @@ geolocation API the stream is empty instead of throwing.
 `mediaDevices({ name, create? })` scans the device list on placement and
 re-scans on `Scan`, `DevicesChanged` (wired to `devicechange`), and every
 placement: `Refreshed { devices }` with `{ deviceId, groupId, kind, label }`.
-Denial empties with status `denied`; other failures keep the last list and
+Denial lands as `denied` while keeping the last list; other failures keep the last list and
 note the error; an unknown `kind` fails the scan at the boundary instead of
 entering the Model.
 

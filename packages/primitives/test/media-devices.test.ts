@@ -89,17 +89,17 @@ describe('MediaDevices transitions', () => {
     }
   })
 
-  it('denial empties with a status; other failures note the error', async () => {
+  it('denial keeps the list with a status; other failures note the error', async () => {
     fake = new FakeDevices(mic, new DeniedError('denied'))
     const denied = await Effect.runPromise(
       fold(fresh, MediaDevicesMessage.Scan()).commands![0]!.effect,
     )
     expect(denied).toEqual(Shell.wrapper.make(MediaDevicesMessage.Denied()))
-    // Denial empties a populated list: from ready, not from empty.
+    // Denial keeps a populated list: actionable UI over stale data.
     const populated: Model = { cameras: { status: 'ready', devices: [mic], lastError: null } }
     expect(fold(populated, MediaDevicesMessage.Denied()).model.cameras).toEqual({
       status: 'denied',
-      devices: [],
+      devices: [mic],
       lastError: null,
     })
 

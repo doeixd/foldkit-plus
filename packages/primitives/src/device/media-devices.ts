@@ -1,9 +1,10 @@
 /**
  * Media devices as a bundle factory: the enumerated device list in the
  * Model, scanned on placement and re-scanned on every `devicechange`.
- * Denial lands as `denied` with an empty list (actionable UI); any other
- * failure keeps the last list and notes the error. No media-devices API
- * yields an empty stream and a `Failed` scan instead of throwing.
+ * Denial lands as `denied` while keeping the last list (actionable UI over
+ * stale data, like Geolocation's last fix); any other failure keeps the
+ * list and notes the error. No media-devices API yields an empty stream
+ * and a `Failed` scan instead of throwing.
  */
 import { Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -135,7 +136,7 @@ export const mediaDevices = <const Name extends string>(config: {
         Refreshed: ({ devices }) => ({
           model: { ...model, status: 'ready' as const, devices: [...devices] },
         }),
-        Denied: () => ({ model: { ...model, status: 'denied' as const, devices: [] } }),
+        Denied: () => ({ model: { ...model, status: 'denied' as const } }),
         Failed: ({ message }) => ({ model: { ...model, lastError: message } }),
       }),
     subscriptions: (): Subscription.Subscriptions<MediaDevicesModel, MediaDevicesMessage> =>
