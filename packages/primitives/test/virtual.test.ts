@@ -100,6 +100,18 @@ describe('visibleRange', () => {
     // the edge (not intersecting) and reaches into b.
     expect(visibleRange(keys, fixed, layout, 10, 11, 0)).toEqual({ start: 1, end: 2 })
   })
+
+  it('transposes to horizontal: widths in, scrollLeft through', () => {
+    // The sums never name an axis: pass column widths as heights and the
+    // horizontal scroll offset as scrollTop. Five 100-wide columns, 20 gaps.
+    const widths = { a: 100, b: 100, c: 100, d: 100, e: 100 }
+    const layout: VirtualLayout = { estimatedHeight: 100, gap: 20, paddingStart: 0, paddingEnd: 0 }
+    expect(totalHeight(keys, widths, layout)).toBe(5 * 100 + 4 * 20)
+    expect(offsetFor(2, keys, widths, layout)).toBe(2 * 100 + 2 * 20)
+    // Viewport [240, 440): column b [120,220) ends before it, c [240,340)
+    // starts it, d follows, e [480,580) is past it.
+    expect(visibleRange(keys, widths, layout, 240, 200, 0)).toEqual({ start: 2, end: 4 })
+  })
 })
 
 const List = Bundle.declare(Virtual, 'list')
