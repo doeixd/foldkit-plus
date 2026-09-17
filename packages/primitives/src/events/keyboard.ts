@@ -8,7 +8,14 @@ import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 
 export const KeyboardMessage = defineMessageUnion({
-  Pressed: { key: Schema.String, repeat: Schema.Boolean },
+  Pressed: {
+    key: Schema.String,
+    repeat: Schema.Boolean,
+    ctrl: Schema.Boolean,
+    shift: Schema.Boolean,
+    alt: Schema.Boolean,
+    meta: Schema.Boolean,
+  },
   Released: { key: Schema.String },
 })
 export type KeyboardMessage = typeof KeyboardMessage.Type
@@ -23,7 +30,18 @@ export const keyboardEvents = (): Stream.Stream<KeyboardMessage> => {
   const downs: Stream.Stream<KeyboardMessage> = Stream.fromEventListener<KeyboardEvent>(
     window,
     'keydown',
-  ).pipe(Stream.map(event => KeyboardMessage.Pressed({ key: event.key, repeat: event.repeat })))
+  ).pipe(
+    Stream.map(event =>
+      KeyboardMessage.Pressed({
+        key: event.key,
+        repeat: event.repeat,
+        ctrl: event.ctrlKey,
+        shift: event.shiftKey,
+        alt: event.altKey,
+        meta: event.metaKey,
+      }),
+    ),
+  )
   const ups: Stream.Stream<KeyboardMessage> = Stream.fromEventListener<KeyboardEvent>(
     window,
     'keyup',

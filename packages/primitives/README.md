@@ -221,10 +221,12 @@ debounce as last-known-alive.
 `keyboardEvents()`, `pointerEvents()`, `scrollEvents()`, and
 `activeElementEvents()` are entries, not bundles: the parent owns whatever
 key, cursor, scroll, or focus state it keeps. They report presses (with
-repeat) and releases, moves `{ x, y }`, scroll positions, and focus
-`{ tag, id }` — elements cross as tag and id, never as live nodes. Lift
-with `Subscription.persistent`, mapping into the parent's Message; without
-a window each stream is empty instead of throwing.
+repeat and modifiers) and releases, moves `{ x, y }`, scroll positions, and
+focus `{ tag, id }` — elements cross as tag and id, never as live nodes.
+`matchHotkey("ctrl+shift+k", press)` answers whether a press is a shortcut,
+so `update` stays a table of chords; matching is exact and auto-repeat never
+matches. Lift with `Subscription.persistent`, mapping into the parent's
+Message; without a window each stream is empty instead of throwing.
 
 ## Observers: `foldkit-primitives/observers`
 

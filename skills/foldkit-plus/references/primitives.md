@@ -56,7 +56,8 @@ dropped. `Throttle` pairs leading-edge against that trailing edge.
 `loadScript`, `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
-friends lift with `Subscription.persistent`.
+friends lift with `Subscription.persistent`, and `matchHotkey` turns a press
+into a chord answer.
 
 ## Common tasks
 

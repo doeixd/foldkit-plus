@@ -1,4 +1,5 @@
 export * from './active-element.js'
+export * from './hotkeys.js'
 export * from './idle.js'
 export * from './keyboard.js'
 export * from './pointer.js'
