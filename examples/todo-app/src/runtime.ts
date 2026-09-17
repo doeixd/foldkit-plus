@@ -15,10 +15,9 @@
  */
 import { Effect } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
-import * as Subscription from 'foldkit/subscription'
 import type { Mounted, Replica } from 'foldkit-sync'
-import { Message, type Model, type Shared } from './app.js'
-import { Filters, Prefs } from './surface.js'
+import { Message, initialModel, type Model, type Shared } from './app.js'
+import { wiring } from './surface.js'
 import { mountTodos } from './sync.js'
 import { view } from './view.js'
 
@@ -27,18 +26,13 @@ export const mountApp = (
   container: HTMLElement,
 ): Mounted<Model, Message> => {
   const storage = KeyValueStore.layerStorage(() => window.localStorage)
+  const start = wiring.initial(initialModel)
   const mounted = mountTodos(replica, {
     container,
     view,
-    subscriptions: Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(() => ({
-      ...Filters.subscriptions,
-      ...Prefs.subscriptions,
-    })),
+    subscriptions: wiring.subscriptions(),
     resources: storage,
-    url: {
-      init: (model, url) => Filters.reduce(model, url),
-      onUrlChange: url => Message.UrlChanged({ url }),
-    },
+    url: wiring.url(url => Message.UrlChanged({ url })),
     onPersistenceFailure: (model, error) => ({
       ...model,
       lastError:
@@ -48,8 +42,10 @@ export const mountApp = (
     }),
   })
   // Store → Model, once: the draft is restored while it is still empty.
-  void Effect.runPromise(Prefs.restore.effect.pipe(Effect.provide(storage))).then(message =>
-    mounted.dispatch(message),
-  )
+  for (const command of start.commands ?? []) {
+    void Effect.runPromise(command.effect.pipe(Effect.provide(storage))).then(message =>
+      mounted.dispatch(message),
+    )
+  }
   return mounted
 }

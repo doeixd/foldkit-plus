@@ -85,3 +85,39 @@ With one replica per document, from the recorded run:
   Rotate the journal per its [retention policy](../packages/durable/README.md#retention).
 - These are `foldkit-sync`'s local costs and one `foldkit-durable` append/storage
   reading.
+
+## foldkit-bundle: type-checking cost of placements
+
+A generated parent with `n` placements of one bundle, each with its own
+wrapper and Model field, one `Bundle.assemble`, a view rendering every
+placement, and `assembly.complete`. Measured with `tsc --extendedDiagnostics`
+on the same machine; check time is noisy, instantiation counts are not.
+
+| placements | instantiations | check time |
+| ---: | ---: | ---: |
+| 1, before | 201,400 | 1.8 s |
+| 30, before | 250,280 | 4.9 s |
+| 100, before | 368,230 | 6.6 s |
+| 100, after | 264,947 | 2.0 s |
+
+At 100 placements, `at` and `assemble` together cost about 17,000
+instantiations and `complete` about 10,000. The views cost the rest: a placed
+view inferred the parent's Message through `HtmlBuilder<M>`, about 2,300
+instantiations per call. The view now infers the builder type itself and
+extracts its Message with one conditional, which halved the view cost and
+brought the 100-placement check from 6.6 s to 2.0 s. Growth is linear in the
+number of placements.
+
+### The parent scope
+
+The same 100 placements written with `Bundle.parent` and `Bundle.declare`
+(no type arguments) against the curried form, both using `update()` and
+`onOut: Bundle.ignore`:
+
+| 100 placements | instantiations | check time |
+| --- | ---: | ---: |
+| `Link.field<Model>()` + `Bundle.assemble<Model, Message>()` | 289,148 | 2.02 s |
+| `Bundle.parent` + `declare` + `Page.at` | 369,245 | 2.23 s |
+
+Inferring from the scope costs about 800 more instantiations per placement and
+10% more check time, inside the 25% budget the DX plan set.

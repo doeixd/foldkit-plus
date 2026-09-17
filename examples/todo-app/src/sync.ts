@@ -23,6 +23,7 @@
  * reverts it.
  */
 import type { Layer } from 'effect'
+import type { KeyValueStore } from 'effect/unstable/persistence'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import type { Subscriptions } from 'foldkit/subscription'
 import { MessageSet, type Contract } from 'foldkit-surface'
@@ -94,16 +95,18 @@ export const journalContract = (): PolicyJournalContract<Operation, Shared, Sync
 /**
  * Runs the application over an open replica with `Sync.mount`: one reducer, a
  * durable Message applied at once and persisted after, the shared slice
- * re-installed when an exchange or a rejection moves the replica.
+ * re-installed when an exchange or a rejection moves the replica. The
+ * application's update may require the store service (the mirrors' wiring
+ * threads it through), so mounting takes its layer.
  */
-export const mountTodos = <Resources = never>(
+export const mountTodos = (
   replica: Replica<Message, Shared>,
   options: {
     readonly container: HTMLElement
     readonly view: (model: Model, h: HtmlBuilder<Message>) => Document
     /** Entries beside the replica's own: the mirrors' writes, say. */
-    readonly subscriptions?: Subscriptions<Model, Message, Resources> | undefined
-    readonly resources?: Layer.Layer<Resources> | undefined
+    readonly subscriptions?: Subscriptions<Model, Message, KeyValueStore.KeyValueStore> | undefined
+    readonly resources?: Layer.Layer<KeyValueStore.KeyValueStore> | undefined
     /** The URL as part of the application: the filter mirror reads it. */
     readonly url?: MountUrl<Model, Message> | undefined
     readonly onPersistenceFailure?: (model: Model, error: ReplicaError) => Model

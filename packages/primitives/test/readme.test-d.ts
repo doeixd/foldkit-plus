@@ -1,0 +1,87 @@
+/**
+ * The sixty-second example from this package's README, type-checked so the
+ * documentation cannot drift from the API. Imports are relative, as in every
+ * package's fixture; the README shows the published `foldkit-primitives/media`.
+ */
+import { Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+import { MediaQuery, PrefersDark, PrefersReducedMotion } from '../src/media/index.js'
+import { history } from '../src/state/index.js'
+
+const Dark = Bundle.declare(MediaQuery, 'dark')
+
+const Model = Schema.Struct({ ...Dark.fields, theme: Schema.String })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Dark.cases, ThemeSet: { theme: Schema.String } })
+type Message = typeof Message.Type
+
+const Page = Bundle.parent({ Model, Message })
+const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }))
+
+declare const view: (model: Model, h: HtmlBuilder<Message>) => Html
+
+const config = placements.complete({
+  init: () => placements.initial({ theme: 'light' }),
+  update: placements.update(model => ({ model })),
+  view,
+  subscriptions: placements.subscriptions(),
+})
+
+// Presets place with no args.
+const Motion = Bundle.declare(MediaQuery, 'motion')
+const WideModel = Schema.Struct({ ...Dark.fields, ...Motion.fields })
+type WideModel = typeof WideModel.Type
+const WideMessage = defineMessageUnion({ ...Dark.cases, ...Motion.cases })
+const WidePage = Bundle.parent({ Model: WideModel, Message: WideMessage })
+const preset = WidePage.assemble(
+  WidePage.place(PrefersDark, 'dark'),
+  WidePage.place(PrefersReducedMotion, 'motion'),
+)
+
+// The README's preset line, on the sixty-second scope above.
+const darkOnly = Page.assemble(Page.place(PrefersDark, 'dark'))
+
+void config
+void preset
+void darkOnly
+
+// State: undo/redo over any value Schema.
+const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })
+const Doc = Bundle.declare(EditHistory, 'doc')
+
+void Doc
+
+// Time: debounce settles through an OutMessage the placement handles.
+import { Interval, Timer, debounce, Throttle } from '../src/time/index.js'
+
+const Query = debounce({ name: 'Query', value: Schema.String })
+const SearchBox = Bundle.declare(Query, 'search')
+const SearchModel = Schema.Struct({ ...SearchBox.fields, fired: Schema.Array(Schema.String) })
+type SearchModel = typeof SearchModel.Type
+const SearchMessage = defineMessageUnion({ ...SearchBox.cases })
+const SearchPage = Bundle.parent({ Model: SearchModel, Message: SearchMessage })
+const search = SearchPage.assemble(
+  SearchPage.at(SearchBox, {
+    args: { delayMs: 300 },
+    onOut: out => model => ({ model: { ...model, fired: [...model.fired, out.value] } }),
+  }),
+)
+
+const Save = Bundle.declare(Throttle, 'save')
+const ThrottleModel = Schema.Struct({ ...Save.fields, fired: Schema.Array(Schema.Number) })
+type ThrottleModel = typeof ThrottleModel.Type
+const ThrottleMessage = defineMessageUnion({ ...Save.cases })
+const ThrottlePage = Bundle.parent({ Model: ThrottleModel, Message: ThrottleMessage })
+const throttled = ThrottlePage.assemble(
+  ThrottlePage.at(Save, {
+    args: { intervalMs: 1000 },
+    onOut: out => model => ({ model: { ...model, fired: [...model.fired, out.at] } }),
+  }),
+)
+
+void search
+void throttled
+void Timer
+void Interval

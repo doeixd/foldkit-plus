@@ -23,6 +23,11 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-remote-server`](../packages/remote-server) | 0.3.0 | Published | Server sources and handler compilation for Remote: entities, queries, mutations, live, and selection authorization. |
 | [`foldkit-remote-drizzle`](../packages/remote-drizzle) | 0.3.0 | Published | Compiles Remote selections and queries to Drizzle's typed query graph. |
 | [`foldkit-mirror`](../packages/mirror) | 0.2.0 | Published | A Model slice mirrored into the URL or a key-value store, restored on load. |
+| [`foldkit-bundle`](../packages/bundle) | 0.1.0 | Not yet published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
+| [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.1.0 | Not yet published | Placements as Module contracts that own their Model path. |
+| [`foldkit-primitives`](../packages/primitives) | 0.1.0 | Not yet published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom) under tree-shakeable subpaths. |
+| [`foldkit-react`](../packages/react) | 0.1.0 | Not yet published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
+| [`foldkit-react-codegen`](../packages/react-codegen) | 0.1.0 | Not yet published | Compiles Foldkit view functions to React TSX, refusing with a located diagnostic what it cannot translate faithfully. |
 | [`foldkit-mixins`](../packages/mixins) | 0.3.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
 | [`foldkit-mixins-surface`](../packages/mixins-surface) | 0.3.0 | Published | Bridges a Surface projection and Message subset to a `SlotView`. |
 | [`foldkit-mixins-ui`](../packages/mixins-ui) | 0.3.0 | Published | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
@@ -49,9 +54,14 @@ No package is `private`. A package that still needs to stay off npm sets
 
 ## Dependency expectations
 
-Every package peer-depends on `effect@^4.0.0-rc.112`. Every package except the
-server and storage four — `foldkit-remote-server`, `foldkit-remote-drizzle`,
-`foldkit-durable`, and `foldkit-sync` — also peer-depends on `foldkit@^0.158.2`.
+Every package except `foldkit-react-codegen` peer-depends on
+`effect@^4.0.0-rc.112`. Every package except the server and storage four —
+`foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-durable`, and
+`foldkit-sync` — and `foldkit-react-codegen` also peer-depends on
+`foldkit@^0.158.2`. `foldkit-react` additionally peer-depends on
+`react@^19.0.0` and `react-dom@^19.0.0`. `foldkit-react-codegen` is a build
+tool that reads source text: its only peer is `typescript@^5.7.2`, and it ships
+a `foldkit-react-codegen` bin.
 
 Peer edges between workspace packages, declared as `workspace:^` and rewritten on
 publish:
@@ -67,7 +77,8 @@ Regular `dependencies` between workspace packages, declared as `workspace:*`
 and rewritten to the exact version on publish: `foldkit-agent`, `foldkit-mirror`,
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
 `foldkit-surface`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
-`foldkit-remote`; `foldkit-remote-drizzle` additionally depends on
+`foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
+`foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.
 `foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.112` and requires
 Node 22 (`engines.node`).

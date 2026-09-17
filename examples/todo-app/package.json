@@ -15,6 +15,7 @@
     "foldkit": "0.158.2",
     "foldkit-agent": "workspace:*",
     "foldkit-agent-webmcp": "workspace:*",
+    "foldkit-bundle": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-surface": "workspace:*",

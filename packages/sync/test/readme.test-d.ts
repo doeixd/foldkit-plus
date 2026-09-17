@@ -7,7 +7,7 @@
 import { Effect, Schema, Scope } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
-import { MessageSet, Projection, Surface } from 'foldkit-surface'
+import { MessageSet, Projection, Surface, type Wiring } from 'foldkit-surface'
 import { DocumentId, ReplicaId, Sync, type Replica, type TransportClient } from '../src/index.js'
 
 // Quick start
@@ -202,3 +202,8 @@ const rename = (replica: Replica<Renamed, Shared>, title: string) =>
   }).pipe(Effect.scoped)
 
 void rename
+
+// The contract joins an assembly contract-only, so the Module sees it.
+const syncWiring: Wiring<Model, never> = TodoSync.wiring()
+
+void syncWiring

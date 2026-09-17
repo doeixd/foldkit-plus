@@ -13,7 +13,10 @@
 import { Optic, Option, Result, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MessageUnion } from 'foldkit/message'
+import type { Entry as ManagedResourceEntry } from 'foldkit/managedResource'
+import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
+import type { Url } from 'foldkit/url'
 
 // ===========================================================================
 // ModelRef and the typed Model tree (Phase 0 cases 1)
@@ -1272,6 +1275,38 @@ export interface Contract {
   readonly messages: readonly string[]
   /** What interpreters attached to the contract's reads, as text. */
   readonly metadata: readonly MetadataSummary[]
+}
+
+/**
+ * How one integration joins an application, as data and pure functions: the
+ * Messages it routes, what it runs at startup and on a URL change, its
+ * Subscriptions and Managed Resources, and its contract. Remote, Mirror, Sync,
+ * and Agent produce one; `foldkit-bundle`'s assembly derives the application's
+ * `update`, initial state, runtime config, and Module from a list of them.
+ * `R` is the services its Commands and Subscriptions need.
+ */
+export interface Wiring<Model, Message, R = never> {
+  /** Names the integration in errors and the Module: `remote:Board`, `mirror:filters`. */
+  readonly key: string
+  /** Message tags `route` handles. Two integrations handling one tag is an error unless it is `shared`. */
+  readonly handles: readonly string[]
+  /** Tags several integrations may handle, each for its own values (Mirror's `MirrorRestored`, by name). */
+  readonly shared?: readonly string[] | undefined
+  /**
+   * Folds a Message this integration handles; `None` for any other. A method, so
+   * a wiring that routes only its own variants fits an assembly over the whole
+   * application union.
+   */
+  route?(model: Model, message: Message): Option.Option<Update.Return<Model, Message, R>>
+  /** Runs once when the application starts, after placements: a restore Command, a warm-up. */
+  readonly init?: Update.Step<Model, Message, R> | undefined
+  /** Applies the URL to the Model, at startup and whenever the URL changes. */
+  readonly onUrl?: ((model: Model, url: Url) => Model) | undefined
+  readonly subscriptions?: Subscriptions<Model, Message, R> | undefined
+  readonly resources?:
+    Readonly<Record<string, ManagedResourceEntry<Model, Message, any, any, any>>> | undefined
+  /** Its Module contract; absent for wiring that owns and observes nothing. */
+  readonly contract?: Contract | undefined
 }
 
 /** Contracts of one application, in declaration order. Data, not a runtime. */

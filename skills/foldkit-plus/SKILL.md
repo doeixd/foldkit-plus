@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, or view styling, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, or Mixins.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react, foldkit-react-codegen, foldkit-bundle, foldkit-bundle-surface, foldkit-primitives), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, or reusable Submodels, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, or Bundle.
 license: MIT
 metadata:
   version: '0.5.0'
@@ -35,6 +35,9 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A filter in the URL, a draft or preference remembered on a device | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
 | Restyling or adding behaviour to views, including `@foldkit/ui` | the view contract | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
+| A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
+| A media query, presence, timer, pagination, undo history, socket, resize, or clipboard | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
+| A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example
@@ -55,11 +58,13 @@ Foldkit app (Model · Message · update)
        ├─ foldkit-mirror
        └─ foldkit-mixins-surface
 foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui
+foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives
 ```
 
 `foldkit-surface` is the shared seam: most packages consume a Projection
 (what to read) and a Message subset (what may happen). `foldkit-durable`, core
-`foldkit-mixins`, and the protocol adapters also work on their own.
+`foldkit-mixins`, core `foldkit-bundle`, and the protocol adapters also work on
+their own.
 
 ## The one-screen example
 
@@ -113,6 +118,10 @@ server data, `Mirror.url(App, …)` puts fields in the URL, and
   Behaviors dispatch existing Messages; they never mutate the Model.
 - **Rendering performs no I/O.** Fetching, syncing, and mirroring run in
   Commands and Subscriptions derived from the Model.
+- **Join integrations through one wiring list.** `Page.assemble` takes bundle
+  placements and integration wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`,
+  contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
+  Module derive from the list. See `bundle.md` and the integration's page.
 - **Install only what the boundary needs.** The packages are adopted
   independently. `effect` is a peer of every package and `foldkit` of every
   client-side one (not `foldkit-durable`, `foldkit-remote-server`,

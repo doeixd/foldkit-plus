@@ -5,9 +5,10 @@
  * live classification, optimistic layers) performs no I/O. The `Remote.*`
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
-import { Effect, Layer, Result, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
 import type { Duration } from 'effect'
 import type { Command } from 'foldkit/command'
+import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
   type ActiveSurface,
@@ -16,6 +17,7 @@ import {
   type ModelRef,
   type Projection,
   type Surface,
+  type Wiring,
 } from 'foldkit-surface'
 import {
   RemoteClient,
@@ -207,6 +209,13 @@ export type SubscriptionEntries<AppModel, Active> = {
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
+/** A Remote domain's wiring for an assembly: it routes Remote's Messages into `reduce`, brings its Subscriptions and contract, and requires `RemoteClient` from the runtime's resources Layer. */
+export type RemoteWiring<AppModel> = Wiring<
+  AppModel,
+  RemoteMessage | RemoteMessageInput,
+  RemoteClient
+>
+
 /** What `RemoteDomain.mutate` hands `update`: the Model with the request started, and the Command that settles it. */
 export interface MutationStarted<AppModel> {
   readonly model: AppModel
@@ -325,6 +334,21 @@ export interface RemoteDomain<
   ): MutationStarted<AppModel>
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
+  /**
+   * How this domain joins an assembly: it routes Remote's Messages into
+   * `reduce`, brings its Subscriptions and contract, and requires
+   * `RemoteClient` from the runtime's resources Layer. One assembly holds at
+   * most one Remote wiring: every domain claims the same tags, and routing
+   * takes the first claimant.
+   */
+  wiring: <
+    const Active extends Readonly<
+      Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
+    >,
+  >(
+    active: Active,
+    options?: SubscriptionsOptions,
+  ) => RemoteWiring<AppModel>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
 }
@@ -1313,6 +1337,13 @@ export const Remote = {
   > => liveEntry(bound, () => requirementsOf(surface.projection(params)), toMessage, options),
 }
 
+// A domain's Subscription entries are unbranded so an application can spread
+// them into its own `Subscription.make`; wiring hands them over as a branded record.
+const brandEntries = <AppModel>(
+  entries: Readonly<Record<string, RemoteEntry<AppModel, any>>>,
+): Subscription.Subscriptions<AppModel, RemoteMessage, RemoteClient> =>
+  Subscription.make<AppModel, RemoteMessage, RemoteClient>()(() => entries)
+
 /** The bound domain: the descriptor, the binding, and the operations over them. */
 const bindDomain = <
   AppModel,
@@ -1328,7 +1359,7 @@ const bindDomain = <
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
   const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel =>
     store.set(model, updateRemote(store.get(model), message as RemoteMessage) as Store)
-  return {
+  const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
     ...bound,
     get: (selection, id) => Remote.select(bound, selection)(id),
@@ -1577,7 +1608,18 @@ const bindDomain = <
     },
     reduce,
     inspect: model => inspectRemote(store.get(model)),
+    wiring: (active, options): RemoteWiring<AppModel> => ({
+      key: `remote:${bound.contract.name}`,
+      // Every domain claims the same tags with no per-domain discriminator, so
+      // the assembly's claimant check keeps one assembly to one domain.
+      handles: Object.keys(remoteMessageCases),
+      route: (model, message) =>
+        isRemoteMessage(message) ? Option.some({ model: reduce(model, message) }) : Option.none(),
+      subscriptions: brandEntries(domain.subscriptions(active, options)),
+      contract: bound.contract,
+    }),
   }
+  return domain
 }
 
 /** The window keys of a `QueryOptions`, and only those, without the undefined ones. */

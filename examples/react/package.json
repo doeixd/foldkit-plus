@@ -1,0 +1,26 @@
+{
+  "name": "foldkit-example-react",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/main.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-react": "workspace:*",
+    "foldkit-react-codegen": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jsdom": "21.1.7",
+    "@types/node": "22.10.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "jsdom": "26.1.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "typescript": "5.7.2"
+  }
+}

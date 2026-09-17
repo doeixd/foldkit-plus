@@ -63,6 +63,9 @@ export const TodoSync = Sync.forApplication(App).make({
   shared: Projection.pick(App.fields.todos),                   // replicated slice
   durable: MessageSet.make(App, [Message.CreatedTodo]),        // SelectedTodo stays local
 })
+
+// The contract joins an assembly contract-only, so the Module sees it.
+const wiring = TodoSync.wiring()
 ```
 
 A custom `replay` option loses those guards. For large apps, declare one

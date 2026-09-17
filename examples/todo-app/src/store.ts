@@ -9,6 +9,7 @@
  * only once the fact has been applied.
  */
 import { Effect } from 'effect'
+import { KeyValueStore } from 'effect/unstable/persistence'
 import type { Agent } from 'foldkit-agent'
 import { type Message, type Model, initialModel } from './app.js'
 import { update } from './surface.js'
@@ -31,7 +32,14 @@ export const makeStore = (initial: Model = initialModel): Store => {
     model = result.model
     for (const listener of modelListeners) listener()
     await Promise.all(
-      (result.commands ?? []).map(command => Effect.runPromise(command.effect).then(dispatch)),
+      // `update`'s Commands carry the assembly's services in their type; `update`
+      // itself never emits one that touches the store, so a fresh memory layer
+      // satisfies the type without changing behaviour.
+      (result.commands ?? []).map(command =>
+        Effect.runPromise(command.effect.pipe(Effect.provide(KeyValueStore.layerMemory))).then(
+          dispatch,
+        ),
+      ),
     )
   }
 

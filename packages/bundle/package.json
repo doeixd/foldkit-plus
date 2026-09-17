@@ -1,0 +1,54 @@
+{
+  "name": "foldkit-bundle",
+  "version": "0.1.0",
+  "description": "Package a Foldkit Submodel once (Model, Message, update, subscriptions, resources, view) and place it anywhere in a parent with one Link.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "submodel",
+    "elm-architecture"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/bundle"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "@foldkit/ui": "0.158.2",
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "jsdom": "26.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.7.2"
+  }
+}

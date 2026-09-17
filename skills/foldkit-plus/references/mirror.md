@@ -32,6 +32,7 @@ does have one. Cold-load precedence is: URL value, then KV restore, then initial
 ```ts
 import { Schema } from 'effect'
 import type { KeyValueStore } from 'effect/unstable/persistence'
+import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -89,6 +90,13 @@ const subscriptions = Subscription.make<Model, Message, KeyValueStore.KeyValueSt
 }))
 
 const link: string = Filters.href(initial, { page: 2 })   // current URL with mirrored keys patched
+
+// One list instead of the hand-wiring above.
+const Page = Bundle.parent({ Model, Message })
+const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
+const wiredUpdate = wiring.update(model => ({ model }))
+const wiredSubscriptions = wiring.subscriptions()
+const wiredUrl = wiring.url(url => Message.UrlChanged({ url }))
 ```
 
 Provide the store Layer where the runtime runs (for example,
@@ -96,9 +104,11 @@ Provide the store Layer where the runtime runs (for example,
 
 ## Under `Sync.mount`
 
-`Sync.mount` has no `init` Commands. To wire a mirror in, use its `url` option,
-pass `subscriptions` and `resources`, and run the restore yourself (as
-`examples/todo-app` does):
+`Sync.mount` has no `init` Commands. To wire a mirror in, derive the runtime
+pieces from the assembly instead of writing them by hand (as
+`examples/todo-app` does): `wiring.subscriptions()` for `subscriptions`,
+`wiring.url(…)` for `url`, and `wiring.initial(…)` for the startup Commands to
+dispatch once mounted:
 
 ```ts
 import { Effect } from 'effect'
@@ -106,20 +116,20 @@ import { KeyValueStore } from 'effect/unstable/persistence'
 import { Sync } from 'foldkit-sync'
 
 const store = KeyValueStore.layerStorage(() => window.localStorage)
+const start = wiring.initial(initial)
 const mounted = Sync.mount(App, TodoSync, {
   replica,
   container,
   view,
-  subscriptions,
+  subscriptions: wiring.subscriptions(),
   resources: store,
-  url: {
-    init: (model, url) => Filters.reduce(model, url),
-    onUrlChange: url => Message.UrlChanged({ url }),
-  },
+  url: wiring.url(url => Message.UrlChanged({ url })),
 })
-void Effect.runPromise(Prefs.restore.effect.pipe(Effect.provide(store))).then(message =>
-  mounted.dispatch(message),
-)
+for (const command of start.commands ?? []) {
+  void Effect.runPromise(command.effect.pipe(Effect.provide(store))).then(message =>
+    mounted.dispatch(message),
+  )
+}
 ```
 
 ## Behavior worth knowing

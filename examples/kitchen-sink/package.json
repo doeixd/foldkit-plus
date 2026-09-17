@@ -14,6 +14,7 @@
     "foldkit-agent-mcp": "workspace:*",
     "foldkit-agent-native": "workspace:*",
     "foldkit-agent-webmcp": "workspace:*",
+    "foldkit-bundle": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-surface": "workspace:*",

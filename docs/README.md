@@ -33,8 +33,15 @@ cover all fifteen packages.
 | **Model** | The application's state. Local state still belongs here unless another system is its authoritative owner. |
 | **Message** | Something that happened or an intent the application knows how to handle. Agent and Sync reuse this vocabulary instead of inventing their own actions. |
 | **`update`** | The application's transition function. Foldkit Plus tries hard not to create a second reducer beside it. |
+| **Submodel** | A child state machine embedded in the parent: its own Model slice, Message, and `update`. The parent stores the child Model, routes wrapped Messages to it, and the child can surface facts upward via `outMessage`. |
+| **Bundle** | A Submodel packaged once so it can be placed one or many times with every part wired (init, update, Subscriptions, resources, view, helpers). Holds no state itself; the parent Model owns each placed slice. |
 | **Projection** | A pure, typed view of part of the Model, plus metadata about what it observes or requires. |
-| **Surface** | A named feature boundary: what it may observe and which Messages it may emit. |
+| **Surface** | A named feature boundary: what it may observe and which Messages it may emit. Observes; never owns transitions. |
+| **Command** | One-shot work caused by a transition. Runs once, then reports back as a Message. |
+| **Subscription** | Ongoing work whose lifetime follows Model state. Scoped by a slice; restarts when that slice changes. |
+| **Mount** | Element-scoped imperative work. Emits Messages while the element is live; cleans up on unmount. |
+| **Resource / ManagedResource** | A dependency shared with Commands and Subscriptions, not a Message source. A `Resource` lives for the app lifetime; a `ManagedResource` is a stateful handle whose lifetime follows a Model slice. |
+| **Wiring** | How one integration joins the application: which Messages it folds, what it runs at startup, what it subscribes to, and what it owns. |
 | **Owner** | The one authoritative source for a datum. Mirrors observe; Remote caches server-owned facts; Sync owns replicated client-authored state through the durable log. |
 
 Those terms are enough to understand most of the repository. Package-specific
@@ -48,6 +55,9 @@ vocabulary should refine them, not replace them.
 | Put server-owned entities in the Model without per-view fetch/cache logic | [Server-derived state](./remote.md) | `foldkit-remote`, `foldkit-remote-server`, optional `foldkit-remote-drizzle` |
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
 | Keep local Model state in the URL or a device store without making that store authoritative | [Mirrored state](./mirror.md) | `foldkit-mirror` |
+| Package a Submodel once and place it several times or per key, with its Subscriptions, resources, and view wired | [`foldkit-bundle` README](../packages/bundle) | `foldkit-bundle`, `foldkit-bundle-surface` |
+| Join several integrations and placements through one checked list instead of hand-wiring each | [Wiring](./wiring.md) | `foldkit-bundle`, `foldkit-bundle-surface`, `foldkit-surface` |
+| Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
 
@@ -81,7 +91,10 @@ Agents           foldkit-agent + agent-webmcp / agent-mcp / agent-a2a / agent-na
 Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
+Submodels        foldkit-bundle + bundle-surface
+Primitives       foldkit-primitives (media, net, time, state, motion, device, events, observers, dom)
 Views            foldkit-mixins + mixins-surface / mixins-ui
+React interop    foldkit-react + react-codegen
 ```
 
 The names indicate roles, not a requirement that every package depend on every

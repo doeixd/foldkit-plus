@@ -1,0 +1,96 @@
+{
+  "name": "foldkit-primitives",
+  "version": "0.1.0",
+  "description": "Ready-made primitives for the Elm architecture, packaged with foldkit-bundle: media queries, presence, timers, pagination, history, sockets, observers, and clipboard.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "submodel",
+    "primitives",
+    "elm-architecture"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/primitives"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/primitives#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./dom": {
+      "types": "./dist/dom/index.d.mts",
+      "import": "./dist/dom/index.mjs"
+    },
+    "./device": {
+      "types": "./dist/device/index.d.mts",
+      "import": "./dist/device/index.mjs"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.mts",
+      "import": "./dist/events/index.mjs"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.mts",
+      "import": "./dist/media/index.mjs"
+    },
+    "./motion": {
+      "types": "./dist/motion/index.d.mts",
+      "import": "./dist/motion/index.mjs"
+    },
+    "./net": {
+      "types": "./dist/net/index.d.mts",
+      "import": "./dist/net/index.mjs"
+    },
+    "./observers": {
+      "types": "./dist/observers/index.d.mts",
+      "import": "./dist/observers/index.mjs"
+    },
+    "./state": {
+      "types": "./dist/state/index.d.mts",
+      "import": "./dist/state/index.mjs"
+    },
+    "./time": {
+      "types": "./dist/time/index.d.mts",
+      "import": "./dist/time/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.12",
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "jsdom": "26.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.7.2",
+    "ws": "^8.18.0"
+  }
+}

@@ -14,6 +14,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Update from 'foldkit/update'
 import {
@@ -184,8 +185,8 @@ const Model = Schema.Struct({
 })
 export type Model = typeof Model.Type
 
-// Remote's Messages are cases of the application's own union; `update`
-// hands them to `Data.reduce` by tag, so there is no wrapper Message.
+// Remote's Messages are cases of the application's own union; the assembly
+// below hands them to `Data.reduce` by tag, so there is no wrapper Message.
 export const Message = defineMessageUnion({
   ...Remote.messages,
   Ping: {},
@@ -196,10 +197,13 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  return { model: reduceNotes(model, message) }
-}
+/**
+ * The application's own transitions. The assembly routes Remote's Messages
+ * before `own` ever sees them; the tag check narrows the union for
+ * `reduceNotes`, and its fallback arm is unreachable.
+ */
+const ownUpdate = (model: Model, message: Message): Update.Return<Model, Message> =>
+  Remote.reduces(message) ? { model } : { model: reduceNotes(model, message) }
 
 const reduceNotes = (
   model: Model,
@@ -239,7 +243,8 @@ export const App = Surface.application({
     selectedNoteId: null,
     lastError: null,
   },
-  update,
+  // The assembly below; invoked only after this module finishes loading.
+  update: (model, message) => update(model, message),
 })
 
 /** The Remote domain, bound to `model.remote`: the application-facing operations live here. */
@@ -272,14 +277,15 @@ export const NoteChanges = MessageSet.make(App, [
   Message.RequestedCreateNote,
   Message.RequestedRenameNote,
 ])
-export const KitchenSync: SyncContract<
-  Message,
-  { readonly notes: ReadonlyArray<typeof Note.Type> }
-> = Sync.forApplication(App).make({
+const syncDefinition = Sync.forApplication(App).make({
   documentId: SyncDocumentId.make('kitchen'),
   shared: Notes,
   durable: NoteChanges,
 })
+export const KitchenSync: SyncContract<
+  Message,
+  { readonly notes: ReadonlyArray<typeof Note.Type> }
+> = syncDefinition
 
 /** A minimal in-memory `Storage`, so the replica needs no browser runtime. */
 export const memoryStorage = (): Storage => {
@@ -340,6 +346,27 @@ export const makeSyncServer = (principal: Principal) =>
   })
 
 export const openReplica = KitchenSync.openReplica(ReplicaId.make('kitchen-a'), memoryStorage())
+
+const Page = Bundle.parent({ Model: App.Model, Message })
+
+/**
+ * The one list of what joins the application: the Remote domain brings its
+ * routing, Subscriptions, and contract (and requires `RemoteClient` from the
+ * runtime's resources), and the sync contract joins for the Module. `update`
+ * derives from it, so a missed step is a type error rather than a silent
+ * no-op.
+ */
+export const wiring = Page.assemble(Data.wiring({ board: BoardSurface }), syncDefinition.wiring())
+
+/**
+ * Remote's Messages go to the domain; every other Message goes to `own`.
+ * Annotated to break the inference cycle: `App` above is built from this
+ * update, which is built from the domain, which is bound over `App`.
+ */
+export const update: (
+  model: Model,
+  message: Message,
+) => Update.Return<Model, Message, RemoteClient> = wiring.update(ownUpdate)
 
 // ---------------------------------------------------------------------------
 // The server-backed RemoteClient

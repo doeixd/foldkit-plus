@@ -440,6 +440,15 @@ installed `.d.ts` before reaching for a remembered API.
   would need library internals to satisfy an argument, the library should read
   them itself.
 
+- **Bundle authoring needs explicit types in three places; inference drops
+  precision in each.** A service-requiring bundle helper pins the whole spec's
+  `R` to `never` (annotate `make`'s generics explicitly); literal Model fields
+  widen to `string` through inference — and an empty `{}`/`[]` in `init`
+  widens the whole inferred Model (Virtual's `heights` became `{}`), so
+  prefer explicit `make` generics whenever `init` holds an empty container;
+  and `Message.match` unifies diverse arm shapes to the first arm (pin its
+  output at the call).
+
 **Async**
 
 - **Re-check invariants after every `await`.** A `disposed` flag read once
@@ -454,6 +463,11 @@ installed `.d.ts` before reaching for a remembered API.
   an unhandled rejection.
 - **`Effect.result` captures failures, not defects.** At an edge that must not
   throw, catch as well.
+- **Settle subscriptions before advancing TestClock.** A forked stream fiber
+  registers window listeners on the real scheduler; `TestClock.adjust` moves
+  virtual time without yielding to it, so events dispatched right after the
+  fork hit nothing and a debounce test silently observes the un-reset timer.
+  Yield (a hundred `yieldNow`) after fork before the first adjust.
 
 **Tests**
 
@@ -464,6 +478,10 @@ installed `.d.ts` before reaching for a remembered API.
   test per guard.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
+- **Cleaning up the DOM can hide a leaked runtime.** Removing the embed
+  container on unmount made a `FoldkitComponent` that never called `dispose`
+  look identical to one that did. Assert on something only a live runtime does,
+  such as a Subscription finalizer running.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
@@ -485,6 +503,9 @@ installed `.d.ts` before reaching for a remembered API.
   the escape as an invisible character in `replace('\u0000', ' ')`. After
   writing code that contains control-character escapes, check
   `git diff --stat` for `Bin` and grep for the escape.
+- **Python's text mode writes CRLF on Windows.** Scripted edits with
+  `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
+  that failed `format:check`. Pass `newline=''` when reading and writing.
 - **Format with `pnpm format`, never bare `prettier`.** The config matches the
   style already in the tree; without it prettier rewrites files to its own
   defaults. Markdown is deliberately ignored, because prettier pads table
@@ -512,6 +533,11 @@ installed `.d.ts` before reaching for a remembered API.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.
+- **Package and root typechecks can use different TypeScript versions.**
+  `packages/bundles` resolves TS 5.7.2 while the root resolves 5.9.3, whose
+  tighter match-arm inference failed `Idle`/`Interval` updates the package
+  check passed. The root check is what CI runs: verify with it (or plain
+  `npx tsc -b <project>`) before committing, not just the package script.
 - **Map every workspace dep in a composite example's `paths`.** A package's
   `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
   import through `exports` fails on a clean checkout; a stale local `dist` hides
