@@ -460,6 +460,11 @@ installed `.d.ts` before reaching for a remembered API.
   an unhandled rejection.
 - **`Effect.result` captures failures, not defects.** At an edge that must not
   throw, catch as well.
+- **Settle subscriptions before advancing TestClock.** A forked stream fiber
+  registers window listeners on the real scheduler; `TestClock.adjust` moves
+  virtual time without yielding to it, so events dispatched right after the
+  fork hit nothing and a debounce test silently observes the un-reset timer.
+  Yield (a hundred `yieldNow`) after fork before the first adjust.
 
 **Tests**
 
