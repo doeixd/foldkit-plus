@@ -204,6 +204,13 @@ stream ends with `Finished` carrying the exact end value, and the value rests
 at `to` either way. Linear interpolation only: easing curves stay the
 application's job.
 
+`Presence` holds mount-transition state for exit animations. Model
+`{ phase, generation }` with `phase` moving shown → hiding → hidden:
+`Hide` starts the timed `hiding` phase, and the `Hidden` fact it yields
+carries its generation, so a `Show` in between wins and the late fact is
+ignored. Args `{ durationMs }` (positive). `isVisible` reads whether content
+renders (shown or mid-exit).
+
 ## Failure and recovery
 
 | Failure | Behaviour |
