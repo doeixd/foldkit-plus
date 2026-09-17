@@ -60,4 +60,63 @@ describe('Surface edge cases', () => {
     })
     expect(projection.dependencies).toEqual([['todos']])
   })
+
+  it('modify transforms through a top-level field ref', () => {
+    const next = App.model.todos.modify(example, todos => [...todos, { id: 'b', title: 'B' }])
+    expect(next).toEqual({
+      todos: [
+        { id: 'a', title: 'A' },
+        { id: 'b', title: 'B' },
+      ],
+      selectedTodoId: null,
+    })
+  })
+
+  it('modify transforms through a nested struct ref', () => {
+    const ref = App.model.todos
+    const next = ref.modify(example, todos =>
+      todos.map(todo => (todo.id === 'a' ? { ...todo, title: 'B' } : todo)),
+    )
+    expect(next).toEqual({ todos: [{ id: 'a', title: 'B' }], selectedTodoId: null })
+  })
+
+  it('modify inserts through an absent record key where set would', () => {
+    const model = { projects: {} as Record<string, { id: string; name: string }> }
+    const ref = Surface.application({
+      Model: Schema.Struct({
+        projects: Schema.Record(
+          Schema.String,
+          Schema.Struct({ id: Schema.String, name: Schema.String }),
+        ),
+      }),
+      Message: defineMessageUnion({ Ping: {} }),
+    }).model.projects.at('p1')
+
+    // A bare optic replace would no-op on the absent key; modify must go
+    // through the ref's container-aware set and insert.
+    const next = ref.modify(model, () => Option.some({ id: 'p1', name: 'Apollo' }))
+    expect(next).toEqual({ projects: { p1: { id: 'p1', name: 'Apollo' } } })
+  })
+
+  it('modify removes through a present record key', () => {
+    const model = { projects: { p1: { id: 'p1', name: 'Apollo' } } }
+    const ref = Surface.application({
+      Model: Schema.Struct({
+        projects: Schema.Record(
+          Schema.String,
+          Schema.Struct({ id: Schema.String, name: Schema.String }),
+        ),
+      }),
+      Message: defineMessageUnion({ Ping: {} }),
+    }).model.projects.at('p1')
+
+    expect(ref.modify(model, () => Option.none())).toEqual({ projects: {} })
+  })
+
+  it('modify preserves unrelated fields and round-trips through get', () => {
+    const ref = App.model.todos
+    const next = ref.modify(example, todos => [...todos])
+    expect(ref.get(next)).toEqual(example.todos)
+    expect(next.selectedTodoId).toBe(null)
+  })
 })

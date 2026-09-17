@@ -60,6 +60,19 @@ const _todo: ModelRef<
   Option.Option<{ readonly id: string; readonly title: string }>
 > = App.model.todos.index(0)
 
+// modify transforms through the ref and returns the root.
+const _modified: ModelValue = App.model.session.user.name.modify(
+  { session: { user: { name: 'ada' } }, todos: [], projects: {} } as ModelValue,
+  name => name.toUpperCase(),
+)
+
+const _badModify = App.model.session.user.name.modify(
+  { session: { user: { name: 'ada' } }, todos: [], projects: {} } as ModelValue,
+  // @ts-expect-error modify's function must return the focused value's type
+  () => 42,
+)
+void _badModify
+
 // @ts-expect-error `nope` is not a field of the Model
 App.model.nope
 
