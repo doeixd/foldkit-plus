@@ -174,6 +174,20 @@ export const windowFor = (
 }
 
 /**
+ * Pixels from the viewport's bottom edge to the content's end: negative
+ * past it, zero exactly there. Prefetch thresholds want this number ("load
+ * when within 500px"), not just the boolean below.
+ */
+export const distanceToEnd = (
+  model: VirtualModel,
+  keys: ReadonlyArray<string>,
+  viewportHeight: number,
+): number => {
+  const total = totalHeight(keys, model.heights, layoutOf(model))
+  return total - (model.scrollTop + viewportHeight)
+}
+
+/**
  * Whether the viewport rests at (or past) the end, within `threshold`
  * pixels: the infinite-scroll check. An empty list counts as ended — there
  * is nothing to scroll, so more should load. Thresholds below zero clamp
@@ -187,7 +201,7 @@ export const isAtEnd = (
 ): boolean => {
   const total = totalHeight(keys, model.heights, layoutOf(model))
   if (total <= 0) return true
-  return model.scrollTop + viewportHeight >= total - Math.max(0, threshold)
+  return distanceToEnd(model, keys, viewportHeight) <= Math.max(0, threshold)
 }
 
 const saneTop = (top: number): number | null => (Number.isFinite(top) ? Math.max(0, top) : null)

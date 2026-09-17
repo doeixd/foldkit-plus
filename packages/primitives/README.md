@@ -363,7 +363,8 @@ live ones) and a `settleMs` silence (default 150). Every scroll marks
 `Viewport` reports the container's own scrolls and `MeasureRow({ key })` reports row heights, both as Mounts;
 `windowFor(model, keys, viewportHeight)` answers which rows to render plus
 the spacer height, `isAtEnd(model, keys, viewportHeight, threshold)` is the
-infinite-scroll check (an empty list counts as ended), and `offsetFor`
+infinite-scroll check (an empty list counts as ended), `distanceToEnd`
+answers the pixels remaining for prefetch thresholds, and `offsetFor`
 computes programmatic scroll targets the application actuates itself.
 `Prune` drops heights for departed keys — the bundle never sees key order.
 Poisoned positions and heights are ignored, never stored. For window-

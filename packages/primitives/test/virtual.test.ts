@@ -11,6 +11,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
 import {
+  distanceToEnd,
   isAtEnd,
   masonry,
   offsetFor,
@@ -300,6 +301,17 @@ describe('isAtEnd', () => {
 
   it('counts an empty list as ended', () => {
     expect(isAtEnd(model, [], 50, 0)).toBe(true)
+  })
+})
+
+describe('distanceToEnd', () => {
+  const model = { scrollTop: 0, heights: {}, scrolling: false, generation: 0, ...config }
+
+  it('measures pixels from the viewport bottom to the content end', () => {
+    // Total is 100; viewport 50.
+    expect(distanceToEnd({ ...model, scrollTop: 0 }, keys, 50)).toBe(50)
+    expect(distanceToEnd({ ...model, scrollTop: 50 }, keys, 50)).toBe(0)
+    expect(distanceToEnd({ ...model, scrollTop: 80 }, keys, 50)).toBe(-30)
   })
 })
 
