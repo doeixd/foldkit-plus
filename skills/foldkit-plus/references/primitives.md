@@ -57,7 +57,8 @@ dropped. `Throttle` pairs leading-edge against that trailing edge.
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
 friends lift with `Subscription.persistent`, and `matchHotkey` turns a press
-into a chord answer.
+into a chord answer. Slices that must survive reload persist through
+`Mirror.kv`, not here — this package owns live facts only.
 
 ## Common tasks
 

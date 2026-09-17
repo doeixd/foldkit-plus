@@ -338,6 +338,12 @@ position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
 list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
 throws, naming it.
 
+Persisted state lives one package over: `Mirror.kv(App, { key, fields })`
+keeps a Model slice in Effect's `KeyValueStore` (localStorage in the
+browser), restored through a `MirrorRestored` Message the application
+reduces. Nothing here duplicates it — reach for the mirror when a slice
+should survive reload, and keep this package's bundles for live facts.
+
 ## With Surface and Mirror
 
 Placed state is ordinary Model, so the surrounding tools apply unchanged —
