@@ -129,6 +129,31 @@ Effect's clock, so tests advance it with TestClock instead of waiting; while
 stopped the stream is empty. Restarting keeps the count; only `Ticked`
 advances it.
 
+## State: `foldkit-bundles/state`
+
+`Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`
+while unknown. Every transition clamps into range: past the last page lands on
+it, below one lands on one, and a smaller total pulls the page back. New sizes
+and totals arrive as Messages (`SetPerPage` ignores a non-positive size).
+`pageCount` returns null while the total is unknown; `offset` gives the first
+item's index for a slice or a query. Loading data stays the application's job:
+this bundle owns the page, not the items.
+
+`history({ name, value, capacity })` makes an undo/redo bundle over any value
+Schema. The Model holds `{ past, present, future }`; `Push` records and drops
+the redo future, `Undo`/`Redo` move one step, `Clear` empties both sides while
+keeping the present. The past holds at most `capacity` entries (default 100);
+a negative or fractional capacity throws at the factory, naming it. The
+factory attaches the Message union, so placements dispatch
+`EditHistory.Message.Push(...)`. `canUndo`/`canRedo` read the edges:
+
+```ts
+import { history } from 'foldkit-bundles/state'
+
+const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })
+const Doc = Bundle.declare(EditHistory, 'doc')
+```
+
 ## Failure and recovery
 
 | Failure | Behaviour |
