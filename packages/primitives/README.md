@@ -353,11 +353,13 @@ list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
 throws, naming it.
 
 `Virtual` owns a virtualized list's scroll position, measured heights, and
-layout: Model `{ scrollTop, heights, estimatedHeight, overscan, gap,
-paddingStart, paddingEnd }`, Messages `Scrolled`/`Measured`/`Prune`, args
-for the layout plus optional `initialScrollTop`/`initialHeights` restores
-(measurements sanitized like live ones). `Viewport` reports the container's
-own scrolls and `MeasureRow({ key })` reports row heights, both as Mounts;
+layout: Model `{ scrollTop, heights, scrolling, generation, estimatedHeight,
+overscan, gap, paddingStart, paddingEnd }`, Messages
+`Scrolled`/`Measured`/`Prune`/`Settled`, args for the layout plus optional
+`initialScrollTop`/`initialHeights` restores (measurements sanitized like
+live ones) and a `settleMs` silence (default 150). Every scroll marks
+`scrolling` until the silence settles — suspend loaders and parallax on it.
+`Viewport` reports the container's own scrolls and `MeasureRow({ key })` reports row heights, both as Mounts;
 `windowFor(model, keys, viewportHeight)` answers which rows to render plus
 the spacer height, `isAtEnd(model, keys, viewportHeight, threshold)` is the
 infinite-scroll check (an empty list counts as ended), and `offsetFor`

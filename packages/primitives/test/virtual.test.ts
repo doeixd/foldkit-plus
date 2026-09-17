@@ -5,7 +5,8 @@
  * validation), the end check, and placement through a real assembly. No
  * effects, no DOM — Mounts live in virtual-mounts.test.ts.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Fiber, Option, Schema } from 'effect'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
@@ -117,7 +118,7 @@ const args = {
 const placed = Page.at(List, { args })
 const config = { ...args }
 const fresh: Model = {
-  list: { scrollTop: 0, heights: {}, ...config },
+  list: { scrollTop: 0, heights: {}, scrolling: false, generation: 0, ...config },
 }
 
 const fold = (model: Model, message: Parameters<typeof List.wrapper.make>[0]) =>
@@ -125,17 +126,35 @@ const fold = (model: Model, message: Parameters<typeof List.wrapper.make>[0]) =>
 
 describe('Virtual transitions', () => {
   it('starts from args and follows scrolls and measures', () => {
-    expect(placed.init(fresh).model.list).toEqual({ scrollTop: 0, heights: {}, ...config })
-    expect(fold(fresh, VirtualMessage.Scrolled({ top: 100 }))).toEqual({
-      scrollTop: 100,
+    expect(placed.init(fresh).model.list).toEqual({
+      scrollTop: 0,
       heights: {},
+      scrolling: false,
+      generation: 0,
       ...config,
     })
+    const scrolled = Option.getOrThrow(
+      placed.update(fresh, List.wrapper.make(VirtualMessage.Scrolled({ top: 100 }))),
+    )
+    expect(scrolled.model.list).toEqual({
+      scrollTop: 100,
+      heights: {},
+      scrolling: true,
+      generation: 1,
+      ...config,
+    })
+    expect(scrolled.commands).toHaveLength(1)
     const measured = fold(
-      { list: { scrollTop: 100, heights: {}, ...config } },
+      { list: { scrollTop: 100, heights: {}, scrolling: true, generation: 1, ...config } },
       VirtualMessage.Measured({ key: 'b', height: 30 }),
     )
-    expect(measured).toEqual({ scrollTop: 100, heights: { b: 30 }, ...config })
+    expect(measured).toEqual({
+      scrollTop: 100,
+      heights: { b: 30 },
+      scrolling: true,
+      generation: 1,
+      ...config,
+    })
   })
 
   it('restores scroll position and measurements at init', () => {
@@ -145,15 +164,20 @@ describe('Virtual transitions', () => {
     expect(restored.init(fresh).model.list).toEqual({
       scrollTop: 40,
       heights: { a: 12 },
+      scrolling: false,
+      generation: 0,
       ...config,
     })
   })
 
   it('ignores poisoned positions and heights', () => {
     expect(fold(fresh, VirtualMessage.Scrolled({ top: Number.NaN }))).toEqual(fresh.list)
+    // A negative top clamps to zero but still counts as scroll activity.
     expect(fold(fresh, VirtualMessage.Scrolled({ top: -10 }))).toEqual({
       scrollTop: 0,
       heights: {},
+      scrolling: true,
+      generation: 1,
       ...config,
     })
     expect(fold(fresh, VirtualMessage.Measured({ key: 'b', height: Number.NaN }))).toEqual(
@@ -163,15 +187,27 @@ describe('Virtual transitions', () => {
   })
 
   it('prunes heights for departed keys and keeps the rest', () => {
-    const full: Model = { list: { scrollTop: 0, heights: { a: 10, b: 20, c: 30 }, ...config } }
+    const full: Model = {
+      list: {
+        scrollTop: 0,
+        heights: { a: 10, b: 20, c: 30 },
+        scrolling: false,
+        generation: 0,
+        ...config,
+      },
+    }
     expect(fold(full, VirtualMessage.Prune({ keys: ['a', 'c', 'd'] }))).toEqual({
       scrollTop: 0,
       heights: { a: 10, c: 30 },
+      scrolling: false,
+      generation: 0,
       ...config,
     })
     expect(fold(full, VirtualMessage.Prune({ keys: [] }))).toEqual({
       scrollTop: 0,
       heights: {},
+      scrolling: false,
+      generation: 0,
       ...config,
     })
   })
@@ -194,13 +230,48 @@ describe('Virtual transitions', () => {
 
 describe('windowFor', () => {
   it('windows the model with its own config', () => {
-    const model = { scrollTop: 100, heights: { a: 100 }, ...config }
+    const model = {
+      scrollTop: 100,
+      heights: { a: 100 },
+      scrolling: false,
+      generation: 0,
+      ...config,
+    }
     expect(windowFor(model, keys, 50)).toEqual({ start: 0, end: 5, totalHeight: 180 })
   })
 })
 
+describe('scrolling settle', () => {
+  it('settles after silence and ignores superseded timers', async () => {
+    const step = Option.getOrThrow(
+      placed.update(fresh, List.wrapper.make(VirtualMessage.Scrolled({ top: 10 }))),
+    )
+    expect(step.commands).toHaveLength(1)
+    const fact = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(step.commands![0]!.effect)
+        yield* Effect.yieldNow
+        yield* TestClock.adjust('10 seconds')
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+    expect(fact).toEqual(List.wrapper.make(VirtualMessage.Settled({ generation: 1 })))
+    const settled = fold(
+      { list: { scrollTop: 10, heights: {}, scrolling: true, generation: 1, ...config } },
+      VirtualMessage.Settled({ generation: 1 }),
+    )
+    expect(settled.scrolling).toBe(false)
+    expect(
+      fold(
+        { list: { scrollTop: 20, heights: {}, scrolling: true, generation: 2, ...config } },
+        VirtualMessage.Settled({ generation: 1 }),
+      ).scrolling,
+    ).toBe(true)
+  })
+})
+
 describe('isAtEnd', () => {
-  const model = { scrollTop: 0, heights: {}, ...config }
+  const model = { scrollTop: 0, heights: {}, scrolling: false, generation: 0, ...config }
 
   it('is ended when the viewport covers the total', () => {
     // 5 rows of 20 with overscan... total is 100; viewport 50.
@@ -223,7 +294,13 @@ describe('Virtual in an assembly', () => {
     const assembly = Page.assemble(placed)
     const update = assembly.update(model => ({ model }))
     const scrolled = update(fresh, List.wrapper.make(VirtualMessage.Scrolled({ top: 40 })))
-    expect(scrolled.model.list).toEqual({ scrollTop: 40, heights: {}, ...config })
+    expect(scrolled.model.list).toEqual({
+      scrollTop: 40,
+      heights: {},
+      scrolling: true,
+      generation: 1,
+      ...config,
+    })
     expect(Object.keys(assembly.subscriptions())).toEqual([])
   })
 })

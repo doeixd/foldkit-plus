@@ -121,6 +121,8 @@ export const visibleRange = (
 export const VirtualModel = Schema.Struct({
   scrollTop: Schema.Number,
   heights: Schema.Record(Schema.String, Schema.Number),
+  scrolling: Schema.Boolean,
+  generation: Schema.Number,
   estimatedHeight: Schema.Number,
   overscan: Schema.Number,
   gap: Schema.Number,
@@ -135,6 +137,9 @@ export const VirtualMessage = defineMessageUnion({
   /** Drops heights for keys no longer listed: the bundle never sees the key
     order, so the application tells it what left. */
   Prune: { keys: Schema.Array(Schema.String) },
+  /** Fires when scrolling has been silent for `settleMs`: only the latest
+    generation counts, so a fling's intermediate timers emit nothing. */
+  Settled: { generation: Schema.Number },
 })
 export type VirtualMessage = typeof VirtualMessage.Type
 
@@ -200,6 +205,7 @@ export const Virtual = Bundle.make<
     readonly gap: number
     readonly paddingStart: number
     readonly paddingEnd: number
+    readonly settleMs?: number | undefined
     readonly initialScrollTop?: number | undefined
     readonly initialHeights?: Readonly<Record<string, number>> | undefined
   }
@@ -224,6 +230,9 @@ export const Virtual = Bundle.make<
       Schema.check(Schema.isGreaterThanOrEqualTo(0)),
       Schema.check(Schema.isFinite()),
     ),
+    settleMs: Schema.optional(
+      Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0)), Schema.check(Schema.isFinite())),
+    ),
     initialScrollTop: Schema.optional(
       Schema.Number.pipe(
         Schema.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -244,6 +253,8 @@ export const Virtual = Bundle.make<
       model: {
         scrollTop: args.initialScrollTop ?? 0,
         heights,
+        scrolling: false,
+        generation: 0,
         estimatedHeight: args.estimatedHeight,
         overscan: args.overscan,
         gap: args.gap,
@@ -252,13 +263,27 @@ export const Virtual = Bundle.make<
       },
     }
   },
-  update: (model, message) =>
+  update: (model, message, args) =>
     VirtualMessage.match<Update.ReturnWithOutMessage<VirtualModel, VirtualMessage, never>>(
       message,
       {
         Scrolled: ({ top }) => {
           const sane = saneTop(top)
-          return sane === null ? { model } : { model: { ...model, scrollTop: sane } }
+          if (sane === null) return { model }
+          const generation = model.generation + 1
+          return {
+            model: { ...model, scrollTop: sane, scrolling: true, generation },
+            commands: [
+              {
+                name: 'Virtual.settle',
+                args: { generation },
+                effect: Effect.as(
+                  Effect.sleep(args.settleMs ?? 150),
+                  VirtualMessage.Settled({ generation }),
+                ),
+              },
+            ],
+          }
         },
         Measured: ({ key, height }) => {
           const sane = saneMeasured(height)
@@ -274,6 +299,9 @@ export const Virtual = Bundle.make<
           }
           return { model: { ...model, heights } }
         },
+        // A superseded silence timer carries an old generation: ignore it.
+        Settled: ({ generation }) =>
+          generation === model.generation ? { model: { ...model, scrolling: false } } : { model },
       },
     ),
 })
