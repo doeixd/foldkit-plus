@@ -499,34 +499,6 @@ importers:
         specifier: ^5.7.2
         version: 5.7.2
 
-  packages/bundles:
-    dependencies:
-      foldkit-bundle:
-        specifier: workspace:*
-        version: link:../bundle
-    devDependencies:
-      '@types/ws':
-        specifier: ^8.5.12
-        version: 8.18.1
-      effect:
-        specifier: 4.0.0-rc.112
-        version: 4.0.0-rc.112
-      foldkit:
-        specifier: 0.158.2
-        version: 0.158.2(effect@4.0.0-rc.112)
-      jsdom:
-        specifier: 26.1.0
-        version: 26.1.0
-      tsdown:
-        specifier: ^0.23.0
-        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
-      typescript:
-        specifier: ^5.7.2
-        version: 5.7.2
-      ws:
-        specifier: ^8.18.0
-        version: 8.21.3
-
   packages/durable:
     dependencies:
       '@effect/sql-sqlite-node':
@@ -630,6 +602,34 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  packages/primitives:
+    dependencies:
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.1
+      effect:
+        specifier: 4.0.0-rc.112
+        version: 4.0.0-rc.112
+      foldkit:
+        specifier: 0.158.2
+        version: 0.158.2(effect@4.0.0-rc.112)
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.7.2)(unrun@0.3.1)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.7.2
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.3
 
   packages/react:
     devDependencies:
@@ -6847,18 +6847,6 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.18.0:
-    resolution: {integrity: sha512-8VbfWfHLbbwu3+N6OKsOMpBdT4kXPDDB9cJk2bJ6mh9ucxdlnNvH1e+roYkKmN9Nxw2yjz7VzeO9oOz2zJ04Pw==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
   ws@8.21.3:
     resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
     engines: {node: '>=10.0.0'}
@@ -11061,7 +11049,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.18.0
+      ws: 8.21.3
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -13100,8 +13088,6 @@ snapshots:
     optional: true
 
   wrappy@1.0.2: {}
-
-  ws@8.18.0: {}
 
   ws@8.21.3: {}
 

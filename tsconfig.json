@@ -15,7 +15,7 @@
     { "path": "./packages/mirror" },
     { "path": "./packages/bundle" },
     { "path": "./packages/bundle-surface" },
-    { "path": "./packages/bundles" },
+    { "path": "./packages/primitives" },
     { "path": "./packages/react" },
     { "path": "./packages/react-codegen" },
     { "path": "./packages/mixins" },

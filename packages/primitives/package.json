@@ -1,7 +1,7 @@
 {
-  "name": "foldkit-bundles",
+  "name": "foldkit-primitives",
   "version": "0.1.0",
-  "description": "Ready-made foldkit-bundle primitives: media queries, presence, timers, pagination, history, sockets, observers, and clipboard.",
+  "description": "Ready-made primitives for the Elm architecture, packaged with foldkit-bundle: media queries, presence, timers, pagination, history, sockets, observers, and clipboard.",
   "keywords": [
     "foldkit",
     "effect",
@@ -18,9 +18,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
-    "directory": "packages/bundles"
+    "directory": "packages/primitives"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/bundles#readme",
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/primitives#readme",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

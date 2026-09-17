@@ -1,7 +1,7 @@
 /**
  * The sixty-second example from this package's README, type-checked so the
  * documentation cannot drift from the API. Imports are relative, as in every
- * package's fixture; the README shows the published `foldkit-bundles/media`.
+ * package's fixture; the README shows the published `foldkit-primitives/media`.
  */
 import { Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'

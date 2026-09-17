@@ -1,4 +1,4 @@
-# `foldkit-bundles`
+# `foldkit-primitives`
 
 Ready-made [`foldkit-bundle`](./bundle) primitives: media queries, breakpoints,
 presence, timers, intervals, debounce, tweens, springs, pagination, history,
@@ -13,7 +13,7 @@ are element-scoped observation attached with `h.OnMount` (`Resize`,
 functions (`range`, `formatRelativeTime`).
 
 ```ts
-import { MediaQuery } from 'foldkit-bundles/media'
+import { MediaQuery } from 'foldkit-primitives/media'
 ```
 
 ## Which state belongs here?
@@ -54,13 +54,13 @@ an empty stream instead of throwing, so the slice keeps its default.
 ## Install
 
 ```bash
-pnpm add foldkit-bundles foldkit-bundle effect foldkit
+pnpm add foldkit-primitives foldkit-bundle effect foldkit
 ```
 
 `effect` and `foldkit` are peer dependencies. Import per subpath —
-`foldkit-bundles/media`, `foldkit-bundles/net`, `foldkit-bundles/time`,
-`foldkit-bundles/state`, `foldkit-bundles/motion`, `foldkit-bundles/device`,
-`foldkit-bundles/events`, `foldkit-bundles/observers`, `foldkit-bundles/dom` —
+`foldkit-primitives/media`, `foldkit-primitives/net`, `foldkit-primitives/time`,
+`foldkit-primitives/state`, `foldkit-primitives/motion`, `foldkit-primitives/device`,
+`foldkit-primitives/events`, `foldkit-primitives/observers`, `foldkit-primitives/dom` —
 so bundlers drop the primitives you never import.
 
 ## Sixty seconds: follow the color scheme
@@ -72,7 +72,7 @@ Message variant, by Foldkit's `Got<Field>Message` convention:
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { MediaQuery } from 'foldkit-bundles/media'
+import { MediaQuery } from 'foldkit-primitives/media'
 
 const Dark = Bundle.declare(MediaQuery, 'dark')
 
@@ -106,7 +106,7 @@ corrects it on subscribe. The Solid equivalent this replaces:
 // Here the fact lives in the Model: replay, DevTools, and time travel see it.
 ```
 
-## Media: `foldkit-bundles/media`
+## Media: `foldkit-primitives/media`
 
 `MediaQuery` follows one CSS media query. Model `{ matches: boolean }`,
 one Message `Changed { matches }`, args `{ query: string }`. The stream emits
@@ -116,7 +116,7 @@ empty and the slice keeps its initial `false`.
 Bound presets place with no args:
 
 ```ts
-import { PrefersDark, PrefersReducedMotion } from 'foldkit-bundles/media'
+import { PrefersDark, PrefersReducedMotion } from 'foldkit-primitives/media'
 
 const placements = Page.assemble(Page.place(PrefersDark, 'dark'))
 ```
@@ -134,7 +134,7 @@ from a passed user-agent string (mobile checks first: Android contains
 "Linux", iPhones mention "Mac"); `isBrowser()`/`isServer()` split SSR from
 client for init defaults.
 
-## Net: `foldkit-bundles/net`
+## Net: `foldkit-primitives/net`
 
 `Online` keeps `online: boolean` in the Model, read from `navigator.onLine`
 at startup and kept current by the window's `online`/`offline` events. One
@@ -167,7 +167,7 @@ the one-shot Command, yielding `Posted` or `BroadcastFailed`. A post never
 echoes to its own channel, per spec; without the API the entry is empty and
 the Command fails, instead of throwing.
 
-## Time: `foldkit-bundles/time`
+## Time: `foldkit-primitives/time`
 
 `Timer` counts ticks while running. Model `{ count, running }`, Messages
 `Started`/`Stopped`/`Ticked`, args `{ intervalMs }` (positive and finite —
@@ -199,7 +199,7 @@ years) and lets `Intl.RelativeTimeFormat` word it — locales come from the
 platform, not a phrase table. There is deliberately no `now` helper:
 `Clock.currentTimeMillis` already is it.
 
-## Events: `foldkit-bundles/events`
+## Events: `foldkit-primitives/events`
 
 `Visibility` keeps `visible: boolean` in the Model, read from the document
 at startup (SSR assumes visible) and kept current by `visibilitychange`:
@@ -226,7 +226,7 @@ repeat) and releases, moves `{ x, y }`, scroll positions, and focus
 with `Subscription.persistent`, mapping into the parent's Message; without
 a window each stream is empty instead of throwing.
 
-## Observers: `foldkit-bundles/observers`
+## Observers: `foldkit-primitives/observers`
 
 `Resize` and `Intersection` are Mounts, not bundles: element-scoped
 observation attaches in views, not Model slots. Attach `Resize()` (or
@@ -244,7 +244,7 @@ ResizeObserver the window events still measure. Without the observer API
 disconnects. They keep observing across time-travel pause — replay traffic
 is same-valued and harmless.
 
-## Device: `foldkit-bundles/device`
+## Device: `foldkit-primitives/device`
 
 `Geolocation` watches the device position while placed. Model `{ status,
 coords, lastError }` with `status` unknown → ready; denial is its own status
@@ -280,7 +280,7 @@ legacy `webkit` fallback); `fullscreenChanges()` starts with the current
 answer then follows flips as `Changed { active }`. No Model: the document
 owns fullscreen state.
 
-## DOM: `foldkit-bundles/dom`
+## DOM: `foldkit-primitives/dom`
 
 `copyText` copies text as a Command: use it in `update` beside any bundle.
 It yields `Copied` on success and `CopyFailed` otherwise — denial, insecure
@@ -301,7 +301,7 @@ rewrites the field with approximate caret restore, and emits
 `Input { value, raw }` with masked and unmasked text. The parent owns the
 state, like any controlled input.
 
-## State: `foldkit-bundles/state`
+## State: `foldkit-primitives/state`
 
 `Pagination` keeps `{ page, perPage, total }` in the Model, with `total: null`
 while unknown. Every transition clamps into range: past the last page lands on
@@ -321,7 +321,7 @@ factory attaches the Message union, so placements dispatch
 `EditHistory.Message.Push(...)`. `canUndo`/`canRedo` read the edges:
 
 ```ts
-import { history } from 'foldkit-bundles/state'
+import { history } from 'foldkit-primitives/state'
 
 const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacity: 50 })
 const Doc = Bundle.declare(EditHistory, 'doc')
@@ -345,7 +345,7 @@ over the placed fields to render them or expose them to an agent; point
 unions. The field refs and wrapper Messages are the same ones the rest of the
 application uses.
 
-## Motion: `foldkit-bundles/motion`
+## Motion: `foldkit-primitives/motion`
 
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
 Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args

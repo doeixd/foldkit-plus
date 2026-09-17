@@ -1,4 +1,4 @@
-# foldkit-bundles
+# foldkit-primitives
 
 Ready-made [`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle)
 primitives: media queries, breakpoints, visibility, presence, timers,
@@ -28,7 +28,7 @@ instead. The browser, clock, or server only reports facts as Messages.
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
-import { MediaQuery } from 'foldkit-bundles/media'
+import { MediaQuery } from 'foldkit-primitives/media'
 
 const Dark = Bundle.declare(MediaQuery, 'dark')
 const Model = Schema.Struct({ ...Dark.fields, theme: Schema.String })
@@ -88,6 +88,6 @@ friends lift with `Subscription.persistent`.
 
 ## See also
 
-- Primitives package: https://github.com/doeixd/foldkit-plus/blob/main/packages/bundles
+- Primitives package: https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives
 - Bundle mechanism: https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle
 - Joining integrations: https://github.com/doeixd/foldkit-plus/blob/main/docs/wiring.md
