@@ -388,3 +388,70 @@ export const stickyHeader = (
   }
   return current
 }
+
+export interface MasonryPlacement {
+  readonly key: string
+  readonly column: number
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * Masonry layout as a pure function: fixed column count and width, each
+ * item packed into the currently shortest column. Unmeasured items use the
+ * estimate; poisoned heights fall back the same way. This is layout only,
+ * not windowing — every placed item renders, so it fits hundreds of images,
+ * not hundred-thousands. needing a windowed grid is a different algorithm.
+ */
+export const masonry = (
+  keys: ReadonlyArray<string>,
+  heights: Readonly<Record<string, number>>,
+  options: {
+    readonly columns: number
+    readonly columnWidth: number
+    readonly gap: number
+    readonly estimatedHeight: number
+  },
+): { readonly placements: ReadonlyArray<MasonryPlacement>; readonly totalHeight: number } => {
+  if (!Number.isInteger(options.columns) || options.columns < 1) {
+    throw new Error(`masonry: columns must be a positive integer, got ${options.columns}`)
+  }
+  if (!(options.columnWidth > 0) || !Number.isFinite(options.columnWidth)) {
+    throw new Error(
+      `masonry: columnWidth must be a positive finite number, got ${options.columnWidth}`,
+    )
+  }
+  if (options.gap < 0 || !Number.isFinite(options.gap)) {
+    throw new Error(`masonry: gap must be a non-negative finite number, got ${options.gap}`)
+  }
+  if (options.estimatedHeight < 0 || !Number.isFinite(options.estimatedHeight)) {
+    throw new Error(
+      `masonry: estimatedHeight must be a non-negative finite number, got ${options.estimatedHeight}`,
+    )
+  }
+  const columnHeights: Array<number> = new Array(options.columns).fill(0)
+  const placements: Array<MasonryPlacement> = []
+  for (const key of keys) {
+    const raw = heights[key] ?? options.estimatedHeight
+    const height = Number.isFinite(raw) && raw >= 0 ? raw : options.estimatedHeight
+    let column = 0
+    for (let c = 1; c < columnHeights.length; c++) {
+      if (columnHeights[c]! < columnHeights[column]!) column = c
+    }
+    placements.push({
+      key,
+      column,
+      x: column * (options.columnWidth + options.gap),
+      y: columnHeights[column]!,
+      width: options.columnWidth,
+      height,
+    })
+    columnHeights[column] = columnHeights[column]! + height + options.gap
+  }
+  return {
+    placements,
+    totalHeight: placements.length === 0 ? 0 : Math.max(...columnHeights) - options.gap,
+  }
+}

@@ -371,10 +371,13 @@ hold the end while `isAtEnd` and scroll on extend; to anchor a prepend,
 re-`Scrolled` by the totals' delta. Render each row keyed (with
 `aria-rowcount`/`posinset` from the window) so per-row placements keep
 identity. `stickyHeader(sections, start)` answers which section header
-sticks — CSS `position: sticky` does the sticking. The sums never name an
+sticks — CSS `position: sticky` does the sticking. `masonry(keys, heights,
+options)` packs fixed-width columns shortest-first into `{ placements,
+totalHeight }`: layout only, every placed item renders, so it fits hundreds
+of images rather than hundred-thousands. The sums never name an
 axis: pass column widths as heights and a horizontal offset as scroll
 position to window a carousel the same way — no parallel horizontal
-bundle. Lanes and per-index estimates stay out by design.
+bundle. Windowed grids and per-index estimates stay out by design.
 
 Persisted state lives one package over: `Mirror.kv(App, { key, fields })`
 keeps a Model slice in Effect's `KeyValueStore` (localStorage in the

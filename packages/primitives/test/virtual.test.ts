@@ -12,6 +12,7 @@ import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
 import {
   isAtEnd,
+  masonry,
   offsetFor,
   stickyHeader,
   totalHeight,
@@ -343,5 +344,40 @@ describe('stickyHeader', () => {
     ]
     expect(stickyHeader(shuffled, 12)).toBe('n-z')
     expect(stickyHeader(shuffled, 5)).toBe('a-m')
+  })
+})
+
+describe('masonry', () => {
+  const options = { columns: 2, columnWidth: 100, gap: 10, estimatedHeight: 50 }
+
+  it('packs each item into the shortest column', () => {
+    const { placements, totalHeight } = masonry(['a', 'b', 'c'], { a: 100, b: 40, c: 40 }, options)
+    expect(placements).toEqual([
+      { key: 'a', column: 0, x: 0, y: 0, width: 100, height: 100 },
+      { key: 'b', column: 1, x: 110, y: 0, width: 100, height: 40 },
+      // b's column is shortest (40 < 100): c follows b, not a.
+      { key: 'c', column: 1, x: 110, y: 50, width: 100, height: 40 },
+    ])
+    expect(totalHeight).toBe(100)
+  })
+
+  it('estimates unmeasured items and totals a single column', () => {
+    const { placements, totalHeight } = masonry(['a', 'b'], {}, { ...options, columns: 1 })
+    expect(placements.map(placement => placement.height)).toEqual([50, 50])
+    expect(totalHeight).toBe(50 + 10 + 50)
+  })
+
+  it('is empty for no keys', () => {
+    expect(masonry([], {}, options)).toEqual({ placements: [], totalHeight: 0 })
+  })
+
+  it('throws on bad options, naming them', () => {
+    expect(() => masonry(['a'], {}, { ...options, columns: 0 })).toThrow(/columns/)
+    expect(() => masonry(['a'], {}, { ...options, columns: 1.5 })).toThrow(/columns/)
+    expect(() => masonry(['a'], {}, { ...options, columnWidth: 0 })).toThrow(/columnWidth/)
+    expect(() => masonry(['a'], {}, { ...options, gap: -1 })).toThrow(/gap/)
+    expect(() => masonry(['a'], {}, { ...options, estimatedHeight: Number.NaN })).toThrow(
+      /estimatedHeight/,
+    )
   })
 })
