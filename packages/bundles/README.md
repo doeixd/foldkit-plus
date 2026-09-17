@@ -194,6 +194,12 @@ const EditHistory = history({ name: 'EditHistory', value: Schema.String, capacit
 const Doc = Bundle.declare(EditHistory, 'doc')
 ```
 
+`Locale` keeps one string in the Model, read from `navigator.language` at
+startup with the configured `default` as fallback; `SetLocale` switches it.
+`SelectionSet` keeps string ids in first-selection order: `Select` (keeps
+position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
+`Clear`. `isSelected` reads membership. Both are pure logic, no streams.
+
 ## Motion: `foldkit-bundles/motion`
 
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
