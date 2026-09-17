@@ -352,6 +352,16 @@ mechanism's `each`.
 list is `range(1, (pageCount(model) ?? 0) + 1)`; a zero or non-finite step
 throws, naming it.
 
+`Virtual` owns a virtualized list's scroll position and measured heights:
+Model `{ scrollTop, heights }`, Messages `Scrolled`/`Measured`, args
+`{ estimatedHeight, overscan }` (a positive estimate, an integer overscan).
+`Viewport` reports the container's own scrolls and `MeasureRow({ key })`
+reports row heights, both as Mounts; `windowFor(model, keys,
+viewportHeight, options)` answers which rows to render plus the spacer
+height, and `totalHeight`/`offsetFor` expose the sums underneath. Render
+each row keyed, and per-row placements keep identity. Poisoned positions
+and heights are ignored, never stored.
+
 Persisted state lives one package over: `Mirror.kv(App, { key, fields })`
 keeps a Model slice in Effect's `KeyValueStore` (localStorage in the
 browser), restored through a `MirrorRestored` Message the application

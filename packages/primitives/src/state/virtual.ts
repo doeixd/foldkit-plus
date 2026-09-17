@@ -5,7 +5,17 @@
  * unmeasured rows still occupy space and measuring later only corrects.
  * Keys are strings; heights are non-negative, and non-finite measurements
  * fall back to the estimate instead of poisoning the sums.
+ *
+ * The `Virtual` bundle below owns the scroll position and the measured
+ * heights; `Viewport` reports container scrolls and `MeasureRow` reports
+ * row heights, both as Mounts on the elements they observe. The application
+ * renders `windowFor(...)` rows with its own views (keyed, so `each`
+ * placements keep identity) inside a spacer of `totalHeight(...)`.
  */
+import { Effect, Queue, Schema, Stream } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Mount from 'foldkit/mount'
+import { Bundle } from 'foldkit-bundle'
 
 export interface VirtualWindow {
   /** First visible row index, inclusive. */
@@ -95,3 +105,132 @@ export const visibleRange = (
     end: Math.min(count, end + Math.max(0, overscan)),
   }
 }
+
+export const VirtualModel = Schema.Struct({
+  scrollTop: Schema.Number,
+  heights: Schema.Record(Schema.String, Schema.Number),
+})
+export type VirtualModel = typeof VirtualModel.Type
+
+export const VirtualMessage = defineMessageUnion({
+  Scrolled: { top: Schema.Number },
+  Measured: { key: Schema.String, height: Schema.Number },
+})
+export type VirtualMessage = typeof VirtualMessage.Type
+
+export interface WindowOptions {
+  readonly estimatedHeight: number
+  readonly overscan: number
+}
+
+/**
+ * The rows to render plus the spacer height, from the Model, the key order,
+ * the viewport height, and the placement options. Keys stay the
+ * application's: render each row keyed, and per-row placements keep
+ * identity.
+ */
+export const windowFor = (
+  model: VirtualModel,
+  keys: ReadonlyArray<string>,
+  viewportHeight: number,
+  options: WindowOptions,
+): VirtualWindow & { readonly totalHeight: number } => {
+  const window = visibleRange(
+    keys,
+    model.heights,
+    options.estimatedHeight,
+    model.scrollTop,
+    viewportHeight,
+    options.overscan,
+  )
+  return { ...window, totalHeight: totalHeight(keys, model.heights, options.estimatedHeight) }
+}
+
+const saneTop = (top: number): number | null => (Number.isFinite(top) ? Math.max(0, top) : null)
+
+const saneMeasured = (height: number): number | null =>
+  Number.isFinite(height) && height >= 0 ? height : null
+
+export const Virtual = Bundle.make('Virtual', {
+  Model: VirtualModel,
+  Message: VirtualMessage,
+  args: Schema.Struct({
+    estimatedHeight: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+    overscan: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
+  }),
+  init: () => ({ model: { scrollTop: 0, heights: {} } }),
+  update: (model, message) =>
+    VirtualMessage.match(message, {
+      Scrolled: ({ top }) => {
+        const sane = saneTop(top)
+        return sane === null ? { model } : { model: { ...model, scrollTop: sane } }
+      },
+      Measured: ({ key, height }) => {
+        const sane = saneMeasured(height)
+        return sane === null
+          ? { model }
+          : { model: { ...model, heights: { ...model.heights, [key]: sane } } }
+      },
+    }),
+})
+
+export const ViewportScrolled = Schema.TaggedStruct('ViewportScrolled', { top: Schema.Number })
+export type ViewportScrolled = typeof ViewportScrolled.Type
+
+/**
+ * The scroll container's position, reported on its own scrolls starting
+ * with the current one. Attach to the scrolling element — viewport scrolls
+ * arrive through the window-level scroll entry instead.
+ */
+export const Viewport = Mount.defineStream('Viewport', {
+  messages: [ViewportScrolled],
+  execute: ({ element }) => {
+    const read = (): ViewportScrolled =>
+      ViewportScrolled.make({ top: (element as Element).scrollTop ?? 0 })
+    return Stream.concat(
+      Stream.make(read()),
+      Stream.fromEventListener(element, 'scroll').pipe(Stream.map(read)),
+    )
+  },
+})
+
+export const RowMeasured = Schema.TaggedStruct('RowMeasured', {
+  key: Schema.String,
+  height: Schema.Number,
+})
+export type RowMeasured = typeof RowMeasured.Type
+
+type RowObserverCtor = new (callback: ResizeObserverCallback) => ResizeObserver
+
+/**
+ * One row's height, reported on every resize starting with the current
+ * one. The key is the application's row identity, echoed back so the
+ * parent files the height without tracking which Mount sent what.
+ */
+export const MeasureRow = Mount.defineStream('MeasureRow', {
+  messages: [RowMeasured],
+  args: { key: Schema.String },
+  execute: ({ element, key }) =>
+    Stream.callback<typeof RowMeasured.Type>(queue =>
+      Effect.gen(function* () {
+        const Observed = (globalThis as { ResizeObserver?: RowObserverCtor }).ResizeObserver
+        if (Observed === undefined) return
+        yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            const observer = new Observed(entries => {
+              const rect = entries[0]?.contentRect
+              if (rect !== undefined) {
+                Queue.offerUnsafe(queue, RowMeasured.make({ key, height: rect.height }))
+              }
+            })
+            observer.observe(element)
+            return observer
+          }),
+          observer => Effect.sync(() => observer.disconnect()),
+        )
+      }),
+    ),
+})
