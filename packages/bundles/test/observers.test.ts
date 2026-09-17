@@ -361,4 +361,33 @@ describe('Bounds', () => {
     )
     expect(values).toEqual([Measured.make(rect(0, 0, 10, 10)), Measured.make(rect(0, 5, 10, 10))])
   })
+
+  it('catches container scrolls, which do not bubble', async () => {
+    const outer = element()
+    const inner = element()
+    outer.appendChild(inner)
+    document.body.appendChild(outer)
+    stubRect(inner, rect(0, 0, 10, 10))
+    try {
+      const values = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(Bounds().f(inner, Mount.liveViewStateChanges), 2),
+          )
+          for (let i = 0; i < 100; i++) {
+            yield* Effect.yieldNow
+          }
+          stubRect(inner, rect(0, -50, 10, 10))
+          inner.dispatchEvent(new window.Event('scroll'))
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(values).toEqual([
+        Measured.make(rect(0, 0, 10, 10)),
+        Measured.make(rect(0, -50, 10, 10)),
+      ])
+    } finally {
+      outer.remove()
+    }
+  })
 })

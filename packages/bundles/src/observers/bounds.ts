@@ -34,11 +34,12 @@ export const Bounds = Mount.defineStream('Bounds', {
             Measured.make({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }),
           )
         }
-        const onMove = () => measure()
+        // Capture phase: container scrolls do not bubble, but every scroll
+        // descends past the window first.
         yield* Effect.acquireRelease(
           Effect.sync(() => {
-            window.addEventListener('scroll', onMove)
-            window.addEventListener('resize', onMove)
+            window.addEventListener('scroll', measure, true)
+            window.addEventListener('resize', measure)
             const Observed = (globalThis as { ResizeObserver?: ObserverCtor }).ResizeObserver
             if (Observed === undefined) return null
             const observer = new Observed(measure)
@@ -47,8 +48,8 @@ export const Bounds = Mount.defineStream('Bounds', {
           }),
           observer =>
             Effect.sync(() => {
-              window.removeEventListener('scroll', onMove)
-              window.removeEventListener('resize', onMove)
+              window.removeEventListener('scroll', measure, true)
+              window.removeEventListener('resize', measure)
               observer?.disconnect()
             }),
         )
