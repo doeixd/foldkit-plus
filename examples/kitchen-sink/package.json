@@ -29,6 +29,6 @@
     "@foldkit/ui": "0.158.2",
     "effect": "4.0.0-rc.112",
     "foldkit": "0.158.2",
-    "typescript": "^5.7.2"
+    "typescript": "5.9.3"
   }
 }

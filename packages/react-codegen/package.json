@@ -43,7 +43,7 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "typescript": "^5.7.2"
+    "typescript": "5.9.3"
   },
   "devDependencies": {
     "@types/node": "22.10.2",
@@ -55,6 +55,6 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "tsdown": "0.23.0",
-    "typescript": "5.7.2"
+    "typescript": "5.9.3"
   }
 }
