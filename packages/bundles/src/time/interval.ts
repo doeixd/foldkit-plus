@@ -7,6 +7,7 @@
 import { Clock, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 
 export const IntervalModel = Schema.Struct({
@@ -28,11 +29,14 @@ export const Interval = Bundle.make('Interval', {
   args: Schema.Struct({ intervalMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
   init: () => ({ model: { running: false, lastAt: null } }),
   update: (model, message) =>
-    IntervalMessage.match(message, {
-      Started: () => ({ model: { ...model, running: true } }),
-      Stopped: () => ({ model: { ...model, running: false } }),
-      Ticked: ({ at }) => ({ model: { ...model, lastAt: at } }),
-    }),
+    IntervalMessage.match<Update.ReturnWithOutMessage<IntervalModel, IntervalMessage, never>>(
+      message,
+      {
+        Started: () => ({ model: { ...model, running: true } }),
+        Stopped: () => ({ model: { ...model, running: false } }),
+        Ticked: ({ at }) => ({ model: { ...model, lastAt: at } }),
+      },
+    ),
   subscriptions: ({ intervalMs }): Subscription.Subscriptions<IntervalModel, IntervalMessage> =>
     Subscription.make<IntervalModel, IntervalMessage>()(entry => ({
       ticks: entry(

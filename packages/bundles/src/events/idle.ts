@@ -9,6 +9,7 @@
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 
 export const IdleModel = Schema.Struct({ idle: Schema.Boolean })
@@ -35,7 +36,7 @@ export const Idle = Bundle.make('Idle', {
   args: Schema.Struct({ timeoutMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
   init: () => ({ model: { idle: false } }),
   update: (model, message) =>
-    IdleMessage.match(message, {
+    IdleMessage.match<Update.ReturnWithOutMessage<IdleModel, IdleMessage, never>>(message, {
       BecameIdle: () => ({ model: { ...model, idle: true } }),
       BecameActive: () => ({ model: { ...model, idle: false } }),
     }),
