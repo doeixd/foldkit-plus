@@ -41,7 +41,10 @@ export const Pagination = Bundle.make('Pagination', {
   Model: PaginationModel,
   Message: PaginationMessage,
   args: Schema.Struct({
-    perPage: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))),
+    perPage: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
     total: Schema.optional(Schema.NullOr(Schema.Number)),
   }),
   init: args => ({

@@ -25,7 +25,12 @@ export type Throttled = typeof Throttled.Type
 export const Throttle = Bundle.make('Throttle', {
   Model: ThrottleModel,
   Message: ThrottleMessage,
-  args: Schema.Struct({ intervalMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
+  args: Schema.Struct({
+    intervalMs: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+  }),
   init: () => ({ model: { lastAt: null } }),
   update: (model, message, args) =>
     ThrottleMessage.match<Update.ReturnWithOutMessage<ThrottleModel, ThrottleMessage, Throttled>>(

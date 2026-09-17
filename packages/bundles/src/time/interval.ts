@@ -26,7 +26,12 @@ export type IntervalMessage = typeof IntervalMessage.Type
 export const Interval = Bundle.make('Interval', {
   Model: IntervalModel,
   Message: IntervalMessage,
-  args: Schema.Struct({ intervalMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
+  args: Schema.Struct({
+    intervalMs: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+  }),
   init: () => ({ model: { running: false, lastAt: null } }),
   update: (model, message) =>
     IntervalMessage.match<Update.ReturnWithOutMessage<IntervalModel, IntervalMessage, never>>(

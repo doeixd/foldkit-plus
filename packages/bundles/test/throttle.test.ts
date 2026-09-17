@@ -59,8 +59,11 @@ describe('Throttle transitions', () => {
     expect(edge.fired).toHaveLength(2)
   })
 
-  it('rejects a non-positive interval at placement', () => {
+  it('rejects a non-positive or non-finite interval at placement', () => {
     expect(() => Page.at(Save, { args: { intervalMs: 0 }, onOut })).toThrow(/args do not match/)
+    expect(() => Page.at(Save, { args: { intervalMs: Number.POSITIVE_INFINITY }, onOut })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

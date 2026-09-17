@@ -39,7 +39,12 @@ export const Presence = Bundle.make<
 >('Presence', {
   Model: PresenceModel,
   Message: PresenceMessage,
-  args: Schema.Struct({ durationMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
+  args: Schema.Struct({
+    durationMs: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+  }),
   init: () => ({ model: { phase: 'hidden', generation: 0 } }),
   update: (model, message, args) =>
     PresenceMessage.match<Update.ReturnWithOutMessage<PresenceModel, PresenceMessage, never>>(

@@ -33,7 +33,12 @@ export const debounce = <const Name extends string, Value>(config: {
   const bundle = Bundle.make(config.name, {
     Model,
     Message,
-    args: Schema.Struct({ delayMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
+    args: Schema.Struct({
+      delayMs: Schema.Number.pipe(
+        Schema.check(Schema.isGreaterThan(0)),
+        Schema.check(Schema.isFinite()),
+      ),
+    }),
     init: () => ({ model: { latest: null, generation: 0 } }),
     update: (model, message, args) =>
       Message.match<Update.ReturnWithOutMessage<Model, Message, Debounced>>(message, {

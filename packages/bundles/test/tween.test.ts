@@ -53,8 +53,11 @@ describe('Tween transitions', () => {
     expect(finished).toEqual({ value: 100, running: false })
   })
 
-  it('rejects a non-positive duration at placement', () => {
+  it('rejects a non-positive or non-finite duration at placement', () => {
     expect(() => Page.at(Slide, { args: { ...args, ms: 0 } })).toThrow(/args do not match/)
+    expect(() => Page.at(Slide, { args: { ...args, ms: Number.POSITIVE_INFINITY } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

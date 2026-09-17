@@ -35,6 +35,12 @@ describe('breakpointFor', () => {
     expect(breakpointFor(100, { b: 100, a: 100 })).toBe('b')
     expect(breakpointFor(100, {})).toBe(null)
   })
+
+  it('rejects a non-finite threshold at placement', () => {
+    expect(() =>
+      Page.at(Shell, { args: { breakpoints: { a: Number.POSITIVE_INFINITY } } }),
+    ).toThrow(/args do not match/)
+  })
 })
 
 describe('Breakpoints transitions', () => {

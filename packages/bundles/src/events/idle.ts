@@ -33,7 +33,12 @@ const activity = (): Stream.Stream<unknown> => {
 export const Idle = Bundle.make('Idle', {
   Model: IdleModel,
   Message: IdleMessage,
-  args: Schema.Struct({ timeoutMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
+  args: Schema.Struct({
+    timeoutMs: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+  }),
   init: () => ({ model: { idle: false } }),
   update: (model, message) =>
     IdleMessage.match<Update.ReturnWithOutMessage<IdleModel, IdleMessage, never>>(message, {

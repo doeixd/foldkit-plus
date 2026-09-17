@@ -46,8 +46,11 @@ describe('Interval transitions', () => {
     expect(stopped).toEqual({ running: false, lastAt: 5000 })
   })
 
-  it('rejects a non-positive interval at placement', () => {
+  it('rejects a non-positive or non-finite interval at placement', () => {
     expect(() => Page.at(Clock, { args: { intervalMs: 0 } })).toThrow(/args do not match/)
+    expect(() => Page.at(Clock, { args: { intervalMs: Number.POSITIVE_INFINITY } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

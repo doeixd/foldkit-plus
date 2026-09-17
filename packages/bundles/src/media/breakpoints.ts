@@ -64,7 +64,9 @@ const widthStream = (): Stream.Stream<BreakpointsMessage> => {
 export const Breakpoints = Bundle.make('Breakpoints', {
   Model: BreakpointsModel,
   Message: BreakpointsMessage,
-  args: Schema.Struct({ breakpoints: Schema.Record(Schema.String, Schema.Number) }),
+  args: Schema.Struct({
+    breakpoints: Schema.Record(Schema.String, Schema.Number.pipe(Schema.check(Schema.isFinite()))),
+  }),
   init: args => ({
     model: { width: 0, breakpoint: breakpointFor(0, args.breakpoints) },
   }),

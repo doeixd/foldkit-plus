@@ -51,8 +51,11 @@ describe('Timer transitions', () => {
     expect(restarted).toEqual({ count: 1, running: true })
   })
 
-  it('rejects a non-positive interval at placement', () => {
+  it('rejects a non-positive or non-finite interval at placement', () => {
     expect(() => Page.at(Ticks, { args: { intervalMs: 0 } })).toThrow(/args do not match/)
+    expect(() => Page.at(Ticks, { args: { intervalMs: Number.POSITIVE_INFINITY } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

@@ -21,7 +21,12 @@ export type TimerMessage = typeof TimerMessage.Type
 export const Timer = Bundle.make('Timer', {
   Model: TimerModel,
   Message: TimerMessage,
-  args: Schema.Struct({ intervalMs: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))) }),
+  args: Schema.Struct({
+    intervalMs: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+  }),
   init: () => ({ model: { count: 0, running: false } }),
   update: (model, message) =>
     TimerMessage.match(message, {

@@ -22,6 +22,15 @@ const at = (model: Model, message: Parameters<typeof Pages.wrapper.make>[0]) => 
 
 const loaded: Model = { pages: { page: 1, perPage: 10, total: 95 } }
 
+describe('Pagination placement', () => {
+  it('rejects a non-positive or non-finite page size', () => {
+    expect(() => Page.at(Pages, { args: { perPage: 0 } })).toThrow(/args do not match/)
+    expect(() => Page.at(Pages, { args: { perPage: Number.POSITIVE_INFINITY } })).toThrow(
+      /args do not match/,
+    )
+  })
+})
+
 describe('Pagination transitions', () => {
   it('starts on page one with the given size', () => {
     const placed = Page.at(Pages, { args: { perPage: 10 } })

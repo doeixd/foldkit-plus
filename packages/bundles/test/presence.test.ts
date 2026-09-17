@@ -61,8 +61,11 @@ describe('Presence transitions', () => {
     expect(fold({ overlay: shown }, PresenceMessage.Hidden({ generation: 2 }))).toEqual(shown)
   })
 
-  it('rejects a non-positive duration at placement', () => {
+  it('rejects a non-positive or non-finite duration at placement', () => {
     expect(() => Page.at(Overlay, { args: { durationMs: 0 } })).toThrow(/args do not match/)
+    expect(() => Page.at(Overlay, { args: { durationMs: Number.POSITIVE_INFINITY } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

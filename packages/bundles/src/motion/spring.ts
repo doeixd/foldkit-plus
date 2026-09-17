@@ -43,8 +43,14 @@ export const Spring = Bundle.make('Spring', {
   args: Schema.Struct({
     from: Schema.Number,
     to: Schema.Number,
-    stiffness: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))),
-    damping: Schema.Number.pipe(Schema.check(Schema.isGreaterThan(0))),
+    stiffness: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
+    damping: Schema.Number.pipe(
+      Schema.check(Schema.isGreaterThan(0)),
+      Schema.check(Schema.isFinite()),
+    ),
   }),
   init: args => ({ model: { value: args.from, velocity: 0, running: false } }),
   update: (model, message) =>

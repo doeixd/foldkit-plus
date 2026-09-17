@@ -39,8 +39,11 @@ describe('Idle transitions', () => {
     expect(active).toEqual({ idle: false })
   })
 
-  it('rejects a non-positive timeout at placement', () => {
+  it('rejects a non-positive or non-finite timeout at placement', () => {
     expect(() => Page.at(Away, { args: { timeoutMs: 0 } })).toThrow(/args do not match/)
+    expect(() => Page.at(Away, { args: { timeoutMs: Number.POSITIVE_INFINITY } })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

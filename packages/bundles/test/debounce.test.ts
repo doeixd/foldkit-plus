@@ -74,8 +74,11 @@ describe('Debounce transitions', () => {
     )
   })
 
-  it('rejects a non-positive delay at placement', () => {
+  it('rejects a non-positive or non-finite delay at placement', () => {
     expect(() => Page.at(Search, { args: { delayMs: 0 }, onOut })).toThrow(/args do not match/)
+    expect(() => Page.at(Search, { args: { delayMs: Number.POSITIVE_INFINITY }, onOut })).toThrow(
+      /args do not match/,
+    )
   })
 })
 

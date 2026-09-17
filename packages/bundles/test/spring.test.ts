@@ -68,9 +68,12 @@ describe('Spring transitions', () => {
     expect(stopped).toEqual({ value: 40, velocity: 5, running: false })
   })
 
-  it('rejects non-positive physics at placement', () => {
+  it('rejects non-positive or non-finite physics at placement', () => {
     expect(() => Page.at(Bounce, { args: { ...args, stiffness: 0 } })).toThrow(/args do not match/)
     expect(() => Page.at(Bounce, { args: { ...args, damping: -1 } })).toThrow(/args do not match/)
+    expect(() =>
+      Page.at(Bounce, { args: { ...args, stiffness: Number.POSITIVE_INFINITY } }),
+    ).toThrow(/args do not match/)
   })
 })
 
