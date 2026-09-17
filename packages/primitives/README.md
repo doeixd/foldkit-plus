@@ -1,6 +1,6 @@
 # `foldkit-primitives`
 
-Ready-made [`foldkit-bundle`](./bundle) primitives: media queries, breakpoints,
+Ready-made [`foldkit-bundle`](../bundle) primitives: media queries, breakpoints,
 presence, timers, intervals, debounce, tweens, springs, pagination, history,
 locales, selections, ranges, geolocation, cameras, permissions, sockets,
 broadcasts, observers, and clipboard. Most are ordinary bundles — Model,
@@ -32,6 +32,15 @@ package depends on `foldkit-bundle` and nothing else (besides peers).
 | Element-scoped observation | Mount, not a bundle | Resize, Intersection, Mutation, Autofocus |
 | One-shot actions | Command, not a bundle | clipboard copy, share, script load |
 | Derived data | pure function, not a bundle | range, relative time, platform |
+
+Choose by what you need to own. State that outlives the moment — a match,
+a count, a page, a position — wants a bundle: the Model keeps it, replay
+sees it. A stream you only react to wants an entry: map it into the
+parent's Message and keep nothing. Work bound to one element wants a
+Mount. Work that runs once and reports back wants a Command. A value
+computed from data you already have wants a pure function. When in doubt,
+start with the lighter form; promote to a bundle the day the state needs
+a name in the Model.
 
 A bundle holds no state and performs no I/O by itself. The parent Model owns
 the placed slice; the browser (or server, or clock) only reports facts as
@@ -69,6 +78,20 @@ pnpm add foldkit-primitives foldkit-bundle effect foldkit
 `foldkit-primitives/events`, `foldkit-primitives/observers`, `foldkit-primitives/dom` —
 so bundlers drop the primitives you never import.
 
+## Map of the package
+
+Each subpath is one concern, one import:
+
+- `media` — environment facts: MediaQuery (+presets), Breakpoints, platform
+- `net` — remote facts: Online, WebSocket, SSE, BroadcastChannel
+- `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
+- `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
+- `motion` — animation state: Tween, Spring, Presence
+- `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
+- `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
+- `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
+- `dom` — element Mounts and one-shot Commands: Autofocus, InputMask, clipboard, share, script loading
+
 ## Sixty seconds: follow the color scheme
 
 **Declare where it lives.** A declaration names the Model field and the
@@ -105,12 +128,28 @@ const config = placements.complete({
 
 `update` routes `GotDarkMessage` to the bundle; `subscriptions` runs the
 `matchMedia` stream; `initial` starts `matches` at `false` and the stream
-corrects it on subscribe. The Solid equivalent this replaces:
+corrects it on subscribe. None of the placement calls perform I/O:
+`declare` names a slot, `at` binds config to it, `assemble` derives the
+folding and the streams — the browser is touched only when the runtime
+subscribes. The Solid equivalent this replaces:
 
 ```ts
 // solid-primitives: const dark = createMediaQuery('(prefers-color-scheme: dark)')
 // Here the fact lives in the Model: replay, DevTools, and time travel see it.
 ```
+
+## Composing placements
+
+One assembly holds every placement: spread its update, init,
+subscriptions, and resources once per application, as above. Two
+placements of one bundle observe twice — share the field instead, so one
+stream feeds every reader. One assembly holds one socket, stream, or
+watch: resource tags are per module, and `assemble` refuses the second.
+Bundles whose settled value is the whole point (`Debounce`, `Throttle`)
+surface it as an OutMessage the placement handles with `onOut`, so the
+signal can never be dropped by omission. Entries lift with
+`Subscription.persistent`, mapping into the parent's Message; Mounts
+attach in views with `h.OnMount`.
 
 ## Media: `foldkit-primitives/media`
 
@@ -403,15 +442,6 @@ browser), restored through a `MirrorRestored` Message the application
 reduces. Nothing here duplicates it — reach for the mirror when a slice
 should survive reload, and keep this package's bundles for live facts.
 
-## With Surface and Mirror
-
-Placed state is ordinary Model, so the surrounding tools apply unchanged —
-no bundle-specific Surface or Mirror API exists, by design. Declare a Surface
-over the placed fields to render them or expose them to an agent; point
-`Mirror.url` at them to link them; spread the bundle's cases into the same
-unions. The field refs and wrapper Messages are the same ones the rest of the
-application uses.
-
 ## Motion: `foldkit-primitives/motion`
 
 > Reference: [`./motion/README.md`](./motion/README.md)
@@ -454,6 +484,15 @@ the stall. The settle-before-adjust rule applies throughout — yield after
 forking before the first `TestClock.adjust`, or dispatched events hit
 unregistered listeners. Each ingredient is demonstrated in this package's
 `test/` directory, named after its primitive.
+
+## With Surface and Mirror
+
+Placed state is ordinary Model, so the surrounding tools apply unchanged —
+no bundle-specific Surface or Mirror API exists, by design. Declare a Surface
+over the placed fields to render them or expose them to an agent; point
+`Mirror.url` at them to link them; spread the bundle's cases into the same
+unions. The field refs and wrapper Messages are the same ones the rest of the
+application uses.
 
 ## Failure and recovery
 
