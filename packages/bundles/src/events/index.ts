@@ -1,4 +1,5 @@
 export * from './keyboard.js'
 export * from './pointer.js'
+export * from './scroll.js'
 export * from './visibility.js'
 export * from './window-size.js'
