@@ -86,6 +86,7 @@ Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
 Submodels        foldkit-bundle + bundle-surface
+Primitives       foldkit-bundles (media, net, time, state, observers, dom)
 Views            foldkit-mixins + mixins-surface / mixins-ui
 React interop    foldkit-react + react-codegen
 ```

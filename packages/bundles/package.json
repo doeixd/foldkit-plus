@@ -1,0 +1,62 @@
+{
+  "name": "foldkit-bundles",
+  "version": "0.1.0",
+  "description": "Ready-made foldkit-bundle primitives: media queries, presence, timers, pagination, history, sockets, observers, and clipboard.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "submodel",
+    "primitives",
+    "elm-architecture"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/bundles"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/bundles#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.mts",
+      "import": "./dist/media/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "jsdom": "26.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^5.7.2"
+  }
+}

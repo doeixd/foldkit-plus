@@ -25,6 +25,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-mirror`](../packages/mirror) | 0.2.0 | Published | A Model slice mirrored into the URL or a key-value store, restored on load. |
 | [`foldkit-bundle`](../packages/bundle) | 0.1.0 | Not yet published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
 | [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.1.0 | Not yet published | Placements as Module contracts that own their Model path. |
+| [`foldkit-bundles`](../packages/bundles) | 0.1.0 | Not yet published | Ready-made bundle primitives (media, net, time, state, observers, dom) under tree-shakeable subpaths. |
 | [`foldkit-react`](../packages/react) | 0.1.0 | Not yet published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
 | [`foldkit-react-codegen`](../packages/react-codegen) | 0.1.0 | Not yet published | Compiles Foldkit view functions to React TSX, refusing with a located diagnostic what it cannot translate faithfully. |
 | [`foldkit-mixins`](../packages/mixins) | 0.3.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
@@ -77,7 +78,7 @@ and rewritten to the exact version on publish: `foldkit-agent`, `foldkit-mirror`
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
 `foldkit-surface`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
-`foldkit-surface`; `foldkit-remote-drizzle` additionally depends on
+`foldkit-surface`; `foldkit-bundles` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.
 `foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.112` and requires
 Node 22 (`engines.node`).
