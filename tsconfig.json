@@ -8,6 +8,7 @@
     { "path": "./packages/agent-native" },
     { "path": "./packages/durable" },
     { "path": "./packages/sync" },
+    { "path": "./packages/metadata" },
     { "path": "./packages/surface" },
     { "path": "./packages/remote" },
     { "path": "./packages/remote-server" },

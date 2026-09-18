@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-bundle-surface": ["../../packages/bundle-surface/src/index.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },
@@ -16,6 +17,7 @@
   "references": [
     { "path": "../../packages/bundle/tsconfig.build.json" },
     { "path": "../../packages/bundle-surface/tsconfig.build.json" },
+    { "path": "../../packages/metadata/tsconfig.build.json" },
     { "path": "../../packages/surface/tsconfig.build.json" }
   ]
 }

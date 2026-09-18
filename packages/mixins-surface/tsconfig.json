@@ -7,6 +7,7 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-ui": ["../mixins-ui/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
@@ -16,6 +17,7 @@
   "references": [
     { "path": "../mixins/tsconfig.build.json" },
     { "path": "../mixins-ui/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" }
   ]
 }

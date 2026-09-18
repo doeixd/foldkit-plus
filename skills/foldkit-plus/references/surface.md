@@ -8,7 +8,8 @@ from the Model's own Schema, so it cannot name a field that does not exist. A
 tool can inspect it without running anything.
 
 - **Owns:** field references (`App.fields`) and pure `Projection`s (codec, reader,
-  dependency paths, opaque metadata). Also application identity
+  dependency paths, opaque metadata; `Metadata` is re-exported from
+  `foldkit-metadata`). Also application identity
   (`Surface.application`), typed Message subsets (`MessageSet`), named Surfaces
   with their renderer binding, and `Module` (static checks across contracts).
 - **Does NOT own:** I/O, transport, state, transitions, or Commands. A Surface is

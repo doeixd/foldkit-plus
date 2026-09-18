@@ -319,7 +319,8 @@ contributes its dependencies and metadata to the parent.
 
 ### Metadata
 
-A package declares its own slot once and reads back only its own entries:
+`Metadata` is [`foldkit-metadata`](../metadata/README.md), re-exported so an
+application needs one import. A package declares its own slot once and reads back only its own entries:
 
 ```ts
 const Flags = Metadata.key<string>('flags', {

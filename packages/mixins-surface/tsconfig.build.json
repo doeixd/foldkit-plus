@@ -8,6 +8,7 @@
   "references": [
     { "path": "../mixins/tsconfig.build.json" },
     { "path": "../mixins-ui/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" }
   ]
 }

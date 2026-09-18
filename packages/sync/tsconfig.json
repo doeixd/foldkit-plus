@@ -8,11 +8,13 @@
     "noEmit": false,
     "paths": {
       "foldkit-agent": ["../agent/src/index.ts"],
+      "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "bench/**/*.ts", "tsdown.config.ts"],
   "references": [
+    { "path": "../metadata/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" },
     { "path": "../agent/tsconfig.build.json" }
   ]

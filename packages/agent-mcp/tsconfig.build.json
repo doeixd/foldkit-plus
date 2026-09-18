@@ -7,6 +7,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../agent/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" }
   ]
 }

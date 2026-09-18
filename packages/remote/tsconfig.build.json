@@ -5,5 +5,8 @@
     "tsBuildInfoFile": ".tsbuild/build/tsconfig.build.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../surface/tsconfig.build.json" }]
+  "references": [
+    { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../surface/tsconfig.build.json" }
+  ]
 }

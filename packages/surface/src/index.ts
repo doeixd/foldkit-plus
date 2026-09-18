@@ -17,6 +17,9 @@ import type { Entry as ManagedResourceEntry } from 'foldkit/managedResource'
 import type { Subscriptions } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
+import { Metadata, type MetadataSummary } from 'foldkit-metadata'
+
+export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
 
 // ===========================================================================
 // ModelRef and the typed Model tree (Phase 0 cases 1)
@@ -277,117 +280,6 @@ function mergeDependencies(dependencies: DependencyTree): DependencyTree {
   return merged
 }
 
-/** Marks a `Metadata` value. Its entries are private to this module. */
-export const MetadataTypeId: unique symbol = Symbol.for('foldkit-surface/Metadata')
-export type MetadataTypeId = typeof MetadataTypeId
-
-/**
- * Declarative facts an interpreter attaches to a Projection node, such as the
- * server data a Remote selection needs. Surface carries and combines them
- * without knowing what they mean; a package reads only the key it owns.
- *
- * Opaque: only a key's `of` and Projection composition make one, so entries
- * cannot be forged past a key's type or `merge`, and they are frozen.
- */
-export interface Metadata {
-  readonly [MetadataTypeId]: MetadataTypeId
-}
-
-/**
- * An interpreter's typed slot in `Metadata`. Lookup is by the key object, never
- * its `name`, so two packages cannot collide by choosing the same string.
- */
-export interface MetadataKey<A> {
-  /** For tooling output only. */
-  readonly name: string
-  /** Normalizes the entries gathered from composed nodes, e.g. unioning duplicates. */
-  readonly merge: (values: ReadonlyArray<A>) => ReadonlyArray<A>
-  /** One line per entry for `Module` and DevTools output. */
-  readonly summarize: (value: A) => string
-  readonly of: (...values: ReadonlyArray<A>) => Metadata
-  readonly get: (metadata: Metadata) => ReadonlyArray<A>
-}
-
-/** One key's entries as serializable text, named by the key. */
-export interface MetadataSummary {
-  readonly name: string
-  readonly entries: readonly string[]
-}
-
-type Entries = ReadonlyMap<MetadataKey<any>, ReadonlyArray<unknown>>
-
-const noEntries: Entries = new Map()
-const noValues: ReadonlyArray<never> = Object.freeze([])
-const entriesByMetadata = new WeakMap<Metadata, Entries>()
-
-const makeMetadata = (entries: Entries): Metadata => {
-  // Non-enumerable, so a spread or structuredClone copy is not branded: a copy
-  // has no entries and must not pass for Metadata.
-  const metadata = Object.freeze(
-    Object.defineProperty({}, MetadataTypeId, { value: MetadataTypeId }),
-  ) as Metadata
-  entriesByMetadata.set(metadata, entries)
-  return metadata
-}
-
-const isMetadata = (value: unknown): value is Metadata =>
-  typeof value === 'object' && value !== null && entriesByMetadata.has(value as Metadata)
-
-/** A value this module did not make has no entries. */
-const entriesOf = (metadata: Metadata): Entries => entriesByMetadata.get(metadata) ?? noEntries
-
-const emptyMetadata = makeMetadata(noEntries)
-
-function combineMetadata(parts: ReadonlyArray<Metadata>): Metadata {
-  // Each part is already merged, so a lone part needs no second pass. A lone
-  // foreign value reads as empty, the same as it would beside a sibling.
-  if (parts.length === 1) return isMetadata(parts[0]) ? parts[0] : emptyMetadata
-  const grouped = new Map<MetadataKey<any>, unknown[]>()
-  for (const part of parts)
-    for (const [key, values] of entriesOf(part)) {
-      const group = grouped.get(key)
-      if (group === undefined) grouped.set(key, [...values])
-      else group.push(...values)
-    }
-  if (grouped.size === 0) return emptyMetadata
-  const merged = new Map<MetadataKey<any>, ReadonlyArray<unknown>>()
-  for (const [key, values] of grouped) merged.set(key, Object.freeze([...key.merge(values)]))
-  return makeMetadata(merged)
-}
-
-export const Metadata = {
-  /**
-   * Declares an interpreter's slot. Call once per package, at module level:
-   * entries are found by the key object, so two copies of a package (a
-   * duplicated install, a reloaded module) do not see each other's entries.
-   */
-  key: <A>(
-    name: string,
-    options: {
-      readonly merge: (values: ReadonlyArray<A>) => ReadonlyArray<A>
-      readonly summarize: (value: A) => string
-    },
-  ): MetadataKey<A> => {
-    const key: MetadataKey<A> = {
-      name,
-      merge: options.merge,
-      summarize: options.summarize,
-      of: (...values) =>
-        values.length === 0
-          ? emptyMetadata
-          : makeMetadata(new Map([[key, Object.freeze([...key.merge(values)])]])),
-      get: metadata => (entriesOf(metadata).get(key) ?? noValues) as ReadonlyArray<A>,
-    }
-    return key
-  },
-
-  summarize: (metadata: Metadata): readonly MetadataSummary[] =>
-    [...entriesOf(metadata)].map(([key, values]) => ({
-      name: key.name,
-      entries: values.map(value => key.summarize(value)),
-    })),
-}
-
 export interface Projection<Root, Value> {
   readonly Model: Schema.Codec<Value, unknown>
   readonly dependencies: DependencyTree
@@ -413,7 +305,7 @@ function makeProjection<Value>(
   Model: Schema.Codec<Value, unknown>,
   dependencies: DependencyTree,
   read: (root: unknown) => Value,
-  metadata: Metadata = emptyMetadata,
+  metadata: Metadata = Metadata.empty,
 ): Projection<unknown, Value> {
   return { Model, dependencies, metadata, read }
 }
@@ -498,7 +390,7 @@ export const Projection = {
         objectSchema(picked),
         mergeDependencies(dependencies),
         read,
-        combineMetadata(metadata),
+        Metadata.combine(metadata),
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
@@ -533,7 +425,7 @@ export const Projection = {
       objectSchema(picked),
       mergeDependencies(dependencies),
       read,
-      combineMetadata(metadata),
+      Metadata.combine(metadata),
     ) as unknown as Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>>
   },
 
@@ -579,7 +471,7 @@ export const Projection = {
   ): Projection<Root, Value> => ({
     Model,
     dependencies: options?.dependencies ?? [],
-    metadata: options?.metadata ?? emptyMetadata,
+    metadata: options?.metadata ?? Metadata.empty,
     read,
   }),
 
@@ -763,7 +655,7 @@ const isProjection = (value: unknown): value is Projection<unknown, unknown> =>
   typeof value === 'object' &&
   value !== null &&
   typeof (value as { read?: unknown }).read === 'function' &&
-  isMetadata((value as { metadata?: unknown }).metadata)
+  Metadata.is((value as { metadata?: unknown }).metadata)
 
 type MsgOf<Ms extends readonly unknown[]> = {
   readonly [K in keyof Ms]: Ms[K] extends (...args: never[]) => infer M ? M : never

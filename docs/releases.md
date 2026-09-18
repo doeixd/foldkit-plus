@@ -18,6 +18,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-agent-native`](../packages/agent-native) | 0.3.0 | Published | Agent Native adapter: compiles exposed capabilities into framework actions whose `run` only dispatches. |
 | [`foldkit-durable`](../packages/durable) | 0.3.0 | Published | Durable, ordered operation log on `effect/unstable/sql`, with snapshots, cursors, compaction, and an effect ledger. |
 | [`foldkit-sync`](../packages/sync) | 0.5.0 | Published | Local-first replica: offline outbox, optimistic projection, reconciliation, presence, and a reconnecting WebSocket transport. |
+| [`foldkit-metadata`](../packages/metadata) | 0.1.0 | Not yet published | Opaque typed metadata: an interpreter's key owns its entries, their merge, and their summary. |
 | [`foldkit-surface`](../packages/surface) | 0.2.0 | Published | Observation boundary: pure Model projections, field references, and typed Message subsets. |
 | [`foldkit-remote`](../packages/remote) | 0.3.0 | Published | Normalized server state as a Foldkit Submodel: entities, selections, queries, connections, mutations, and live changes. |
 | [`foldkit-remote-server`](../packages/remote-server) | 0.3.0 | Published | Server sources and handler compilation for Remote: entities, queries, mutations, live, and selection authorization. |
@@ -74,7 +75,8 @@ publish:
 - `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.158.2`.
 
 Regular `dependencies` between workspace packages, declared as `workspace:*`
-and rewritten to the exact version on publish: `foldkit-agent`, `foldkit-mirror`,
+and rewritten to the exact version on publish: `foldkit-surface` depends on
+`foldkit-metadata`; `foldkit-agent`, `foldkit-mirror`,
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
 `foldkit-surface`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and

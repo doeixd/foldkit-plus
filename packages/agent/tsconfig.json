@@ -7,9 +7,13 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
-  "references": [{ "path": "../surface/tsconfig.build.json" }]
+  "references": [
+    { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../surface/tsconfig.build.json" }
+  ]
 }

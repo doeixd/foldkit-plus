@@ -10,10 +10,11 @@
       "foldkit-agent-webmcp": ["../../packages/agent-webmcp/src/index.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
-      "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
       "foldkit-sync": ["../../packages/sync/src/index.ts"]
     }
@@ -43,6 +44,9 @@
     },
     {
       "path": "../../packages/mirror/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
     },
     {
       "path": "../../packages/surface/tsconfig.build.json"
