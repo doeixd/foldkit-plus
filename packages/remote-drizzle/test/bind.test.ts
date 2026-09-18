@@ -3,6 +3,17 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
+import {
+  REMOTE_PROTOCOL_VERSION,
+  Remote,
+  Selection,
+  emptyStore,
+  initialRemoteModel,
+  requirementsOf,
+  type BoundRemote,
+  type RemoteModel,
+} from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { bind, databaseLayer, source, type AnyEntityBinding } from '../src/index.js'
 
@@ -155,6 +166,62 @@ describe('bind against in-process SQLite', () => {
     ])
     expect(Db.Project.columns.name).toBe(projects.title)
     expect(Db.Project.relations.comments).toMatchObject({ kind: 'many', localKey: projects.id })
+  })
+})
+
+describe('one Entity declaration, client to database', () => {
+  const Card = Entity.select(Domain.Project, {
+    name: true,
+    commentCount: true,
+    owner: Entity.select(Domain.User, { name: true }),
+    lead: Entity.select(Domain.User, { name: true }),
+    comments: Entity.select(Domain.Comment, { body: true, project: true }),
+    tags: true,
+  })
+
+  it('reads an Entity Selection through RemoteServer and SQL into the value it describes', async () => {
+    const definition = Remote.define({ entities: Object.values(Db) })
+    const store = { current: emptyStore }
+    const bound = {
+      definition,
+      contract: { name: 'test' },
+      store: { get: () => ({ ...initialRemoteModel, entities: store.current }) },
+    } as unknown as BoundRemote<unknown, RemoteModel>
+    const projection = Remote.select(bound, Selection.from(Card))('p1')
+    const requests = requirementsOf(projection)
+
+    const server = RemoteServer.make({
+      entities: Object.values(Db).map(binding => source(binding)),
+    })
+    const { sqlite, database } = setup()
+    try {
+      const result = await Effect.runPromise(
+        RemoteServer.handlers(server, null)
+          .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests })
+          .pipe(Effect.provide(databaseLayer(database))),
+      )
+      store.current = Remote.writeRead(emptyStore, requests, result)
+    } finally {
+      sqlite.close()
+    }
+
+    const read = projection.read(undefined)
+    const value = {
+      name: 'Alpha',
+      commentCount: 2,
+      owner: { name: 'Ada' },
+      lead: { name: 'Grace' },
+      comments: [
+        { body: 'b', project: { entity: 'Project', id: 'p1' } },
+        { body: 'a', project: { entity: 'Project', id: 'p1' } },
+      ],
+      tags: [
+        { entity: 'Tag', id: 't1' },
+        { entity: 'Tag', id: 't2' },
+      ],
+    }
+    expect(read).toEqual({ _tag: 'Ready', value })
+    expect(Schema.is(Card.schema)(value)).toBe(true)
   })
 })
 
