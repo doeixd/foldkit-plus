@@ -38,6 +38,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
 | A media query, presence, timer, pagination, undo history, socket, resize, or clipboard | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
+| Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example
@@ -51,7 +52,7 @@ mental model, a minimal example, common tasks, and gotchas.
 
 ```text
 Foldkit app (Model · Message · update)
-  └─ foldkit-surface: Projection, Surface, MessageSet, Module
+  └─ foldkit-surface: Projection, Surface, MessageSet, Module (Metadata from foldkit-metadata)
        ├─ foldkit-agent ─ webmcp · mcp · a2a · native
        ├─ foldkit-remote ─ foldkit-remote-server ─ foldkit-remote-drizzle
        ├─ foldkit-sync ─ foldkit-durable (server journal)

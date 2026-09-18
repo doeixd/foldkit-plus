@@ -174,6 +174,12 @@ const beta = Projection.fromReader(Schema.Boolean, (_: Model) => true, { metadat
 Flags.get(Projection.struct({ beta, todos: App.fields.todos }).metadata)   // ['beta']
 ```
 
+`Metadata` lives in `foldkit-metadata`, which Surface re-exports. Import that
+package directly only when writing a carrier that is not a Projection: it holds
+a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
+`Metadata.combine(parts)`, which runs each key's own `merge`. `Metadata.is`
+rejects copies and hand-built values.
+
 ## Gotchas
 
 - **Reserved field names.** `Surface.application` throws
