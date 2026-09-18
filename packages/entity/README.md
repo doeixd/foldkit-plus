@@ -6,8 +6,9 @@ packages interpret that declaration; this one only describes.
 
 > **Status:** declaration and selection. `foldkit-remote` reads both through
 > [`Entity.from` and `Selection.from`](../remote/README.md#entities-declared-with-foldkit-entity).
-> The Drizzle binding and forms are planned in
-> [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
+> `foldkit-remote-drizzle` binds a related set to tables with
+> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain). Forms
+> and admin are planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
 
 ## What it owns
 

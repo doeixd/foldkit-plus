@@ -1,0 +1,218 @@
+/**
+ * Binding `foldkit-entity` Entities to Drizzle tables.
+ *
+ * The Entity already says what a relation is (one Author, many Comments);
+ * `bind` only says how the database stores it. The result is the same
+ * `EntityBinding` that `entity(name, table, …)` makes, so `source` and `query`
+ * take it unchanged.
+ */
+import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
+import { getTableColumns } from 'drizzle-orm'
+import type * as Domain from 'foldkit-entity'
+import { Entity, type FieldsFrom } from 'foldkit-remote'
+import type { ComputedConfig, EntityBinding, RelationBinding } from './binding.js'
+import type { OrderTerm } from './cursor.js'
+
+/** A `one` relation: the foreign key is a column of the owner's table. */
+export interface OneStorage {
+  readonly field: AnyColumn
+}
+
+interface ManyOptions {
+  /** Natural order of the loaded refs; defaults to the target id. */
+  readonly orderBy?: readonly OrderTerm[] | undefined
+  /** Appended to the child query, e.g. to exclude soft-deleted rows. */
+  readonly where?: SQL | undefined
+}
+
+/** A `many` relation whose foreign key is a column of the target's table. */
+export interface ManyStorage extends ManyOptions {
+  readonly foreignKey: AnyColumn
+  /** The owner column the foreign key references; defaults to the owner's `id`. */
+  readonly localKey?: AnyColumn | undefined
+}
+
+/** A `many` relation joined through a table: `localColumn` references the owner's `id`. */
+export interface ThroughStorage extends ManyOptions {
+  readonly through: DrizzleTable
+  readonly localColumn: AnyColumn
+  readonly foreignColumn: AnyColumn
+}
+
+type RelationStorage<Relation> =
+  Relation extends Domain.EntityRelation<any, any, any, infer Cardinality, any>
+    ? Cardinality extends 'one'
+      ? OneStorage
+      : ManyStorage | ThroughStorage
+    : never
+
+type ManyKeys<E extends Domain.AnyEntity> = {
+  [K in keyof E['relations']]: E['relations'][K] extends Domain.EntityRelation<
+    any,
+    any,
+    any,
+    'many',
+    any
+  >
+    ? K
+    : never
+}[keyof E['relations']]
+
+/** How a derived member is computed. A count of a `many` relation is the one kind so far. */
+export interface CountDerived<Relation extends PropertyKey = string> {
+  readonly relation: Relation
+  /** An optional filter on the counted rows. */
+  readonly where?: SQL | undefined
+}
+
+/** `relations` and `derived` are required exactly when the Entity has some. */
+type Required_<Key extends string, Members, Value> = keyof Members extends never
+  ? { readonly [K in Key]?: undefined }
+  : { readonly [K in Key]: Value }
+
+export type EntityStorage<E extends Domain.AnyEntity> = {
+  readonly table: DrizzleTable
+  /** A column for a field whose name differs from the column's; the rest match by name. */
+  readonly fields?: { readonly [K in keyof E['fields']]?: AnyColumn } | undefined
+} & Required_<
+  'relations',
+  E['relations'],
+  { readonly [K in keyof E['relations']]: RelationStorage<E['relations'][K]> }
+> &
+  Required_<
+    'derived',
+    E['derived'],
+    { readonly [K in keyof E['derived']]: CountDerived<ManyKeys<E>> }
+  >
+
+type Storage<Es extends Domain.Entities> = { readonly [K in keyof Es]: EntityStorage<Es[K]> }
+
+type AnyStorage = Partial<OneStorage & ManyStorage & ThroughStorage>
+
+/** `EntityStorage` as the implementation reads it, once the types have checked it against the Entity. */
+interface LooseStorage {
+  readonly table: DrizzleTable
+  readonly fields?: Readonly<Record<string, AnyColumn | undefined>> | undefined
+  readonly relations?: Readonly<Record<string, AnyStorage>> | undefined
+  readonly derived?: Readonly<Record<string, CountDerived>> | undefined
+}
+
+const fail = (message: string): never => {
+  throw new Error(`[foldkit-remote-drizzle] ${message}`)
+}
+
+const oneColumn = (
+  stored: AnyStorage,
+  relation: Domain.EntityMember & { readonly _tag: 'Relation' },
+  name: string,
+  field: string,
+): AnyColumn => {
+  const column =
+    stored.field ?? fail(`relation "${field}" on entity "${name}" is one: give its "field"`)
+  // A null foreign key has no ref, so the Entity must admit null.
+  if (column.notNull === false && !relation.optional)
+    fail(
+      `relation "${field}" on entity "${name}" points at a nullable column; declare it { optional: true }`,
+    )
+  return column
+}
+
+/**
+ * Binds every Entity of an `Entity.relate` result to its table in one step, so
+ * a relation's target binding can be one that is declared after its owner.
+ */
+export const bind = <const Es extends Domain.Entities, const S extends Storage<Es>>(
+  entities: Es,
+  storage: S & Storage<Es>,
+): {
+  readonly [K in keyof Es]: EntityBinding<
+    Es[K]['name'],
+    S[K]['table'],
+    FieldsFrom<Es[K]>,
+    Record<keyof Es[K]['relations'] & string, RelationBinding>
+  >
+} => {
+  const bindings: Record<string, EntityBinding<string, DrizzleTable>> = {}
+  const tables = storage as unknown as Readonly<Record<string, LooseStorage | undefined>>
+  const keyOf = (target: Domain.AnyEntity, owner: string, relation: string): string =>
+    Object.keys(entities).find(key => target.identity.token === entities[key]!.identity.token) ??
+    fail(`relation "${relation}" on entity "${owner}" targets an Entity that is not being bound`)
+
+  for (const [key, entity] of Object.entries(entities)) {
+    const name = entity.name
+    const descriptor = Entity.from(entity as never)
+    const config = tables[key] ?? fail(`entity "${name}" has no table`)
+    const tableColumns = getTableColumns(config.table)
+    const overrides = config.fields ?? {}
+    // Field names arrive from the client, so the lookup maps have no prototype.
+    const columns = Object.create(null) as Record<string, AnyColumn>
+    for (const field of Object.keys(entity.fields))
+      columns[field] =
+        overrides[field] ??
+        tableColumns[field] ??
+        fail(`field "${field}" on entity "${name}" has no column; name one under "fields"`)
+
+    const relations = Object.create(null) as Record<string, RelationBinding>
+    const members: Readonly<Record<string, Domain.EntityMember>> = entity.relations
+    const given = config.relations ?? {}
+    for (const [field, relation] of Object.entries(members)) {
+      if (relation._tag !== 'Relation') continue
+      const stored = given[field] ?? fail(`relation "${field}" on entity "${name}" has no storage`)
+      const targetKey = keyOf(relation.target(), name, field)
+      const many = {
+        ...(stored.orderBy === undefined ? {} : { orderBy: stored.orderBy }),
+        ...(stored.where === undefined ? {} : { where: stored.where }),
+      }
+      const shape =
+        relation.cardinality === 'one'
+          ? {
+              kind: 'one',
+              field: oneColumn(stored, relation, name, field),
+              nullable: relation.optional,
+            }
+          : stored.through !== undefined
+            ? {
+                kind: 'manyToMany',
+                through: stored.through,
+                localColumn: stored.localColumn,
+                foreignColumn: stored.foreignColumn,
+                ...many,
+              }
+            : {
+                kind: 'many',
+                foreignKey:
+                  stored.foreignKey ??
+                  fail(
+                    `relation "${field}" on entity "${name}" is many: give "foreignKey" or "through"`,
+                  ),
+                localKey: stored.localKey ?? columns.id,
+                ...many,
+              }
+      // Read on use: the target may be bound after its owner.
+      relations[field] = Object.defineProperty(shape, 'entity', {
+        get: () => bindings[targetKey],
+        enumerable: true,
+      }) as RelationBinding
+    }
+
+    const computed = Object.create(null) as Record<string, ComputedConfig>
+    const counts = config.derived ?? {}
+    for (const field of Object.keys(entity.derived)) {
+      const count = counts[field] ?? fail(`derived "${field}" on entity "${name}" has no storage`)
+      if (relations[count.relation] === undefined || relations[count.relation]!.kind === 'one')
+        fail(
+          `derived "${field}" on entity "${name}" needs a many relation, not "${count.relation}"`,
+        )
+      computed[field] = count
+    }
+
+    bindings[key] = {
+      ...descriptor,
+      table: config.table,
+      columns,
+      relations,
+      computed,
+    } as unknown as EntityBinding<string, DrizzleTable>
+  }
+  return bindings as never
+}

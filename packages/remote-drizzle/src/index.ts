@@ -29,6 +29,7 @@ import { toQueryPage } from './page.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
 
+export * from './bind.js'
 export * from './binding.js'
 export * from './columns.js'
 export * from './cursor.js'

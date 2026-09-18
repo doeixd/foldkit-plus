@@ -9,6 +9,7 @@ export default defineConfig({
   deps: {
     neverBundle: [
       'effect',
+      'foldkit-entity',
       'foldkit-remote',
       'foldkit-remote-server',
       'foldkit-surface',

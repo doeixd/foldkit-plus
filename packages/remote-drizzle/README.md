@@ -244,6 +244,61 @@ Definition-time checks reject ambiguous bindings such as a relation/computed
 name colliding with a scalar field, a computed field naming an invalid
 relation, or a nullable singular foreign key not marked `nullable`.
 
+## Binding a `foldkit-entity` domain
+
+`entity(name, table, …)` makes the table the declaration. When the domain is
+declared with [`foldkit-entity`](../entity/README.md), the Entity already says
+what each relation is, and `bind` says only how the database stores it:
+
+```ts
+import { Derived, Entity, Relation } from 'foldkit-entity'
+import { bind, source } from 'foldkit-remote-drizzle'
+
+const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })).pipe(
+  Entity.derived({ fanCount: Derived.make(Schema.Number) }),
+)
+const Blog = Entity.relate(
+  { User, Post },
+  { Post: { author: Relation.one(User), fans: Relation.many(User) }, User: {} },
+)
+
+const Db = bind(Blog, {
+  User: { table: users },
+  Post: {
+    table: posts,
+    relations: { author: { field: posts.authorId }, fans: { foreignKey: users.id } },
+    derived: { fanCount: { relation: 'fans' } },
+  },
+})
+
+source(Db.Post) // an ordinary binding
+```
+
+| Entity member | Storage |
+| --- | --- |
+| Field | the column of the same name, or `fields: { name: posts.title }` |
+| `one` relation | `{ field }`: the foreign key on the owner's table |
+| `many` relation | `{ foreignKey, localKey? }` on the target's table (`localKey` defaults to the owner's `id`), or `{ through, localColumn, foreignColumn }` |
+| Derived | `{ relation, where? }`: a count of a `many` relation |
+
+`orderBy` and `where` go on a `many` storage as they do on `many(…)`.
+
+Target and cardinality are never repeated, so they cannot disagree with the
+Entity. `bind` takes the whole `Entity.relate` result in one step, which lets
+two bindings point at each other; `entity(…, { relations })` cannot, because a
+relation there needs its target binding to exist first.
+
+Each result is the same `EntityBinding` `entity` returns, and the same Remote
+descriptor `Entity.from` gives the client, so register `Db.Post` (or
+`Entity.from(Blog.Post)`) in `Remote.define` and pass `Db.Post` to `source`
+and `query`.
+
+The types and `bind` itself reject: a field with no column, a relation or
+derived member with no storage, a `one` stored as a `many` or the reverse, a
+count over a `one` relation, and a required `one` over a nullable column
+(declare the relation `{ optional: true }`).
+
 ## Field authorization stays in `RemoteServer`
 
 The adapter never decides what a principal may read. It compiles only the fields

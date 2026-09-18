@@ -6,7 +6,8 @@ validates, and renders nothing, and it never touches a Model or a Message.
 
 **Status: declaration and selection.** `foldkit-remote` reads an Entity through
 `Entity.from` and a Selection through `Selection.from` (see
-[remote.md](remote.md)); its server and Drizzle packages do not yet.
+[remote.md](remote.md)), and `foldkit-remote-drizzle` binds a related set to
+tables with `bind`.
 
 ## Ownership
 

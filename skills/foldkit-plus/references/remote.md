@@ -296,6 +296,41 @@ becomes a present null). `many(...)` + `computed: { count: { relation } }` exist
 No mutation DSL: write mutations with `RemoteServer.mutation`. Page size default
 20, max 100; pagination semantics follow Postgres NULL ordering.
 
+**Drizzle over a `foldkit-entity` domain.** `bind` takes an `Entity.relate`
+result and says only how each member is stored; target and cardinality come
+from the Entity. Each result is an ordinary binding for `source` / `query`, and
+two may point at each other, which `entity(…, { relations })` cannot express.
+
+```ts
+import { Derived, Entity, Relation } from 'foldkit-entity'
+import { bind, source } from 'foldkit-remote-drizzle'
+
+const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })).pipe(
+  Entity.derived({ fanCount: Derived.make(Schema.Number) }),
+)
+const Blog = Entity.relate(
+  { User, Post },
+  { Post: { author: Relation.one(User), fans: Relation.many(User) }, User: {} },
+)
+
+const Db = bind(Blog, {
+  User: { table: users },
+  Post: {
+    table: posts,
+    relations: { author: { field: posts.authorId }, fans: { foreignKey: users.id } },
+    derived: { fanCount: { relation: 'fans' } },
+  },
+})
+
+source(Db.Post) // an ordinary binding
+```
+
+Storage: field = same-named column or `fields: { name: column }`; `one` =
+`{ field }`; `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
+foreignColumn }`; derived = `{ relation, where? }` (a count). A required `one`
+over a nullable column throws: declare it `{ optional: true }`.
+
 ## Gotchas
 
 - A Projection used by no active Surface stays `Initial` forever; do not render

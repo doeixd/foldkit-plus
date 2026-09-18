@@ -43,6 +43,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-server": "workspace:*",
     "drizzle-orm": "1.0.0-rc.4"

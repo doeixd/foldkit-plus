@@ -2592,6 +2592,21 @@ Entity.relations(...)
 
 # 55. PR 5 — refactor `remote-drizzle`
 
+> **Status:** built as `bind(entities, storage)` in `foldkit-remote-drizzle`,
+> beside `entity(name, table, …)` rather than replacing it. It takes a whole
+> `Entity.relate` result in one step, for the reason relations do (§52): a
+> relation's target binding may be declared after its owner, so bindings can
+> now form a cycle. Storage is `{ field }`, `{ foreignKey, localKey? }`, or
+> `{ through, localColumn, foreignColumn }` as §31 writes it; fields map by
+> name with `fields` overrides (§32); a derived member is `{ relation, where? }`,
+> a count, the one kind the package computes (§11 writes it
+> `Drizzle.count(Post.relations.comments)`). The result is the existing
+> `EntityBinding` over `Entity.from`'s descriptor, so the query compiler is
+> unchanged. Checked at definition: missing column, missing storage, storage of
+> the wrong cardinality, a count over a `one`, and a required `one` over a
+> nullable column. Not checked: column type against field schema, and
+> uniqueness for a one-to-one inverse (§33).
+
 Introduce:
 
 ```ts
