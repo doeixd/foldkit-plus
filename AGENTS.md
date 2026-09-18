@@ -34,6 +34,49 @@ When re-reading a commit, check each of these deliberately:
 
 Fix what the review finds in a follow-up commit rather than letting it sit.
 
+## Jev preference review
+
+After a substantial bout of implementation work, run:
+
+```bash
+npx jev-pref review --hunks
+```
+
+Treat the result as an independent semantic review of the current diff. Jev
+accepts at most 30k input tokens, so review while the change is still small and
+use `--include` or `--exclude` for broad changes.
+
+- Fix blocking findings and rerun the review.
+- Consider every advisory finding; address it or explain why it does not apply.
+- Continue normally after approval.
+- Treat exit code 2 as a setup or infrastructure error, never as approval.
+- Stop after three review/fix iterations and ask the user how to proceed.
+
+Shared preferences live in `jev-pref.json`. Authentication uses the existing
+`TYPESAFE_API_KEY`; never persist its value.
+
+### Keep Jev preferences synchronized
+
+When project guidance or architecture policy changes meaningfully, run:
+
+```bash
+npx jev-pref sync
+```
+
+Follow its reconciliation instructions. Update Jev preferences when changed
+guidance adds, removes, weakens, or strengthens a semantic rule that can be
+judged from the review diff. Keep procedural rules here and deterministic rules
+in formatters, compilers, tests, linters, or scanners.
+
+Only encode externally defined yes/no conditions or fixed taxonomies whose
+answer is visible in Jev's review input. Subjective checks such as whether code
+is broadly good, clean, simple, idiomatic, safe, or well-designed need concrete
+observable criteria or removal. Ask the user when the criteria or intended
+outcome are ambiguous.
+
+Likewise, when changing `jev-pref.json`, check whether the corresponding
+human-readable guidance needs to change.
+
 ## De-slop
 
 Review for AI slop and remove it. Concretely:

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://raw.githubusercontent.com/doeixd/jev-pref/v0.4.1/packages/jev-pref/schema.json",
+  "suites": ["prefs", "secrets"],
+  "gateThreshold": 0.7,
+  "advisoryThreshold": 0.7,
+  "failOn": "gates",
+  "prefs": [
+    {
+      "id": "foldkit_skill_sync",
+      "name": "Foldkit skill synchronization",
+      "description": "Public API and ownership changes keep the published Foldkit skill current.",
+      "scope": "change",
+      "gate": true,
+      "question": "Does this change rename, remove, or reshape a public API, change a package's ownership boundary, or add a package without making the corresponding update required in skills/foldkit-plus?",
+      "guidance": "Review the whole diff. A rename, removal, or shape change to an exported API requires an update to the matching reference file. An ownership change requires matching skill guidance. A new package requires both the package table entry in SKILL.md and coverage in a reference file. Do not count internal-only changes or backwards-compatible additions to an existing package unless they change its documented ownership boundary."
+    },
+    {
+      "id": "application_transition_bypass",
+      "name": "Application transition bypass",
+      "description": "Application state transitions go through Messages and update.",
+      "scope": "hunk",
+      "gate": true,
+      "question": "Does this change use ModelRef.set, ModelRef.modify, or WritableProjection.set for an ordinary application Model transition instead of sending a Message through update?",
+      "guidance": "Count only added or changed calls. Checkpoint installation, restoration, and reconciliation are allowed infrastructure uses because they install already-derived values. Ordinary domain behavior, including convenient local mutations, must go through a Message and update, normally using evo."
+    },
+    {
+      "id": "unvalidated_input_use",
+      "name": "Unvalidated input use",
+      "description": "Untrusted input is validated before it influences behavior.",
+      "scope": "hunk",
+      "gate": true,
+      "question": "Does this change add a path where untrusted input influences program behavior before crossing its declared validation or decoding boundary?",
+      "guidance": "Count data received from clients, wire payloads, external providers, files, environment variables, or other trust boundaries. Passing a value directly into its validator or decoder is allowed; branching on it, using it in a lookup, persisting it, or passing it to business logic first is a violation. Judge only paths visible in added or changed code."
+    },
+    {
+      "id": "authorization_bypass",
+      "name": "Authorization bypass",
+      "description": "Protected effects cannot bypass capability or authorization checks.",
+      "scope": "hunk",
+      "gate": true,
+      "question": "Does this change add or alter a protected operation so its capability or authorization check can be skipped before the protected effect occurs?",
+      "guidance": "Count a path only when the changed code shows a protected read, write, command, or external effect reachable without the required check. Do not infer missing authorization for operations that the diff does not identify as protected."
+    },
+    {
+      "id": "internal_failure_leak",
+      "name": "Internal failure leak",
+      "description": "Public failures do not expose internal implementation details.",
+      "scope": "hunk",
+      "gate": true,
+      "question": "Does this change expose raw internal failure details across a public or client-facing boundary?",
+      "guidance": "Count newly exposed stack traces, database or provider errors, queries, filesystem paths, secret configuration, or similarly internal details. Internal logging and deliberately defined public error codes or messages are allowed."
+    },
+    {
+      "id": "restating_comment",
+      "name": "Restating comment",
+      "description": "Comments explain non-obvious reasons or public contracts instead of narrating code.",
+      "scope": "hunk",
+      "gate": false,
+      "question": "Does this change add a comment or doc comment that only restates adjacent code, a symbol name, or a parameter name?",
+      "guidance": "Count only comments added or changed in this review. Do not count concise public API documentation that states a contract not evident from the signature, or comments explaining a workaround, ordering constraint, rejected alternative, or other non-obvious reason."
+    },
+    {
+      "id": "forwarding_abstraction",
+      "name": "Forwarding abstraction",
+      "description": "New abstractions contribute behavior or a meaningful boundary.",
+      "scope": "hunk",
+      "gate": false,
+      "question": "Does this change add a wrapper or indirection module that only forwards to one existing operation without adding behavior, policy, translation, or an ownership boundary?",
+      "guidance": "Count wrappers that pass arguments and results through unchanged, and modules whose only purpose is to re-export one other module. Do not count adapters that translate protocols or types, stable public entry points, dependency-injection boundaries, or wrappers that enforce policy."
+    }
+  ]
+}
