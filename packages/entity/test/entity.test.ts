@@ -9,17 +9,26 @@ const Labels = Metadata.key<string>('labels', {
 })
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
-const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String })).pipe(
-  Entity.relations({ post: Relation.one(() => PostFields) }),
+const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String }))
+const PostFields = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String }),
+).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
+
+// Post comes before Comment and points at it, so targets must resolve late.
+const Blog = Entity.relate(
+  { Author, Post: PostFields, Comment },
+  {
+    Post: {
+      author: Relation.one(Author, { optional: true }),
+      comments: Relation.many(Comment),
+    },
+    Comment: { post: Relation.one(PostFields) },
+  },
 )
-const Post = PostFields.pipe(
-  Entity.relations({
-    author: Relation.one(() => Author, { optional: true }),
-    comments: Relation.many(() => Comment),
-  }),
-  Entity.derived({ commentCount: Derived.make(Schema.Number) }),
-)
+const { Post } = Blog
+
+const relateUntyped = Entity.relate as (entities: unknown, relations: unknown) => unknown
 
 describe('Entity', () => {
   it('generates a Field per schema property and leaves the schema alone', () => {
@@ -56,67 +65,59 @@ describe('Entity', () => {
     })
   })
 
-  it('keeps one identity across pipe steps and a new one per define', () => {
+  it('keeps one identity across pipe steps and relate, and a new one per define', () => {
     expect(Post.identity).toBe(PostFields.identity)
     expect(Entity.same(Post, PostFields)).toBe(true)
-    // Comment.post was declared against the bare definition; it is still Post.
-    expect(Entity.same(Post.relations.comments.target().relations.post.target(), Post)).toBe(true)
 
     const Homonym = Entity.define('Post', Schema.Struct({ id: Schema.String }))
     expect(Entity.same(Homonym, Post)).toBe(false)
   })
 
-  it('resolves a target only when asked', () => {
-    let resolved = 0
-    const Lazy = Author.pipe(
-      Entity.relations({
-        posts: Relation.many(() => {
-          resolved++
-          return Post
-        }),
-      }),
-    )
-    expect(resolved).toBe(0)
-    expect(Lazy.relations.posts.target()).toBe(Post)
-    expect(resolved).toBe(1)
-  })
-
-  it('rejects a target that is not an Entity', () => {
-    const Broken = Author.pipe(
-      Entity.relations({ posts: Relation.many(() => Schema.String as unknown as AnyEntity) }),
-    )
-    expect(() => Broken.relations.posts.target()).toThrow(
-      'Entity "Author": relation "posts" does not resolve to an Entity',
-    )
+  it('resolves a target to the related Entity, through a cycle', () => {
+    expect(Post.relations.author.target()).toBe(Blog.Author)
+    expect(Post.relations.comments.target()).toBe(Blog.Comment)
+    // Not the bare definition the relation was declared against.
+    expect(Blog.Comment.relations.post.target()).toBe(Post)
+    expect(Object.keys(Blog.Author.relations)).toEqual([])
   })
 
   it.each([
-    ['a relation over a field', Entity.relations({ title: Relation.one(() => Author) }), 'field'],
-    [
-      'a relation declared twice',
-      Entity.relations({ author: Relation.one(() => Author) }),
-      'relation',
-    ],
-    [
-      'a derived member over a relation',
-      Entity.derived({ author: Derived.make(Schema.String) }),
-      'relation',
-    ],
-    [
-      'a derived member over a field',
-      Entity.derived({ title: Derived.make(Schema.String) }),
-      'field',
-    ],
+    ['a relation over a field', { Post: { title: Relation.one(Author) } }, 'already a field'],
     [
       'a relation over a derived member',
-      Entity.relations({ commentCount: Relation.one(() => Author) }),
-      'derived',
+      { Post: { commentCount: Relation.one(Author) } },
+      'already a derived',
     ],
-  ])('rejects %s', (_, step, taken) => {
-    // The types reject these too; the runtime check covers untyped callers.
-    expect(() => (step as (entity: AnyEntity) => AnyEntity)(Post)).toThrow(
-      `it is already a ${taken}`,
+    [
+      'a target outside the related set',
+      { Post: { comments: Relation.many(Comment) } },
+      'relation "comments" targets an Entity that is not being related',
+    ],
+    [
+      'a target that is not an Entity',
+      { Post: { author: Relation.one(Schema.String as unknown as AnyEntity) } },
+      'relation "author" targets an Entity that is not being related',
+    ],
+    [
+      'an owner outside the related set',
+      { Comment: { author: Relation.one(Author) } },
+      'relations given for "Comment", which is not being related',
+    ],
+  ])('rejects %s', (_, relations, message) => {
+    // The types reject most of these too; the runtime check covers untyped callers.
+    expect(() => relateUntyped({ Author, Post: PostFields }, relations)).toThrow(message)
+  })
+
+  it('rejects one Entity under two keys, and a value that is not an Entity', () => {
+    expect(() => relateUntyped({ Post: PostFields, Article: PostFields }, {})).toThrow(
+      '"Post" and "Article" are the same Entity',
     )
+    expect(() => relateUntyped({ Post: PostFields.schema }, {})).toThrow('"Post" is not an Entity')
+  })
+
+  it('rejects a derived member over an existing member', () => {
+    const step = Entity.derived({ author: Derived.make(Schema.String) })
+    expect(() => (step as (entity: AnyEntity) => AnyEntity)(Post)).toThrow('already a relation')
   })
 
   it('attaches metadata to the Entity and to members without touching the original', () => {
@@ -141,9 +142,10 @@ describe('Entity', () => {
   })
 
   it('is frozen, and recognises only Entities', () => {
+    expect(Object.isFrozen(Blog)).toBe(true)
     expect(Object.isFrozen(Post)).toBe(true)
     expect(Object.isFrozen(Post.members)).toBe(true)
-    expect(Object.isFrozen(Post.fields.title)).toBe(true)
+    expect(Object.isFrozen(Post.relations.author)).toBe(true)
     expect(Entity.is(Post)).toBe(true)
     expect(Entity.is({ ...Post })).toBe(false)
     expect(Entity.is(Post.schema)).toBe(false)

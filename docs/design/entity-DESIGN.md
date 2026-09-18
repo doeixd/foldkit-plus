@@ -2403,15 +2403,17 @@ No behavior change.
 > **Status:** built as [`packages/entity`](../../packages/entity/README.md);
 > PR 1 is [`packages/metadata`](../../packages/metadata/README.md). Departures:
 >
-> - **Mutual relations cannot both point at piped Entities.** `Post` relating to
+> - **Relations are declared in one step, not per Entity.** `Post` relating to
 >   `Comment` while `Comment` relates to the piped `Post`, as §7 and §45 write
 >   it, fails with TS7022: each constant's inferred type contains the other's.
->   A thunk defers evaluation, not inference. One side closes the cycle on the
->   bare `Entity.define` value; identity still matches (§10), but that side's
->   `target()` type carries no relations. PR 3's nested selection needs a
->   target's relations at the type level, so decide before it whether to accept
->   this, or to declare relations in one step over bare definitions (Drizzle's
->   `defineRelations` shape), where no constant's type depends on another's.
+>   A thunk defers evaluation, not inference. So there is no `Entity.relations`
+>   pipe step and no thunk (§9). `Entity.relate({ Author, Post, Comment }, {
+>   Post: { comments: Relation.many(Comment) }, Comment: { post:
+>   Relation.one(Post) } })` takes definitions that already exist and returns
+>   them related. `target()` yields the related Entity, typed recursively
+>   (`Related`), so PR 3's nested selection can follow relations through a
+>   cycle. Owner-local cardinality (§8) and identity (§10) are unchanged, and
+>   a target outside the call is now a definition-time error.
 > - Metadata attaches with `Entity.annotate(metadata)` and
 >   `Entity.annotateMembers({ key: metadata })`.
 > - Field schemas are typed `Schema.Constraint`, which is what

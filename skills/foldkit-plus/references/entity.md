@@ -22,13 +22,13 @@ validates, and renders nothing, and it never touches a Model or a Message.
 ```text
 Entity
  ├── fields      the properties of entity.schema
- ├── relations   one / many of another Entity, as the owner sees it
+ ├── relations   one / many of another Entity, as the owner sees it (Entity.relate)
  ├── derived     readable values an interpreter supplies
  └── members     all three; a key is only ever one kind
 ```
 
-Every pipe step returns a new frozen descriptor with the same identity. Compare
-with `Entity.same(a, b)`, never `===`.
+Every pipe step, and `Entity.relate`, returns a new frozen descriptor with the
+same identity. Compare with `Entity.same(a, b)`, never `===`.
 
 ## Minimal example
 
@@ -37,24 +37,33 @@ import { Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
-
+const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
 const Post = Entity.define(
   'Post',
   Schema.Struct({ id: Schema.String, title: Schema.String, published: Schema.Boolean }),
-).pipe(
-  Entity.relations({
-    author: Relation.one(() => Author),
-    editor: Relation.one(() => Author, { optional: true }),
-  }),
-  Entity.derived({ commentCount: Derived.make(Schema.Number) }),
+).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
+
+const Blog = Entity.relate(
+  { Author, Post, Comment },
+  {
+    Post: {
+      author: Relation.one(Author),
+      editor: Relation.one(Author, { optional: true }),
+      comments: Relation.many(Comment),
+    },
+    Comment: { post: Relation.one(Post) },
+  },
 )
 
-Post.schema                      // the Struct: id, title, published only
-Post.fields.title.schema         // Schema.String
-Post.relations.author.target()   // Author, resolved on call
-Post.relations.editor.optional   // true
-Post.derived.commentCount.schema // Schema.Number
+Blog.Post.schema                           // the Struct: id, title, published only
+Blog.Post.fields.title.schema              // Schema.String
+Blog.Post.relations.editor.optional        // true
+Blog.Post.relations.comments.target()      // Blog.Comment; follow its relations from there
+Blog.Post.derived.commentCount.schema      // Schema.Number
 ```
+
+Use the entities `Entity.relate` returns (`Blog.Post`). The `Post` passed in
+still has no relations.
 
 ## Common tasks
 
@@ -69,31 +78,25 @@ const Labels = Metadata.key<string>('my-admin/labels', {
   summarize: label => label,
 })
 
-const CmsPost = Post.pipe(
+const CmsPost = Blog.Post.pipe(
   Entity.annotate(Labels.of('Post')),
   Entity.annotateMembers({ title: Labels.of('Title'), author: Labels.of('Byline') }),
 )
 Labels.get(CmsPost.fields.title.metadata)   // ['Title']
-Entity.same(CmsPost, Post)                  // true
-```
-
-**Two entities that point at each other.** Close the cycle on the bare
-definition, or TypeScript reports `'Post' implicitly has type 'any'`:
-
-```ts
-const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String }))
-const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String })).pipe(
-  Entity.relations({ post: Relation.one(() => PostFields) }),
-)
-const Post = PostFields.pipe(Entity.relations({ comments: Relation.many(() => Comment) }))
+Entity.same(CmsPost, Blog.Post)             // true
 ```
 
 ## Gotchas
 
 - Relations are **not** in `entity.schema`. Do not put `author` in the Struct.
-- A key that is already a member is a type error at the pipe step and throws at
-  definition time. `Entity.define` twice with one name makes two entities.
-- A wrong relation target surfaces on the first `target()` call, not earlier.
+- Relations are declared once, for all entities, in `Entity.relate`; there is no
+  per-entity relations step, because entities that point at each other cannot
+  each be typed in terms of the other.
+- A key that is already a member, an owner or a target missing from the
+  `relate` call: each is a type error and throws at definition time.
+- `Entity.define` twice with one name makes two entities.
+- `target()` returns the entity as `relate` returned it; metadata annotated
+  afterwards is not on it. Annotate before relating when a target should carry it.
 - There is no "one-to-many" vocabulary: `Relation.one` on one side and
   `Relation.many` on the other is that relationship.
 - IDs are untyped and no field is marked as the identifier yet.

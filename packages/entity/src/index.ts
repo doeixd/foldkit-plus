@@ -2,7 +2,7 @@
  * `foldkit-entity` — domain structure as typed values.
  *
  * An Entity names its intrinsic Fields (one `Schema.Struct`), its Relations
- * (navigation edges to other Entities), and its Derived members (readable
+ * (navigation edges to other Entities, declared with `Entity.relate`), and its Derived members (readable
  * values an interpreter supplies). It describes; it fetches, stores, and
  * renders nothing. Remote, Drizzle, and form packages interpret it and attach
  * what they need as `foldkit-metadata`.
@@ -34,13 +34,13 @@ export interface EntityField<Name extends string, Key extends string, S extends 
 
 export type Cardinality = 'one' | 'many'
 
-/** What `Relation.one` / `Relation.many` return, before an Entity owns it. */
+/** What `Relation.one` / `Relation.many` return, before `Entity.relate` binds it to an owner. */
 export interface RelationSpec<
   Target extends AnyEntity,
   C extends Cardinality,
   Optional extends boolean,
 > {
-  readonly target: () => Target
+  readonly target: Target
   readonly cardinality: C
   readonly optional: Optional
 }
@@ -60,7 +60,7 @@ export interface EntityRelation<
   readonly _tag: 'Relation'
   readonly owner: EntityIdentity<Name>
   readonly key: Key
-  /** Lazy so Entities can refer to each other; throws if it yields a non-Entity. */
+  /** The target as `Entity.relate` returned it, so its own relations can be followed. */
   readonly target: () => Target
   readonly cardinality: C
   readonly optional: Optional
@@ -139,14 +139,47 @@ type Free<E extends AnyEntity, New> = keyof New & keyof E['members'] extends nev
   ? unknown
   : { readonly alreadyAMember: keyof New & keyof E['members'] }
 
-type WithRelations<E, New extends RelationSpecs> =
-  E extends Entity<infer Name, infer Fields, infer R, infer D>
-    ? Entity<Name, Fields, R & New, D>
-    : never
 type WithDerived<E, New extends DerivedSpecs> =
   E extends Entity<infer Name, infer Fields, infer R, infer D>
     ? Entity<Name, Fields, R, D & New>
     : never
+
+type Entities = Readonly<Record<string, AnyEntity>>
+type RelationMap<Es extends Entities> = { readonly [K in keyof Es]?: RelationSpecs }
+
+/** The key in `Es` of the Entity a spec targets, matched by name. */
+type TargetKey<Es extends Entities, Target extends AnyEntity> = {
+  [K in keyof Es]: [Es[K]['name'], Target['name']] extends [Target['name'], Es[K]['name']]
+    ? K
+    : never
+}[keyof Es]
+
+type RelatedSpecs<Es extends Entities, Rs extends RelationMap<Es>, K extends keyof Es> = {
+  readonly [R in keyof Rs[K]]: Rs[K][R] extends RelationSpec<infer Target, infer C, infer Optional>
+    ? RelationSpec<Related<Es, Rs, TargetKey<Es, Target>>, C, Optional>
+    : never
+}
+
+/**
+ * One Entity of an `Entity.relate` result. A relation's target is again a
+ * `Related`, so relations can be followed through a cycle; the recursion goes
+ * through type arguments, which TypeScript resolves only when asked.
+ */
+export type Related<Es extends Entities, Rs extends RelationMap<Es>, K extends keyof Es> =
+  Es[K] extends Entity<infer Name, infer Fields, infer R, infer D>
+    ? Entity<Name, Fields, R & RelatedSpecs<Es, Rs, K>, D>
+    : never
+
+/** Marks a relation key that is already a member of its owner, or an owner that is not listed. */
+type CheckRelations<Es extends Entities, Rs> = {
+  readonly [K in keyof Rs]: K extends keyof Es
+    ? {
+        readonly [R in keyof Rs[K]]: R extends keyof Es[K]['members']
+          ? `"${R & string}" is already a member of ${Es[K]['name']}`
+          : Rs[K][R]
+      }
+    : 'not one of the entities being related'
+}
 
 interface Parts {
   readonly identity: EntityIdentity<string>
@@ -222,33 +255,58 @@ export const Entity = {
     }) as Entity<Name, Fields>
   },
 
-  /** Adds navigation edges. A key that is already a member is an error. */
-  relations:
-    <const New extends RelationSpecs>(specs: New) =>
-    <E extends AnyEntity>(entity: E & Free<E, New>): WithRelations<E, New> => {
+  /**
+   * Declares the relations between a set of Entities in one step, and returns
+   * them related. One step, because Entities that point at each other cannot
+   * each be declared in terms of the other.
+   */
+  relate: <const Es extends Entities, const Rs extends RelationMap<Es>>(
+    entities: Es,
+    relations: Rs & CheckRelations<Es, Rs>,
+  ): { readonly [K in keyof Es]: Related<Es, Rs, K> } => {
+    const keyByToken = new Map<symbol, string>()
+    for (const [key, entity] of Object.entries(entities)) {
+      if (!isEntity(entity)) throw new Error(`Entity.relate: "${key}" is not an Entity`)
+      const earlier = keyByToken.get(entity.identity.token)
+      if (earlier !== undefined)
+        throw new Error(`Entity.relate: "${earlier}" and "${key}" are the same Entity`)
+      keyByToken.set(entity.identity.token, key)
+    }
+    const given: Readonly<Record<string, RelationSpecs | undefined>> = relations
+    for (const owner of Object.keys(given))
+      if (!(owner in entities))
+        throw new Error(`Entity.relate: relations given for "${owner}", which is not being related`)
+
+    const related: Record<string, AnyEntity> = {}
+    for (const [ownerKey, entity] of Object.entries(entities)) {
+      const specs = given[ownerKey] ?? {}
       assertFree(entity, Object.keys(specs), 'relation')
       const added = mapValues<RelationSpec<AnyEntity, Cardinality, boolean>, EntityMember>(
         specs,
-        (spec, key) =>
-          Object.freeze({
+        (spec, key) => {
+          const targetKey = isEntity(spec.target)
+            ? keyByToken.get(spec.target.identity.token)
+            : undefined
+          if (targetKey === undefined)
+            throw new Error(
+              `Entity "${entity.name}": relation "${key}" targets an Entity that is not being related`,
+            )
+          return Object.freeze({
             _tag: 'Relation',
             owner: entity.identity,
             key,
-            target: () => {
-              const target = spec.target()
-              if (!isEntity(target))
-                throw new Error(
-                  `Entity "${entity.name}": relation "${key}" does not resolve to an Entity`,
-                )
-              return target
-            },
+            // Read on call: the target may come later in `entities` than its owner.
+            target: () => related[targetKey]!,
             cardinality: spec.cardinality,
             optional: spec.optional,
             metadata: Metadata.empty,
-          }),
+          })
+        },
       )
-      return make({ ...entity, relations: { ...entity.relations, ...added } }) as never
-    },
+      related[ownerKey] = make({ ...entity, relations: { ...entity.relations, ...added } })
+    }
+    return Object.freeze(related) as never
+  },
 
   /** Adds readable members that are not part of `entity.schema`. */
   derived:
@@ -303,22 +361,23 @@ export const Entity = {
     left.identity.token === right.identity.token,
 }
 
-function one<Target extends AnyEntity>(target: () => Target): RelationSpec<Target, 'one', false>
+function one<Target extends AnyEntity>(target: Target): RelationSpec<Target, 'one', false>
 function one<Target extends AnyEntity, const Optional extends boolean>(
-  target: () => Target,
+  target: Target,
   options: { readonly optional: Optional },
 ): RelationSpec<Target, 'one', Optional>
 function one(
-  target: () => AnyEntity,
+  target: AnyEntity,
   options?: { readonly optional: boolean },
 ): RelationSpec<AnyEntity, 'one', boolean> {
   return { target, cardinality: 'one', optional: options?.optional ?? false }
 }
 
+/** What the owner sees: one or many of `target`. Used inside `Entity.relate`. */
 export const Relation = {
   one,
 
-  many: <Target extends AnyEntity>(target: () => Target): RelationSpec<Target, 'many', false> => ({
+  many: <Target extends AnyEntity>(target: Target): RelationSpec<Target, 'many', false> => ({
     target,
     cardinality: 'many',
     optional: false,

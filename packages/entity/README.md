@@ -28,7 +28,7 @@ It does not own:
 ```text
 Entity
  ├── fields      intrinsic values: the properties of entity.schema
- ├── relations   navigation edges: one / many of another Entity
+ ├── relations   navigation edges: one / many of another Entity (Entity.relate)
  ├── derived     readable values an interpreter supplies
  └── members     all three under one namespace; keys never collide
 
@@ -36,8 +36,9 @@ interpreter ──(foldkit-metadata)──► Entity / member        attaches wh
 interpreter ◄── reads fields, relations, derived, metadata
 ```
 
-Each pipe step returns a new frozen descriptor with the **same identity**. Two
-descriptors are the same entity when `Entity.same(a, b)`, not when `a === b`.
+Each pipe step, and `Entity.relate`, returns a new frozen descriptor with the
+**same identity**. Two descriptors are the same entity when `Entity.same(a, b)`,
+not when `a === b`.
 
 ## Install
 
@@ -52,61 +53,57 @@ import { Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
-
+const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
 const Post = Entity.define(
   'Post',
   Schema.Struct({ id: Schema.String, title: Schema.String, published: Schema.Boolean }),
-).pipe(
-  Entity.relations({
-    author: Relation.one(() => Author),
-    editor: Relation.one(() => Author, { optional: true }),
-  }),
-  Entity.derived({ commentCount: Derived.make(Schema.Number) }),
+).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
+
+const Blog = Entity.relate(
+  { Author, Post, Comment },
+  {
+    Post: {
+      author: Relation.one(Author),
+      editor: Relation.one(Author, { optional: true }),
+      comments: Relation.many(Comment),
+    },
+    Comment: { post: Relation.one(Post) },
+  },
 )
 
-Post.schema // Schema.Struct of id, title, published: relations are not in it
-Post.fields.title.schema // Schema.String
-Post.relations.author.target() // Author
-Post.relations.editor.optional // true
-Post.derived.commentCount.schema // Schema.Number
-Object.keys(Post.members) // id, title, published, author, editor, commentCount
+Blog.Post.schema // Schema.Struct of id, title, published: relations are not in it
+Blog.Post.fields.title.schema // Schema.String
+Blog.Post.relations.editor.optional // true
+Blog.Post.derived.commentCount.schema // Schema.Number
+Blog.Post.relations.comments.target() // Blog.Comment
+Blog.Post.relations.comments.target().relations.post.target() // Blog.Post, fully typed
+Object.keys(Blog.Post.members) // id, title, published, commentCount, author, editor, comments
 ```
 
 - `Entity.define` generates one `Field` per schema property and creates the
   identity. Calling it twice with the same name makes two different entities.
+- `Derived.make` states a readable value's schema and nothing about how it is
+  produced. `Entity.derived` is a pipe step because it concerns one entity.
+- `Entity.relate` takes the entities and every relation between them, and
+  returns the same entities with `relations` filled in. Use the returned ones
+  (`Blog.Post`); the `Post` you passed in still has no relations.
 - `Relation.one` / `Relation.many` state what the owner sees. `Post.author: one`
   and `Author.posts: many` together are the familiar one-to-many; neither side
   names it.
-- The target is a thunk, resolved only when you call `target()`, so entities in
-  different modules can refer to each other. `target()` throws if the thunk
-  yields something that is not an Entity.
-- `Derived.make` states a readable value's schema and nothing about how it is
-  produced.
+- `target()` returns the related entity, so relations can be followed from
+  there, around a cycle too.
 
-Adding a key that is already a member is a type error at the pipe step and an
-`Error` at definition time.
+`Entity.relate` throws, and the types reject, a relation key that is already a
+member, an owner that is not in the first argument, and a target that is not
+in the first argument.
 
-## Entities that point at each other
+### Why relations are declared in one step
 
-TypeScript cannot infer two constants whose types each contain the other, so
-`Post` relating to `Comment` while `Comment` relates to the piped `Post` fails
-with `'Post' implicitly has type 'any'`. Close the cycle on the bare definition:
-
-```ts
-const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String }))
-
-const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String })).pipe(
-  Entity.relations({ post: Relation.one(() => PostFields) }),
-)
-
-const Post = PostFields.pipe(Entity.relations({ comments: Relation.many(() => Comment) }))
-
-Entity.same(Comment.relations.post.target(), Post) // true
-```
-
-`Comment.relations.post.target()` is typed as the bare definition, so the
-relations of `Post` are not visible through it at the type level; identity
-still matches.
+Entities point at each other: a Post has Comments and a Comment has a Post. If
+each entity declared its own relations, `Post` would be typed in terms of
+`Comment` and `Comment` in terms of `Post`, and TypeScript cannot infer two
+constants that way. Declaring the relations over entities that already exist
+avoids the cycle, and lets `relate` check every target up front.
 
 ## Attaching metadata
 
@@ -121,13 +118,13 @@ const Labels = Metadata.key<string>('my-admin/labels', {
   summarize: label => label,
 })
 
-const CmsPost = Post.pipe(
+const CmsPost = Blog.Post.pipe(
   Entity.annotate(Labels.of('Post')),
   Entity.annotateMembers({ title: Labels.of('Title'), author: Labels.of('Byline') }),
 )
 
 Labels.get(CmsPost.fields.title.metadata) // ['Title']
-Entity.same(CmsPost, Post) // true: the metadata changed, the entity did not
+Entity.same(CmsPost, Blog.Post) // true: the metadata changed, the entity did not
 ```
 
 Annotating again combines with what is there, using the key's own `merge`.
@@ -137,7 +134,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | Call | Meaning |
 | --- | --- |
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
-| `Entity.relations({ key: Relation.one(...) or Relation.many(...) })` | Pipe step adding navigation edges. |
+| `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
@@ -147,6 +144,10 @@ Annotating again combines with what is there, using the key's own `merge`.
 ## Limits
 
 - IDs are untyped; nothing marks which field is the identifier yet.
-- A relation cannot be validated until its target is resolved, so a wrong
-  target surfaces on the first `target()` call, not at definition.
+- Relations reach only the entities of one `Entity.relate` call; relating the
+  result again adds relations but earlier targets keep pointing at the earlier
+  result.
+- `target()` returns the entity as `relate` returned it. Metadata attached
+  afterwards (`CmsPost` above) is on the new descriptor only, so annotate before
+  relating when a target should carry it.
 - No registry: nothing checks that two different entities share a name.
