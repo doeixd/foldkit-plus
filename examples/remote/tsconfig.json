@@ -7,6 +7,7 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
@@ -20,6 +21,7 @@
     { "path": "../../packages/mixins-surface/tsconfig.build.json" },
     { "path": "../../packages/remote/tsconfig.build.json" },
     { "path": "../../packages/metadata/tsconfig.build.json" },
+    { "path": "../../packages/entity/tsconfig.build.json" },
     { "path": "../../packages/surface/tsconfig.build.json" }
   ]
 }

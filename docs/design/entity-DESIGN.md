@@ -2536,6 +2536,20 @@ derived schema included
 
 # 54. PR 4 — adapt Remote to `foldkit-entity`
 
+> **Status:** first slice built, in the other direction from the one written
+> below. Instead of Remote's registry and planner learning `EntityMember`,
+> `Entity.from(entity)` and `Selection.from(selection)` in `foldkit-remote`
+> compile a foundational Entity and Selection into Remote's existing descriptor
+> and Selection (relations become ref codecs, derived members become fields).
+> The store, planner, wire, `remote-server`, and `remote-drizzle` are untouched,
+> and `Entity.make` / `Entity.ref` keep working beside it, so there is no flag
+> day (§59).
+>
+> Still open: whether `Remote.define` should take foundational Entities
+> directly, so applications stop aliasing two `Entity` exports; paginated
+> relations, which an Entity Selection cannot express (§14); and deprecating
+> the schema-annotation path (§36), which has to wait for both.
+
 Change Remote's entity registry to consume foundational Entities.
 
 Refactor Selection requirement compilation to inspect explicit `EntityMember` values instead of Schema annotations.

@@ -6,6 +6,8 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
+    { "path": "../entity/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
     { "path": "../remote/tsconfig.build.json" },
     { "path": "../remote-server/tsconfig.build.json" }
   ]

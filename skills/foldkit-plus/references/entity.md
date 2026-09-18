@@ -4,8 +4,9 @@ A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
 validates, and renders nothing, and it never touches a Model or a Message.
 
-**Status: declaration and selection.** No other package reads an Entity yet.
-`foldkit-remote` still has its own `Entity`; do not pass one to the other.
+**Status: declaration and selection.** `foldkit-remote` reads an Entity through
+`Entity.from` and a Selection through `Selection.from` (see
+[remote.md](remote.md)); its server and Drizzle packages do not yet.
 
 ## Ownership
 

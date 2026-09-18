@@ -4,6 +4,7 @@
  * and their assembly from the normalized store.
  */
 import { Option, Schema } from 'effect'
+import type * as Domain from 'foldkit-entity'
 import type { RelationRequirement } from './requirement.js'
 import {
   Entity,
@@ -118,6 +119,23 @@ export const relationOf = (selection: Selection<unknown>): RelationRequirement =
 })
 
 export const Selection = {
+  /**
+   * The Remote Selection of a `foldkit-entity` Selection: the same members, read
+   * from Remote's store. `true` on a relation reads its refs, as it does here.
+   */
+  from: <Name extends string, S extends Schema.Constraint>(
+    selection: Domain.Selection<Name, unknown, S>,
+  ): Selection<S['Type'], Name, 'entity'> => {
+    const spec: Record<string, true | Selection<unknown>> = {}
+    for (const [key, selected] of Object.entries(
+      selection.members as Readonly<
+        Record<string, true | Domain.Selection<string, unknown, Schema.Constraint>>
+      >,
+    ))
+      spec[key] = selected === true ? true : Selection.from(selected)
+    return Selection.make(Entity.from(selection.entity as never), spec as never) as never
+  },
+
   /**
    * The fields to read of `entity`. A nested `Selection` on a relation field
    * reads through the ref (or refs, or page of refs) the field holds into the

@@ -79,7 +79,7 @@ Regular `dependencies` between workspace packages, declared as `workspace:*`
 and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-entity` depend on
 `foldkit-metadata`; `foldkit-agent`, `foldkit-mirror`,
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
-`foldkit-surface`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
+`foldkit-surface`; `foldkit-remote` also depends on `foldkit-entity`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
 `foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.

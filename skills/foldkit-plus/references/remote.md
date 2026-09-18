@@ -193,6 +193,28 @@ optimistic layers, gaps). Wrong version/scope, oversized, or malformed snapshots
 yield `undefined` from `hydrate` (`restore` yields `emptyStore` and removes the key). An oversized
 `save` removes the key instead of writing.
 
+**Entities declared with `foldkit-entity`.** `Entity.from` and `Selection.from`
+compile a domain declaration into Remote's descriptor and Selection; nothing
+downstream changes. Relations become ref fields, derived members become fields
+the server supplies, and the Entity needs an `id` field. Both packages export
+`Entity`, so alias one. `Entity.make` + `Entity.ref` still works alongside.
+
+```ts
+import { Schema } from 'effect'
+import { Entity as Domain, Relation } from 'foldkit-entity'
+import { Entity, Remote, Selection } from 'foldkit-remote'
+
+const User = Domain.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Project = Domain.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Work = Domain.relate({ User, Project }, { Project: { owner: Relation.one(User) } })
+
+const Data = Remote.define({ entities: [Entity.from(Work.User), Entity.from(Work.Project)] })
+
+const ProjectCard = Selection.from(
+  Domain.select(Work.Project, { name: true, owner: Domain.select(Work.User, { name: true }) }),
+)
+```
+
 Debugging: `Data.plan(model, projection)` shows what is missing;
 `Data.inspect(model)` is a serializable cache summary.
 

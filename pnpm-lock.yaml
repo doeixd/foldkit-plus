@@ -721,6 +721,9 @@ importers:
 
   packages/remote:
     dependencies:
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface

@@ -7,9 +7,15 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
-  "references": [{ "path": "../remote/tsconfig.build.json" }]
+  "references": [
+    { "path": "../entity/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../remote/tsconfig.build.json" }
+  ]
 }

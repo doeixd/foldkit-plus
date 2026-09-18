@@ -8,6 +8,7 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
@@ -16,6 +17,7 @@
   "references": [
     { "path": "../bundle/tsconfig.build.json" },
     { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../entity/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" }
   ]
 }

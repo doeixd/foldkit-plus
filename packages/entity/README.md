@@ -4,10 +4,10 @@ A domain entity declared once as a typed value: its intrinsic fields, its
 relations to other entities, and the derived values consumers may read. Other
 packages interpret that declaration; this one only describes.
 
-> **Status:** declaration and selection. The Remote and Drizzle adapters and
-> forms are planned in
-> [entity-DESIGN.md](../../docs/design/entity-DESIGN.md) and do not read an
-> Entity yet. `foldkit-remote` still uses its own `Entity`.
+> **Status:** declaration and selection. `foldkit-remote` reads both through
+> [`Entity.from` and `Selection.from`](../remote/README.md#entities-declared-with-foldkit-entity).
+> The Drizzle binding and forms are planned in
+> [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
 
 ## What it owns
 

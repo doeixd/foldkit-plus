@@ -3,6 +3,7 @@
  * patches, with the codecs that carry refs on the wire.
  */
 import { Schema, SchemaGetter } from 'effect'
+import type * as Domain from 'foldkit-entity'
 import { RelationAnnotation, RelationEntityAnnotation, refParts } from './relation.js'
 // selection.ts imports this module too; both only use the other inside
 // function bodies, so the cycle is never observed at module evaluation.
@@ -116,7 +117,65 @@ const refPageCodec = <Name extends string, F extends Schema.Struct.Fields>(
     }
   >
 
+/** The ref codec a `foldkit-entity` relation becomes: one ref, a nullable ref, or an array of refs. */
+type RelationField<Spec> =
+  Spec extends Domain.RelationSpec<infer Target, infer Cardinality, infer Optional>
+    ? Cardinality extends 'many'
+      ? Schema.$Array<Schema.Codec<EntityRef<Target['name']>, string>>
+      : Optional extends true
+        ? Schema.NullOr<Schema.Codec<EntityRef<Target['name']>, string>>
+        : Schema.Codec<EntityRef<Target['name']>, string>
+    : never
+
+/**
+ * The fields Remote stores for a `foldkit-entity` Entity: its own fields, its
+ * derived members (the server supplies them like any field), and each relation
+ * as refs.
+ */
+export type FieldsFrom<E> =
+  E extends Domain.Entity<any, infer Fields, infer Relations, infer Derived>
+    ? Fields & { readonly [K in keyof Derived]: Derived[K]['schema'] } & {
+        readonly [K in keyof Relations]: RelationField<Relations[K]>
+      }
+    : never
+
+// One descriptor per Entity version: `Selection.from` looks a Selection's Entity up again.
+const descriptors = new WeakMap<Domain.AnyEntity, EntityDescriptor<any, any>>()
+
+const relationField = (
+  relation: Domain.EntityMember & { readonly _tag: 'Relation' },
+): AnySchema => {
+  const ref = refCodec(relation.target().name) as unknown as AnySchema
+  return (relation.cardinality === 'many'
+    ? Schema.Array(ref)
+    : relation.optional
+      ? Schema.NullOr(ref)
+      : ref) as unknown as AnySchema
+}
+
 export const Entity = {
+  /**
+   * The Remote descriptor of a `foldkit-entity` Entity. Relations declared with
+   * `Entity.relate` become ref fields, so the store, the planner, and the server
+   * treat it as they treat an `Entity.make` descriptor.
+   */
+  from: <E extends Domain.AnyEntity>(
+    entity: E & { readonly fields: { readonly id: unknown } },
+  ): EntityDescriptor<E['name'], FieldsFrom<E>> => {
+    const cached = descriptors.get(entity)
+    if (cached !== undefined) return cached
+    const members: Readonly<Record<string, Domain.EntityMember>> = entity.members
+    if (members.id?._tag !== 'Field')
+      throw new Error(`Entity.from: "${entity.name}" needs an "id" field for Remote to key it by`)
+    const fields: Record<string, AnySchema> = {}
+    for (const [key, member] of Object.entries(members))
+      fields[key] =
+        member._tag === 'Relation' ? relationField(member) : (member.schema as AnySchema)
+    const descriptor = Entity.make(entity.name, Schema.Struct(fields) as never)
+    descriptors.set(entity, descriptor)
+    return descriptor as never
+  },
+
   make: <
     const Name extends string,
     const F extends Schema.Struct.Fields & { readonly id: Schema.Schema<unknown> },
