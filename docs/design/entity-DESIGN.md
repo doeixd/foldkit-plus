@@ -2400,6 +2400,25 @@ No behavior change.
 
 # 52. PR 2 — `foldkit-entity`
 
+> **Status:** built as [`packages/entity`](../../packages/entity/README.md);
+> PR 1 is [`packages/metadata`](../../packages/metadata/README.md). Departures:
+>
+> - **Mutual relations cannot both point at piped Entities.** `Post` relating to
+>   `Comment` while `Comment` relates to the piped `Post`, as §7 and §45 write
+>   it, fails with TS7022: each constant's inferred type contains the other's.
+>   A thunk defers evaluation, not inference. One side closes the cycle on the
+>   bare `Entity.define` value; identity still matches (§10), but that side's
+>   `target()` type carries no relations. PR 3's nested selection needs a
+>   target's relations at the type level, so decide before it whether to accept
+>   this, or to declare relations in one step over bare definitions (Drizzle's
+>   `defineRelations` shape), where no constant's type depends on another's.
+> - Metadata attaches with `Entity.annotate(metadata)` and
+>   `Entity.annotateMembers({ key: metadata })`.
+> - Field schemas are typed `Schema.Constraint`, which is what
+>   `Schema.Struct.Fields` holds in Effect 4, not `Schema.Top`.
+> - `Entity.same(a, b)` compares identity tokens. A collision is a type error
+>   at the pipe step as well as a definition-time `Error`.
+
 Implement:
 
 ```text

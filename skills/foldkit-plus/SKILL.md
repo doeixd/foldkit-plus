@@ -39,6 +39,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A media query, presence, timer, pagination, undo history, socket, resize, or clipboard | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
+| A domain entity's fields, relations, and derived members, declared once (declaration layer only; Remote does not read it yet) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example

@@ -1,0 +1,54 @@
+{
+  "name": "foldkit-entity",
+  "version": "0.1.0",
+  "description": "Domain structure for Foldkit Plus: an Entity's fields, relations, and derived members as typed values other packages interpret.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "entity",
+    "schema",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/entity"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/entity#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-metadata": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

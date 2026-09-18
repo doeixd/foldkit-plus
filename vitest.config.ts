@@ -25,6 +25,7 @@ export default defineConfig({
       ),
       'foldkit-durable': fileURLToPath(new URL('./packages/durable/src/index.ts', import.meta.url)),
       'foldkit-sync': fileURLToPath(new URL('./packages/sync/src/index.ts', import.meta.url)),
+      'foldkit-entity': fileURLToPath(new URL('./packages/entity/src/index.ts', import.meta.url)),
       'foldkit-metadata': fileURLToPath(
         new URL('./packages/metadata/src/index.ts', import.meta.url),
       ),

@@ -87,6 +87,7 @@ The full API reference for each package is its README under [`packages/`](../pac
 
 ```text
 Foundation       foldkit-surface + foldkit-metadata
+Domain           foldkit-entity (declaration layer; no package reads it yet)
 Agents           foldkit-agent + agent-webmcp / agent-mcp / agent-a2a / agent-native
 Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
