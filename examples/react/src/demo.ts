@@ -6,6 +6,7 @@
  * 3. A Foldkit view compiled to React TSX (foldkit-react-codegen).
  */
 import { Effect, Schema, Stream } from 'effect'
+import { evo } from 'foldkit/struct'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Port from 'foldkit/port'
@@ -118,9 +119,9 @@ const reactInsideFoldkit = async (lines: Array<string>) => {
     update: (model: ReviewModel, message: ReviewMessage) => {
       switch (message._tag) {
         case 'Rated':
-          return { model: { ...model, stars: message.stars } }
+          return { model: evo(model, { stars: () => message.stars }) }
         case 'Renamed':
-          return { model: { ...model, title: `${model.title} (2021)` } }
+          return { model: evo(model, { title: () => `${model.title} (2021)` }) }
       }
     },
     view: reviewView,
@@ -134,7 +135,8 @@ const reactInsideFoldkit = async (lines: Array<string>) => {
     lines.push(`suspense: ${text('.details')}`)
 
     click('.star-5')
-    await waitFor('the rating', () => text('.model').includes('5 stars'))
+    // Both renders: the Foldkit model text and the React island catching up.
+    await waitFor('the rating', () => text('.model').includes('5 stars') && stars() === '★★★★★')
     lines.push(`React onRate(5) -> Message Rated -> ${text('.model')}; island shows ${stars()}`)
 
     click('.preview')
@@ -186,7 +188,7 @@ const makeCounter = (container: HTMLElement, start: number) =>
     update: (model: CounterModel, message: CounterMessage) => {
       switch (message._tag) {
         case 'ChangedStep':
-          return { model: { ...model, step: message.step } }
+          return { model: evo(model, { step: () => message.step }) }
         case 'Reported':
           return { model }
         case 'Incremented': {
@@ -197,7 +199,7 @@ const makeCounter = (container: HTMLElement, start: number) =>
               Effect.as(CounterMessage.Reported()),
             ),
           }
-          return { model: { ...model, count }, commands: [report] }
+          return { model: evo(model, { count: () => count }), commands: [report] }
         }
       }
     },

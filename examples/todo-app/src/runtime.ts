@@ -14,6 +14,7 @@
  * once at start and its Message dispatched.
  */
 import { Effect } from 'effect'
+import { evo } from 'foldkit/struct'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import type { Mounted, Replica } from 'foldkit-sync'
 import { Message, initialModel, type Model, type Shared } from './app.js'
@@ -33,13 +34,13 @@ export const mountApp = (
     subscriptions: wiring.subscriptions(),
     resources: storage,
     url: wiring.url(url => Message.UrlChanged({ url })),
-    onPersistenceFailure: (model, error) => ({
-      ...model,
-      lastError:
-        error._tag === 'ReplayError'
-          ? `Refused: ${error.message}`
-          : 'Could not save this change; it was reverted.',
-    }),
+    onPersistenceFailure: (model, error) =>
+      evo(model, {
+        lastError: () =>
+          error._tag === 'ReplayError'
+            ? `Refused: ${error.message}`
+            : 'Could not save this change; it was reverted.',
+      }),
   })
   // Store → Model, once: the draft is restored while it is still empty.
   for (const command of start.commands ?? []) {

@@ -21,6 +21,7 @@
  *   never leave the tab.
  */
 import { Clock, Effect, Schema } from 'effect'
+import { evo } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
 import { defineMessageUnion } from 'foldkit/message'
@@ -143,12 +144,12 @@ export const makeUpdate =
       RequestedTodo: ({ title }) =>
         title.trim() === ''
           ? { model }
-          : { model: { ...model, draft: '' }, commands: [mintTodo(title.trim())] },
+          : { model: evo(model, { draft: () => '' }), commands: [mintTodo(title.trim())] },
       EditingCommitted: () => {
         const id = model.editingId
         const title = model.editDraft.trim()
         if (id === null) return { model }
-        const stopped = { ...model, editingId: null, editDraft: '' }
+        const stopped = evo(model, { editingId: () => null, editDraft: () => '' })
         if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
         return {
           model: stopped,
@@ -161,54 +162,53 @@ export const makeUpdate =
       // Durable facts: pure over the shared slice, idempotent where a retry could
       // deliver one twice.
       SubmittedTodo: ({ id, title, createdAt }) => ({
-        model: {
-          ...model,
-          todos: model.todos.some(todo => todo.id === id)
-            ? model.todos
-            : [...model.todos, { id, title, completed: false, priority: 'normal', createdAt }],
-        },
+        model: evo(model, {
+          todos: () =>
+            model.todos.some(todo => todo.id === id)
+              ? model.todos
+              : [...model.todos, { id, title, completed: false, priority: 'normal', createdAt }],
+        }),
       }),
       ToggledTodo: ({ id }) => ({
-        model: {
-          ...model,
-          todos: model.todos.map(todo =>
-            todo.id === id ? { ...todo, completed: !todo.completed } : todo,
-          ),
-        },
+        model: evo(model, {
+          todos: () =>
+            model.todos.map(todo =>
+              todo.id === id ? { ...todo, completed: !todo.completed } : todo,
+            ),
+        }),
       }),
       RenamedTodo: ({ id, title }) => ({
-        model: {
-          ...model,
-          todos: model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
-        },
+        model: evo(model, {
+          todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
+        }),
       }),
       PrioritySet: ({ id, priority }) => ({
-        model: {
-          ...model,
-          todos: model.todos.map(todo => (todo.id === id ? { ...todo, priority } : todo)),
-        },
+        model: evo(model, {
+          todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, priority } : todo)),
+        }),
       }),
       DeletedTodo: ({ id }) => ({
-        model: { ...model, todos: model.todos.filter(todo => todo.id !== id) },
+        model: evo(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
       }),
       ClearedCompleted: () => ({
-        model: { ...model, todos: model.todos.filter(todo => !todo.completed) },
+        model: evo(model, { todos: () => model.todos.filter(todo => !todo.completed) }),
       }),
       RenamedList: ({ title }) =>
-        title.trim() === '' ? { model } : { model: { ...model, listTitle: title.trim() } },
+        title.trim() === '' ? { model } : { model: evo(model, { listTitle: () => title.trim() }) },
 
       // Local.
-      DraftChanged: ({ value }) => ({ model: { ...model, draft: value } }),
-      FilterSelected: ({ filter }) => ({ model: { ...model, filter } }),
+      DraftChanged: ({ value }) => ({ model: evo(model, { draft: () => value }) }),
+      FilterSelected: ({ filter }) => ({ model: evo(model, { filter: () => filter }) }),
       EditingStarted: ({ id }) => ({
-        model: {
-          ...model,
-          editingId: id,
-          editDraft: model.todos.find(todo => todo.id === id)?.title ?? '',
-        },
+        model: evo(model, {
+          editingId: () => id,
+          editDraft: () => model.todos.find(todo => todo.id === id)?.title ?? '',
+        }),
       }),
-      EditDraftChanged: ({ value }) => ({ model: { ...model, editDraft: value } }),
-      EditingStopped: () => ({ model: { ...model, editingId: null, editDraft: '' } }),
+      EditDraftChanged: ({ value }) => ({ model: evo(model, { editDraft: () => value }) }),
+      EditingStopped: () => ({
+        model: evo(model, { editingId: () => null, editDraft: () => '' }),
+      }),
     })
 
 /** The priority a click on the badge moves to. Derived, so the view stays dumb. */

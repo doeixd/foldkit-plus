@@ -90,12 +90,26 @@ intentional. They operate at different levels:
 A useful shorthand is:
 
 ```text
-Optic       = structural focus
-Surface     = observation + capability contract
-Submodel    = state-machine ownership boundary
+evo               = evolve application data inside update
+Optic / ModelRef  = locate a value structurally
+Projection        = describe/read/write a known Model slice
+Surface           = observation + capability contract
+Submodel          = state-machine ownership boundary
 ```
 
-They compose; none replaces the others.
+They compose; none replaces the others. The same field plays each role in
+turn:
+
+```ts
+// application transition
+evo(model, { filter: () => 'active' })
+
+// structural addressing
+App.fields.filter.get(model)
+
+// infrastructure installation
+App.fields.filter.set(model, restoredFilter)
+```
 
 ### Surface builds on Optics rather than replacing them
 

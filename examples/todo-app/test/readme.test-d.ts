@@ -5,6 +5,7 @@
  * everything below them is the sample verbatim.
  */
 import { Schema } from 'effect'
+import { evo } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
@@ -34,22 +35,23 @@ const update = (model: typeof Model.Type, message: typeof Message.Type) => {
       return { model }
     case 'SubmittedTodo':
       return {
-        model: {
-          ...model,
-          todos: [...model.todos, { id: message.id, title: message.title, done: false }],
-        },
+        model: evo(model, {
+          todos: () => [...model.todos, { id: message.id, title: message.title, done: false }],
+        }),
       }
     case 'ToggledTodo':
       return {
-        model: {
-          ...model,
-          todos: model.todos.map(todo =>
-            todo.id === message.id ? { ...todo, done: !todo.done } : todo,
-          ),
-        },
+        model: evo(model, {
+          todos: () =>
+            model.todos.map(todo =>
+              todo.id === message.id ? { ...todo, done: !todo.done } : todo,
+            ),
+        }),
       }
     case 'DeletedTodo':
-      return { model: { ...model, todos: model.todos.filter(todo => todo.id !== message.id) } }
+      return {
+        model: evo(model, { todos: () => model.todos.filter(todo => todo.id !== message.id) }),
+      }
     default:
       return { model }
   }

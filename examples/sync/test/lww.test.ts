@@ -1,4 +1,5 @@
 import { Effect, Exit, Schema, Scope } from 'effect'
+import { evo } from 'foldkit/struct'
 import { IDBFactory } from 'fake-indexeddb'
 import { defineMessageUnion } from 'foldkit/message'
 import {
@@ -24,10 +25,10 @@ type Message = typeof Message.Type
 const empty: Shared = {
   title: { stamp: { counter: 0, replicaId: ReplicaId.make('initial') }, value: 'Original' },
 }
-const update = (model: Shared, message: Message): Shared => ({
-  ...model,
-  title: Title.merge(model.title, message.title),
-})
+const update = (model: Shared, message: Message): Shared =>
+  evo(model, {
+    title: () => Title.merge(model.title, message.title),
+  })
 const decodeMessage = Schema.decodeUnknownSync(Message, { onExcessProperty: 'error' })
 const TitlesSync = Sync.define({
   documentId: DocumentId.make('titles'),

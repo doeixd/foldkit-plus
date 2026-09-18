@@ -210,6 +210,13 @@ requires all of it.
    conflicting ownership and `Module.toMermaid` can turn the declarations into
    documentation or tooling input.
 
+State changes take exactly two paths, and they are not equal. Ordinary
+application transitions travel `Message → update → evo`. Everything else —
+a Sync checkpoint, a Mirror restoration, a Remote cache write — installs an
+already-derived value through a structural seam (`ModelRef.set`/`modify`,
+`WritableProjection.set`). A setter is infrastructure, not a second update;
+see [Who changes application state, and how](./docs/state-model.md).
+
 The important part is what is **missing**: no agent reducer, sync reducer, URL
 store, persistence state machine, server copy of the shared schema, or forked
 component just to restyle it.

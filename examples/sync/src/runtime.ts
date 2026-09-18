@@ -1,4 +1,5 @@
 import { Effect } from 'effect'
+import { evo } from 'foldkit/struct'
 import { Sync, type Replica, type TransportClient } from 'foldkit-sync'
 import type { Message, Shared } from './app.js'
 import { mountTodos } from './sync.js'
@@ -21,7 +22,7 @@ export const mountReplica = (replica: Replica<Message, Shared>, container: HTMLE
         ],
       ),
     }),
-    onPersistenceFailure: model => ({ ...model, lastError: 'Could not persist this change' }),
+    onPersistenceFailure: model => evo(model, { lastError: () => 'Could not persist this change' }),
   })
   return {
     send: mounted.dispatch,

@@ -29,6 +29,13 @@ export interface ModelRef<Root, Value, Encoded = unknown> {
   readonly dependency: readonly string[]
   readonly get: (root: Root) => Value
   readonly set: (root: Root, value: Value) => Root
+  /**
+   * Focused structural replacement: `set` of `fn` applied to `get`. This
+   * delegates through the ref's own `set`, so container-aware setters
+   * (`.at`/`.index` insertion and removal) keep working — never `optic`
+   * calls directly. Infrastructure seam, not an application transition.
+   */
+  readonly modify: (root: Root, fn: (value: Value) => Value) => Root
 }
 
 /**
@@ -56,13 +63,18 @@ export const ModelRef = {
     Schema: Schema.Schema<Value>,
     optic: Optic.Optional<Root, Value>,
     dependency: readonly string[] = [],
-  ): ModelRef<Root, Value> => ({
-    Schema: Schema as unknown as ModelRef<Root, Value>['Schema'],
-    optic,
-    dependency,
-    get: root => Result.getOrThrow(optic.getResult(root)),
-    set: (root, value) => optic.replace(value, root),
-  }),
+  ): ModelRef<Root, Value> => {
+    const get: (root: Root) => Value = root => Result.getOrThrow(optic.getResult(root))
+    const set = (root: Root, value: Value): Root => optic.replace(value, root)
+    return {
+      Schema: Schema as unknown as ModelRef<Root, Value>['Schema'],
+      optic,
+      dependency,
+      get,
+      set,
+      modify: (root, fn) => set(root, fn(get(root))),
+    }
+  },
 }
 
 export type RefTree<Root, F extends Schema.Struct.Fields> = {
@@ -168,6 +180,7 @@ function makeTree(
     owner,
     get,
     set: setFocus,
+    modify: (root: unknown, fn: (value: unknown) => unknown) => setFocus(root, fn(get(root))),
   }
 
   const fields = (schema as { readonly fields?: Schema.Struct.Fields }).fields

@@ -937,6 +937,15 @@ Remote does **not** own:
 - authentication; server-side authorization belongs at the Source boundary;
 - a background scheduler or general-purpose database/query engine.
 
+## How state changes here
+
+Local application state uses `evo` inside `update`, like anywhere else.
+Remote Messages go through `Data.reduce` into the embedded `Remote.Model`
+submodel — Remote owns that reducer, and it is the only writer of the
+cache. Never install cache state with a ref `set`; the requirements,
+staleness, and tombstones only stay coherent when every fact arrives as a
+Remote Message.
+
 ## Limits
 
 - Effect RPC is the wire contract; the application supplies deployment layers.

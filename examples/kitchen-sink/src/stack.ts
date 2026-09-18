@@ -14,6 +14,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Schema } from 'effect'
+import { evo } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Update from 'foldkit/update'
@@ -213,23 +214,23 @@ const reduceNotes = (
     case 'Ping':
       return model
     case 'RequestedCreateNote':
-      return {
-        ...model,
-        notes: model.notes.some(note => note.id === message.id)
-          ? model.notes
-          : [...model.notes, { id: message.id, body: message.body }],
-      }
+      return evo(model, {
+        notes: () =>
+          model.notes.some(note => note.id === message.id)
+            ? model.notes
+            : [...model.notes, { id: message.id, body: message.body }],
+      })
     case 'RequestedRenameNote':
-      return {
-        ...model,
-        notes: model.notes.map(note =>
-          note.id === message.id ? { ...note, body: message.body } : note,
-        ),
-      }
+      return evo(model, {
+        notes: () =>
+          model.notes.map(note =>
+            note.id === message.id ? { ...note, body: message.body } : note,
+          ),
+      })
     case 'SelectedNote':
-      return { ...model, selectedNoteId: message.id }
+      return evo(model, { selectedNoteId: () => message.id })
     case 'SelectedProject':
-      return { ...model, projectId: message.id }
+      return evo(model, { projectId: () => message.id })
   }
 }
 
