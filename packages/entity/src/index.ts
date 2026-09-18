@@ -7,7 +7,7 @@
  * renders nothing. Remote, Drizzle, and form packages interpret it and attach
  * what they need as `foldkit-metadata`.
  */
-import { Pipeable, type Schema } from 'effect'
+import { Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -93,8 +93,8 @@ export type EntityMember =
   | EntityRelation<string, string, AnyEntity, Cardinality, boolean>
   | EntityDerived<string, string, Schema.Constraint>
 
-type RelationSpecs = Readonly<Record<string, RelationSpec<AnyEntity, Cardinality, boolean>>>
-type DerivedSpecs = Readonly<Record<string, DerivedSpec<Schema.Constraint>>>
+export type RelationSpecs = Readonly<Record<string, RelationSpec<AnyEntity, Cardinality, boolean>>>
+export type DerivedSpecs = Readonly<Record<string, DerivedSpec<Schema.Constraint>>>
 
 type FieldsOf<Name extends string, Fields extends Schema.Struct.Fields> = {
   readonly [K in keyof Fields & string]: EntityField<Name, K, Fields[K]>
@@ -144,17 +144,17 @@ type WithDerived<E, New extends DerivedSpecs> =
     ? Entity<Name, Fields, R, D & New>
     : never
 
-type Entities = Readonly<Record<string, AnyEntity>>
-type RelationMap<Es extends Entities> = { readonly [K in keyof Es]?: RelationSpecs }
+export type Entities = Readonly<Record<string, AnyEntity>>
+export type RelationMap<Es extends Entities> = { readonly [K in keyof Es]?: RelationSpecs }
 
 /** The key in `Es` of the Entity a spec targets, matched by name. */
-type TargetKey<Es extends Entities, Target extends AnyEntity> = {
+export type TargetKey<Es extends Entities, Target extends AnyEntity> = {
   [K in keyof Es]: [Es[K]['name'], Target['name']] extends [Target['name'], Es[K]['name']]
     ? K
     : never
 }[keyof Es]
 
-type RelatedSpecs<Es extends Entities, Rs extends RelationMap<Es>, K extends keyof Es> = {
+export type RelatedSpecs<Es extends Entities, Rs extends RelationMap<Es>, K extends keyof Es> = {
   readonly [R in keyof Rs[K]]: Rs[K][R] extends RelationSpec<infer Target, infer C, infer Optional>
     ? RelationSpec<Related<Es, Rs, TargetKey<Es, Target>>, C, Optional>
     : never
@@ -180,6 +180,69 @@ type CheckRelations<Es extends Entities, Rs> = {
       }
     : 'not one of the entities being related'
 }
+
+export const SelectionTypeId: unique symbol = Symbol.for('foldkit-entity/Selection')
+export type SelectionTypeId = typeof SelectionTypeId
+
+/** What a relation selected with `true` yields: which Entity, and which one. */
+export interface EntityRef<Name extends string = string> {
+  readonly entity: Name
+  readonly id: string
+}
+
+type RefSchema<Name extends string> = Schema.Struct<{
+  readonly entity: Schema.Literal<Name>
+  readonly id: Schema.String
+}>
+
+/**
+ * A view of the Entity graph: which members to read, and the schema of the
+ * value that results. It says nothing about where the value comes from.
+ */
+export interface Selection<Name extends string, Members, S extends Schema.Constraint> {
+  readonly [SelectionTypeId]: SelectionTypeId
+  readonly entity: Entity<Name, any, any, any>
+  /** What was selected, by member key: `true`, or a relation's nested Selection. */
+  readonly members: Members
+  readonly schema: S
+}
+
+type AnySelection<Name extends string = string> = Selection<Name, any, any>
+
+/** `true` for any member; a relation also takes a Selection of its target. */
+type SelectionSpec<E extends AnyEntity, Spec> = {
+  readonly [K in keyof Spec]: K extends keyof E['relations']
+    ? E['relations'][K] extends EntityRelation<any, any, infer Target, any, any>
+      ? true | AnySelection<Target['name']>
+      : never
+    : K extends keyof E['members']
+      ? true
+      : `"${K & string}" is not a member of ${E['name']}`
+}
+
+type RelationShape<
+  C extends Cardinality,
+  Optional extends boolean,
+  S extends Schema.Constraint,
+> = C extends 'many' ? Schema.$Array<S> : Optional extends true ? Schema.NullOr<S> : S
+
+type SelectedSchema<Member, Selected> = Member extends
+  EntityField<any, any, infer S> | EntityDerived<any, any, infer S>
+  ? S
+  : Member extends EntityRelation<any, any, infer Target, infer C, infer Optional>
+    ? RelationShape<
+        C,
+        Optional,
+        Selected extends Selection<any, any, infer S> ? S : RefSchema<Target['name']>
+      >
+    : never
+
+type SelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
+  readonly [K in keyof Spec & keyof E['members']]: SelectedSchema<E['members'][K], Spec[K]>
+}>
+
+const isSelection = (value: unknown): value is AnySelection =>
+  typeof value === 'object' && value !== null && SelectionTypeId in value
 
 interface Parts {
   readonly identity: EntityIdentity<string>
@@ -208,11 +271,18 @@ const make = (parts: Parts): AnyEntity =>
     }),
   )
 
+const isSameEntity = (left: AnyEntity, right: AnyEntity): boolean =>
+  left.identity.token === right.identity.token
+
 const isEntity = (value: unknown): value is AnyEntity =>
   typeof value === 'object' && value !== null && EntityTypeId in value
 
-const kindOf = (entity: AnyEntity, key: string): string | undefined =>
-  (entity.members as Readonly<Record<string, EntityMember>>)[key]?._tag.toLowerCase()
+const kindName = { Field: 'field', Relation: 'relation', Derived: 'derived member' } as const
+
+const kindOf = (entity: AnyEntity, key: string): string | undefined => {
+  const member = (entity.members as Readonly<Record<string, EntityMember>>)[key]
+  return member && kindName[member._tag]
+}
 
 const assertFree = (entity: AnyEntity, keys: ReadonlyArray<string>, adding: string): void => {
   for (const key of keys) {
@@ -308,6 +378,52 @@ export const Entity = {
     return Object.freeze(related) as never
   },
 
+  /**
+   * Selects members of an Entity and assembles the schema of the result. A
+   * relation selected with `true` yields an `EntityRef`; with a Selection of its
+   * target, that Selection's value. `many` yields an array, an optional `one`
+   * is nullable.
+   */
+  select: <E extends AnyEntity, const Spec>(
+    entity: E,
+    spec: Spec & SelectionSpec<E, Spec>,
+  ): Selection<E['name'], Spec, SelectionSchema<E, Spec>> => {
+    const members: Readonly<Record<string, EntityMember>> = entity.members
+    const fields = mapValues<unknown, Schema.Constraint>(spec, (selected, key) => {
+      const member = members[key]
+      if (member === undefined)
+        throw new Error(`Entity "${entity.name}": cannot select "${key}", it is not a member`)
+      if (member._tag !== 'Relation') {
+        if (selected !== true)
+          throw new Error(
+            `Entity "${entity.name}": "${key}" is a ${kindName[member._tag]}, select it with true`,
+          )
+        return member.schema
+      }
+      const target = member.target()
+      let item: Schema.Top
+      if (selected === true)
+        item = Schema.Struct({ entity: Schema.Literal(target.name), id: Schema.String })
+      else if (isSelection(selected) && isSameEntity(selected.entity, target))
+        item = selected.schema
+      else
+        throw new Error(
+          `Entity "${entity.name}": "${key}" takes true or a Selection of ${target.name}`,
+        )
+      return member.cardinality === 'many'
+        ? Schema.Array(item)
+        : member.optional
+          ? Schema.NullOr(item)
+          : item
+    })
+    return Object.freeze({
+      [SelectionTypeId]: SelectionTypeId,
+      entity,
+      members: spec,
+      schema: Schema.Struct(fields),
+    }) as never
+  },
+
   /** Adds readable members that are not part of `entity.schema`. */
   derived:
     <const New extends DerivedSpecs>(specs: New) =>
@@ -357,8 +473,7 @@ export const Entity = {
   is: isEntity,
 
   /** True when both descriptors are versions of one Entity. */
-  same: (left: AnyEntity, right: AnyEntity): boolean =>
-    left.identity.token === right.identity.token,
+  same: isSameEntity,
 }
 
 function one<Target extends AnyEntity>(target: Target): RelationSpec<Target, 'one', false>

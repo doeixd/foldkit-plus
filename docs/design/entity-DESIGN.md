@@ -2475,6 +2475,13 @@ unknown metadata key/value mismatches fail
 
 # 53. PR 3 — Entity Selection
 
+> **Status:** built as `Entity.select(entity, spec)` in
+> [`packages/entity`](../../packages/entity/README.md). Only the standalone form
+> exists, not `entity.select`. A nested selection is a Selection value (§48),
+> never an inline object, so "wrong relation cardinality shape" reduces to
+> rejecting `[Selection]`. `true` on a relation yields `EntityRef` (§15) with a
+> `string` id (§73).
+
 Move or recreate the storage-neutral portion of current Remote Selection.
 
 Implement:

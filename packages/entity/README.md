@@ -4,8 +4,8 @@ A domain entity declared once as a typed value: its intrinsic fields, its
 relations to other entities, and the derived values consumers may read. Other
 packages interpret that declaration; this one only describes.
 
-> **Status:** the declaration layer. Selection, the Remote and Drizzle
-> adapters, and forms are planned in
+> **Status:** declaration and selection. The Remote and Drizzle adapters and
+> forms are planned in
 > [entity-DESIGN.md](../../docs/design/entity-DESIGN.md) and do not read an
 > Entity yet. `foldkit-remote` still uses its own `Entity`.
 
@@ -105,6 +105,46 @@ each entity declared its own relations, `Post` would be typed in terms of
 constants that way. Declaring the relations over entities that already exist
 avoids the cycle, and lets `relate` check every target up front.
 
+## Selecting a view
+
+A Selection names the members a consumer wants and carries the schema of the
+value that results. It does not fetch that value; whoever produces it (a server
+adapter, a test, a form) decodes against `selection.schema`.
+
+```ts
+const AuthorOption = Entity.select(Blog.Author, { id: true, name: true })
+
+const PostRow = Entity.select(Blog.Post, {
+  title: true,
+  commentCount: true,
+  author: AuthorOption,
+  editor: AuthorOption,
+  comments: true,
+})
+
+PostRow.schema.Type
+// {
+//   title: string
+//   commentCount: number
+//   author: { id: string; name: string }
+//   editor: { id: string; name: string } | null
+//   comments: ReadonlyArray<{ entity: 'Comment'; id: string }>
+// }
+```
+
+| Member | Select with | Yields |
+| --- | --- | --- |
+| Field, Derived | `true` | the member's own schema, checks included |
+| Relation | `true` | an `EntityRef`: `{ entity, id }` |
+| Relation | a Selection of its target | that Selection's value |
+
+A `many` relation yields an array, and an optional `one` is nullable. A
+Selection is an ordinary value, so `AuthorOption` above is declared once and
+reused. Nesting is always explicit, which is what keeps a cycle finite.
+
+An unknown member, a nested Selection on a field, and a Selection of the wrong
+Entity are type errors, and `Entity.select` throws for untyped callers.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and
@@ -135,6 +175,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | --- | --- |
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
+| `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
@@ -143,7 +184,10 @@ Annotating again combines with what is there, using the key's own `merge`.
 
 ## Limits
 
-- IDs are untyped; nothing marks which field is the identifier yet.
+- IDs are untyped; nothing marks which field is the identifier yet, and an
+  `EntityRef` id is a `string`.
+- A Selection has no pagination, filtering, or ordering; those belong to the
+  interpreter that fetches.
 - Relations reach only the entities of one `Entity.relate` call; relating the
   result again adds relations but earlier targets keep pointing at the earlier
   result.

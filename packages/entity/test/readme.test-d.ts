@@ -2,7 +2,7 @@
 import { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
-import { Derived, Entity, Relation } from '../src/index.js'
+import { Derived, Entity, Relation, type EntityRef } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
@@ -41,3 +41,20 @@ const CmsPost = Blog.Post.pipe(
 )
 expectTypeOf(Labels.get(CmsPost.fields.title.metadata)).toEqualTypeOf<ReadonlyArray<string>>()
 expectTypeOf(Entity.same(CmsPost, Blog.Post)).toEqualTypeOf<boolean>()
+
+const AuthorOption = Entity.select(Blog.Author, { id: true, name: true })
+
+const PostRow = Entity.select(Blog.Post, {
+  title: true,
+  commentCount: true,
+  author: AuthorOption,
+  editor: AuthorOption,
+  comments: true,
+})
+expectTypeOf<typeof PostRow.schema.Type>().toEqualTypeOf<{
+  readonly title: string
+  readonly commentCount: number
+  readonly author: { readonly id: string; readonly name: string }
+  readonly editor: { readonly id: string; readonly name: string } | null
+  readonly comments: ReadonlyArray<EntityRef<'Comment'>>
+}>()

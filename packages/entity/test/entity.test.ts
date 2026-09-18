@@ -86,7 +86,7 @@ describe('Entity', () => {
     [
       'a relation over a derived member',
       { Post: { commentCount: Relation.one(Author) } },
-      'already a derived',
+      'already a derived member',
     ],
     [
       'a target outside the related set',

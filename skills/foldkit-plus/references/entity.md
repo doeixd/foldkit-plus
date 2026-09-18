@@ -4,7 +4,7 @@ A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
 validates, and renders nothing, and it never touches a Model or a Message.
 
-**Status: declaration layer.** No other package reads an Entity yet.
+**Status: declaration and selection.** No other package reads an Entity yet.
 `foldkit-remote` still has its own `Entity`; do not pass one to the other.
 
 ## Ownership
@@ -67,6 +67,26 @@ still has no relations.
 
 ## Common tasks
 
+**Select a view.** A Selection carries the schema of the result; it fetches
+nothing. `true` on a relation yields an `EntityRef` (`{ entity, id }`); a
+Selection of the target yields that Selection's value. `many` is an array, an
+optional `one` is nullable.
+
+```ts
+const AuthorOption = Entity.select(Blog.Author, { id: true, name: true })
+
+const PostRow = Entity.select(Blog.Post, {
+  title: true,
+  commentCount: true,
+  author: AuthorOption,
+  editor: AuthorOption,
+  comments: true,
+})
+
+PostRow.schema   // Struct: title, commentCount, author {id,name}, editor {..} | null, comments EntityRef[]
+PostRow.members  // what was selected, for an interpreter to walk
+```
+
 **Attach an interpreter's metadata** (package authors). Entity core never reads
 it; annotating again combines through the key's own `merge`.
 
@@ -97,6 +117,8 @@ Entity.same(CmsPost, Blog.Post)             // true
 - `Entity.define` twice with one name makes two entities.
 - `target()` returns the entity as `relate` returned it; metadata annotated
   afterwards is not on it. Annotate before relating when a target should carry it.
+- Nested selections are Selection values (`Entity.select(...)`), never inline
+  objects, and never `[Selection]` for a `many` relation.
 - There is no "one-to-many" vocabulary: `Relation.one` on one side and
   `Relation.many` on the other is that relationship.
 - IDs are untyped and no field is marked as the identifier yet.
