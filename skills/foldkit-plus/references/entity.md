@@ -128,5 +128,6 @@ Entity.same(CmsPost, Blog.Post)             // true
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/entity
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/metadata/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/design/entity-DESIGN.md

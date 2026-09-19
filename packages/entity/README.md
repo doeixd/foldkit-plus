@@ -10,6 +10,9 @@ packages interpret that declaration; this one only describes.
 > [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain). Forms
 > and admin are planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
 
+For the whole path in one runnable trace, domain to client to SQL, see
+[`examples/entity`](../../examples/entity).
+
 ## What it owns
 
 `foldkit-entity` owns **domain structure**: which members an entity has, what
