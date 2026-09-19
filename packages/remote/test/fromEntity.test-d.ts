@@ -1,7 +1,16 @@
 import { Schema } from 'effect'
 import { Derived, Entity as Domain, Relation } from 'foldkit-entity'
+import { defineMessageUnion } from 'foldkit/message'
+import { Surface, type Projection } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
-import { Entity, Remote, Selection, type EntityRef, type SelectionValueOf } from '../src/index.js'
+import {
+  Entity,
+  Remote,
+  Selection,
+  type EntityRef,
+  type RemoteData,
+  type SelectionValueOf,
+} from '../src/index.js'
 
 const User = Domain.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Domain.define(
@@ -54,23 +63,29 @@ expectTypeOf(Selection.from(Card).entity).toEqualTypeOf<'Project'>()
 // @ts-expect-error Remote keys an entity by its id field
 Entity.from(Domain.define('Keyless', Schema.Struct({ name: Schema.String })))
 
-// The README and skill snippet.
+// Registered directly: no Entity.from, no Selection.from.
 {
-  const User = Domain.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-  const Project = Domain.define(
-    'Project',
-    Schema.Struct({ id: Schema.String, name: Schema.String }),
-  )
-  const Work = Domain.relate({ User, Project }, { Project: { owner: Relation.one(User) } })
+  const Model = Schema.Struct({ remote: Remote.Model })
+  const App = Surface.application({ Model, Message: defineMessageUnion({ Ping: {} }) })
+  const Data = Remote.make({ model: App.model.remote, entities: [Work.User, Work.Project] })
 
-  const Data = Remote.define({ entities: [Entity.from(Work.User), Entity.from(Work.Project)] })
+  // The README and skill snippet.
+  const ProjectCard = Domain.select(Work.Project, {
+    name: true,
+    owner: Domain.select(Work.User, { name: true }),
+  })
+  expectTypeOf(Data.get(ProjectCard, 'p1')).toEqualTypeOf<
+    Projection<
+      typeof Model.Type,
+      RemoteData<{ readonly name: string; readonly owner: { readonly name: string } }>
+    >
+  >()
 
-  const ProjectCard = Selection.from(
-    Domain.select(Work.Project, { name: true, owner: Domain.select(Work.User, { name: true }) }),
-  )
-  expectTypeOf<SelectionValueOf<typeof ProjectCard>>().toEqualTypeOf<{
-    readonly name: string
-    readonly owner: { readonly name: string }
-  }>()
-  void Data
+  expectTypeOf(Data.get(Card, 'p1')).toEqualTypeOf<
+    Projection<typeof Model.Type, RemoteData<typeof Card.schema.Type>>
+  >()
+
+  const Stranger = Domain.define('Stranger', Schema.Struct({ id: Schema.String }))
+  // @ts-expect-error Stranger is not registered with Data
+  Data.get(Domain.select(Stranger, { id: true }), 's1')
 }

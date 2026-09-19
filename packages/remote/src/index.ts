@@ -6,6 +6,8 @@
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
 import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
+import { Entity as DomainEntity, SelectionTypeId } from 'foldkit-entity'
+import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
 import type { Command } from 'foldkit/command'
 import * as Subscription from 'foldkit/subscription'
@@ -28,7 +30,7 @@ import {
   type RemoteRpcClient,
 } from './client.js'
 import { emptyConnection, hasNext, hasPrevious, type Edge } from './connection.js'
-import type { EntityDescriptor } from './entity.js'
+import { Entity, type EntityDescriptor } from './entity.js'
 import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
 import type { LiveCursor } from './live.js'
 import {
@@ -60,7 +62,7 @@ import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
-import { assemble, pageSchema, relationOf, type Page, type Selection } from './selection.js'
+import { Selection, assemble, pageSchema, relationOf, type Page } from './selection.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
 import {
   QueryRequest,
@@ -107,7 +109,26 @@ export * from './selection.js'
 export * from './store.js'
 export * from './wire.js'
 
-type EntityName<D> = D extends EntityDescriptor<infer Name, any> ? Name : never
+/** What a domain registers: a Remote descriptor, or a `foldkit-entity` Entity (read through `Entity.from`). */
+export type EntityLike = EntityDescriptor<any, any> | Domain.AnyEntity
+
+/**
+ * What a read selects: a Remote Selection, or a `foldkit-entity` Selection
+ * (read through `Selection.from`).
+ */
+export type EntitySelection<Value, Name extends string> =
+  | Selection<Value, Name, 'entity'>
+  | Domain.Selection<Name, unknown, Schema.Constraint & { readonly Type: Value }>
+
+const descriptorOf = (entity: EntityLike): EntityDescriptor<any, any> =>
+  DomainEntity.is(entity) ? Entity.from(entity as never) : entity
+
+const selectionOf = <Value, Name extends string>(
+  selection: EntitySelection<Value, Name>,
+): Selection<Value, Name, 'entity'> =>
+  SelectionTypeId in selection ? (Selection.from(selection) as never) : selection
+
+type EntityName<D> = D extends { readonly name: infer Name extends string } ? Name : never
 type QueryName<D> = D extends QueryDescriptor<infer Name, any, any> ? Name : never
 type MutationName<D> = D extends MutationDescriptor<infer Name, any, any> ? Name : never
 
@@ -128,7 +149,7 @@ export type SelectsEntity<Entity extends string, Of extends string> = [Entity] e
   : Invalid<`the selection is of "${Entity}", but the query lists "${Of}"`>
 
 export interface RemoteDescriptor<
-  Entities extends readonly EntityDescriptor<any, any>[] = readonly EntityDescriptor<any, any>[],
+  Entities extends readonly EntityLike[] = readonly EntityLike[],
   Queries extends readonly QueryDescriptor<any, any, any>[] = readonly QueryDescriptor<
     any,
     any,
@@ -234,7 +255,7 @@ export interface MutationStarted<AppModel> {
 export interface RemoteDomain<
   AppModel,
   Store extends RemoteModel,
-  Entities extends readonly EntityDescriptor<any, any>[],
+  Entities extends readonly EntityLike[],
   Queries extends readonly QueryDescriptor<any, any, any>[],
   Mutations extends readonly MutationDescriptor<any, any, any>[],
 >
@@ -243,7 +264,7 @@ export interface RemoteDomain<
     RemoteDescriptor<Entities, Queries, Mutations> {
   /** `Remote.select`: a Projection reading one entity through a selection of a registered entity. */
   get<Value, Name extends string>(
-    selection: Selection<Value, Name, 'entity'> &
+    selection: EntitySelection<Value, Name> &
       Registered<Name, EntityName<Entities[number]>, 'Entity'>,
     id: string,
   ): Projection<AppModel, RemoteData<Value>>
@@ -253,7 +274,7 @@ export interface RemoteDomain<
    * the Surfaces that read it.
    */
   live<Value, Name extends string>(
-    selection: Selection<Value, Name, 'entity'> &
+    selection: EntitySelection<Value, Name> &
       Registered<Name, EntityName<Entities[number]>, 'Entity'>,
     id: string,
   ): Projection<AppModel, RemoteData<Value>>
@@ -375,7 +396,7 @@ export type QueryWindowOptions =
 
 export type QueryOptions<Value, Entity extends string, Of extends string = Entity> = {
   /** What to read of each item: a selection of the query's entity (`Of`). */
-  readonly select: Selection<Value, Entity, 'entity'> & SelectsEntity<Entity, Of>
+  readonly select: EntitySelection<Value, Entity> & SelectsEntity<Entity, Of>
 } & QueryWindowOptions
 
 /** A query connection read as a `Page` of selected items; `ref` is the connection with its first window. */
@@ -487,7 +508,7 @@ const liveStreamKey = (requirements: readonly Requirement[]): string =>
 
 /** Declares a Remote domain: its entities, queries, and mutations, plus the submodel. */
 const defineRemote = <
-  const Entities extends readonly EntityDescriptor<any, any>[],
+  const Entities extends readonly EntityLike[],
   const Queries extends readonly QueryDescriptor<any, any, any>[] = readonly QueryDescriptor<
     any,
     any,
@@ -499,27 +520,30 @@ const defineRemote = <
   readonly entities: Entities
   readonly queries?: Queries
   readonly mutations?: Mutations
-}): RemoteDescriptor<Entities, Queries, Mutations> => ({
-  entities: config.entities,
-  queries: (config.queries ?? []) as unknown as Queries,
-  mutations: (config.mutations ?? []) as unknown as Mutations,
-  Model: remoteModelSchema(),
-  initial: initialRemoteModel,
-  Message: remoteMessageSchema,
-  update: updateRemote,
-  rpc: RemoteRpc,
-  registry: {
-    entities: new Map(config.entities.map(entity => [entity.name, entity])),
-    queries: new Map((config.queries ?? []).map(query => [query.name, query])),
-    mutations: new Map((config.mutations ?? []).map(mutation => [mutation.name, mutation])),
-  },
-})
+}): RemoteDescriptor<Entities, Queries, Mutations> => {
+  const entities = config.entities.map(descriptorOf)
+  return {
+    entities: entities as unknown as Entities,
+    queries: (config.queries ?? []) as unknown as Queries,
+    mutations: (config.mutations ?? []) as unknown as Mutations,
+    Model: remoteModelSchema(),
+    initial: initialRemoteModel,
+    Message: remoteMessageSchema,
+    update: updateRemote,
+    rpc: RemoteRpc,
+    registry: {
+      entities: new Map(entities.map(entity => [entity.name, entity])),
+      queries: new Map((config.queries ?? []).map(query => [query.name, query])),
+      mutations: new Map((config.mutations ?? []).map(mutation => [mutation.name, mutation])),
+    },
+  }
+}
 
 /** Binds a Remote domain to its store's location in the application Model. */
 const bindRemote = <
   AppModel,
   Store extends RemoteModel,
-  Entities extends readonly EntityDescriptor<any, any>[],
+  Entities extends readonly EntityLike[],
   Queries extends readonly QueryDescriptor<any, any, any>[],
   Mutations extends readonly MutationDescriptor<any, any, any>[],
 >(
@@ -908,7 +932,7 @@ export const Remote = {
   make: <
     AppModel,
     Store extends RemoteModel,
-    const Entities extends readonly EntityDescriptor<any, any>[],
+    const Entities extends readonly EntityLike[],
     const Queries extends readonly QueryDescriptor<any, any, any>[] = readonly [],
     const Mutations extends readonly MutationDescriptor<any, any, any>[] = readonly [],
   >(config: {
@@ -942,8 +966,9 @@ export const Remote = {
    */
   select: <AppModel, Store extends RemoteModel, Names extends string, Value, Name extends string>(
     bound: BoundRemote<AppModel, Store, Names>,
-    selection: Selection<Value, Name, 'entity'> & Registered<Name, Names, 'Entity'>,
+    given: EntitySelection<Value, Name> & Registered<Name, Names, 'Entity'>,
   ) => {
+    const selection = selectionOf<Value, Name>(given)
     assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
     const relation = relationOf(selection)
     return (id: string): Projection<AppModel, RemoteData<Value>> => ({
@@ -1348,7 +1373,7 @@ const brandEntries = <AppModel>(
 const bindDomain = <
   AppModel,
   Store extends RemoteModel,
-  Entities extends readonly EntityDescriptor<any, any>[],
+  Entities extends readonly EntityLike[],
   Queries extends readonly QueryDescriptor<any, any, any>[],
   Mutations extends readonly MutationDescriptor<any, any, any>[],
 >(
@@ -1449,7 +1474,8 @@ const bindDomain = <
       options: QueryOptions<Value, Entity, QueryEntity<Q>>,
     ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
       assertRegistered(bound, 'Query', definition.registry.queries, query.name)
-      const { select, ...window } = options
+      const { select: given, ...window } = options
+      const select = selectionOf<Value, Entity>(given)
       for (const [side, size] of [
         ['first', window.first],
         ['last', window.last],

@@ -2545,10 +2545,20 @@ derived schema included
 > and `Entity.make` / `Entity.ref` keep working beside it, so there is no flag
 > day (§59).
 >
-> Still open: whether `Remote.define` should take foundational Entities
-> directly, so applications stop aliasing two `Entity` exports; paginated
-> relations, which an Entity Selection cannot express (§14); and deprecating
-> the schema-annotation path (§36), which has to wait for both.
+> `Remote.make` / `Remote.define` then took foundational Entities directly,
+> and `Data.get`, `Data.live`, `Remote.select`, and a query's `select` took
+> Entity Selections, normalizing through the two compile steps. Client code
+> imports nothing of Remote's own `Entity` or `Selection`.
+>
+> Remote's descriptor stays: it is the normalized wire schema (relations as ref
+> codecs), a real layer that the store, the server, and `remote-drizzle`'s
+> table-derived `entity()` share, not a second way to declare a domain. It is
+> the kernel path; `foldkit-entity` is the documented one.
+>
+> Still open: paginated relations, which an Entity Selection cannot express
+> (§14). A page is a view concept (first N, has-next) as neutral as `many` is
+> an array, so the likely home is `foldkit-entity`, with cursors left to the
+> interpreter.
 
 Change Remote's entity registry to consume foundational Entities.
 

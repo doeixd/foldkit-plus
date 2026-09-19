@@ -1,13 +1,13 @@
 /**
  * One domain declaration read from both ends. `domain.ts` declares Entities and
- * Selections with `foldkit-entity` alone. Here the client turns them into
- * Remote descriptors and Projections; `server.ts` binds the same Entities to
+ * Selections with `foldkit-entity` alone. Here the client registers them with
+ * Remote and reads them as Projections; `server.ts` binds the same Entities to
  * SQLite tables. The demo joins the two in process and traces a Surface from
  * plan to decoded value.
  */
 import { Effect, Layer, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Remote, RemoteData, Selection } from 'foldkit-remote'
+import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { AuthorPage, Blog, PostPage } from './domain.js'
@@ -24,21 +24,18 @@ const App = Surface.application({
   update: (model, message): { readonly model: Model } => ({ model: Data.reduce(model, message) }),
 })
 
-// The client's interpretation: each Entity as a Remote descriptor. It never
-// sees a table; relations arrive as refs and the store follows them.
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [Entity.from(Blog.Author), Entity.from(Blog.Post), Entity.from(Blog.Comment)],
-})
+// The client's interpretation: Remote registers the Entities as they are. It
+// never sees a table; relations arrive as refs and the store follows them.
+const Data = Remote.make({ model: App.model.remote, entities: Object.values(Blog) })
 
 const PostSurface = App.surface('PostPage', {
   params: { postId: Schema.String },
-  model: ({ params }) => ({ post: Data.get(Selection.from(PostPage), params.postId) }),
+  model: ({ params }) => ({ post: Data.get(PostPage, params.postId) }),
 })
 
 const AuthorSurface = App.surface('AuthorPage', {
   params: { authorId: Schema.String },
-  model: ({ params }) => ({ author: Data.get(Selection.from(AuthorPage), params.authorId) }),
+  model: ({ params }) => ({ author: Data.get(AuthorPage, params.authorId) }),
 })
 
 const describe = <Value>(data: RemoteData<Value>): string =>

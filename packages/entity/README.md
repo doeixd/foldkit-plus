@@ -4,8 +4,8 @@ A domain entity declared once as a typed value: its intrinsic fields, its
 relations to other entities, and the derived values consumers may read. Other
 packages interpret that declaration; this one only describes.
 
-> **Status:** declaration and selection. `foldkit-remote` reads both through
-> [`Entity.from` and `Selection.from`](../remote/README.md#entities-declared-with-foldkit-entity).
+> **Status:** declaration and selection. `foldkit-remote`
+> [registers Entities and reads Selections as they are](../remote/README.md#entities-declared-with-foldkit-entity).
 > `foldkit-remote-drizzle` binds a related set to tables with
 > [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain). Forms
 > and admin are planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).

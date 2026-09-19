@@ -413,37 +413,42 @@ Recursive relations remain finite because the entity schema stores references
 ### Entities declared with `foldkit-entity`
 
 [`foldkit-entity`](../entity/README.md) declares a domain without Remote in it:
-fields, relations as navigation edges, derived members. `Entity.from` and
-`Selection.from` compile those declarations into the descriptor and Selection
-above, so the store, the planner, and the server see nothing new.
+fields, relations as navigation edges, derived members. `Remote.make` registers
+those Entities, and `Data.get`, `Data.live`, and a query's `select` take their
+Selections. Remote compiles both into the descriptor and Selection above, so
+the store, the planner, and the server see nothing new.
 
 ```ts
 import { Schema } from 'effect'
-import { Entity as Domain, Relation } from 'foldkit-entity'
-import { Entity, Remote, Selection } from 'foldkit-remote'
+import { Entity, Relation } from 'foldkit-entity'
+import { Remote } from 'foldkit-remote'
 
-const User = Domain.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Domain.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Work = Domain.relate({ User, Project }, { Project: { owner: Relation.one(User) } })
+const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Work = Entity.relate({ User, Project }, { Project: { owner: Relation.one(User) } })
 
-const Data = Remote.define({ entities: [Entity.from(Work.User), Entity.from(Work.Project)] })
+const ProjectCard = Entity.select(Work.Project, {
+  name: true,
+  owner: Entity.select(Work.User, { name: true }),
+})
 
-const ProjectCard = Selection.from(
-  Domain.select(Work.Project, { name: true, owner: Domain.select(Work.User, { name: true }) }),
-)
+const Data = Remote.make({ model: App.model.remote, entities: [Work.User, Work.Project] })
+const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name; owner: { name } }>>
 ```
 
 - A relation becomes a ref field: `one` a ref, an optional `one` a nullable ref,
   `many` an array of refs. A derived member becomes a field the server supplies.
 - The Entity needs an `id` field; Remote keys the store by it.
-- `Entity.from` returns the same descriptor for the same Entity, so register
-  the entities of one `relate` result and select from that same result.
-- The descriptor is an ordinary one: `Selection.make`, `Selection.connection`,
-  `patch`, and `ref` work on it. A paginated relation is still written as a
-  Remote Selection, since an Entity Selection has no windows.
+- Register the Entities of one `Entity.relate` result and select from that same
+  result; `Object.values(Work)` registers them all.
+- `Entity.from(entity)` and `Selection.from(selection)` are the compile steps,
+  for when you need the descriptor itself: `patch` and `ref` in a mutation
+  handler, or `Selection.connection` for a paginated relation, which an Entity
+  Selection cannot express since it has no windows.
 
-Both packages export `Entity`; alias one at the import, as above. `Entity.make`
-with `Entity.ref` keeps working and the two can share one `Remote.define`.
+`Entity.make` with `Entity.ref` keeps working, and both kinds can share one
+domain. Both packages export `Entity`; a module that needs `Entity.from` beside
+`Entity.define` aliases one of them.
 
 Presence is tracked separately from the JavaScript value. These are distinct:
 

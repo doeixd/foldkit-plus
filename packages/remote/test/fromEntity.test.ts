@@ -5,6 +5,7 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
+  Query,
   Remote,
   Selection,
   emptyStore,
@@ -45,6 +46,8 @@ const ProjectCard = Domain.select(Work.Project, {
   comments: Domain.select(Work.Comment, { body: true, author: UserSummary }),
   parent: true,
 })
+
+const UserSummaryOfProject = Domain.select(Work.Project, { name: true, owner: UserSummary })
 
 const entities = [Entity.from(Work.User), Entity.from(Work.Comment), Entity.from(Work.Project)]
 const Data = Remote.define({ entities })
@@ -186,5 +189,44 @@ describe('Selection.from', () => {
     const projection = Remote.select(AppRemote, selection)('p1')
     expect(projection.read(root(emptyStore))).toEqual({ _tag: 'Initial' })
     expect(projection.read(root(storeWith([['u1', 'ada']])))).toEqual({ _tag: 'Initial' })
+  })
+})
+
+describe('a domain that registers Entities directly', () => {
+  const Projects = Query.make('Projects', {
+    Input: Schema.Struct({}),
+    Result: Query.connection(Work.Project),
+  })
+  const Direct = Remote.make({
+    model: App.model.remote,
+    entities: Object.values(Work),
+    queries: [Projects],
+  })
+
+  it('registers the descriptor Entity.from gives', () => {
+    expect([...Direct.registry.entities.keys()]).toEqual(['User', 'Comment', 'Project'])
+    expect(Direct.registry.entities.get('Project')).toBe(Entity.from(Work.Project))
+  })
+
+  it('reads an Entity Selection as it reads the Remote Selection made from it', () => {
+    const direct = Direct.get(ProjectCard, 'p1')
+    const adapted = Direct.get(Selection.from(ProjectCard), 'p1')
+
+    expect(requirementsOf(direct)).toEqual(requirementsOf(adapted))
+    expect(direct.read(root(fullStore()))).toEqual(adapted.read(root(fullStore())))
+    expect(requirementsOf(Direct.live(ProjectCard, 'p1'))[0]?.live).toBe(true)
+  })
+
+  it('selects a query page with an Entity Selection', () => {
+    const page = Direct.query(Projects, {}, { select: UserSummaryOfProject, first: 10 })
+    expect(page.read(root(emptyStore))._tag).toBe('Initial')
+  })
+
+  it('refuses a Selection of an Entity the domain does not register', () => {
+    const Stranger = Domain.define('Stranger', Schema.Struct({ id: Schema.String }))
+    const get = Direct.get as (selection: unknown, id: string) => unknown
+    expect(() => get(Domain.select(Stranger, { id: true }), 's1')).toThrow(
+      'Entity "Stranger" is not registered',
+    )
   })
 })

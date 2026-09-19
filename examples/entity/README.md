@@ -9,8 +9,8 @@ One domain declaration, read from both ends:
               |                     |
               v                     v
           demo.ts               server.ts
-   Entity.from / Selection.from     bind(Blog, { tables })
-   Remote descriptors, Surfaces     Drizzle sources, RemoteServer
+   Remote.make({ entities })        bind(Blog, { tables })
+   Data.get(PostPage, id)           Drizzle sources, RemoteServer
               |                     |
               +---- in process -----+
    plan -> read -> SQL -> refs -> store -> decoded value
@@ -44,7 +44,7 @@ second plan: Author:a1 [posts]
 author: Ready {"name":"Ada","posts":[…]}
 ```
 
-- **`plan`** comes from `Selection.from(PostPage)`: the domain's Selection,
+- **`plan`** comes from `Data.get(PostPage, id)`: the domain's Selection,
   compiled into the requirement graph Remote plans from. Nested Selections
   become the relations it follows.
 - **`after fetch`** is real SQL. `RemoteServer` reads through the bound sources:
@@ -63,11 +63,10 @@ author: Ready {"name":"Ada","posts":[…]}
 | --- | --- |
 | [`src/domain.ts`](./src/domain.ts) | `Entity.define`, `Entity.relate` (a cycle: Post, Comment, Author), `Entity.derived`, and reusable `Entity.select` views |
 | [`src/server.ts`](./src/server.ts) | `bind`: tables, a renamed column, the three kinds of relation storage, a derived count |
-| [`src/demo.ts`](./src/demo.ts) | `Entity.from` and `Selection.from` inside an ordinary Remote application and Surface |
+| [`src/demo.ts`](./src/demo.ts) | An ordinary Remote application and Surface over the domain's Entities and Selections |
 
-`Entity` is exported by both `foldkit-entity` and `foldkit-remote`. Here they
-never meet in one file: the domain module uses the first and the client module
-the second. An application split the same way needs no import alias.
+`Remote.make` and `Data.get` take the domain's Entities and Selections as they
+are, so the client imports nothing of Remote's own `Entity` or `Selection`.
 
 ## What it leaves out
 

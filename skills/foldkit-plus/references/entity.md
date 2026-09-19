@@ -4,8 +4,8 @@ A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
 validates, and renders nothing, and it never touches a Model or a Message.
 
-**Status: declaration and selection.** `foldkit-remote` reads an Entity through
-`Entity.from` and a Selection through `Selection.from` (see
+**Status: declaration and selection.** `foldkit-remote` registers Entities and
+reads Selections as they are (`Remote.make`, `Data.get`; see
 [remote.md](remote.md)), and `foldkit-remote-drizzle` binds a related set to
 tables with `bind`.
 

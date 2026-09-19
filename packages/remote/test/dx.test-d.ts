@@ -16,6 +16,7 @@ import {
   Query,
   Remote,
   Selection,
+  type EntitySelection,
   type MutationDescriptor,
   type Page,
   type QueryDescriptor,
@@ -125,12 +126,12 @@ Data.live(Team.select({ id: true }), 't1')
 // Item 13: the failure is branded and names the descriptor, in the parameter's own type.
 const _unregisteredEntity: Equals<
   Parameters<typeof Data.get<unknown, 'Team'>>[0],
-  Selection<unknown, 'Team', 'entity'> &
+  EntitySelection<unknown, 'Team'> &
     Invalid<'Entity "Team" is not registered with this Remote domain'>
 > = true
 const _registeredEntity: Equals<
   Parameters<typeof Data.get<unknown, 'Project'>>[0],
-  Selection<unknown, 'Project', 'entity'>
+  EntitySelection<unknown, 'Project'>
 > = true
 const _brand: Equals<
   Registered<'Team', 'User' | 'Project', 'Entity'>,
