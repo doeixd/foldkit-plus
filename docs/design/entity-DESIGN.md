@@ -2796,6 +2796,28 @@ using ordinary Foldkit state/update/Submodel concepts.
 
 # 58. PR 8 — `foldkit-admin`
 
+> **Status:** the editor is built as [`packages/admin`](../../packages/admin/README.md):
+> `Admin.editor(name, { form, mutation })`, then `.at({ data, model })`. It covers
+> `edit` and `create`; `list`, `detail`, and `delete` are not built.
+>
+> - **No `Admin.resource` yet.** With one capability a Resource descriptor would
+>   be a wrapper nothing else reads (§28: add a primitive when several consumers
+>   need it). It earns its place when a list needs to find the editor, and a
+>   relation picker the list (§29).
+> - **Two steps, because two scopes.** `Admin.editor` makes what the parent's
+>   Model and Message are built from (the Bundle). `.at` needs the parent: a
+>   child Submodel cannot see Remote's store or start a mutation, so `onOut`,
+>   the active Surface, `sync`, and `status` are made once the domain and the
+>   editor's `ModelRef` exist.
+> - **`edit: { selection }` is derived** (`Entity.selectFor`), as §72 notes.
+> - **It generates the ordinary things this section lists**: a Bundle, an
+>   `ActiveSurface` that `Data.subscriptions` takes like any Surface, Update
+>   Steps, and a Command from `Data.mutate`. No runtime, no store. `status` is
+>   read from Remote's mutation state and the loaded value, never stored.
+> - **Found while building it:** Remote tombstones only on a live delete, so a
+>   read of an id that never existed is not `NotFound`; and the error of a failed
+>   mutation is only in its Message, not in the Model.
+
 Only after the lower-level pieces feel good.
 
 Implement explicit Resource descriptors around existing Remote operations.

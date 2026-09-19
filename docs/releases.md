@@ -11,6 +11,7 @@ declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
 | --- | --- | --- | --- |
+| [`foldkit-admin`](../packages/admin) | 0.1.0 | Not yet published | Management screens assembled from a form, a Remote operation, and their Entity. So far an editor (edit and create). |
 | [`foldkit-agent`](../packages/agent) | 0.3.0 | Published | Protocol-neutral agent contract: projects a Model and Message union into an agent interface. |
 | [`foldkit-agent-webmcp`](../packages/agent-webmcp) | 0.3.0 | Published | Browser WebMCP adapter; projects exposed Messages into `document.modelContext`. |
 | [`foldkit-agent-mcp`](../packages/agent-mcp) | 0.3.0 | Published | External MCP adapter: a transport-free handler plus stdio and Streamable HTTP. |
@@ -81,7 +82,7 @@ Regular `dependencies` between workspace packages, declared as `workspace:*`
 and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-entity` depend on
 `foldkit-metadata`; `foldkit-agent`, `foldkit-mirror`,
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
-`foldkit-surface`; `foldkit-remote` and `foldkit-remote-drizzle` also depend on `foldkit-entity`; `foldkit-form` depends on `foldkit-bundle`, `foldkit-entity`, and `foldkit-metadata`; `foldkit-mixins-form` depends on `foldkit-bundle`, `foldkit-form`, and `foldkit-mixins`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
+`foldkit-surface`; `foldkit-remote` and `foldkit-remote-drizzle` also depend on `foldkit-entity`; `foldkit-form` depends on `foldkit-bundle`, `foldkit-entity`, and `foldkit-metadata`; `foldkit-mixins-form` depends on `foldkit-bundle`, `foldkit-form`, and `foldkit-mixins`; `foldkit-admin` depends on `foldkit-bundle`, `foldkit-entity`, `foldkit-form`, `foldkit-remote`, and `foldkit-surface`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
 `foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.

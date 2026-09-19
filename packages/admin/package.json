@@ -1,0 +1,62 @@
+{
+  "name": "foldkit-admin",
+  "version": "0.1.0",
+  "description": "Management screens for Foldkit Plus, assembled from a form, a Remote operation, and the Entity they share. Each capability is declared, never implied.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "admin",
+    "form",
+    "remote",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/admin"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/admin#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-surface": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "foldkit-remote-server": "workspace:*",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

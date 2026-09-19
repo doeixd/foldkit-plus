@@ -258,6 +258,20 @@ export const Form = {
       })
     }
 
+    /** Shows existing values, as an edit form does; keys not given keep their draft. */
+    const fill = (model: Model, values: Partial<Value>): { readonly model: Model } => ({
+      model: {
+        errors: [],
+        fields: fieldsFrom(plan =>
+          plan.key in values
+            ? FieldValidation.NotValidated({
+                value: draftOf(plan, (values as Readonly<Record<string, unknown>>)[plan.key]),
+              })
+            : drafts(model)[plan.key as Key],
+        ),
+      },
+    })
+
     const bundle = Bundle.make(name, {
       Model,
       Message,
@@ -292,21 +306,7 @@ export const Form = {
           }
         }
       },
-      helpers: {
-        /** Shows existing values, as an edit form does; keys not given keep their draft. */
-        fill: (model: Model, values: Partial<Value>) => ({
-          model: {
-            errors: [],
-            fields: fieldsFrom(plan =>
-              plan.key in values
-                ? FieldValidation.NotValidated({
-                    value: draftOf(plan, (values as Readonly<Record<string, unknown>>)[plan.key]),
-                  })
-                : drafts(model)[plan.key as Key],
-            ),
-          },
-        }),
-      },
+      helpers: { fill },
     })
 
     return {
@@ -314,6 +314,10 @@ export const Form = {
       Message,
       /** The reading the form was made from, for `Entity.selectFor` and `Entity.valuesFor`. */
       input,
+      /** The `fill` helper as a plain function of the form's Model, for a package that wraps the form. */
+      fill,
+      /** The Model the form starts from and resets to: every key empty and not validated. */
+      initial,
       /** The keys in the input's order, each with its control, label, and member. */
       controls: keys.map((key): FormControl<Key> => {
         const { control, label, description, required, member } = plans[key]

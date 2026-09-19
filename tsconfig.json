@@ -11,6 +11,7 @@
     { "path": "./packages/metadata" },
     { "path": "./packages/entity" },
     { "path": "./packages/form" },
+    { "path": "./packages/admin" },
     { "path": "./packages/surface" },
     { "path": "./packages/remote" },
     { "path": "./packages/remote-server" },

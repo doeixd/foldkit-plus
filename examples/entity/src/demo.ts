@@ -7,20 +7,22 @@
  * to decoded value, then an edit from keystroke to SQL row.
  */
 import { Effect, Layer, Schema } from 'effect'
+import { Admin } from 'foldkit-admin'
 import { Bundle } from 'foldkit-bundle'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { defineMessageUnion } from 'foldkit/message'
-import { Remote, RemoteData } from 'foldkit-remote'
+import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
-import { Entity } from 'foldkit-entity'
 import { AuthorPage, Blog, PostPage } from './domain.js'
 import { EditPostForm } from './editForm.js'
 import { EditPostMutation } from './operations.js'
 import { openServer } from './server.js'
 
-// The form is a Submodel of the page: a Model field and a Message variant.
-const EditSlot = Bundle.declare(EditPostForm.bundle, 'editPost')
+// The form and the mutation its value feeds, joined. The editor is a Submodel of
+// the page: a Model field and a Message variant.
+const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const EditSlot = Bundle.declare(Editor.bundle, 'editPost')
 
 const Model = Schema.Struct({ remote: Remote.Model, ...EditSlot.fields })
 type Model = typeof Model.Type
@@ -37,19 +39,20 @@ const Data = Remote.make({
   mutations: [EditPostMutation],
 })
 
-const Page = Bundle.parent({ Model, Message })
-const EditForm = Page.at(EditSlot, {
-  // The form hands over a decoded `EditPostInput`. That it becomes a Remote
-  // mutation is this page's decision; the form knows nothing of Remote.
-  onOut: submitted => model => {
-    const started = Data.mutate(model, EditPostMutation, submitted.value)
-    return { model: started.model, commands: [started.command] }
-  },
-})
+// Where the editor lives: its slice of the Model, and the domain it saves through.
+const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
+
+const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
+// The form knows nothing of Remote. The editor's `onOut` is what turns a decoded
+// `EditPostInput` into the mutation.
+const EditForm = Page.at(EditSlot, { onOut: PostEditor.onOut })
 const placements = Page.assemble(EditForm)
 
-const update = placements.update((model: Model, message: Message) =>
-  Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+// `after` lets the editor show the loaded value whichever Message brings it.
+const update = PostEditor.after(
+  placements.update((model: Model, message: Message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
 )
 
 const PostSurface = App.surface('PostPage', {
@@ -76,7 +79,7 @@ const describeForm = (model: Model): string =>
   EditPostForm.controls
     .filter(entry => entry.control._tag !== 'Hidden')
     .map(({ key, label }) =>
-      FieldValidation.match(EditPostForm.field(model.editPost, key), {
+      FieldValidation.match(EditPostForm.field(model.editPost.form, key), {
         onNotValidated: value => `${label}=${JSON.stringify(value)}`,
         onValidating: value => `${label}=${JSON.stringify(value)}…`,
         onValid: value => `${label}=${JSON.stringify(value)} ok`,
@@ -146,23 +149,28 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
         .join(', ')}`,
     )
     // What to load is what the form writes: its fields, and each relation as a ref.
-    const editing = Data.get(Entity.selectFor(EditPostForm.input), 'p2')
-    const ready = await Effect.runPromise(Data.prefetch(both, editing).pipe(Effect.provide(client)))
-    const current = editing.read(ready)
-    if (current._tag !== 'Ready') throw new Error('the post to edit did not load')
     lines.push(`row before: ${JSON.stringify(backend.row('p2'))}`)
-
-    // An edit form starts from what is there. The editor arrives as a ref, and
-    // `valuesFor` reads it back as the id the form holds.
-    let model = EditForm.helpers.fill(Entity.valuesFor(EditPostForm.input, current.value))(
-      ready,
-    ).model
-    lines.push(`filled: ${describeForm(model)}`)
+    // Opening an id makes what the form writes a requirement, as a Surface's is.
+    let model = EditForm.helpers.open('p2')(both).model
+    const editing = PostEditor.active.projectionOf(model)!
+    lines.push(
+      `editor plan: ${Data.plan(model, editing)
+        .map(entry => `${entry.entity}:${entry.id} [${entry.fields.join(',')}]`)
+        .join(', ')}; status ${PostEditor.status(model)}`,
+    )
+    // In an application Remote's read Subscription fetches it and its Messages
+    // pass through `update`, where `after` runs this same `sync`.
+    const fetched = await Effect.runPromise(
+      Data.prefetch(model, editing).pipe(Effect.provide(client)),
+    )
+    model = PostEditor.sync(fetched).model
+    // Nothing here says what to load or how to fill: both follow from the form's input.
+    lines.push(`filled: ${describeForm(model)}; status ${PostEditor.status(model)}`)
 
     // Clearing the title fails the input's own schema, so the submit goes nowhere.
     model = await form(EditPostForm.Message.Changed({ key: 'title', value: '' }))(model)
     model = await form(EditPostForm.Message.Submitted())(model)
-    lines.push(`invalid submit: ${describeForm(model)}`)
+    lines.push(`invalid submit: ${describeForm(model)}; status ${PostEditor.status(model)}`)
 
     model = await form(EditPostForm.Message.Changed({ key: 'title', value: 'Compilers, revised' }))(
       model,
@@ -173,9 +181,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     lines.push('valid submit:')
     model = await form(EditPostForm.Message.Submitted())(model)
 
+    lines.push(`status: ${PostEditor.status(model)}`)
     lines.push(`row after: ${JSON.stringify(backend.row('p2'))}`)
     // The mutation's patches reached the store, so every Projection over the post moved.
-    lines.push(`edited: ${describe(editing.read(model))}`)
+    lines.push(`edited: ${describe(editing.read(model) as RemoteData<unknown>)}`)
     lines.push(`author again: ${describe(author.read(model).author)}`)
   } finally {
     backend.close()

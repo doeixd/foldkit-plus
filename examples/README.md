@@ -13,7 +13,7 @@ there.
 | Example | Start here when you want to understand… | Shape |
 | --- | --- | --- |
 | [`todo-app`](./todo-app) | How the packages fit around a real Foldkit application: local-first state, a durable server log, agents, URL/device mirrors, typed view customization, and ownership validation | Browser app + SQLite/WebSocket server; best first example |
-| [`entity`](./entity) | One domain declaration (`foldkit-entity`) read by the Remote client, bound to SQLite by the Drizzle server, and edited through a `foldkit-form` form that feeds a mutation | Focused in-process trace, real SQL |
+| [`entity`](./entity) | One domain declaration (`foldkit-entity`) read by the Remote client, bound to SQLite by the Drizzle server, and edited through a `foldkit-admin` editor: a `foldkit-form` form feeding a mutation | Focused in-process trace, real SQL |
 | [`remote`](./remote) | Server-owned data: requirements, planning, normalized entities, queries, optimistic mutation, retention, and decode failures | Focused in-process trace |
 | [`sync`](./sync) | Offline/local-first replication: outbox, reconciliation, transport, presence, LWW fields, and the durable journal seam | Focused client/server trace |
 | [`mixins`](./mixins) | Typed view extension points: Surface → SlotView → Style/Behavior, plus A11y/introspection | Focused render trace |
