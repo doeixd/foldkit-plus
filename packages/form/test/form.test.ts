@@ -305,7 +305,9 @@ describe('Form messages', () => {
     rating: Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 5 })),
   })
   const input = Entity.input(Cms, Rated)
-  const errorsOf = (form: ReturnType<typeof Form.make<'F', typeof Cms, typeof Rated.fields>>) => {
+  const errorsOf = (
+    form: ReturnType<typeof Form.make<'F', typeof Cms, typeof Rated.fields, typeof input.members>>,
+  ) => {
     const send = (key: 'title' | 'rating', value: string) =>
       form.bundle.update(
         form.bundle.init(undefined).model,

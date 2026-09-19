@@ -20,6 +20,43 @@ export type Control =
   /** Chooses one of `target`. The options are the application's to supply. */
   | { readonly _tag: 'RelationOne'; readonly target: AnyEntity }
   | { readonly _tag: 'RelationMany'; readonly target: AnyEntity }
+  /**
+   * The target itself, edited through a form of its own (`Relation.nested`). The
+   * key holds rows of that form: exactly one, at most one, or any number.
+   */
+  | {
+      readonly _tag: 'Nested'
+      readonly cardinality: 'one' | 'many'
+      /** Whether the rows may be none: always for a `many`, for a `one` when its schema admits nothing. */
+      readonly optional: boolean
+      readonly form: NestedForm
+    }
+
+/** One row of a nested key: a Model of the nested form, under an id that outlives reordering. */
+export interface FormRow<Model = unknown> {
+  readonly id: string
+  readonly model: Model
+}
+
+/** What a view needs of a nested form to draw its rows. Every form `Form.make` returns is one. */
+export interface NestedForm {
+  readonly controls: ReadonlyArray<{
+    readonly key: string
+    readonly control: Control
+    readonly label: string
+    readonly description: string | undefined
+    readonly required: boolean
+  }>
+  readonly field: (model: never, key: never) => unknown
+  readonly rows: (model: never, key: never) => ReadonlyArray<FormRow>
+  readonly Message: {
+    readonly Changed: (payload: never) => unknown
+    readonly Blurred: (payload: never) => unknown
+    readonly Nested: (payload: never) => unknown
+    readonly RowAdded: (payload: never) => unknown
+    readonly RowRemoved: (payload: never) => unknown
+  }
+}
 
 /**
  * What a control holds while it is edited, which is not the value it submits: a
@@ -29,7 +66,8 @@ export type Draft = string | boolean | ReadonlyArray<string>
 
 export type DraftKind = 'text' | 'flag' | 'list'
 
-export const draftKind = (control: Control): DraftKind =>
+/** The draft of a control that edits one value. A `Nested` key holds rows, not a draft. */
+export const draftKind = (control: Exclude<Control, { readonly _tag: 'Nested' }>): DraftKind =>
   control._tag === 'Toggle' ? 'flag' : control._tag === 'RelationMany' ? 'list' : 'text'
 
 const key = Metadata.key<Control>('foldkit-form/input', {
@@ -86,6 +124,8 @@ export const Input = {
    */
   resolve: (member: InputMember, schema: Schema.Top): Control | undefined => {
     if (member._tag === 'Unmapped') return fromSchema(schema)
+    // A nested key is not a control to choose: the form builds it from the nested input.
+    if (member._tag === 'NestedInput') return undefined
     const owner = member._tag === 'Field' ? member : member.relation
     const [explicit] = key.get(owner.metadata)
     if (explicit !== undefined) return explicit
