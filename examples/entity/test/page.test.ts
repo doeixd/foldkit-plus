@@ -21,7 +21,7 @@ afterEach(() => {
 const element = <E extends HTMLElement>(selector: string): E =>
   document.querySelector(selector) as E
 const cells = (): ReadonlyArray<ReadonlyArray<string>> =>
-  Array.from(document.querySelectorAll('#posts tbody tr'), row =>
+  Array.from(document.querySelectorAll('#Posts tbody tr'), row =>
     Array.from(row.querySelectorAll('td'), cell => cell.textContent ?? ''),
   )
 const type = (selector: string, value: string) => {
@@ -69,7 +69,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
         ['p2', 'Compilers', 'no'],
       ]),
     )
-    expect(Array.from(document.querySelectorAll('#posts th'), th => th.textContent)).toEqual([
+    expect(Array.from(document.querySelectorAll('#Posts th'), th => th.textContent)).toEqual([
       'id',
       'Title',
       'Published',
@@ -77,17 +77,20 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
 
     // Sorting and searching change the query's input in the Model; Remote fetches
     // the list that input names. No Message here asks for data.
-    element('#sort-title').click()
+    // The header that sorts is a button, and the column says how it is sorted.
+    const titleHeader = () => element('#Posts th:nth-child(2)')
+    titleHeader().querySelector('button')!.click()
     await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p2', 'p1']))
-    expect(element('#sort-title').textContent).toBe('Title ▲')
-    element('#sort-title').click()
+    expect(titleHeader().getAttribute('aria-sort')).toBe('ascending')
+    titleHeader().querySelector('button')!.click()
     await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p1', 'p2']))
     type('#search', 'Comp')
     await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p2']))
     type('#search', '')
     await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p1', 'p2']))
 
-    element('#posts tbody tr:nth-child(2)').click()
+    // The way into a row is the button in its first cell.
+    element('#Posts tbody tr:nth-child(2) td button').click()
     // The form fills from the row's post, and its picker from the author list.
     await vi.waitFor(() =>
       expect(element<HTMLInputElement>('#EditPost-title')?.value).toBe('Compilers'),

@@ -137,6 +137,38 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 - `Crud.detail(name, { selection }).at({ data, id: model => ... })` gives `value(model)`
   (a `RemoteData`), `active`, and `fields` (labelled like a list's `columns`). No state.
 
+## Display, and drawing a list
+
+Each column (`list.columns`, `detail.fields`) has a `display`: `Text`, `Number`,
+`Flag`, `Hidden`, `Ref`, or `Nested` (a relation read through a Selection, with the
+target's columns). Set one with `Entity.annotateMembers({ id: Display.of(Display.hidden()) })`;
+`Display.show(display, value, words?)` is the cell's text.
+
+`foldkit-mixins-crud` draws them through Mixins slots. A list holds no state, so
+every click is a Message you pass in:
+
+```ts
+import { DetailView, ListView } from 'foldkit-mixins-crud'
+
+const PostTable = ListView.forMessages<Message>().define(PostList) // the list, not the placed one
+PostTable(
+  {
+    page: Posts.page(model),
+    onOpen: row => Message.OpenedPost({ id: row.id }),
+    onMore: Message.RequestedMorePosts(),
+    sort: { title: { direction: 'asc', message: Message.SortedPosts({ sort: 'title-desc' }) } },
+    cells: { published: (row, h) => h.span([], [row.published ? '●' : '○']) },
+    words: { yes: 'Live', no: 'Draft', empty: 'No posts yet.' },
+  },
+  h,
+)
+
+DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model) }, h)
+```
+
+Slots: `ListSlots` (`root`, `status`, `table`, `headCell`, `sort`, `row`, `cell`,
+`open`, `more`) and `DetailSlots` (`root`, `status`, `term`, `value`).
+
 ## Pickers that search
 
 ```ts

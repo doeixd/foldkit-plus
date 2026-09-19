@@ -41,7 +41,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
 | A domain entity's fields, relations, and derived members, declared once, and typed selections of them (Remote registers and reads them as they are; `remote-drizzle` binds them to tables) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
-| An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` | [admin.md](references/crud.md) |
+| An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [crud.md](references/crud.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example
@@ -61,7 +61,7 @@ Foldkit app (Model · Message · update)
        ├─ foldkit-sync ─ foldkit-durable (server journal)
        ├─ foldkit-mirror
        └─ foldkit-mixins-surface
-foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui, foldkit-mixins-form (with foldkit-form)
+foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui, foldkit-mixins-form (with foldkit-form), foldkit-mixins-crud (with foldkit-crud)
 foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives, foldkit-form
 foldkit-entity (standalone) ─ read by foldkit-remote, foldkit-remote-drizzle, foldkit-form
 foldkit-crud ─ joins foldkit-form, foldkit-remote, foldkit-entity

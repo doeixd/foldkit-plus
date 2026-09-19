@@ -205,6 +205,8 @@ export const Crud = {
     name,
     /** The selected members in the Selection's order, each with its label. */
     fields: columnsOf(config.selection),
+    /** Type-only: the value shown, for a view to be typed by. Never read. */
+    Value: undefined as unknown as Row,
 
     /** The detail where it lives: `id` is the one shown, or `undefined` while none is. */
     at: <Root>(where: {
@@ -349,6 +351,8 @@ export const Crud = {
       name,
       /** The selected members in the Selection's order, each with its label. */
       columns,
+      /** Type-only: a row, for a view to be typed by. Never read. */
+      Row: undefined as unknown as S['Type'],
 
       /**
        * The list where it lives. `input` is the query's input as the Model has

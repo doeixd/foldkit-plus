@@ -4,9 +4,7 @@
  * names a field.
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { RemoteData } from 'foldkit-remote'
-import { PostRow } from './domain.js'
-import type { PostSort } from './operations.js'
+import { ListView } from 'foldkit-mixins-crud'
 import {
   EditForm,
   Message,
@@ -19,78 +17,33 @@ import {
   type Model,
 } from './app.js'
 
-const cell = (value: unknown): string =>
-  typeof value === 'boolean' ? (value ? 'yes' : 'no') : String(value ?? '')
+// The list's table is `foldkit-mixins-crud`'s: columns, labels and cell text come
+// from the list and its Displays. What a click means is this page's, so the
+// Messages arrive as inputs.
+const PostTable = ListView.forMessages<Message>().define(PostList)
 
 const table = (model: Model, h: HtmlBuilder<Message>): Html =>
-  RemoteData.match(Posts.page(model), {
-    Initial: () => h.p([h.Class('muted')], ['…']),
-    Loading: () => h.p([h.Class('muted')], ['Loading posts…']),
-    Failed: error => h.p([h.Role('alert')], [`Could not read the posts: ${error.message}`]),
-    NotFound: () => h.p([], ['No posts.']),
-    Refreshing: page => rows(page, model.postSort, h),
-    Ready: page => rows(page, model.postSort, h),
-  })
-
-const rows = (
-  page: {
-    readonly items: ReadonlyArray<typeof PostRow.schema.Type>
-    readonly hasNext: boolean
-  },
-  sort: PostSort,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [],
-    [
-      h.table(
-        [h.Id('posts')],
-        [
-          h.thead(
-            [],
-            [
-              h.tr(
-                [],
-                PostList.columns.map(column =>
-                  column.key === 'title'
-                    ? h.th(
-                        [],
-                        [
-                          h.button(
-                            [
-                              h.Id('sort-title'),
-                              h.Type('button'),
-                              h.OnClick(
-                                Message.SortedPosts({
-                                  sort: sort === 'title' ? 'title-desc' : 'title',
-                                }),
-                              ),
-                            ],
-                            [
-                              `${column.label}${sort === 'title' ? ' ▲' : sort === 'title-desc' ? ' ▼' : ''}`,
-                            ],
-                          ),
-                        ],
-                      )
-                    : h.th([], [column.label]),
-                ),
-              ),
-            ],
-          ),
-          h.tbody(
-            [],
-            page.items.map(row =>
-              h.tr(
-                // The row's id is a PostId because the Selection read it as one.
-                [h.Key(row.id), h.OnClick(Message.OpenedPost({ id: row.id }))],
-                PostList.columns.map(column => h.td([], [cell(row[column.key])])),
-              ),
-            ),
-          ),
-        ],
-      ),
-      ...(page.hasNext ? [h.button([h.OnClick(Message.RequestedMorePosts())], ['More'])] : []),
-    ],
+  PostTable(
+    {
+      page: Posts.page(model),
+      onOpen: row => Message.OpenedPost({ id: row.id }),
+      onMore: Message.RequestedMorePosts(),
+      sort: {
+        title: {
+          direction:
+            model.postSort === 'title'
+              ? 'asc'
+              : model.postSort === 'title-desc'
+                ? 'desc'
+                : undefined,
+          message: Message.SortedPosts({
+            sort: model.postSort === 'title' ? 'title-desc' : 'title',
+          }),
+        },
+      },
+      words: { loading: 'Loading posts…', empty: 'No posts.' },
+    },
+    h,
   )
 
 const saveLine: Readonly<Record<string, string>> = {

@@ -154,6 +154,12 @@ valid one carries the author in the value. The server inserts the author, then
 the post, and returns both as patches, so the new post reads with its author and
 no fetch. This runs in the printed trace; the browser page does not draw it.
 
+### The drawn list
+
+The post table is `foldkit-mixins-crud`'s `ListView` over `PostList`: its
+columns, labels and cell text come from the list and its Displays, and the page
+passes in what opening a row, sorting, and "more" mean as Messages.
+
 ### Searching and sorting
 
 The post list's search box and its sortable Title header change two Model

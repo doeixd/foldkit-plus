@@ -15,6 +15,7 @@
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-crud": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",

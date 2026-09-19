@@ -2663,8 +2663,10 @@ It may not invent semantic Relations.
 
 # 56. PR 6 — renderer-neutral Input/Display metadata
 
-> **Status: `Input` built in `foldkit-form`; `Display` decided, not built.** Three
-> things this section and §74 left open, as decided:
+> **Status: built.** `Input` is in `foldkit-form`. `Display` is in `foldkit-crud`,
+> built once something read it: `foldkit-mixins-crud` draws lists and details
+> from it, as `foldkit-mixins-form` draws forms from `Input`. Three things this
+> section and §74 left open, as decided:
 >
 > - **Labels and descriptions are Schema annotations, not new metadata.** Effect
 >   Schema already carries `title` and `description`, they already reach JSON
@@ -2675,8 +2677,9 @@ It may not invent semantic Relations.
 > - **No `foldkit-entity-ui` package.** What is left after labels is a control
 >   preference, and only a form reads it, so the `Input` key belongs to
 >   `foldkit-form` (the interpreter owns its key, §5), where it is now built
->   as `Input.of(control)` with the resolver `Input.resolve`. `Display` waits for the
->   package that renders tables; nothing consumes it yet.
+>   as `Input.of(control)` with the resolver `Input.resolve`. `Display` waited for the
+>   package that renders tables, and belongs to the package that describes
+>   columns, `foldkit-crud`.
 > - **The resolver order in §20 stands**, with Schema annotations as step 2's
 >   source for anything Schema can already say.
 

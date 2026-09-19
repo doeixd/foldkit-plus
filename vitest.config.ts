@@ -52,6 +52,9 @@ export default defineConfig({
       'foldkit-mixins-surface': fileURLToPath(
         new URL('./packages/mixins-surface/src/index.ts', import.meta.url),
       ),
+      'foldkit-mixins-crud': fileURLToPath(
+        new URL('./packages/mixins-crud/src/index.ts', import.meta.url),
+      ),
       'foldkit-mixins-form': fileURLToPath(
         new URL('./packages/mixins-form/src/index.ts', import.meta.url),
       ),

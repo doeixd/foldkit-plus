@@ -7,6 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-mixins-crud` 0.1.0 (new).** Draws a `Crud.list` as an accessible
+  table and a `Crud.detail` as a description list through Mixins slots. Opening
+  a row, sorting, and loading more are Messages the application passes in.
+- **`Display`** in `foldkit-crud`: how a selected member shows, without a
+  renderer. `list.columns` and `detail.fields` carry a `display`, set with
+  `Display.of`, resolved from how a relation was selected or from the schema
+  otherwise; `Display.show` is the text any view can fall back on. A list also
+  exposes a type-only `Row`, and a detail a type-only `Value`. New dependency:
+  `foldkit-metadata`.
+
 - **Typed ids.** `foldkit-entity`: an Entity's `id` field keeps its type.
   `IdOf<E>`, `EntityRef<Name, Id>`, a ref schema that is the id's own, and
   `Relation.input` taking the target's id type. An `id` of `Schema.String` types

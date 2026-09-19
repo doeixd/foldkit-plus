@@ -200,8 +200,8 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 ```
 
 - `Authors.columns` is the selected members in the Selection's order, each with
-  its `key`, `member`, and a `label` found the way a form finds one: the schema's
-  `title`, else `Form.label` metadata, else the key.
+  its `key`, `member`, a `label` found the way a form finds one (the schema's
+  `title`, else `Form.label` metadata, else the key), and a `display`.
 - `AuthorList.page(model)` is a `RemoteData` of the page: `items` typed by the
   Selection, `hasNext`, `hasPrevious`.
 - `AuthorList.more(model)` is the Command that loads the next page onto this one,
@@ -213,6 +213,37 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 - `AuthorList.active` makes the page and its rows a requirement while `input`
   gives a value, so Remote fetches and retains them. Another input is another
   connection.
+
+### How a column shows
+
+A `Display` is `foldkit-form`'s `Input` from the reading side: how one selected
+member shows, described without a renderer.
+
+```ts
+const Post = Blog.Post.pipe(
+  Entity.annotateMembers({
+    id: Display.of(Display.hidden()), // read, so a row can be opened by it, and not shown
+    cents: Display.of(Display.number(cents => `$${(cents / 100).toFixed(2)}`)),
+  }),
+)
+
+Display.show(column.display, row[column.key], { yes: 'Live', no: 'Draft' }) // the cell's text
+```
+
+| Display | For |
+| --- | --- |
+| `Text`, `Number` | a value as it is, or through `format` |
+| `Flag` | a boolean, in the words given (`yes` / `no`) |
+| `Hidden` | a member read and not shown |
+| `Ref` | a relation selected with `true`: its id, or ids |
+| `Nested` | a relation read through a Selection: the target's own columns, with `shape` `one`, `many`, or `page` |
+
+It is resolved from the most to the least explicit source: `Display.of`
+metadata on the member, how the relation was selected, then the shape of the
+schema. `Display.show` is the text any view can fall back on; a view that wants
+a link or a badge reads `display` and the value.
+[`foldkit-mixins-crud`](../mixins-crud/README.md) draws a list as a table and a
+detail as a description list from exactly this.
 
 ### A relation picker's choices
 
@@ -320,7 +351,9 @@ reads `id`.
   connection, fetched because it is on screen; `foldkit-remote-drizzle`'s `query`
   reads the input in `where` and `orderBy`. [`examples/entity`](../../examples/entity)
   searches and sorts its post list this way.
-- Headless. Draw the editor with `Crud.editorView` over a
+- Headless. Draw a list or a detail with
+  [`foldkit-mixins-crud`](../mixins-crud/README.md), or from `columns` and
+  `Display.show`. Draw the editor with `Crud.editorView` over a
   [`foldkit-mixins-form`](../mixins-form/README.md) view, or from
   `EditPostForm.controls`. [`examples/entity`](../../examples/entity) draws a
   list and an editor, and runs in a browser.

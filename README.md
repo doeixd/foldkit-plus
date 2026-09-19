@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/doeixd/foldkit-plus)
 
-> Twenty-five packages that extend a [Foldkit](https://foldkit.dev/) application
+> Twenty-six packages that extend a [Foldkit](https://foldkit.dev/) application
 > outward — to agents, servers, other devices, the URL, and design systems —
 > without giving it a second place to keep state.
 
@@ -246,7 +246,7 @@ so the front page cannot quietly drift from the API.
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
-| Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` | [package README](./packages/crud) |
+| Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole
@@ -277,6 +277,7 @@ flowchart TB
   entity["foldkit-entity<br/>the domain, declared once"]
   form["foldkit-form<br/>headless form from an operation's input"]
   mixinsForm["foldkit-mixins-form"]
+  mixinsCrud["foldkit-mixins-crud"]
   crud["foldkit-crud<br/>editor · list · detail · remover"]
 
   app -- "describe observation / capability" --> surface
@@ -300,6 +301,8 @@ flowchart TB
   form --> mixinsForm
   mixins --> mixinsForm
   form --> crud
+  crud --> mixinsCrud
+  mixins --> mixinsCrud
   remote --> crud
 ```
 
@@ -377,6 +380,7 @@ pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
 # a domain declared once, forms from an operation's input, and edit screens
 pnpm add foldkit-entity foldkit-form foldkit-mixins-form
 pnpm add foldkit-crud foldkit-remote # an editor, list, detail, and remover over Remote
+pnpm add foldkit-mixins-crud # draws a list as a table and a detail as a description list
 
 # ready-made primitives: media, timers, sockets, observers, clipboard
 pnpm add foldkit-primitives
