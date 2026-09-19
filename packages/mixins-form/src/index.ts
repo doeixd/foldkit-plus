@@ -30,6 +30,8 @@ export interface FormViewInputs<Key extends string = string> {
    */
   readonly nestedOptions?: Readonly<Record<string, ReadonlyArray<Option>>> | undefined
   readonly submitLabel?: string | undefined
+  /** The word before the label on a picker's search box (`Search Author`). Default `Search`. */
+  readonly searchLabel?: string | undefined
   /** The words on the button that adds a row to a nested key. Default `Add <label>`. */
   readonly addLabel?: ((label: string) => string) | undefined
   /** The words on the button that removes a row; `position` counts from 1. Default `Remove <label> <position>`. */
@@ -45,12 +47,21 @@ export interface FieldInput<Key extends string = string> {
   readonly options: ReadonlyArray<Option>
   /** Unique within the form, for `label for`, and as the prefix of the ids beside it. */
   readonly id: string
+  /** The word before the label on a picker's search box. Default `Search`. */
+  readonly searchLabel?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
    */
   readonly send?:
-    { readonly changed: (value: Draft) => unknown; readonly blurred: unknown } | undefined
+    | {
+        readonly changed: (value: Draft) => unknown
+        readonly blurred: unknown
+        readonly searched: (text: string) => unknown
+      }
+    | undefined
+  /** What was typed to find a choice, for a relation picker that searches. */
+  readonly search: string
 }
 
 /** What the form's own Style and Behavior attachments may read. */
@@ -89,6 +100,8 @@ export const FieldSlots = Slots.define({
   /** A `RelationMany` picker: the group, and each thing in it. */
   choices: Slot.make({ capability: Capability.Collection }),
   choice: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** Over a relation picker that searches: where the user types to find a choice. */
+  search: Slot.make({ capability: Capability.TextInput, events: [Event.Input] }),
 })
 
 /** The form around its fields. */
@@ -116,12 +129,14 @@ interface FormLike<Key extends string, Model, Message> {
   readonly field: (model: Model, key: Key) => FieldValidation.Field<Draft>
   /** The rows of a nested key. A form with none takes no key here. */
   readonly rows: (model: Model, key: never) => ReadonlyArray<FormRow>
+  readonly search: (model: Model, key: Key) => string
   readonly canSubmit: (model: Model) => boolean
   readonly Message: {
     /** The union, so `Message` is inferred from it and not from one constructor's case. */
     readonly Type: Message
     readonly Changed: (payload: { readonly key: Key; readonly value: Draft }) => NoInfer<Message>
     readonly Blurred: (payload: { readonly key: Key }) => NoInfer<Message>
+    readonly Searched: (payload: { readonly key: Key; readonly text: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
     readonly Nested: (payload: {
       readonly key: string
@@ -144,6 +159,7 @@ interface Walk<Message> {
   readonly controls: ReadonlyArray<FormControl>
   readonly field: (key: string) => FieldValidation.Field<Draft>
   readonly rows: (key: string) => ReadonlyArray<FormRow>
+  readonly search: (key: string) => string
   readonly wrap: (message: unknown) => Message
   readonly make: NestedForm['Message']
 }
@@ -159,6 +175,7 @@ const rowWalk = <Message>(
     (form.field as (model: unknown, key: string) => FieldValidation.Field<Draft>)(row.model, inner),
   rows: inner =>
     (form.rows as (model: unknown, key: string) => ReadonlyArray<FormRow>)(row.model, inner),
+  search: inner => (form.search as (model: unknown, key: string) => string)(row.model, inner),
   wrap: message =>
     parent.wrap(
       (parent.make.Nested as (payload: object) => unknown)({ key, row: row.id, message }),
@@ -189,6 +206,11 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const change = (value: Draft): Message =>
         send === undefined ? form.Message.Changed({ key, value }) : (send.changed(value) as Message)
       const blurred = send === undefined ? form.Message.Blurred({ key }) : (send.blurred as Message)
+      const searched = (text: string): Message =>
+        send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
+      const searches =
+        (control.control._tag === 'RelationOne' || control.control._tag === 'RelationMany') &&
+        control.control.search === true
       const describedBy = [
         ...(description === undefined ? [] : [`${id}-description`]),
         ...(invalid ? [`${id}-error`] : []),
@@ -268,6 +290,21 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
 
       return h.div(slots.root.attrs(), [
         h.label(slots.label.attrs([h.For(id)]), [label]),
+        // Typing here changes which choices the picker below is offered.
+        ...(searches
+          ? [
+              h.input(
+                slots.search.attrs([
+                  h.Id(`${id}-search`),
+                  h.Type('search'),
+                  h.AriaLabel(`${input.searchLabel ?? 'Search'} ${label}`),
+                  h.AriaControls(id),
+                  h.Value(input.search),
+                  h.OnInput(searched),
+                ]),
+              ),
+            ]
+          : []),
         body,
         ...(description === undefined
           ? []
@@ -319,9 +356,12 @@ export const FormView = {
                     errors: errorsOf(state),
                     options: options[`${path}${key}`] ?? [],
                     id: here,
+                    search: walk.search(key),
+                    searchLabel: input.searchLabel,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),
+                      searched: text => walk.wrap((walk.make.Searched as Make)({ key, text })),
                     },
                   },
                   h,
@@ -373,6 +413,7 @@ export const FormView = {
           controls: form.controls,
           field: key => form.field(input.model, key as Key),
           rows: key => form.rows(input.model, key as never),
+          search: key => form.search(input.model, key as Key),
           wrap: message => message as Message,
           make: form.Message as unknown as NestedForm['Message'],
         }

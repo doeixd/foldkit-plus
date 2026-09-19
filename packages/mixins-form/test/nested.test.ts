@@ -7,7 +7,7 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
-import { Form } from 'foldkit-form'
+import { Form, Input } from 'foldkit-form'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -49,6 +49,8 @@ const Create = Form.make(
     author: Relation.nested(Blog.Post.relations.author, NewAuthor),
     comments: Relation.nested(Blog.Post.relations.comments, NewComment),
   }),
+  // Countries are too many to list: the picker inside the row searches.
+  { nested: { author: { inputs: { countryId: Input.search() } } } },
 )
 
 const Drawn = Create.bundle.pipe(
@@ -122,6 +124,17 @@ it('draws rows, adds and removes them, and submits what they hold', async () => 
     expect(group.querySelectorAll('button')).toHaveLength(0)
     // A picker in a row is offered what its path names.
     expect(element('Create-author-r0-countryId').querySelectorAll('option')).toHaveLength(2)
+
+    // The search box of a picker in a row: its text lands in that row's form.
+    const search = element<HTMLInputElement>('Create-author-r0-countryId-search')
+    expect(search.getAttribute('aria-label')).toBe('Search countryId')
+    expect(search.getAttribute('aria-controls')).toBe('Create-author-r0-countryId')
+    type('Create-author-r0-countryId-search', 'chi')
+    await vi.waitFor(() =>
+      expect(latest?.create.rows.author[0]?.model.searches).toEqual({ countryId: 'chi' }),
+    )
+    // A picker that does not search has no box.
+    expect(element('Create-title-search')).toBeNull()
 
     type('Create-title', 'Hello')
     type('Create-author-r0-name', 'Ada')

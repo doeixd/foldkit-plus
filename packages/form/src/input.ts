@@ -55,9 +55,11 @@ export interface NestedForm {
   }>
   readonly field: (model: never, key: never) => unknown
   readonly rows: (model: never, key: never) => ReadonlyArray<FormRow>
+  readonly search: (model: never, key: never) => string
   readonly Message: {
     readonly Changed: (payload: never) => unknown
     readonly Blurred: (payload: never) => unknown
+    readonly Searched: (payload: never) => unknown
     readonly Nested: (payload: never) => unknown
     readonly RowAdded: (payload: never) => unknown
     readonly RowRemoved: (payload: never) => unknown
