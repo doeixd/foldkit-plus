@@ -102,7 +102,10 @@ it('regenerates on change, reports diagnostics without writing, and recovers', a
   const watcher = watch(options, event => events.push(event))
   const output = join(dir, 'generated/src/View.tsx')
   try {
-    await vi.waitFor(() => expect(events).toHaveLength(1), { timeout: 15_000 })
+    // At least one: the OS can deliver a late change notification for the fixture
+    // files written just before the watcher attached, which runs it once more.
+    // The count that matters is taken after the settle below.
+    await vi.waitFor(() => expect(events.length).toBeGreaterThanOrEqual(1), { timeout: 15_000 })
     expect(await readFile(output, 'utf8')).toContain('<p>hi</p>')
 
     await new Promise(resolve => setTimeout(resolve, 300))
