@@ -206,6 +206,10 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
   Selection, `hasNext`, `hasPrevious`.
 - `AuthorList.more(model)` is the Command that loads the next page onto this one,
   or `undefined` when there is none. Return it from `update`.
+- `AuthorList.row(id)` is a Projection of one row through the list's Selection,
+  whether or not the query finds it now, and `AuthorList.choiceOf(model, id)` is
+  that row as a choice once it is read. `Crud.options` uses both for a picker
+  that searches.
 - `AuthorList.active` makes the page and its rows a requirement while `input`
   gives a value, so Remote fetches and retains them. Another input is another
   connection.

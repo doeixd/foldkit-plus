@@ -150,6 +150,8 @@ Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })
 
 `chosen` keeps what a picker holds among its choices when the search no longer
 finds it, and `pickers.active` has Remote read those rows so they can be named.
+A placed list also gives `row(id)` (a Projection of one row through the list's
+Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 
 ## Gotchas
 
