@@ -1,0 +1,26 @@
+# One-off: deprecates foldkit-admin, which was renamed to foldkit-crud hours
+# after its first publish. npm does not let a CI token unpublish (a token that
+# bypasses two-factor authentication may not delete), so removing the package
+# takes `npm login` and `npm unpublish foldkit-admin --force` by hand. Until
+# then this marks it dead for anyone who installs it. Delete this file afterwards.
+name: Deprecate foldkit-admin
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deprecate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Deprecate
+        run: npm deprecate foldkit-admin "Renamed to foldkit-crud. The API is the same, with Admin now Crud."
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
