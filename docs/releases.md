@@ -11,7 +11,7 @@ declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
 | --- | --- | --- | --- |
-| [`foldkit-admin`](../packages/admin) | 0.1.0 | Not yet published | Management screens assembled from a form, a Remote operation, and their Entity. So far an editor (edit and create). |
+| [`foldkit-admin`](../packages/admin) | 0.1.0 | Not yet published | Management screens assembled from a form, a Remote operation, and their Entity. So far an editor (edit and create) and a list. |
 | [`foldkit-agent`](../packages/agent) | 0.3.0 | Published | Protocol-neutral agent contract: projects a Model and Message union into an agent interface. |
 | [`foldkit-agent-webmcp`](../packages/agent-webmcp) | 0.3.0 | Published | Browser WebMCP adapter; projects exposed Messages into `document.modelContext`. |
 | [`foldkit-agent-mcp`](../packages/agent-mcp) | 0.3.0 | Published | External MCP adapter: a transport-free handler plus stdio and Streamable HTTP. |

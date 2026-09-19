@@ -10,10 +10,18 @@
  */
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Entity, type AnyEntity, type EntityInput } from 'foldkit-entity'
-import type { Submitted } from 'foldkit-form'
+import {
+  Entity,
+  type AnyEntity,
+  type EntityInput,
+  type EntityMember,
+  type Selection,
+} from 'foldkit-entity'
+import { Form, type Submitted } from 'foldkit-form'
 import type {
   MutationDescriptor,
+  Page,
+  QueryDescriptor,
   MutationStatus,
   RemoteClient,
   RemoteData,
@@ -86,13 +94,117 @@ interface DomainLike<Root> {
     readonly command: Command<RemoteMessage, never, RemoteClient>
   }
   get(selection: any, id: string): Projection<Root, RemoteData<any>>
+  query(query: any, input: any, options: any): Projection<Root, RemoteData<Page<any>>>
+  next(model: Root, projection: any): { readonly query: string } | undefined
+  fetch(ref: any): Command<RemoteMessage, never, RemoteClient>
   mutation(model: Root, requestId: string): MutationStatus
   readonly contract: { readonly owner?: object | undefined }
 }
 
 type Step<Root> = Update.Step<Root, RemoteMessage, RemoteClient>
 
+/** One column of a list: a member the list's Selection reads. */
+export interface ListColumn<Key extends string = string> {
+  readonly key: Key
+  /** The schema's `title` annotation, else `Form.label` metadata, else the key. */
+  readonly label: string
+  readonly member: EntityMember
+}
+
+const columnLabel = (key: string, member: EntityMember): string => {
+  const title =
+    member._tag === 'Relation'
+      ? undefined
+      : Schema.resolveAnnotations(member.schema as Schema.Top)?.title
+  return typeof title === 'string' ? title : (Form.labelOf(member) ?? key)
+}
+
 export const Admin = {
+  /**
+   * A list over one query: which rows to show is the query's, what to show of
+   * each is the Selection's. The pages live in Remote; the list holds no state.
+   */
+  list: <const Name extends string, EntityName extends string, Members, Row, Input>(
+    name: Name,
+    config: {
+      readonly query: QueryDescriptor<string, Input, any>
+      readonly selection: Selection<EntityName, Members, Schema.Constraint & { readonly Type: Row }>
+      /** How many rows a page holds. Default 25. */
+      readonly pageSize?: number
+    },
+  ) => {
+    const { query, selection, pageSize = 25 } = config
+    const members: Readonly<Record<string, EntityMember>> = selection.entity.members
+    const columns = Object.keys(selection.members as object).map(
+      (key): ListColumn<keyof Members & string> => ({
+        key: key as keyof Members & string,
+        label: columnLabel(key, members[key]!),
+        member: members[key]!,
+      }),
+    )
+
+    return {
+      name,
+      /** The selected members in the Selection's order, each with its label. */
+      columns,
+
+      /**
+       * The list where it lives. `input` is the query's input as the Model has
+       * it (filters, a search term), or `undefined` while the list is not shown.
+       */
+      at: <Root>(where: {
+        readonly data: DomainLike<Root>
+        readonly input: (root: Root) => Input | undefined
+      }) => {
+        const { data, input } = where
+        const projectionOf = (root: Root) => {
+          const value = input(root)
+          return value === undefined
+            ? undefined
+            : data.query(query, value, { select: selection, first: pageSize })
+        }
+        const page = (root: Root): RemoteData<Page<Row>> =>
+          projectionOf(root)?.read(root) ?? { _tag: 'Initial' }
+
+        return {
+          /** For `Data.subscriptions`: the page and its rows are fetched and retained while shown. */
+          active: {
+            name,
+            owner: data.contract.owner ?? {},
+            projectionOf,
+          } satisfies ActiveSurface<Root>,
+
+          page,
+
+          /** The Command that loads the next page onto this one, or `undefined` when there is none. */
+          more: (root: Root): Command<RemoteMessage, never, RemoteClient> | undefined => {
+            const projection = projectionOf(root)
+            const next = projection === undefined ? undefined : data.next(root, projection)
+            return next === undefined ? undefined : data.fetch(next)
+          },
+
+          /**
+           * The loaded rows as a picker's choices, e.g. for `foldkit-mixins-form`'s
+           * `options`. Listing the target is this query, which the application
+           * chose and the server authorizes; nothing is read because a relation exists.
+           */
+          options: (
+            root: Root,
+            choice: { readonly value: (row: Row) => string; readonly label: (row: Row) => string },
+          ): ReadonlyArray<{ readonly value: string; readonly label: string }> => {
+            const read = page(root)
+            return read._tag === 'Ready' || read._tag === 'Refreshing'
+              ? read.value.items.map(row => ({
+                  value: choice.value(row),
+                  label: choice.label(row),
+                }))
+              : []
+          },
+        }
+      },
+    }
+  },
+
   /**
    * An editor for one form and the mutation its value feeds. The form's value
    * must be the mutation's input, which is what declaring the input once and

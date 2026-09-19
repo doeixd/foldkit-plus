@@ -340,4 +340,11 @@ export const Form = {
    */
   label: (label: string, description?: string) =>
     labelKey.of(description === undefined ? { label } : { label, description }),
+
+  /**
+   * What `Form.label` attached to an Entity member, for a package that labels
+   * the same member elsewhere, such as a table column.
+   */
+  labelOf: (member: { readonly metadata: Metadata }): string | undefined =>
+    labelKey.get(member.metadata)[0]?.label,
 }

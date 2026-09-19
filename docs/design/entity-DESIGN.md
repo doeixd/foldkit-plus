@@ -2796,9 +2796,19 @@ using ordinary Foldkit state/update/Submodel concepts.
 
 # 58. PR 8 — `foldkit-admin`
 
-> **Status:** the editor is built as [`packages/admin`](../../packages/admin/README.md):
-> `Admin.editor(name, { form, mutation })`, then `.at({ data, model })`. It covers
-> `edit` and `create`; `list`, `detail`, and `delete` are not built.
+> **Status:** an editor and a list are built as [`packages/admin`](../../packages/admin/README.md):
+> `Admin.editor(name, { form, mutation })` then `.at({ data, model })`, covering
+> `edit` and `create`; and `Admin.list(name, { query, selection })` then
+> `.at({ data, input })`. `detail` and `delete` are not built.
+>
+> - **A list holds no state, so it is not a Bundle.** Its pages are Remote's and
+>   its input (a search term, filters) is the application's Model. It contributes
+>   an ActiveSurface, the page as `RemoteData`, the Command for the next page,
+>   and `columns` labelled as a form labels the same members.
+> - **§29's picker data is a list's `options`.** The form names the target and
+>   stops; the application declares the query that lists it, the server authorizes
+>   it, and `options` turns the loaded rows into a picker's choices. No read
+>   happens because a relation exists.
 >
 > - **No `Admin.resource` yet.** With one capability a Resource descriptor would
 >   be a wrapper nothing else reads (§28: add a primitive when several consumers

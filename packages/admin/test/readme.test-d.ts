@@ -4,7 +4,14 @@ import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
-import { Mutation, Remote, type RemoteClient } from 'foldkit-remote'
+import {
+  Mutation,
+  Query,
+  Remote,
+  type Page,
+  type RemoteClient,
+  type RemoteData,
+} from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
 import { Admin, type EditorStatus } from '../src/index.js'
@@ -68,3 +75,47 @@ void Placed.helpers.close()
 const Other = Mutation.make('Other', { Input: { slug: Schema.String }, Output: {} })
 // @ts-expect-error EditPostForm submits an EditPostInput, which `Other` does not take
 Admin.editor('Mismatched', { form: EditPostForm, mutation: Other })
+
+// A list, and its rows as a picker's choices.
+{
+  const AuthorsQuery = Query.make('Authors', {
+    Input: { search: Schema.String },
+    Result: Query.connection(Blog.Author),
+  })
+  const ListModel = Schema.Struct({ remote: Remote.Model, search: Schema.NullOr(Schema.String) })
+  const ListApp = Surface.application({
+    Model: ListModel,
+    Message: defineMessageUnion({ ...Remote.messages }),
+  })
+  const Data = Remote.make({
+    model: ListApp.model.remote,
+    entities: Object.values(Blog),
+    queries: [AuthorsQuery],
+  })
+
+  const Authors = Admin.list('Authors', {
+    query: AuthorsQuery,
+    selection: Entity.select(Blog.Author, { id: true, name: true }),
+    pageSize: 25,
+  })
+
+  const AuthorList = Authors.at({
+    data: Data,
+    input: model => (model.search === null ? undefined : { search: model.search }),
+  })
+
+  const subscriptions = Data.subscriptions({ authors: AuthorList.active })
+  void subscriptions
+
+  const model: typeof ListModel.Type = { remote: Remote.initial, search: 'a' }
+  expectTypeOf(AuthorList.page(model)).toEqualTypeOf<
+    RemoteData<Page<{ readonly id: string; readonly name: string }>>
+  >()
+  expectTypeOf(Authors.columns[0]!.key).toEqualTypeOf<'id' | 'name'>()
+  const authors = AuthorList.options(model, { value: row => row.id, label: row => row.name })
+  expectTypeOf(authors).toEqualTypeOf<
+    ReadonlyArray<{ readonly value: string; readonly label: string }>
+  >()
+  // @ts-expect-error the query's input is `{ search }`
+  Authors.at({ data: Data, input: () => ({ term: 'a' }) })
+}

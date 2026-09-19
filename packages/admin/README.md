@@ -1,13 +1,14 @@
 # foldkit-admin
 
-Management screens assembled from parts an application already has. The first
-one is an **editor**: it joins a [`foldkit-form`](../form/README.md) form, the
+Management screens assembled from parts an application already has. An
+**editor** joins a [`foldkit-form`](../form/README.md) form, the
 [`foldkit-remote`](../remote/README.md) mutation its value feeds, and the
-[`foldkit-entity`](../entity/README.md) Entity they share.
+[`foldkit-entity`](../entity/README.md) Entity they share. A **list** joins a
+Remote query and an Entity Selection.
 
-> **Status:** the editor only (edit and create). Lists, detail, and delete are
-> planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md). The editor
-> is headless, as the form is.
+> **Status:** an editor (edit and create) and a list. Detail and delete are
+> planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md). Both are
+> headless, as the form is.
 
 ## What it owns
 
@@ -148,8 +149,58 @@ is in the form.
 - **An invalid submit starts no mutation.** The form emits nothing until every
   key passes the input's schema.
 
+## Lists
+
+A list is one query and one Selection: the query decides which rows, the
+Selection what to show of each. The pages live in Remote, so a list holds no
+state of its own and is not a Bundle.
+
+```ts
+const Authors = Admin.list('Authors', {
+  query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
+  selection: Entity.select(Blog.Author, { id: true, name: true }),
+  pageSize: 25,
+})
+
+const AuthorList = Authors.at({
+  data: Data,
+  // The query's input as the Model has it; `undefined` while the list is not shown.
+  input: model => (model.search === null ? undefined : { search: model.search }),
+})
+
+const subscriptions = Data.subscriptions({ authors: AuthorList.active })
+```
+
+- `Authors.columns` is the selected members in the Selection's order, each with
+  its `key`, `member`, and a `label` found the way a form finds one: the schema's
+  `title`, else `Form.label` metadata, else the key.
+- `AuthorList.page(model)` is a `RemoteData` of the page: `items` typed by the
+  Selection, `hasNext`, `hasPrevious`.
+- `AuthorList.more(model)` is the Command that loads the next page onto this one,
+  or `undefined` when there is none. Return it from `update`.
+- `AuthorList.active` makes the page and its rows a requirement while `input`
+  gives a value, so Remote fetches and retains them. Another input is another
+  connection.
+
+### A relation picker's choices
+
+A form names a relation's target Entity and leaves listing it to you, because a
+relationship existing is no licence to read a table. A list is that licence: a
+query you declared and your server authorizes. `options` turns its loaded rows
+into choices:
+
+```ts
+const authors = AuthorList.options(model, { value: row => row.id, label: row => row.name })
+
+Placed.view(model, h, { options: { authorId: authors } }) // with foldkit-mixins-form
+```
+
+It is empty until the page is loaded, and holds only the rows loaded so far.
+
 ## Limits
 
+- A list has no sorting, filtering, or selection state of its own: those are the
+  query's input, which your Model holds.
 - Headless. Draw the form with
   [`foldkit-mixins-form`](../mixins-form/README.md) over `model.editor.form`, or
   from `EditPostForm.controls`.
