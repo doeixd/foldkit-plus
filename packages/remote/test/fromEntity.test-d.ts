@@ -89,3 +89,22 @@ Entity.from(Domain.define('Keyless', Schema.Struct({ name: Schema.String })))
   // @ts-expect-error Stranger is not registered with Data
   Data.get(Domain.select(Stranger, { id: true }), 's1')
 }
+
+// An Entity with an id of its own is read by that id, not by another's.
+{
+  const PostId = Schema.String.pipe(Schema.brand('PostId'))
+  const AuthorId = Schema.String.pipe(Schema.brand('AuthorId'))
+  const Post = Domain.define('Post', Schema.Struct({ id: PostId, title: Schema.String }))
+  const Author = Domain.define('Author', Schema.Struct({ id: AuthorId, name: Schema.String }))
+  const Model = Schema.Struct({ remote: Remote.Model })
+  const App = Surface.application({ Model, Message: defineMessageUnion({ Ping: {} }) })
+  const Data = Remote.make({ model: App.model.remote, entities: [Post, Author] })
+  const Title = Domain.select(Post, { title: true })
+
+  Data.get(Title, PostId.make('p1'))
+  Data.live(Title, PostId.make('p1'))
+  // @ts-expect-error an AuthorId does not read a Post
+  Data.get(Title, AuthorId.make('a1'))
+  // @ts-expect-error nor does any text
+  Data.get(Title, 'p1')
+}

@@ -141,6 +141,9 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 - **An id is text.** A ref travels and is stored as text, so an Entity whose `id`
   is a number (or has no `id` field) has refs with a plain `string` id: the
   number as text.
+- A Selection carries its Entity's id type, so `foldkit-remote`'s
+  `Data.get(PostPage, id)` takes a `PostId` and refuses an `AuthorId`, or plain
+  text.
 - Nothing here is new API to opt into. An Entity with `id: Schema.String` types
   exactly as before.
 

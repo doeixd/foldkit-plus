@@ -354,8 +354,9 @@ while an id is shown.
 
 When the Entity's `id` is branded, the ids here are too. An editor's
 `helpers.open(id)` takes the `IdOf` of its form's Entity, and `target(model)`
-reads the id being edited as that type. A remover is asked about the id its
-`input` names, so annotate it: `input: (id: PostId) => ({ id })`. A list's rows
+reads the id being edited as that type. A remover whose mutation's input is just the id names the key, `id: 'id'`, and is
+asked about that key's type; with a fuller input, annotate the function:
+`input: (id: PostId) => ({ id, reason: 'spam' })`. A list's rows
 are its Selection's own value, so `row.id` is a `PostId` when the Selection
 reads `id`.
 

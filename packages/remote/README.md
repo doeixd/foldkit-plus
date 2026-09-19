@@ -444,7 +444,9 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 
 - A relation becomes a ref field: `one` a ref, an optional `one` a nullable ref,
   `many` an array of refs. A derived member becomes a field the server supplies.
-- The Entity needs an `id` field; Remote keys the store by it.
+- The Entity needs an `id` field; Remote keys the store by it. When that field
+  is branded, `Data.get` and `Data.live` take that type for an Entity Selection:
+  another Entity's id, or plain text, does not compile.
 - Register the Entities of one `Entity.relate` result and select from that same
   result; `Object.values(Work)` registers them all.
 - `Entity.from(entity)` and `Selection.from(selection)` are the compile steps,

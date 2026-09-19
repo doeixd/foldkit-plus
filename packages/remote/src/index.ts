@@ -116,9 +116,9 @@ export type EntityLike = EntityDescriptor<any, any> | Domain.AnyEntity
  * What a read selects: a Remote Selection, or a `foldkit-entity` Selection
  * (read through `Selection.from`).
  */
-export type EntitySelection<Value, Name extends string> =
+export type EntitySelection<Value, Name extends string, Id extends string = string> =
   | Selection<Value, Name, 'entity'>
-  | Domain.Selection<Name, unknown, Schema.Constraint & { readonly Type: Value }>
+  | Domain.Selection<Name, unknown, Schema.Constraint & { readonly Type: Value }, Id>
 
 const descriptorOf = (entity: EntityLike): EntityDescriptor<any, any> =>
   DomainEntity.is(entity) ? Entity.from(entity as never) : entity
@@ -263,20 +263,22 @@ export interface RemoteDomain<
     BoundRemote<AppModel, Store, EntityName<Entities[number]>>,
     RemoteDescriptor<Entities, Queries, Mutations> {
   /** `Remote.select`: a Projection reading one entity through a selection of a registered entity. */
-  get<Value, Name extends string>(
-    selection: EntitySelection<Value, Name> &
+  get<Value, Name extends string, Id extends string = string>(
+    selection: EntitySelection<Value, Name, Id> &
       Registered<Name, EntityName<Entities[number]>, 'Entity'>,
-    id: string,
+    // The id type of the Entity selected: another Entity's branded id does not fit.
+    id: NoInfer<Id>,
   ): Projection<AppModel, RemoteData<Value>>
   /**
    * `get`, and the projection also subscribes to the entity's changes: its
    * requirements are marked `live`, so `subscriptions` derives a live entry for
    * the Surfaces that read it.
    */
-  live<Value, Name extends string>(
-    selection: EntitySelection<Value, Name> &
+  live<Value, Name extends string, Id extends string = string>(
+    selection: EntitySelection<Value, Name, Id> &
       Registered<Name, EntityName<Entities[number]>, 'Entity'>,
-    id: string,
+    // The id type of the Entity selected: another Entity's branded id does not fit.
+    id: NoInfer<Id>,
   ): Projection<AppModel, RemoteData<Value>>
   /**
    * A query connection read as a `Page` of items selected of the query's

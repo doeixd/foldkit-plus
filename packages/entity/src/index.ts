@@ -221,8 +221,15 @@ type RefSchema<Target extends AnyEntity> = Schema.Struct<{
  * A view of the Entity graph: which members to read, and the schema of the
  * value that results. It says nothing about where the value comes from.
  */
-export interface Selection<Name extends string, Members, S extends Schema.Constraint> {
+export interface Selection<
+  Name extends string,
+  Members,
+  S extends Schema.Constraint,
+  Id extends string = string,
+> {
   readonly [SelectionTypeId]: SelectionTypeId
+  /** Type-only: the id type of the Entity selected, so a reader can ask for the right one. Never set. */
+  readonly Id?: Id
   readonly entity: Entity<Name, any, any, any>
   /** What was selected, by member key: `true`, or a relation's nested Selection. */
   readonly members: Members
@@ -625,7 +632,7 @@ export const Entity = {
   select: <E extends AnyEntity, const Spec>(
     entity: E,
     spec: Spec & SelectionSpec<E, Spec>,
-  ): Selection<E['name'], Spec, SelectionSchema<E, Spec>> => {
+  ): Selection<E['name'], Spec, SelectionSchema<E, Spec>, IdOf<E>> => {
     const members: Readonly<Record<string, EntityMember>> = entity.members
     const fields = mapValues<unknown, Schema.Constraint>(spec, (selected, key) => {
       const member = members[key]
@@ -813,7 +820,12 @@ export const Entity = {
    */
   selectFor: <E extends AnyEntity, Fields extends Schema.Struct.Fields, Members>(
     input: EntityInput<E, Fields, Members>,
-  ): Selection<E['name'], WrittenSpec<Members>, SelectionSchema<E, WrittenSpec<Members>>> => {
+  ): Selection<
+    E['name'],
+    WrittenSpec<Members>,
+    SelectionSchema<E, WrittenSpec<Members>>,
+    IdOf<E>
+  > => {
     const members: Readonly<Record<string, InputMember>> = input.members as never
     const spec = Object.fromEntries(
       Object.values(members).flatMap((member): ReadonlyArray<readonly [string, unknown]> =>

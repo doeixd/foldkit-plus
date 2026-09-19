@@ -173,7 +173,7 @@ Entity.same(CmsPost, Blog.Post)             // true
 
 Brand the `id` field and it flows: `IdOf<typeof Blog.Post>`, `EntityRef<'Post', PostId>`
 from a relation selected with `true`, and `Relation.input` accepting only the
-target's id type. Ids are text; a numeric `id` gives refs a plain `string` id. An
+target's id type; `Data.get(selection, id)` in `foldkit-remote` takes it too. Ids are text; a numeric `id` gives refs a plain `string` id. An
 Entity with `id: Schema.String` is unchanged.
 
 ```ts

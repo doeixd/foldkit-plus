@@ -32,3 +32,19 @@ Crud.remover('Untyped', {
     return { id }
   },
 })
+
+// Named by its key, the id's type and the input both follow from the mutation.
+const ByKey = Crud.remover('ByKey', {
+  mutation: Mutation.make('DeleteByKey', { Input: { id: PostId }, Output: {} }),
+  id: 'id',
+})
+expectTypeOf(ByKey.bundle.helpers!.ask).parameter(1).toEqualTypeOf<PostId>()
+
+Crud.remover('Wrong', {
+  mutation: Mutation.make('DeleteWrong', {
+    Input: { id: PostId, reason: Schema.String },
+    Output: {},
+  }),
+  // @ts-expect-error "slug" is not a key of the input
+  id: 'slug',
+})

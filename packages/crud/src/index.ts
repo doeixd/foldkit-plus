@@ -235,13 +235,30 @@ export const Crud = {
    * deleted. What the mutation's input is for an id is `input`'s to say, and the
    * id it names there (`(id: PostId) => ...`) is the id `ask` takes.
    */
-  remover: <const Name extends string, Input, Id extends string = string>(
+  remover: <
+    const Name extends string,
+    Input,
+    Id extends string = string,
+    const Key extends keyof Input = never,
+  >(
     name: Name,
-    config: {
-      readonly mutation: MutationDescriptor<string, Input, any>
-      readonly input: (id: Id) => Input
-    },
+    config:
+      | {
+          readonly mutation: MutationDescriptor<string, Input, any>
+          readonly input: (id: Id) => Input
+        }
+      | {
+          readonly mutation: MutationDescriptor<string, Input, any>
+          /**
+           * The key of the mutation's input that holds the id, when that is all the
+           * input is: `id: 'id'` for `{ id }`. The id's type is that key's.
+           */
+          readonly id: Key & (Input extends Readonly<Record<Key, string>> ? Key : never)
+        },
   ) => {
+    type AskedId = [Key] extends [never] ? Id : Input[Key] & string
+    const inputFor = (id: string): Input =>
+      'input' in config ? config.input(id as Id) : ({ [config.id]: id } as Input)
     const bundle = Bundle.make(name, {
       Model: Schema.Struct({
         target: Schema.NullOr(Schema.String),
@@ -255,7 +272,7 @@ export const Crud = {
           : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
       helpers: {
         /** Asks whether to delete `id`. Nothing is deleted until `Confirmed`. */
-        ask: (_: RemoverModel, id: Id) => ({ model: { target: id, requestId: null } }),
+        ask: (_: RemoverModel, id: AskedId) => ({ model: { target: id, requestId: null } }),
         dismiss: () => ({ model: idle }),
       },
     })
@@ -279,7 +296,7 @@ export const Crud = {
           onOut:
             (confirmed: ConfirmedRemoval): Step<Root> =>
             root => {
-              const started = data.mutate(root, config.mutation, config.input(confirmed.id as Id))
+              const started = data.mutate(root, config.mutation, inputFor(confirmed.id))
               return {
                 model: slice.set(started.model, {
                   target: confirmed.id,
@@ -290,7 +307,7 @@ export const Crud = {
             },
 
           /** The id being asked about or deleted, for the words of a confirmation. */
-          target: (root: Root): Id | null => slice.get(root).target as Id | null,
+          target: (root: Root): AskedId | null => slice.get(root).target as AskedId | null,
 
           status: (root: Root): RemoverStatus => {
             const { target } = slice.get(root)

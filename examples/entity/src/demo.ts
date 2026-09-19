@@ -25,7 +25,7 @@ import {
   update,
   type Model,
 } from './app.js'
-import { LatestComment, PostByline, PostId, PostPage } from './domain.js'
+import { AuthorId, LatestComment, PostByline, PostId, PostPage } from './domain.js'
 import { EditPostForm } from './editForm.js'
 import { WritePostMutation } from './operations.js'
 import { openServer } from './server.js'
@@ -80,7 +80,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   try {
     // --- Reading ---
-    const post = PostSurface.projection({ postId: 'p1' })
+    const post = PostSurface.projection({ postId: PostId.make('p1') })
     const [plan] = Data.plan(initial, post)
     lines.push(`plan: ${plan?.entity}:${plan?.id} [${plan?.fields.join(',')}]`)
     lines.push(`plan follows: ${Object.keys(plan?.relations ?? {}).join(',')}`)
@@ -100,7 +100,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // The Selection says "the first comment"; the window travels with the read and
     // SQL answers with one row and whether more follow. A fresh Model: Remote holds
     // one relation of one entity whole or as one window, not both at once.
-    const latest = Data.get(LatestComment, 'p1')
+    const latest = Data.get(LatestComment, PostId.make('p1'))
     const [pagePlan] = Data.plan(initial, latest)
     lines.push(`page plan: windows ${JSON.stringify(pagePlan?.windows)}`)
     const paged = await Effect.runPromise(
@@ -110,7 +110,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
     // A second Surface walks the same graph from the other side. Ada's name came
     // in as the post's author, so only her posts are planned.
-    const author = AuthorSurface.projection({ authorId: 'a1' })
+    const author = AuthorSurface.projection({ authorId: AuthorId.make('a1') })
     lines.push(
       `second plan: ${Data.plan(loaded, author)
         .map(entry => `${entry.entity}:${entry.id} [${entry.fields.join(',')}]`)
@@ -243,7 +243,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       settled._tag === 'MutationSucceeded'
         ? (settled.entities.find(patch => patch.entity === 'Post')?.id ?? '')
         : ''
-    lines.push(`new post: ${describe(Data.get(PostByline, fresh).read(model))}`)
+    lines.push(`new post: ${describe(Data.get(PostByline, PostId.make(fresh)).read(model))}`)
   } finally {
     backend.close()
   }

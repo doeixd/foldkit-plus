@@ -7,6 +7,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **Typed ids reach the read.** An Entity `Selection` carries its Entity's id type
+  (a fourth, defaulted type parameter), and `foldkit-remote`'s `Data.get` /
+  `Data.live` take it. **Breaking** for an Entity with a branded `id` read with a
+  plain string. `Crud.remover` takes `id: 'id'` in place of `input` when the
+  mutation's input is just the id.
+
 - `foldkit-crud`: `Sort.make(columns)` is a list's sort state written once: its
   schema, `toggle`, and the `sort` input a drawn table takes.
   `foldkit-remote-drizzle`: `sortTerms(sort, columns)` reads that state into order

@@ -12,7 +12,7 @@ import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins
 import { defineMessageUnion } from 'foldkit/message'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
-import { AuthorChoice, AuthorPage, Blog, PostId, PostPage, PostRow } from './domain.js'
+import { AuthorChoice, AuthorId, AuthorPage, Blog, PostId, PostPage, PostRow } from './domain.js'
 import { EditPostForm } from './editForm.js'
 import {
   AuthorsQuery,
@@ -53,8 +53,9 @@ const EditSlot = Bundle.declare(
 // Deleting is a mutation with a yes in between.
 const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
-  // The id it is asked about is a PostId; an AuthorId would not compile.
-  input: (id: PostId) => ({ id }),
+  // The input is `{ id }`, so naming the key is enough: the remover is asked about a
+  // PostId, the key's own type, and an AuthorId would not compile.
+  id: 'id',
 })
 export const RemoverMessage = Remover.Message
 const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
@@ -167,11 +168,12 @@ export const initial = (): Model =>
   placements.initial({ remote: Remote.initial, postSearch: '', postSort: PostSort.none }).model
 
 export const PostSurface = App.surface('PostPage', {
-  params: { postId: Schema.String },
+  // A Surface's param is the id's own schema, so a route cannot hand a post an author's id.
+  params: { postId: PostId },
   model: ({ params }) => ({ post: Data.get(PostPage, params.postId) }),
 })
 
 export const AuthorSurface = App.surface('AuthorPage', {
-  params: { authorId: Schema.String },
+  params: { authorId: AuthorId },
   model: ({ params }) => ({ author: Data.get(AuthorPage, params.authorId) }),
 })

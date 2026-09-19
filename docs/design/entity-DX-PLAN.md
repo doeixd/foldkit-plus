@@ -61,7 +61,7 @@ in the view's `sort` input, and in the server's `orderBy`.
 state, `toggle`, and the map a drawn table takes. `foldkit-remote-drizzle` turns
 the same state into order terms from a map of columns the server chose.
 
-## 6. Two places typed ids stop short
+## 6. Two places typed ids stop short (resolved)
 
 - `Data.get(selection, id)` takes any string, so an `AuthorId` reads a Post.
   **Plan.** For an Entity Selection, `id` is `IdOf` its Entity.
