@@ -1,6 +1,7 @@
 # Entity, Form, and Crud: DX plan
 
-Status: friction found while building `foldkit-entity`, `foldkit-form`,
+Status: eight of nine items resolved; the last is recorded with why it was not
+done. Friction found while building `foldkit-entity`, `foldkit-form`,
 `foldkit-mixins-form`, `foldkit-crud`, and `foldkit-mixins-crud` and wiring them
 into [`examples/entity`](../../examples/entity). Each item names what prompted
 it, so it can be judged rather than taken on faith. Items are marked as they are
@@ -92,7 +93,21 @@ so a library cannot hand over a partly configured form.
   inputs. Words are now text with blanks (`'{label} is required'`), the three
   shapes share no key, and one object `satisfies` all of them.
 - **A relation is stored whole or as one window**, never both, in Remote.
-  **Plan.** Key the stored value by its window.
+  **Not done, and not a small fix.** "Key the stored value by its window" was
+  the plan; reading the read path showed why it is not one change:
+  - the wire carries one window per field per request, and a batch's answers are
+    merged by entity and field name, so a whole list and a page of it collide
+    before they reach the store;
+  - a cursor page merges onto the stored page by field name, and live changes,
+    optimistic patches, staleness, retention, persistence, and the inspector all
+    address a relation by that one name.
+
+  It is a protocol and store change to a published package, with pinned tests on
+  each of those paths, and deserves its own design: answers that say which
+  request they answer, a storage key of field plus base window, and a rule for
+  what a write to the whole relation does to its pages (mark them stale). Until
+  then the limit is documented where it bites: `foldkit-remote`'s README and
+  `Entity.page`.
 - **A picker that searches is a `select` under a search box**, not a combobox.
   Recorded, not planned: it is the accessible floor, and a combobox is a renderer
   an application can now add (item 1).
