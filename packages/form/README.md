@@ -275,6 +275,27 @@ const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
 
 `field` is the key, its label, and its control.
 
+## Pipe steps
+
+Every option is also a pipe step that gives a new form, made from the same input
+with that option added to:
+
+```ts
+const AuthorForm = Form.make('Author', NewAuthor) // as a library might hand it over
+
+const Finished = AuthorForm.pipe(
+  Form.inputs({ bio: Input.multiline() }),
+  Form.checks({ name: name => isNameTaken(name) }),
+  Form.messages({ required: field => `${field.label} fehlt` }),
+)
+```
+
+`Form.inputs`, `Form.checks`, `Form.messages`, `Form.nested` and `Form.debounce`.
+Each adds to what the form already has, so a form can be made in one place and
+finished in another. A step's keys are checked against the form it is piped
+into, and `Form.checks` adds what its checks need to what the form needs. The
+first form is left as it was.
+
 ## Nested input
 
 A key mapped with [`Relation.nested`](../entity/README.md#an-input-that-holds-the-target-itself)

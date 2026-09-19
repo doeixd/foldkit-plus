@@ -8,7 +8,7 @@
  * happens to it (a Remote mutation, a Sync operation, a plain `update`) is the
  * parent's.
  */
-import { Duration, Effect, Result, Schema } from 'effect'
+import { Duration, Effect, Pipeable, Result, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import type { AnyEntity, EntityInput, InputMember, NestedInput } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
@@ -472,7 +472,7 @@ const draftOf = (plan: Plan, value: unknown): Draft =>
       ? String(value)
       : (value as Draft)
 
-export const Form = {
+const Core = {
   /**
    * A form for one operation's input. A key mapped with `Relation.nested` holds
    * rows of a form of its own, built here from the nested input; every other key
@@ -917,6 +917,24 @@ export const Form = {
     })
 
     return {
+      /** The name, input and options the form was made from: what a pipe step makes the next form from. */
+      name,
+      options,
+      /** Type-only: the form's type parameters, for a pipe step to read. Never set. */
+      types: undefined as unknown as {
+        readonly Name: Name
+        readonly E: E
+        readonly Fields: Fields
+        readonly Members: Members
+        readonly R: R
+        readonly Nest: Nest
+      },
+      // Typed by `Pipeable`'s overloads, which read `this` at the call.
+      ...({
+        pipe() {
+          return Pipeable.pipeArguments(this, arguments)
+        },
+      } as Pipeable.Pipeable),
       bundle,
       Message,
       /** The reading the form was made from, for `Entity.selectFor` and `Entity.valuesFor`. */
@@ -1021,4 +1039,109 @@ export const Form = {
     labelKey.get(member.metadata)[0]?.label,
 }
 
-makeNested = Form.make as never
+/** The type parameters a form was made with. */
+interface FormTypes {
+  readonly Name: string
+  readonly E: AnyEntity
+  readonly Fields: Schema.Struct.Fields
+  readonly Members: any
+  readonly R: unknown
+  readonly Nest: any
+}
+
+/** A form as a pipe step takes it: what it was made from, and its type parameters. */
+interface Remakeable<T extends FormTypes = FormTypes> {
+  readonly name: string
+  readonly input: EntityInput<any, any, any>
+  readonly options: object
+  readonly types: T
+}
+
+/** The form `Form.make` gives for these type parameters. */
+type Made<T extends FormTypes> = ReturnType<
+  typeof Core.make<T['Name'], T['E'], T['Fields'], T['Members'], T['R'], T['Nest']>
+>
+
+type OptionsOf<T extends FormTypes> = FormOptions<T['Fields'], T['Members'], T['R'], T['Nest']>
+
+/** The form again, with some of its options replaced or added to. */
+const remake = (form: Remakeable, change: (options: Record<string, any>) => object): never =>
+  (Core.make as (name: string, input: unknown, options: object) => unknown)(form.name, form.input, {
+    ...form.options,
+    ...change(form.options as Record<string, any>),
+  }) as never
+
+/**
+ * Pipe steps. Each gives a new form, made from the same input with one option
+ * added to, so a form can be handed over partly configured and finished where it
+ * is used: `AuthorForm.pipe(Form.inputs({ bio: Input.multiline() }), Form.messages(german))`.
+ */
+const steps = {
+  /** Controls by key, beside the ones the form already names. */
+  inputs:
+    <F extends Remakeable>(inputs: NonNullable<OptionsOf<F['types']>['inputs']>) =>
+    (form: F): F =>
+      remake(form, options => ({ inputs: { ...options.inputs, ...inputs } })),
+
+  /** The form's words, beside the ones it already has. */
+  messages:
+    <F extends Remakeable>(messages: NonNullable<OptionsOf<F['types']>['messages']>) =>
+    (form: F): F =>
+      remake(form, options => ({ messages: { ...options.messages, ...messages } })),
+
+  /** How long a key rests before its check runs. */
+  debounce:
+    (debounce: Duration.Input) =>
+    <F extends Remakeable>(form: F): F =>
+      remake(form, () => ({ debounce })),
+
+  /**
+   * Checks by key, beside the ones the form already has. What they need (`R`) is
+   * added to what the form needs.
+   */
+  checks:
+    <F extends Remakeable, R2 = never>(checks: {
+      readonly [
+        K in Exclude<keyof F['types']['Fields'], NestedKey<F['types']['Members']>>
+      ]?: FormCheck<
+        Schema.Schema.Type<F['types']['Fields'][K]>,
+        Partial<Schema.Struct.Type<F['types']['Fields']>>,
+        R2
+      >
+    }) =>
+    (
+      form: F,
+    ): Made<{
+      readonly Name: F['types']['Name']
+      readonly E: F['types']['E']
+      readonly Fields: F['types']['Fields']
+      readonly Members: F['types']['Members']
+      readonly R: F['types']['R'] | R2
+      readonly Nest: F['types']['Nest']
+    }> =>
+      remake(form, options => ({ checks: { ...options.checks, ...checks } })),
+
+  /** The forms of nested keys, beside the ones the form was already given. */
+  nested:
+    <
+      F extends Remakeable,
+      const N extends NestedForms<F['types']['Fields'], F['types']['Members'], F['types']['R']>,
+    >(
+      forms: N,
+    ) =>
+    (
+      form: F,
+    ): Made<{
+      readonly Name: F['types']['Name']
+      readonly E: F['types']['E']
+      readonly Fields: F['types']['Fields']
+      readonly Members: F['types']['Members']
+      readonly R: F['types']['R']
+      readonly Nest: F['types']['Nest'] & N
+    }> =>
+      remake(form, options => ({ nested: { ...options.nested, ...forms } })),
+}
+
+export const Form = { ...Core, ...steps }
+
+makeNested = Core.make as never

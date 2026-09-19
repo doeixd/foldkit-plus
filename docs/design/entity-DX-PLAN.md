@@ -76,7 +76,7 @@ the same state into order terms from a map of columns the server chose.
   **Plan.** `authorId: 'author'` names the member. Nothing is inferred from the
   input key's own name, so it stays explicit; the long form stays too.
 
-## 8. A form's options do not pipe
+## 8. A form's options do not pipe (resolved)
 
 **Friction.** Entities pipe (`derived`, `annotate`); `Form.make` takes one bag,
 so a library cannot hand over a partly configured form.

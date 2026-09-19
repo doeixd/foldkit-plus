@@ -7,6 +7,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-form`: forms pipe. `Form.inputs`, `Form.checks`, `Form.messages`,
+  `Form.nested` and `Form.debounce` are steps that give a new form with the
+  option added to. A form now carries `name`, `options`, and `pipe`.
+
 - `foldkit-entity`: `Entity.fields(entity, ...keys)` gives field schemas to spread
   into an input's struct, and an `Entity.input` mapping may name a member by its
   key (`{ authorId: 'author' }`).

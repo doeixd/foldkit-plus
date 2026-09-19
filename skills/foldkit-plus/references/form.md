@@ -96,6 +96,9 @@ const RenameForm = Page.at(Slot, {
   then `inputs: { cents: Cents.of({ currency: 'USD' }) }` and `Cents.is(control)`.
   Draw it with `FormView.define(form, { renderers: { Cents: ctx => ... } })`; the
   same table replaces a shipped renderer.
+- **Finish a form made elsewhere:** every option is a pipe step giving a new form:
+  `AuthorForm.pipe(Form.inputs({ bio: Input.multiline() }), Form.checks({...}), Form.messages({...}))`;
+  also `Form.nested` and `Form.debounce`. Keys are checked against the piped form.
 - **Word or translate it:** put a rule's words on the rule
   (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
   option for the form's own (`required`, `unparsed`), a rewrite of Schema's

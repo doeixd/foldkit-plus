@@ -114,3 +114,22 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
     PostForm.rows(PostForm.initial, 'comments')[0]!.model.fields.body.value,
   ).toEqualTypeOf<string>()
 }
+
+{
+  const NewAuthor = Entity.input(
+    Entity.define(
+      'Writer',
+      Schema.Struct({ id: Schema.String, name: Schema.String, bio: Schema.String }),
+    ),
+    Schema.Struct({ name: Schema.String, bio: Schema.String }),
+  )
+  const isNameTaken = (_: string): Effect.Effect<string | undefined> => Effect.succeed(undefined)
+  const AuthorForm = Form.make('Author', NewAuthor) // as a library might hand it over
+
+  const Finished = AuthorForm.pipe(
+    Form.inputs({ bio: Input.multiline() }),
+    Form.checks({ name: name => isNameTaken(name) }),
+    Form.messages({ required: field => `${field.label} fehlt` }),
+  )
+  void Finished
+}
