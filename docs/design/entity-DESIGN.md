@@ -2762,7 +2762,12 @@ Input IR -> Foldkit UI control registry
 > still knows nothing of Remote. It uses core's `Validating` state, runs after
 > the schema passes, drops stale answers, and a submit waits for it.
 >
-> Not built: nested input, picker search or paging, and
+> Nested input is built: a nested form is a form, so a nested key holds rows of
+> one (exactly one, at most one, or any number), and validation, checks, fill and
+> submit recurse through the same code. Row ids are never reused, so a check's
+> late answer cannot land in another row.
+>
+> Not built: picker search or paging, and
 > `Form.from` sugar, which `Entity.input`'s self-mapping made unnecessary.
 
 Implement a Form descriptor and Foldkit Submodel.
@@ -3544,7 +3549,13 @@ The abstractions merely make conventional structure derivable.
 > ref and read back as an id), so §49's `edit: { selection }` need not be
 > written for the common case.
 >
-> Not explored: nested input (a create that embeds a new Author), and whether
+> Nested input is built as `Relation.nested(relation, input)`: the key holds the
+> target, written through an `Entity.input` of it. It composes instead of adding
+> a concept: the nested reading is an ordinary input, `selectFor` nests its
+> Selection, and a form nests its form. What a nested write does on the server
+> (insert, update, replace) stays the operation's.
+>
+> Not explored: whether
 > the result should carry per-key metadata of its own for a form to read.
 
 The hardest unresolved API is the mapping between an operation's input schema and Entity members.

@@ -96,3 +96,14 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   // { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
   void PostWithComments
 }
+
+{
+  const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
+
+  const CreatePost = Entity.input(
+    Blog.Post,
+    Schema.Struct({ title: Schema.String, author: NewAuthor.schema }),
+    { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
+  )
+  void CreatePost
+}

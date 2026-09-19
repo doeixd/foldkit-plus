@@ -227,6 +227,48 @@ const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
 
 `field` is the key, its label, and its control.
 
+## Nested input
+
+A key mapped with [`Relation.nested`](../entity/README.md#an-input-that-holds-the-target-itself)
+holds the relation's target, not an id. **A nested form is a form**: the key
+holds rows, each a Model of the form built from the nested input.
+
+```ts
+const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
+const CreatePost = Entity.input(
+  Blog.Post,
+  Schema.Struct({ title: Schema.String, comments: Schema.Array(NewComment.schema) }),
+  { comments: Relation.nested(Blog.Post.relations.comments, NewComment) },
+)
+
+const PostForm = Form.make('PostForm', CreatePost, {
+  // A nested key's form takes what any form takes.
+  nested: { comments: { inputs: { body: Input.multiline() } } },
+})
+
+PostForm.Message.RowAdded({ key: 'comments' })
+PostForm.Message.RowRemoved({ key: 'comments', row: 'r0' })
+PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of the nested form
+```
+
+| The key is | Rows |
+| --- | --- |
+| a `one` whose schema must be there | exactly one, from the start; it cannot be removed |
+| a `one` that admits `null` or `undefined` | none or one; none submits that nothing |
+| a `many` | any number, starting with none |
+
+- A row is edited with the nested form's own Messages, wrapped:
+  `Message.Nested({ key, row, message })`. A Message for a row that is gone, or
+  that is not one of the nested form, is dropped. A row's id is never reused.
+- A nested key's control is `{ _tag: 'Nested', cardinality, optional, form }`;
+  `form` is the nested form, with its own `controls`, `field`, and `rows`. Nested
+  keys are in `model.rows`, not `model.fields`.
+- A submit validates every row too and shows every failure; it waits for a check
+  running in a row as it does for its own. A rule on the list itself
+  (`Schema.isMaxLength(5)`) is a failure of the whole, in `errors`.
+- `fill` fills rows from values, and nesting goes as deep as the inputs do.
+- `messages` and `debounce` reach nested forms unless they bring their own.
+
 ## Editing existing values
 
 `fill` shows values as drafts, for an edit form. Keys you do not pass keep their
@@ -257,5 +299,6 @@ A relation is loaded as a ref and read back as the id the form holds. See
   application makes.
 - One `Changed` Message carries any draft, so a view can dispatch a draft of the
   wrong kind for a key. The form ignores it rather than storing it.
-- Flat inputs only: a key whose value is itself a struct or a list of structs
-  has no control.
+- A key whose value is a struct is editable only as a nested input of a
+  relation's target; a free-standing struct has no control. Rows keep the order
+  they were added in; there is no reordering.

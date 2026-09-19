@@ -99,16 +99,26 @@ EditForm.view(model, h, {
 | `RelationOne` | `select` of `options[key]`, with a blank | `select` |
 | `RelationMany` | a `role="group"` of checkboxes over `options[key]` | `choices`, `choice` |
 
+| `Nested` | a `fieldset` with a `legend`, a `div` per row holding the nested form's fields, and `button type="button"`s to add and remove a row | `group`, `legend`, `row`, `add`, `remove` |
+
 A number is a text input because its draft is text: `"4."` is a fine thing to
 have typed, and `type="number"` would refuse to report it.
 
 Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
 and `error`. `FormSlots` publishes `root` (the `form`), `errors` (failures that
-belong to no one field), and `submit`.
+belong to no one field), `submit`, and the five slots of a nested key.
+
+A nested row's fields are drawn through the same field view, so a styled `field`
+styles them too. A row that must be there has no remove button, and a `one`
+loses its add button once it has its row. View inputs for nested keys:
+`nestedOptions` names a picker inside a row by path (`'author.countryId'`, the
+same for every row), and `addLabel` / `removeLabel` word the buttons (defaults
+`Add <label>`, `Remove <label> <position>`).
 
 ### Accessibility
 
-Each control has an `id` of `<form name>-<key>` and a `label for` it. It carries
+Each control has an `id` of `<form name>-<key>` (in a row,
+`<form name>-<key>-<row id>-<key>`) and a `label for` it. It carries
 `aria-busy` while a check runs, `aria-invalid`, `aria-required` when the key is required, and `aria-describedby`
 naming its description and, while invalid, its error. An error is `role="alert"`.
 The submit button is disabled until the form would submit.

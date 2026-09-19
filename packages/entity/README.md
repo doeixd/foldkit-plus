@@ -211,6 +211,28 @@ CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 - A derived member cannot be written, and a member of another Entity cannot be
   mapped. Both are type errors and throw.
 
+### An input that holds the target itself
+
+A post created together with a new author carries the author, not an id.
+`Relation.nested` maps the key to the relation and to an input of its target:
+
+```ts
+const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
+
+const CreatePost = Entity.input(
+  Blog.Post,
+  Schema.Struct({ title: Schema.String, author: NewAuthor.schema }),
+  { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
+)
+```
+
+A `one` holds the nested input's value, a `many` a list of them; the nested
+input must be of the relation's target, and both are checked by type and at
+runtime. `Entity.selectFor` then loads what the nested input writes of the
+target, and `Entity.valuesFor` turns the loaded target back into nested values.
+What a nested write *does* (insert, update, replace the list) is the
+operation's handler to decide.
+
 ### Showing what is there
 
 An edit screen has to load the current values and turn them into input values.
@@ -267,6 +289,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a `Page`: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
+| `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
 | `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |
 | `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |

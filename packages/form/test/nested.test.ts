@@ -35,6 +35,8 @@ const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
   comments: Relation.nested(Blog.Post.relations.comments, NewComment),
 })
 
+const Loaded = Entity.selectFor(CreatePost)
+
 // Names are taken outside the form; the nested form asks.
 const PostForm = Form.make('PostForm', CreatePost, {
   debounce: 0,
@@ -212,6 +214,22 @@ describe('a form with nested keys', () => {
       4,
     )
     expect(PostForm.fill(filled, { editor: null }).model.rows.editor).toEqual([])
+  })
+
+  it('shows what Entity.selectFor loads, and submits it back unchanged', async () => {
+    // What an edit screen does: load the input's Selection, turn it into values, fill.
+    const loaded: typeof Loaded.schema.Type = {
+      title: 'Hello',
+      author: { name: 'Ada' },
+      editor: null,
+      comments: [{ body: 'First' }],
+    }
+    const filled = PostForm.fill(PostForm.initial, Entity.valuesFor(CreatePost, loaded)).model
+
+    expect((await settle(filled, Message.Submitted())).out).toEqual({
+      _tag: 'Submitted',
+      value: loaded,
+    })
   })
 
   it('decodes and encodes its Model, rows and all', () => {

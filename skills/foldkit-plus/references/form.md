@@ -137,6 +137,37 @@ choices (`{ value, label }`); loading them is the application's query.
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
 those throws a two-owners conflict at render.
 
+## Nested input
+
+A key mapped with `Relation.nested(relation, input)` holds rows of a form built
+from the nested input: exactly one (a required `one`), none or one (a `one`
+admitting `null`/`undefined`), or any number (a `many`).
+
+```ts
+const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
+const CreatePost = Entity.input(
+  Blog.Post,
+  Schema.Struct({ title: Schema.String, comments: Schema.Array(NewComment.schema) }),
+  { comments: Relation.nested(Blog.Post.relations.comments, NewComment) },
+)
+
+const PostForm = Form.make('PostForm', CreatePost, {
+  // A nested key's form takes what any form takes.
+  nested: { comments: { inputs: { body: Input.multiline() } } },
+})
+
+PostForm.Message.RowAdded({ key: 'comments' })
+PostForm.Message.RowRemoved({ key: 'comments', row: 'r0' })
+PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of the nested form
+```
+
+- Rows live in `model.rows[key]`, not `model.fields`. Edit one with
+  `Message.Nested({ key, row, message })`, `message` being a Message of the
+  control's `form`.
+- Submit validates and waits for checks in every row; the value carries the
+  nested values. `fill` fills rows. `foldkit-mixins-form` draws rows with add and
+  remove buttons; pickers inside rows take `nestedOptions: { 'key.childKey': [...] }`.
+
 ## Gotchas
 
 - A key is validated against **the input's schema for that key**, not the
@@ -148,7 +179,7 @@ those throws a two-owners conflict at render.
 - `onOut` is required when placing; omitting it is a type error.
 - A `Changed` with a draft of the wrong kind for the key (a string for a toggle)
   is ignored, not stored.
-- Flat inputs only.
+- A struct-valued key is editable only as a nested input (`Relation.nested`).
 
 ## See also
 

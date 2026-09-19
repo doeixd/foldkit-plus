@@ -1,7 +1,7 @@
 // The README's snippets, compiled. Keep the two in step.
 import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Entity } from 'foldkit-entity'
+import { Entity, Relation } from 'foldkit-entity'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { expectTypeOf } from 'vitest'
@@ -79,4 +79,36 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
     debounce: '300 millis',
   })
   void PostForm
+}
+
+{
+  const Comment = Entity.define(
+    'Comment',
+    Schema.Struct({ id: Schema.String, body: Schema.String }),
+  )
+  const Blog = Entity.relate(
+    {
+      Comment,
+      Post: Entity.define('BlogPost', Schema.Struct({ id: Schema.String, title: Schema.String })),
+    },
+    { Post: { comments: Relation.many(Comment) } },
+  )
+  const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
+  const CreatePost = Entity.input(
+    Blog.Post,
+    Schema.Struct({ title: Schema.String, comments: Schema.Array(NewComment.schema) }),
+    { comments: Relation.nested(Blog.Post.relations.comments, NewComment) },
+  )
+
+  const PostForm = Form.make('PostForm', CreatePost, {
+    // A nested key's form takes what any form takes.
+    nested: { comments: { inputs: { body: Input.multiline() } } },
+  })
+
+  PostForm.Message.RowAdded({ key: 'comments' })
+  PostForm.Message.RowRemoved({ key: 'comments', row: 'r0' })
+  PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of the nested form
+  expectTypeOf(
+    PostForm.rows(PostForm.initial, 'comments')[0]!.model.fields.body.value,
+  ).toEqualTypeOf<string>()
 }

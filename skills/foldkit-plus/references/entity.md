@@ -124,6 +124,19 @@ const PostWithComments = Entity.select(Blog.Post, {
 // { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
 ```
 
+**An input that embeds the target** (a post with a new author): map the key with
+`Relation.nested`. `selectFor` and `valuesFor` follow it.
+
+```ts
+const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
+
+const CreatePost = Entity.input(
+  Blog.Post,
+  Schema.Struct({ title: Schema.String, author: NewAuthor.schema }),
+  { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
+)
+```
+
 **Load and prefill an edit.** Both follow from the reading: `Entity.selectFor(input)`
 is the Selection of the members the input writes (relations as refs), and
 `Entity.valuesFor(input, value)` turns a value read through it into input values

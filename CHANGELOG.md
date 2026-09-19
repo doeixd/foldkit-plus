@@ -20,11 +20,14 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   point at each other type-check), `Entity.select` with an assembled schema, `Entity.page` for a `many` relation
   read a page at a time,
   `Entity.annotate` / `annotateMembers`, and, experimental, `Entity.input` with
-  `selectFor` and `valuesFor`.
+  `selectFor` and `valuesFor`, and `Relation.nested` for an input key that holds
+  the relation's target itself.
 - **`foldkit-form` 0.1.0.** A headless form as a Bundle over core
   `fieldValidation`, built from an `Entity.input`, with its words supplied or
   translated through `messages`, and rules only something outside can answer as
   `checks`: debounced, stale answers dropped, and a submit that waits for them.
+  A key mapped with `Relation.nested` holds rows of a nested form, which
+  `foldkit-mixins-form` draws with add and remove buttons.
 - **`foldkit-mixins-form` 0.1.0.** Draws a `foldkit-form` form as accessible
   HTML with every element a Mixins Slot.
 - **`foldkit-admin` 0.1.0.** `Admin.editor`: a form, the Remote mutation its
