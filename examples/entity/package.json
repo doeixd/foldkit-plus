@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "drizzle-orm": "1.0.0-rc.4",
+    "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",

@@ -119,6 +119,20 @@ describe('Form.make controls', () => {
     expect(Quick.controls[0]?.control).toEqual({ _tag: 'Multiline' })
   })
 
+  it('carries a hidden key as text and reads any key through `field`', () => {
+    const Edit = Form.make('Edit', Entity.input(Cms, Schema.Struct({ id: Schema.String })), {
+      inputs: { id: Input.hidden() },
+    })
+    const { model } = Edit.bundle.helpers!.fill(Edit.bundle.init(undefined).model, { id: 'p1' })
+
+    expect(Edit.controls[0]?.control).toEqual({ _tag: 'Hidden' })
+    expect(Edit.field(model, 'id')).toEqual({ _tag: 'NotValidated', value: 'p1' })
+    expect(Edit.bundle.update(model, Edit.Message.Submitted(), undefined).outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { id: 'p1' },
+    })
+  })
+
   it.each([
     [
       'a key whose schema suggests no control',

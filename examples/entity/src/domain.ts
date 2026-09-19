@@ -13,7 +13,7 @@ const Post = Entity.define(
   'Post',
   Schema.Struct({
     id: Schema.String,
-    title: Schema.String.check(Schema.isMinLength(1)),
+    title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
     published: Schema.Boolean,
   }),
 ).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
@@ -47,3 +47,17 @@ export const AuthorPage = Entity.select(Blog.Author, {
   name: true,
   posts: Entity.select(Blog.Post, { title: true, commentCount: true }),
 })
+
+/**
+ * What editing a post may change. The operation decides that, not the Entity:
+ * a post's id and comment count exist and are not editable here.
+ */
+export const EditPostInput = Schema.Struct({
+  id: Schema.String,
+  title: Blog.Post.fields.title.schema,
+  published: Schema.Boolean.annotate({ title: 'Published' }),
+  editorId: Schema.NullOr(Schema.String),
+})
+
+/** What the edit form shows to begin with: the editor as a ref, since the form holds its id. */
+export const PostEdit = Entity.select(Blog.Post, { title: true, published: true, editor: true })

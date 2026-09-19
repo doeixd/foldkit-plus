@@ -69,7 +69,7 @@ const RenameForm = Page.at(Slot, {
   `Blurred({ key })`, `Submitted()`, `Reset()`, wrapped in the placement's
   Message (`Message.GotRenameMessage({ message })`).
 - **Draw it:** `Rename.controls` is the keys in order, each with `control`
-  (`Text`, `Multiline`, `Number`, `Toggle`, `Select` with `options`,
+  (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options`,
   `RelationOne` / `RelationMany` with `target`), `label`, `description`,
   `required`, and the Entity `member`. Read a key's state from
   `model.rename.fields[key]` with `foldkit/fieldValidation` (`match`,
@@ -80,6 +80,10 @@ const RenameForm = Page.at(Slot, {
   schema's shape. No match throws at `Form.make`, naming the key.
 - **Label:** `Schema.String.annotate({ title, description })` on the input key or
   the Entity field. A relation takes `Form.label('Author')` as Entity metadata.
+- **Carry a key without showing it** (the id being edited):
+  `inputs: { id: Input.hidden() }`, then set it with `fill`.
+- **Read any key's state while walking `controls`:** `Rename.field(model.rename, key)`
+  gives `Field<Draft>`; `model.rename.fields.title` is the same value typed to its key.
 - **Edit existing values:** `RenameForm.helpers.fill({ id, title })` is an
   `Update.Step` of the parent; keys not passed keep their draft.
 - **Enable the button:** `Rename.canSubmit(model.rename)`.

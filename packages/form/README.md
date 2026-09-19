@@ -92,6 +92,9 @@ const RenameForm = Page.at(Slot, {
   `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`.
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
+- `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for
+  a view that walks `controls`; `model.rename.fields.title` is the same value
+  typed to its key.
 
 ## Controls
 
@@ -100,6 +103,7 @@ A control is data: the kind of editing, with nothing about how it is drawn.
 | Control | Draft | Chosen when |
 | --- | --- | --- |
 | `Text`, `Multiline` | `string` | the schema is a string (`Multiline` only when asked for) |
+| `Hidden` | `string` | only when asked for: a key the form carries and does not show, such as the id being edited |
 | `Number` | `string` | the schema is a number |
 | `Toggle` | `boolean` | the schema is a boolean |
 | `Select` | `string` | the schema is a union of string literals; carries `options` |

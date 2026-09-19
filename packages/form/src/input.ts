@@ -11,6 +11,8 @@ import { Metadata } from 'foldkit-metadata'
 
 export type Control =
   | { readonly _tag: 'Text' }
+  /** Carried and submitted, not shown: the id of the thing being edited. Set it with `fill`. */
+  | { readonly _tag: 'Hidden' }
   | { readonly _tag: 'Multiline' }
   | { readonly _tag: 'Number' }
   | { readonly _tag: 'Toggle' }
@@ -64,6 +66,7 @@ const fromSchema = (schema: Schema.Top): Control | undefined => {
 
 export const Input = {
   text: (): Control => ({ _tag: 'Text' }),
+  hidden: (): Control => ({ _tag: 'Hidden' }),
   multiline: (): Control => ({ _tag: 'Multiline' }),
   number: (): Control => ({ _tag: 'Number' }),
   toggle: (): Control => ({ _tag: 'Toggle' }),

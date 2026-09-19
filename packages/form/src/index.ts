@@ -317,6 +317,11 @@ export const Form = {
         const { control, label, description, required, member } = plans[key]
         return { key, control, label, description, required, member }
       }),
+      /**
+       * One key's state with its draft as any `Draft`, for a view that walks
+       * `controls`. `model.fields.title` is the same value, typed to that key.
+       */
+      field: (model: Model, key: Key): FieldValidation.Field<Draft> => drafts(model)[key],
       /** Whether a submit now would produce a value. It validates nothing in the Model. */
       canSubmit: (model: Model): boolean => submit(model).value !== undefined,
     }

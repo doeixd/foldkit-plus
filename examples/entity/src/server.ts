@@ -4,11 +4,14 @@
  * is said here.
  */
 import { DatabaseSync } from 'node:sqlite'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { bind, databaseLayer, source } from 'foldkit-remote-drizzle'
+import { Effect } from 'effect'
+import { bind, databaseLayer, returning, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog } from './domain.js'
+import { EditPostMutation } from './operations.js'
 
 const authors = sqliteTable('authors', {
   id: text('id').primaryKey(),
@@ -51,12 +54,12 @@ export const Db = bind(Blog, {
   },
 })
 
-export const Server = RemoteServer.make({
-  entities: [source(Db.Author), source(Db.Post), source(Db.Comment)],
-})
-
-/** An in-memory database with a little data, and the layer the sources read it through. */
-export const openDatabase = () => {
+/**
+ * An in-memory database with a little data, the server over it, and the layer
+ * its sources read it through. A mutation is ordinary Drizzle: the binding only
+ * pairs the columns it returns with the patches the client's store takes.
+ */
+export const openServer = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     create table authors (id text primary key, name text not null);
@@ -66,5 +69,28 @@ export const openDatabase = () => {
     insert into posts values ('p1', 'Notes on the Engine', 1, 'a1', null), ('p2', 'Compilers', 0, 'a1', 'a2');
     insert into comments values ('c1', 'Remarkable.', 'p1', 'a2', '2026-01-01'), ('c2', 'Thank you.', 'p1', 'a1', '2026-01-02');
   `)
-  return { close: () => sqlite.close(), layer: databaseLayer(drizzle({ client: sqlite })) }
+  const db = drizzle({ client: sqlite })
+
+  const edited = returning(Db.Post, ['id', 'title', 'published', 'editor'])
+  const EditPost = RemoteServer.mutation(EditPostMutation, ({ input }) =>
+    Effect.promise(async () => {
+      const rows = await db
+        .update(posts)
+        .set({ headline: input.title, published: input.published, editorId: input.editorId })
+        .where(eq(posts.id, input.id))
+        .returning(edited.columns)
+      return { output: { id: input.id }, entities: edited.patches(rows) }
+    }),
+  )
+
+  return {
+    server: RemoteServer.make({
+      entities: [source(Db.Author), source(Db.Post), source(Db.Comment)],
+      mutations: [EditPost],
+    }),
+    layer: databaseLayer(db),
+    /** The row as the database holds it, to check a write against. */
+    row: (id: string) => sqlite.prepare('select * from posts where id = ?').get(id),
+    close: () => sqlite.close(),
+  }
 }

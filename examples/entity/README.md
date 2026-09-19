@@ -1,26 +1,30 @@
 # `foldkit-entity` example
 
-One domain declaration, read from both ends:
+One domain declaration, read from both ends and written back through a form:
 
 ```text
                     domain.ts
-        Entities · relations · Selections
+   Entities · relations · Selections · EditPostInput
         (imports neither Remote nor Drizzle)
               |                     |
               v                     v
-          demo.ts               server.ts
+   demo.ts + editForm.ts        server.ts
    Remote.make({ entities })        bind(Blog, { tables })
    Data.get(PostPage, id)           Drizzle sources, RemoteServer
+   Form.make(Entity.input(…))       RemoteServer.mutation(EditPost)
               |                     |
               +---- in process -----+
-   plan -> read -> SQL -> refs -> store -> decoded value
+   read:  plan -> read -> SQL -> refs -> store -> decoded value
+   write: keystroke -> form -> mutation -> SQL row -> patches -> store
 ```
 
 The point is what each file is allowed to know. `domain.ts` says a Post has one
-Author and many Comments, and nothing about refs, tables, or foreign keys. The
-client learns that relations arrive as refs. The server learns that `author` is
-the `author_id` column and `title` is stored as `headline`. Neither repeats what
-the domain already said, so neither can disagree with it.
+Author and many Comments, and that editing a post may change its title, whether
+it is published, and its editor. It says nothing about refs, tables, foreign
+keys, or controls. The client learns that relations arrive as refs and that
+`editorId` is edited with a picker. The server learns that `author` is the
+`author_id` column and `title` is stored as `headline`. Neither repeats what the
+domain already said, so neither can disagree with it.
 
 ## Run it
 
@@ -33,6 +37,8 @@ pnpm --filter foldkit-example-entity demo
 It seeds an in-memory `node:sqlite` database, so there is no service to start.
 
 ## What the trace shows
+
+### Reading
 
 ```text
 plan: Post:p1 [title,published,commentCount,author,editor,comments]
@@ -57,21 +63,57 @@ author: Ready {"name":"Ada","posts":[…]}
   the post's author, so the normalized store already holds it and only `posts`
   is planned.
 
+### Editing
+
+```text
+form controls: Title:Text*, Published:Toggle, Editor:RelationOne
+row before: {"id":"p2","headline":"Compilers","published":0,"author_id":"a1","editor_id":"a2"}
+filled: Title="Compilers", Published=false, Editor="a2"
+invalid submit: Title="" (Required), Published=false ok, Editor="a2" ok
+valid submit:
+  command Remote.mutate(EditPost): MutationSucceeded
+row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":null}
+edited: Ready {"title":"Compilers, revised","published":true,"editor":null}
+author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
+```
+
+- **`form controls`** is what `Form.make` resolved from the input and the Entity,
+  with nothing said about controls except that `id` is hidden. `Title` is
+  required because its schema admits no empty value; `Editor` is a picker
+  because `editorId` is mapped to the `editor` relation, and its label is Entity
+  metadata since a relation has no schema to annotate.
+- **`filled`** is an edit form starting from the loaded value. The editor arrives
+  as a ref and the form holds its id.
+- **`invalid submit`** goes nowhere: the form emits no out Message while a key
+  fails the input's schema, so no mutation starts.
+- **`valid submit`** is the page's `onOut` turning the decoded `EditPostInput`
+  into `Data.mutate`. The form knows nothing of Remote. An empty editor draft
+  submitted `null`, because the input admits it.
+- **`row after`** is the database itself: `headline`, `published`, and
+  `editor_id` changed by an ordinary Drizzle `update`.
+- **`edited`** and **`author again`** moved without a refetch. The mutation
+  returned patches for the columns it wrote, and both Projections read the one
+  normalized post.
+
 ## What to read
 
 | File | Read it for |
 | --- | --- |
-| [`src/domain.ts`](./src/domain.ts) | `Entity.define`, `Entity.relate` (a cycle: Post, Comment, Author), `Entity.derived`, and reusable `Entity.select` views |
-| [`src/server.ts`](./src/server.ts) | `bind`: tables, a renamed column, the three kinds of relation storage, a derived count |
-| [`src/demo.ts`](./src/demo.ts) | An ordinary Remote application and Surface over the domain's Entities and Selections |
+| [`src/domain.ts`](./src/domain.ts) | `Entity.define`, `Entity.relate` (a cycle: Post, Comment, Author), `Entity.derived`, reusable `Entity.select` views, and the operation's input struct |
+| [`src/operations.ts`](./src/operations.ts) | The mutation both sides share, over the domain's input |
+| [`src/editForm.ts`](./src/editForm.ts) | `Entity.input` and `Form.make`: a relation key, a relation's label, a hidden id |
+| [`src/server.ts`](./src/server.ts) | `bind`: tables, a renamed column, the kinds of relation storage, a derived count; a mutation as plain Drizzle with `returning` |
+| [`src/demo.ts`](./src/demo.ts) | A Remote application with the form placed as a Bundle, and `onOut` as the seam between them |
 
 `Remote.make` and `Data.get` take the domain's Entities and Selections as they
 are, so the client imports nothing of Remote's own `Entity` or `Selection`.
 
 ## What it leaves out
 
-Queries, mutations, live updates, and pagination work on these descriptors as
-they do on any other, and are covered by the [`remote`](../remote) example and
-the [`foldkit-remote-drizzle`](../../packages/remote-drizzle) README. A paginated
+There is no view: the trace reads the form's state the way a view would, through
+`controls` and `field`. Queries, live updates, and pagination work on these
+descriptors as they do on any other, and are covered by the
+[`remote`](../remote) example and the
+[`foldkit-remote-drizzle`](../../packages/remote-drizzle) README. A paginated
 relation is still written as a Remote `Selection.connection`, since an Entity
 Selection has no windows.

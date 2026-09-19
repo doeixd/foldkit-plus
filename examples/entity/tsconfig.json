@@ -8,7 +8,9 @@
     "noEmit": false,
     "types": ["node"],
     "paths": {
+      "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
@@ -23,6 +25,8 @@
     { "path": "../../packages/surface/tsconfig.build.json" },
     { "path": "../../packages/remote/tsconfig.build.json" },
     { "path": "../../packages/remote-server/tsconfig.build.json" },
-    { "path": "../../packages/remote-drizzle/tsconfig.build.json" }
+    { "path": "../../packages/remote-drizzle/tsconfig.build.json" },
+    { "path": "../../packages/bundle/tsconfig.build.json" },
+    { "path": "../../packages/form/tsconfig.build.json" }
   ]
 }
