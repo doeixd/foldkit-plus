@@ -1,0 +1,59 @@
+{
+  "name": "foldkit-form",
+  "version": "0.1.0",
+  "description": "Forms for Foldkit: a Bundle over core field validation, built from an operation's input and the Entity it writes.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "form",
+    "validation",
+    "schema",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/form"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/form#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-metadata": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

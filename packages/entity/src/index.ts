@@ -271,8 +271,12 @@ type RelationIds<R> =
         : string
     : never
 
-/** Optional input keys (a partial update) still map; only the present value has to fit. */
-type Present<T> = Exclude<T, undefined>
+/**
+ * Only the value that is present has to fit: an input may leave a key out (a
+ * partial update) or send `null` to clear it. Whether it may is the input
+ * schema's rule; the fit only guards against mapping the wrong member.
+ */
+type Present<T> = Exclude<T, null | undefined>
 
 type MappingFor<Name extends string, Input, M> = M extends Unmapped
   ? M

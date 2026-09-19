@@ -2661,7 +2661,8 @@ It may not invent semantic Relations.
 >   the same two values through Entity metadata.
 > - **No `foldkit-entity-ui` package.** What is left after labels is a control
 >   preference, and only a form reads it, so the `Input` key belongs to
->   `foldkit-form` (the interpreter owns its key, §5). `Display` waits for the
+>   `foldkit-form` (the interpreter owns its key, §5), where it is now built
+>   as `Input.of(control)` with the resolver `Input.resolve`. `Display` waits for the
 >   package that renders tables; nothing consumes it yet.
 > - **The resolver order in §20 stands**, with Schema annotations as step 2's
 >   source for anything Schema can already say.
@@ -2703,7 +2704,10 @@ Input IR -> Foldkit UI control registry
 
 # 57. PR 7 — `foldkit-form`
 
-> **Decided, not built.**
+> **Status:** built headless as [`packages/form`](../../packages/form/README.md):
+> `Form.make(name, Entity.input(...), { inputs? })` returns the Bundle, its
+> Message constructors, `controls` (key, control, label, required, member), and
+> `canSubmit`. The decisions it was built on:
 >
 > - **A form is built from a `Schema.Struct` and an `Entity.input` reading of
 >   it (§72), not from a Remote mutation.** A Foldkit form's result is a
@@ -2720,6 +2724,24 @@ Input IR -> Foldkit UI control registry
 >   a relation.
 > - **It is a `foldkit-bundle` Bundle**, since a form is a Submodel placed once
 >   or per key, with `Submitted { value }` as its out Message.
+>
+> What building it settled:
+>
+> - **A key is validated against the input's schema for that key, not the
+>   Entity's.** The operation decides validity and may be stricter (§26).
+> - **`required` is derived, not declared.** An empty draft submits whatever the
+>   schema admits for it (the key left out, `null`, the empty value), and a key
+>   is required exactly when none is admitted.
+> - **`Entity.input`'s fit check ignores `null`** as well as `undefined`: an
+>   input sends `null` to clear a key whether or not the member admits it, and
+>   the first real form needed that.
+> - **No submitting state.** The operation's status belongs to whoever runs it.
+> - **Touched/dirty are not tracked separately.** `NotValidated` versus the
+>   other states is the touched distinction core already makes.
+>
+> Not built: a view, relation picker data (§29), async validation, nested
+> input, and `Form.from` sugar, which `Entity.input`'s self-mapping made
+> unnecessary.
 
 Implement a Form descriptor and Foldkit Submodel.
 

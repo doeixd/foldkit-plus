@@ -55,10 +55,12 @@ Entity.input(Post, input, {
   // @ts-expect-error "slug" is not a key of the input
   slug: Entity.unmapped,
 })
-Entity.input(Post, Schema.Struct({ authorId: Schema.NullOr(Schema.String) }), {
-  // @ts-expect-error a required one does not take null
-  authorId: Relation.input(Post.relations.author),
-})
+// `null` clears a key, whether or not the member admits it: that is the input schema's rule.
+Entity.input(
+  Post,
+  Schema.Struct({ title: Schema.NullOr(Schema.String), authorId: Schema.NullOr(Schema.String) }),
+  { authorId: Relation.input(Post.relations.author) },
+)
 // @ts-expect-error `published` names a field, but a string does not fit it
 Entity.input(Post, Schema.Struct({ published: Schema.String }))
 

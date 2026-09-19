@@ -7,8 +7,9 @@ packages interpret that declaration; this one only describes.
 > **Status:** declaration and selection. `foldkit-remote`
 > [registers Entities and reads Selections as they are](../remote/README.md#entities-declared-with-foldkit-entity).
 > `foldkit-remote-drizzle` binds a related set to tables with
-> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain). Forms
-> and admin are planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
+> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain), and
+> [`foldkit-form`](../form/README.md) builds a form from `Entity.input`. Admin
+> is planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
 
 For the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).
@@ -151,8 +152,8 @@ Entity are type errors, and `Entity.select` throws for untyped callers.
 
 ## Reading an operation's input
 
-> Experimental: the smallest mapping that several operation shapes needed. It
-> will move once a form package uses it.
+> Experimental: the smallest mapping that several operation shapes and
+> [`foldkit-form`](../form/README.md) needed.
 
 An Entity does not decide what may be written; an operation does (a Remote
 mutation, an RPC, a form). `Entity.input` takes that operation's input schema
@@ -176,8 +177,9 @@ CreatePost.members.authorId.relation.target() // Blog.Author: what a picker choo
 CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 ```
 
-- A key that names a field, with a value that fits it, maps itself. An optional
-  key (a partial update) fits when its present value does.
+- A key that names a field, with a value that fits it, maps itself. Only the
+  present value has to fit: a key may be optional (a partial update) or admit
+  `null` (clearing it), which is the input schema's rule to make.
 - Every other key needs an entry: a Field under another name, a relation's ids
   with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
   from a name like `authorId`.
