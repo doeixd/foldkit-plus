@@ -147,7 +147,7 @@ describe('FormView markup', () => {
       Edit.Message.Changed({ key: 'status', value: 'draft' }),
     )
     const saved = FormView.define(Edit)(
-      { model: ready, errors: [], canSubmit: Edit.canSubmit(ready), submitLabel: 'Save' },
+      { model: ready, errors: [], canSubmit: Edit.canSubmit(ready), words: { submit: 'Save' } },
       SlotView.inertBuilder(),
     ) as unknown as Node
     expect(button(saved)?.data?.props?.disabled).toBe(false)

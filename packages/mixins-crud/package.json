@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "foldkit-crud": "workspace:*",
+    "foldkit-form": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-remote": "workspace:*"
   },

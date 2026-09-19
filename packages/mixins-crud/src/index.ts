@@ -9,6 +9,7 @@
  * as inputs.
  */
 import { Display, type DisplayColumn, type DisplayWords } from 'foldkit-crud'
+import { fillWords } from 'foldkit-form'
 
 type AnyDisplay = DisplayColumn['display']
 import { Attr, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
@@ -19,8 +20,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 export interface ViewWords extends DisplayWords {
   /** While the first answer is awaited. Default `Loading…`. */
   readonly loading?: string
-  /** When the read failed. Default the error's message. */
-  readonly failed?: (error: RemoteError) => string
+  /** When the read failed. `{message}` is the error's. Default `{message}`. */
+  readonly failed?: string
   /** A list with no rows, or a detail of something that is gone. Default `Nothing here.` */
   readonly empty?: string
   /** On the button that loads the next page. Default `More`. */
@@ -113,7 +114,7 @@ const shown = <Key extends string>(
 ): ReadonlyArray<DisplayColumn<Key>> => columns.filter(column => column.display.shown)
 
 const failedWords = (words: ViewWords | undefined, error: RemoteError): string =>
-  words?.failed?.(error) ?? error.message
+  fillWords(words?.failed ?? '{message}', { message: error.message })
 
 const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descending' | 'none' =>
   direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'

@@ -99,6 +99,11 @@ const RenameForm = Page.at(Slot, {
 - **Finish a form made elsewhere:** every option is a pipe step giving a new form:
   `AuthorForm.pipe(Form.inputs({ bio: Input.multiline() }), Form.checks({...}), Form.messages({...}))`;
   also `Form.nested` and `Form.debounce`. Keys are checked against the piped form.
+- **One bag of words:** a form's `messages`, the drawn form's `words`, and the
+  drawn list's `words` are text with blanks (`'{label} is required'`,
+  `'Add {label}'`) and share no key, so `const words = {...} satisfies FormMessages & FormViewWords & ViewWords`
+  serves all three. Never put a function in a placed view's inputs below the top
+  level: Foldkit throws.
 - **Word or translate it:** put a rule's words on the rule
   (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
   option for the form's own (`required`, `unparsed`), a rewrite of Schema's
@@ -140,7 +145,7 @@ const View = FormView.define(Rename, { field: Field }).pipe(
 const Drawn = Rename.bundle.pipe(Bundle.withView(FormView.submodel(Rename, View)))
 ```
 
-Render the placement with `placed.view(model, h, { options, submitLabel })`.
+Render the placement with `placed.view(model, h, { options, words: { submit: 'Save' } })`.
 `options` is keyed by the form's keys and supplies each relation picker's
 choices (`{ value, label }`); loading them is the application's query.
 `FormView.define(Rename)` alone is a complete unstyled form. `FieldSlots`: `root`,

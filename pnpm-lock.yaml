@@ -699,6 +699,9 @@ importers:
       foldkit-crud:
         specifier: workspace:*
         version: link:../crud
+      foldkit-form:
+        specifier: workspace:*
+        version: link:../form
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins

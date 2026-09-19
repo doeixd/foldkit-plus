@@ -6,6 +6,7 @@
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Blog, EditPostInput } from './domain.js'
+import { words } from './words.js'
 
 // A relation has no schema to annotate, so its label is Entity metadata.
 const Post = Blog.Post.pipe(Entity.annotateMembers({ editor: Form.label('Editor') }))
@@ -18,5 +19,5 @@ export const EditPostForm = Form.make(
   // The id says which post is edited. The form carries it; nobody types it.
   // Authors are too many to list, so the editor's picker searches: the form holds
   // what was typed, and the author list takes it as its query's input.
-  { inputs: { id: Input.hidden(), editorId: Input.search() } },
+  { inputs: { id: Input.hidden(), editorId: Input.search() }, messages: words },
 )

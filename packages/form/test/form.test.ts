@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
-import { Form, Input } from '../src/index.js'
+import { Form, Input, fillWords } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -463,5 +463,40 @@ describe('a kind of control an application makes', () => {
     })
     const sent = Priced.bundle.update(typed('12.50').model, Priced.Message.Submitted(), undefined)
     expect(sent.outMessage).toEqual({ _tag: 'Submitted', value: { cents: 1250 } })
+  })
+})
+
+describe('words as text', () => {
+  const Rated = Schema.Struct({
+    title: Schema.String.check(Schema.isMinLength(3, { message: 'too short' })),
+    rating: Schema.Number,
+  })
+  const Worded = Form.make('Worded', Entity.input(Cms, Rated, { rating: Entity.unmapped }), {
+    // Text with blanks, as a translation catalogue holds it; a function still works.
+    messages: {
+      required: '{label} fehlt',
+      unparsed: '{label}: bitte eine Zahl',
+      invalid: field => `${field.key}!`,
+    },
+  })
+  const errorsAfter = (key: 'title' | 'rating', value: string) => {
+    const changed = Worded.bundle.update(
+      Worded.initial,
+      Worded.Message.Changed({ key, value }),
+      undefined,
+    ).model
+    const blurred = Worded.bundle.update(changed, Worded.Message.Blurred({ key }), undefined)
+    return (blurred.model.fields[key] as { readonly errors?: ReadonlyArray<string> }).errors
+  }
+
+  it('fills the blanks of words given as text', () => {
+    expect(errorsAfter('title', '')).toEqual(['Title fehlt'])
+    expect(errorsAfter('rating', 'five')).toEqual(['rating: bitte eine Zahl'])
+    expect(errorsAfter('title', 'ab')).toEqual(['title!'])
+  })
+
+  it('leaves a blank it has no value for as it is written', () => {
+    expect(fillWords('{label} / {nope}', { label: 'Title' })).toBe('Title / {nope}')
+    expect(fillWords('{constructor}', {})).toBe('{constructor}')
   })
 })

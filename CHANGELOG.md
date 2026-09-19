@@ -7,6 +7,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **Words are text. Breaking.** `FormMessages` entries may be text with blanks
+  (`'{label} is required'`). `foldkit-mixins-form` takes `words: { submit, search, add, remove }`
+  in place of `submitLabel`, `searchLabel`, `addLabel` and `removeLabel`, and
+  `foldkit-mixins-crud`'s `failed` is text (`'{message}'`); both were functions in
+  places, which Foldkit refuses inside a placed view's inputs. The three shapes
+  share no key, so one object serves all. `fillWords` is exported by `foldkit-form`.
+  New dependency of `foldkit-mixins-crud`: `foldkit-form`.
+
 - `foldkit-form`: forms pipe. `Form.inputs`, `Form.checks`, `Form.messages`,
   `Form.nested` and `Form.debounce` are steps that give a new form with the
   option added to. A form now carries `name`, `options`, and `pipe`.

@@ -39,7 +39,7 @@ expectTypeOf(Drawn.view).toExtend<
 
 const inputs: FormViewInputs<Key> = {
   options: { editorId: [{ value: 'a1', label: 'Ada' }] },
-  submitLabel: 'Save',
+  words: { submit: 'Save' },
 }
 void inputs
 // @ts-expect-error options are keyed by the form's keys

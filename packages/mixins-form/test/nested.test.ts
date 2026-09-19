@@ -111,7 +111,7 @@ it('draws rows, adds and removes them, and submits what they hold', async () => 
             [
               CreateForm.view(model, h, {
                 nestedOptions: { 'author.countryId': [{ value: 'c1', label: 'Chile' }] },
-                addLabel: label => `Another of ${label}`,
+                words: { add: 'Another of {label}' },
               }),
             ],
           ),

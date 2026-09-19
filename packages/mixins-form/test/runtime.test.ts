@@ -70,7 +70,7 @@ it('types, picks, and submits through the DOM, and hands the parent the decoded 
           return next
         },
         view: (model: Model, h: HtmlBuilder<Message>) =>
-          h.main([], [EditForm.view(model, h, { options, submitLabel: 'Save' })]),
+          h.main([], [EditForm.view(model, h, { options, words: { submit: 'Save' } })]),
         subscriptions: placements.subscriptions(),
       }),
     ),

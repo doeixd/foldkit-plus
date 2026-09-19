@@ -123,15 +123,29 @@ export interface MessageField<Key extends string = string> {
  * rewrite what Schema says by default.
  */
 export interface FormMessages<Key extends string = string> {
-  /** An empty draft the schema does not admit. Default `Required`. */
-  readonly required?: (field: MessageField<Key>) => string
-  /** Text its control cannot read: a `Number` that is not one. Default: the kind's own words (`Enter a number`). */
-  readonly unparsed?: (field: MessageField<Key>) => string
-  /** A draft the key's schema rejects. `message` is the check's own, or Schema's. Default: `message`. */
-  readonly invalid?: (field: MessageField<Key>, message: string) => string
-  /** A failure of the input as a whole: a rule that spans keys. Default: `message`. */
-  readonly form?: (message: string) => string
+  /** An empty draft the schema does not admit. `{label}`, `{key}`. Default `Required`. */
+  readonly required?: string | ((field: MessageField<Key>) => string)
+  /** Text its control cannot read: a `Number` that is not one. `{label}`, `{key}`. Default: the kind's own words (`Enter a number`). */
+  readonly unparsed?: string | ((field: MessageField<Key>) => string)
+  /** A draft the key's schema rejects. `{message}` is the check's own, or Schema's; `{label}`, `{key}`. Default: `{message}`. */
+  readonly invalid?: string | ((field: MessageField<Key>, message: string) => string)
+  /** A failure of the input as a whole: a rule that spans keys. `{message}`. Default: `{message}`. */
+  readonly form?: string | ((message: string) => string)
 }
+
+/**
+ * Words with their blanks filled: `fillWords('{label} is required', { label: 'Title' })`.
+ * A blank with no value is left as it is written. Words as text, not functions,
+ * can be kept in one place, translated, and passed anywhere, a view's inputs
+ * included, where Foldkit admits no nested function.
+ */
+export const fillWords = (
+  template: string,
+  values: Readonly<Record<string, string | number>>,
+): string =>
+  template.replace(/\{(\w+)\}/g, (blank, name: string) =>
+    Object.hasOwn(values, name) ? String(values[name]) : blank,
+  )
 
 /**
  * A form made with `Form.make` from the input a key nests. It is an ordinary
@@ -408,9 +422,10 @@ const planOf = (
   const { label, description } = wordsOf(key, schema, member)
   const field: MessageField = { key, label, control }
   const say = {
-    required: messages.required?.(field) ?? 'Required',
-    unparsed: messages.unparsed?.(field) ?? control.unparsed ?? 'Not valid',
-    invalid: (message: string) => messages.invalid?.(field, message) ?? message,
+    required: worded(messages.required, [field], { label, key }) ?? 'Required',
+    unparsed: worded(messages.unparsed, [field], { label, key }) ?? control.unparsed ?? 'Not valid',
+    invalid: (message: string) =>
+      worded(messages.invalid, [field, message], { label, key, message }) ?? message,
   }
 
   const check = (draft: Draft): Checked => {
@@ -450,6 +465,18 @@ const planOf = (
     }),
   }
 }
+
+/** Words given as text have their blanks filled; given as a function, it is asked. */
+const worded = <Args extends ReadonlyArray<unknown>>(
+  words: string | ((...args: Args) => string) | undefined,
+  args: Args,
+  values: Readonly<Record<string, string | number>>,
+): string | undefined =>
+  words === undefined
+    ? undefined
+    : typeof words === 'string'
+      ? fillWords(words, values)
+      : words(...args)
 
 const fail = (name: string, message: string): never => {
   throw new Error(`Form "${name}": ${message}`)
@@ -726,7 +753,10 @@ const Core = {
         onFailure: error => ({
           model: {
             ...settled,
-            errors: [options.messages?.form?.(error.message) ?? error.message],
+            errors: [
+              worded(options.messages?.form, [error.message], { message: error.message }) ??
+                error.message,
+            ],
           },
         }),
       })

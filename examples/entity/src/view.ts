@@ -6,6 +6,7 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { ListView } from 'foldkit-mixins-crud'
 import { PostSort } from './operations.js'
+import { words } from './words.js'
 import {
   EditForm,
   Message,
@@ -31,7 +32,7 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
       onMore: Message.RequestedMorePosts(),
       // Every order the list offers, with its state and the Message a click sends.
       sort: PostSort.inputs(model.postSort, sort => Message.SortedPosts({ sort })),
-      words: { loading: 'Loading posts…', empty: 'No posts.' },
+      words,
     },
     h,
   )
@@ -57,7 +58,7 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
       ),
       ...(status === 'Loading' || status === 'NotFound' || status === 'LoadFailed'
         ? []
-        : [EditForm.view(model, h, { options: pickers(model), submitLabel: 'Save' })]),
+        : [EditForm.view(model, h, { options: pickers(model), words })]),
       h.button([h.Id('close'), h.OnClick(Message.ClosedEditor())], ['Close']),
       ...remove(model, h),
     ],

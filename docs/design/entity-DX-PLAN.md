@@ -87,7 +87,10 @@ so a library cannot hand over a partly configured form.
 ## 9. Smaller
 
 - **Three bags of words** (`FormMessages`, the form view's labels, `ViewWords`).
-  **Plan.** One `Words` shape both drawn packages accept.
+  **Resolved, not as planned.** The first attempt, one object holding functions,
+  crashed a placed form: Foldkit admits no function nested in `h.submodel`'s view
+  inputs. Words are now text with blanks (`'{label} is required'`), the three
+  shapes share no key, and one object `satisfies` all of them.
 - **A relation is stored whole or as one window**, never both, in Remote.
   **Plan.** Key the stored value by its window.
 - **A picker that searches is a `select` under a search box**, not a combobox.

@@ -127,7 +127,7 @@ const Slot = Bundle.declare(
 )
 
 // where the page draws it:
-Placed.view(model, h, { options: pickers(model), submitLabel: 'Save' })
+Placed.view(model, h, { options: pickers(model), words: { submit: 'Save' } })
 ```
 
 `Crud.editorView` works on any Submodel view of the form that takes view

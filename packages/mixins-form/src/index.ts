@@ -8,6 +8,7 @@
  */
 import {
   Input,
+  fillWords,
   type Control,
   type Draft,
   type FormControl,
@@ -26,6 +27,24 @@ export interface Option {
 }
 
 /**
+ * The words the drawn form says itself. Its keys are its own, so one object can
+ * hold these, `foldkit-mixins-crud`'s `ViewWords`, and a form's `FormMessages`:
+ * an application's words, written and translated in one place. They are text
+ * with blanks (`{label}`), never functions: Foldkit admits no function nested in
+ * a placed view's inputs.
+ */
+export interface FormViewWords {
+  /** On the submit button. Default `Submit`. */
+  readonly submit?: string | undefined
+  /** Before the label on a picker's search box (`Search Author`). Default `Search`. */
+  readonly search?: string | undefined
+  /** On the button that adds a row to a nested key. Default `Add {label}`. */
+  readonly add?: string | undefined
+  /** On the button that removes a row; `{position}` counts from 1. Default `Remove {label} {position}`. */
+  readonly remove?: string | undefined
+}
+
+/**
  * What the view needs that the form does not own: the choices of each relation
  * picker (a query the application makes), and the submit button's words.
  */
@@ -36,13 +55,8 @@ export interface FormViewInputs<Key extends string = string> {
    * row: `'author.country'`.
    */
   readonly nestedOptions?: Readonly<Record<string, ReadonlyArray<Option>>> | undefined
-  readonly submitLabel?: string | undefined
-  /** The word before the label on a picker's search box (`Search Author`). Default `Search`. */
-  readonly searchLabel?: string | undefined
-  /** The words on the button that adds a row to a nested key. Default `Add <label>`. */
-  readonly addLabel?: ((label: string) => string) | undefined
-  /** The words on the button that removes a row; `position` counts from 1. Default `Remove <label> <position>`. */
-  readonly removeLabel?: ((label: string, position: number) => string) | undefined
+  /** The view's own words, for wording and for translation. */
+  readonly words?: FormViewWords | undefined
 }
 
 /** What a field's Style and Behavior attachments may read. */
@@ -54,8 +68,8 @@ export interface FieldInput<Key extends string = string> {
   readonly options: ReadonlyArray<Option>
   /** Unique within the form, for `label for`, and as the prefix of the ids beside it. */
   readonly id: string
-  /** The word before the label on a picker's search box. Default `Search`. */
-  readonly searchLabel?: string | undefined
+  /** The word before the label on its search box: the view's `words.search`. */
+  readonly searchWord?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
@@ -372,7 +386,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
                 slots.search.attrs([
                   h.Id(`${id}-search`),
                   h.Type('search'),
-                  h.AriaLabel(`${input.searchLabel ?? 'Search'} ${label}`),
+                  h.AriaLabel(`${input.searchWord ?? 'Search'} ${label}`),
                   h.AriaControls(id),
                   h.Value(input.search),
                   h.OnInput(searched),
@@ -439,7 +453,7 @@ export const FormView = {
                     options: options[`${path}${key}`] ?? [],
                     id: here,
                     search: walk.search(key),
-                    searchLabel: input.searchLabel,
+                    searchWord: input.words?.search,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),
@@ -451,7 +465,7 @@ export const FormView = {
               }
               const { form: nested, cardinality, optional } = control.control.data
               const rows = walk.rows(key)
-              const addLabel = input.addLabel?.(label) ?? `Add ${label}`
+              const addLabel = fillWords(input.words?.add ?? 'Add {label}', { label })
               return h.fieldset(slots.group.attrs([h.Id(here)]), [
                 h.legend(slots.legend.attrs(), [label]),
                 ...rows.map((row, index) =>
@@ -468,8 +482,10 @@ export const FormView = {
                               ),
                             ]),
                             [
-                              input.removeLabel?.(label, index + 1) ??
-                                `Remove ${label} ${index + 1}`,
+                              fillWords(input.words?.remove ?? 'Remove {label} {position}', {
+                                label,
+                                position: index + 1,
+                              }),
                             ],
                           ),
                         ]
@@ -505,7 +521,7 @@ export const FormView = {
             ? []
             : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
           h.button(slots.submit.attrs([h.Type('submit'), h.Disabled(!input.canSubmit)]), [
-            input.submitLabel ?? 'Submit',
+            input.words?.submit ?? 'Submit',
           ]),
         ])
       },

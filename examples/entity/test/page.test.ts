@@ -112,7 +112,9 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
 
     type('#EditPost-title', '')
     element('#EditPost-title').dispatchEvent(new Event('blur'))
-    await vi.waitFor(() => expect(element('#EditPost-title-error')?.textContent).toBe('Required'))
+    await vi.waitFor(() =>
+      expect(element('#EditPost-title-error')?.textContent).toBe('Title is required'),
+    )
     expect(element<HTMLButtonElement>('#editor form button').disabled).toBe(true)
 
     type('#EditPost-title', 'Compilers, revised')

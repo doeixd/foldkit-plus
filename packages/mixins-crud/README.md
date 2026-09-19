@@ -103,6 +103,9 @@ PostTable(
   `renderers: { Badge: ({ display, value, h }) => h.span([...], [String(value)]) }`.
   A column's `cells` entry wins over its kind's renderer, and a kind with neither
   says `Display.show`.
+- `words` is text, with `{message}` a blank in `failed`; it shares no key with a
+  form's words, so [one object](../form/README.md#words-as-text-in-one-place)
+  serves both.
 - `words` supplies every word the view says itself, and the words `Display.show`
   uses (`yes`, `no`, `nothing`, `separator`), for wording and for translation.
 

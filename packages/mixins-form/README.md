@@ -27,7 +27,7 @@ FormView.field(form)               one field, as a SlotView over FieldSlots
       |   .pipe(Style.attach(...))
 FormView.define(form, { field })   the whole form, as a SlotView over FormSlots
       |   .pipe(Style.attach(...))
-FormView.submodel(form, view)      a Submodel view taking { options, submitLabel }
+FormView.submodel(form, view)      a Submodel view taking { options, words }
       |
 form.bundle.pipe(Bundle.withView(...))   the same Bundle, now drawable
       |
@@ -76,7 +76,7 @@ Then, where the parent draws the placement:
 ```ts
 EditForm.view(model, h, {
   options: { editorId: authors.map(author => ({ value: author.id, label: author.name })) },
-  submitLabel: 'Save',
+  words: { submit: 'Save' },
 })
 ```
 
@@ -103,8 +103,10 @@ EditForm.view(model, h, {
 
 A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 `input type="search"` above it, in the `search` slot, labelled `Search <label>`
-and naming the picker it controls with `aria-controls`. `searchLabel` in the
-view inputs replaces the word.
+and naming the picker it controls with `aria-controls`. `words.search` in the
+view inputs replaces the word. All of the view's words (`submit`, `search`,
+`add`, `remove`) are text, with `{label}` and `{position}` as blanks; see
+[words in one place](../form/README.md#words-as-text-in-one-place).
 
 ### Renderers
 
@@ -139,7 +141,7 @@ A nested row's fields are drawn through the same field view, so a styled `field`
 styles them too. A row that must be there has no remove button, and a `one`
 loses its add button once it has its row. View inputs for nested keys:
 `nestedOptions` names a picker inside a row by path (`'author.countryId'`, the
-same for every row), and `addLabel` / `removeLabel` word the buttons (defaults
+same for every row), and `words.add` / `words.remove` word the buttons (defaults
 `Add <label>`, `Remove <label> <position>`).
 
 ### Accessibility

@@ -275,6 +275,34 @@ const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
 
 `field` is the key, its label, and its control.
 
+### Words as text, in one place
+
+Each of these may be text with blanks instead of a function: `'{label} is required'`
+(`{label}`, `{key}`, and `{message}` where there is one). Text can be kept in a
+translation catalogue, and it can go where a function cannot: Foldkit admits no
+function nested in a placed view's inputs. The drawn packages' words are text
+too, and the three shapes share no key, so an application writes its words once:
+
+```ts
+import type { FormMessages } from 'foldkit-form'
+import type { ViewWords } from 'foldkit-mixins-crud'
+import type { FormViewWords } from 'foldkit-mixins-form'
+
+export const words = {
+  required: '{label} is required', // foldkit-form
+  submit: 'Save', // foldkit-mixins-form
+  add: 'Another {label}',
+  yes: 'Live', // foldkit-mixins-crud
+  empty: 'No posts yet.',
+} satisfies FormMessages & FormViewWords & ViewWords
+
+Form.make('EditPost', input, { messages: words })
+placed.view(model, h, { options, words })
+PostTable({ page, words }, h)
+```
+
+`fillWords(template, values)` is the blank-filling they all use.
+
 ## Pipe steps
 
 Every option is also a pipe step that gives a new form, made from the same input

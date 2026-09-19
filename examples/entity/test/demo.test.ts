@@ -19,7 +19,7 @@ describe('foldkit-entity example', () => {
       'editor plan: Post:p2 [editor]; status Loading',
       'filled: Title="Compilers", Published=false, Editor="a2"; status Editing',
       'editor choices: a1 Ada, a2 Grace',
-      'invalid submit: Title="" (Required), Published=false ok, Editor="a2" ok; status Editing',
+      'invalid submit: Title="" (Title is required), Published=false ok, Editor="a2" ok; status Editing',
       'valid submit:',
       '  command Remote.mutate(EditPost): MutationSucceeded',
       'status: Saved',
