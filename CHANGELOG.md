@@ -5,6 +5,18 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+- **Typed ids.** `foldkit-entity`: an Entity's `id` field keeps its type.
+  `IdOf<E>`, `EntityRef<Name, Id>`, a ref schema that is the id's own, and
+  `Relation.input` taking the target's id type. An `id` of `Schema.String` types
+  as before; a branded one now rejects another Entity's id. **Breaking** only for
+  code that mapped a plain `Schema.String` key to a relation whose target has a
+  branded id: give the key the id's schema.
+- `foldkit-crud`: an editor's `open` and new `target(model)` use the Entity's id
+  type; a remover takes the id type its `input` names; a list's rows are typed
+  from its Selection with or without a `choice`.
+
 ## 0.7.2
 
 The `v0.7.1` tag was pushed from an incomplete commit and published nothing.

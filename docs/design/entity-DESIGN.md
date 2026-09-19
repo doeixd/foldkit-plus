@@ -2663,7 +2663,8 @@ It may not invent semantic Relations.
 
 # 56. PR 6 — renderer-neutral Input/Display metadata
 
-> **Decided, not built.** Three things this section and §74 leave open:
+> **Status: `Input` built in `foldkit-form`; `Display` decided, not built.** Three
+> things this section and §74 left open, as decided:
 >
 > - **Labels and descriptions are Schema annotations, not new metadata.** Effect
 >   Schema already carries `title` and `description`, they already reach JSON
@@ -3615,6 +3616,14 @@ This is probably the most important thing to spike before finalizing `foldkit-fo
 ---
 
 # 73. Another unresolved detail: typed IDs
+
+> **Status: built, without `Entity.identify`.** The `id` field's own type is the
+> id type: `IdOf<E>`, `EntityRef<Name, Id>`, and `Relation.input` follow it, and
+> a ref's schema is the id's schema. No new declaration was needed, because the
+> information was already in the struct; a brand on `id` is the opt-in. An id is
+> text, since refs travel and are stored as text, so a numeric `id` yields refs
+> with a plain string id. Declaring another field as the identifier is not
+> built: Remote keys its store by `id`, and nothing has asked for it.
 
 Current Remote essentially normalizes IDs as strings.
 

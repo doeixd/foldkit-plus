@@ -16,6 +16,7 @@ import {
   type EntityInput,
   type EntityMember,
   type Selection,
+  type IdOf,
 } from 'foldkit-entity'
 import { Form, type FormControl, type Submitted } from 'foldkit-form'
 import type {
@@ -208,13 +209,14 @@ export const Crud = {
 
   /**
    * Deleting through one mutation, with a yes in between: asked, confirmed,
-   * deleted. What the mutation's input is for an id is `input`'s to say.
+   * deleted. What the mutation's input is for an id is `input`'s to say, and the
+   * id it names there (`(id: PostId) => ...`) is the id `ask` takes.
    */
-  remover: <const Name extends string, Input>(
+  remover: <const Name extends string, Input, Id extends string = string>(
     name: Name,
     config: {
       readonly mutation: MutationDescriptor<string, Input, any>
-      readonly input: (id: string) => Input
+      readonly input: (id: Id) => Input
     },
   ) => {
     const bundle = Bundle.make(name, {
@@ -230,7 +232,7 @@ export const Crud = {
           : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
       helpers: {
         /** Asks whether to delete `id`. Nothing is deleted until `Confirmed`. */
-        ask: (_: RemoverModel, id: string) => ({ model: { target: id, requestId: null } }),
+        ask: (_: RemoverModel, id: Id) => ({ model: { target: id, requestId: null } }),
         dismiss: () => ({ model: idle }),
       },
     })
@@ -254,7 +256,7 @@ export const Crud = {
           onOut:
             (confirmed: ConfirmedRemoval): Step<Root> =>
             root => {
-              const started = data.mutate(root, config.mutation, config.input(confirmed.id))
+              const started = data.mutate(root, config.mutation, config.input(confirmed.id as Id))
               return {
                 model: slice.set(started.model, {
                   target: confirmed.id,
@@ -265,7 +267,7 @@ export const Crud = {
             },
 
           /** The id being asked about or deleted, for the words of a confirmation. */
-          target: (root: Root): string | null => slice.get(root).target,
+          target: (root: Root): Id | null => slice.get(root).target as Id | null,
 
           status: (root: Root): RemoverStatus => {
             const { target } = slice.get(root)
@@ -295,11 +297,18 @@ export const Crud = {
    * A list over one query: which rows to show is the query's, what to show of
    * each is the Selection's. The pages live in Remote; the list holds no state.
    */
-  list: <const Name extends string, EntityName extends string, Members, Row, Input>(
+  list: <
+    const Name extends string,
+    EntityName extends string,
+    Members,
+    S extends Schema.Constraint,
+    Input,
+  >(
     name: Name,
     config: {
       readonly query: QueryDescriptor<string, Input, any>
-      readonly selection: Selection<EntityName, Members, Schema.Constraint & { readonly Type: Row }>
+      // The row is the Selection's own value, so it is typed with or without a `choice`.
+      readonly selection: Selection<EntityName, Members, S>
       /** How many rows a page holds. Default 25. */
       readonly pageSize?: number
       /**
@@ -307,8 +316,8 @@ export const Crud = {
        * that identify it to a person. Give it to a list that feeds pickers.
        */
       readonly choice?: {
-        readonly value: (row: Row) => string
-        readonly label: (row: Row) => string
+        readonly value: (row: S['Type']) => string
+        readonly label: (row: S['Type']) => string
       }
     },
   ) => {
@@ -335,7 +344,7 @@ export const Crud = {
             ? undefined
             : data.query(query, value, { select: selection, first: pageSize })
         }
-        const page = (root: Root): RemoteData<Page<Row>> =>
+        const page = (root: Root): RemoteData<Page<S['Type']>> =>
           projectionOf(root)?.read(root) ?? { _tag: 'Initial' }
 
         return {
@@ -497,7 +506,7 @@ export const Crud = {
       },
       helpers: {
         /** Edits `id`: the form is emptied, and filled once the current values arrive. */
-        open: (_: Model, id: string) => ({
+        open: (_: Model, id: IdOf<E>) => ({
           model: { ...closed, mode: 'edit' as const, target: id },
         }),
         /** A blank form for a new one: nothing to load. */
@@ -598,6 +607,8 @@ export const Crud = {
             return save._tag === 'Failed' ? save.error : undefined
           },
 
+          /** The id being edited, typed as the Entity's own; `null` for a new one or a closed editor. */
+          target: (root: Root): IdOf<E> | null => slice.get(root).target as IdOf<E> | null,
           status: (root: Root): EditorStatus => {
             const editor = slice.get(root)
             if (editor.mode === 'closed') return 'Closed'

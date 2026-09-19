@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Entity, type AnyEntity } from '../src/index.js'
+import { Entity, Relation, type AnyEntity } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const AuthorOption = Entity.select(Blog.Author, { id: true, name: true })
@@ -178,5 +178,28 @@ describe('Entity.page', () => {
     expect(() =>
       selectUntyped(Blog.Post, { comments: Entity.page(AuthorOption, { first: 1 }) }),
     ).toThrow(/"comments" pages a Selection of Comment/)
+  })
+})
+
+describe('a ref to an Entity with an id of its own', () => {
+  const Code = Schema.String.check(Schema.isPattern(/^[A-Z]{2}$/))
+  const Country = Entity.define('Country', Schema.Struct({ id: Code, name: Schema.String }))
+  const City = Entity.define('City', Schema.Struct({ id: Schema.String, name: Schema.String }))
+  const Counted = Entity.define('Counted', Schema.Struct({ id: Schema.Number }))
+  const Atlas = Entity.relate(
+    { Country, City, Counted },
+    { City: { country: Relation.one(Country), counted: Relation.one(Counted) } },
+  )
+
+  it('holds the ref to the rules of the id it points at', () => {
+    const InCountry = Entity.select(Atlas.City, { country: true })
+    expect(decodes(InCountry, { country: { entity: 'Country', id: 'CL' } })).toBe(true)
+    expect(decodes(InCountry, { country: { entity: 'Country', id: 'chile' } })).toBe(false)
+  })
+
+  it('takes the id of an Entity keyed by a number as text', () => {
+    const WithCount = Entity.select(Atlas.City, { counted: true })
+    expect(decodes(WithCount, { counted: { entity: 'Counted', id: '7' } })).toBe(true)
+    expect(decodes(WithCount, { counted: { entity: 'Counted', id: 7 } })).toBe(false)
   })
 })

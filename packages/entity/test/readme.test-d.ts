@@ -2,7 +2,7 @@
 import { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
-import { Derived, Entity, Relation, type EntityRef } from '../src/index.js'
+import { Derived, Entity, Relation, type EntityRef, type IdOf } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
@@ -106,4 +106,26 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
     { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
   )
   void CreatePost
+}
+
+{
+  const AuthorId = Schema.String.pipe(Schema.brand('AuthorId'))
+  const PostId = Schema.String.pipe(Schema.brand('PostId'))
+
+  const Writer = Entity.define('Author', Schema.Struct({ id: AuthorId, name: Schema.String }))
+  const Article = Entity.define('Post', Schema.Struct({ id: PostId, title: Schema.String }))
+  const Press = Entity.relate({ Writer, Article }, { Article: { author: Relation.one(Writer) } })
+
+  type WriterId = IdOf<typeof Press.Writer> // AuthorId
+
+  const ByLine = Entity.select(Press.Article, { author: true })
+  // { author: EntityRef<'Author', AuthorId> }
+
+  Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
+    authorId: Relation.input(Press.Article.relations.author), // a PostId, or any text, is a type error
+  })
+  expectTypeOf<WriterId>().toEqualTypeOf<typeof AuthorId.Type>()
+  expectTypeOf<typeof ByLine.schema.Type>().toEqualTypeOf<{
+    readonly author: EntityRef<'Author', typeof AuthorId.Type>
+  }>()
 }

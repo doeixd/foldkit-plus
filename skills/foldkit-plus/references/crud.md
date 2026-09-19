@@ -138,6 +138,10 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 
 ## Gotchas
 
+- With a branded Entity `id`: `helpers.open(id)` and the placed editor's
+  `target(model)` use `IdOf<Entity>`; give a remover `input: (id: PostId) => ({ id })`
+  so `ask(id)` and `target(model)` are typed; list rows are the Selection's value.
+
 - `Editor.at` needs the slice as a `ModelRef` (`App.model.editor`), so the Model
   must be the application's (`Surface.application`).
 - Name the service: `Bundle.parent(...).withServices<RemoteClient>()`, or `onOut`

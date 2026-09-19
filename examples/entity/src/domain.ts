@@ -5,14 +5,23 @@
 import { Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 
-const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+/**
+ * Ids of their own. A ref to an Author, the editor a form picks, and the id a
+ * delete is asked about are each typed by these, so one cannot stand in for another.
+ */
+export const AuthorId = Schema.String.pipe(Schema.brand('AuthorId'))
+export type AuthorId = typeof AuthorId.Type
+export const PostId = Schema.String.pipe(Schema.brand('PostId'))
+export type PostId = typeof PostId.Type
+
+const Author = Entity.define('Author', Schema.Struct({ id: AuthorId, name: Schema.String }))
 
 const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
 
 const Post = Entity.define(
   'Post',
   Schema.Struct({
-    id: Schema.String,
+    id: PostId,
     title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
     published: Schema.Boolean.annotate({ title: 'Published' }),
   }),
@@ -57,8 +66,8 @@ export const AuthorPage = Entity.select(Blog.Author, {
  * a post's id and comment count exist and are not editable here.
  */
 export const EditPostInput = Schema.Struct({
-  id: Schema.String,
+  id: PostId,
   title: Blog.Post.fields.title.schema,
   published: Blog.Post.fields.published.schema,
-  editorId: Schema.NullOr(Schema.String),
+  editorId: Schema.NullOr(AuthorId),
 })

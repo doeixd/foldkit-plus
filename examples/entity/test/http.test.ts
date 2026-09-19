@@ -2,6 +2,7 @@ import { Effect } from 'effect'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Data, EditForm, Message, PostEditor, Posts, initial, update } from '../src/app.js'
+import { PostId } from '../src/domain.js'
 import { EditPostForm } from '../src/editForm.js'
 import { startHttpServer } from '../src/http.js'
 import { httpClient } from '../src/transport.js'
@@ -25,7 +26,7 @@ describe('the HTTP transport the browser uses', () => {
       'Compilers',
     ])
 
-    const opened = EditForm.helpers.open('p2')(listed).model
+    const opened = EditForm.helpers.open(PostId.make('p2'))(listed).model
     const loaded = PostEditor.sync(
       await run(Data.prefetch(opened, PostEditor.active.projectionOf(opened)!)),
     ).model

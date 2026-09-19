@@ -184,15 +184,37 @@ type CheckRelations<Es extends Entities, Rs> = {
 export const SelectionTypeId: unique symbol = Symbol.for('foldkit-entity/Selection')
 export type SelectionTypeId = typeof SelectionTypeId
 
-/** What a relation selected with `true` yields: which Entity, and which one. */
-export interface EntityRef<Name extends string = string> {
+/**
+ * The schema that identifies one of an Entity: its `id` field when that is text
+ * (a plain string, a brand, a pattern), and plain text otherwise. An id is text
+ * because a ref travels and is stored as text; an Entity keyed by a number still
+ * has refs, and their ids are the number as text.
+ */
+export type IdSchemaOf<E> = E extends {
+  readonly fields: { readonly id: { readonly schema: infer S } }
+}
+  ? S extends Schema.Constraint
+    ? [S['Type']] extends [string]
+      ? S
+      : Schema.String
+    : Schema.String
+  : Schema.String
+
+/** What identifies one of an Entity: `IdOf<typeof Blog.Post>` is `PostId` when its `id` field is one. */
+export type IdOf<E> = IdSchemaOf<E>['Type']
+
+/**
+ * What a relation selected with `true` yields: which Entity, and which one. `Id`
+ * is the target's own id type, so a ref to an Author cannot be used as a Post's.
+ */
+export interface EntityRef<Name extends string = string, Id extends string = string> {
   readonly entity: Name
-  readonly id: string
+  readonly id: Id
 }
 
-type RefSchema<Name extends string> = Schema.Struct<{
-  readonly entity: Schema.Literal<Name>
-  readonly id: Schema.String
+type RefSchema<Target extends AnyEntity> = Schema.Struct<{
+  readonly entity: Schema.Literal<Target['name']>
+  readonly id: IdSchemaOf<Target>
 }>
 
 /**
@@ -273,13 +295,34 @@ type SelectedSchema<Member, Selected> = Member extends
       : RelationShape<
           C,
           Optional,
-          Selected extends Selection<any, any, infer S> ? S : RefSchema<Target['name']>
+          Selected extends Selection<any, any, infer S> ? S : RefSchema<Target>
         >
     : never
 
 type SelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
   readonly [K in keyof Spec & keyof E['members']]: SelectedSchema<E['members'][K], Spec[K]>
 }>
+
+interface AstLike {
+  readonly _tag: string
+  readonly literal?: unknown
+  readonly types?: ReadonlyArray<AstLike>
+}
+
+const isText = (ast: AstLike): boolean =>
+  ast._tag === 'String' ||
+  ast._tag === 'TemplateLiteral' ||
+  (ast._tag === 'Literal' && typeof ast.literal === 'string') ||
+  (ast._tag === 'Union' && (ast.types ?? []).length > 0 && (ast.types ?? []).every(isText))
+
+/** The `id` field's schema when it is text, so a ref's id keeps its brand and its checks; else text. */
+const idSchemaOf = (entity: AnyEntity): Schema.Top => {
+  const fields: Readonly<Record<string, EntityMember | undefined>> = entity.fields
+  const id = fields.id
+  if (id === undefined || id._tag !== 'Field') return Schema.String
+  const type = Schema.toType(id.schema as Schema.Top)
+  return isText(type.ast as unknown as AstLike) ? type : Schema.String
+}
 
 const isSelectionPage = (value: unknown): value is SelectionPage<string, Schema.Constraint> =>
   typeof value === 'object' && value !== null && SelectionPageTypeId in value
@@ -324,12 +367,12 @@ export type InputMember =
 
 /** The ids a relation takes as input: one id, a nullable id, or a list of ids. */
 type RelationIds<R> =
-  R extends EntityRelation<any, any, any, infer C, infer Optional>
+  R extends EntityRelation<any, any, infer Target, infer C, infer Optional>
     ? C extends 'many'
-      ? ReadonlyArray<string>
+      ? ReadonlyArray<IdOf<Target>>
       : Optional extends true
-        ? string | null
-        : string
+        ? IdOf<Target> | null
+        : IdOf<Target>
     : never
 
 /** What a nested input takes: the value of the target's input, or a list of them for a `many`. */
@@ -611,7 +654,7 @@ export const Entity = {
       }
       let item: Schema.Top
       if (selected === true)
-        item = Schema.Struct({ entity: Schema.Literal(target.name), id: Schema.String })
+        item = Schema.Struct({ entity: Schema.Literal(target.name), id: idSchemaOf(target) })
       else if (isSelection(selected) && isSameEntity(selected.entity, target))
         item = selected.schema
       else

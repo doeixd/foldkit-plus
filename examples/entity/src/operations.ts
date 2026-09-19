@@ -5,11 +5,11 @@
  */
 import { Schema } from 'effect'
 import { Mutation, Query } from 'foldkit-remote'
-import { Blog, EditPostInput } from './domain.js'
+import { Blog, EditPostInput, PostId } from './domain.js'
 
 export const EditPostMutation = Mutation.make('EditPost', {
   Input: EditPostInput,
-  Output: { id: Schema.String },
+  Output: { id: PostId },
 })
 
 /** Every post; and every author, which is what lists them for a relation picker. */
@@ -20,6 +20,6 @@ export const AuthorsQuery = Query.make('Authors', {
 })
 
 export const DeletePostMutation = Mutation.make('DeletePost', {
-  Input: { id: Schema.String },
+  Input: { id: PostId },
   Output: {},
 })

@@ -142,6 +142,13 @@ rows and says only what is gone. The post left the list and Ada's `posts` with n
 refetch and with no list named, and on the page the editor open on it reads that
 its post no longer exists.
 
+### Ids
+
+`AuthorId` and `PostId` are branded in `domain.ts`. The editor opens a `PostId`,
+the remover is asked about a `PostId`, the form's editor picker submits an
+`AuthorId`, and a list row's `id` arrives as one; passing one where the other
+belongs does not compile. On the wire and in SQLite they are plain text.
+
 ## What to read
 
 | File | Read it for |

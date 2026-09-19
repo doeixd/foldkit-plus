@@ -5,6 +5,7 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { RemoteData } from 'foldkit-remote'
+import { PostRow } from './domain.js'
 import {
   EditForm,
   Message,
@@ -32,7 +33,7 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
 
 const rows = (
   page: {
-    readonly items: ReadonlyArray<Readonly<Record<string, unknown>>>
+    readonly items: ReadonlyArray<typeof PostRow.schema.Type>
     readonly hasNext: boolean
   },
   h: HtmlBuilder<Message>,
@@ -56,7 +57,8 @@ const rows = (
             [],
             page.items.map(row =>
               h.tr(
-                [h.Key(String(row.id)), h.OnClick(Message.OpenedPost({ id: String(row.id) }))],
+                // The row's id is a PostId because the Selection read it as one.
+                [h.Key(row.id), h.OnClick(Message.OpenedPost({ id: row.id }))],
                 PostList.columns.map(column => h.td([], [cell(row[column.key])])),
               ),
             ),
@@ -97,7 +99,7 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
 
 /** Delete, with a yes in between. Once it is gone the editor above reads that for itself. */
 const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
-  const id = model.editPost.target
+  const id = PostEditor.target(model)
   if (id === null) return []
   const answer = (message: typeof RemoverMessage.Type) => Message.GotRemovePostMessage({ message })
   switch (PostRemover.status(model)) {

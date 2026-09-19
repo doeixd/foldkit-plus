@@ -110,6 +110,40 @@ each entity declared its own relations, `Post` would be typed in terms of
 constants that way. Declaring the relations over entities that already exist
 avoids the cycle, and lets `relate` check every target up front.
 
+## Ids of their own
+
+An Entity is identified by its `id` field, and the id keeps the type you give
+it. Brand it, and a ref to an Author can no longer stand in for a Post's:
+
+```ts
+const AuthorId = Schema.String.pipe(Schema.brand('AuthorId'))
+const PostId = Schema.String.pipe(Schema.brand('PostId'))
+
+const Writer = Entity.define('Author', Schema.Struct({ id: AuthorId, name: Schema.String }))
+const Article = Entity.define('Post', Schema.Struct({ id: PostId, title: Schema.String }))
+const Press = Entity.relate({ Writer, Article }, { Article: { author: Relation.one(Writer) } })
+
+type WriterId = IdOf<typeof Press.Writer> // AuthorId
+
+const ByLine = Entity.select(Press.Article, { author: true })
+// { author: EntityRef<'Author', AuthorId> }
+
+Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
+  authorId: Relation.input(Press.Article.relations.author), // a PostId, or any text, is a type error
+})
+```
+
+- `IdOf<E>` is the type of the `id` field; `EntityRef<Name, Id>` carries it, and
+  `Relation.input` takes it (`Id | null` for an optional `one`, a list for a
+  `many`).
+- A ref's schema is the id's own, so a pattern or a check on the id holds for
+  every ref to it.
+- **An id is text.** A ref travels and is stored as text, so an Entity whose `id`
+  is a number (or has no `id` field) has refs with a plain `string` id: the
+  number as text.
+- Nothing here is new API to opt into. An Entity with `id: Schema.String` types
+  exactly as before.
+
 ## Selecting a view
 
 A Selection names the members a consumer wants and carries the schema of the
@@ -300,8 +334,8 @@ Annotating again combines with what is there, using the key's own `merge`.
 
 ## Limits
 
-- IDs are untyped; nothing marks which field is the identifier yet, and an
-  `EntityRef` id is a `string`.
+- The identifier is the field named `id`; no other field can be declared as it,
+  because Remote keys its store by `id`.
 - A Selection has no filtering or ordering, and a page has no total; those
   belong to the interpreter that fetches.
 - Relations reach only the entities of one `Entity.relate` call; relating the

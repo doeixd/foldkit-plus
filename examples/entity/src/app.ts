@@ -12,7 +12,7 @@ import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins
 import { defineMessageUnion } from 'foldkit/message'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
-import { AuthorChoice, AuthorPage, Blog, PostPage, PostRow } from './domain.js'
+import { AuthorChoice, AuthorPage, Blog, PostId, PostPage, PostRow } from './domain.js'
 import { EditPostForm } from './editForm.js'
 import { AuthorsQuery, DeletePostMutation, EditPostMutation, PostsQuery } from './operations.js'
 
@@ -46,7 +46,8 @@ const EditSlot = Bundle.declare(
 // Deleting is a mutation with a yes in between.
 const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
-  input: id => ({ id }),
+  // The id it is asked about is a PostId; an AuthorId would not compile.
+  input: (id: PostId) => ({ id }),
 })
 export const RemoverMessage = Remover.Message
 const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
@@ -61,8 +62,8 @@ export const Message = defineMessageUnion({
   ...Remote.messages,
   ...EditSlot.cases,
   ...RemoveSlot.cases,
-  AskedToDeletePost: { id: Schema.String },
-  OpenedPost: { id: Schema.String },
+  AskedToDeletePost: { id: PostId },
+  OpenedPost: { id: PostId },
   ClosedEditor: {},
   RequestedMorePosts: {},
 })

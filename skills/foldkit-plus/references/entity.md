@@ -169,6 +169,31 @@ Labels.get(CmsPost.fields.title.metadata)   // ['Title']
 Entity.same(CmsPost, Blog.Post)             // true
 ```
 
+## Typed ids
+
+Brand the `id` field and it flows: `IdOf<typeof Blog.Post>`, `EntityRef<'Post', PostId>`
+from a relation selected with `true`, and `Relation.input` accepting only the
+target's id type. Ids are text; a numeric `id` gives refs a plain `string` id. An
+Entity with `id: Schema.String` is unchanged.
+
+```ts
+const AuthorId = Schema.String.pipe(Schema.brand('AuthorId'))
+const PostId = Schema.String.pipe(Schema.brand('PostId'))
+
+const Writer = Entity.define('Author', Schema.Struct({ id: AuthorId, name: Schema.String }))
+const Article = Entity.define('Post', Schema.Struct({ id: PostId, title: Schema.String }))
+const Press = Entity.relate({ Writer, Article }, { Article: { author: Relation.one(Writer) } })
+
+type WriterId = IdOf<typeof Press.Writer> // AuthorId
+
+const ByLine = Entity.select(Press.Article, { author: true })
+// { author: EntityRef<'Author', AuthorId> }
+
+Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
+  authorId: Relation.input(Press.Article.relations.author), // a PostId, or any text, is a type error
+})
+```
+
 ## Gotchas
 
 - Relations are **not** in `entity.schema`. Do not put `author` in the Struct.

@@ -277,6 +277,15 @@ PostDetail.value(model) // RemoteData of the Selection's value
 list's `columns` does, and `PostDetail.active` makes the value a requirement
 while an id is shown.
 
+## Typed ids
+
+When the Entity's `id` is branded, the ids here are too. An editor's
+`helpers.open(id)` takes the `IdOf` of its form's Entity, and `target(model)`
+reads the id being edited as that type. A remover is asked about the id its
+`input` names, so annotate it: `input: (id: PostId) => ({ id })`. A list's rows
+are its Selection's own value, so `row.id` is a `PostId` when the Selection
+reads `id`.
+
 ## Limits
 
 - A list has no sorting, filtering, or selection state of its own: those are the
