@@ -2651,6 +2651,21 @@ It may not invent semantic Relations.
 
 # 56. PR 6 — renderer-neutral Input/Display metadata
 
+> **Decided, not built.** Three things this section and §74 leave open:
+>
+> - **Labels and descriptions are Schema annotations, not new metadata.** Effect
+>   Schema already carries `title` and `description`, they already reach JSON
+>   Schema (so agents get them too), and §16 makes Schema the one truth. A field
+>   is labelled with `Schema.String.annotate({ title: 'Title' })`; a relation or
+>   a derived member, which has no field schema of its own to annotate, takes
+>   the same two values through Entity metadata.
+> - **No `foldkit-entity-ui` package.** What is left after labels is a control
+>   preference, and only a form reads it, so the `Input` key belongs to
+>   `foldkit-form` (the interpreter owns its key, §5). `Display` waits for the
+>   package that renders tables; nothing consumes it yet.
+> - **The resolver order in §20 stands**, with Schema annotations as step 2's
+>   source for anything Schema can already say.
+
 Implement either:
 
 ```text
@@ -2687,6 +2702,24 @@ Input IR -> Foldkit UI control registry
 ---
 
 # 57. PR 7 — `foldkit-form`
+
+> **Decided, not built.**
+>
+> - **A form is built from a `Schema.Struct` and an `Entity.input` reading of
+>   it (§72), not from a Remote mutation.** A Foldkit form's result is a
+>   Message. What the application does with it (a Remote mutation, a Sync
+>   operation, a plain `update`) is the application's, so the form must not
+>   depend on Remote, and `MutationDescriptor` does not need to keep its input
+>   fields. The struct is declared once and handed to both; the submit site
+>   type-checks that the form's value is the operation's input.
+> - **State is Foldkit core's `fieldValidation`**, not a new draft/touched
+>   model: each key is a `Field<Draft>` (`NotValidated` / `Validating` / `Valid`
+>   / `Invalid`), and rules come from the member's schema through
+>   `Rule.fromSchema`. `Draft` is what the control holds (§24): a string for
+>   text and for a number being typed, a boolean for a toggle, an id or ids for
+>   a relation.
+> - **It is a `foldkit-bundle` Bundle**, since a form is a Submodel placed once
+>   or per key, with `Submitted { value }` as its out Message.
 
 Implement a Form descriptor and Foldkit Submodel.
 
