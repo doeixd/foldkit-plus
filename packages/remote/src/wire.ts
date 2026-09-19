@@ -124,6 +124,10 @@ export const MutationResult = Schema.Struct({
   entities: Schema.Array(NormalizedEntity),
   /** Connection changes the mutation made, applied alongside its entity patches. */
   connections: Schema.optional(Schema.Array(ConnectionChangeSchema)),
+  /** Entities the mutation deleted; the client knows them absent from then on. */
+  deleted: Schema.optional(
+    Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
+  ),
 })
 
 export const LiveRequirement = Schema.Struct({

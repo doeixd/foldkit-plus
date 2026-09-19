@@ -114,6 +114,11 @@ export interface MutationOutcome<Output> {
   readonly entities?: ReadonlyArray<NormalizedPatch>
   /** Connection changes the mutation made; the client settles them with its patches. */
   readonly connections?: ReadonlyArray<ConnectionChange>
+  /**
+   * Entities the mutation deleted. The client knows them absent from then on:
+   * they leave every connection and read `NotFound`, with no connection to name.
+   */
+  readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }>
 }
 
 export interface MutationSource<P, R = never> {
@@ -125,6 +130,7 @@ export interface MutationSource<P, R = never> {
       readonly output: unknown
       readonly entities: ReadonlyArray<NormalizedPatch>
       readonly connections: ReadonlyArray<ConnectionChange>
+      readonly deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }>
     },
     RemoteServerError,
     R
@@ -478,6 +484,7 @@ export const RemoteServer = {
           output: outcome.output,
           entities: outcome.entities ?? [],
           connections: outcome.connections ?? [],
+          deleted: outcome.deleted ?? [],
         })),
       ),
   }),
@@ -721,6 +728,7 @@ export const RemoteServer = {
           values: patch.values,
         })),
         connections: outcome.connections,
+        deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
       }
     }),
 

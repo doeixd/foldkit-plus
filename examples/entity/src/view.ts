@@ -5,7 +5,17 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { RemoteData } from 'foldkit-remote'
-import { EditForm, Message, PostEditor, PostList, Posts, pickers, type Model } from './app.js'
+import {
+  EditForm,
+  Message,
+  PostEditor,
+  PostList,
+  PostRemover,
+  Posts,
+  RemoverMessage,
+  pickers,
+  type Model,
+} from './app.js'
 
 const cell = (value: unknown): string =>
   typeof value === 'boolean' ? (value ? 'yes' : 'no') : String(value ?? '')
@@ -80,8 +90,32 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
         ? []
         : [EditForm.view(model, h, { options: pickers(model), submitLabel: 'Save' })]),
       h.button([h.Id('close'), h.OnClick(Message.ClosedEditor())], ['Close']),
+      ...remove(model, h),
     ],
   )
+}
+
+/** Delete, with a yes in between. Once it is gone the editor above reads that for itself. */
+const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
+  const id = model.editPost.target
+  if (id === null) return []
+  const answer = (message: typeof RemoverMessage.Type) => Message.GotRemovePostMessage({ message })
+  switch (PostRemover.status(model)) {
+    case 'Confirming':
+      return [
+        h.p([h.Id('confirm')], [`Delete ${PostRemover.target(model) ?? ''}?`]),
+        h.button([h.Id('yes'), h.OnClick(answer(RemoverMessage.Confirmed()))], ['Yes, delete']),
+        h.button([h.Id('no'), h.OnClick(answer(RemoverMessage.Cancelled()))], ['No']),
+      ]
+    case 'Deleting':
+      return [h.p([h.Role('status')], ['Deleting…'])]
+    case 'Deleted':
+      return []
+    case 'DeleteFailed':
+      return [h.p([h.Role('alert')], [`Not deleted: ${PostRemover.error(model)?.message ?? ''}`])]
+    case 'Idle':
+      return [h.button([h.Id('delete'), h.OnClick(Message.AskedToDeletePost({ id }))], ['Delete'])]
+  }
 }
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>

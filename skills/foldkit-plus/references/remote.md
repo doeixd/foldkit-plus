@@ -219,6 +219,10 @@ const Data = Remote.make({ model: App.model.remote, entities: [Work.User, Work.P
 const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name; owner: { name } }>>
 ```
 
+**Deleting.** A server mutation returns `deleted: [{ entity, id }]` in its
+outcome. The client tombstones them: `NotFound`, and gone from every connection
+and relation, so the server names no list.
+
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
 returned. A read the server answers without an id it was asked for makes that

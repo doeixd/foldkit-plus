@@ -240,6 +240,7 @@ describe('Data.mutate starts a mutation from update', () => {
       requestId: 'remote-1',
       entities: [{ entity: 'Project', id: 'p1', values: { name: 'remote-1!' } }],
       connections: [],
+      deleted: [],
     })
     const after = Data.reduce(started.model, settled)
     expect(after.remote.mutations.pending.size).toBe(0)

@@ -180,5 +180,6 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     output,
     entities: result.entities,
     connections: (result.connections ?? []).map(connectionChangeOf),
+    deleted: result.deleted ?? [],
   }
 })

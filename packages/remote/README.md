@@ -624,6 +624,12 @@ Those settlement Messages go through `Data.reduce` like every other Remote fact.
 The request id comes from the Remote Model's sequence, so `update` stays pure.
 Settling is idempotent per `requestId`.
 
+A mutation that deletes says so. The server's outcome carries
+`deleted: [{ entity, id }]`, and settling it tombstones those entities: they read
+`NotFound`, and they leave every connection and relation they were in, so the
+server names no list. Patches apply first, so an entity named both ways is
+deleted; a retry of the same request deletes nothing again.
+
 `Data.mutation(model, requestId)` reads what became of it from the Model:
 `Pending`, `Applied`, `Failed` with the error the server or transport gave, or
 `Unknown` for an id never started here (or settled so long ago it left the

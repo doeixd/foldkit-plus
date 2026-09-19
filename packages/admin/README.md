@@ -4,11 +4,12 @@ Management screens assembled from parts an application already has. An
 **editor** joins a [`foldkit-form`](../form/README.md) form, the
 [`foldkit-remote`](../remote/README.md) mutation its value feeds, and the
 [`foldkit-entity`](../entity/README.md) Entity they share. A **list** joins a
-Remote query and an Entity Selection.
+Remote query and an Entity Selection, a **detail** reads one Entity through a
+Selection, and a **remover** deletes through a mutation with a yes in between.
 
-> **Status:** an editor (edit and create) and a list. Detail and delete are
-> planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md). Both are
-> headless, as the form is.
+> **Status:** an editor (edit and create), a list, a detail, and a remover. All
+> are headless, as the form is. [`examples/entity`](../../examples/entity) draws
+> them and runs in a browser.
 
 ## What it owns
 
@@ -150,7 +151,7 @@ form creates.
 | --- | --- |
 | `Closed` | nothing is open |
 | `Loading` | an id is open and its current values have not arrived |
-| `NotFound` | the server answered without it, or a live event deleted it |
+| `NotFound` | it is gone: the server answered without it, a mutation deleted it, or a live event did. This outranks a save that landed |
 | `LoadFailed` | reading it failed to decode |
 | `Editing` | the form is showing, with no save in progress or just settled |
 | `Saving` | this editor's mutation is pending |
@@ -225,6 +226,53 @@ and `editorId` alike. A picker whose target no list is over, or whose list has n
 when `Admin.options` is called, not when the form is drawn. `AuthorList.choices(model)`
 is one list's choices on its own. Both are empty until the page is loaded, and
 hold only the rows loaded so far.
+
+## Deleting
+
+A remover is a mutation with a yes in between. Like the editor it is a Bundle,
+because which id is being asked about is state.
+
+```ts
+const Remover = Admin.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }), // the mutation's input for an id
+})
+const RemoveSlot = Bundle.declare(Remover.bundle, 'remover')
+// ...spread RemoveSlot.fields and RemoveSlot.cases into the page's Model and Message...
+
+const PostRemover = Remover.at({ data: Data, model: App.model.remover })
+const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
+```
+
+- `RemoveForm.helpers.ask(id)` asks; nothing is deleted yet. `dismiss()` clears it.
+- `Remover.Message.Confirmed()` and `Cancelled()` are the yes and the no. A yes
+  with nothing asked does nothing.
+- `PostRemover.status(model)` is `Idle`, `Confirming`, `Deleting`, `Deleted`, or
+  `DeleteFailed`; `target(model)` is the id for the confirmation's words, and
+  `error(model)` says why a delete failed.
+
+The server's mutation says what is gone, with `deleted` in its outcome, and
+names no list. Remote then knows the entity absent: it leaves every list and
+relation it was in with no refetch, a detail of it reads `NotFound`, and an
+editor open on it reports `NotFound`.
+
+## Detail
+
+One Entity through a Selection, for a page that shows it. Like a list it holds no
+state.
+
+```ts
+const PostDetail = Admin.detail('PostDetail', { selection: PostPage }).at({
+  data: Data,
+  id: model => model.shownPostId ?? undefined, // `undefined` while none is shown
+})
+
+PostDetail.value(model) // RemoteData of the Selection's value
+```
+
+`Admin.detail(...).fields` lists the selected members with their labels, as a
+list's `columns` does, and `PostDetail.active` makes the value a requirement
+while an id is shown.
 
 ## Limits
 

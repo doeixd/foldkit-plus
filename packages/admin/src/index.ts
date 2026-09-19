@@ -30,6 +30,7 @@ import type {
 } from 'foldkit-remote'
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
+import { defineMessageUnion } from 'foldkit/message'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
@@ -72,6 +73,29 @@ export interface EditorModel<FormModel> {
   readonly requestId: string | null
 }
 
+/**
+ * A remover's slice of the parent Model: the id it was asked to delete and is
+ * waiting on a yes for, and the delete in progress or last settled.
+ */
+export interface RemoverModel {
+  readonly target: string | null
+  readonly requestId: string | null
+}
+
+/** A remover's out Message: the user said yes to deleting `id`. */
+export interface ConfirmedRemoval {
+  readonly _tag: 'Confirmed'
+  readonly id: string
+}
+
+export type RemoverStatus =
+  | 'Idle'
+  /** Asked to delete an id, and waiting for a yes or a no. */
+  | 'Confirming'
+  | 'Deleting'
+  | 'Deleted'
+  | 'DeleteFailed'
+
 export type EditorStatus =
   | 'Closed'
   /** Editing an id whose current values have not arrived. */
@@ -111,7 +135,7 @@ export interface Choice {
   readonly label: string
 }
 
-/** One column of a list: a member the list's Selection reads. */
+/** One column of a list, or one line of a detail: a member the Selection reads. */
 export interface ListColumn<Key extends string = string> {
   readonly key: Key
   /** The schema's `title` annotation, else `Form.label` metadata, else the key. */
@@ -127,7 +151,145 @@ const columnLabel = (key: string, member: EntityMember): string => {
   return typeof title === 'string' ? title : (Form.labelOf(member) ?? key)
 }
 
+/** The selected members in the Selection's order, each with its label. */
+const columnsOf = <Members>(
+  selection: Selection<string, Members, Schema.Constraint>,
+): ReadonlyArray<ListColumn<keyof Members & string>> => {
+  const members: Readonly<Record<string, EntityMember>> = selection.entity.members
+  return Object.keys(selection.members as object).map(key => ({
+    key: key as keyof Members & string,
+    label: columnLabel(key, members[key]!),
+    member: members[key]!,
+  }))
+}
+
+const RemoverMessage = defineMessageUnion({ Confirmed: {}, Cancelled: {} })
+type RemoverMessage = typeof RemoverMessage.Type
+
+const idle: RemoverModel = { target: null, requestId: null }
+
 export const Admin = {
+  /**
+   * One Entity read through a Selection, for a page that shows it. Like a list
+   * it holds no state: the value is Remote's and the id is the application's.
+   */
+  detail: <const Name extends string, EntityName extends string, Members, Row>(
+    name: Name,
+    config: {
+      readonly selection: Selection<EntityName, Members, Schema.Constraint & { readonly Type: Row }>
+    },
+  ) => ({
+    name,
+    /** The selected members in the Selection's order, each with its label. */
+    fields: columnsOf(config.selection),
+
+    /** The detail where it lives: `id` is the one shown, or `undefined` while none is. */
+    at: <Root>(where: {
+      readonly data: DomainLike<Root>
+      readonly id: (root: Root) => string | undefined
+    }) => {
+      const projectionOf = (root: Root) => {
+        const id = where.id(root)
+        return id === undefined ? undefined : where.data.get(config.selection, id)
+      }
+      return {
+        /** For `Data.subscriptions`: the value is fetched and retained while an id is shown. */
+        active: {
+          name,
+          owner: where.data.contract.owner ?? {},
+          projectionOf,
+        } satisfies ActiveSurface<Root>,
+        value: (root: Root): RemoteData<Row> =>
+          projectionOf(root)?.read(root) ?? { _tag: 'Initial' },
+      }
+    },
+  }),
+
+  /**
+   * Deleting through one mutation, with a yes in between: asked, confirmed,
+   * deleted. What the mutation's input is for an id is `input`'s to say.
+   */
+  remover: <const Name extends string, Input>(
+    name: Name,
+    config: {
+      readonly mutation: MutationDescriptor<string, Input, any>
+      readonly input: (id: string) => Input
+    },
+  ) => {
+    const bundle = Bundle.make(name, {
+      Model: Schema.Struct({
+        target: Schema.NullOr(Schema.String),
+        requestId: Schema.NullOr(Schema.String),
+      }) as unknown as Schema.Codec<RemoverModel, unknown>,
+      Message: RemoverMessage,
+      init: () => ({ model: idle }),
+      update: (model: RemoverModel, message: RemoverMessage) =>
+        message._tag === 'Cancelled' || model.target === null
+          ? { model: idle }
+          : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
+      helpers: {
+        /** Asks whether to delete `id`. Nothing is deleted until `Confirmed`. */
+        ask: (_: RemoverModel, id: string) => ({ model: { target: id, requestId: null } }),
+        dismiss: () => ({ model: idle }),
+      },
+    })
+
+    return {
+      bundle,
+      /** The remover's Messages, for the yes and the no of a confirmation. */
+      Message: RemoverMessage,
+
+      at: <Root>(where: {
+        readonly data: DomainLike<Root>
+        readonly model: ModelRef<Root, RemoverModel>
+      }) => {
+        const { data, model: slice } = where
+        const outcome = (root: Root): MutationStatus => {
+          const { requestId } = slice.get(root)
+          return requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
+        }
+        return {
+          /** For the placement: a yes becomes the mutation, and its request is remembered. */
+          onOut:
+            (confirmed: ConfirmedRemoval): Step<Root> =>
+            root => {
+              const started = data.mutate(root, config.mutation, config.input(confirmed.id))
+              return {
+                model: slice.set(started.model, {
+                  target: confirmed.id,
+                  requestId: started.requestId,
+                }),
+                commands: [started.command],
+              }
+            },
+
+          /** The id being asked about or deleted, for the words of a confirmation. */
+          target: (root: Root): string | null => slice.get(root).target,
+
+          status: (root: Root): RemoverStatus => {
+            const { target } = slice.get(root)
+            const deleting = outcome(root)
+            return deleting._tag === 'Pending'
+              ? 'Deleting'
+              : deleting._tag === 'Applied'
+                ? 'Deleted'
+                : deleting._tag === 'Failed'
+                  ? 'DeleteFailed'
+                  : target === null
+                    ? 'Idle'
+                    : 'Confirming'
+          },
+
+          /** Why the last delete failed, while `status` is `DeleteFailed`. */
+          error: (root: Root): RemoteError | undefined => {
+            const deleting = outcome(root)
+            return deleting._tag === 'Failed' ? deleting.error : undefined
+          },
+        }
+      },
+    }
+  },
+
   /**
    * A list over one query: which rows to show is the query's, what to show of
    * each is the Selection's. The pages live in Remote; the list holds no state.
@@ -150,14 +312,7 @@ export const Admin = {
     },
   ) => {
     const { query, selection, pageSize = 25, choice } = config
-    const members: Readonly<Record<string, EntityMember>> = selection.entity.members
-    const columns = Object.keys(selection.members as object).map(
-      (key): ListColumn<keyof Members & string> => ({
-        key: key as keyof Members & string,
-        label: columnLabel(key, members[key]!),
-        member: members[key]!,
-      }),
-    )
+    const columns = columnsOf(selection)
 
     return {
       name,
@@ -443,17 +598,15 @@ export const Admin = {
           status: (root: Root): EditorStatus => {
             const editor = slice.get(root)
             if (editor.mode === 'closed') return 'Closed'
+            // Gone outranks everything: a save that landed describes a thing that no longer exists.
+            const read = loaded(root)
+            if (read?._tag === 'NotFound') return 'NotFound'
             const save = saveOf(root)
             if (save._tag === 'Pending') return 'Saving'
             if (save._tag === 'Failed') return 'SaveFailed'
             if (save._tag === 'Applied') return 'Saved'
             if (editor.filled) return 'Editing'
-            const read = loaded(root)
-            return read?._tag === 'NotFound'
-              ? 'NotFound'
-              : read?._tag === 'Failed'
-                ? 'LoadFailed'
-                : 'Loading'
+            return read?._tag === 'Failed' ? 'LoadFailed' : 'Loading'
           },
         }
       },

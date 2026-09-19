@@ -211,12 +211,13 @@ export const settleSuccess = (
   requestId: string,
   entities: ReadonlyArray<NormalizedPatch>,
   connections: ReadonlyArray<ConnectionChange> = [],
+  deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
 ): {
   readonly store: EntityStore
   readonly state: MutationState
   readonly optimistic: OptimisticState
 } => {
-  const reconciled = reconcileMutation(base, state, requestId, entities)
+  const reconciled = reconcileMutation(base, state, requestId, entities, deleted)
   return {
     store: reconciled.store,
     state: reconciled.state,

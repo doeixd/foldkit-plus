@@ -127,6 +127,21 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
   returned patches for the columns it wrote, and both Projections read the one
   normalized post.
 
+### Deleting
+
+```text
+asked to delete p1: Confirming; rows 2 posts, 2 comments
+  command Remote.mutate(DeletePost): MutationSucceeded
+confirmed: Deleted; rows 1 posts, 0 comments
+post list after delete: p2 "Compilers, revised"
+author after delete: Ready {"name":"Ada","posts":[{"title":"Compilers, revised", …}]}
+```
+
+`Admin.remover` asks first; the yes becomes the mutation. The server deletes the
+rows and says only what is gone. The post left the list and Ada's `posts` with no
+refetch and with no list named, and on the page the editor open on it reads that
+its post no longer exists.
+
 ## What to read
 
 | File | Read it for |

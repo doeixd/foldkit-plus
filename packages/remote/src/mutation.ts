@@ -7,7 +7,7 @@
  */
 import { Schema } from 'effect'
 import type { RemoteError } from './remoteData.js'
-import { entityKey, writeEntity, type EntityStore } from './store.js'
+import { entityKey, tombstone, writeEntity, type EntityStore } from './store.js'
 
 export interface NormalizedPatch {
   readonly entity: string
@@ -107,13 +107,18 @@ export const reconcileMutation = (
   state: MutationState,
   requestId: string,
   entities: ReadonlyArray<NormalizedPatch>,
+  deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }> = [],
 ): Reconciled => {
+  // Patches first, then deletions: a mutation that names an entity both ways has deleted it.
   const next = state.applied.has(requestId)
     ? store
-    : entities.reduce(
-        (current, entity) =>
-          writeEntity(current, entityKey(entity.entity, entity.id), entity.values),
-        store,
+    : deleted.reduce(
+        (current, gone) => tombstone(current, entityKey(gone.entity, gone.id)),
+        entities.reduce(
+          (current, entity) =>
+            writeEntity(current, entityKey(entity.entity, entity.id), entity.values),
+          store,
+        ),
       )
   const applied = remember(state.applied, requestId)
   const pending = new Set(state.pending)

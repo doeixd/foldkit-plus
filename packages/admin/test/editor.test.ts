@@ -3,7 +3,14 @@ import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
-import { Mutation, Remote, RemoteClient, requirementsOf } from 'foldkit-remote'
+import {
+  Mutation,
+  Remote,
+  RemoteClient,
+  entityKey,
+  requirementsOf,
+  tombstone,
+} from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Admin } from '../src/index.js'
@@ -228,6 +235,26 @@ describe('Admin.editor', () => {
     expect(PostEditor.status(opened)).toBe('Loading')
     // The server answers the read without it, which is how Remote learns it is not there.
     expect(PostEditor.status(await load(opened))).toBe('NotFound')
+  })
+
+  it('says its post is gone even after a save landed, when it is deleted under it', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    const typed = await form(
+      ready,
+      EditPostForm.Message.Changed({ key: 'title', value: 'Revised' }),
+    )
+    const saved = await form(typed, EditPostForm.Message.Submitted())
+    expect(PostEditor.status(saved)).toBe('Saved')
+
+    // Deleted elsewhere: a mutation's `deleted`, or a live event.
+    const gone: Model = {
+      ...saved,
+      remote: {
+        ...saved.remote,
+        entities: tombstone(saved.remote.entities, entityKey('Post', 'p1')),
+      },
+    }
+    expect(PostEditor.status(gone)).toBe('NotFound')
   })
 
   it('joins the Remote Subscriptions as an active Surface: a read entry follows the open id', () => {

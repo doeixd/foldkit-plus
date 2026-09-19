@@ -30,6 +30,8 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   `Admin.list`: a Remote query and an Entity Selection, with columns and paging.
   `Admin.options`: each relation picker of a form fed by the list over its
   target. `Admin.editorView`: a form's view as the view of the editor around it.
+  `Admin.remover`: a delete with a yes in between. `Admin.detail`: one Entity
+  through a Selection.
 
 ### `foldkit-remote`
 
@@ -44,6 +46,10 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   ref is untouched; the planner asks for it by id next. A hand-written
   `RemoteClient` that returned partial batches on purpose must now return every
   entity it was asked for by id.
+- A mutation can delete. `MutationOutcome.deleted` (and `deleted` on the wire's
+  `MutationResult` and on `MutationSucceeded`) names entities that are gone; the
+  client tombstones them, which removes them from every connection and relation.
+  `reconcileMutation` and `settleSuccess` take the deletions as a last argument.
 - `Data.mutation(model, requestId)` reads a mutation's outcome from the Model:
   `Pending`, `Applied`, `Failed` with its error, or `Unknown`.
 - **Breaking (kernel).** `MutationState` gains `errors`, and `failMutation` takes

@@ -18,3 +18,10 @@ export const Posts = Admin.list('Posts', {
   query: Query.make('Posts', { Input: {}, Result: Query.connection(Post) }),
   selection: Entity.select(Post, { id: true, title: true }),
 })
+export const Remover = Admin.remover('PostRemover', {
+  mutation: Mutation.make('DeletePost', { Input: { id: Schema.String }, Output: {} }),
+  input: id => ({ id }),
+})
+export const Detail = Admin.detail('PostDetail', {
+  selection: Entity.select(Post, { title: true }),
+})

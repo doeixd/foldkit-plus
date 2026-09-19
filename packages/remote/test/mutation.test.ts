@@ -10,6 +10,7 @@ import {
   emptyStore,
   entityKey,
   failMutation,
+  isTombstone,
   mutationStatus,
   readField,
   reconcileMutation,
@@ -99,6 +100,25 @@ describe('Remote mutations', () => {
 
     const applied = reconcileMutation(emptyStore, retried, 'req-1', []).state
     expect(mutationStatus(applied, 'req-1')).toEqual({ _tag: 'Applied' })
+  })
+
+  it('tombstones what a mutation deleted, once, after its patches', () => {
+    const held = writeEntity(emptyStore, entityKey('User', 'u1'), { name: 'ada' })
+    const started = beginMutation(emptyMutationState, 'req-1')
+    const gone = reconcileMutation(
+      held,
+      started,
+      'req-1',
+      // Named both ways: the deletion wins.
+      [{ entity: 'User', id: 'u1', values: { name: 'late' } }],
+      [{ entity: 'User', id: 'u1' }],
+    )
+    expect(isTombstone(gone.store, entityKey('User', 'u1'))).toBe(true)
+
+    // A retry of the same request does not delete again what has since come back.
+    const back = writeEntity(gone.store, entityKey('User', 'u1'), { name: 'new' })
+    const retried = reconcileMutation(back, gone.state, 'req-1', [], [{ entity: 'User', id: 'u1' }])
+    expect(isTombstone(retried.store, entityKey('User', 'u1'))).toBe(false)
   })
 
   it('bounds the settled-request ledger', () => {

@@ -1307,6 +1307,7 @@ export const Remote = {
       requestId,
       entities: outcome.entities,
       connections: outcome.connections,
+      deleted: outcome.deleted,
     })
     return {
       output: outcome.output,
@@ -1631,6 +1632,7 @@ const bindDomain = <
                 requestId,
                 entities: outcome.entities,
                 connections: outcome.connections,
+                deleted: outcome.deleted,
               }),
             }),
           ),

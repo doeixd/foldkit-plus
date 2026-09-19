@@ -14,7 +14,7 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { AuthorChoice, AuthorPage, Blog, PostPage, PostRow } from './domain.js'
 import { EditPostForm } from './editForm.js'
-import { AuthorsQuery, EditPostMutation, PostsQuery } from './operations.js'
+import { AuthorsQuery, DeletePostMutation, EditPostMutation, PostsQuery } from './operations.js'
 
 // The form drawn through Mixins slots, styled where it is used.
 const Field = FormView.field(EditPostForm).pipe(
@@ -43,11 +43,25 @@ const EditSlot = Bundle.declare(
   'editPost',
 )
 
-export const Model = Schema.Struct({ remote: Remote.Model, ...EditSlot.fields })
+// Deleting is a mutation with a yes in between.
+const Remover = Admin.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }),
+})
+export const RemoverMessage = Remover.Message
+const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
+
+export const Model = Schema.Struct({
+  remote: Remote.Model,
+  ...EditSlot.fields,
+  ...RemoveSlot.fields,
+})
 export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   ...Remote.messages,
   ...EditSlot.cases,
+  ...RemoveSlot.cases,
+  AskedToDeletePost: { id: Schema.String },
   OpenedPost: { id: Schema.String },
   ClosedEditor: {},
   RequestedMorePosts: {},
@@ -61,7 +75,7 @@ export const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   entities: Object.values(Blog),
-  mutations: [EditPostMutation],
+  mutations: [EditPostMutation, DeletePostMutation],
   queries: [PostsQuery, AuthorsQuery],
 })
 
@@ -79,6 +93,8 @@ export const Authors = Admin.list('Authors', {
 // Where the editor lives: its slice of the Model, and the domain it saves through.
 export const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
 
+export const PostRemover = Remover.at({ data: Data, model: App.model.removePost })
+
 // Every relation picker of the form, fed by the list over its target.
 export const pickers = Admin.options(EditPostForm, [Authors])
 
@@ -86,12 +102,14 @@ const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 // The form knows nothing of Remote. The editor's `onOut` is what turns a decoded
 // `EditPostInput` into the mutation.
 export const EditForm = Page.at(EditSlot, { onOut: PostEditor.onOut })
+export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 
 // One list for the page: the editor's placement, and Remote with what is on
 // screen. Remote's Messages route to its reducer and its Subscriptions fetch what
 // the lists and the open editor require.
 export const placements = Page.assemble(
   EditForm,
+  RemoveForm,
   Data.wiring({ posts: Posts.active, authors: Authors.active, editor: PostEditor.active }),
 )
 
@@ -101,6 +119,8 @@ export const update = PostEditor.after(
     switch (message._tag) {
       case 'OpenedPost':
         return EditForm.helpers.open(message.id)(model)
+      case 'AskedToDeletePost':
+        return RemoveForm.helpers.ask(message.id)(model)
       case 'ClosedEditor':
         return EditForm.helpers.close()(model)
       case 'RequestedMorePosts': {

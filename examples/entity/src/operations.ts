@@ -18,3 +18,8 @@ export const AuthorsQuery = Query.make('Authors', {
   Input: {},
   Result: Query.connection(Blog.Author),
 })
+
+export const DeletePostMutation = Mutation.make('DeletePost', {
+  Input: { id: Schema.String },
+  Output: {},
+})

@@ -107,6 +107,21 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     // The list row is the same normalized post, so it changed with no refetch.
     expect(cells()[1]).toEqual(['p2', 'Compilers, revised', 'yes'])
 
+    // Delete asks first, and a no deletes nothing.
+    element('#delete').click()
+    await vi.waitFor(() => expect(element('#confirm')?.textContent).toBe('Delete p2?'))
+    element('#no').click()
+    await vi.waitFor(() => expect(element('#delete')).not.toBeNull())
+    expect(backend.count('posts')).toBe(2)
+
+    element('#delete').click()
+    await vi.waitFor(() => expect(element('#yes')).not.toBeNull())
+    element('#yes').click()
+    // The server named no list; the row left it, and the editor reads that its post is gone.
+    await vi.waitFor(() => expect(cells()).toEqual([['p1', 'Notes on the Engine', 'yes']]))
+    expect(backend.count('posts')).toBe(1)
+    await vi.waitFor(() => expect(element('#status').textContent).toBe('That post does not exist.'))
+
     element('#close').click()
     await vi.waitFor(() => expect(element('#editor')).toBeNull())
   } finally {

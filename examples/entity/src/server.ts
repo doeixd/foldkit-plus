@@ -11,7 +11,7 @@ import { Effect } from 'effect'
 import { bind, databaseLayer, query, returning, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog } from './domain.js'
-import { AuthorsQuery, EditPostMutation, PostsQuery } from './operations.js'
+import { AuthorsQuery, DeletePostMutation, EditPostMutation, PostsQuery } from './operations.js'
 
 const authors = sqliteTable('authors', {
   id: text('id').primaryKey(),
@@ -83,10 +83,19 @@ export const openServer = () => {
     }),
   )
 
+  const DeletePost = RemoteServer.mutation(DeletePostMutation, ({ input }) =>
+    Effect.promise(async () => {
+      await db.delete(comments).where(eq(comments.postId, input.id))
+      await db.delete(posts).where(eq(posts.id, input.id))
+      // Saying what is gone is enough: the client drops it from every list it is in.
+      return { output: {}, deleted: [{ entity: 'Post', id: input.id }] }
+    }),
+  )
+
   return {
     server: RemoteServer.make({
       entities: [source(Db.Author), source(Db.Post), source(Db.Comment)],
-      mutations: [EditPost],
+      mutations: [EditPost, DeletePost],
       // A list is a query someone declared: nothing lists a table because a relation points at it.
       queries: [
         query(PostsQuery, { entity: Db.Post, orderBy: [{ column: posts.id, direction: 'asc' }] }),
@@ -99,6 +108,10 @@ export const openServer = () => {
     layer: databaseLayer(db),
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.prepare('select * from posts where id = ?').get(id),
+    count: (table: 'posts' | 'comments'): number =>
+      Number(
+        (sqlite.prepare(`select count(*) as n from ${table}`).get() as { readonly n: number }).n,
+      ),
     close: () => sqlite.close(),
   }
 }

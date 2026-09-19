@@ -2799,7 +2799,16 @@ using ordinary Foldkit state/update/Submodel concepts.
 > **Status:** an editor and a list are built as [`packages/admin`](../../packages/admin/README.md):
 > `Admin.editor(name, { form, mutation })` then `.at({ data, model })`, covering
 > `edit` and `create`; and `Admin.list(name, { query, selection })` then
-> `.at({ data, input })`. `detail` and `delete` are not built.
+> `.at({ data, input })`; `Admin.detail` and `Admin.remover` complete the five
+> capabilities this section lists.
+>
+> - **Delete needed Remote to be able to say "gone".** A mutation's outcome could
+>   patch entities and change connections, but not delete. `deleted` on the
+>   outcome tombstones, and since a tombstone already hides an entity from every
+>   connection and relation, the server names no list and the remover knows
+>   nothing of lists either.
+> - **An editor whose entity is gone says `NotFound`**, even after a save that
+>   landed: found when deleting the post open in the editor left it on `Saved`.
 >
 > - **A list holds no state, so it is not a Bundle.** Its pages are Remote's and
 >   its input (a search term, filters) is the application's Model. It contributes

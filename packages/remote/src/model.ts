@@ -144,6 +144,8 @@ export type RemoteMessage =
       readonly entities: readonly NormalizedPatch[]
       /** Connection changes the server confirmed; they replace the request's own. */
       readonly connections?: ReadonlyArray<ConnectionChange> | undefined
+      /** Entities the mutation deleted: tombstoned, which hides them from every connection. */
+      readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
     }
   | { readonly _tag: 'MutationFailed'; readonly requestId: string; readonly error: RemoteError }
   | {
@@ -199,6 +201,9 @@ export const remoteMessageCases = {
     requestId: Schema.String,
     entities: Schema.Array(NormalizedEntity),
     connections: Schema.optional(Schema.Array(Schema.Unknown)),
+    deleted: Schema.optional(
+      Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
+    ),
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
   LiveReceived: {
@@ -372,6 +377,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         message.requestId,
         message.entities,
         message.connections ?? [],
+        message.deleted ?? [],
       )
       return {
         ...model,

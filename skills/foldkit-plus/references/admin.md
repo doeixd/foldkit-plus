@@ -4,7 +4,9 @@ Management screens assembled from parts the application already has. An
 **editor** joins a `foldkit-form` form, the Remote mutation its value feeds, and
 the Entity they share: it loads what the form writes, fills the form, turns a
 valid submit into the mutation, and reports how it went. A **list** joins a
-Remote query and an Entity Selection. Both are headless.
+Remote query and an Entity Selection; a **detail** reads one Entity through a
+Selection; a **remover** deletes through a mutation with a yes in between. All
+are headless.
 
 Nothing is generated from an Entity alone: no form and mutation, no editor.
 
@@ -110,6 +112,29 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
   list over its target throws when `Admin.options` is called. Empty until loaded;
   only the rows loaded so far. `AuthorList.choices(model)` is one list's.
 - Sorting and filtering are the query's input, which your Model holds.
+
+## Deleting and detail
+
+```ts
+const Remover = Admin.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }), // the mutation's input for an id
+})
+const RemoveSlot = Bundle.declare(Remover.bundle, 'remover')
+// ...spread RemoveSlot.fields and RemoveSlot.cases into the page's Model and Message...
+
+const PostRemover = Remover.at({ data: Data, model: App.model.remover })
+const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
+```
+
+- `RemoveForm.helpers.ask(id)` asks; `Remover.Message.Confirmed()` / `Cancelled()`
+  answer; `dismiss()` clears. `PostRemover.status(model)` is `Idle`, `Confirming`,
+  `Deleting`, `Deleted`, or `DeleteFailed`; `target(model)`, `error(model)`.
+- The server's mutation returns `deleted: [{ entity, id }]` and names no list.
+  Remote drops the entity from every list and relation, and an open editor or a
+  detail of it reads `NotFound`.
+- `Admin.detail(name, { selection }).at({ data, id: model => ... })` gives `value(model)`
+  (a `RemoteData`), `active`, and `fields` (labelled like a list's `columns`). No state.
 
 ## Gotchas
 

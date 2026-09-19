@@ -16,8 +16,10 @@ import {
   EditForm,
   Message,
   PostEditor,
+  PostRemover,
   PostSurface,
   Posts,
+  RemoverMessage,
   initial as initialModel,
   pickers,
   update,
@@ -176,6 +178,21 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     lines.push(`author again: ${describe(author.read(model).author)}`)
     // The list too: its row is the same normalized post.
     lines.push(`post list again: ${describeList(model)}`)
+
+    // --- Deleting ---
+    const remover = (message: typeof RemoverMessage.Type) => (root: Model) =>
+      dispatch(root, Message.GotRemovePostMessage({ message }))
+    model = await dispatch(model, Message.AskedToDeletePost({ id: 'p1' }))
+    lines.push(
+      `asked to delete p1: ${PostRemover.status(model)}; rows ${backend.count('posts')} posts, ${backend.count('comments')} comments`,
+    )
+    model = await remover(RemoverMessage.Confirmed())(model)
+    lines.push(
+      `confirmed: ${PostRemover.status(model)}; rows ${backend.count('posts')} posts, ${backend.count('comments')} comments`,
+    )
+    // The server said what is gone and named no list; every list dropped it.
+    lines.push(`post list after delete: ${describeList(model)}`)
+    lines.push(`author after delete: ${describe(author.read(model).author)}`)
   } finally {
     backend.close()
   }
