@@ -92,3 +92,30 @@ expectTypeOf(Entity.selectFor(Publish).members).toEqualTypeOf<{
   readonly id: true
   readonly published: true
 }>()
+
+{
+  const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
+  const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
+  const Create = Entity.input(
+    Blog.Post,
+    Schema.Struct({ author: NewAuthor.schema, comments: Schema.Array(NewComment.schema) }),
+    {
+      author: Relation.nested(Blog.Post.relations.author, NewAuthor),
+      comments: Relation.nested(Blog.Post.relations.comments, NewComment),
+    },
+  )
+  const loaded = Entity.selectFor(Create)
+  expectTypeOf<typeof loaded.schema.Type>().toEqualTypeOf<{
+    readonly author: { readonly name: string }
+    readonly comments: ReadonlyArray<{ readonly body: string }>
+  }>()
+
+  Entity.input(Blog.Post, Schema.Struct({ author: NewAuthor.schema }), {
+    // @ts-expect-error an input of Comment nested in a relation to Author
+    author: Relation.nested(Blog.Post.relations.author, NewComment),
+  })
+  Entity.input(Blog.Post, Schema.Struct({ comments: NewComment.schema }), {
+    // @ts-expect-error a many relation takes a list of the nested input's values
+    comments: Relation.nested(Blog.Post.relations.comments, NewComment),
+  })
+}

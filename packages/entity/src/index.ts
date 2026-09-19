@@ -293,6 +293,20 @@ export interface RelationInput<R extends EntityRelation<any, any, any, any, any>
   readonly relation: R
 }
 
+/**
+ * An input key that carries the relation's target itself, written through an
+ * input of its own: a post created with a new author, an order with its lines.
+ * A `one` holds that input's value, a `many` a list of them.
+ */
+export interface NestedInput<
+  R extends EntityRelation<any, any, any, any, any>,
+  I extends EntityInput<any, any, any>,
+> {
+  readonly _tag: 'NestedInput'
+  readonly relation: R
+  readonly input: I
+}
+
 /** An input key that is about the operation, not the Entity: a reason, a flag, a confirmation. */
 export interface Unmapped {
   readonly _tag: 'Unmapped'
@@ -302,6 +316,10 @@ export interface Unmapped {
 export type InputMember =
   | EntityField<string, string, Schema.Constraint>
   | RelationInput<EntityRelation<string, string, AnyEntity, Cardinality, boolean>>
+  | NestedInput<
+      EntityRelation<string, string, AnyEntity, Cardinality, boolean>,
+      EntityInput<AnyEntity, any, any>
+    >
   | Unmapped
 
 /** The ids a relation takes as input: one id, a nullable id, or a list of ids. */
@@ -312,6 +330,14 @@ type RelationIds<R> =
       : Optional extends true
         ? string | null
         : string
+    : never
+
+/** What a nested input takes: the value of the target's input, or a list of them for a `many`. */
+type NestedValues<R, I> =
+  I extends EntityInput<any, infer Fields, any>
+    ? R extends EntityRelation<any, any, any, 'many', any>
+      ? ReadonlyArray<Schema.Struct.Type<Fields>>
+      : Schema.Struct.Type<Fields>
     : never
 
 /**
@@ -326,6 +352,7 @@ type MappingFor<Name extends string, Input, M> = M extends Unmapped
   : M extends
         | EntityField<infer Owner, any, any>
         | RelationInput<EntityRelation<infer Owner, any, any, any, any>>
+        | NestedInput<EntityRelation<infer Owner, any, any, any, any>, any>
     ? [Owner] extends [Name]
       ? M extends EntityField<any, any, infer S>
         ? Present<Input> extends Schema.Schema.Type<S>
@@ -335,9 +362,19 @@ type MappingFor<Name extends string, Input, M> = M extends Unmapped
           ? Present<Input> extends RelationIds<R>
             ? M
             : 'the input value is not the id shape of this relation'
-          : never
+          : M extends NestedInput<infer R, infer I>
+            ? R extends EntityRelation<any, any, infer Target, any, any>
+              ? I extends EntityInput<infer Of, any, any>
+                ? [Of['name']] extends [Target['name']]
+                  ? Present<Input> extends NestedValues<R, I>
+                    ? M
+                    : 'the input value is not the value of the nested input'
+                  : `the nested input is of ${Of['name']}, not ${Target['name']}`
+                : never
+              : never
+            : never
       : `this member belongs to ${Owner}`
-    : 'map an input key to a Field, Relation.input(relation), or Entity.unmapped'
+    : 'map an input key to a Field, Relation.input(relation), Relation.nested(relation, input), or Entity.unmapped'
 
 /** A key that names a field whose value it fits maps itself; every other key needs an entry. */
 type SelfMapped<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
@@ -379,12 +416,22 @@ export interface EntityInput<E extends AnyEntity, Fields extends Schema.Struct.F
 type WrittenKey<M> =
   M extends EntityField<any, infer Key, any>
     ? Key
-    : M extends RelationInput<EntityRelation<any, infer Key, any, any, any>>
+    : M extends
+          | RelationInput<EntityRelation<any, infer Key, any, any, any>>
+          | NestedInput<EntityRelation<any, infer Key, any, any, any>, any>
       ? Key
       : never
 
-/** `true` for every member the input writes: what to read to show the input's current values. */
-type WrittenSpec<Members> = { readonly [K in keyof Members as WrittenKey<Members[K]>]: true }
+/** A nested input reads what it writes of the target; every other member reads as it is. */
+type WrittenAs<M> =
+  M extends NestedInput<any, EntityInput<infer Of, any, infer Members>>
+    ? Selection<Of['name'], WrittenSpec<Members>, SelectionSchema<Of, WrittenSpec<Members>>>
+    : true
+
+/** Every member the input writes: what to read to show the input's current values. */
+type WrittenSpec<Members> = {
+  readonly [K in keyof Members as WrittenKey<Members[K]>]: WrittenAs<Members[K]>
+}
 
 const unmapped: Unmapped = Object.freeze({ _tag: 'Unmapped' })
 
@@ -691,16 +738,24 @@ export const Entity = {
       const owned =
         member._tag === 'Field'
           ? member
-          : member._tag === 'RelationInput'
+          : member._tag === 'RelationInput' || member._tag === 'NestedInput'
             ? member.relation
             : member._tag === 'Unmapped'
               ? undefined
               : fail(
                   entity,
-                  `input key "${key}" maps to a Field, Relation.input(relation), or Entity.unmapped`,
+                  `input key "${key}" maps to a Field, Relation.input(relation), Relation.nested(relation, input), or Entity.unmapped`,
                 )
       if (owned !== undefined && owned.owner.token !== entity.identity.token)
         fail(entity, `input key "${key}" is mapped to a member of "${owned.owner.name}"`)
+      if (
+        member._tag === 'NestedInput' &&
+        !isSameEntity(member.input.entity, member.relation.target())
+      )
+        fail(
+          entity,
+          `input key "${key}" nests an input of "${member.input.entity.name}", but "${member.relation.key}" is of "${member.relation.target().name}"`,
+        )
       return member
     })
     return Object.freeze({ entity, schema, members: Object.freeze(members) }) as never
@@ -717,14 +772,18 @@ export const Entity = {
     input: EntityInput<E, Fields, Members>,
   ): Selection<E['name'], WrittenSpec<Members>, SelectionSchema<E, WrittenSpec<Members>>> => {
     const members: Readonly<Record<string, InputMember>> = input.members as never
-    const written = Object.values(members).flatMap(member =>
-      member._tag === 'Field'
-        ? [member.key]
-        : member._tag === 'RelationInput'
-          ? [member.relation.key]
-          : [],
+    const spec = Object.fromEntries(
+      Object.values(members).flatMap((member): ReadonlyArray<readonly [string, unknown]> =>
+        member._tag === 'Field'
+          ? [[member.key, true]]
+          : member._tag === 'RelationInput'
+            ? [[member.relation.key, true]]
+            : member._tag === 'NestedInput'
+              ? // What the nested input writes of the target, so its keys can be shown too.
+                [[member.relation.key, Entity.selectFor(member.input)]]
+              : [],
+      ),
     )
-    const spec = Object.fromEntries(written.map(key => [key, true] as const))
     return Entity.select(input.entity, spec as never) as never
   },
 
@@ -754,6 +813,13 @@ export const Entity = {
       if (!(written in value)) return []
       const read = value[written]
       if (member._tag === 'Field') return [[key, read] as const]
+      if (member._tag === 'NestedInput') {
+        const nested = (held: unknown): unknown =>
+          typeof held === 'object' && held !== null
+            ? Entity.valuesFor(member.input, held as Readonly<Record<string, unknown>>)
+            : null
+        return [[key, Array.isArray(read) ? read.map(nested) : nested(read)] as const]
+      }
       const ids = Array.isArray(read) ? read.map(idOf) : idOf(read)
       // A relation read without its ids (a nested Selection that left `id` out) fills nothing.
       const known = Array.isArray(ids) ? !ids.includes(undefined) : ids !== undefined
@@ -787,6 +853,15 @@ export const Relation = {
   /** For `Entity.input`: the input key holds this relation's target id, or ids for a `many`. */
   input: <R extends EntityRelation<any, any, any, any, any>>(relation: R): RelationInput<R> =>
     Object.freeze({ _tag: 'RelationInput', relation }),
+
+  /**
+   * For `Entity.input`: the input key holds the relation's target itself, written
+   * through `input`, an `Entity.input` of the target. A `many` holds a list.
+   */
+  nested: <R extends EntityRelation<any, any, any, any, any>, I extends EntityInput<any, any, any>>(
+    relation: R,
+    input: I,
+  ): NestedInput<R, I> => Object.freeze({ _tag: 'NestedInput', relation, input }),
 
   many: <Target extends AnyEntity>(target: Target): RelationSpec<Target, 'many', false> => ({
     target,

@@ -86,12 +86,12 @@ describe('Entity.input', () => {
     [
       'a derived member',
       { authorId: Post.derived.commentCount },
-      'input key "authorId" maps to a Field, Relation.input(relation), or Entity.unmapped',
+      'input key "authorId" maps to a Field, Relation.input(relation), Relation.nested(relation, input), or Entity.unmapped',
     ],
     [
       'a bare relation',
       { authorId: Post.relations.author },
-      'input key "authorId" maps to a Field, Relation.input(relation), or Entity.unmapped',
+      'input key "authorId" maps to a Field, Relation.input(relation), Relation.nested(relation, input), or Entity.unmapped',
     ],
   ])('rejects %s', (_, mapping, message) => {
     expect(() => inputUntyped(Post, input, mapping)).toThrow(message)
@@ -158,5 +158,68 @@ describe('Entity.input', () => {
       expect(Entity.valuesFor(edit, { author: { name: 'Ada' } })).toEqual({})
       expect(Entity.valuesFor(edit, { comments: [{ id: 'c1' }, { body: 'x' }] })).toEqual({})
     })
+  })
+})
+
+describe('Relation.nested', () => {
+  const NewAuthor = Entity.input(Author, Schema.Struct({ name: Schema.String }))
+  const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
+  const CreatePost = Entity.input(
+    Post,
+    Schema.Struct({
+      title: Schema.String,
+      author: NewAuthor.schema,
+      editor: Schema.NullOr(NewAuthor.schema),
+      comments: Schema.Array(NewComment.schema),
+    }),
+    {
+      author: Relation.nested(Post.relations.author, NewAuthor),
+      editor: Relation.nested(Post.relations.editor, NewAuthor),
+      comments: Relation.nested(Post.relations.comments, NewComment),
+    },
+  )
+
+  it('reads a key as the target itself, written through an input of its own', () => {
+    expect(CreatePost.members.author._tag).toBe('NestedInput')
+    expect(CreatePost.members.author.relation).toBe(Post.relations.author)
+    expect(CreatePost.members.comments.input).toBe(NewComment)
+  })
+
+  it('loads what the nested input writes of the target', () => {
+    const selection = Entity.selectFor(CreatePost)
+    expect(Object.keys(selection.members)).toEqual(['title', 'author', 'editor', 'comments'])
+    expect(Object.keys(selection.members.author.members)).toEqual(['name'])
+    expect(
+      Schema.is(selection.schema)({
+        title: 'Hello',
+        author: { name: 'Ada' },
+        editor: null,
+        comments: [{ body: 'First' }],
+      }),
+    ).toBe(true)
+  })
+
+  it('turns a loaded value back into nested input values, one, none, and many', () => {
+    expect(
+      Entity.valuesFor(CreatePost, {
+        title: 'Hello',
+        author: { name: 'Ada', id: 'a1' },
+        editor: null,
+        comments: [{ body: 'First' }, { body: 'Second' }],
+      }),
+    ).toEqual({
+      title: 'Hello',
+      author: { name: 'Ada' },
+      editor: null,
+      comments: [{ body: 'First' }, { body: 'Second' }],
+    })
+  })
+
+  it('refuses a nested input of another Entity than the relation is of', () => {
+    expect(() =>
+      inputUntyped(Post, Schema.Struct({ author: NewComment.schema }), {
+        author: Relation.nested(Post.relations.author, NewComment),
+      }),
+    ).toThrow(/"author" nests an input of "Comment", but "author" is of "Author"/)
   })
 })
