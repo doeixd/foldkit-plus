@@ -6,6 +6,7 @@
  * unknown or already-applied result is a no-op.
  */
 import { Schema } from 'effect'
+import type { RemoteError } from './remoteData.js'
 import { entityKey, writeEntity, type EntityStore } from './store.js'
 
 export interface NormalizedPatch {
@@ -18,6 +19,8 @@ export interface MutationState {
   readonly pending: ReadonlySet<string>
   readonly applied: ReadonlySet<string>
   readonly failed: ReadonlySet<string>
+  /** Why each request in `failed` failed, kept exactly as long as `failed` keeps its id. */
+  readonly errors: ReadonlyMap<string, RemoteError>
   /**
    * How many mutations this model has started. A bound domain takes its next
    * request id from here, so `update` stays pure and the id exists before the
@@ -30,6 +33,7 @@ export const emptyMutationState: MutationState = {
   pending: new Set(),
   applied: new Set(),
   failed: new Set(),
+  errors: new Map(),
   sequence: 0,
 }
 
@@ -57,10 +61,35 @@ export const beginMutation = (state: MutationState, requestId: string): Mutation
   sequence: state.sequence + 1,
 })
 
-export const failMutation = (state: MutationState, requestId: string): MutationState => {
+export const failMutation = (
+  state: MutationState,
+  requestId: string,
+  error: RemoteError,
+): MutationState => {
   const pending = new Set(state.pending)
   pending.delete(requestId)
-  return { ...state, pending, failed: remember(state.failed, requestId) }
+  const failed = remember(state.failed, requestId)
+  const errors = new Map([...state.errors, [requestId, error] as const])
+  // `failed` is a bounded window; an error outlives its id by nothing.
+  for (const id of errors.keys()) if (!failed.has(id)) errors.delete(id)
+  return { ...state, pending, failed, errors }
+}
+
+/** What Remote knows of one mutation request, by the id `mutate` returned. */
+export type MutationStatus =
+  /** Never started here, or settled so long ago its id has left the window. */
+  | { readonly _tag: 'Unknown' }
+  | { readonly _tag: 'Pending' }
+  | { readonly _tag: 'Applied' }
+  | { readonly _tag: 'Failed'; readonly error: RemoteError }
+
+export const mutationStatus = (state: MutationState, requestId: string): MutationStatus => {
+  // A retry reuses its request id, so the latest outcome wins: in flight, then
+  // applied (a request cannot fail once applied), then the failure it last had.
+  if (state.pending.has(requestId)) return { _tag: 'Pending' }
+  if (state.applied.has(requestId)) return { _tag: 'Applied' }
+  const error = state.errors.get(requestId)
+  return error === undefined ? { _tag: 'Unknown' } : { _tag: 'Failed', error }
 }
 
 export interface Reconciled {

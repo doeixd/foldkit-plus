@@ -67,7 +67,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 - **Dispatch form Messages** as before: the editor's Messages are the form's own
   (`EditPostForm.Message.Changed(...)` wrapped in `Message.GotEditorMessage`).
 - **Read state:** `PostEditor.status(model)` is `Closed`, `Loading`, `NotFound`,
-  `LoadFailed`, `Editing`, `Saving`, `Saved`, or `SaveFailed`. The form's Model is
+  `LoadFailed`, `Editing`, `Saving`, `Saved`, or `SaveFailed`;
+  `PostEditor.saveError(model)` is why a save failed. The form's Model is
   `model.editor.form`.
 - **Draw it:** `foldkit-mixins-form` over `model.editor.form`, or from
   `EditPostForm.controls`.
@@ -84,8 +85,6 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 - The form fills once per `open`. A later refresh does not overwrite drafts.
 - A form and a mutation with different inputs is a type error at `Admin.editor`.
 - One editor serves one form; create and edit are usually two editors.
-- Opening an id that never existed stays `Loading`: Remote tombstones only on a
-  live delete. The error of a failed save is in Remote's `MutationFailed` Message.
 
 ## See also
 

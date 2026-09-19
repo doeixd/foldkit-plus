@@ -355,7 +355,12 @@ The states are:
 - **`Ready`** — every selected field is present and decodes.
 - **`Refreshing`** — the current value remains visible while it is being refetched.
 - **`Failed`** — stored server data does not decode against the Selection.
-- **`NotFound`** — the entity is represented by a tombstone.
+- **`NotFound`** — the entity is represented by a tombstone: a live event
+  deleted it, or the server answered a read without it. A requested id, or the
+  target of a ref the server returned, that is missing from the answer is known
+  absent, whether it never existed, is gone, or is not this principal's to see.
+  It is not planned again until `Data.refresh` forces it or a write brings it
+  back.
 
 `Initial` is intentionally different from `Loading`. A Projection belonging to
 no active Surface may remain `Initial` forever. Rendering a spinner for
@@ -617,6 +622,11 @@ case 'ClickedRename': {
 Those settlement Messages go through `Data.reduce` like every other Remote fact.
 The request id comes from the Remote Model's sequence, so `update` stays pure.
 Settling is idempotent per `requestId`.
+
+`Data.mutation(model, requestId)` reads what became of it from the Model:
+`Pending`, `Applied`, `Failed` with the error the server or transport gave, or
+`Unknown` for an id never started here (or settled so long ago it left the
+bounded ledger). A retry reuses its id, and the latest outcome wins.
 
 Optimistic entity patches are **layers over the base store**, not inverse
 patches. If multiple mutations overlap, the visible cache is recomputed as base

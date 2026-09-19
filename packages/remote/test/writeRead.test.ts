@@ -1,6 +1,6 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Remote, emptyStore, entityKey, entry, windowKey } from '../src/index.js'
+import { Remote, emptyStore, entityKey, entry, isTombstone, plan, windowKey } from '../src/index.js'
 
 describe('Remote.writeRead', () => {
   it('writes values and records the applied window', () => {
@@ -138,5 +138,64 @@ describe('Remote.writeRead', () => {
       )
       expect(commentsOf(written)).toEqual(value)
     }
+  })
+
+  describe('what the answer leaves out', () => {
+    const user = (id: string) => ({ entity: 'User', id, fields: ['name'] })
+    const ada = { entity: 'User', id: 'u1', values: { name: 'ada' } }
+
+    it('marks a requested id the server did not return as known absent', () => {
+      const store = Remote.writeRead(emptyStore, [user('u1'), user('nope')], { entities: [ada] })
+
+      expect(isTombstone(store, entityKey('User', 'u1'))).toBe(false)
+      expect(isTombstone(store, entityKey('User', 'nope'))).toBe(true)
+    })
+
+    it('marks the target of a returned ref the same way, and only a target that was asked for', () => {
+      const project = {
+        entity: 'Project',
+        id: 'p1',
+        fields: ['owner', 'reviewer'],
+        relations: { owner: { entity: 'User', fields: ['name'] } },
+      }
+      const store = Remote.writeRead(emptyStore, [project], {
+        entities: [
+          { entity: 'Project', id: 'p1', values: { owner: 'User:gone', reviewer: 'User:u9' } },
+        ],
+      })
+
+      expect(isTombstone(store, entityKey('User', 'gone'))).toBe(true)
+      // `reviewer` was read as a ref only; nothing was asked of its target.
+      expect(entry(store, entityKey('User', 'u9'))).toEqual(Option.none())
+    })
+
+    it('is not planned again, until a refresh forces it or a write brings it back', () => {
+      const absent = Remote.writeRead(emptyStore, [user('nope')], { entities: [] })
+
+      expect(plan(absent, [user('nope')])).toEqual([])
+      expect(plan(absent, [user('nope')], { force: true })).toEqual([user('nope')])
+
+      const back = Remote.writeRead(absent, [user('nope')], {
+        entities: [{ entity: 'User', id: 'nope', values: { name: 'new' } }],
+      })
+      expect(isTombstone(back, entityKey('User', 'nope'))).toBe(false)
+    })
+
+    it('forgets what it held of an entity a later read leaves out', () => {
+      const held = Remote.writeRead(emptyStore, [user('u1')], { entities: [ada] })
+      const gone = Remote.writeRead(held, [user('u1')], { entities: [] })
+
+      expect(isTombstone(gone, entityKey('User', 'u1'))).toBe(true)
+      expect(Option.getOrThrow(entry(gone, entityKey('User', 'u1'))).values).toEqual({})
+    })
+
+    it('leaves alone an entity the read did not ask about', () => {
+      const held = Remote.writeRead(emptyStore, [user('u1')], { entities: [ada] })
+      const other = Remote.writeRead(held, [user('u2')], {
+        entities: [{ entity: 'User', id: 'u2', values: { name: 'grace' } }],
+      })
+
+      expect(isTombstone(other, entityKey('User', 'u1'))).toBe(false)
+    })
   })
 })

@@ -219,6 +219,12 @@ const Data = Remote.make({ model: App.model.remote, entities: [Work.User, Work.P
 const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name; owner: { name } }>>
 ```
 
+**Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
+`Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
+returned. A read the server answers without a requested id (or without the
+target of a ref it returned) makes that entity `NotFound`; it is refetched only
+by `Data.refresh` or brought back by a later write.
+
 Debugging: `Data.plan(model, projection)` shows what is missing;
 `Data.inspect(model)` is a serializable cache summary.
 

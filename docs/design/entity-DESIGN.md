@@ -2814,9 +2814,11 @@ using ordinary Foldkit state/update/Submodel concepts.
 >   `ActiveSurface` that `Data.subscriptions` takes like any Surface, Update
 >   Steps, and a Command from `Data.mutate`. No runtime, no store. `status` is
 >   read from Remote's mutation state and the loaded value, never stored.
-> - **Found while building it:** Remote tombstones only on a live delete, so a
->   read of an id that never existed is not `NotFound`; and the error of a failed
->   mutation is only in its Message, not in the Model.
+> - **Found while building it, and fixed in Remote:** a read the server answers
+>   without a requested id now tombstones it, so opening an id that never existed
+>   is `NotFound` instead of `Loading` for good; and a failed mutation's error is
+>   kept in the Model beside its id, read with `Data.mutation(model, requestId)`,
+>   which the editor's `status` and `saveError` now use.
 
 Only after the lower-level pieces feel good.
 

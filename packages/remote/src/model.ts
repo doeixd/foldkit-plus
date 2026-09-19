@@ -34,6 +34,7 @@ import {
   entityKey,
   emptyStore,
   setStale,
+  tombstone,
   writeEntities,
   type EntityStore,
   type EntityWrite,
@@ -382,7 +383,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
     case 'MutationFailed':
       return {
         ...model,
-        mutations: failMutation(model.mutations, message.requestId),
+        mutations: failMutation(model.mutations, message.requestId, message.error),
         optimistic: settleFailure(model.optimistic, message.requestId),
       }
     case 'LiveReceived': {
@@ -550,5 +551,14 @@ export const writeRead = (
     pending.set(key, { ...pending.get(key), ...values })
     writes.push({ key, values, windows: entry?.windows })
   }
-  return writeEntities(store, writes, now)
+  // The server answered the batch and left these out: a requested id, or the
+  // target of a ref it returned. Whether the entity never existed, is gone, or is
+  // not this principal's to see, the client knows the same thing: it is not
+  // there. Without this the read would stay `Loading` for good. A forced plan
+  // (`refresh`) asks again, and any later write clears the tombstone.
+  let answered = store
+  for (const key of byEntity.keys()) {
+    if (!returned.has(key)) answered = tombstone(answered, key)
+  }
+  return writeEntities(answered, writes, now)
 }

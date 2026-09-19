@@ -5,6 +5,62 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+Five new packages and the changes that let existing ones read them. Design and
+the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.md).
+
+### New packages
+
+- **`foldkit-metadata` 0.1.0.** The opaque, key-owned metadata from
+  `foldkit-surface`, as its own package, with `Metadata.empty`, `Metadata.combine`
+  and `Metadata.is` made public. Surface re-exports it, so no import changes.
+- **`foldkit-entity` 0.1.0.** A domain declared once: `Entity.define`,
+  `Entity.derived`, `Entity.relate` (all relations in one step, so Entities that
+  point at each other type-check), `Entity.select` with an assembled schema,
+  `Entity.annotate` / `annotateMembers`, and, experimental, `Entity.input` with
+  `selectFor` and `valuesFor`.
+- **`foldkit-form` 0.1.0.** A headless form as a Bundle over core
+  `fieldValidation`, built from an `Entity.input`.
+- **`foldkit-mixins-form` 0.1.0.** Draws a `foldkit-form` form as accessible
+  HTML with every element a Mixins Slot.
+- **`foldkit-admin` 0.1.0.** `Admin.editor`: a form, the Remote mutation its
+  value feeds, and their Entity, joined into an edit or create screen.
+
+### `foldkit-remote`
+
+- `Remote.make` / `Remote.define` take `foldkit-entity` Entities beside
+  descriptors, and `Data.get`, `Data.live`, `Remote.select` and a query's `select`
+  take Entity Selections. `Entity.from` and `Selection.from` are the compile
+  steps. New dependency: `foldkit-entity`.
+- **Behaviour change.** A read the server answers without a requested id, or
+  without the target of a ref it returned, now tombstones that entity, so its
+  Projection reads `NotFound` instead of `Initial` / `Loading` for good. It is
+  refetched only by `Data.refresh`, and a later write clears it. A hand-written
+  `RemoteClient` that returned partial batches on purpose must now return every
+  entity it was asked for.
+- `Data.mutation(model, requestId)` reads a mutation's outcome from the Model:
+  `Pending`, `Applied`, `Failed` with its error, or `Unknown`.
+- **Breaking (kernel).** `MutationState` gains `errors`, and `failMutation` takes
+  the error as a third argument. `Data.get`'s parameter type is now
+  `EntitySelection`.
+
+### `foldkit-remote-drizzle`
+
+- `bind(entities, storage)` binds an `Entity.relate` result to tables: fields by
+  column name, a relation as `{ field }`, `{ foreignKey }` or `{ through, … }`, a
+  derived member as a count. Bindings may point at each other. New dependency:
+  `foldkit-entity`.
+
+### `foldkit-bundle`
+
+- `Bundle.withView(view)` gives a bundle a view with view inputs of that view's
+  own, which `mapView` cannot.
+
+### `foldkit-surface`
+
+- `Metadata` now comes from `foldkit-metadata` (re-exported). New dependency.
+
 ## 0.5.0
 
 Every package below changes its public types or adds API, so each takes a minor

@@ -12,7 +12,14 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type AnyEntity, type EntityInput } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
-import type { MutationDescriptor, RemoteClient, RemoteData, RemoteMessage } from 'foldkit-remote'
+import type {
+  MutationDescriptor,
+  MutationStatus,
+  RemoteClient,
+  RemoteData,
+  RemoteError,
+  RemoteMessage,
+} from 'foldkit-remote'
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import type * as Update from 'foldkit/update'
@@ -79,15 +86,7 @@ interface DomainLike<Root> {
     readonly command: Command<RemoteMessage, never, RemoteClient>
   }
   get(selection: any, id: string): Projection<Root, RemoteData<any>>
-  readonly store: {
-    readonly get: (root: Root) => {
-      readonly mutations: {
-        readonly pending: ReadonlySet<string>
-        readonly applied: ReadonlySet<string>
-        readonly failed: ReadonlySet<string>
-      }
-    }
-  }
+  mutation(model: Root, requestId: string): MutationStatus
   readonly contract: { readonly owner?: object | undefined }
 }
 
@@ -198,6 +197,11 @@ export const Admin = {
           }
         }
 
+        const saveOf = (root: Root): MutationStatus => {
+          const { requestId } = slice.get(root)
+          return requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
+        }
+
         return {
           /** For the placement: a valid submit becomes the mutation, and its request is remembered. */
           onOut:
@@ -239,15 +243,19 @@ export const Admin = {
               return { ...next, model: sync(next.model).model }
             },
 
+          /** Why the last save failed, while `status` is `SaveFailed`. */
+          saveError: (root: Root): RemoteError | undefined => {
+            const save = saveOf(root)
+            return save._tag === 'Failed' ? save.error : undefined
+          },
+
           status: (root: Root): EditorStatus => {
             const editor = slice.get(root)
             if (editor.mode === 'closed') return 'Closed'
-            if (editor.requestId !== null) {
-              const { pending, failed, applied } = data.store.get(root).mutations
-              if (pending.has(editor.requestId)) return 'Saving'
-              if (failed.has(editor.requestId)) return 'SaveFailed'
-              if (applied.has(editor.requestId)) return 'Saved'
-            }
+            const save = saveOf(root)
+            if (save._tag === 'Pending') return 'Saving'
+            if (save._tag === 'Failed') return 'SaveFailed'
+            if (save._tag === 'Applied') return 'Saved'
             if (editor.filled) return 'Editing'
             const read = loaded(root)
             return read?._tag === 'NotFound'

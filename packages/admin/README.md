@@ -103,7 +103,7 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
     what the form writes is fetched and retained like any Surface's requirement.
   - `after(update)`: wraps `update` so `sync` runs after every Message.
   - `sync`, the Step itself, if you compose `update` another way.
-  - `status(model)`.
+  - `status(model)`, and `saveError(model)` while it is `SaveFailed`.
 - The save is a Command that needs `RemoteClient`, so the parent scope names it
   with `withServices<RemoteClient>()`.
 
@@ -128,12 +128,12 @@ form creates.
 | --- | --- |
 | `Closed` | nothing is open |
 | `Loading` | an id is open and its current values have not arrived |
-| `NotFound` | the entity is tombstoned in Remote's store |
+| `NotFound` | the server answered without it, or a live event deleted it |
 | `LoadFailed` | reading it failed to decode |
 | `Editing` | the form is showing, with no save in progress or just settled |
 | `Saving` | this editor's mutation is pending |
 | `Saved` | it was applied |
-| `SaveFailed` | it failed; the drafts are kept |
+| `SaveFailed` | it failed; the drafts are kept, and `saveError(model)` says why |
 
 An edit after a save returns to `Editing`: the last save no longer describes what
 is in the form.
@@ -150,10 +150,6 @@ is in the form.
 
 ## Limits
 
-- Remote marks an entity not found only when a live event deletes it. Opening an
-  id that never existed stays `Loading`, unless your server fails the read.
-- The error of a failed save is in Remote's `MutationFailed` Message, which the
-  editor does not keep. Handle it in `update` if you show it.
 - Headless. Draw the form with
   [`foldkit-mixins-form`](../mixins-form/README.md) over `model.editor.form`, or
   from `EditPostForm.controls`.

@@ -10,6 +10,7 @@ import {
   emptyStore,
   entityKey,
   failMutation,
+  mutationStatus,
   readField,
   reconcileMutation,
   writeEntity,
@@ -71,13 +72,33 @@ describe('Remote mutations', () => {
     expect(byMutation).toEqual(byLive)
   })
 
-  it('tracks pending and failed status', () => {
+  const offline = { _tag: 'TransportError', message: 'offline' }
+
+  it('tracks pending and failed status, and keeps why it failed', () => {
     const pending = beginMutation(emptyMutationState, 'req-1')
     expect(pending.pending.has('req-1')).toBe(true)
+    expect(mutationStatus(pending, 'req-1')).toEqual({ _tag: 'Pending' })
 
-    const failed = failMutation(pending, 'req-1')
+    const failed = failMutation(pending, 'req-1', offline)
     expect(failed.pending.has('req-1')).toBe(false)
     expect(failed.failed.has('req-1')).toBe(true)
+    expect(mutationStatus(failed, 'req-1')).toEqual({ _tag: 'Failed', error: offline })
+  })
+
+  it('reads an applied request, and one it has never seen', () => {
+    const started = beginMutation(emptyMutationState, 'req-1')
+    const applied = reconcileMutation(emptyStore, started, 'req-1', []).state
+
+    expect(mutationStatus(applied, 'req-1')).toEqual({ _tag: 'Applied' })
+    expect(mutationStatus(applied, 'req-2')).toEqual({ _tag: 'Unknown' })
+  })
+
+  it('reads a retry by its latest outcome: in flight, then applied', () => {
+    const retried = beginMutation(failMutation(emptyMutationState, 'req-1', offline), 'req-1')
+    expect(mutationStatus(retried, 'req-1')).toEqual({ _tag: 'Pending' })
+
+    const applied = reconcileMutation(emptyStore, retried, 'req-1', []).state
+    expect(mutationStatus(applied, 'req-1')).toEqual({ _tag: 'Applied' })
   })
 
   it('bounds the settled-request ledger', () => {
@@ -94,11 +115,13 @@ describe('Remote mutations', () => {
   it('bounds the failed-request ledger', () => {
     let state = emptyMutationState
     for (let index = 0; index < 4096; index += 1) {
-      state = failMutation(state, `req-${index}`)
+      state = failMutation(state, `req-${index}`, offline)
     }
 
     expect(state.failed.size).toBeLessThan(4096)
     expect(state.failed.has('req-4095')).toBe(true)
+    // An error is kept exactly as long as its id is.
+    expect([...state.errors.keys()]).toEqual([...state.failed])
   })
 
   it('clears pending even when a request is re-begun and reconciled again', () => {

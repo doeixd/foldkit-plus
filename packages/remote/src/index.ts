@@ -47,7 +47,7 @@ import {
   type RemoteMessageInput,
   type RemoteModel,
 } from './model.js'
-import type { MutationDescriptor } from './mutation.js'
+import { mutationStatus, type MutationDescriptor, type MutationStatus } from './mutation.js'
 import {
   connectionIdentity,
   visibleItems,
@@ -353,6 +353,11 @@ export interface RemoteDomain<
     input: MutationInput<M>,
     options?: DomainMutateOptions,
   ): MutationStarted<AppModel>
+  /**
+   * What Remote knows of a mutation `mutate` started, by its request id:
+   * pending, applied, or failed with the error the server or transport gave.
+   */
+  mutation(model: AppModel, requestId: string): MutationStatus
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
   /**
@@ -1632,6 +1637,7 @@ const bindDomain = <
         },
       }
     },
+    mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     reduce,
     inspect: model => inspectRemote(store.get(model)),
     wiring: (active, options): RemoteWiring<AppModel> => ({
