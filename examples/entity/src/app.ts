@@ -14,7 +14,13 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { AuthorChoice, AuthorPage, Blog, PostId, PostPage, PostRow } from './domain.js'
 import { EditPostForm } from './editForm.js'
-import { AuthorsQuery, DeletePostMutation, EditPostMutation, PostsQuery } from './operations.js'
+import {
+  AuthorsQuery,
+  DeletePostMutation,
+  EditPostMutation,
+  PostSort,
+  PostsQuery,
+} from './operations.js'
 
 // The form drawn through Mixins slots, styled where it is used.
 const Field = FormView.field(EditPostForm).pipe(
@@ -54,6 +60,9 @@ const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
 
 export const Model = Schema.Struct({
   remote: Remote.Model,
+  // What the post list shows is the page's state, and the query's input.
+  postSearch: Schema.String,
+  postSort: PostSort,
   ...EditSlot.fields,
   ...RemoveSlot.fields,
 })
@@ -66,6 +75,8 @@ export const Message = defineMessageUnion({
   OpenedPost: { id: PostId },
   ClosedEditor: {},
   RequestedMorePosts: {},
+  SearchedPosts: { text: Schema.String },
+  SortedPosts: { sort: PostSort },
 })
 export type Message = typeof Message.Type
 
@@ -83,7 +94,10 @@ export const Data = Remote.make({
 // Two lists: a query and a Selection each. They hold no state, so nothing is
 // placed; the pages are Remote's.
 export const PostList = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
-export const Posts = PostList.at({ data: Data, input: () => ({}) })
+export const Posts = PostList.at({
+  data: Data,
+  input: (model: Model) => ({ search: model.postSearch, sort: model.postSort }),
+})
 export const Authors = Crud.list('Authors', {
   query: AuthorsQuery,
   selection: AuthorChoice,
@@ -128,13 +142,19 @@ export const update = PostEditor.after(
         const more = Posts.more(model)
         return more === undefined ? { model } : { model, commands: [more] }
       }
+      // Nothing is fetched here: the list's input changed, so Remote requires another connection.
+      case 'SearchedPosts':
+        return { model: { ...model, postSearch: message.text } }
+      case 'SortedPosts':
+        return { model: { ...model, postSort: message.sort } }
       default:
         return { model }
     }
   }),
 )
 
-export const initial = (): Model => placements.initial({ remote: Remote.initial }).model
+export const initial = (): Model =>
+  placements.initial({ remote: Remote.initial, postSearch: '', postSort: 'oldest' }).model
 
 export const PostSurface = App.surface('PostPage', {
   params: { postId: Schema.String },

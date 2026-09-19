@@ -127,6 +127,14 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
   returned patches for the columns it wrote, and both Projections read the one
   normalized post.
 
+### Searching and sorting
+
+The post list's search box and its sortable Title header change two Model
+fields, `postSearch` and `postSort`. Those are `PostsQuery`'s input, so the list
+now names another connection, and Remote fetches it because it is on screen. No
+Message asks for data. On the server the same input picks the `where` and the
+`orderBy`; the sort is a name (`'title'`), never a column.
+
 ### Deleting
 
 ```text

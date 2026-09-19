@@ -290,7 +290,10 @@ reads `id`.
 ## Limits
 
 - A list has no sorting, filtering, or selection state of its own: those are the
-  query's input, which your Model holds.
+  query's input, which your Model holds. Change the input and the list is another
+  connection, fetched because it is on screen; `foldkit-remote-drizzle`'s `query`
+  reads the input in `where` and `orderBy`. [`examples/entity`](../../examples/entity)
+  searches and sorts its post list this way.
 - Headless. Draw the editor with `Crud.editorView` over a
   [`foldkit-mixins-form`](../mixins-form/README.md) view, or from
   `EditPostForm.controls`. [`examples/entity`](../../examples/entity) draws a

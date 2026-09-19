@@ -13,6 +13,9 @@ version changed; `pnpm` skips versions already in the registry.
   as before; a branded one now rejects another Entity's id. **Breaking** only for
   code that mapped a plain `Schema.String` key to a relation whose target has a
   branded id: give the key the id's schema.
+- `foldkit-remote-drizzle`: a `query`'s `orderBy` may be a function of the input
+  and the principal, as `where` is, so a list sorts by what the user chose. A
+  computed order without the id is tie-broken by it.
 - `foldkit-crud`: an editor's `open` and new `target(model)` use the Entity's id
   type; a remover takes the id type its `input` names; a list's rows are typed
   from its Selection with or without a `choice`.

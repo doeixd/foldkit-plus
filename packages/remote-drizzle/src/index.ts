@@ -499,13 +499,19 @@ export const query = <P = unknown, Input = unknown>(
   descriptor: QueryDescriptor<string, Input, unknown>,
   options: {
     readonly entity: AnyEntityBinding
-    readonly orderBy: readonly OrderTerm[]
+    /**
+     * The order of the rows, ending on a unique column. As a function it reads the
+     * query's input, which is how a list sorts by what the user chose: the input is
+     * part of the connection's identity, so each order pages on its own cursors. A
+     * computed order that leaves the id out is tie-broken by it.
+     */
+    readonly orderBy: readonly OrderTerm[] | ((input: Input, principal: P) => readonly OrderTerm[])
     readonly where?: ((input: Input, principal: P) => SQL | undefined) | undefined
     readonly defaultPageSize?: number | undefined
     readonly maxPageSize?: number | undefined
   },
 ): QuerySource<P, DrizzleDatabase> => {
-  if (options.orderBy.length === 0) {
+  if (typeof options.orderBy !== 'function' && options.orderBy.length === 0) {
     throw new Error(
       `[foldkit-remote-drizzle] query "${descriptor.name}" needs a non-empty, stable orderBy; add a unique tie-breaker column`,
     )
@@ -531,11 +537,20 @@ export const query = <P = unknown, Input = unknown>(
         })
         const database = yield* DrizzleDatabase
         const id = idColumn(binding)
+        const computed =
+          typeof options.orderBy === 'function'
+            ? options.orderBy(input as Input, principal)
+            : options.orderBy
+        // What the input asks for may not be unique; the id makes any order stable.
+        const orderBy: readonly OrderTerm[] =
+          typeof options.orderBy !== 'function' || computed.some(term => term.column === id)
+            ? computed
+            : [...computed, { column: id, direction: 'asc' }]
         const baseWhere = options.where?.(input as Input, principal)
         let where = baseWhere
 
         if (shape.cursor !== undefined) {
-          const cursorColumns = cursorSelection(options.orderBy)
+          const cursorColumns = cursorSelection(orderBy)
           const cursorRows = yield* selectRows(database, binding.table, cursorColumns, {
             where:
               baseWhere === undefined ? eq(id, shape.cursor) : and(baseWhere, eq(id, shape.cursor)),
@@ -547,8 +562,8 @@ export const query = <P = unknown, Input = unknown>(
               message: 'The query cursor no longer resolves to a row',
             })
           }
-          const values = options.orderBy.map(term => cursorRow[term.column.name])
-          const predicate = keysetWhere(options.orderBy, values, shape.traversal)
+          const values = orderBy.map(term => cursorRow[term.column.name])
+          const predicate = keysetWhere(orderBy, values, shape.traversal)
           where =
             where === undefined
               ? predicate
@@ -558,12 +573,12 @@ export const query = <P = unknown, Input = unknown>(
         }
 
         const columns: Record<string, AnyColumn> = { id }
-        for (const term of options.orderBy) {
+        for (const term of orderBy) {
           if (!Object.values(columns).includes(term.column)) columns[term.column.name] = term.column
         }
         const rows = yield* selectRows(database, binding.table, columns, {
           where,
-          orderBy: orderByTerms(options.orderBy, shape.traversal),
+          orderBy: orderByTerms(orderBy, shape.traversal),
           limit: shape.pageSize + 1,
         })
         const natural = shape.traversal === 'backward' ? [...rows].reverse() : rows

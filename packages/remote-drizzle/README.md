@@ -552,6 +552,30 @@ QueryPage
 `orderBy` must be non-empty and should form a stable total order. Add a unique
 tie-breaker such as the id.
 
+### Sorting by what the user chose
+
+`orderBy` may read the query's input, as `where` does:
+
+```ts
+query(PostsQuery, {
+  entity: Db.Post,
+  where: ({ search }) => (search === '' ? undefined : like(posts.title, `%${search}%`)),
+  orderBy: ({ sort }) =>
+    sort === 'title'
+      ? [{ column: posts.title, direction: 'asc' }]
+      : [{ column: posts.id, direction: 'asc' }],
+})
+```
+
+- The input should name an order (`'title'`), never a column: which columns may
+  sort is the server's to decide.
+- The input is part of a connection's identity, so each order is its own
+  connection with its own cursors. A cursor from one order never pages another.
+- A computed order that leaves the id out is tie-broken by it, ascending, since
+  what a user sorts by is rarely unique. An empty computed order is the id's.
+- Keyset paging over a nullable column follows Postgres `NULL` ordering; on
+  another dialect, sort by columns that are not null.
+
 The wire cursor remains the row id. To continue a page, the Source re-reads that
 row's ordering tuple and builds the keyset predicate from the real ordered
 column values.

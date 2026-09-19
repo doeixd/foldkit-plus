@@ -75,6 +75,18 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
       'Published',
     ])
 
+    // Sorting and searching change the query's input in the Model; Remote fetches
+    // the list that input names. No Message here asks for data.
+    element('#sort-title').click()
+    await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p2', 'p1']))
+    expect(element('#sort-title').textContent).toBe('Title ▲')
+    element('#sort-title').click()
+    await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p1', 'p2']))
+    type('#search', 'Comp')
+    await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p2']))
+    type('#search', '')
+    await vi.waitFor(() => expect(cells().map(row => row[0])).toEqual(['p1', 'p2']))
+
     element('#posts tbody tr:nth-child(2)').click()
     // The form fills from the row's post, and its picker from the author list.
     await vi.waitFor(() =>

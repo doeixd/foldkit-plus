@@ -44,6 +44,29 @@ describe('the HTTP transport the browser uses', () => {
     expect(after._tag === 'Ready' && after.value.items[1]?.title).toBe('Over HTTP')
   })
 
+  it('sorts and searches a list by changing the query’s input, which the Model holds', async () => {
+    const client = Remote.clientLayer(httpClient(server.url))
+    const titles = async (model: ReturnType<typeof initial>) => {
+      const read = await Effect.runPromise(
+        Data.prefetch(model, Posts.active.projectionOf(model)!).pipe(Effect.provide(client)),
+      )
+      const page = Posts.page(read)
+      return page._tag === 'Ready' ? page.value.items.map(row => row.title) : page._tag
+    }
+
+    const byTitle = update(initial(), Message.SortedPosts({ sort: 'title' })).model
+    const [first, second] = (await titles(byTitle)) as ReadonlyArray<string>
+    expect(first! < second!).toBe(true)
+
+    const reversed = update(byTitle, Message.SortedPosts({ sort: 'title-desc' })).model
+    expect(await titles(reversed)).toEqual([second, first])
+
+    const searched = update(reversed, Message.SearchedPosts({ text: 'Engine' })).model
+    expect(await titles(searched)).toEqual(['Notes on the Engine'])
+    // Another input is another connection: the unsearched list is untouched.
+    expect(Posts.page(searched)._tag).toBe('Initial')
+  })
+
   it('turns a failure on the server into the client’s own error', async () => {
     const client = Remote.clientLayer(httpClient(server.url.replace('/remote', '/nowhere')))
     const failed = await Effect.runPromise(

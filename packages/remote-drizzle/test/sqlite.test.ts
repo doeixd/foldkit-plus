@@ -294,6 +294,60 @@ describe('RemoteDrizzle against in-process SQLite', () => {
   })
 })
 
+describe('a query ordered by its input', () => {
+  const Sorted = Query.make('SortedProjects', {
+    Input: Schema.Struct({ by: Schema.Literals(['name-desc', 'created', 'id']) }),
+    Result: Query.connection({ name: 'Project' }),
+  })
+  const sorted = query(Sorted, {
+    entity: ProjectBinding,
+    orderBy: ({ by }) =>
+      by === 'name-desc'
+        ? [{ column: projects.name, direction: 'desc' }]
+        : by === 'created'
+          ? [{ column: projects.createdAt, direction: 'asc' }]
+          : [],
+  })
+  const ids = async (
+    database: ReturnType<typeof setup>['database'],
+    by: (typeof Sorted.Input.Type)['by'],
+    window: Parameters<typeof sorted.run>[0]['window'],
+  ) =>
+    (
+      await Effect.runPromise(
+        sorted
+          .run({ input: { by }, window, principal: null })
+          .pipe(Effect.provide(databaseLayer(database))),
+      )
+    ).edges.map(edge => edge.id)
+
+  it('reads the order from the input, and pages each order on its own cursors', async () => {
+    const { sqlite, database } = setup()
+    try {
+      expect(await ids(database, 'name-desc', { first: 2 })).toEqual(['p3', 'p2'])
+      expect(await ids(database, 'name-desc', { first: 2, after: 'p2' })).toEqual(['p1'])
+      // An order that names nothing is the id's.
+      expect(await ids(database, 'id', { first: 3 })).toEqual(['p1', 'p2', 'p3'])
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it('breaks the ties of an order that is not unique by id, so no row repeats or is lost', async () => {
+    const { sqlite, database } = setup()
+    try {
+      sqlite.exec(`update projects set created_at = '2020-01-01'`)
+      const first = await ids(database, 'created', { first: 1 })
+      const second = await ids(database, 'created', { first: 1, after: first[0]! })
+      const third = await ids(database, 'created', { first: 1, after: second[0]! })
+      expect(new Set([...first, ...second, ...third])).toEqual(new Set(['p1', 'p2', 'p3']))
+      expect([first, second, third]).toEqual([['p1'], ['p2'], ['p3']])
+    } finally {
+      sqlite.close()
+    }
+  })
+})
+
 describe('review: windowed relation boundaries', () => {
   it('an empty page under a cursor keeps the cursor-side boundary', async () => {
     const { sqlite, database } = setup()

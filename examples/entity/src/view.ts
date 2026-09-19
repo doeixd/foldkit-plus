@@ -6,6 +6,7 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { RemoteData } from 'foldkit-remote'
 import { PostRow } from './domain.js'
+import type { PostSort } from './operations.js'
 import {
   EditForm,
   Message,
@@ -27,8 +28,8 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
     Loading: () => h.p([h.Class('muted')], ['Loading posts…']),
     Failed: error => h.p([h.Role('alert')], [`Could not read the posts: ${error.message}`]),
     NotFound: () => h.p([], ['No posts.']),
-    Refreshing: page => rows(page, h),
-    Ready: page => rows(page, h),
+    Refreshing: page => rows(page, model.postSort, h),
+    Ready: page => rows(page, model.postSort, h),
   })
 
 const rows = (
@@ -36,6 +37,7 @@ const rows = (
     readonly items: ReadonlyArray<typeof PostRow.schema.Type>
     readonly hasNext: boolean
   },
+  sort: PostSort,
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
@@ -49,7 +51,29 @@ const rows = (
             [
               h.tr(
                 [],
-                PostList.columns.map(column => h.th([], [column.label])),
+                PostList.columns.map(column =>
+                  column.key === 'title'
+                    ? h.th(
+                        [],
+                        [
+                          h.button(
+                            [
+                              h.Id('sort-title'),
+                              h.Type('button'),
+                              h.OnClick(
+                                Message.SortedPosts({
+                                  sort: sort === 'title' ? 'title-desc' : 'title',
+                                }),
+                              ),
+                            ],
+                            [
+                              `${column.label}${sort === 'title' ? ' ▲' : sort === 'title-desc' ? ' ▼' : ''}`,
+                            ],
+                          ),
+                        ],
+                      )
+                    : h.th([], [column.label]),
+                ),
               ),
             ],
           ),
@@ -121,4 +145,21 @@ const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
 }
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
-  h.main([], [h.h1([], ['Posts']), table(model, h), editor(model, h)])
+  h.main(
+    [],
+    [
+      h.h1([], ['Posts']),
+      // The search is the query's input. Typing changes the Model; Remote sees a
+      // list that now requires another connection and fetches it.
+      h.input([
+        h.Id('search'),
+        h.Type('search'),
+        h.Placeholder('Search titles'),
+        h.AriaLabel('Search titles'),
+        h.Value(model.postSearch),
+        h.OnInput(text => Message.SearchedPosts({ text })),
+      ]),
+      table(model, h),
+      editor(model, h),
+    ],
+  )

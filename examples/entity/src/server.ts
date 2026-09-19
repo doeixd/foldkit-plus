@@ -4,7 +4,7 @@
  * is said here.
  */
 import { DatabaseSync } from 'node:sqlite'
-import { eq } from 'drizzle-orm'
+import { eq, like } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
@@ -98,7 +98,15 @@ export const openServer = () => {
       mutations: [EditPost, DeletePost],
       // A list is a query someone declared: nothing lists a table because a relation points at it.
       queries: [
-        query(PostsQuery, { entity: Db.Post, orderBy: [{ column: posts.id, direction: 'asc' }] }),
+        query(PostsQuery, {
+          entity: Db.Post,
+          where: ({ search }) => (search === '' ? undefined : like(posts.headline, `%${search}%`)),
+          // The order reads the input. A title is not unique, so the adapter breaks ties by id.
+          orderBy: ({ sort }) =>
+            sort === 'oldest'
+              ? [{ column: posts.id, direction: 'asc' }]
+              : [{ column: posts.headline, direction: sort === 'title' ? 'asc' : 'desc' }],
+        }),
         query(AuthorsQuery, {
           entity: Db.Author,
           orderBy: [{ column: authors.id, direction: 'asc' }],

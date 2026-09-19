@@ -12,8 +12,20 @@ export const EditPostMutation = Mutation.make('EditPost', {
   Output: { id: PostId },
 })
 
-/** Every post; and every author, which is what lists them for a relation picker. */
-export const PostsQuery = Query.make('Posts', { Input: {}, Result: Query.connection(Blog.Post) })
+/** The orders the post list offers. The server decides what each one means. */
+export const PostSort = Schema.Literals(['oldest', 'title', 'title-desc'])
+export type PostSort = typeof PostSort.Type
+
+/**
+ * Posts, searched and sorted. Which rows and in what order is the query's input,
+ * so a list has no filter or sort state of its own: another input is another
+ * connection, paged on its own cursors. Every author is what lists them for a
+ * relation picker.
+ */
+export const PostsQuery = Query.make('Posts', {
+  Input: { search: Schema.String, sort: PostSort },
+  Result: Query.connection(Blog.Post),
+})
 export const AuthorsQuery = Query.make('Authors', {
   Input: {},
   Result: Query.connection(Blog.Author),

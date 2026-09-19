@@ -139,6 +139,10 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 
 ## Gotchas
 
+- **Sorting and filtering a list** are the query's input: keep them in your Model,
+  return them from `.at({ input })`, and read them in the server query's `where`
+  and `orderBy` (both may be functions of the input in `foldkit-remote-drizzle`).
+
 - With a branded Entity `id`: `helpers.open(id)` and the placed editor's
   `target(model)` use `IdOf<Entity>`; give a remover `input: (id: PostId) => ({ id })`
   so `ask(id)` and `target(model)` are typed; list rows are the Selection's value.
