@@ -80,6 +80,12 @@ const RenameForm = Page.at(Slot, {
   schema's shape. No match throws at `Form.make`, naming the key.
 - **Label:** `Schema.String.annotate({ title, description })` on the input key or
   the Entity field. A relation takes `Form.label('Author')` as Entity metadata.
+- **Ask something outside the form** (is this slug taken?): `checks: { slug: (slug, { values }) => Effect }`
+  answering an error message or `undefined`. It runs after the key's schema passes
+  and gets the decoded value; the key reads `Validating` meanwhile; a stale answer
+  is dropped; `debounce` (default 300ms) rests a key before asking. A submit during
+  a check sets `submitPending` and goes out when the last check passes. The check's
+  requirements become the Bundle's.
 - **Word or translate it:** put a rule's words on the rule
   (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
   option for the form's own (`required`, `notANumber`), a rewrite of Schema's
@@ -142,7 +148,7 @@ those throws a two-owners conflict at render.
 - `onOut` is required when placing; omitting it is a type error.
 - A `Changed` with a draft of the wrong kind for the key (a string for a toggle)
   is ignored, not stored.
-- Flat inputs only, and no async validation.
+- Flat inputs only.
 
 ## See also
 

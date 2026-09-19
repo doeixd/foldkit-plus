@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { defineMessageUnion } from 'foldkit/message'
@@ -62,4 +62,21 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
     },
   })
   void Rename
+}
+
+{
+  const PostInput = Schema.Struct({ id: Schema.String, slug: Schema.String })
+  const isSlugTaken = (_slug: string, _except: string | undefined): Effect.Effect<boolean> =>
+    Effect.succeed(false)
+  const PostForm = Form.make('PostForm', Entity.input(Entity.define('P', PostInput), PostInput), {
+    checks: {
+      // The decoded value, and whatever else in the form decodes right now.
+      slug: (slug, { values }) =>
+        isSlugTaken(slug, values.id).pipe(
+          Effect.map(taken => (taken ? `"${slug}" is taken` : undefined)),
+        ),
+    },
+    debounce: '300 millis',
+  })
+  void PostForm
 }

@@ -8,10 +8,11 @@
  * happens to it (a Remote mutation, a Sync operation, a plain `update`) is the
  * parent's.
  */
-import { Result, Schema } from 'effect'
+import { Duration, Effect, Result, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import type { AnyEntity, EntityInput, InputMember } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
+import type { Command } from 'foldkit/command'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { defineMessageUnion } from 'foldkit/message'
 import { Input, draftKind, type Control, type Draft, type DraftKind } from './input.js'
@@ -31,7 +32,20 @@ export interface FormModel<Fields extends Schema.Struct.Fields> {
   }
   /** Failures of the input as a whole, from the last submit: a rule that spans keys. */
   readonly errors: ReadonlyArray<string>
+  /** A submit is waiting for checks still running; it goes out when the last one passes. */
+  readonly submitPending: boolean
 }
+
+/**
+ * A rule only something outside the form can answer: is this slug taken? It is
+ * given the decoded value of the key and whatever else in the form currently
+ * decodes, and answers with what is wrong, or nothing. It runs after the schema
+ * of the key passes, never instead of it.
+ */
+export type FormCheck<A, Values, R = never> = (
+  value: A,
+  context: { readonly values: Values },
+) => Effect.Effect<string | undefined, never, R>
 
 /** The form's out Message: every key is valid and the input decoded. */
 export interface Submitted<Value> {
@@ -102,6 +116,11 @@ const kindOf = (draft: unknown): DraftKind | undefined =>
       : Array.isArray(draft) && draft.every(item => typeof item === 'string')
         ? 'list'
         : undefined
+
+const sameDraft = (left: Draft, right: Draft): boolean =>
+  Array.isArray(left) && Array.isArray(right)
+    ? left.length === right.length && left.every((item, index) => item === right[index])
+    : left === right
 
 const isEmpty = (draft: Draft): boolean =>
   draft === '' || (Array.isArray(draft) && draft.length === 0)
@@ -210,13 +229,28 @@ export const Form = {
    * resolver cannot decide, or should not: an unmapped key with an unusual
    * schema, or text that wants a multiline control in this form only.
    */
-  make: <const Name extends string, E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+  make: <
+    const Name extends string,
+    E extends AnyEntity,
+    Fields extends Schema.Struct.Fields,
+    R = never,
+  >(
     name: Name,
     input: EntityInput<E, Fields, { readonly [K in keyof Fields]: InputMember }>,
     options: {
       readonly inputs?: { readonly [K in keyof Fields]?: Control }
       /** The form's own words, and a rewrite of Schema's: for wording and for translation. */
       readonly messages?: FormMessages<keyof Fields & string>
+      /** Rules answered outside the form, by key. The key reads `Validating` while one runs. */
+      readonly checks?: {
+        readonly [K in keyof Fields]?: FormCheck<
+          Schema.Schema.Type<Fields[K]>,
+          Partial<Schema.Struct.Type<Fields>>,
+          R
+        >
+      }
+      /** How long a key rests before its check runs, so typing does not ask per keystroke. Default 300ms. */
+      readonly debounce?: Duration.Input
     } = {},
   ) => {
     type Key = keyof Fields & string
@@ -251,6 +285,7 @@ export const Form = {
         ),
       ),
       errors: Schema.Array(Schema.String),
+      submitPending: Schema.Boolean,
     }) as unknown as Schema.Codec<Model, unknown>
 
     const Message = defineMessageUnion({
@@ -262,6 +297,12 @@ export const Form = {
       Blurred: { key: Schema.Literals(keys as unknown as readonly [Key, ...Key[]]) },
       Submitted: {},
       Reset: {},
+      /** The answer of a check for the draft it was asked about; one for an older draft is dropped. */
+      Checked: {
+        key: Schema.Literals(keys as unknown as readonly [Key, ...Key[]]),
+        draft: Schema.Union([Schema.String, Schema.Boolean, Schema.Array(Schema.String)]),
+        error: Schema.NullOr(Schema.String),
+      },
     })
     type Message = typeof Message.Type
 
@@ -271,46 +312,113 @@ export const Form = {
     const initial: Model = {
       fields: fieldsFrom(plan => FieldValidation.NotValidated({ value: plan.empty })),
       errors: [],
+      submitPending: false,
     }
     const drafts = (model: Model): Readonly<Record<Key, FieldValidation.Field<Draft>>> =>
       model.fields
     const withField = (model: Model, key: Key, field: FieldValidation.Field<Draft>): Model => ({
+      ...model,
       fields: { ...model.fields, [key]: field },
-      errors: model.errors,
     })
-    /** An edit answers the last submit's cross-key failures; they describe a form that has changed. */
-    const edited = (model: Model, key: Key, field: FieldValidation.Field<Draft>): Model => ({
-      ...withField(model, key, field),
-      errors: [],
-    })
+
+    const checks: Readonly<Partial<Record<Key, FormCheck<unknown, Partial<Value>, R>>>> =
+      (options.checks ?? {}) as never
+    const debounce = options.debounce ?? '300 millis'
+
+    /** What currently decodes, by key: the context of a check, and the makings of the value. */
+    const decoded = (model: Model): Partial<Value> =>
+      Object.fromEntries(
+        keys.flatMap(key => {
+          const value = Result.getOrUndefined(plans[key].check(drafts(model)[key].value))
+          return value === undefined ? [] : [[key, value] as const]
+        }),
+      ) as Partial<Value>
+
+    /**
+     * Validates the draft of one key. A key with a check that passes its schema is
+     * not `Valid` yet: it is `Validating`, with the Command that asks.
+     */
+    const validateKey = (
+      model: Model,
+      key: Key,
+      draft: Draft,
+    ): { readonly model: Model; readonly commands: ReadonlyArray<Command<Message, never, R>> } => {
+      const state = FieldValidation.validate(plans[key].rules)(draft)
+      const check = checks[key]
+      if (check === undefined || state._tag !== 'Valid') {
+        return { model: withField(model, key, state), commands: [] }
+      }
+      const asking = withField(model, key, FieldValidation.Validating({ value: draft }))
+      const value = Result.getOrUndefined(plans[key].check(draft))
+      return {
+        model: asking,
+        commands: [
+          {
+            name: `${name}.check`,
+            args: { key },
+            effect: Effect.sleep(debounce).pipe(
+              Effect.andThen(check(value, { values: decoded(asking) })),
+              Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
+            ),
+          } as Command<Message, never, R>,
+        ],
+      }
+    }
+
     const decodeInput = Schema.decodeUnknownResult(
       Schema.toType(input.schema) as Schema.Codec<Value>,
     )
 
-    /** Every key validated; and the value, once none of them is unacceptable. */
-    const submit = (model: Model): { readonly model: Model; readonly value?: Value } => {
-      const fields = fieldsFrom(plan =>
-        FieldValidation.validate(plan.rules)(drafts(model)[plan.key as Key].value),
-      )
-      const validated: Model = { fields, errors: [] }
-      if (!keys.every(key => FieldValidation.isValid(plans[key].rules)(drafts(validated)[key])))
-        return { model: validated }
-      const entries = keys.flatMap(key => {
-        const value = Result.getOrUndefined(plans[key].check(drafts(validated)[key].value))
-        return value === undefined ? [] : [[key, value] as const]
-      })
-      return Result.match(decodeInput(Object.fromEntries(entries)), {
-        onSuccess: value => ({ model: validated, value }),
+    const acceptable = (model: Model, key: Key): boolean =>
+      FieldValidation.isValid(plans[key].rules)(drafts(model)[key])
+    const isValidating = (model: Model): boolean =>
+      keys.some(key => drafts(model)[key]._tag === 'Validating')
+
+    /** The decoded input, once every key is acceptable; else the cross-key failure. */
+    const finish = (model: Model): { readonly model: Model; readonly value?: Value } =>
+      Result.match(decodeInput(decoded(model)), {
+        onSuccess: value => ({ model: { ...model, errors: [], submitPending: false }, value }),
         onFailure: error => ({
-          model: { fields, errors: [options.messages?.form?.(error.message) ?? error.message] },
+          model: {
+            ...model,
+            submitPending: false,
+            errors: [options.messages?.form?.(error.message) ?? error.message],
+          },
         }),
       })
+
+    /**
+     * A submit: every key not yet validated is, so every failure shows. With none,
+     * the value goes out; with checks still running, the submit waits for them.
+     */
+    const submit = (
+      model: Model,
+    ): {
+      readonly model: Model
+      readonly commands: ReadonlyArray<Command<Message, never, R>>
+      readonly value?: Value
+    } => {
+      let next: Model = { ...model, errors: [], submitPending: false }
+      const commands: Array<Command<Message, never, R>> = []
+      for (const key of keys) {
+        const state = drafts(next)[key]
+        // Any other state already answers for this draft: an edit always revalidates.
+        if (state._tag !== 'NotValidated') continue
+        const validated = validateKey(next, key, state.value)
+        next = validated.model
+        commands.push(...validated.commands)
+      }
+      if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
+      return keys.every(key => acceptable(next, key))
+        ? { ...finish(next), commands }
+        : { model: next, commands }
     }
 
     /** Shows existing values, as an edit form does; keys not given keep their draft. */
     const fill = (model: Model, values: Partial<Value>): { readonly model: Model } => ({
       model: {
         errors: [],
+        submitPending: false,
         fields: fieldsFrom(plan =>
           plan.key in values
             ? FieldValidation.NotValidated({
@@ -328,30 +436,54 @@ export const Form = {
       update: (model: Model, message: Message) => {
         switch (message._tag) {
           case 'Changed': {
-            const plan = plans[message.key]
-            // A draft of another kind than the key's control holds is not an edit.
-            return kindOf(message.value) === plan.kind
-              ? {
-                  model: edited(
-                    model,
-                    message.key,
-                    FieldValidation.validate(plan.rules)(message.value),
-                  ),
-                }
-              : { model }
+            // A draft of another kind than the control of the key holds is not an edit.
+            if (kindOf(message.value) !== plans[message.key].kind) return { model }
+            // An edit answers the last submit: its cross-key failures describe a form
+            // that has changed, and a submit waiting on checks is no longer this one.
+            const cleared: Model = { ...model, errors: [], submitPending: false }
+            return validateKey(cleared, message.key, message.value)
           }
           case 'Blurred': {
-            const plan = plans[message.key]
-            const next = FieldValidation.validate(plan.rules)(drafts(model)[message.key].value)
-            return { model: withField(model, message.key, next) }
+            const state = drafts(model)[message.key]
+            // Only a key not validated yet: any other state already answers for this draft.
+            return state._tag === 'NotValidated'
+              ? validateKey(model, message.key, state.value)
+              : { model }
+          }
+          case 'Checked': {
+            const state = drafts(model)[message.key]
+            // An answer for a draft the key no longer holds is dropped.
+            if (state._tag !== 'Validating' || !sameDraft(state.value, message.draft)) {
+              return { model }
+            }
+            const answered = withField(
+              model,
+              message.key,
+              message.error === null
+                ? FieldValidation.Valid({ value: state.value })
+                : FieldValidation.Invalid({ value: state.value, errors: [message.error] }),
+            )
+            if (!answered.submitPending || isValidating(answered)) return { model: answered }
+            // The last check a submit was waiting for.
+            if (!keys.every(key => acceptable(answered, key))) {
+              return { model: { ...answered, submitPending: false } }
+            }
+            const { model: next, value } = finish(answered)
+            return value === undefined
+              ? { model: next }
+              : { model: next, outMessage: { _tag: 'Submitted', value } as Submitted<Value> }
           }
           case 'Reset':
             return { model: initial }
           case 'Submitted': {
-            const { model: next, value } = submit(model)
+            const { model: next, commands, value } = submit(model)
             return value === undefined
-              ? { model: next }
-              : { model: next, outMessage: { _tag: 'Submitted', value } as Submitted<Value> }
+              ? { model: next, commands }
+              : {
+                  model: next,
+                  commands,
+                  outMessage: { _tag: 'Submitted', value } as Submitted<Value>,
+                }
           }
         }
       },
@@ -377,8 +509,14 @@ export const Form = {
        * `controls`. `model.fields.title` is the same value, typed to that key.
        */
       field: (model: Model, key: Key): FieldValidation.Field<Draft> => drafts(model)[key],
-      /** Whether a submit now would produce a value. It validates nothing in the Model. */
-      canSubmit: (model: Model): boolean => submit(model).value !== undefined,
+      /**
+       * Whether a submit now could go through: nothing is invalid. A check still
+       * running does not stop it; the submit waits for the answer.
+       */
+      canSubmit: (model: Model): boolean => {
+        const next = submit(model)
+        return next.value !== undefined || next.model.submitPending
+      },
     }
   },
 

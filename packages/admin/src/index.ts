@@ -44,6 +44,7 @@ export interface EditableForm<
   E extends AnyEntity,
   Fields extends Schema.Struct.Fields,
   Members,
+  R = never,
 > {
   readonly bundle: {
     readonly name: Name
@@ -53,7 +54,7 @@ export interface EditableForm<
       model: FormModel,
       message: FormMessage,
       args: void,
-    ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, never>
+    ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, R>
   }
   readonly input: EntityInput<E, Fields, Members>
   readonly initial: FormModel
@@ -453,10 +454,11 @@ export const Admin = {
     E extends AnyEntity,
     Fields extends Schema.Struct.Fields,
     Members,
+    R = never,
   >(
     name: Name,
     config: {
-      readonly form: EditableForm<FormName, FormModel, FormMessage, Value, E, Fields, Members>
+      readonly form: EditableForm<FormName, FormModel, FormMessage, Value, E, Fields, Members, R>
       readonly mutation: MutationDescriptor<string, Value, any>
     },
   ) => {
@@ -488,9 +490,12 @@ export const Admin = {
         const next = form.bundle.update(model.form, message, undefined)
         // An edit after a save starts a new round; the last save no longer describes the form.
         const requestId = message._tag === 'Changed' ? null : model.requestId
-        return next.outMessage === undefined
-          ? { model: { ...model, form: next.model, requestId } }
-          : { model: { ...model, form: next.model, requestId }, outMessage: next.outMessage }
+        // The form's Commands are the editor's: a check the form started has to run.
+        const edited = {
+          model: { ...model, form: next.model, requestId },
+          ...(next.commands === undefined ? {} : { commands: next.commands }),
+        }
+        return next.outMessage === undefined ? edited : { ...edited, outMessage: next.outMessage }
       },
       helpers: {
         /** Edits `id`: the form is emptied, and filled once the current values arrive. */

@@ -109,7 +109,7 @@ belong to no one field), and `submit`.
 ### Accessibility
 
 Each control has an `id` of `<form name>-<key>` and a `label for` it. It carries
-`aria-invalid`, `aria-required` when the key is required, and `aria-describedby`
+`aria-busy` while a check runs, `aria-invalid`, `aria-required` when the key is required, and `aria-describedby`
 naming its description and, while invalid, its error. An error is `role="alert"`.
 The submit button is disabled until the form would submit.
 

@@ -130,6 +130,8 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const state = [
         h.Id(id),
         h.AriaInvalid(invalid),
+        // A check is running: the control is neither valid nor invalid yet.
+        ...(input.field._tag === 'Validating' ? [h.AriaBusy(true)] : []),
         ...(required ? [h.AriaRequired(true)] : []),
         ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
       ]

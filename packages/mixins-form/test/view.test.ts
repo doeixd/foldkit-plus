@@ -125,6 +125,15 @@ describe('FormView markup', () => {
     expect(byId(failed, 'Edit-title-error')?.data?.attrs).toMatchObject({ role: 'alert' })
   })
 
+  it('marks a control busy while its check runs', () => {
+    const checking = {
+      ...initial,
+      fields: { ...initial.fields, title: { _tag: 'Validating' as const, value: 'Hello' } },
+    }
+    expect(byId(render(checking), 'Edit-title')?.data?.attrs).toMatchObject({ 'aria-busy': 'true' })
+    expect(byId(render(), 'Edit-title')?.data?.attrs?.['aria-busy']).toBeUndefined()
+  })
+
   it('disables the submit until the form would submit, and takes its label', () => {
     const button = (root: Node) => all(root).find(node => node.sel === 'button')
     expect(button(render())?.data?.props?.disabled).toBe(true)

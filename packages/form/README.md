@@ -158,9 +158,42 @@ Entity's: the operation decides what is valid, and may be stricter.
   `model.errors`, since it belongs to no one control. The next edit clears
   them.
 
-Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Valid`,
-`Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,
+Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Validating`
+(a check is running), `Valid`, `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,
 and the rest.
+
+### Checks: rules only something else can answer
+
+Whether a slug is taken is not in the schema. A check is an Effect the form is
+given; it answers with what is wrong, or nothing:
+
+```ts
+const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
+  checks: {
+    // The decoded value, and whatever else in the form decodes right now.
+    slug: (slug, { values }) =>
+      isSlugTaken(slug, values.id).pipe(
+        Effect.map(taken => (taken ? `"${slug}" is taken` : undefined)),
+      ),
+  },
+  debounce: '300 millis',
+})
+```
+
+- A check runs **after** the key's own schema passes, never instead of it, so it
+  receives a decoded value: a number, not the text that was typed.
+- While it runs the key reads `Validating`, which is Foldkit core's own state for
+  this. `Valid` on a checked key means the check passed.
+- The form does not know what answers. The check's requirements (`R`) become the
+  Bundle's, so a check that needs `RemoteClient` makes the placement need it.
+- Each edit asks again after `debounce`, and an answer for a draft the key no
+  longer holds is dropped.
+- **A submit waits.** Submitted while a check runs, the form sets `submitPending`
+  and sends the value when the last check passes, or nothing if one fails. An
+  edit in between cancels the wait. A filled form (`fill` validates nothing) is
+  checked on submit the same way.
+- `context.values` holds the other keys that currently decode, which is how an
+  edit form lets a post keep its own slug.
 
 ### Messages
 
@@ -224,6 +257,5 @@ A relation is loaded as a ref and read back as the id the form holds. See
   application makes.
 - One `Changed` Message carries any draft, so a view can dispatch a draft of the
   wrong kind for a key. The form ignores it rather than storing it.
-- No asynchronous validation; `Validating` is never entered.
 - Flat inputs only: a key whose value is itself a struct or a list of structs
   has no control.

@@ -2749,7 +2749,11 @@ Input IR -> Foldkit UI control registry
 > change a bundle's view inputs. Relation picker choices arrive as view inputs
 > (§29): the form names the target, the application lists it.
 >
-> Not built: async validation, nested input, picker search or paging, and
+> Async validation is built as `checks`: an injected Effect per key, so the form
+> still knows nothing of Remote. It uses core's `Validating` state, runs after
+> the schema passes, drops stale answers, and a submit waits for it.
+>
+> Not built: nested input, picker search or paging, and
 > `Form.from` sugar, which `Entity.input`'s self-mapping made unnecessary.
 
 Implement a Form descriptor and Foldkit Submodel.

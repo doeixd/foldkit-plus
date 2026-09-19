@@ -34,7 +34,12 @@ const EditPostMutation = Mutation.make('EditPost', {
 const EditPostForm = Form.make(
   'EditPost',
   Entity.input(Blog.Post, EditPostInput, { authorId: Relation.input(Blog.Post.relations.author) }),
-  { inputs: { id: Input.hidden() } },
+  {
+    inputs: { id: Input.hidden() },
+    debounce: 0,
+    // A rule the form cannot answer itself.
+    checks: { title: title => Effect.succeed(title === 'Taken' ? 'Already used' : undefined) },
+  },
 )
 
 const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
@@ -255,6 +260,27 @@ describe('Admin.editor', () => {
       },
     }
     expect(PostEditor.status(gone)).toBe('NotFound')
+  })
+
+  it('runs a check the form starts: the editor passes the Commands of the form on', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    const asking = update(
+      ready,
+      Message.GotEditorMessage({
+        message: EditPostForm.Message.Changed({ key: 'title', value: 'Taken' }),
+      }),
+    )
+    expect(asking.commands).toHaveLength(1)
+    expect(EditPostForm.field(asking.model.editor.form, 'title')._tag).toBe('Validating')
+
+    const answered = await form(
+      ready,
+      EditPostForm.Message.Changed({ key: 'title', value: 'Taken' }),
+    )
+    expect(EditPostForm.field(answered.editor.form, 'title')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Already used'],
+    })
   })
 
   it('joins the Remote Subscriptions as an active Surface: a read entry follows the open id', () => {

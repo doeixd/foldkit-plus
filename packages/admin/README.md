@@ -169,7 +169,8 @@ is in the form.
 - **What is loaded is what the form writes**, with each relation as a ref. A key
   the form marks `Entity.unmapped` is not loaded and starts empty.
 - **An invalid submit starts no mutation.** The form emits nothing until every
-  key passes the input's schema.
+  key passes the input's schema and its checks. The form's Commands are the
+  editor's, so a check the form starts runs.
 
 ## Lists
 
