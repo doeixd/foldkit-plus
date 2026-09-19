@@ -161,19 +161,22 @@ const CreatePost = Entity.input(
   { comments: Relation.nested(Blog.Post.relations.comments, NewComment) },
 )
 
-const PostForm = Form.make('PostForm', CreatePost, {
-  // A nested key's form takes what any form takes.
-  nested: { comments: { inputs: { body: Input.multiline() } } },
-})
+// The form that edits a comment alone is the form a post's form nests.
+const CommentForm = Form.make('Comment', NewComment, { inputs: { body: Input.multiline() } })
+const PostForm = Form.make('PostForm', CreatePost, { nested: { comments: CommentForm } })
+
+PostForm.row('comments', 'r0').Changed({ key: 'body', value: 'First' }) // a Message of PostForm
+PostForm.nested.comments // CommentForm
 
 PostForm.Message.RowAdded({ key: 'comments' })
 PostForm.Message.RowRemoved({ key: 'comments', row: 'r0' })
 PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of the nested form
 ```
 
-- Rows live in `model.rows[key]`, not `model.fields`. Edit one with
-  `Message.Nested({ key, row, message })`, `message` being a Message of the
-  control's `form`.
+- The nested form is a form you make from the nested input and pass under
+  `nested`; it is reused as is. Rows live in `model.rows[key]`, not `model.fields`.
+  Address one with `form.row(key, rowId).Changed({ key, value })` (the nested form's
+  constructors, giving the parent's Message); `form.nested[key]` is the form.
 - Submit validates and waits for checks in every row; the value carries the
   nested values. `fill` fills rows. `foldkit-mixins-form` draws rows with add and
   remove buttons; pickers inside rows take `nestedOptions: { 'key.childKey': [...] }`.

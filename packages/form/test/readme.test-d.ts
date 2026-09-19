@@ -100,10 +100,12 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
     { comments: Relation.nested(Blog.Post.relations.comments, NewComment) },
   )
 
-  const PostForm = Form.make('PostForm', CreatePost, {
-    // A nested key's form takes what any form takes.
-    nested: { comments: { inputs: { body: Input.multiline() } } },
-  })
+  // The form that edits a comment alone is the form a post's form nests.
+  const CommentForm = Form.make('Comment', NewComment, { inputs: { body: Input.multiline() } })
+  const PostForm = Form.make('PostForm', CreatePost, { nested: { comments: CommentForm } })
+
+  PostForm.row('comments', 'r0').Changed({ key: 'body', value: 'First' }) // a Message of PostForm
+  PostForm.nested.comments // CommentForm
 
   PostForm.Message.RowAdded({ key: 'comments' })
   PostForm.Message.RowRemoved({ key: 'comments', row: 'r0' })

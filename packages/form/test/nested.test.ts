@@ -37,15 +37,14 @@ const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
 
 const Loaded = Entity.selectFor(CreatePost)
 
-// Names are taken outside the form; the nested form asks.
-const PostForm = Form.make('PostForm', CreatePost, {
+// The form that edits an author alone: names are taken outside it, so it asks.
+const AuthorForm = Form.make('PostForm.author', NewAuthor, {
   debounce: 0,
-  nested: {
-    author: {
-      checks: { name: name => Effect.succeed(name === 'Root' ? 'Root is taken' : undefined) },
-    },
-  },
+  checks: { name: name => Effect.succeed(name === 'Root' ? 'Root is taken' : undefined) },
 })
+
+// A post's form nests that same form. `comments` is given none, so it gets a plain one.
+const PostForm = Form.make('PostForm', CreatePost, { debounce: 0, nested: { author: AuthorForm } })
 const { Message } = PostForm
 type Model = typeof PostForm.initial
 type Message = typeof PostForm.Message.Type
@@ -70,10 +69,13 @@ const settle = async (
 }
 const inRow = (key: string, row: string, inner: unknown): Message =>
   Message.Nested({ key, row, message: inner })
+// A row addressed: the nested form's own constructors, giving this form's Message.
 const named = (row: string, value: string): Message =>
-  inRow('author', row, authorForm.data.form.Message.Changed({ key: 'name', value } as never))
+  PostForm.row('author', row).Changed({ key: 'name', value })
 const said = (row: string, value: string): Message =>
-  inRow('comments', row, commentForm.data.form.Message.Changed({ key: 'body', value } as never))
+  PostForm.row('comments', row).send(
+    commentForm.data.form.Message.Changed({ key: 'body', value } as never),
+  )
 
 describe('a form with nested keys', () => {
   it('starts a one that must be there with its row, and every other nested key with none', () => {
@@ -242,5 +244,32 @@ describe('a form with nested keys', () => {
   it('treats a submit inside a row as a submit of the form', () => {
     const sent = step(PostForm.initial, inRow('author', 'r0', { _tag: 'Submitted' }))
     expect(sent.model.fields.title._tag).toBe('Invalid')
+  })
+
+  it('nests the form it is given, and hands it back typed', () => {
+    expect(PostForm.nested.author).toBe(AuthorForm)
+    expect(authorForm.data.form).toBe(AuthorForm)
+    // The handle's constructors are the author form's, so its keys are checked.
+    expectTypeOf(PostForm.row('author', 'r0').Changed)
+      .parameter(0)
+      .toHaveProperty('key')
+      .toEqualTypeOf<'name'>()
+    expect(PostForm.row('author', 'r0').Blurred({ key: 'name' })).toEqual(
+      Message.Nested({
+        key: 'author',
+        row: 'r0',
+        message: AuthorForm.Message.Blurred({ key: 'name' }),
+      }),
+    )
+  })
+
+  it('refuses a form of another input than the key nests', () => {
+    const Other = Form.make(
+      'Other',
+      Entity.input(Blog.Author, Schema.Struct({ name: Schema.String })),
+    )
+    expect(() => Form.make('Wrong', CreatePost, { nested: { author: Other as never } })).toThrow(
+      '"author" is given a form of another input than the one it nests',
+    )
   })
 })

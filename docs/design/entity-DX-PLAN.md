@@ -24,7 +24,7 @@ looking its kind up in a set of renderers. The renderers it ships are the
 default set; an application adds to it, or replaces an entry, the same way the
 defaults were added. `Display` and `foldkit-mixins-crud` follow the same shape.
 
-## 2. Address a nested form with types
+## 2. Address a nested form with types (resolved)
 
 **Friction.** Editing a nested row meant
 `Message.Nested({ key, row, message })` with `key` a string and `message`
@@ -34,7 +34,7 @@ reach the child form's Messages.
 **Plan.** `form.nested.author` is the child form, typed. `form.row('author', id)`
 gives the child's Message constructors already wrapped for that row.
 
-## 3. A nested form is a form you can pass
+## 3. A nested form is a form you can pass (resolved)
 
 **Friction.** The parent built the child form itself and took its configuration
 through a `nested: { author: { inputs, checks } }` bag that recursed.

@@ -43,14 +43,18 @@ const CreateInput = Schema.Struct({
   author: NewAuthor.schema,
   comments: Schema.Array(NewComment.schema),
 })
+// Countries are too many to list: the author form's picker searches. It is an
+// ordinary form, given to the post's form to nest.
+const AuthorForm = Form.make('Create.author', NewAuthor, {
+  inputs: { countryId: Input.search() },
+})
 const Create = Form.make(
   'Create',
   Entity.input(Blog.Post, CreateInput, {
     author: Relation.nested(Blog.Post.relations.author, NewAuthor),
     comments: Relation.nested(Blog.Post.relations.comments, NewComment),
   }),
-  // Countries are too many to list: the picker inside the row searches.
-  { nested: { author: { inputs: { countryId: Input.search() } } } },
+  { nested: { author: AuthorForm } },
 )
 
 const Drawn = Create.bundle.pipe(

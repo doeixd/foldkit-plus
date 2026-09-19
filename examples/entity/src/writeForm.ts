@@ -4,6 +4,12 @@
  * the same Messages, one level in.
  */
 import { Form } from 'foldkit-form'
-import { WritePost } from './domain.js'
+import { NewAuthor, WritePost } from './domain.js'
 
-export const WritePostForm = Form.make('WritePost', WritePost)
+/** The form that would edit an author alone. */
+export const NewAuthorForm = Form.make('WritePost.author', NewAuthor)
+
+/** A post's form nests it, so `author` is typed by it all the way down. */
+export const WritePostForm = Form.make('WritePost', WritePost, {
+  nested: { author: NewAuthorForm },
+})

@@ -6,7 +6,6 @@
  * then a managed edit from a list row to the SQL row.
  */
 import { Effect, Layer, Schema } from 'effect'
-import { Input } from 'foldkit-form'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -213,21 +212,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // The form's `author` key holds a row of the author's own form. An empty submit
     // shows the failure inside the row; a valid one carries the author in the value.
     const author0 = WritePostForm.rows(WritePostForm.initial, 'author')[0]!.id
-    const authorControl = WritePostForm.controls.find(entry => entry.key === 'author')!.control
-    if (!Input.Nested.is(authorControl)) throw new Error('author is not nested')
     const write = (
       draft: typeof WritePostForm.initial,
       message: typeof WritePostForm.Message.Type,
     ) => WritePostForm.bundle.update(draft, message, undefined)
+    // A row addressed: the author form's own constructor, giving the post form's Message.
     const named = (name: string) =>
-      WritePostForm.Message.Nested({
-        key: 'author',
-        row: author0,
-        message: (authorControl.data.form.Message.Changed as (payload: object) => unknown)({
-          key: 'name',
-          value: name,
-        }),
-      })
+      WritePostForm.row('author', author0).Changed({ key: 'name', value: name })
     const titled = write(
       WritePostForm.initial,
       WritePostForm.Message.Changed({ key: 'title', value: 'On Looms' }),

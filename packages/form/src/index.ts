@@ -133,8 +133,76 @@ export interface FormMessages<Key extends string = string> {
   readonly form?: (message: string) => string
 }
 
-/** What `Form.make` takes beside the input. A nested key's form takes the same, under `nested`. */
-export interface FormOptions<Fields extends Schema.Struct.Fields, Members, R> {
+/**
+ * A form made with `Form.make` from the input a key nests. It is an ordinary
+ * form: the one that edits an author alone is the one a post's form nests.
+ */
+export interface FormFor<
+  Fields extends Schema.Struct.Fields,
+  Members,
+  R = never,
+> extends NestedForm {
+  readonly input: EntityInput<any, Fields, Members>
+  readonly bundle: {
+    readonly Model: Schema.Codec<FormModel<Fields, Members>, unknown>
+    readonly Message: Schema.Codec<any, unknown>
+    readonly update: (
+      model: any,
+      message: any,
+      args: void,
+    ) => {
+      readonly model: any
+      readonly commands?: ReadonlyArray<Command<any, never, R>> | undefined
+    }
+  }
+  readonly initial: FormModel<Fields, Members>
+  readonly fill: (model: any, values: any) => { readonly model: any }
+  readonly engine: {
+    readonly submit: (model: any) => {
+      readonly model: any
+      readonly commands: ReadonlyArray<Command<any, never, R>>
+    }
+    readonly isValidating: (model: any) => boolean
+    readonly value: (model: any) => unknown
+  }
+}
+
+/** The forms a form may be given for its nested keys: each one made from that key's nested input. */
+export type NestedForms<Fields extends Schema.Struct.Fields, Members, R> = {
+  readonly [K in NestedKey<Members> & keyof Fields]?: Members[K] extends NestedInput<
+    any,
+    EntityInput<any, infer NestedFields, infer NestedMembers>
+  >
+    ? NestedFields extends Schema.Struct.Fields
+      ? FormFor<NestedFields, NestedMembers, R>
+      : never
+    : never
+}
+
+/** The constructors of a form's Messages that a row's handle offers, wrapped for the row. */
+type RowConstructor =
+  'Changed' | 'Blurred' | 'Searched' | 'Submitted' | 'Reset' | 'RowAdded' | 'RowRemoved'
+
+/**
+ * One row of a nested key, addressed: the nested form's own Message constructors,
+ * each giving the Message of the form the row is in. `send` wraps a Message
+ * already made, which is how a row inside a row is reached.
+ */
+export type RowHandle<Child, Message> = {
+  readonly [T in RowConstructor]: Child extends {
+    readonly Message: { readonly [C in T]: (...args: infer Args) => unknown }
+  }
+    ? (...args: Args) => Message
+    : never
+} & { readonly send: (message: unknown) => Message }
+
+/** What `Form.make` takes beside the input. */
+export interface FormOptions<
+  Fields extends Schema.Struct.Fields,
+  Members,
+  R,
+  Nest extends NestedForms<Fields, Members, R> = {},
+> {
   /**
    * The control for a key the resolver cannot decide, or should not: an unmapped
    * key with an unusual schema, or text that wants a multiline control here only.
@@ -154,15 +222,13 @@ export interface FormOptions<Fields extends Schema.Struct.Fields, Members, R> {
   }
   /** How long a key rests before its check runs, so typing does not ask per keystroke. Default 300ms. */
   readonly debounce?: Duration.Input
-  /** The options of each nested key's form. `messages` and `debounce` are inherited when not given. */
-  readonly nested?: {
-    readonly [K in NestedKey<Members> & keyof Fields]?: Members[K] extends NestedInput<
-      any,
-      EntityInput<any, infer NestedFields, infer NestedMembers>
-    >
-      ? FormOptions<NestedFields, NestedMembers, R>
-      : never
-  }
+  /**
+   * The form of a nested key, made with `Form.make` from the input the key nests
+   * (`Relation.nested(relation, input)`): the same form that edits the target
+   * alone. A nested key given none gets a plain form of its input, with this
+   * form's `messages` and `debounce`.
+   */
+  readonly nested?: Nest
 }
 
 interface Label {
@@ -281,12 +347,18 @@ const nestedPlanOf = (
   key: string,
   schema: Schema.Top,
   member: Extract<InputMember, { readonly _tag: 'NestedInput' }>,
-  options: unknown,
+  given: AnyForm | undefined,
+  inherited: unknown,
 ): NestedPlan => {
   const accepts = Schema.is(Schema.toType(schema) as Schema.Codec<unknown>)
   const cardinality = member.relation.cardinality
   const optional = cardinality === 'many' || accepts(undefined) || accepts(null)
-  const form = makeNested(`${name}.${key}`, member.input, options)
+  if (given !== undefined && (given as { readonly input?: unknown }).input !== member.input)
+    fail(
+      name,
+      `"${key}" is given a form of another input than the one it nests; make it from the input passed to Relation.nested`,
+    )
+  const form = given ?? makeNested(`${name}.${key}`, member.input, inherited)
   return {
     key,
     ...wordsOf(key, schema, member),
@@ -413,10 +485,11 @@ export const Form = {
     Fields extends Schema.Struct.Fields,
     Members extends { readonly [K in keyof Fields]: InputMember },
     R = never,
+    const Nest extends NestedForms<Fields, Members, R> = {},
   >(
     name: Name,
     input: EntityInput<E, Fields, Members>,
-    options: FormOptions<Fields, Members, R> = {},
+    options: FormOptions<Fields, Members, R, Nest> = {},
   ) => {
     type AnyKey = keyof Fields & string
     type Key = Exclude<AnyKey, NestedKey<Members>>
@@ -449,7 +522,8 @@ export const Form = {
       ]),
     ) as Readonly<Record<Key, Plan>>
 
-    const nestedOptions: Readonly<Record<string, object | undefined>> = options.nested ?? {}
+    const givenForms: Readonly<Record<string, AnyForm | undefined>> = (options.nested ??
+      {}) as never
     const nestedPlans = Object.fromEntries(
       rowsKeys.map(key => [
         key,
@@ -458,8 +532,9 @@ export const Form = {
           key,
           input.schema.fields[key] as Schema.Top,
           members[key] as Extract<InputMember, { readonly _tag: 'NestedInput' }>,
-          // The form's words and pace are its nested forms' too, unless they bring their own.
-          { messages: options.messages, debounce: options.debounce, ...nestedOptions[key] },
+          givenForms[key],
+          // A nested form made here takes this form's words and pace.
+          { messages: options.messages, debounce: options.debounce },
         ),
       ]),
     ) as Readonly<Record<RowsKey, NestedPlan>>
@@ -866,6 +941,46 @@ export const Form = {
         drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`),
       /** What was typed to find a choice for a relation key that searches; `''` until something is. */
       search: (model: Model, key: Key): string => model.searches[key] ?? '',
+      /**
+       * The form of each nested key, typed when it was given under `nested`: its
+       * `controls`, its `field`, its Messages.
+       */
+      nested: Object.fromEntries(rowsKeys.map(key => [key, nestedPlans[key].form])) as {
+        readonly [K in RowsKey]: K extends keyof Nest ? NonNullable<Nest[K]> : NestedForm
+      },
+      /**
+       * One row of a nested key, addressed: `form.row('author', id).Changed({ key: 'name', value })`
+       * is this form's Message for that edit in that row.
+       */
+      row: <K extends RowsKey>(
+        key: K,
+        row: string,
+      ): RowHandle<K extends keyof Nest ? NonNullable<Nest[K]> : NestedForm, Message> => {
+        const make = (nestedPlans[key] ?? fail(name, `"${key}" holds a draft, not rows`)).form
+          .Message as unknown as Readonly<
+          Record<string, (...args: ReadonlyArray<unknown>) => unknown>
+        >
+        const send = (message: unknown): Message => Message.Nested({ key, row, message })
+        return {
+          send,
+          ...Object.fromEntries(
+            (
+              [
+                'Changed',
+                'Blurred',
+                'Searched',
+                'Submitted',
+                'Reset',
+                'RowAdded',
+                'RowRemoved',
+              ] as const
+            ).map(constructor => [
+              constructor,
+              (...args: ReadonlyArray<unknown>) => send(make[constructor]!(...args)),
+            ]),
+          ),
+        } as never
+      },
       /** The rows of a nested key, each a Model of `control.form`. */
       rows: (model: Model, key: RowsKey): Model['rows'][RowsKey] =>
         (rowsOf(model)[key] ?? fail(name, `"${key}" holds a draft, not rows`)) as never,

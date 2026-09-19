@@ -7,6 +7,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-form`: a nested key takes a form. Breaking.** `nested: { author: AuthorForm }`
+  replaces the recursing options bag; the form that edits an author alone is the
+  one a post nests. `form.nested.author` is that form, typed, and
+  `form.row('author', id)` gives its Message constructors wrapped for the row.
+  Exports `FormFor`, `NestedForms`, `RowHandle`.
+
 - **One primitive for controls, and one for displays. Breaking.** A form's
   `Control` is `{ kind, draft, shown, searches, data, parse?, unparsed? }` and a
   Crud `Display` is `{ kind, shown, data, text }`; both were closed unions on

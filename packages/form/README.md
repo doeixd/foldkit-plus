@@ -289,10 +289,12 @@ const CreatePost = Entity.input(
   { comments: Relation.nested(Blog.Post.relations.comments, NewComment) },
 )
 
-const PostForm = Form.make('PostForm', CreatePost, {
-  // A nested key's form takes what any form takes.
-  nested: { comments: { inputs: { body: Input.multiline() } } },
-})
+// The form that edits a comment alone is the form a post's form nests.
+const CommentForm = Form.make('Comment', NewComment, { inputs: { body: Input.multiline() } })
+const PostForm = Form.make('PostForm', CreatePost, { nested: { comments: CommentForm } })
+
+PostForm.row('comments', 'r0').Changed({ key: 'body', value: 'First' }) // a Message of PostForm
+PostForm.nested.comments // CommentForm
 
 PostForm.Message.RowAdded({ key: 'comments' })
 PostForm.Message.RowRemoved({ key: 'comments', row: 'r0' })
@@ -305,8 +307,16 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 | a `one` that admits `null` or `undefined` | none or one; none submits that nothing |
 | a `many` | any number, starting with none |
 
-- A row is edited with the nested form's own Messages, wrapped:
-  `Message.Nested({ key, row, message })`. A Message for a row that is gone, or
+- **The nested form is one you make and pass** (`nested: { comments: CommentForm }`),
+  from the same input `Relation.nested` was given. The form that edits a comment
+  alone is the form a post nests, with its controls, checks and words. A nested
+  key given none gets a plain form of its input, with this form's `messages` and
+  `debounce`. A form of another input throws.
+- **A row is addressed with types.** `PostForm.row('comments', id)` has the nested
+  form's own constructors (`Changed`, `Blurred`, `Searched`, `RowAdded`, ...), each
+  giving `PostForm`'s Message, and `send(message)` for one already made, which is
+  how a row inside a row is reached. `PostForm.nested.comments` is the form
+  itself. Underneath it is `Message.Nested({ key, row, message })`. A Message for a row that is gone, or
   that is not one of the nested form, is dropped. A row's id is never reused.
 - A nested key's control is of kind `Nested`, with `data` `{ cardinality, optional, form }`
   (narrow it with `Input.Nested.is(control)`);
@@ -316,7 +326,6 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
   running in a row as it does for its own. A rule on the list itself
   (`Schema.isMaxLength(5)`) is a failure of the whole, in `errors`.
 - `fill` fills rows from values, and nesting goes as deep as the inputs do.
-- `messages` and `debounce` reach nested forms unless they bring their own.
 
 ## Editing existing values
 
