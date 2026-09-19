@@ -243,6 +243,12 @@ CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 - Every other key needs an entry: a Field under another name, a relation's ids
   with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
   from a name like `authorId`.
+- An entry may name the member by its key: `{ headline: 'title', authorId: 'author' }`
+  is the `title` Field and `Relation.input` of `author`. It is the same reading,
+  checked the same way; a name that is no field or relation is a type error.
+- `Entity.fields(Post, 'id', 'title')` is those fields' schemas, to spread into
+  the input's struct, so the input keeps the field's rules without repeating
+  `Post.fields.title.schema` per key.
 - `Relation.input` expects one id for a `one`, `id | null` for an optional
   `one`, and an array of ids for a `many`.
 - A derived member cannot be written, and a member of another Entity cannot be
@@ -325,6 +331,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a `Page`: `items`, `hasNext`, `hasPrevious`. |
+| `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
 | `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |

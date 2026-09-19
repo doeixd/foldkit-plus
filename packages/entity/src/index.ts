@@ -435,17 +435,36 @@ type SelfMapped<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
     : never
 }[keyof Fields]
 
+/**
+ * A mapping written as a member's key: `'title'` is that Field, and `'author'` is
+ * `Relation.input` of that relation. Nothing is inferred from the input key's own
+ * name; the member is still named, only more briefly.
+ */
+type Named<E extends AnyEntity, M> = M extends string
+  ? M extends keyof E['fields']
+    ? E['fields'][M]
+    : M extends keyof E['relations']
+      ? RelationInput<E['relations'][M]>
+      : `"${M}" names no field or relation of ${E['name']}`
+  : M
+
 type InputMapping<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapping> = {
   readonly [K in Exclude<keyof Fields, SelfMapped<E, Fields>>]: unknown
 } & {
   readonly [K in keyof Mapping]: K extends keyof Fields
-    ? MappingFor<E['name'], Schema.Schema.Type<Fields[K]>, Mapping[K]>
+    ? Named<E, Mapping[K]> extends infer Member
+      ? Member extends string
+        ? Member
+        : MappingFor<E['name'], Schema.Schema.Type<Fields[K]>, Member> extends Member
+          ? Mapping[K]
+          : MappingFor<E['name'], Schema.Schema.Type<Fields[K]>, Member>
+      : never
     : `"${K & string}" is not a key of the input`
 }
 
 type InputMembers<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapping> = {
   readonly [K in keyof Fields]: K extends keyof Mapping
-    ? Mapping[K]
+    ? Named<E, Mapping[K]>
     : K extends keyof E['fields']
       ? E['fields'][K]
       : never
@@ -775,10 +794,25 @@ export const Entity = {
       ? [mapping?: Mapping & InputMapping<E, Fields, Mapping>]
       : [mapping: Mapping & InputMapping<E, Fields, Mapping>]
   ): EntityInput<E, Fields, InputMembers<E, Fields, Mapping>> => {
-    const given: Readonly<Record<string, InputMember | undefined>> = mapping[0] ?? {}
-    for (const key of Object.keys(given))
+    const written: Readonly<Record<string, InputMember | string | undefined>> = mapping[0] ?? {}
+    for (const key of Object.keys(written))
       if (!(key in schema.fields))
         throw new Error(`Entity "${entity.name}": "${key}" is mapped but is not a key of the input`)
+    // A member named by its key: a Field as it is, a relation as its ids.
+    const named = (key: string, name: string): InputMember => {
+      const member = (entity.members as Readonly<Record<string, EntityMember | undefined>>)[name]
+      if (member?._tag === 'Field') return member
+      if (member?._tag === 'Relation')
+        return Object.freeze({ _tag: 'RelationInput', relation: member })
+      return fail(
+        entity,
+        `input key "${key}" is mapped to "${name}", which names no field or relation`,
+      )
+    }
+    const given: Readonly<Record<string, InputMember | undefined>> = mapValues(
+      written,
+      (member, key) => (typeof member === 'string' ? named(key, member) : member),
+    )
     const fields: Readonly<Record<string, InputMember | undefined>> = entity.fields
     const members = mapValues(schema.fields, (_, key) => {
       const member =
@@ -813,6 +847,28 @@ export const Entity = {
 
   /** For an input key that is about the operation rather than the Entity. */
   unmapped,
+
+  /**
+   * The schemas of some of an Entity's fields, by key, to spread into an input's
+   * struct: `Schema.Struct({ ...Entity.fields(Post, 'id', 'title'), editorId: ... })`.
+   * The input then keeps the field's own rules, and its keys map themselves.
+   */
+  fields: <E extends AnyEntity, const Keys extends ReadonlyArray<keyof E['fields'] & string>>(
+    entity: E,
+    ...keys: Keys
+  ): { readonly [K in Keys[number]]: E['fields'][K]['schema'] } =>
+    Object.fromEntries(
+      keys.map(key => [
+        key,
+        (
+          (
+            entity.fields as Readonly<
+              Record<string, EntityField<string, string, Schema.Constraint> | undefined>
+            >
+          )[key] ?? fail(entity, `"${key}" is not a field`)
+        ).schema,
+      ]),
+    ) as never,
 
   /**
    * The Selection of every member an input writes, with each relation as refs:

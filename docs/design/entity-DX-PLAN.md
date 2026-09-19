@@ -68,7 +68,7 @@ the same state into order terms from a map of columns the server chose.
 - `Crud.remover` needs `input: (id: PostId) => ({ id })` written out.
   **Plan.** `id: 'id'` names the input key; the type and the function follow.
 
-## 7. Inputs repeat the Entity
+## 7. Inputs repeat the Entity (resolved)
 
 - `title: Blog.Post.fields.title.schema` for every reused field.
   **Plan.** `Entity.fields(Post, 'id', 'title')`, spread into the struct.

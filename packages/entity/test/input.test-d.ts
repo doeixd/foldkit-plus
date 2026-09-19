@@ -119,3 +119,32 @@ expectTypeOf(Entity.selectFor(Publish).members).toEqualTypeOf<{
     comments: Relation.nested(Blog.Post.relations.comments, NewComment),
   })
 }
+
+{
+  // A member named by its key reads exactly as the long form does.
+  const edit = Entity.input(
+    Blog.Post,
+    Schema.Struct({ headline: Schema.String, authorId: Schema.String }),
+    { headline: 'title', authorId: 'author' },
+  )
+  expectTypeOf(edit.members.headline).toEqualTypeOf<typeof Blog.Post.fields.title>()
+  const loaded = Entity.selectFor(edit)
+  expectTypeOf<keyof typeof loaded.schema.Type>().toEqualTypeOf<'title' | 'author'>()
+
+  Entity.input(Blog.Post, Schema.Struct({ authorId: Schema.String }), {
+    // @ts-expect-error "writer" names no field or relation of Post
+    authorId: 'writer',
+  })
+  Entity.input(Blog.Post, Schema.Struct({ authorId: Schema.Number }), {
+    // @ts-expect-error a number is not the id of an Author
+    authorId: 'author',
+  })
+
+  const picked = Entity.fields(Blog.Post, 'id', 'title')
+  expectTypeOf(picked).toEqualTypeOf<{
+    readonly id: typeof Blog.Post.fields.id.schema
+    readonly title: typeof Blog.Post.fields.title.schema
+  }>()
+  // @ts-expect-error "author" is a relation, not a field
+  Entity.fields(Blog.Post, 'author')
+}

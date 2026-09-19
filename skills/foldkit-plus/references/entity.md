@@ -124,6 +124,10 @@ const PostWithComments = Entity.select(Blog.Post, {
 // { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
 ```
 
+**Less to write in an input:** `Schema.Struct({ ...Entity.fields(Post, 'id', 'title'), editorId: ... })`
+reuses the fields' schemas, and a mapping may name a member by key:
+`Entity.input(Post, Input, { editorId: 'editor' })` is `Relation.input(Post.relations.editor)`.
+
 **An input that embeds the target** (a post with a new author): map the key with
 `Relation.nested`. `selectFor` and `valuesFor` follow it.
 

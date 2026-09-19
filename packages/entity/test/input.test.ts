@@ -223,3 +223,40 @@ describe('Relation.nested', () => {
     ).toThrow(/"author" nests an input of "Comment", but "author" is of "Author"/)
   })
 })
+
+describe('a member named by its key', () => {
+  it('maps a key to the Field, or to the ids of the relation, that the name says', () => {
+    const edit = Entity.input(
+      Post,
+      Schema.Struct({ headline: Schema.String, authorId: Schema.String }),
+      { headline: 'title', authorId: 'author' },
+    )
+    expect(edit.members.headline).toBe(Post.fields.title)
+    expect(edit.members.authorId).toEqual(Relation.input(Post.relations.author))
+    // The same reading as the long form, so what follows from it is the same.
+    expect(Object.keys(Entity.selectFor(edit).members)).toEqual(['title', 'author'])
+  })
+
+  it('refuses a name that is no field or relation', () => {
+    expect(() =>
+      inputUntyped(Post, Schema.Struct({ count: Schema.Number }), { count: 'commentCount' }),
+    ).toThrow('input key "count" is mapped to "commentCount", which names no field or relation')
+  })
+})
+
+describe('Entity.fields', () => {
+  it('gives the schemas of the fields named, to spread into an input', () => {
+    const picked = Entity.fields(Post, 'id', 'title')
+    expect(picked).toEqual({ id: Post.fields.id.schema, title: Post.fields.title.schema })
+    const rename = Entity.input(Post, Schema.Struct({ ...picked, note: Schema.String }), {
+      note: Entity.unmapped,
+    })
+    expect(rename.members.title).toBe(Post.fields.title)
+  })
+
+  it('refuses a key that is not a field', () => {
+    expect(() =>
+      (Entity.fields as (entity: AnyEntity, key: string) => unknown)(Post, 'author'),
+    ).toThrow('"author" is not a field')
+  })
+})

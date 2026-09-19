@@ -7,6 +7,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-entity`: `Entity.fields(entity, ...keys)` gives field schemas to spread
+  into an input's struct, and an `Entity.input` mapping may name a member by its
+  key (`{ authorId: 'author' }`).
+
 - **Typed ids reach the read.** An Entity `Selection` carries its Entity's id type
   (a fourth, defaulted type parameter), and `foldkit-remote`'s `Data.get` /
   `Data.live` take it. **Breaking** for an Entity with a branded `id` read with a

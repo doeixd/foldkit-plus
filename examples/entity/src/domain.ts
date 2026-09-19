@@ -78,9 +78,8 @@ export const AuthorPage = Entity.select(Blog.Author, {
  * a post's id and comment count exist and are not editable here.
  */
 export const EditPostInput = Schema.Struct({
-  id: PostId,
-  title: Blog.Post.fields.title.schema,
-  published: Blog.Post.fields.published.schema,
+  // The post's own fields, with their own rules; they map themselves.
+  ...Entity.fields(Blog.Post, 'id', 'title', 'published'),
   editorId: Schema.NullOr(AuthorId),
 })
 
