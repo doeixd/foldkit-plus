@@ -413,7 +413,7 @@ export interface EntityInput<E extends AnyEntity, Fields extends Schema.Struct.F
 }
 
 /** The Entity member an input key writes, by its key; nothing for an unmapped key. */
-type WrittenKey<M> =
+export type WrittenKey<M> =
   M extends EntityField<any, infer Key, any>
     ? Key
     : M extends
@@ -423,13 +423,13 @@ type WrittenKey<M> =
       : never
 
 /** A nested input reads what it writes of the target; every other member reads as it is. */
-type WrittenAs<M> =
+export type WrittenAs<M> =
   M extends NestedInput<any, EntityInput<infer Of, any, infer Members>>
     ? Selection<Of['name'], WrittenSpec<Members>, SelectionSchema<Of, WrittenSpec<Members>>>
     : true
 
 /** Every member the input writes: what to read to show the input's current values. */
-type WrittenSpec<Members> = {
+export type WrittenSpec<Members> = {
   readonly [K in keyof Members as WrittenKey<Members[K]>]: WrittenAs<Members[K]>
 }
 
