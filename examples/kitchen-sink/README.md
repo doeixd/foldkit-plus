@@ -1,6 +1,6 @@
 # Kitchen sink
 
-Fourteen of the fifteen packages, wired into one application. It runs entirely
+Fourteen packages, wired into one application. It runs entirely
 in-process — an in-memory SQLite database and a durable journal, no server and
 no browser — so the transcript is deterministic and needs nothing running.
 (`foldkit-mirror` is the one package not here; it needs a URL and a browser

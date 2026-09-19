@@ -21,10 +21,11 @@ If you are new to the repository, do not read the design notes first.
    runnable trace.
 
 If you want to see almost everything wired together before reading any API, use
-[`examples/kitchen-sink`](../examples/kitchen-sink). It covers fourteen of the
-fifteen packages in one deterministic in-process trace; `foldkit-mirror` lives in
-the todo app because it needs a URL/browser store. Together the two examples
-cover all fifteen packages.
+[`examples/kitchen-sink`](../examples/kitchen-sink). It covers fourteen
+packages in one deterministic in-process trace; `foldkit-mirror` lives in the
+todo app because it needs a URL/browser store. The packages added since
+(Bundle, Primitives, React, and Entity, Form, and Crud) have focused examples of
+their own, listed in [`examples/README.md`](../examples/README.md).
 
 ## Release posts
 

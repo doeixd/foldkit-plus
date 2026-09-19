@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/doeixd/foldkit-plus)
 
-> Fifteen packages that extend a [Foldkit](https://foldkit.dev/) application
+> Twenty-five packages that extend a [Foldkit](https://foldkit.dev/) application
 > outward — to agents, servers, other devices, the URL, and design systems —
 > without giving it a second place to keep state.
 
@@ -274,6 +274,10 @@ flowchart TB
   mixins["foldkit-mixins<br/>typed view extension points"]
   mixinsSurface["foldkit-mixins-surface"]
   mixinsUi["foldkit-mixins-ui"]
+  entity["foldkit-entity<br/>the domain, declared once"]
+  form["foldkit-form<br/>headless form from an operation's input"]
+  mixinsForm["foldkit-mixins-form"]
+  crud["foldkit-crud<br/>editor · list · detail · remover"]
 
   app -- "describe observation / capability" --> surface
   app --> mixins
@@ -289,6 +293,14 @@ flowchart TB
   surface --> mixinsSurface
   mixins --> mixinsSurface
   mixins --> mixinsUi
+  entity -- "read by" --> remote
+  entity -- "bound to tables" --> drizzle
+  entity --> form
+  bundle --> form
+  form --> mixinsForm
+  mixins --> mixinsForm
+  form --> crud
+  remote --> crud
 ```
 
 The arrows are integration boundaries, not new application state machines.
@@ -296,7 +308,9 @@ Agent projects application capabilities. Remote reconciles server facts into the
 Model. Sync replays application Messages against an authoritative server order.
 Mirror keeps a secondary representation of Model fields. Mixins extends view
 structure without touching Model state. Primitives packages reusable
-browser and clock behaviour without hiding state. Durable can also be used independently
+browser and clock behaviour without hiding state. Entity declares a domain once
+as plain values; Remote, the Drizzle binding, and Form read it, and Crud joins a
+form to a Remote operation. None of them owns state of its own. Durable can also be used independently
 as an ordered server journal.
 
 The rule that makes the whole graph composable is **one owner per datum**:
@@ -360,6 +374,10 @@ pnpm add foldkit-mirror
 # reusable Submodels placed with every part wired
 pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
 
+# a domain declared once, forms from an operation's input, and edit screens
+pnpm add foldkit-entity foldkit-form foldkit-mixins-form
+pnpm add foldkit-crud foldkit-remote # an editor, list, detail, and remover over Remote
+
 # ready-made primitives: media, timers, sockets, observers, clipboard
 pnpm add foldkit-primitives
 
@@ -401,12 +419,14 @@ README documents its API.
 | --- | --- |
 | Agent contracts and adapters | [Agents](./docs/agents.md) |
 | Server-owned normalized state | [Server-derived state](./docs/remote.md) |
+| One domain for the cache, the database, forms, and edit screens | [One domain declaration](./docs/entity.md) |
 | Local-first replication and the durable server log | [Replicated state](./docs/replication.md) |
 | URL and key-value mirrors | [Mirrored state](./docs/mirror.md) |
 | Inside-out view composition | [View composition](./docs/mixins.md) |
 | Running a Foldkit app over a replica | [Runtime binding](./docs/sync-runtime-binding.md) |
 | Design lineage and prior art | [Prior art and design lineage](./docs/prior-art.md) |
 
+The [0.7 release post](./docs/blog/0.7.0.md) introduces Entity, Form, and Crud.
 The [documentation map](./docs/README.md) gives the full reading order, package
 references, design notes, and historical material. The
 [release matrix](./docs/releases.md) tracks published versions; the

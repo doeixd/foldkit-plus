@@ -23,7 +23,10 @@ there.
 
 `foldkit-mirror` is deliberately absent from the kitchen sink because its most
 useful behavior needs a URL/browser store. The todo app covers it instead.
-Together those two examples exercise all fifteen packages.
+Together those two examples exercise the fifteen packages they were written
+for. The packages added since have focused examples of their own: Bundle and
+Primitives in [`bundle`](./bundle), React in [`react`](./react), and Entity,
+Form, and Crud in [`entity`](./entity).
 
 ## Recommended reading order
 
