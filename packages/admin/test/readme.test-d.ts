@@ -14,7 +14,7 @@ import {
 } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
-import { Admin, type EditorStatus } from '../src/index.js'
+import { Admin, type Choice, type EditorStatus } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
@@ -97,6 +97,7 @@ Admin.editor('Mismatched', { form: EditPostForm, mutation: Other })
     query: AuthorsQuery,
     selection: Entity.select(Blog.Author, { id: true, name: true }),
     pageSize: 25,
+    choice: { value: row => row.id, label: row => row.name },
   })
 
   const AuthorList = Authors.at({
@@ -112,10 +113,13 @@ Admin.editor('Mismatched', { form: EditPostForm, mutation: Other })
     RemoteData<Page<{ readonly id: string; readonly name: string }>>
   >()
   expectTypeOf(Authors.columns[0]!.key).toEqualTypeOf<'id' | 'name'>()
-  const authors = AuthorList.options(model, { value: row => row.id, label: row => row.name })
-  expectTypeOf(authors).toEqualTypeOf<
-    ReadonlyArray<{ readonly value: string; readonly label: string }>
-  >()
+  expectTypeOf(AuthorList.choices(model)).toEqualTypeOf<ReadonlyArray<Choice>>()
+  const pickers = Admin.options(EditPostForm, [AuthorList])
+  expectTypeOf(pickers(model)).toEqualTypeOf<{
+    readonly id?: ReadonlyArray<Choice>
+    readonly title?: ReadonlyArray<Choice>
+    readonly authorId?: ReadonlyArray<Choice>
+  }>()
   // @ts-expect-error the query's input is `{ search }`
   Authors.at({ data: Data, input: () => ({ term: 'a' }) })
 }

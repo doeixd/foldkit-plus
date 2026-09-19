@@ -43,6 +43,10 @@ export const PostPage = Entity.select(Blog.Post, {
   comments: Entity.select(Blog.Comment, { body: true, author: AuthorName }),
 })
 
+/** A row of the post list, and an author as a picker offers one. */
+export const PostRow = Entity.select(Blog.Post, { id: true, title: true, published: true })
+export const AuthorChoice = Entity.select(Blog.Author, { id: true, name: true })
+
 export const AuthorPage = Entity.select(Blog.Author, {
   name: true,
   posts: Entity.select(Blog.Post, { title: true, commentCount: true }),

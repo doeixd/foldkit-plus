@@ -160,6 +160,8 @@ const Authors = Admin.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
+  // How a row reads as a choice, for a list that feeds relation pickers.
+  choice: { value: row => row.id, label: row => row.name },
 })
 
 const AuthorList = Authors.at({
@@ -186,16 +188,22 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 
 A form names a relation's target Entity and leaves listing it to you, because a
 relationship existing is no licence to read a table. A list is that licence: a
-query you declared and your server authorizes. `options` turns its loaded rows
-into choices:
+query you declared and your server authorizes. A list with a `choice` offers its
+loaded rows as choices, and `Admin.options` hands each picker of a form the list
+over its target:
 
 ```ts
-const authors = AuthorList.options(model, { value: row => row.id, label: row => row.name })
+const pickers = Admin.options(EditPostForm, [AuthorList])
 
-Placed.view(model, h, { options: { authorId: authors } }) // with foldkit-mixins-form
+Placed.view(model, h, { options: pickers(model) }) // with foldkit-mixins-form
 ```
 
-It is empty until the page is loaded, and holds only the rows loaded so far.
+`pickers(model)` is keyed by the form's keys: `{ authorId: [{ value, label }, …] }`.
+A list is matched to a picker by Entity, so one author list serves `authorId`
+and `editorId` alike. A picker whose target no list is over throws when
+`Admin.options` is called, not when the form is drawn. `AuthorList.choices(model)`
+is one list's choices on its own. Both are empty until the page is loaded, and
+hold only the rows loaded so far.
 
 ## Limits
 

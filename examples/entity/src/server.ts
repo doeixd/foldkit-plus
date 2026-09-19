@@ -8,10 +8,10 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import { bind, databaseLayer, returning, source } from 'foldkit-remote-drizzle'
+import { bind, databaseLayer, query, returning, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog } from './domain.js'
-import { EditPostMutation } from './operations.js'
+import { AuthorsQuery, EditPostMutation, PostsQuery } from './operations.js'
 
 const authors = sqliteTable('authors', {
   id: text('id').primaryKey(),
@@ -87,6 +87,14 @@ export const openServer = () => {
     server: RemoteServer.make({
       entities: [source(Db.Author), source(Db.Post), source(Db.Comment)],
       mutations: [EditPost],
+      // A list is a query someone declared: nothing lists a table because a relation points at it.
+      queries: [
+        query(PostsQuery, { entity: Db.Post, orderBy: [{ column: posts.id, direction: 'asc' }] }),
+        query(AuthorsQuery, {
+          entity: Db.Author,
+          orderBy: [{ column: authors.id, direction: 'asc' }],
+        }),
+      ],
     }),
     layer: databaseLayer(db),
     /** The row as the database holds it, to check a write against. */

@@ -14,9 +14,9 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
-import { AuthorPage, Blog, PostPage } from './domain.js'
+import { AuthorChoice, AuthorPage, Blog, PostPage, PostRow } from './domain.js'
 import { EditPostForm } from './editForm.js'
-import { EditPostMutation } from './operations.js'
+import { AuthorsQuery, EditPostMutation, PostsQuery } from './operations.js'
 import { openServer } from './server.js'
 
 // The form and the mutation its value feeds, joined. The editor is a Submodel of
@@ -37,7 +37,21 @@ const Data = Remote.make({
   model: App.model.remote,
   entities: Object.values(Blog),
   mutations: [EditPostMutation],
+  queries: [PostsQuery, AuthorsQuery],
 })
+
+// Two lists: a query and a Selection each. They hold no state, so nothing is
+// placed; the pages are Remote's.
+const Posts = Admin.list('Posts', { query: PostsQuery, selection: PostRow }).at({
+  data: Data,
+  input: () => ({}),
+})
+const Authors = Admin.list('Authors', {
+  query: AuthorsQuery,
+  selection: AuthorChoice,
+  // How an author reads as a choice: this list feeds the editor's picker.
+  choice: { value: row => row.id, label: row => row.name },
+}).at({ data: Data, input: () => ({}) })
 
 // Where the editor lives: its slice of the Model, and the domain it saves through.
 const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
@@ -47,6 +61,9 @@ const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 // `EditPostInput` into the mutation.
 const EditForm = Page.at(EditSlot, { onOut: PostEditor.onOut })
 const placements = Page.assemble(EditForm)
+
+// Every relation picker of the form, fed by the list over its target.
+const pickers = Admin.options(EditPostForm, [Authors])
 
 // `after` lets the editor show the loaded value whichever Message brings it.
 const update = PostEditor.after(
@@ -149,9 +166,29 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
         .join(', ')}`,
     )
     // What to load is what the form writes: its fields, and each relation as a ref.
-    lines.push(`row before: ${JSON.stringify(backend.row('p2'))}`)
-    // Opening an id makes what the form writes a requirement, as a Surface's is.
-    let model = EditForm.helpers.open('p2')(both).model
+    // --- Managing ---
+    const describeList = (root: Model): string => {
+      const page = Posts.page(root)
+      return page._tag === 'Ready'
+        ? page.value.items
+            .map(row => `${row.id} "${row.title}"${row.published ? '' : ' (draft)'}`)
+            .join(', ')
+        : page._tag
+    }
+    let listed = both
+    for (const list of [Posts, Authors]) {
+      listed = await Effect.runPromise(
+        Data.prefetch(listed, list.active.projectionOf(listed)!).pipe(Effect.provide(client)),
+      )
+    }
+    lines.push(`post list: ${describeList(listed)}`)
+    const row = Posts.page(listed)
+    const draft = row._tag === 'Ready' ? row.value.items.find(post => !post.published) : undefined
+    if (draft === undefined) throw new Error('the list has no draft to open')
+
+    lines.push(`row before: ${JSON.stringify(backend.row(draft.id))}`)
+    // Opening a row makes what the form writes a requirement, as a Surface's is.
+    let model = EditForm.helpers.open(draft.id)(listed).model
     const editing = PostEditor.active.projectionOf(model)!
     lines.push(
       `editor plan: ${Data.plan(model, editing)
@@ -166,6 +203,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     model = PostEditor.sync(fetched).model
     // Nothing here says what to load or how to fill: both follow from the form's input.
     lines.push(`filled: ${describeForm(model)}; status ${PostEditor.status(model)}`)
+    const choices = pickers(model).editorId ?? []
+    lines.push(
+      `editor choices: ${choices.map(choice => `${choice.value} ${choice.label}`).join(', ')}`,
+    )
 
     // Clearing the title fails the input's own schema, so the submit goes nowhere.
     model = await form(EditPostForm.Message.Changed({ key: 'title', value: '' }))(model)
@@ -176,8 +217,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       model,
     )
     model = await form(EditPostForm.Message.Changed({ key: 'published', value: true }))(model)
-    // No editor chosen: the empty draft submits `null`, which the input admits.
-    model = await form(EditPostForm.Message.Changed({ key: 'editorId', value: '' }))(model)
+    // Picked from the author list's rows, as a drawn picker would offer them.
+    model = await form(
+      EditPostForm.Message.Changed({ key: 'editorId', value: choices[0]?.value ?? '' }),
+    )(model)
     lines.push('valid submit:')
     model = await form(EditPostForm.Message.Submitted())(model)
 
@@ -186,6 +229,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // The mutation's patches reached the store, so every Projection over the post moved.
     lines.push(`edited: ${describe(editing.read(model) as RemoteData<unknown>)}`)
     lines.push(`author again: ${describe(author.read(model).author)}`)
+    // The list too: its row is the same normalized post.
+    lines.push(`post list again: ${describeList(model)}`)
   } finally {
     backend.close()
   }

@@ -12,7 +12,8 @@ One domain declaration, read from both ends and written back through a form:
    Remote.make({ entities })        bind(Blog, { tables })
    Data.get(PostPage, id)           Drizzle sources, RemoteServer
    Form.make(Entity.input(…))       RemoteServer.mutation(EditPost)
-   Admin.editor({ form, mutation })
+   Admin.editor({ form, mutation })  query(PostsQuery), query(AuthorsQuery)
+   Admin.list({ query, selection })
               |                     |
               +---- in process -----+
    read:  plan -> read -> SQL -> refs -> store -> decoded value
@@ -64,20 +65,23 @@ author: Ready {"name":"Ada","posts":[…]}
   the post's author, so the normalized store already holds it and only `posts`
   is planned.
 
-### Editing
+### Managing
 
 ```text
 form controls: Title:Text*, Published:Toggle, Editor:RelationOne
+post list: p1 "Notes on the Engine", p2 "Compilers" (draft)
 row before: {"id":"p2","headline":"Compilers","published":0,"author_id":"a1","editor_id":"a2"}
-editor plan: Post:p2 [id,published,editor]; status Loading
+editor plan: Post:p2 [editor]; status Loading
 filled: Title="Compilers", Published=false, Editor="a2"; status Editing
+editor choices: a1 Ada, a2 Grace
 invalid submit: Title="" (Required), Published=false ok, Editor="a2" ok; status Editing
 valid submit:
   command Remote.mutate(EditPost): MutationSucceeded
 status: Saved
-row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":null}
-edited: Ready {"id":"p2","title":"Compilers, revised","published":true,"editor":null}
+row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":"a1"}
+edited: Ready {"id":"p2","title":"Compilers, revised","published":true,"editor":{"entity":"Author","id":"a1"}}
 author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
+post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
 ```
 
 - **`form controls`** is what `Form.make` resolved from the input and the Entity,
@@ -85,9 +89,14 @@ author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
   required because its schema admits no empty value; `Editor` is a picker
   because `editorId` is mapped to the `editor` relation, and its label is Entity
   metadata since a relation has no schema to annotate.
-- **`editor plan`** is `Admin.editor` at work. Opening `p2` makes the members the
-  form writes a requirement, like a Surface's. `title` is missing from the plan
-  because the author page already brought it into the store.
+- **`post list`** is `Admin.list`: a query and a Selection, run as keyset SQL by
+  the Drizzle query source. The list holds no state; its page is Remote's.
+- **`editor plan`** is `Admin.editor` at work. Opening the draft row makes the
+  members the form writes a requirement, like a Surface's. Only `editor` is
+  planned: the list already brought `id`, `title` and `published` into the store.
+- **`editor choices`** is `Admin.options`: the form's editor picker is fed by the
+  author list, because that list is over the relation's target. Nothing reads the
+  authors table because a relation points at it; a query someone declared does.
 - **`filled`** is the form starting from the loaded value. Neither what to load
   nor how to fill is written: both follow from the form's input, the editor's ref
   read back as the id the form holds.
@@ -95,11 +104,10 @@ author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
   fails the input's schema, so no mutation starts.
 - **`valid submit`** is the editor's `onOut` turning the decoded `EditPostInput`
   into `Data.mutate`, and **`status`** reading Remote's own mutation state. The
-  form knows nothing of Remote. An empty editor draft
-  submitted `null`, because the input admits it.
+  form knows nothing of Remote. The editor was picked from the choices.
 - **`row after`** is the database itself: `headline`, `published`, and
   `editor_id` changed by an ordinary Drizzle `update`.
-- **`edited`** and **`author again`** moved without a refetch. The mutation
+- **`edited`**, **`author again`** and **`post list again`** moved without a refetch. The mutation
   returned patches for the columns it wrote, and both Projections read the one
   normalized post.
 
@@ -108,10 +116,10 @@ author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
 | File | Read it for |
 | --- | --- |
 | [`src/domain.ts`](./src/domain.ts) | `Entity.define`, `Entity.relate` (a cycle: Post, Comment, Author), `Entity.derived`, reusable `Entity.select` views, and the operation's input struct |
-| [`src/operations.ts`](./src/operations.ts) | The mutation both sides share, over the domain's input |
+| [`src/operations.ts`](./src/operations.ts) | The mutation and the two list queries both sides share |
 | [`src/editForm.ts`](./src/editForm.ts) | `Entity.input` and `Form.make`: a relation key, a relation's label, a hidden id |
 | [`src/server.ts`](./src/server.ts) | `bind`: tables, a renamed column, the kinds of relation storage, a derived count; a mutation as plain Drizzle with `returning` |
-| [`src/demo.ts`](./src/demo.ts) | A Remote application with `Admin.editor` placed as a Bundle: `at`, `onOut`, `after`, `active`, `status` |
+| [`src/demo.ts`](./src/demo.ts) | A Remote application with `Admin.editor` placed as a Bundle (`at`, `onOut`, `after`, `active`, `status`), two `Admin.list`s, and `Admin.options` joining them |
 
 `Remote.make` and `Data.get` take the domain's Entities and Selections as they
 are, so the client imports nothing of Remote's own `Entity` or `Selection`.

@@ -17,7 +17,7 @@ import {
   type EntityMember,
   type Selection,
 } from 'foldkit-entity'
-import { Form, type Submitted } from 'foldkit-form'
+import { Form, type FormControl, type Submitted } from 'foldkit-form'
 import type {
   MutationDescriptor,
   Page,
@@ -103,6 +103,12 @@ interface DomainLike<Root> {
 
 type Step<Root> = Update.Step<Root, RemoteMessage, RemoteClient>
 
+/** One thing a relation picker offers. */
+export interface Choice {
+  readonly value: string
+  readonly label: string
+}
+
 /** One column of a list: a member the list's Selection reads. */
 export interface ListColumn<Key extends string = string> {
   readonly key: Key
@@ -131,9 +137,17 @@ export const Admin = {
       readonly selection: Selection<EntityName, Members, Schema.Constraint & { readonly Type: Row }>
       /** How many rows a page holds. Default 25. */
       readonly pageSize?: number
+      /**
+       * How a row reads as a choice in a relation picker: its id, and the words
+       * that identify it to a person. Give it to a list that feeds pickers.
+       */
+      readonly choice?: {
+        readonly value: (row: Row) => string
+        readonly label: (row: Row) => string
+      }
     },
   ) => {
-    const { query, selection, pageSize = 25 } = config
+    const { query, selection, pageSize = 25, choice } = config
     const members: Readonly<Record<string, EntityMember>> = selection.entity.members
     const columns = Object.keys(selection.members as object).map(
       (key): ListColumn<keyof Members & string> => ({
@@ -183,15 +197,19 @@ export const Admin = {
             return next === undefined ? undefined : data.fetch(next)
           },
 
+          /** The Entity the rows are of, which is how a picker finds the list for its target. */
+          entity: selection.entity as AnyEntity,
+
           /**
-           * The loaded rows as a picker's choices, e.g. for `foldkit-mixins-form`'s
-           * `options`. Listing the target is this query, which the application
-           * chose and the server authorizes; nothing is read because a relation exists.
+           * The loaded rows as a picker's choices, read through `choice`. Listing a
+           * relation's target is this query, which the application chose and the
+           * server authorizes; nothing is read because a relation exists.
            */
-          options: (
-            root: Root,
-            choice: { readonly value: (row: Row) => string; readonly label: (row: Row) => string },
-          ): ReadonlyArray<{ readonly value: string; readonly label: string }> => {
+          choices: (root: Root): ReadonlyArray<Choice> => {
+            if (choice === undefined)
+              throw new Error(
+                `Admin list "${name}": give it a "choice" to use its rows in a picker`,
+              )
             const read = page(root)
             return read._tag === 'Ready' || read._tag === 'Refreshing'
               ? read.value.items.map(row => ({
@@ -203,6 +221,33 @@ export const Admin = {
         }
       },
     }
+  },
+
+  /**
+   * The choices of every relation picker in a form, from the lists of their
+   * targets: `foldkit-mixins-form`'s `options`, keyed by the form's keys. A
+   * picker whose target no list here is over is a wiring mistake, reported now.
+   */
+  options: <Key extends string, Root>(
+    form: { readonly controls: ReadonlyArray<FormControl<Key>> },
+    lists: ReadonlyArray<{
+      readonly entity: AnyEntity
+      readonly choices: (root: Root) => ReadonlyArray<Choice>
+    }>,
+  ): ((root: Root) => { readonly [K in Key]?: ReadonlyArray<Choice> }) => {
+    const pickers = form.controls.flatMap(({ key, control }) => {
+      if (control._tag !== 'RelationOne' && control._tag !== 'RelationMany') return []
+      const list = lists.find(candidate => Entity.same(candidate.entity, control.target))
+      if (list === undefined)
+        throw new Error(
+          `Admin.options: "${key}" picks a ${control.target.name}, and no list given is over ${control.target.name}`,
+        )
+      return [[key, list] as const]
+    })
+    return root =>
+      Object.fromEntries(pickers.map(([key, list]) => [key, list.choices(root)])) as {
+        readonly [K in Key]?: ReadonlyArray<Choice>
+      }
   },
 
   /**

@@ -2805,10 +2805,16 @@ using ordinary Foldkit state/update/Submodel concepts.
 >   its input (a search term, filters) is the application's Model. It contributes
 >   an ActiveSurface, the page as `RemoteData`, the Command for the next page,
 >   and `columns` labelled as a form labels the same members.
-> - **§29's picker data is a list's `options`.** The form names the target and
->   stops; the application declares the query that lists it, the server authorizes
->   it, and `options` turns the loaded rows into a picker's choices. No read
->   happens because a relation exists.
+> - **§29's picker data is a list with a `choice`.** The form names the target
+>   and stops; the application declares the query that lists it, the server
+>   authorizes it, and `Admin.options(form, lists)` hands each picker the list
+>   over its target, matched by Entity. No read happens because a relation
+>   exists, and a picker with no list is an error when the page is wired.
+> - **Still no `Admin.resource`.** The two links a Resource was meant to carry
+>   turned out to need no container: a list feeds a picker through
+>   `Admin.options`, and a row opens in an editor through the editor's own
+>   `open(row.id)`. [`examples/entity`](../../examples/entity) wires a list, an
+>   editor, and a picker without one.
 >
 > - **No `Admin.resource` yet.** With one capability a Resource descriptor would
 >   be a wrapper nothing else reads (§28: add a primitive when several consumers

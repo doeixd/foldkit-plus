@@ -85,6 +85,8 @@ const Authors = Admin.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
+  // How a row reads as a choice, for a list that feeds relation pickers.
+  choice: { value: row => row.id, label: row => row.name },
 })
 
 const AuthorList = Authors.at({
@@ -100,9 +102,11 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
   and a `label` (schema `title`, else `Form.label`, else the key).
 - `AuthorList.page(model)`: `RemoteData<Page<Row>>`, rows typed by the Selection.
 - `AuthorList.more(model)`: the Command for the next page, or `undefined`.
-- `AuthorList.options(model, { value: row => row.id, label: row => row.name })`:
-  the loaded rows as a relation picker's choices, for `foldkit-mixins-form`'s
-  `options`. Empty until loaded; only the rows loaded so far.
+- `Admin.options(EditPostForm, [AuthorList])(model)`: every relation picker of
+  the form fed by the list over its target, keyed by the form's keys, for
+  `foldkit-mixins-form`'s `options`. Needs `choice` on the list. A picker with no
+  list over its target throws when `Admin.options` is called. Empty until loaded;
+  only the rows loaded so far. `AuthorList.choices(model)` is one list's.
 - Sorting and filtering are the query's input, which your Model holds.
 
 ## Gotchas

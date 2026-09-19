@@ -26,8 +26,9 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   HTML with every element a Mixins Slot.
 - **`foldkit-admin` 0.1.0.** `Admin.editor`: a form, the Remote mutation its
   value feeds, and their Entity, joined into an edit or create screen.
-  `Admin.list`: a Remote query and an Entity Selection, with columns, paging, and
-  its rows as a relation picker's choices.
+  `Admin.list`: a Remote query and an Entity Selection, with columns and paging.
+  `Admin.options`: each relation picker of a form fed by the list over its
+  target.
 
 ### `foldkit-remote`
 

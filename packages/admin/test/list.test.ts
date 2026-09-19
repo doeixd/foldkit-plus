@@ -27,6 +27,7 @@ const Authors = Admin.list('Authors', {
   query: AuthorsQuery,
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 2,
+  choice: { value: row => row.id, label: row => row.name },
 })
 
 const Model = Schema.Struct({ remote: Remote.Model, search: Schema.NullOr(Schema.String) })
@@ -130,16 +131,44 @@ describe('Admin.list', () => {
     expect(AuthorList.more(second)).toBeUndefined()
   })
 
-  it('offers its loaded rows as a picker’s choices', async () => {
-    const choice = {
-      value: (row: { id: string }) => row.id,
-      label: (row: { name: string }) => row.name,
-    }
-
-    expect(AuthorList.options({ ...initial, search: 'a' }, choice)).toEqual([])
-    expect(AuthorList.options(await load({ ...initial, search: 'a' }), choice)).toEqual([
+  it('offers its loaded rows as a picker choices, read through `choice`', async () => {
+    expect(AuthorList.choices({ ...initial, search: 'a' })).toEqual([])
+    expect(AuthorList.choices(await load({ ...initial, search: 'a' }))).toEqual([
       { value: 'a0', label: 'Ada' },
       { value: 'a1', label: 'Alan' },
     ])
+  })
+
+  it('feeds every relation picker of a form from the list over its target', async () => {
+    const EditPost = Form.make(
+      'EditPost',
+      Entity.input(Blog.Post, Schema.Struct({ title: Schema.String, authorId: Schema.String }), {
+        authorId: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    const options = Admin.options(EditPost, [AuthorList])
+
+    expect(options({ ...initial, search: 'a' })).toEqual({ authorId: [] })
+    expect(options(await load({ ...initial, search: 'g' }))).toEqual({
+      authorId: [{ value: 'a3', label: 'Grace' }],
+    })
+  })
+
+  it('reports a picker with no list over its target, and a list with no choice', () => {
+    const EditPost = Form.make(
+      'EditPost',
+      Entity.input(Blog.Post, Schema.Struct({ authorId: Schema.String }), {
+        authorId: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    expect(() => Admin.options(EditPost, [])).toThrow(
+      'Admin.options: "authorId" picks a Author, and no list given is over Author',
+    )
+
+    const Bare = Admin.list('Bare', {
+      query: AuthorsQuery,
+      selection: Entity.select(Blog.Author, { id: true }),
+    }).at({ data: Data, input: () => ({ search: '' }) })
+    expect(() => Bare.choices(initial)).toThrow('give it a "choice"')
   })
 })
