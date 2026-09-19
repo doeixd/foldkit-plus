@@ -28,7 +28,7 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   value feeds, and their Entity, joined into an edit or create screen.
   `Admin.list`: a Remote query and an Entity Selection, with columns and paging.
   `Admin.options`: each relation picker of a form fed by the list over its
-  target.
+  target. `Admin.editorView`: a form's view as the view of the editor around it.
 
 ### `foldkit-remote`
 

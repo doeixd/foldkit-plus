@@ -108,6 +108,27 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 - The save is a Command that needs `RemoteClient`, so the parent scope names it
   with `withServices<RemoteClient>()`.
 
+### Drawing it
+
+The editor wraps the form's Model, so it takes the form's view, lifted:
+
+```ts
+import { FormView } from 'foldkit-mixins-form'
+
+const Slot = Bundle.declare(
+  Editor.bundle.pipe(
+    Bundle.withView(Admin.editorView(FormView.submodel(EditPostForm, FormView.define(EditPostForm)))),
+  ),
+  'editor',
+)
+
+// where the page draws it:
+Placed.view(model, h, { options: pickers(model), submitLabel: 'Save' })
+```
+
+`Admin.editorView` works on any Submodel view of the form that takes view
+inputs; `foldkit-admin` itself stays headless.
+
 ### Opening it
 
 `open`, `blank`, and `close` are helpers of the placement, so they are Update
@@ -209,6 +230,7 @@ hold only the rows loaded so far.
 
 - A list has no sorting, filtering, or selection state of its own: those are the
   query's input, which your Model holds.
-- Headless. Draw the form with
-  [`foldkit-mixins-form`](../mixins-form/README.md) over `model.editor.form`, or
-  from `EditPostForm.controls`.
+- Headless. Draw the editor with `Admin.editorView` over a
+  [`foldkit-mixins-form`](../mixins-form/README.md) view, or from
+  `EditPostForm.controls`. [`examples/entity`](../../examples/entity) draws a
+  list and an editor, and runs in a browser.

@@ -87,6 +87,12 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../../packages/mixins-form
       foldkit-remote:
         specifier: workspace:*
         version: link:../../packages/remote
@@ -106,9 +112,15 @@ importers:
       foldkit:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      vite:
+        specifier: 5.4.21
+        version: 5.4.21(@types/node@22.20.1)
 
   examples/kitchen-sink:
     dependencies:

@@ -30,10 +30,12 @@ import type {
 } from 'foldkit-remote'
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 
 /** The parts of a `Form.make` result an editor wraps. */
-interface EditableForm<
+export interface EditableForm<
   Name extends string,
   FormModel,
   FormMessage,
@@ -82,7 +84,7 @@ export type EditorStatus =
   | 'SaveFailed'
 
 /** The parts of a bound Remote domain an editor uses. */
-interface DomainLike<Root> {
+export interface DomainLike<Root> {
   // Method syntax: the descriptors are checked where the editor is made, not here.
   mutate(
     model: Root,
@@ -222,6 +224,29 @@ export const Admin = {
       },
     }
   },
+
+  /**
+   * A form's Submodel view as the view of the editor that wraps it, for
+   * `Bundle.withView`: the editor's Messages are the form's, and its Model holds
+   * the form's under `form`.
+   *
+   * ```ts
+   * Editor.bundle.pipe(Bundle.withView(Admin.editorView(FormView.submodel(form, view))))
+   * ```
+   */
+  editorView: <FormModel, Message, ViewInputs>(
+    view: Submodel.View<FormModel, Message, ViewInputs>,
+  ): Submodel.View<EditorModel<FormModel>, Message, ViewInputs> =>
+    Submodel.defineView<EditorModel<FormModel>, Message, ViewInputs>(((
+      model: EditorModel<FormModel>,
+      inputs: ViewInputs,
+      h: HtmlBuilder<Message>,
+    ): Html =>
+      (view as (model: FormModel, inputs: ViewInputs, h: HtmlBuilder<Message>) => Html)(
+        model.form,
+        inputs,
+        h,
+      )) as never),
 
   /**
    * The choices of every relation picker in a form, from the lists of their

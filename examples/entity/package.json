@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx src/dev.ts",
     "demo": "tsx src/main.ts",
     "typecheck": "tsc -b"
   },
@@ -13,6 +14,8 @@
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
@@ -21,6 +24,8 @@
   "devDependencies": {
     "effect": "4.0.0-rc.112",
     "foldkit": "0.158.2",
-    "typescript": "5.9.3"
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
   }
 }

@@ -38,6 +38,22 @@ pnpm --filter foldkit-example-entity demo
 
 It seeds an in-memory `node:sqlite` database, so there is no service to start.
 
+### In a browser
+
+```bash
+pnpm build
+pnpm --filter foldkit-example-entity dev
+```
+
+This starts the same server behind one HTTP endpoint and Vite on
+<http://127.0.0.1:5174>. Click a post to edit it; the table row changes when the
+save lands, with no refetch. The page is the application the trace runs
+(`app.ts`), drawn by `view.ts`: the table from the list's own columns, the form
+by `foldkit-mixins-form`. The data is in memory, so a restart resets it.
+
+The first load after an install is slow: Vite pre-bundles the workspace packages
+and reloads the page once.
+
 ## What the trace shows
 
 ### Reading
@@ -119,15 +135,17 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
 | [`src/operations.ts`](./src/operations.ts) | The mutation and the two list queries both sides share |
 | [`src/editForm.ts`](./src/editForm.ts) | `Entity.input` and `Form.make`: a relation key, a relation's label, a hidden id |
 | [`src/server.ts`](./src/server.ts) | `bind`: tables, a renamed column, the kinds of relation storage, a derived count; a mutation as plain Drizzle with `returning` |
-| [`src/demo.ts`](./src/demo.ts) | A Remote application with `Admin.editor` placed as a Bundle (`at`, `onOut`, `after`, `active`, `status`), two `Admin.list`s, and `Admin.options` joining them |
+| [`src/app.ts`](./src/app.ts) | The client application: `Admin.editor` placed as a Bundle (`at`, `onOut`, `after`, `status`), two `Admin.list`s, `Admin.options` joining them, and `Data.wiring` putting all three on screen |
+| [`src/view.ts`](./src/view.ts) | The page drawn: a table from `PostList.columns`, the form through `foldkit-mixins-form`, the editor's `status` and `saveError` |
+| [`src/demo.ts`](./src/demo.ts) | The trace above, over that application and the in-process server |
+| [`src/transport.ts`](./src/transport.ts), [`src/http.ts`](./src/http.ts) | The browser's transport: Remote's three calls as JSON over HTTP, adapted by `Remote.clientLayer` |
 
 `Remote.make` and `Data.get` take the domain's Entities and Selections as they
 are, so the client imports nothing of Remote's own `Entity` or `Selection`.
 
 ## What it leaves out
 
-There is no view: the trace reads the form's state the way a view would, through
-`controls` and `field`. Queries, live updates, and pagination work on these
+The HTTP transport has no live stream and no authentication. Queries, live updates, and pagination work on these
 descriptors as they do on any other, and are covered by the
 [`remote`](../remote) example and the
 [`foldkit-remote-drizzle`](../../packages/remote-drizzle) README. A paginated

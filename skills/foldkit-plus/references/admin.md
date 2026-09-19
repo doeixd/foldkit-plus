@@ -71,7 +71,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   `LoadFailed`, `Editing`, `Saving`, `Saved`, or `SaveFailed`;
   `PostEditor.saveError(model)` is why a save failed. The form's Model is
   `model.editor.form`.
-- **Draw it:** `foldkit-mixins-form` over `model.editor.form`, or from
+- **Draw it:** give the editor's Bundle the form's view, lifted:
+  `Editor.bundle.pipe(Bundle.withView(Admin.editorView(FormView.submodel(EditPostForm, view))))`,
+  then `Placed.view(model, h, { options: pickers(model) })`. Or draw from
   `EditPostForm.controls`.
 - **Compose `update` yourself:** `PostEditor.sync` is the Step `after` runs.
 

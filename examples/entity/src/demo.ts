@@ -1,86 +1,31 @@
 /**
  * One domain declaration read from both ends. `domain.ts` declares Entities,
- * Selections, and an operation's input with `foldkit-entity` alone. Here the
- * client registers the Entities with Remote, reads Selections as Projections,
- * and places a form built from the input; `server.ts` binds the same Entities to
- * SQLite tables. The demo joins the two in process and traces a read from plan
- * to decoded value, then an edit from keystroke to SQL row.
+ * Selections, and an operation's input with `foldkit-entity` alone; `app.ts` is
+ * the client over them; `server.ts` binds the same Entities to SQLite tables.
+ * This joins the two in process and traces a read from plan to decoded value,
+ * then a managed edit from a list row to the SQL row.
  */
 import { Effect, Layer, Schema } from 'effect'
-import { Admin } from 'foldkit-admin'
-import { Bundle } from 'foldkit-bundle'
 import * as FieldValidation from 'foldkit/fieldValidation'
-import { defineMessageUnion } from 'foldkit/message'
-import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Surface } from 'foldkit-surface'
-import { AuthorChoice, AuthorPage, Blog, PostPage, PostRow } from './domain.js'
+import {
+  AuthorSurface,
+  Authors,
+  Data,
+  EditForm,
+  Message,
+  PostEditor,
+  PostSurface,
+  Posts,
+  initial as initialModel,
+  pickers,
+  update,
+  type Model,
+} from './app.js'
+import { PostPage } from './domain.js'
 import { EditPostForm } from './editForm.js'
-import { AuthorsQuery, EditPostMutation, PostsQuery } from './operations.js'
 import { openServer } from './server.js'
-
-// The form and the mutation its value feeds, joined. The editor is a Submodel of
-// the page: a Model field and a Message variant.
-const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
-const EditSlot = Bundle.declare(Editor.bundle, 'editPost')
-
-const Model = Schema.Struct({ remote: Remote.Model, ...EditSlot.fields })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Remote.messages, ...EditSlot.cases })
-type Message = typeof Message.Type
-
-const App = Surface.application({ Model, Message })
-
-// The client's interpretation: Remote registers the Entities as they are. It
-// never sees a table; relations arrive as refs and the store follows them.
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: Object.values(Blog),
-  mutations: [EditPostMutation],
-  queries: [PostsQuery, AuthorsQuery],
-})
-
-// Two lists: a query and a Selection each. They hold no state, so nothing is
-// placed; the pages are Remote's.
-const Posts = Admin.list('Posts', { query: PostsQuery, selection: PostRow }).at({
-  data: Data,
-  input: () => ({}),
-})
-const Authors = Admin.list('Authors', {
-  query: AuthorsQuery,
-  selection: AuthorChoice,
-  // How an author reads as a choice: this list feeds the editor's picker.
-  choice: { value: row => row.id, label: row => row.name },
-}).at({ data: Data, input: () => ({}) })
-
-// Where the editor lives: its slice of the Model, and the domain it saves through.
-const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
-
-const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-// The form knows nothing of Remote. The editor's `onOut` is what turns a decoded
-// `EditPostInput` into the mutation.
-const EditForm = Page.at(EditSlot, { onOut: PostEditor.onOut })
-const placements = Page.assemble(EditForm)
-
-// Every relation picker of the form, fed by the list over its target.
-const pickers = Admin.options(EditPostForm, [Authors])
-
-// `after` lets the editor show the loaded value whichever Message brings it.
-const update = PostEditor.after(
-  placements.update((model: Model, message: Message) =>
-    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
-  ),
-)
-
-const PostSurface = App.surface('PostPage', {
-  params: { postId: Schema.String },
-  model: ({ params }) => ({ post: Data.get(PostPage, params.postId) }),
-})
-
-const AuthorSurface = App.surface('AuthorPage', {
-  params: { authorId: Schema.String },
-  model: ({ params }) => ({ author: Data.get(AuthorPage, params.authorId) }),
-})
 
 const describe = <Value>(data: RemoteData<Value>): string =>
   RemoteData.match(data, {
@@ -114,7 +59,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const client = Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
     Layer.provide(backend.layer),
   )
-  const initial = placements.initial({ remote: Remote.initial }).model
+  const initial = initialModel()
   /** What the runtime does with a Message: update, run the Commands, feed their Messages back. */
   const dispatch = async (model: Model, message: Message): Promise<Model> => {
     const next = update(model, message)

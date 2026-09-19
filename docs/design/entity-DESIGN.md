@@ -2810,6 +2810,12 @@ using ordinary Foldkit state/update/Submodel concepts.
 >   authorizes it, and `Admin.options(form, lists)` hands each picker the list
 >   over its target, matched by Entity. No read happens because a relation
 >   exists, and a picker with no list is an error when the page is wired.
+> - **Drawn and run in a browser.** [`examples/entity`](../../examples/entity)
+>   draws the list from its own columns and the editor through
+>   `foldkit-mixins-form` (`Admin.editorView` lifts the form's view), is tested on
+>   the real runtime in jsdom over SQLite, and has a browser mode over an HTTP
+>   transport. So §42 holds: the generated pieces are ordinary Foldkit and draw
+>   like any other.
 > - **Still no `Admin.resource`.** The two links a Resource was meant to carry
 >   turned out to need no container: a list feeds a picker through
 >   `Admin.options`, and a row opens in an editor through the editor's own

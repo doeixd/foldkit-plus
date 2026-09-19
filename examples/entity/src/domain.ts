@@ -14,7 +14,7 @@ const Post = Entity.define(
   Schema.Struct({
     id: Schema.String,
     title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
-    published: Schema.Boolean,
+    published: Schema.Boolean.annotate({ title: 'Published' }),
   }),
 ).pipe(Entity.derived({ commentCount: Derived.make(Schema.Number) }))
 
@@ -59,6 +59,6 @@ export const AuthorPage = Entity.select(Blog.Author, {
 export const EditPostInput = Schema.Struct({
   id: Schema.String,
   title: Blog.Post.fields.title.schema,
-  published: Schema.Boolean.annotate({ title: 'Published' }),
+  published: Blog.Post.fields.published.schema,
   editorId: Schema.NullOr(Schema.String),
 })

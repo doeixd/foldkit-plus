@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.4;
+}
+body {
+  margin: 0 auto;
+  max-width: 44rem;
+  padding: 1.5rem 1rem;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th,
+td {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+}
+tbody tr {
+  cursor: pointer;
+}
+tbody tr:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.muted {
+  opacity: 0.65;
+}
+#editor {
+  margin-top: 1.5rem;
+}
+.form {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 24rem;
+}
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+.field input[type='text'],
+.field select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+}
+.field input[type='checkbox'] {
+  justify-self: start;
+}
+.is-invalid {
+  outline: 2px solid #c0392b;
+}
+.field-error {
+  color: #c0392b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+button {
+  font: inherit;
+  justify-self: start;
+  padding: 0.35rem 0.8rem;
+}
