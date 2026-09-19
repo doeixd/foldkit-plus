@@ -26,6 +26,11 @@ fifteen packages in one deterministic in-process trace; `foldkit-mirror` lives i
 the todo app because it needs a URL/browser store. Together the two examples
 cover all fifteen packages.
 
+## Release posts
+
+- [0.7: declare the domain once](./blog/0.7.0.md): Entity, Form, the drawn form,
+  and Admin, and what changed in Remote to let them in.
+
 ## The vocabulary that repeats everywhere
 
 | Term | Meaning |
