@@ -331,8 +331,11 @@ const LoggedCounter = Counter.pipe(
 )
 ```
 
-`mapInit`, `mapView`, and `withSubscriptions` complete the set. `mapUpdate`
-layers run outer then inner.
+`mapInit`, `mapView`, `withView`, and `withSubscriptions` complete the set.
+`mapUpdate` layers run outer then inner. `mapView` wraps the view a bundle has,
+keeping its inputs; `withView` gives a bundle a view with inputs of that view's
+own, which is how a package that only draws (such as `foldkit-mixins-form`)
+adds a view to a bundle it did not write.
 
 ## Gates and custom Links
 

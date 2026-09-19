@@ -88,7 +88,7 @@ The full API reference for each package is its README under [`packages/`](../pac
 ```text
 Foundation       foldkit-surface + foldkit-metadata
 Domain           foldkit-entity (declaration and selection; Remote and remote-drizzle read it)
-Forms            foldkit-form (headless; on foldkit-bundle and foldkit-entity)
+Forms            foldkit-form (headless; on foldkit-bundle and foldkit-entity) + mixins-form (draws it)
 Agents           foldkit-agent + agent-webmcp / agent-mcp / agent-a2a / agent-native
 Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable

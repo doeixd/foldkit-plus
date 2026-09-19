@@ -4,7 +4,7 @@ A form as a Submodel: built from the input an operation accepts, holding what
 the user is typing, and handing the parent a decoded value once it is valid.
 Field state is Foldkit core's `foldkit/fieldValidation`; the form is a
 `foldkit-bundle` Bundle. **Headless**: it describes each control and draws
-nothing.
+nothing; `foldkit-mixins-form` draws it (see [Drawing it](#drawing-it)).
 
 ## Ownership
 
@@ -88,6 +88,43 @@ const RenameForm = Page.at(Slot, {
   `Update.Step` of the parent; keys not passed keep their draft.
 - **Enable the button:** `Rename.canSubmit(model.rename)`.
 
+## Drawing it
+
+`foldkit-mixins-form` draws the form as plain, accessible HTML with every element
+a `foldkit-mixins` Slot. It holds no state and dispatches only the form's own
+Messages. `Rename` is the form from the minimal example.
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+import { Style } from 'foldkit-mixins'
+import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
+
+const Field = FormView.field(Rename).pipe(
+  Style.attach(
+    Style.forSlots(FieldSlots)({
+      root: Style.class('field'),
+      text: Style.whenInput<FieldInput>(input => input.invalid, Style.class('is-invalid')),
+    }),
+  ),
+)
+const View = FormView.define(Rename, { field: Field }).pipe(
+  Style.attach(Style.forSlots(FormSlots)({ root: Style.class('form') })),
+)
+
+// Place this Bundle instead of `Rename.bundle`.
+const Drawn = Rename.bundle.pipe(Bundle.withView(FormView.submodel(Rename, View)))
+```
+
+Render the placement with `placed.view(model, h, { options, submitLabel })`.
+`options` is keyed by the form's keys and supplies each relation picker's
+choices (`{ value, label }`); loading them is the application's query.
+`FormView.define(Rename)` alone is a complete unstyled form. `FieldSlots`: `root`,
+`label`, `description`, `error`, and one per control kind (`text`, `multiline`,
+`number`, `toggle`, `select`, `choices`, `choice`). `FormSlots`: `root`, `errors`,
+`submit`. The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
+`aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
+those throws a two-owners conflict at render.
+
 ## Gotchas
 
 - A key is validated against **the input's schema for that key**, not the
@@ -104,5 +141,6 @@ const RenameForm = Page.at(Slot, {
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle/README.md

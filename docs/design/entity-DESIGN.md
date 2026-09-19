@@ -2739,9 +2739,18 @@ Input IR -> Foldkit UI control registry
 > - **Touched/dirty are not tracked separately.** `NotValidated` versus the
 >   other states is the touched distinction core already makes.
 >
-> Not built: a view, relation picker data (§29), async validation, nested
-> input, and `Form.from` sugar, which `Entity.input`'s self-mapping made
-> unnecessary.
+> The view is a companion, [`packages/mixins-form`](../../packages/mixins-form/README.md),
+> as §21 asks: each control is drawn as plain HTML through a Mixins slot per
+> control kind (`text`, `toggle`, `select`, …) with the capability that kind has,
+> so a generated form is styled and extended like any other SlotView and
+> `foldkit-form` takes no view dependency. Fields and the form are two slot
+> contracts, because a field's Style reads that field (`input.invalid`). It joins
+> the form's Bundle through a new `Bundle.withView`, since `mapView` cannot
+> change a bundle's view inputs. Relation picker choices arrive as view inputs
+> (§29): the form names the target, the application lists it.
+>
+> Not built: async validation, nested input, picker search or paging, and
+> `Form.from` sugar, which `Entity.input`'s self-mapping made unnecessary.
 
 Implement a Form descriptor and Foldkit Submodel.
 

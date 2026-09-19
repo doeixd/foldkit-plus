@@ -455,4 +455,5 @@ export {
   rename,
   withHelpers,
   withSubscriptions,
+  withView,
 } from './combinators.js'

@@ -137,7 +137,8 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   `Upload.each(link, config)`: keys are `UploadId`, and order follows the array.
 - **Extending:** `Counter.pipe(Bundle.rename('Clicks'), Bundle.mapUpdate(update =>
   (model, message, args) => …), Bundle.withHelpers({ … }))`; also `mapInit`,
-  `mapView`, `withSubscriptions`.
+  `mapView`, `withSubscriptions`, and `withView(view)` to give a headless bundle
+  a view with its own view inputs.
 - **Nested or custom placement:** `bundle.at(Page.link.field('a', wrapper).pipe(
   Link.andThen(inner), Link.when(gate)), config)`; `Page.link.optional` for an
   `Option` field.

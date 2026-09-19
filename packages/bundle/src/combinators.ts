@@ -13,7 +13,7 @@ type P<B> = BundleParts<B>
 
 type Rebuilt<
   B,
-  Changes extends Partial<{ Name: string; S: unknown; Helpers: unknown }> = {},
+  Changes extends Partial<{ Name: string; S: unknown; Helpers: unknown; ViewInputs: unknown }> = {},
 > = Bundle<
   Changes extends { Name: infer N extends string } ? N : P<B>['Name'],
   P<B>['Args'],
@@ -22,7 +22,7 @@ type Rebuilt<
   P<B>['OutMessage'],
   P<B>['R'],
   Changes extends { S: infer S } ? S : P<B>['S'],
-  P<B>['ViewInputs'],
+  Changes extends { ViewInputs: infer V } ? V : P<B>['ViewInputs'],
   P<B>['Resources'],
   Extract<
     Changes extends { Helpers: infer H } ? H : P<B>['Helpers'],
@@ -80,6 +80,21 @@ export const mapView: {
 } = Function.dual(2, (self: AnyBundle, f: (view: AnyBundle['view']) => AnyBundle['view']) =>
   rebuild(self, { view: f(self.view) }),
 )
+
+/**
+ * Gives the bundle a view, with whatever inputs that view takes. Unlike
+ * `mapView`, the inputs need not be the ones the bundle had, so a headless
+ * bundle can be drawn by a package that knows nothing of how it updates.
+ */
+export const withView: {
+  <B extends AnyBundle, ViewInputs = void>(
+    view: Submodel.View<P<B>['Model'], P<B>['Message'], ViewInputs>,
+  ): (self: B) => Rebuilt<B, { ViewInputs: ViewInputs }>
+  <B extends AnyBundle, ViewInputs = void>(
+    self: B,
+    view: Submodel.View<P<B>['Model'], P<B>['Message'], ViewInputs>,
+  ): Rebuilt<B, { ViewInputs: ViewInputs }>
+} = Function.dual(2, (self: AnyBundle, view: AnyBundle['view']) => rebuild(self, { view }))
 
 /** Adds programmatic entry points beside the bundle's own. */
 export const withHelpers: {

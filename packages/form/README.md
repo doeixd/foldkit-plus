@@ -7,7 +7,9 @@ valid. It adds no state system. Field state is Foldkit core's
 Bundle the parent places like any other.
 
 > **Status:** headless. It owns the Model, Messages, validation, and a
-> description of each control. It does not draw anything yet; the view is yours.
+> description of each control, and draws nothing.
+> [`foldkit-mixins-form`](../mixins-form/README.md) draws it through Mixins
+> slots; or draw from `controls` yourself.
 
 ## What it owns
 
@@ -170,7 +172,7 @@ const load = RenameForm.helpers.fill({ id: 'p1', title: 'Hello' }) // an Update.
 
 ## Limits
 
-- Headless: no view, and no relation picker data. `RelationOne` and
+- Headless: no view here (see `foldkit-mixins-form`), and no relation picker data. `RelationOne` and
   `RelationMany` carry the target Entity; listing its options is a query the
   application makes.
 - One `Changed` Message carries any draft, so a view can dispatch a draft of the

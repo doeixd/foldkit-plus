@@ -1,0 +1,61 @@
+{
+  "name": "foldkit-mixins-form",
+  "version": "0.1.0",
+  "description": "A foldkit-form form drawn through foldkit-mixins slots: styleable, extensible, and accessible by contract.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "form",
+    "mixins",
+    "slots",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/mixins-form"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-form#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*",
+    "foldkit-form": "workspace:*",
+    "foldkit-mixins": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "foldkit-entity": "workspace:*",
+    "jsdom": "26.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

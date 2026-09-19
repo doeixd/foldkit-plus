@@ -2,9 +2,11 @@
  * Extending a bundle without forking it, and pipeable Links.
  */
 import { Effect, Option, Schema, Stream } from 'effect'
+import { inertHtml, type HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Bundle, Link } from '../src/index.js'
 
 const ToggleModel = Schema.Struct({ on: Schema.Boolean, flips: Schema.Number })
@@ -20,6 +22,31 @@ const Toggle = Bundle.make('Toggle', {
 })
 
 describe('bundle combinators', () => {
+  it("gives a headless bundle a view, with inputs of the view's own", () => {
+    const view = Submodel.defineView<ToggleModel, ToggleMessage, { readonly label: string }>(
+      (model, inputs, h) => h.button([], [`${inputs.label}: ${model.on ? 'on' : 'off'}`]),
+    )
+    const Drawn = Toggle.pipe(Bundle.withView(view))
+
+    expect(Toggle.view).toBeUndefined()
+    expect(Drawn.view).toBe(view)
+    expect(Drawn.name).toBe('Toggle')
+    expect(Drawn.update({ on: false, flips: 0 }, ToggleMessage.Flipped(), undefined).model.on).toBe(
+      true,
+    )
+    expectTypeOf(Drawn.view).toEqualTypeOf<
+      Submodel.View<ToggleModel, ToggleMessage, { readonly label: string }> | undefined
+    >()
+    const drawn = Drawn.view?.(
+      { on: true, flips: 0 },
+      { label: 'Wifi' },
+      inertHtml as unknown as HtmlBuilder<ToggleMessage>,
+    )
+    expect(
+      (drawn as { readonly children?: ReadonlyArray<{ readonly text?: string }> })?.children,
+    ).toEqual([{ text: 'Wifi: on' }])
+  })
+
   it('compose in a pipe, typed from the bundle', () => {
     const Counted = Toggle.pipe(
       Bundle.rename('CountedToggle'),
