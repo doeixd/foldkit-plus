@@ -284,6 +284,19 @@ source(Db.Post) // an ordinary binding
 
 `orderBy` and `where` go on a `many` storage as they do on `many(…)`.
 
+A `one` may also be read from the other side, where the foreign key is a column
+of the target's table, as a member's profile points at its member:
+
+```ts
+Member: { table: members, relations: { profile: { foreignKey: profiles.memberId } } },
+```
+
+It reads as the one ref, or `null` when no row points back, so the relation must
+be `{ optional: true }`. One-to-one only holds if `profiles.memberId` is unique,
+so `bind` refuses a column that is neither `.unique()` nor the primary key. A
+unique index declared on the table is not visible on the column; vouch for it
+with `assumeUnique: true`. Such a relation cannot be windowed or counted.
+
 Target and cardinality are never repeated, so they cannot disagree with the
 Entity. `bind` takes the whole `Entity.relate` result in one step, which lets
 two bindings point at each other; `entity(…, { relations })` cannot, because a
@@ -296,8 +309,9 @@ and `query`.
 
 The types and `bind` itself reject: a field with no column, a relation or
 derived member with no storage, a `one` stored as a `many` or the reverse, a
-count over a `one` relation, and a required `one` over a nullable column
-(declare the relation `{ optional: true }`).
+count over a `one` relation, a required `one` over a nullable column
+(declare the relation `{ optional: true }`), and a `one` read from the target's
+table whose foreign key is not unique.
 
 `bind` also refuses a column that plainly cannot hold its field: text under a
 number field (a Postgres `numeric` reads as text), a number under a flag, and a

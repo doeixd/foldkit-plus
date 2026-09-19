@@ -312,6 +312,11 @@ export const source = <P = unknown>(
             continue
           }
 
+          if (relation.kind === 'many' && relation.single === true && window !== undefined) {
+            return yield* new RemoteServerError({
+              message: `Relation "${field}" is singular and cannot be windowed`,
+            })
+          }
           const side = childSide(binding, relation)
           const targetId = side.child
           // The target id is the final tie-breaker, so ranking and ordering
@@ -437,9 +442,12 @@ export const source = <P = unknown>(
               byParent.set(String(child.parent), refs)
             }
           }
+          // The inverse side of a one-to-one reads as the one ref, or none.
+          const single = relation.kind === 'many' && relation.single === true
           for (const row of rows) {
             const key = row[field]
-            row[field] = key === null || key === undefined ? [] : (byParent.get(String(key)) ?? [])
+            const refs = key === null || key === undefined ? [] : (byParent.get(String(key)) ?? [])
+            row[field] = single ? (refs[0] ?? null) : refs
           }
         }
 

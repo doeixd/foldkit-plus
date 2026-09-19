@@ -23,6 +23,9 @@ version changed; `pnpm` skips versions already in the registry.
   as before; a branded one now rejects another Entity's id. **Breaking** only for
   code that mapped a plain `Schema.String` key to a relation whose target has a
   branded id: give the key the id's schema.
+- `foldkit-remote-drizzle`: `bind` stores an optional `one` on the target's table
+  (`{ foreignKey }`), the inverse side of a one-to-one, and refuses a foreign key
+  that is not unique. `ManyRelation` gains `single`.
 - `foldkit-remote-drizzle`: a `query`'s `orderBy` may be a function of the input
   and the principal, as `where` is, so a list sorts by what the user chose. A
   computed order without the id is tie-broken by it.

@@ -344,7 +344,8 @@ source(Db.Post) // an ordinary binding
 ```
 
 Storage: field = same-named column or `fields: { name: column }`; `one` =
-`{ field }`; `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
+`{ field }`, or for an optional `one` read from the target's table
+`{ foreignKey, localKey?, assumeUnique? }` (the column must be unique); `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
 foreignColumn }`; derived = `{ relation, where? }` (a count). A required `one`
 over a nullable column throws: declare it `{ optional: true }`. So does a column
 that plainly cannot hold its field (text under a number, a nullable column under

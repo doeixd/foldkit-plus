@@ -46,6 +46,12 @@ export interface ManyRelation<Target extends AnyEntityBinding> {
   readonly orderBy?: readonly OrderTerm[] | undefined
   /** Appended to the child query, e.g. to exclude soft-deleted rows. */
   readonly where?: SQL | undefined
+  /**
+   * The owner sees one of these, not a list: the inverse side of a one-to-one,
+   * whose foreign key is unique. It reads as a ref, or `null` when no row points
+   * back, and cannot be windowed or counted.
+   */
+  readonly single?: boolean | undefined
 }
 
 /** Joined through a table: `localColumn` references the owner's `id`. */

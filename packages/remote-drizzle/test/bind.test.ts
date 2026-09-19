@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import {
@@ -396,5 +396,101 @@ describe('bind column checks', () => {
         size: Schema.Union([Schema.Number, Schema.String]),
       }),
     ).not.toThrow()
+  })
+})
+
+describe('a one read from the target’s table', () => {
+  const members = sqliteTable('members', { id: text('id').primaryKey() })
+  const profiles = sqliteTable('profiles', {
+    id: text('id').primaryKey(),
+    memberId: text('member_id').notNull().unique(),
+    bio: text('bio').notNull(),
+  })
+  const Member = Entity.define('Member', Schema.Struct({ id: Id }))
+  const Profile = Entity.define('Profile', Schema.Struct({ id: Id, bio: Schema.String }))
+  const Club = Entity.relate(
+    { Member, Profile },
+    { Member: { profile: Relation.one(Profile, { optional: true }) } },
+  )
+  const ClubDb = bind(Club, {
+    Member: { table: members, relations: { profile: { foreignKey: profiles.memberId } } },
+    Profile: { table: profiles },
+  })
+
+  it('reads the one row that points back as a ref, and none as null', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      create table members (id text primary key);
+      create table profiles (id text primary key, member_id text not null unique, bio text not null);
+      insert into members values ('m1'), ('m2');
+      insert into profiles values ('f1', 'm1', 'Hello');
+    `)
+    try {
+      const records = await Effect.runPromise(
+        source(ClubDb.Member)
+          .read({ ids: ['m1', 'm2'], fields: ['profile'], principal: null })
+          .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+      )
+      expect(records.map(record => [record.id, record.values.profile])).toEqual([
+        ['m1', 'Profile:f1'],
+        ['m2', null],
+      ])
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it('refuses a column that is not unique, since many rows could point back', () => {
+    const loose = sqliteTable('loose_profiles', {
+      id: text('id').primaryKey(),
+      memberId: text('member_id').notNull(),
+      bio: text('bio').notNull(),
+    })
+    const storage = (profile: object) =>
+      ({ Member: { table: members, relations: { profile } }, Profile: { table: loose } }) as never
+    expect(() => bind(Club, storage({ foreignKey: loose.memberId }))).toThrow(
+      'relation "profile" on entity "Member" is one, but column "member_id" is not unique',
+    )
+    // A unique index on the table is not on the column: the application vouches for it.
+    const indexed = sqliteTable(
+      'indexed_profiles',
+      {
+        id: text('id').primaryKey(),
+        memberId: text('member_id').notNull(),
+        bio: text('bio').notNull(),
+      },
+      table => [uniqueIndex('one_per_member').on(table.memberId)],
+    )
+    expect(() =>
+      bind(Club, {
+        Member: {
+          table: members,
+          relations: { profile: { foreignKey: indexed.memberId, assumeUnique: true } },
+        },
+        Profile: { table: indexed },
+      } as never),
+    ).not.toThrow()
+  })
+
+  it('cannot be counted, because it is not a list', () => {
+    const Counted = Entity.relate(
+      {
+        Member: Entity.define('Member', Schema.Struct({ id: Id })).pipe(
+          Entity.derived({ profileCount: Derived.make(Schema.Number) }),
+        ),
+        Profile,
+      },
+      { Member: { profile: Relation.one(Profile, { optional: true }) } },
+    )
+    expect(() =>
+      bind(Counted, {
+        Member: {
+          table: members,
+          relations: { profile: { foreignKey: profiles.memberId } },
+          derived: { profileCount: { relation: 'profile' } },
+        },
+        Profile: { table: profiles },
+      } as never),
+    ).toThrow('derived "profileCount" on entity "Member" needs a many relation, not "profile"')
   })
 })

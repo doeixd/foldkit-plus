@@ -2626,8 +2626,9 @@ Entity.relations(...)
 > nullable column. A column's kind is checked against the field's schema, but
 > only where both state it plainly (text, number, flag, and nullability): a
 > check that guessed at transformations or custom columns would refuse mappings
-> that work, which is worse than saying nothing. Not checked: uniqueness for a
-> one-to-one inverse (§33).
+> that work, which is worse than saying nothing. The uniqueness of a one-to-one's
+> inverse (§33) is checked where it arises: an optional `one` may be stored on the
+> target's table, and `bind` refuses a foreign key that is not unique.
 
 Introduce:
 

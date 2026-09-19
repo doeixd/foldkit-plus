@@ -19,6 +19,25 @@ export interface OneStorage {
   readonly field: AnyColumn
 }
 
+/**
+ * A `one` relation from the other side: the foreign key is a column of the
+ * target's table, as a user's profile points at its user. One-to-one only holds
+ * if that column is unique, so `bind` requires it to be, and requires the
+ * relation to be `{ optional: true }`, because no row may point back.
+ */
+export interface InverseOneStorage {
+  readonly foreignKey: AnyColumn
+  /** The owner column the foreign key references; defaults to the owner's `id`. */
+  readonly localKey?: AnyColumn | undefined
+  /** Appended to the target query, e.g. to exclude soft-deleted rows. */
+  readonly where?: SQL | undefined
+  /**
+   * The column is unique through a constraint Drizzle does not put on the column
+   * (a unique index declared on the table): vouch for it.
+   */
+  readonly assumeUnique?: true | undefined
+}
+
 interface ManyOptions {
   /** Natural order of the loaded refs; defaults to the target id. */
   readonly orderBy?: readonly OrderTerm[] | undefined
@@ -41,9 +60,12 @@ export interface ThroughStorage extends ManyOptions {
 }
 
 type RelationStorage<Relation> =
-  Relation extends Domain.EntityRelation<any, any, any, infer Cardinality, any>
+  Relation extends Domain.EntityRelation<any, any, any, infer Cardinality, infer Optional>
     ? Cardinality extends 'one'
-      ? OneStorage
+      ? // Read from the target's table, no row may point back: only an optional `one` can be.
+        Optional extends true
+        ? OneStorage | InverseOneStorage
+        : OneStorage
       : ManyStorage | ThroughStorage
     : never
 
@@ -88,7 +110,7 @@ export type EntityStorage<E extends Domain.AnyEntity> = {
 
 type Storage<Es extends Domain.Entities> = { readonly [K in keyof Es]: EntityStorage<Es[K]> }
 
-type AnyStorage = Partial<OneStorage & ManyStorage & ThroughStorage>
+type AnyStorage = Partial<OneStorage & ManyStorage & ThroughStorage & InverseOneStorage>
 
 /** `EntityStorage` as the implementation reads it, once the types have checked it against the Entity. */
 interface LooseStorage {
@@ -166,6 +188,32 @@ const checkColumn = (name: string, field: string, schema: Schema.Top, column: An
     )
 }
 
+/** A `one` stored on the target's table: a `many` that is known to hold at most one. */
+const inverseOne = (
+  stored: AnyStorage,
+  relation: Domain.EntityMember & { readonly _tag: 'Relation' },
+  name: string,
+  field: string,
+  ownerId: AnyColumn | undefined,
+) => {
+  const foreignKey = stored.foreignKey!
+  if (!relation.optional)
+    fail(
+      `relation "${field}" on entity "${name}" is one: give its "field", or declare it { optional: true } to read it from the target's table, where no row may point back`,
+    )
+  if (foreignKey.isUnique !== true && foreignKey.primary !== true && stored.assumeUnique !== true)
+    fail(
+      `relation "${field}" on entity "${name}" is one, but column "${foreignKey.name}" is not unique, so many rows may point back; make it unique, or vouch with assumeUnique`,
+    )
+  return {
+    kind: 'many',
+    single: true,
+    foreignKey,
+    localKey: stored.localKey ?? ownerId,
+    ...(stored.where === undefined ? {} : { where: stored.where }),
+  }
+}
+
 const oneColumn = (
   stored: AnyStorage,
   relation: Domain.EntityMember & { readonly _tag: 'Relation' },
@@ -234,38 +282,42 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
         ...(stored.where === undefined ? {} : { where: stored.where }),
       }
       const shape =
-        relation.cardinality === 'one'
-          ? {
-              kind: 'one',
-              field: oneColumn(stored, relation, name, field),
-              nullable: relation.optional,
-            }
-          : stored.through !== undefined
+        relation.cardinality === 'one' &&
+        stored.field === undefined &&
+        stored.foreignKey !== undefined
+          ? inverseOne(stored, relation, name, field, columns.id)
+          : relation.cardinality === 'one'
             ? {
-                kind: 'manyToMany',
-                through: stored.through,
-                localColumn:
-                  stored.localColumn ??
-                  fail(
-                    `relation "${field}" on entity "${name}" goes through a table: give "localColumn"`,
-                  ),
-                foreignColumn:
-                  stored.foreignColumn ??
-                  fail(
-                    `relation "${field}" on entity "${name}" goes through a table: give "foreignColumn"`,
-                  ),
-                ...many,
+                kind: 'one',
+                field: oneColumn(stored, relation, name, field),
+                nullable: relation.optional,
               }
-            : {
-                kind: 'many',
-                foreignKey:
-                  stored.foreignKey ??
-                  fail(
-                    `relation "${field}" on entity "${name}" is many: give "foreignKey" or "through"`,
-                  ),
-                localKey: stored.localKey ?? columns.id,
-                ...many,
-              }
+            : stored.through !== undefined
+              ? {
+                  kind: 'manyToMany',
+                  through: stored.through,
+                  localColumn:
+                    stored.localColumn ??
+                    fail(
+                      `relation "${field}" on entity "${name}" goes through a table: give "localColumn"`,
+                    ),
+                  foreignColumn:
+                    stored.foreignColumn ??
+                    fail(
+                      `relation "${field}" on entity "${name}" goes through a table: give "foreignColumn"`,
+                    ),
+                  ...many,
+                }
+              : {
+                  kind: 'many',
+                  foreignKey:
+                    stored.foreignKey ??
+                    fail(
+                      `relation "${field}" on entity "${name}" is many: give "foreignKey" or "through"`,
+                    ),
+                  localKey: stored.localKey ?? columns.id,
+                  ...many,
+                }
       // Read on use: the target may be bound after its owner.
       relations[field] = Object.defineProperty(shape, 'entity', {
         get: () => bindings[targetKey],
@@ -277,7 +329,12 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     const counts = config.derived ?? {}
     for (const field of Object.keys(entity.derived)) {
       const count = counts[field] ?? fail(`derived "${field}" on entity "${name}" has no storage`)
-      if (relations[count.relation] === undefined || relations[count.relation]!.kind === 'one')
+      const counted = relations[count.relation]
+      if (
+        counted === undefined ||
+        counted.kind === 'one' ||
+        (counted.kind === 'many' && counted.single === true)
+      )
         fail(
           `derived "${field}" on entity "${name}" needs a many relation, not "${count.relation}"`,
         )
