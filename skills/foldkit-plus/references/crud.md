@@ -208,4 +208,5 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/crud/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-crud/README.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/entity
