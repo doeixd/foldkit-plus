@@ -2341,6 +2341,13 @@ No declared capability means no generated screen.
 
 # 50. What a future CMS package actually adds
 
+> **Status: not started, and waiting on scope, not on code.** Everything this
+> section calls "not CMS-specific" now exists: Entity, Selections, inputs, forms,
+> drawn forms, lists, details, deletes, `Display`, and drawn lists. What is left
+> is the list below, which is nine products, not one. The first version should
+> be the one a real site needs; draft/published with slugs is the likeliest, since
+> it is mostly a lifecycle over an Entity plus two `Input`/`Display` kinds.
+
 Once the above exists, `foldkit-cms` should be surprisingly small.
 
 CMS-specific concepts could include:
@@ -3567,8 +3574,12 @@ The abstractions merely make conventional structure derivable.
 > Selection, and a form nests its form. What a nested write does on the server
 > (insert, update, replace) stays the operation's.
 >
-> Not explored: whether
-> the result should carry per-key metadata of its own for a form to read.
+> **Decided against: per-key metadata on the reading.** Everything a form would
+> read from it already has a home. A key's label and description are Schema
+> annotations on the input's own struct, which is per operation by construction;
+> its control is `Form.make`'s `inputs`; a mapped key inherits the member's
+> metadata. A second place to say the same things would need a precedence rule
+> and would let an input and its form disagree.
 
 The hardest unresolved API is the mapping between an operation's input schema and Entity members.
 
@@ -3630,8 +3641,14 @@ This is probably the most important thing to spike before finalizing `foldkit-fo
 > a ref's schema is the id's schema. No new declaration was needed, because the
 > information was already in the struct; a brand on `id` is the opt-in. An id is
 > text, since refs travel and are stored as text, so a numeric `id` yields refs
-> with a plain string id. Declaring another field as the identifier is not
-> built: Remote keys its store by `id`, and nothing has asked for it.
+> with a plain string id.
+>
+> **Decided against, for now: `Entity.identify(field)`.** Remote keys its store
+> and its wire refs by a field named `id`, and `remote-drizzle` reads the `id`
+> column, so another identifier would be a name the two main interpreters could
+> not honour. A table keyed by `slug` maps today with `fields: { id: posts.slug }`,
+> which is the honest statement: the domain's id is that column. Revisit if an
+> interpreter arrives that keys differently.
 
 Current Remote essentially normalizes IDs as strings.
 
