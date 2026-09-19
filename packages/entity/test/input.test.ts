@@ -153,6 +153,10 @@ describe('Entity.input', () => {
       expect(Entity.valuesFor(edit, { author: { id: 'a1', name: 'Ada' } })).toEqual({
         authorId: 'a1',
       })
+
+      // Read without its id, a relation fills nothing, not an object where an id belongs.
+      expect(Entity.valuesFor(edit, { author: { name: 'Ada' } })).toEqual({})
+      expect(Entity.valuesFor(edit, { comments: [{ id: 'c1' }, { body: 'x' }] })).toEqual({})
     })
   })
 })

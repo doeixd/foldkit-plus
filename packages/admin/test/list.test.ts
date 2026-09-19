@@ -170,5 +170,9 @@ describe('Admin.list', () => {
       selection: Entity.select(Blog.Author, { id: true }),
     }).at({ data: Data, input: () => ({ search: '' }) })
     expect(() => Bare.choices(initial)).toThrow('give it a "choice"')
+    // Caught when the page is wired, not when the picker is first drawn.
+    expect(() => Admin.options(EditPost, [Bare])).toThrow(
+      'Admin.options: "authorId" would pick from list "Bare", which has no "choice"',
+    )
   })
 })

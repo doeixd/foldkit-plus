@@ -82,6 +82,10 @@ const kindOf = (draft: unknown): DraftKind | undefined =>
 const isEmpty = (draft: Draft): boolean =>
   draft === '' || (Array.isArray(draft) && draft.length === 0)
 
+/** A number's draft is blank when it is only spaces: `Number(' ')` is 0, which nobody typed. */
+const isBlank = (control: Control, draft: Draft): boolean =>
+  isEmpty(draft) || (control._tag === 'Number' && typeof draft === 'string' && draft.trim() === '')
+
 const annotationsOf = (schema: Schema.Top): { title?: unknown; description?: unknown } =>
   Schema.resolveAnnotations(schema) ?? {}
 
@@ -109,9 +113,9 @@ const planOf = (
     fail(name, `"${key}" is edited as ${control._tag}, but its schema accepts no such value`)
 
   const check = (draft: Draft): Checked => {
-    if (isEmpty(draft)) {
+    if (isBlank(control, draft)) {
       // What "nothing entered" submits is whatever the schema admits for it.
-      for (const nothing of [undefined, null, draft])
+      for (const nothing of [undefined, null, empty])
         if (accepts(nothing)) return Result.succeed(nothing)
       return Result.fail('Required')
     }
@@ -143,7 +147,7 @@ const planOf = (
     label: (title as string | undefined) ?? labelled?.label ?? key,
     description: (description as string | undefined) ?? labelled?.description,
     rules: FieldValidation.makeRules<Draft>({
-      isEmpty,
+      isEmpty: draft => isBlank(control, draft),
       ...(required ? { required: 'Required' } : {}),
       rules: [
         [
@@ -236,6 +240,11 @@ export const Form = {
       fields: { ...model.fields, [key]: field },
       errors: model.errors,
     })
+    /** An edit answers the last submit's cross-key failures; they describe a form that has changed. */
+    const edited = (model: Model, key: Key, field: FieldValidation.Field<Draft>): Model => ({
+      ...withField(model, key, field),
+      errors: [],
+    })
     const decodeInput = Schema.decodeUnknownResult(
       Schema.toType(input.schema) as Schema.Codec<Value>,
     )
@@ -283,7 +292,7 @@ export const Form = {
             // A draft of another kind than the key's control holds is not an edit.
             return kindOf(message.value) === plan.kind
               ? {
-                  model: withField(
+                  model: edited(
                     model,
                     message.key,
                     FieldValidation.validate(plan.rules)(message.value),

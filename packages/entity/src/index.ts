@@ -654,19 +654,25 @@ export const Entity = {
     value: Readonly<Record<string, unknown>>,
   ): Partial<Schema.Struct.Type<Fields>> => {
     const members: Readonly<Record<string, InputMember>> = input.members as never
-    const idOf = (ref: unknown): unknown =>
-      ref !== null && typeof ref === 'object' && 'id' in ref ? ref.id : ref
+    // The id of a ref or of a nested Selection's value; `undefined` when it has none.
+    const idOf = (held: unknown): unknown =>
+      held === null
+        ? null
+        : typeof held === 'object' && 'id' in held
+          ? held.id
+          : typeof held === 'string'
+            ? held
+            : undefined
     const entries = Object.entries(members).flatMap(([key, member]) => {
       if (member._tag === 'Unmapped') return []
       const written = member._tag === 'Field' ? member.key : member.relation.key
       if (!(written in value)) return []
       const read = value[written]
-      return [
-        [
-          key,
-          member._tag === 'Field' ? read : Array.isArray(read) ? read.map(idOf) : idOf(read),
-        ] as const,
-      ]
+      if (member._tag === 'Field') return [[key, read] as const]
+      const ids = Array.isArray(read) ? read.map(idOf) : idOf(read)
+      // A relation read without its ids (a nested Selection that left `id` out) fills nothing.
+      const known = Array.isArray(ids) ? !ids.includes(undefined) : ids !== undefined
+      return known ? [[key, ids] as const] : []
     })
     return Object.fromEntries(entries) as Partial<Schema.Struct.Type<Fields>>
   },

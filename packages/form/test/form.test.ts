@@ -182,6 +182,8 @@ describe('Form update', () => {
       errors: ['Enter a number'],
     })
     expect(send(initial, change('rating', '4.')).model.fields.rating._tag).toBe('Valid')
+    // Only spaces is nothing entered, not zero.
+    expect(send(initial, change('rating', '  ')).model.fields.rating._tag).toBe('NotValidated')
   })
 
   it('reports a required key on blur, and leaves an optional one alone', () => {
@@ -286,6 +288,13 @@ describe('Form update', () => {
 
     expect(run('5', '2').outMessage).toBeUndefined()
     expect(run('5', '2').model.errors[0]).toContain('low must not exceed high')
+    // An edit answers that failure; it describes a form that has since changed.
+    const edited = Range.bundle.update(
+      run('5', '2').model,
+      Range.Message.Changed({ key: 'high', value: '9' }),
+      undefined,
+    )
+    expect(edited.model.errors).toEqual([])
     expect(run('2', '5').outMessage).toMatchObject({ value: { low: 2, high: 5 } })
   })
 })

@@ -59,11 +59,17 @@ describe('FormView markup', () => {
     const offered = (id: string) =>
       (byId(root, id)?.children ?? []).map(option => [option.data?.props?.value, text(option)])
 
-    // `status` is required, so it has no blank; an optional relation does.
+    // Nothing is chosen yet, so even the required `status` offers a blank: without
+    // one the browser would show "draft" as chosen while the draft is empty.
     expect(offered('Edit-status')).toEqual([
+      ['', ''],
       ['draft', 'draft'],
       ['live', 'live'],
     ])
+    const chosen = render(send(Edit.Message.Changed({ key: 'status', value: 'live' })))
+    expect(
+      (byId(chosen, 'Edit-status')?.children ?? []).map(option => option.data?.props?.value),
+    ).toEqual(['draft', 'live'])
     expect(offered('Edit-editorId')).toEqual([
       ['', ''],
       ['a1', 'Ada'],

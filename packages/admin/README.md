@@ -221,8 +221,8 @@ Placed.view(model, h, { options: pickers(model) }) // with foldkit-mixins-form
 
 `pickers(model)` is keyed by the form's keys: `{ authorId: [{ value, label }, …] }`.
 A list is matched to a picker by Entity, so one author list serves `authorId`
-and `editorId` alike. A picker whose target no list is over throws when
-`Admin.options` is called, not when the form is drawn. `AuthorList.choices(model)`
+and `editorId` alike. A picker whose target no list is over, or whose list has no `choice`, throws
+when `Admin.options` is called, not when the form is drawn. `AuthorList.choices(model)`
 is one list's choices on its own. Both are empty until the page is loaded, and
 hold only the rows loaded so far.
 

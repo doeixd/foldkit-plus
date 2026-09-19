@@ -275,6 +275,11 @@ describe('bind definition errors', () => {
       'relation "lead" on entity "Project" points at a nullable column',
     ],
     [
+      'a through table with a column missing',
+      { ...project, relations: { ...project.relations, tags: { through: projectTags } } },
+      'relation "tags" on entity "Project" goes through a table: give "localColumn"',
+    ],
+    [
       'a derived member with no storage',
       { ...project, derived: {} },
       'derived "commentCount" on entity "Project" has no storage',
@@ -295,6 +300,30 @@ describe('bind definition errors', () => {
     const { Tag: _, ...withoutTag } = Domain
     expect(() => bindUntyped(withoutTag, { ...rest, Project: project })).toThrow(
       'relation "tags" on entity "Project" targets an Entity that is not being bound',
+    )
+  })
+
+  it('rejects count storage for a derived member that is not a number', () => {
+    const Labelled = Entity.relate(
+      {
+        User,
+        Thing: Entity.define('Thing', Schema.Struct({ id: Id })).pipe(
+          Entity.derived({ summary: Derived.make(Schema.String) }),
+        ),
+      },
+      { Thing: { owners: Relation.many(User) } },
+    )
+    expect(() =>
+      bindUntyped(Labelled, {
+        User: { table: users },
+        Thing: {
+          table: tags,
+          relations: { owners: { foreignKey: users.id } },
+          derived: { summary: { relation: 'owners' } },
+        },
+      }),
+    ).toThrow(
+      'derived "summary" on entity "Thing" is stored as a count, but its schema is not a number',
     )
   })
 })

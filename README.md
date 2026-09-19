@@ -244,6 +244,9 @@ so the front page cannot quietly drift from the API.
 | Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
 | Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
+| Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` (not yet on npm) | [One domain declaration](./docs/entity.md) |
+| Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it; not yet on npm) | [package README](./packages/form) |
+| Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-admin` (not yet on npm) | [package README](./packages/admin) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole

@@ -134,9 +134,13 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
       ]
       const typed = [...state, h.Value(String(draft)), h.OnInput(change), h.OnBlur(blurred)]
+      // A blank option whenever nothing is chosen, required or not: without one the
+      // browser shows its first option as chosen while the draft is still empty.
       const pick = (options: ReadonlyArray<Option>, blank: boolean): Html =>
         h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
-          ...(blank ? [h.option([h.Value(''), h.Selected(draft === '')], [''])] : []),
+          ...(blank || draft === ''
+            ? [h.option([h.Value(''), h.Selected(draft === '')], [''])]
+            : []),
           ...options.map(option =>
             h.option([h.Value(option.value), h.Selected(draft === option.value)], [option.label]),
           ),

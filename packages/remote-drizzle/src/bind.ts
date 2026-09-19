@@ -8,6 +8,7 @@
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
+import { Schema } from 'effect'
 import type * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type { ComputedConfig, EntityBinding, RelationBinding } from './binding.js'
@@ -174,8 +175,16 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
             ? {
                 kind: 'manyToMany',
                 through: stored.through,
-                localColumn: stored.localColumn,
-                foreignColumn: stored.foreignColumn,
+                localColumn:
+                  stored.localColumn ??
+                  fail(
+                    `relation "${field}" on entity "${name}" goes through a table: give "localColumn"`,
+                  ),
+                foreignColumn:
+                  stored.foreignColumn ??
+                  fail(
+                    `relation "${field}" on entity "${name}" goes through a table: give "foreignColumn"`,
+                  ),
                 ...many,
               }
             : {
@@ -202,6 +211,15 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       if (relations[count.relation] === undefined || relations[count.relation]!.kind === 'one')
         fail(
           `derived "${field}" on entity "${name}" needs a many relation, not "${count.relation}"`,
+        )
+      // A count is a number, so that is what the Entity must have declared.
+      const declared = (entity.derived as Readonly<Record<string, Domain.EntityMember>>)[field]
+      if (
+        declared?._tag === 'Derived' &&
+        !Schema.is(Schema.toType(declared.schema as Schema.Top))(0)
+      )
+        fail(
+          `derived "${field}" on entity "${name}" is stored as a count, but its schema is not a number`,
         )
       computed[field] = count
     }

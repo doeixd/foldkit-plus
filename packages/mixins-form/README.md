@@ -95,7 +95,7 @@ EditForm.view(model, h, {
 | `Multiline` | `textarea` | `multiline` |
 | `Number` | `input type="text" inputmode="decimal"` | `number` |
 | `Toggle` | `input type="checkbox"` | `toggle` |
-| `Select` | `select` of the control's own options | `select` |
+| `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select` |
 | `RelationOne` | `select` of `options[key]`, with a blank | `select` |
 | `RelationMany` | a `role="group"` of checkboxes over `options[key]` | `choices`, `choice` |
 

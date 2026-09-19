@@ -356,11 +356,12 @@ The states are:
 - **`Refreshing`** — the current value remains visible while it is being refetched.
 - **`Failed`** — stored server data does not decode against the Selection.
 - **`NotFound`** — the entity is represented by a tombstone: a live event
-  deleted it, or the server answered a read without it. A requested id, or the
-  target of a ref the server returned, that is missing from the answer is known
-  absent, whether it never existed, is gone, or is not this principal's to see.
-  It is not planned again until `Data.refresh` forces it or a write brings it
-  back.
+  deleted it, or the server was asked for it by id and answered without it. That
+  id is then known absent, whether it never existed, is gone, or is not this
+  principal's to see. It is not planned again until `Data.refresh` forces it or a
+  write brings it back. The target of a returned ref is not marked this way: a
+  server need not expand a relation that rides on a request, and the planner asks
+  for such a target by id next, which is when its absence is learned.
 
 `Initial` is intentionally different from `Loading`. A Projection belonging to
 no active Surface may remain `Initial` forever. Rendering a spinner for

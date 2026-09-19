@@ -151,22 +151,25 @@ describe('Remote.writeRead', () => {
       expect(isTombstone(store, entityKey('User', 'nope'))).toBe(true)
     })
 
-    it('marks the target of a returned ref the same way, and only a target that was asked for', () => {
+    it('leaves the target of a returned ref alone, so the planner can ask for it by id', () => {
       const project = {
         entity: 'Project',
         id: 'p1',
-        fields: ['owner', 'reviewer'],
+        fields: ['owner'],
         relations: { owner: { entity: 'User', fields: ['name'] } },
       }
+      // A server that does not expand the relation: valid, the client follows it next.
       const store = Remote.writeRead(emptyStore, [project], {
-        entities: [
-          { entity: 'Project', id: 'p1', values: { owner: 'User:gone', reviewer: 'User:u9' } },
-        ],
+        entities: [{ entity: 'Project', id: 'p1', values: { owner: 'User:u1' } }],
       })
 
-      expect(isTombstone(store, entityKey('User', 'gone'))).toBe(true)
-      // `reviewer` was read as a ref only; nothing was asked of its target.
-      expect(entry(store, entityKey('User', 'u9'))).toEqual(Option.none())
+      expect(entry(store, entityKey('User', 'u1'))).toEqual(Option.none())
+      expect(plan(store, [project])).toEqual([user('u1')])
+
+      // Asked for by id and still not returned: now it is known absent.
+      const second = Remote.writeRead(store, [user('u1')], { entities: [] })
+      expect(isTombstone(second, entityKey('User', 'u1'))).toBe(true)
+      expect(plan(second, [project])).toEqual([])
     })
 
     it('is not planned again, until a refresh forces it or a write brings it back', () => {

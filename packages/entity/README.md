@@ -203,7 +203,8 @@ Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: '
 
 `selectFor` selects every member the input writes, by the member's key, with
 each relation as refs. `valuesFor` reads such a value back under the input's
-keys: a field as it is, a relation as the id or ids of what it holds. An
+keys: a field as it is, a relation as the id or ids of what it holds. A relation
+read without its ids (a nested Selection that left `id` out) fills nothing. An
 unmapped key appears in neither, since the Entity knows nothing about it.
 
 The schema is an ordinary `Schema.Struct`, so declare it once and give the same

@@ -199,8 +199,11 @@ export const Admin = {
             return next === undefined ? undefined : data.fetch(next)
           },
 
+          name,
           /** The Entity the rows are of, which is how a picker finds the list for its target. */
           entity: selection.entity as AnyEntity,
+          /** Whether the list was given a `choice`, so its rows can be a picker's choices. */
+          offersChoices: choice !== undefined,
 
           /**
            * The loaded rows as a picker's choices, read through `choice`. Listing a
@@ -256,7 +259,9 @@ export const Admin = {
   options: <Key extends string, Root>(
     form: { readonly controls: ReadonlyArray<FormControl<Key>> },
     lists: ReadonlyArray<{
+      readonly name: string
       readonly entity: AnyEntity
+      readonly offersChoices: boolean
       readonly choices: (root: Root) => ReadonlyArray<Choice>
     }>,
   ): ((root: Root) => { readonly [K in Key]?: ReadonlyArray<Choice> }) => {
@@ -266,6 +271,10 @@ export const Admin = {
       if (list === undefined)
         throw new Error(
           `Admin.options: "${key}" picks a ${control.target.name}, and no list given is over ${control.target.name}`,
+        )
+      if (!list.offersChoices)
+        throw new Error(
+          `Admin.options: "${key}" would pick from list "${list.name}", which has no "choice"`,
         )
       return [[key, list] as const]
     })

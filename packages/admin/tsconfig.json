@@ -12,7 +12,6 @@
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
-      "foldkit-remote-server": ["../remote-server/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
@@ -23,7 +22,6 @@
     { "path": "../form/tsconfig.build.json" },
     { "path": "../metadata/tsconfig.build.json" },
     { "path": "../remote/tsconfig.build.json" },
-    { "path": "../remote-server/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" }
   ]
 }

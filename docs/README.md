@@ -60,6 +60,7 @@ vocabulary should refine them, not replace them.
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
+| Write a domain down once and have the client cache, the database binding, forms, and admin screens read it | [One domain declaration](./entity.md) | `foldkit-entity`, `foldkit-form`, `foldkit-mixins-form`, `foldkit-admin`, plus `foldkit-remote` and `foldkit-remote-drizzle` |
 
 ## Design lineage
 

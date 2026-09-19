@@ -152,10 +152,11 @@ Entity's: the operation decides what is valid, and may be stricter.
   `Schema.optional`, `Schema.NullOr`, and an array need no flag from you. A
   plain `Schema.String` admits `""`; add `Schema.isMinLength(1)` to require it.
 - **A number** that does not parse reads `Enter a number`; one that parses is
-  checked by the schema.
+  checked by the schema. Only spaces is nothing entered, not zero.
 - **Submit** checks every key, so every failure shows. When all pass, the whole
   input is decoded; a rule that spans keys fails there and lands in
-  `model.errors`, since it belongs to no one control.
+  `model.errors`, since it belongs to no one control. The next edit clears
+  them.
 
 Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Valid`,
 `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,
