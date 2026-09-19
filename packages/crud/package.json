@@ -1,10 +1,11 @@
 {
-  "name": "foldkit-admin",
+  "name": "foldkit-crud",
   "version": "0.1.0",
-  "description": "Management screens for Foldkit Plus, assembled from a form, a Remote operation, and the Entity they share. Each capability is declared, never implied.",
+  "description": "Create, read, update and delete screens for Foldkit Plus, assembled from a form, a Remote operation, and the Entity they share. Each capability is declared, never implied.",
   "keywords": [
     "foldkit",
     "effect",
+    "crud",
     "admin",
     "form",
     "remote",
@@ -19,9 +20,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/doeixd/foldkit-plus.git",
-    "directory": "packages/admin"
+    "directory": "packages/crud"
   },
-  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/admin#readme",
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/crud#readme",
   "bugs": {
     "url": "https://github.com/doeixd/foldkit-plus/issues"
   },

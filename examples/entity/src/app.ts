@@ -5,7 +5,7 @@
  * the browser entry in `client.ts` all run this one application.
  */
 import { Schema } from 'effect'
-import { Admin } from 'foldkit-admin'
+import { Crud } from 'foldkit-crud'
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
@@ -32,19 +32,19 @@ const EditPostView = FormView.define(EditPostForm, { field: Field }).pipe(
 
 // The form and the mutation its value feeds, joined, and given the form's view.
 // The editor is a Submodel of the page: a Model field and a Message variant.
-export const Editor = Admin.editor('PostEditor', {
+export const Editor = Crud.editor('PostEditor', {
   form: EditPostForm,
   mutation: EditPostMutation,
 })
 const EditSlot = Bundle.declare(
   Editor.bundle.pipe(
-    Bundle.withView(Admin.editorView(FormView.submodel(EditPostForm, EditPostView))),
+    Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, EditPostView))),
   ),
   'editPost',
 )
 
 // Deleting is a mutation with a yes in between.
-const Remover = Admin.remover('PostRemover', {
+const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
   input: id => ({ id }),
 })
@@ -81,9 +81,9 @@ export const Data = Remote.make({
 
 // Two lists: a query and a Selection each. They hold no state, so nothing is
 // placed; the pages are Remote's.
-export const PostList = Admin.list('Posts', { query: PostsQuery, selection: PostRow })
+export const PostList = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
 export const Posts = PostList.at({ data: Data, input: () => ({}) })
-export const Authors = Admin.list('Authors', {
+export const Authors = Crud.list('Authors', {
   query: AuthorsQuery,
   selection: AuthorChoice,
   // How an author reads as a choice: this list feeds the editor's picker.
@@ -96,7 +96,7 @@ export const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
 export const PostRemover = Remover.at({ data: Data, model: App.model.removePost })
 
 // Every relation picker of the form, fed by the list over its target.
-export const pickers = Admin.options(EditPostForm, [Authors])
+export const pickers = Crud.options(EditPostForm, [Authors])
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 // The form knows nothing of Remote. The editor's `onOut` is what turns a decoded

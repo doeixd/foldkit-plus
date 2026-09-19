@@ -5,7 +5,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Mutation, Query, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { Admin } from '../src/index.js'
+import { Crud } from '../src/index.js'
 
 const Post = Entity.define(
   'Post',
@@ -17,7 +17,7 @@ const DeletePost = Mutation.make('DeletePost', {
   Output: {},
 })
 
-const Remover = Admin.remover('PostRemover', {
+const Remover = Crud.remover('PostRemover', {
   mutation: DeletePost,
   // The mutation calls it `postId`; the remover only knows an id.
   input: id => ({ postId: id }),
@@ -45,11 +45,11 @@ const Data = Remote.make({
   mutations: [DeletePost],
 })
 const PostRemover = Remover.at({ data: Data, model: App.model.remover })
-const Posts = Admin.list('Posts', {
+const Posts = Crud.list('Posts', {
   query: PostsQuery,
   selection: Entity.select(Post, { id: true, title: true }),
 }).at({ data: Data, input: () => ({}) })
-const PostDetail = Admin.detail('PostDetail', {
+const PostDetail = Crud.detail('PostDetail', {
   selection: Entity.select(Post, { title: true }),
 }).at({ data: Data, id: model => model.shown ?? undefined })
 
@@ -123,7 +123,7 @@ beforeEach(() => {
   ])
 })
 
-describe('Admin.remover', () => {
+describe('Crud.remover', () => {
   it('asks first: nothing is deleted until the yes', async () => {
     const listed = await start()
     expect(PostRemover.status(listed)).toBe('Idle')
@@ -193,11 +193,11 @@ describe('Admin.remover', () => {
   })
 })
 
-describe('Admin.detail', () => {
+describe('Crud.detail', () => {
   it('describes a line per selected member, and reads nothing while no id is shown', async () => {
     const listed = await start()
     expect(
-      Admin.detail('D', { selection: Entity.select(Post, { id: true, title: true }) }).fields.map(
+      Crud.detail('D', { selection: Entity.select(Post, { id: true, title: true }) }).fields.map(
         field => [field.key, field.label],
       ),
     ).toEqual([

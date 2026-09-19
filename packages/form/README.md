@@ -290,7 +290,7 @@ const prefill = RenameForm.helpers.fill(Entity.valuesFor(Rename.input, loaded))
 
 A relation is loaded as a ref and read back as the id the form holds. See
 [`foldkit-entity`](../entity/README.md#showing-what-is-there).
-[`foldkit-admin`](../admin/README.md) does this, the save, and its status for you.
+[`foldkit-crud`](../crud/README.md) does this, the save, and its status for you.
 
 ## Limits
 

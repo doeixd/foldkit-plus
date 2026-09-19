@@ -29,7 +29,7 @@ cover all fifteen packages.
 ## Release posts
 
 - [0.7: declare the domain once](./blog/0.7.0.md): Entity, Form, the drawn form,
-  and Admin, and what changed in Remote to let them in.
+  and Crud, and what changed in Remote to let them in.
 
 ## The vocabulary that repeats everywhere
 
@@ -65,7 +65,7 @@ vocabulary should refine them, not replace them.
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
-| Write a domain down once and have the client cache, the database binding, forms, and admin screens read it | [One domain declaration](./entity.md) | `foldkit-entity`, `foldkit-form`, `foldkit-mixins-form`, `foldkit-admin`, plus `foldkit-remote` and `foldkit-remote-drizzle` |
+| Write a domain down once and have the client cache, the database binding, forms, and admin screens read it | [One domain declaration](./entity.md) | `foldkit-entity`, `foldkit-form`, `foldkit-mixins-form`, `foldkit-crud`, plus `foldkit-remote` and `foldkit-remote-drizzle` |
 
 ## Design lineage
 
@@ -95,7 +95,7 @@ The full API reference for each package is its README under [`packages/`](../pac
 Foundation       foldkit-surface + foldkit-metadata
 Domain           foldkit-entity (declaration and selection; Remote and remote-drizzle read it)
 Forms            foldkit-form (headless; on foldkit-bundle and foldkit-entity) + mixins-form (draws it)
-Admin            foldkit-admin (an editor and a list, joined from a form, Remote operations, and their Entity)
+Screens          foldkit-crud (an editor, a list, a detail and a remover, joined from a form, Remote operations, and their Entity)
 Agents           foldkit-agent + agent-webmcp / agent-mcp / agent-a2a / agent-native
 Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable

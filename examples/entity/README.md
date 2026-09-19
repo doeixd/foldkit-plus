@@ -12,8 +12,8 @@ One domain declaration, read from both ends and written back through a form:
    Remote.make({ entities })        bind(Blog, { tables })
    Data.get(PostPage, id)           Drizzle sources, RemoteServer
    Form.make(Entity.input(…))       RemoteServer.mutation(EditPost)
-   Admin.editor({ form, mutation })  query(PostsQuery), query(AuthorsQuery)
-   Admin.list({ query, selection })
+   Crud.editor({ form, mutation })  query(PostsQuery), query(AuthorsQuery)
+   Crud.list({ query, selection })
               |                     |
               +---- in process -----+
    read:  plan -> read -> SQL -> refs -> store -> decoded value
@@ -105,12 +105,12 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
   required because its schema admits no empty value; `Editor` is a picker
   because `editorId` is mapped to the `editor` relation, and its label is Entity
   metadata since a relation has no schema to annotate.
-- **`post list`** is `Admin.list`: a query and a Selection, run as keyset SQL by
+- **`post list`** is `Crud.list`: a query and a Selection, run as keyset SQL by
   the Drizzle query source. The list holds no state; its page is Remote's.
-- **`editor plan`** is `Admin.editor` at work. Opening the draft row makes the
+- **`editor plan`** is `Crud.editor` at work. Opening the draft row makes the
   members the form writes a requirement, like a Surface's. Only `editor` is
   planned: the list already brought `id`, `title` and `published` into the store.
-- **`editor choices`** is `Admin.options`: the form's editor picker is fed by the
+- **`editor choices`** is `Crud.options`: the form's editor picker is fed by the
   author list, because that list is over the relation's target. Nothing reads the
   authors table because a relation points at it; a query someone declared does.
 - **`filled`** is the form starting from the loaded value. Neither what to load
@@ -137,7 +137,7 @@ post list after delete: p2 "Compilers, revised"
 author after delete: Ready {"name":"Ada","posts":[{"title":"Compilers, revised", …}]}
 ```
 
-`Admin.remover` asks first; the yes becomes the mutation. The server deletes the
+`Crud.remover` asks first; the yes becomes the mutation. The server deletes the
 rows and says only what is gone. The post left the list and Ada's `posts` with no
 refetch and with no list named, and on the page the editor open on it reads that
 its post no longer exists.
@@ -150,7 +150,7 @@ its post no longer exists.
 | [`src/operations.ts`](./src/operations.ts) | The mutation and the two list queries both sides share |
 | [`src/editForm.ts`](./src/editForm.ts) | `Entity.input` and `Form.make`: a relation key, a relation's label, a hidden id |
 | [`src/server.ts`](./src/server.ts) | `bind`: tables, a renamed column, the kinds of relation storage, a derived count; a mutation as plain Drizzle with `returning` |
-| [`src/app.ts`](./src/app.ts) | The client application: `Admin.editor` placed as a Bundle (`at`, `onOut`, `after`, `status`), two `Admin.list`s, `Admin.options` joining them, and `Data.wiring` putting all three on screen |
+| [`src/app.ts`](./src/app.ts) | The client application: `Crud.editor` placed as a Bundle (`at`, `onOut`, `after`, `status`), two `Crud.list`s, `Crud.options` joining them, and `Data.wiring` putting all three on screen |
 | [`src/view.ts`](./src/view.ts) | The page drawn: a table from `PostList.columns`, the form through `foldkit-mixins-form`, the editor's `status` and `saveError` |
 | [`src/demo.ts`](./src/demo.ts) | The trace above, over that application and the in-process server |
 | [`src/transport.ts`](./src/transport.ts), [`src/http.ts`](./src/http.ts) | The browser's transport: Remote's three calls as JSON over HTTP, adapted by `Remote.clientLayer` |

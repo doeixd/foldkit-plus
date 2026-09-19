@@ -1,4 +1,4 @@
-# foldkit-admin
+# foldkit-crud
 
 Management screens assembled from parts the application already has. An
 **editor** joins a `foldkit-form` form, the Remote mutation its value feeds, and
@@ -28,13 +28,13 @@ Nothing is generated from an Entity alone: no form and mutation, no editor.
 over the same input struct (see [form.md](form.md), [remote.md](remote.md)).
 
 ```ts
-import { Admin } from 'foldkit-admin'
+import { Crud } from 'foldkit-crud'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
-const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
 const Slot = Bundle.declare(Editor.bundle, 'editor')
 const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
@@ -74,7 +74,7 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   `PostEditor.saveError(model)` is why a save failed. The form's Model is
   `model.editor.form`.
 - **Draw it:** give the editor's Bundle the form's view, lifted:
-  `Editor.bundle.pipe(Bundle.withView(Admin.editorView(FormView.submodel(EditPostForm, view))))`,
+  `Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, view))))`,
   then `Placed.view(model, h, { options: pickers(model) })`. Or draw from
   `EditPostForm.controls`.
 - **Compose `update` yourself:** `PostEditor.sync` is the Step `after` runs.
@@ -85,7 +85,7 @@ One query and one Selection. The pages live in Remote, so a list holds no state
 and is not a Bundle.
 
 ```ts
-const Authors = Admin.list('Authors', {
+const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
@@ -106,17 +106,17 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
   and a `label` (schema `title`, else `Form.label`, else the key).
 - `AuthorList.page(model)`: `RemoteData<Page<Row>>`, rows typed by the Selection.
 - `AuthorList.more(model)`: the Command for the next page, or `undefined`.
-- `Admin.options(EditPostForm, [AuthorList])(model)`: every relation picker of
+- `Crud.options(EditPostForm, [AuthorList])(model)`: every relation picker of
   the form fed by the list over its target, keyed by the form's keys, for
   `foldkit-mixins-form`'s `options`. Needs `choice` on the list. A picker with no
-  list over its target throws when `Admin.options` is called. Empty until loaded;
+  list over its target throws when `Crud.options` is called. Empty until loaded;
   only the rows loaded so far. `AuthorList.choices(model)` is one list's.
 - Sorting and filtering are the query's input, which your Model holds.
 
 ## Deleting and detail
 
 ```ts
-const Remover = Admin.remover('PostRemover', {
+const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
   input: id => ({ id }), // the mutation's input for an id
 })
@@ -133,7 +133,7 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 - The server's mutation returns `deleted: [{ entity, id }]` and names no list.
   Remote drops the entity from every list and relation, and an open editor or a
   detail of it reads `NotFound`.
-- `Admin.detail(name, { selection }).at({ data, id: model => ... })` gives `value(model)`
+- `Crud.detail(name, { selection }).at({ data, id: model => ... })` gives `value(model)`
   (a `RemoteData`), `active`, and `fields` (labelled like a list's `columns`). No state.
 
 ## Gotchas
@@ -145,10 +145,10 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 - Register `PostEditor.active` with `Data.subscriptions`, or nothing is fetched.
 - Use `after` (or run `sync`), or the form never fills.
 - The form fills once per `open`. A later refresh does not overwrite drafts.
-- A form and a mutation with different inputs is a type error at `Admin.editor`.
+- A form and a mutation with different inputs is a type error at `Crud.editor`.
 - One editor serves one form; create and edit are usually two editors.
 
 ## See also
 
-- https://github.com/doeixd/foldkit-plus/blob/main/packages/admin/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/crud/README.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/entity

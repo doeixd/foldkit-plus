@@ -8,7 +8,7 @@
     "noEmit": false,
     "types": ["node"],
     "paths": {
-      "foldkit-admin": ["../../packages/admin/src/index.ts"],
+      "foldkit-crud": ["../../packages/crud/src/index.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
@@ -31,7 +31,7 @@
     { "path": "../../packages/remote-drizzle/tsconfig.build.json" },
     { "path": "../../packages/bundle/tsconfig.build.json" },
     { "path": "../../packages/form/tsconfig.build.json" },
-    { "path": "../../packages/admin/tsconfig.build.json" },
+    { "path": "../../packages/crud/tsconfig.build.json" },
     { "path": "../../packages/mixins/tsconfig.build.json" },
     { "path": "../../packages/mixins-form/tsconfig.build.json" }
   ]

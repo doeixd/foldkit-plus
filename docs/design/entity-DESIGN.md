@@ -28,7 +28,7 @@ foldkit-entity
 foldkit-remote    foldkit-form     future interpreters
      │                │
      ▼                ▼
-remote-drizzle    foldkit-admin
+remote-drizzle    foldkit-crud
                       │
                       ▼
                   foldkit-cms?
@@ -275,7 +275,7 @@ It must **not** depend on:
 foldkit-remote
 foldkit-remote-drizzle
 foldkit-form
-foldkit-admin
+foldkit-crud
 foldkit-mixins
 ```
 
@@ -1470,7 +1470,7 @@ Instead, eventually introduce a management **Resource** descriptor.
 Conceptually:
 
 ```ts
-const Posts = Admin.resource(Post, {
+const Posts = Crud.resource(Post, {
   list: {
     query: PostsQuery,
     selection: PostRow,
@@ -1507,7 +1507,7 @@ Do not prematurely create a universal operation abstraction.
 Start with:
 
 ```text
-foldkit-admin
+foldkit-crud
 ```
 
 and let its Resource explicitly understand existing Remote Query/Mutation contracts.
@@ -1544,7 +1544,7 @@ That information belongs to the Resource layer.
 For example:
 
 ```ts
-const Authors = Admin.resource(Author, {
+const Authors = Crud.resource(Author, {
   list: {
     query: SearchAuthors,
     selection: AuthorOption,
@@ -2301,7 +2301,7 @@ without re-declaring the shape.
 # 49. Admin Resource is explicit
 
 ```ts
-const PostsAdmin = Admin.resource(CmsPost, {
+const PostsAdmin = Crud.resource(CmsPost, {
   list: {
     query: PostsQuery,
     selection: PostRow,
@@ -2327,10 +2327,10 @@ const PostsAdmin = Admin.resource(CmsPost, {
 Then:
 
 ```ts
-Admin.list(PostsAdmin)
+Crud.list(PostsAdmin)
 Admin.create(PostsAdmin)
 Admin.edit(PostsAdmin)
-Admin.detail(PostsAdmin)
+Crud.detail(PostsAdmin)
 ```
 
 can derive conventional Surfaces/views.
@@ -2815,12 +2815,12 @@ using ordinary Foldkit state/update/Submodel concepts.
 
 ---
 
-# 58. PR 8 — `foldkit-admin`
+# 58. PR 8 — `foldkit-crud`
 
-> **Status:** an editor and a list are built as [`packages/admin`](../../packages/admin/README.md):
-> `Admin.editor(name, { form, mutation })` then `.at({ data, model })`, covering
-> `edit` and `create`; and `Admin.list(name, { query, selection })` then
-> `.at({ data, input })`; `Admin.detail` and `Admin.remover` complete the five
+> **Status:** an editor and a list are built as [`packages/crud`](../../packages/crud/README.md):
+> `Crud.editor(name, { form, mutation })` then `.at({ data, model })`, covering
+> `edit` and `create`; and `Crud.list(name, { query, selection })` then
+> `.at({ data, input })`; `Crud.detail` and `Crud.remover` complete the five
 > capabilities this section lists.
 >
 > - **Delete needed Remote to be able to say "gone".** A mutation's outcome could
@@ -2837,26 +2837,26 @@ using ordinary Foldkit state/update/Submodel concepts.
 >   and `columns` labelled as a form labels the same members.
 > - **§29's picker data is a list with a `choice`.** The form names the target
 >   and stops; the application declares the query that lists it, the server
->   authorizes it, and `Admin.options(form, lists)` hands each picker the list
+>   authorizes it, and `Crud.options(form, lists)` hands each picker the list
 >   over its target, matched by Entity. No read happens because a relation
 >   exists, and a picker with no list is an error when the page is wired.
 > - **Drawn and run in a browser.** [`examples/entity`](../../examples/entity)
 >   draws the list from its own columns and the editor through
->   `foldkit-mixins-form` (`Admin.editorView` lifts the form's view), is tested on
+>   `foldkit-mixins-form` (`Crud.editorView` lifts the form's view), is tested on
 >   the real runtime in jsdom over SQLite, and has a browser mode over an HTTP
 >   transport. So §42 holds: the generated pieces are ordinary Foldkit and draw
 >   like any other.
-> - **Still no `Admin.resource`.** The two links a Resource was meant to carry
+> - **Still no `Crud.resource`.** The two links a Resource was meant to carry
 >   turned out to need no container: a list feeds a picker through
->   `Admin.options`, and a row opens in an editor through the editor's own
+>   `Crud.options`, and a row opens in an editor through the editor's own
 >   `open(row.id)`. [`examples/entity`](../../examples/entity) wires a list, an
 >   editor, and a picker without one.
 >
-> - **No `Admin.resource` yet.** With one capability a Resource descriptor would
+> - **No `Crud.resource` yet.** With one capability a Resource descriptor would
 >   be a wrapper nothing else reads (§28: add a primitive when several consumers
 >   need it). It earns its place when a list needs to find the editor, and a
 >   relation picker the list (§29).
-> - **Two steps, because two scopes.** `Admin.editor` makes what the parent's
+> - **Two steps, because two scopes.** `Crud.editor` makes what the parent's
 >   Model and Message are built from (the Bundle). `.at` needs the parent: a
 >   child Submodel cannot see Remote's store or start a mutation, so `onOut`,
 >   the active Surface, `sync`, and `status` are made once the domain and the
@@ -3465,7 +3465,7 @@ const EditPostForm = Form.from({
 Admin:
 
 ```ts
-const Posts = Admin.resource(
+const Posts = Crud.resource(
   CmsPost,
   {
     list: {

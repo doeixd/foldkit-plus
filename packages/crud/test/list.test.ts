@@ -5,7 +5,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Query, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Admin } from '../src/index.js'
+import { Crud } from '../src/index.js'
 
 const Author = Entity.define(
   'Author',
@@ -23,7 +23,7 @@ const AuthorsQuery = Query.make('Authors', {
   Result: Query.connection(Blog.Author),
 })
 
-const Authors = Admin.list('Authors', {
+const Authors = Crud.list('Authors', {
   query: AuthorsQuery,
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 2,
@@ -87,14 +87,14 @@ const shown = (model: Model) => {
   return page._tag === 'Ready' ? page.value.items.map(row => row.name) : page._tag
 }
 
-describe('Admin.list', () => {
+describe('Crud.list', () => {
   it('describes a column per selected member, labelled as the form labels it', () => {
     expect(Authors.columns.map(column => [column.key, column.label])).toEqual([
       ['id', 'id'],
       ['name', 'Name'],
     ])
 
-    const Posts = Admin.list('Posts', {
+    const Posts = Crud.list('Posts', {
       query: Query.make('Posts', { Input: {}, Result: Query.connection(Blog.Post) }),
       selection: Entity.select(Labelled, { title: true, author: true }),
     })
@@ -146,7 +146,7 @@ describe('Admin.list', () => {
         authorId: Relation.input(Blog.Post.relations.author),
       }),
     )
-    const options = Admin.options(EditPost, [AuthorList])
+    const options = Crud.options(EditPost, [AuthorList])
 
     expect(options({ ...initial, search: 'a' })).toEqual({ authorId: [] })
     expect(options(await load({ ...initial, search: 'g' }))).toEqual({
@@ -161,18 +161,18 @@ describe('Admin.list', () => {
         authorId: Relation.input(Blog.Post.relations.author),
       }),
     )
-    expect(() => Admin.options(EditPost, [])).toThrow(
-      'Admin.options: "authorId" picks a Author, and no list given is over Author',
+    expect(() => Crud.options(EditPost, [])).toThrow(
+      'Crud.options: "authorId" picks a Author, and no list given is over Author',
     )
 
-    const Bare = Admin.list('Bare', {
+    const Bare = Crud.list('Bare', {
       query: AuthorsQuery,
       selection: Entity.select(Blog.Author, { id: true }),
     }).at({ data: Data, input: () => ({ search: '' }) })
     expect(() => Bare.choices(initial)).toThrow('give it a "choice"')
     // Caught when the page is wired, not when the picker is first drawn.
-    expect(() => Admin.options(EditPost, [Bare])).toThrow(
-      'Admin.options: "authorId" would pick from list "Bare", which has no "choice"',
+    expect(() => Crud.options(EditPost, [Bare])).toThrow(
+      'Crud.options: "authorId" would pick from list "Bare", which has no "choice"',
     )
   })
 })

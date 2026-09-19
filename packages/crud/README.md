@@ -1,6 +1,8 @@
-# foldkit-admin
+# foldkit-crud
 
-Management screens assembled from parts an application already has. An
+The screens that create, read, update and delete, assembled from parts an
+application already has. They are for any such screen, a user editing their own
+post as much as a back office, and they draw nothing. An
 **editor** joins a [`foldkit-form`](../form/README.md) form, the
 [`foldkit-remote`](../remote/README.md) mutation its value feeds, and the
 [`foldkit-entity`](../entity/README.md) Entity they share. A **list** joins a
@@ -48,7 +50,7 @@ state, and the loaded value, so it cannot disagree with them.
 ## Install
 
 ```sh
-pnpm add effect foldkit foldkit-admin foldkit-bundle foldkit-entity foldkit-form foldkit-remote foldkit-surface
+pnpm add effect foldkit foldkit-crud foldkit-bundle foldkit-entity foldkit-form foldkit-remote foldkit-surface
 ```
 
 ## Example
@@ -57,13 +59,13 @@ pnpm add effect foldkit foldkit-admin foldkit-bundle foldkit-entity foldkit-form
 over the same input struct, as in [`examples/entity`](../../examples/entity).
 
 ```ts
-import { Admin } from 'foldkit-admin'
+import { Crud } from 'foldkit-crud'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
-const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
 // The editor is a Submodel of the page: a Model field and a Message variant.
 const Slot = Bundle.declare(Editor.bundle, 'editor')
@@ -93,7 +95,7 @@ const update = PostEditor.after(
 const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 ```
 
-- `Admin.editor` checks that the form's value is the mutation's input. Declaring
+- `Crud.editor` checks that the form's value is the mutation's input. Declaring
   the input struct once and giving it to both is what makes that true.
 - `Editor.bundle` wraps the form's Bundle. Its Messages are the form's own, so a
   view dispatches `EditPostForm.Message.Changed(...)` exactly as before.
@@ -118,7 +120,7 @@ import { FormView } from 'foldkit-mixins-form'
 
 const Slot = Bundle.declare(
   Editor.bundle.pipe(
-    Bundle.withView(Admin.editorView(FormView.submodel(EditPostForm, FormView.define(EditPostForm)))),
+    Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, FormView.define(EditPostForm)))),
   ),
   'editor',
 )
@@ -127,8 +129,8 @@ const Slot = Bundle.declare(
 Placed.view(model, h, { options: pickers(model), submitLabel: 'Save' })
 ```
 
-`Admin.editorView` works on any Submodel view of the form that takes view
-inputs; `foldkit-admin` itself stays headless.
+`Crud.editorView` works on any Submodel view of the form that takes view
+inputs; `foldkit-crud` itself stays headless.
 
 ### Opening it
 
@@ -179,7 +181,7 @@ Selection what to show of each. The pages live in Remote, so a list holds no
 state of its own and is not a Bundle.
 
 ```ts
-const Authors = Admin.list('Authors', {
+const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
@@ -212,11 +214,11 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 A form names a relation's target Entity and leaves listing it to you, because a
 relationship existing is no licence to read a table. A list is that licence: a
 query you declared and your server authorizes. A list with a `choice` offers its
-loaded rows as choices, and `Admin.options` hands each picker of a form the list
+loaded rows as choices, and `Crud.options` hands each picker of a form the list
 over its target:
 
 ```ts
-const pickers = Admin.options(EditPostForm, [AuthorList])
+const pickers = Crud.options(EditPostForm, [AuthorList])
 
 Placed.view(model, h, { options: pickers(model) }) // with foldkit-mixins-form
 ```
@@ -224,7 +226,7 @@ Placed.view(model, h, { options: pickers(model) }) // with foldkit-mixins-form
 `pickers(model)` is keyed by the form's keys: `{ authorId: [{ value, label }, …] }`.
 A list is matched to a picker by Entity, so one author list serves `authorId`
 and `editorId` alike. A picker whose target no list is over, or whose list has no `choice`, throws
-when `Admin.options` is called, not when the form is drawn. `AuthorList.choices(model)`
+when `Crud.options` is called, not when the form is drawn. `AuthorList.choices(model)`
 is one list's choices on its own. Both are empty until the page is loaded, and
 hold only the rows loaded so far.
 
@@ -234,7 +236,7 @@ A remover is a mutation with a yes in between. Like the editor it is a Bundle,
 because which id is being asked about is state.
 
 ```ts
-const Remover = Admin.remover('PostRemover', {
+const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
   input: id => ({ id }), // the mutation's input for an id
 })
@@ -263,7 +265,7 @@ One Entity through a Selection, for a page that shows it. Like a list it holds n
 state.
 
 ```ts
-const PostDetail = Admin.detail('PostDetail', { selection: PostPage }).at({
+const PostDetail = Crud.detail('PostDetail', { selection: PostPage }).at({
   data: Data,
   id: model => model.shownPostId ?? undefined, // `undefined` while none is shown
 })
@@ -271,7 +273,7 @@ const PostDetail = Admin.detail('PostDetail', { selection: PostPage }).at({
 PostDetail.value(model) // RemoteData of the Selection's value
 ```
 
-`Admin.detail(...).fields` lists the selected members with their labels, as a
+`Crud.detail(...).fields` lists the selected members with their labels, as a
 list's `columns` does, and `PostDetail.active` makes the value a requirement
 while an id is shown.
 
@@ -279,7 +281,7 @@ while an id is shown.
 
 - A list has no sorting, filtering, or selection state of its own: those are the
   query's input, which your Model holds.
-- Headless. Draw the editor with `Admin.editorView` over a
+- Headless. Draw the editor with `Crud.editorView` over a
   [`foldkit-mixins-form`](../mixins-form/README.md) view, or from
   `EditPostForm.controls`. [`examples/entity`](../../examples/entity) draws a
   list and an editor, and runs in a browser.

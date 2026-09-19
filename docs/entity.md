@@ -19,7 +19,7 @@ declaration and adds only what it alone knows.
 | What editing a post may change | the operation's input struct, not the Entity |
 | What the user is typing, and whether it is valid yet | `foldkit-form`, in the parent's Model |
 | Which elements draw a form | `foldkit-mixins-form` |
-| Which id is open, which save is in flight | `foldkit-admin`, reading Remote |
+| Which id is open, which save is in flight | `foldkit-crud`, reading Remote |
 
 An Entity implies nothing about operations. There is no generated CRUD: a list
 exists because someone declared a query, an editor because someone declared a
@@ -37,7 +37,7 @@ form and a mutation. A relation existing is not a licence to read a table.
    Remote.make({ entities })                bind(entities, { tables })
    Data.get(Selection, id)                  source(binding) · query(...)
    Form.make(Entity.input(...))             RemoteServer.mutation(...)
-   Admin.editor · Admin.list
+   Crud.editor · Crud.list
 ```
 
 Three rules keep the copies from coming back:
@@ -65,7 +65,7 @@ Three rules keep the copies from coming back:
    [Drizzle `bind`](../packages/remote-drizzle/README.md#binding-a-foldkit-entity-domain),
    [`foldkit-form`](../packages/form/README.md),
    [`foldkit-mixins-form`](../packages/mixins-form/README.md),
-   [`foldkit-admin`](../packages/admin/README.md).
+   [`foldkit-crud`](../packages/crud/README.md).
 
 ## When not to use it
 

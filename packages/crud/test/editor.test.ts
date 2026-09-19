@@ -13,7 +13,7 @@ import {
 } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { Admin } from '../src/index.js'
+import { Crud } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Post = Entity.define(
@@ -42,7 +42,7 @@ const EditPostForm = Form.make(
   },
 )
 
-const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 const Slot = Bundle.declare(Editor.bundle, 'editor')
 
 const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
@@ -150,7 +150,7 @@ beforeEach(() => {
   server.posts = { p1: { title: 'Hello', author: 'Author:a1' } }
 })
 
-describe('Admin.editor', () => {
+describe('Crud.editor', () => {
   it('starts closed, requiring and showing nothing', () => {
     expect(PostEditor.status(initial)).toBe('Closed')
     expect(PostEditor.active.projectionOf(initial)).toBeUndefined()

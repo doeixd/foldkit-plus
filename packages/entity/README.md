@@ -8,8 +8,8 @@ packages interpret that declaration; this one only describes.
 > [registers Entities and reads Selections as they are](../remote/README.md#entities-declared-with-foldkit-entity).
 > `foldkit-remote-drizzle` binds a related set to tables with
 > [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain), and
-> [`foldkit-form`](../form/README.md) builds a form from `Entity.input`. Admin
-> is planned in [entity-DESIGN.md](../../docs/design/entity-DESIGN.md).
+> [`foldkit-form`](../form/README.md) builds a form from `Entity.input`, and
+> [`foldkit-crud`](../crud/README.md) joins one to a Remote operation.
 
 For the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).

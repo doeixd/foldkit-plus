@@ -1,5 +1,5 @@
 /**
- * `foldkit-admin` — management screens assembled from parts an application
+ * `foldkit-crud` — management screens assembled from parts an application
  * already has.
  *
  * An editor joins a `foldkit-form` form, the Remote mutation its value feeds,
@@ -169,7 +169,7 @@ type RemoverMessage = typeof RemoverMessage.Type
 
 const idle: RemoverModel = { target: null, requestId: null }
 
-export const Admin = {
+export const Crud = {
   /**
    * One Entity read through a Selection, for a page that shows it. Like a list
    * it holds no state: the value is Remote's and the id is the application's.
@@ -368,9 +368,7 @@ export const Admin = {
            */
           choices: (root: Root): ReadonlyArray<Choice> => {
             if (choice === undefined)
-              throw new Error(
-                `Admin list "${name}": give it a "choice" to use its rows in a picker`,
-              )
+              throw new Error(`Crud list "${name}": give it a "choice" to use its rows in a picker`)
             const read = page(root)
             return read._tag === 'Ready' || read._tag === 'Refreshing'
               ? read.value.items.map(row => ({
@@ -390,7 +388,7 @@ export const Admin = {
    * the form's under `form`.
    *
    * ```ts
-   * Editor.bundle.pipe(Bundle.withView(Admin.editorView(FormView.submodel(form, view))))
+   * Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(form, view))))
    * ```
    */
   editorView: <FormModel, Message, ViewInputs>(
@@ -426,11 +424,11 @@ export const Admin = {
       const list = lists.find(candidate => Entity.same(candidate.entity, control.target))
       if (list === undefined)
         throw new Error(
-          `Admin.options: "${key}" picks a ${control.target.name}, and no list given is over ${control.target.name}`,
+          `Crud.options: "${key}" picks a ${control.target.name}, and no list given is over ${control.target.name}`,
         )
       if (!list.offersChoices)
         throw new Error(
-          `Admin.options: "${key}" would pick from list "${list.name}", which has no "choice"`,
+          `Crud.options: "${key}" would pick from list "${list.name}", which has no "choice"`,
         )
       return [[key, list] as const]
     })

@@ -14,7 +14,7 @@ import {
 } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
-import { Admin, type Choice, type EditorStatus } from '../src/index.js'
+import { Crud, type Choice, type EditorStatus } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
@@ -35,7 +35,7 @@ const EditPostForm = Form.make(
   { inputs: { id: Input.hidden() } },
 )
 
-const Editor = Admin.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
+const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
 const Slot = Bundle.declare(Editor.bundle, 'editor')
 const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
@@ -74,7 +74,7 @@ void Placed.helpers.close()
 // The form's value has to be the mutation's input.
 const Other = Mutation.make('Other', { Input: { slug: Schema.String }, Output: {} })
 // @ts-expect-error EditPostForm submits an EditPostInput, which `Other` does not take
-Admin.editor('Mismatched', { form: EditPostForm, mutation: Other })
+Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
 
 // A list, and its rows as a picker's choices.
 {
@@ -93,7 +93,7 @@ Admin.editor('Mismatched', { form: EditPostForm, mutation: Other })
     queries: [AuthorsQuery],
   })
 
-  const Authors = Admin.list('Authors', {
+  const Authors = Crud.list('Authors', {
     query: AuthorsQuery,
     selection: Entity.select(Blog.Author, { id: true, name: true }),
     pageSize: 25,
@@ -114,7 +114,7 @@ Admin.editor('Mismatched', { form: EditPostForm, mutation: Other })
   >()
   expectTypeOf(Authors.columns[0]!.key).toEqualTypeOf<'id' | 'name'>()
   expectTypeOf(AuthorList.choices(model)).toEqualTypeOf<ReadonlyArray<Choice>>()
-  const pickers = Admin.options(EditPostForm, [AuthorList])
+  const pickers = Crud.options(EditPostForm, [AuthorList])
   expectTypeOf(pickers(model)).toEqualTypeOf<{
     readonly id?: ReadonlyArray<Choice>
     readonly title?: ReadonlyArray<Choice>

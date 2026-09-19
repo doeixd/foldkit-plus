@@ -4,24 +4,24 @@ import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Query } from 'foldkit-remote'
-import { Admin } from '../src/index.js'
+import { Crud } from '../src/index.js'
 
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
 const Input = Schema.Struct({ id: Schema.String, title: Schema.String })
 const EditPost = Form.make('EditPost', Entity.input(Post, Input))
 
-export const Editor = Admin.editor('PostEditor', {
+export const Editor = Crud.editor('PostEditor', {
   form: EditPost,
   mutation: Mutation.make('EditPost', { Input, Output: {} }),
 })
-export const Posts = Admin.list('Posts', {
+export const Posts = Crud.list('Posts', {
   query: Query.make('Posts', { Input: {}, Result: Query.connection(Post) }),
   selection: Entity.select(Post, { id: true, title: true }),
 })
-export const Remover = Admin.remover('PostRemover', {
+export const Remover = Crud.remover('PostRemover', {
   mutation: Mutation.make('DeletePost', { Input: { id: Schema.String }, Output: {} }),
   input: id => ({ id }),
 })
-export const Detail = Admin.detail('PostDetail', {
+export const Detail = Crud.detail('PostDetail', {
   selection: Entity.select(Post, { title: true }),
 })

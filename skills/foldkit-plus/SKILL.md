@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react, foldkit-react-codegen, foldkit-bundle, foldkit-bundle-surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-mixins-form, foldkit-admin), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, or admin screens, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.relate, Entity.select, Form.make, or Admin.editor.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-agent and its WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins, foldkit-mixins-surface, foldkit-mixins-ui, foldkit-react, foldkit-react-codegen, foldkit-bundle, foldkit-bundle-surface, foldkit-primitives, foldkit-entity, foldkit-form, foldkit-mixins-form, foldkit-crud), which one owns which kind of state, and how to use each with basic examples. Use when writing or reviewing a Foldkit application that uses any foldkit-* package, choosing a package for server data, offline sync, URL or storage state, AI agent tools, view styling, React interop, reusable Submodels, domain entities, forms, or admin screens, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Agent.expose, Mixins, ReactComponent, FoldkitComponent, Bundle, Entity.relate, Entity.select, Form.make, or Crud.editor.
 license: MIT
 metadata:
   version: '0.6.0'
@@ -41,7 +41,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
 | A domain entity's fields, relations, and derived members, declared once, and typed selections of them (Remote registers and reads them as they are; `remote-drizzle` binds them to tables) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
-| An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-admin` | [admin.md](references/admin.md) |
+| An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` | [admin.md](references/crud.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example
@@ -64,7 +64,7 @@ Foldkit app (Model · Message · update)
 foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-mixins-ui, foldkit-mixins-form (with foldkit-form)
 foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives, foldkit-form
 foldkit-entity (standalone) ─ read by foldkit-remote, foldkit-remote-drizzle, foldkit-form
-foldkit-admin ─ joins foldkit-form, foldkit-remote, foldkit-entity
+foldkit-crud ─ joins foldkit-form, foldkit-remote, foldkit-entity
 ```
 
 `foldkit-surface` is the shared seam: most packages consume a Projection

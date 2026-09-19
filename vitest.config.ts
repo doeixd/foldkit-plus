@@ -10,7 +10,7 @@ export default defineConfig({
       'node:sqlite': fileURLToPath(new URL('./test-support/sqlite.ts', import.meta.url)),
       // Resolve the workspace package from source, so tests never depend on a
       // prior build of packages/agent.
-      'foldkit-admin': fileURLToPath(new URL('./packages/admin/src/index.ts', import.meta.url)),
+      'foldkit-crud': fileURLToPath(new URL('./packages/crud/src/index.ts', import.meta.url)),
       'foldkit-agent': fileURLToPath(new URL('./packages/agent/src/index.ts', import.meta.url)),
       'foldkit-agent-native': fileURLToPath(
         new URL('./packages/agent-native/src/index.ts', import.meta.url),

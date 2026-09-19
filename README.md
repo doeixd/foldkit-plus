@@ -246,7 +246,7 @@ so the front page cannot quietly drift from the API.
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
-| Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-admin` | [package README](./packages/admin) |
+| Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` | [package README](./packages/crud) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole

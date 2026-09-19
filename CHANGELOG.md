@@ -5,6 +5,16 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## 0.7.2
+
+The `v0.7.1` tag was pushed from an incomplete commit and published nothing.
+
+- **`foldkit-admin` is now `foldkit-crud`**, and its export `Admin` is `Crud`
+  (`Crud.editor`, `Crud.list`, `Crud.detail`, `Crud.remover`, `Crud.options`,
+  `Crud.editorView`). Nothing else changed. The old name promised a drawn back
+  office; the package is headless and serves any edit screen. `foldkit-admin`
+  0.1.0 stays on npm, deprecated, pointing here.
+
 ## 0.7.0
 
 Five new packages and the changes that let existing ones read them. Design and
@@ -30,12 +40,12 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   `foldkit-mixins-form` draws with add and remove buttons.
 - **`foldkit-mixins-form` 0.1.0.** Draws a `foldkit-form` form as accessible
   HTML with every element a Mixins Slot.
-- **`foldkit-admin` 0.1.0.** `Admin.editor`: a form, the Remote mutation its
+- **`foldkit-crud` 0.1.0.** `Crud.editor`: a form, the Remote mutation its
   value feeds, and their Entity, joined into an edit or create screen.
-  `Admin.list`: a Remote query and an Entity Selection, with columns and paging.
-  `Admin.options`: each relation picker of a form fed by the list over its
-  target. `Admin.editorView`: a form's view as the view of the editor around it.
-  `Admin.remover`: a delete with a yes in between. `Admin.detail`: one Entity
+  `Crud.list`: a Remote query and an Entity Selection, with columns and paging.
+  `Crud.options`: each relation picker of a form fed by the list over its
+  target. `Crud.editorView`: a form's view as the view of the editor around it.
+  `Crud.remover`: a delete with a yes in between. `Crud.detail`: one Entity
   through a Selection.
 
 ### `foldkit-remote`
