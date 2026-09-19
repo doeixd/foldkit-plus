@@ -1,6 +1,6 @@
 {
   "name": "foldkit-bundle",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Package a Foldkit Submodel once (Model, Message, update, subscriptions, resources, view) and place it anywhere in a parent with one Link.",
   "keywords": [
     "foldkit",

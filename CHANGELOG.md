@@ -5,7 +5,7 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.7.0
 
 Five new packages and the changes that let existing ones read them. Design and
 the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.md).
@@ -77,6 +77,20 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
 ### `foldkit-surface`
 
 - `Metadata` now comes from `foldkit-metadata` (re-exported). New dependency.
+
+### `foldkit-primitives`
+
+- 0.2.0. Platform detection reads client hints and touch; `distanceToEnd` sits
+  beside `isAtEnd` on the virtual list; a denied device request keeps the last
+  device list, as geolocation keeps its fix.
+
+### Versions
+
+`foldkit-surface` 0.3.0, `foldkit-remote` 0.4.0, `foldkit-remote-server` 0.4.0,
+`foldkit-remote-drizzle` 0.4.0, `foldkit-bundle` 0.2.0. Packages that pin one of
+those exactly are republished against it with no change of their own:
+`foldkit-agent` 0.3.1, `foldkit-mirror` 0.2.1, `foldkit-sync` 0.5.1,
+`foldkit-bundle-surface` 0.1.1.
 
 ## 0.5.0
 
