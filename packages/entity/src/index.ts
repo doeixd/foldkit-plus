@@ -244,6 +244,92 @@ type SelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
 const isSelection = (value: unknown): value is AnySelection =>
   typeof value === 'object' && value !== null && SelectionTypeId in value
 
+/** An input key that carries a relation's target: the id of a `one`, the ids of a `many`. */
+export interface RelationInput<R extends EntityRelation<any, any, any, any, any>> {
+  readonly _tag: 'RelationInput'
+  readonly relation: R
+}
+
+/** An input key that is about the operation, not the Entity: a reason, a flag, a confirmation. */
+export interface Unmapped {
+  readonly _tag: 'Unmapped'
+}
+
+/** What one key of an operation's input means in terms of the Entity. */
+export type InputMember =
+  | EntityField<string, string, Schema.Constraint>
+  | RelationInput<EntityRelation<string, string, AnyEntity, Cardinality, boolean>>
+  | Unmapped
+
+/** The ids a relation takes as input: one id, a nullable id, or a list of ids. */
+type RelationIds<R> =
+  R extends EntityRelation<any, any, any, infer C, infer Optional>
+    ? C extends 'many'
+      ? ReadonlyArray<string>
+      : Optional extends true
+        ? string | null
+        : string
+    : never
+
+/** Optional input keys (a partial update) still map; only the present value has to fit. */
+type Present<T> = Exclude<T, undefined>
+
+type MappingFor<Name extends string, Input, M> = M extends Unmapped
+  ? M
+  : M extends
+        | EntityField<infer Owner, any, any>
+        | RelationInput<EntityRelation<infer Owner, any, any, any, any>>
+    ? [Owner] extends [Name]
+      ? M extends EntityField<any, any, infer S>
+        ? Present<Input> extends Schema.Schema.Type<S>
+          ? M
+          : 'the input value does not fit this field'
+        : M extends RelationInput<infer R>
+          ? Present<Input> extends RelationIds<R>
+            ? M
+            : 'the input value is not the id shape of this relation'
+          : never
+      : `this member belongs to ${Owner}`
+    : 'map an input key to a Field, Relation.input(relation), or Entity.unmapped'
+
+/** A key that names a field whose value it fits maps itself; every other key needs an entry. */
+type SelfMapped<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
+  [K in keyof Fields]: K extends keyof E['fields']
+    ? Present<Schema.Schema.Type<Fields[K]>> extends Schema.Schema.Type<E['fields'][K]['schema']>
+      ? K
+      : never
+    : never
+}[keyof Fields]
+
+type InputMapping<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapping> = {
+  readonly [K in Exclude<keyof Fields, SelfMapped<E, Fields>>]: unknown
+} & {
+  readonly [K in keyof Mapping]: K extends keyof Fields
+    ? MappingFor<E['name'], Schema.Schema.Type<Fields[K]>, Mapping[K]>
+    : `"${K & string}" is not a key of the input`
+}
+
+type InputMembers<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapping> = {
+  readonly [K in keyof Fields]: K extends keyof Mapping
+    ? Mapping[K]
+    : K extends keyof E['fields']
+      ? E['fields'][K]
+      : never
+}
+
+/**
+ * An operation's input read against an Entity: which member each input key
+ * writes. The operation decides what may be submitted; the Entity only says
+ * what each submitted key means.
+ */
+export interface EntityInput<Name extends string, Fields extends Schema.Struct.Fields, Members> {
+  readonly entity: Entity<Name, any, any, any>
+  readonly schema: Schema.Struct<Fields>
+  readonly members: Members
+}
+
+const unmapped: Unmapped = Object.freeze({ _tag: 'Unmapped' })
+
 interface Parts {
   readonly identity: EntityIdentity<string>
   readonly schema: Schema.Struct<Schema.Struct.Fields>
@@ -273,6 +359,10 @@ const make = (parts: Parts): AnyEntity =>
 
 const isSameEntity = (left: AnyEntity, right: AnyEntity): boolean =>
   left.identity.token === right.identity.token
+
+const fail = (entity: AnyEntity, message: string): never => {
+  throw new Error(`Entity "${entity.name}": ${message}`)
+}
 
 const isEntity = (value: unknown): value is AnyEntity =>
   typeof value === 'object' && value !== null && EntityTypeId in value
@@ -470,6 +560,55 @@ export const Entity = {
       }) as E
     },
 
+  /**
+   * Reads an operation's input schema against an Entity. A key that names a
+   * field maps to it; any other key is mapped explicitly, to a Field, to
+   * `Relation.input(relation)`, or to `Entity.unmapped`. Nothing is inferred
+   * from a naming convention such as `authorId`.
+   */
+  input: <
+    E extends AnyEntity,
+    Fields extends Schema.Struct.Fields,
+    // `{}` when every key maps itself, so the argument can be omitted.
+    const Mapping = {},
+  >(
+    entity: E,
+    schema: Schema.Struct<Fields>,
+    ...mapping: keyof InputMapping<E, Fields, Mapping> extends never
+      ? [mapping?: Mapping & InputMapping<E, Fields, Mapping>]
+      : [mapping: Mapping & InputMapping<E, Fields, Mapping>]
+  ): EntityInput<E['name'], Fields, InputMembers<E, Fields, Mapping>> => {
+    const given: Readonly<Record<string, InputMember | undefined>> = mapping[0] ?? {}
+    for (const key of Object.keys(given))
+      if (!(key in schema.fields))
+        throw new Error(`Entity "${entity.name}": "${key}" is mapped but is not a key of the input`)
+    const fields: Readonly<Record<string, InputMember | undefined>> = entity.fields
+    const members = mapValues(schema.fields, (_, key) => {
+      const member =
+        given[key] ??
+        fields[key] ??
+        fail(entity, `input key "${key}" names no field; map it to a member or Entity.unmapped`)
+      const owned =
+        member._tag === 'Field'
+          ? member
+          : member._tag === 'RelationInput'
+            ? member.relation
+            : member._tag === 'Unmapped'
+              ? undefined
+              : fail(
+                  entity,
+                  `input key "${key}" maps to a Field, Relation.input(relation), or Entity.unmapped`,
+                )
+      if (owned !== undefined && owned.owner.token !== entity.identity.token)
+        fail(entity, `input key "${key}" is mapped to a member of "${owned.owner.name}"`)
+      return member
+    })
+    return Object.freeze({ entity, schema, members: Object.freeze(members) }) as never
+  },
+
+  /** For an input key that is about the operation rather than the Entity. */
+  unmapped,
+
   is: isEntity,
 
   /** True when both descriptors are versions of one Entity. */
@@ -491,6 +630,10 @@ function one(
 /** What the owner sees: one or many of `target`. Used inside `Entity.relate`. */
 export const Relation = {
   one,
+
+  /** For `Entity.input`: the input key holds this relation's target id, or ids for a `many`. */
+  input: <R extends EntityRelation<any, any, any, any, any>>(relation: R): RelationInput<R> =>
+    Object.freeze({ _tag: 'RelationInput', relation }),
 
   many: <Target extends AnyEntity>(target: Target): RelationSpec<Target, 'many', false> => ({
     target,

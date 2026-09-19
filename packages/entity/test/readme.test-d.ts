@@ -58,3 +58,20 @@ expectTypeOf<typeof PostRow.schema.Type>().toEqualTypeOf<{
   readonly editor: { readonly id: string; readonly name: string } | null
   readonly comments: ReadonlyArray<EntityRef<'Comment'>>
 }>()
+
+const CreatePostInput = Schema.Struct({
+  title: Schema.String,
+  authorId: Schema.String,
+  notify: Schema.Boolean,
+})
+
+const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
+  authorId: Relation.input(Blog.Post.relations.author),
+  notify: Entity.unmapped,
+})
+
+void CreatePost.members.title // Blog.Post.fields.title: it names a field, so it maps itself
+void CreatePost.members.authorId.relation.target() // Blog.Author: what a picker chooses from
+void CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
+expectTypeOf(CreatePost.members.title).toEqualTypeOf<typeof Blog.Post.fields.title>()
+expectTypeOf(CreatePost.members.authorId.relation.target()).toEqualTypeOf<typeof Blog.Author>()

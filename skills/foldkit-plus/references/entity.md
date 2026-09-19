@@ -89,6 +89,28 @@ PostRow.schema   // Struct: title, commentCount, author {id,name}, editor {..} |
 PostRow.members  // what was selected, for an interpreter to walk
 ```
 
+**Read an operation's input against an Entity** (experimental). The operation
+decides what may be written; `Entity.input` says what each key means. A key that
+names a field maps itself; the rest are mapped explicitly, never by a naming
+convention.
+
+```ts
+const CreatePostInput = Schema.Struct({
+  title: Schema.String,
+  authorId: Schema.String,
+  notify: Schema.Boolean,
+})
+
+const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
+  authorId: Relation.input(Blog.Post.relations.author),
+  notify: Entity.unmapped,
+})
+
+CreatePost.members.title // Blog.Post.fields.title: it names a field, so it maps itself
+CreatePost.members.authorId.relation.target() // Blog.Author: what a picker chooses from
+CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
+```
+
 **Attach an interpreter's metadata** (package authors). Entity core never reads
 it; annotating again combines through the key's own `merge`.
 

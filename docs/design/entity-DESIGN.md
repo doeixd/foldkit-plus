@@ -3372,6 +3372,33 @@ The abstractions merely make conventional structure derivable.
 
 # 72. One remaining design problem worth prototyping carefully
 
+> **Status:** spiked as `Entity.input(entity, struct, mapping?)` in
+> `foldkit-entity`, marked experimental. Tried against a rename, a partial
+> update, a create with relations, and a publish with a flag and a reason. What
+> those shapes needed:
+>
+> - **Self-mapping by field name, checked by value.** Most keys name a field.
+>   Requiring `title: Post.fields.title` for each was noise, so a key maps itself
+>   when it names a field *and* its value fits the field's type; the mapping
+>   lists only the rest. This is a name match on the Entity's own keys, not the
+>   `authorId` convention this section rules out.
+> - **`Relation.input(relation)` with no second argument.** With string ids
+>   (§73) the id is the only thing a relation can take as input. The expected
+>   shape follows the relation: an id, `id | null` for an optional `one`, an
+>   array of ids for a `many`.
+> - **`Entity.unmapped`.** Real inputs carry keys about the operation (a reason,
+>   a notify flag). Without an explicit value for those, "every key is accounted
+>   for" cannot be checked.
+> - **An explicit entry wins over self-mapping**, for a key whose name collides
+>   with a field it does not write.
+> - **Remote erases the struct.** `Mutation.make` keeps `Input` as
+>   `Schema.Codec<Input>`, so `Entity.input` cannot read a mutation's keys. The
+>   application declares the `Schema.Struct` once and passes it to both. If forms
+>   should start from a mutation, `MutationDescriptor` needs to keep its fields.
+>
+> Not explored: nested input (a create that embeds a new Author), and whether
+> the result should carry per-key metadata of its own for a form to read.
+
 The hardest unresolved API is the mapping between an operation's input schema and Entity members.
 
 Example:

@@ -149,6 +149,47 @@ reused. Nesting is always explicit, which is what keeps a cycle finite.
 An unknown member, a nested Selection on a field, and a Selection of the wrong
 Entity are type errors, and `Entity.select` throws for untyped callers.
 
+## Reading an operation's input
+
+> Experimental: the smallest mapping that several operation shapes needed. It
+> will move once a form package uses it.
+
+An Entity does not decide what may be written; an operation does (a Remote
+mutation, an RPC, a form). `Entity.input` takes that operation's input schema
+and says what each key means in terms of the Entity, so a consumer can find the
+field's metadata for a label, or the relation's target for a picker.
+
+```ts
+const CreatePostInput = Schema.Struct({
+  title: Schema.String,
+  authorId: Schema.String,
+  notify: Schema.Boolean,
+})
+
+const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
+  authorId: Relation.input(Blog.Post.relations.author),
+  notify: Entity.unmapped,
+})
+
+CreatePost.members.title // Blog.Post.fields.title: it names a field, so it maps itself
+CreatePost.members.authorId.relation.target() // Blog.Author: what a picker chooses from
+CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
+```
+
+- A key that names a field, with a value that fits it, maps itself. An optional
+  key (a partial update) fits when its present value does.
+- Every other key needs an entry: a Field under another name, a relation's ids
+  with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
+  from a name like `authorId`.
+- `Relation.input` expects one id for a `one`, `id | null` for an optional
+  `one`, and an array of ids for a `many`.
+- A derived member cannot be written, and a member of another Entity cannot be
+  mapped. Both are type errors and throw.
+
+The schema is an ordinary `Schema.Struct`, so declare it once and give the same
+value to the operation, for example `Mutation.make('CreatePost', { Input:
+CreatePostInput, … })` in `foldkit-remote`.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and
@@ -180,6 +221,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
+| `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
