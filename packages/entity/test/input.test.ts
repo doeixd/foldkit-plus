@@ -96,4 +96,63 @@ describe('Entity.input', () => {
   ])('rejects %s', (_, mapping, message) => {
     expect(() => inputUntyped(Post, input, mapping)).toThrow(message)
   })
+
+  describe('what an input needs loaded, and what a loaded value fills in', () => {
+    const edit = Entity.input(
+      Post,
+      Schema.Struct({
+        id: Schema.String,
+        live: Schema.Boolean,
+        authorId: Schema.String,
+        commentIds: Schema.Array(Schema.String),
+        reason: Schema.String,
+      }),
+      {
+        live: Post.fields.published,
+        authorId: Relation.input(Post.relations.author),
+        commentIds: Relation.input(Post.relations.comments),
+        reason: Entity.unmapped,
+      },
+    )
+
+    it('selects every member the input writes, by the member’s key, relations as refs', () => {
+      const selection = Entity.selectFor(edit)
+
+      expect(selection.entity).toBe(Post)
+      expect(selection.members).toEqual({ id: true, published: true, author: true, comments: true })
+      expect(
+        Schema.is(selection.schema)({
+          id: 'p1',
+          published: true,
+          author: { entity: 'Author', id: 'a1' },
+          comments: [{ entity: 'Comment', id: 'c1' }],
+        }),
+      ).toBe(true)
+    })
+
+    it('turns a loaded value into input values: fields as they are, refs as ids', () => {
+      expect(
+        Entity.valuesFor(edit, {
+          id: 'p1',
+          published: true,
+          author: { entity: 'Author', id: 'a1' },
+          comments: [
+            { entity: 'Comment', id: 'c1' },
+            { entity: 'Comment', id: 'c2' },
+          ],
+        }),
+      ).toEqual({ id: 'p1', live: true, authorId: 'a1', commentIds: ['c1', 'c2'] })
+    })
+
+    it('keeps a null relation null, and leaves out a key whose member was not loaded', () => {
+      expect(Entity.valuesFor(edit, { author: null })).toEqual({ authorId: null })
+      expect(Entity.valuesFor(edit, {})).toEqual({})
+    })
+
+    it('reads a nested Selection’s value too, taking the id of whatever it holds', () => {
+      expect(Entity.valuesFor(edit, { author: { id: 'a1', name: 'Ada' } })).toEqual({
+        authorId: 'a1',
+      })
+    })
+  })
 })

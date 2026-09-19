@@ -188,6 +188,24 @@ CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 - A derived member cannot be written, and a member of another Entity cannot be
   mapped. Both are type errors and throw.
 
+### Showing what is there
+
+An edit screen has to load the current values and turn them into input values.
+Both follow from the reading, so neither is written by hand:
+
+```ts
+const PostForEdit = Entity.selectFor(CreatePost)
+// a Selection of `title` and `author`, the members the input writes; `author` as a ref
+
+Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
+// { title: 'Hello', authorId: 'a1' }
+```
+
+`selectFor` selects every member the input writes, by the member's key, with
+each relation as refs. `valuesFor` reads such a value back under the input's
+keys: a field as it is, a relation as the id or ids of what it holds. An
+unmapped key appears in neither, since the Entity knows nothing about it.
+
 The schema is an ordinary `Schema.Struct`, so declare it once and give the same
 value to the operation, for example `Mutation.make('CreatePost', { Input:
 CreatePostInput, … })` in `foldkit-remote`.
@@ -224,6 +242,8 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
+| `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |
+| `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |

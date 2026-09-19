@@ -58,6 +58,3 @@ export const EditPostInput = Schema.Struct({
   published: Schema.Boolean.annotate({ title: 'Published' }),
   editorId: Schema.NullOr(Schema.String),
 })
-
-/** What the edit form shows to begin with: the editor as a ref, since the form holds its id. */
-export const PostEdit = Entity.select(Blog.Post, { title: true, published: true, editor: true })

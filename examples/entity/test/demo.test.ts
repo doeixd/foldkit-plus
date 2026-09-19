@@ -18,7 +18,7 @@ describe('foldkit-entity example', () => {
       'valid submit:',
       '  command Remote.mutate(EditPost): MutationSucceeded',
       'row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":null}',
-      'edited: Ready {"title":"Compilers, revised","published":true,"editor":null}',
+      'edited: Ready {"id":"p2","title":"Compilers, revised","published":true,"editor":null}',
       'author again: Ready {"name":"Ada","posts":[{"title":"Notes on the Engine","commentCount":2},{"title":"Compilers, revised","commentCount":0}]}',
     ])
   })

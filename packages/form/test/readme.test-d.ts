@@ -42,3 +42,12 @@ Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { slug: Input.text
 
 const load = RenameForm.helpers.fill({ id: 'p1', title: 'Hello' })
 expectTypeOf(load).toExtend<Update.Step<typeof Model.Type, typeof Message.Type>>()
+
+const Current = Entity.selectFor(Rename.input)
+declare const loaded: typeof Current.schema.Type
+const prefill = RenameForm.helpers.fill(Entity.valuesFor(Rename.input, loaded))
+expectTypeOf(prefill).toExtend<Update.Step<typeof Model.Type, typeof Message.Type>>()
+expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
+  readonly id: string
+  readonly title: string
+}>()

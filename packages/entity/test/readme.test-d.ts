@@ -75,3 +75,13 @@ void CreatePost.members.authorId.relation.target() // Blog.Author: what a picker
 void CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 expectTypeOf(CreatePost.members.title).toEqualTypeOf<typeof Blog.Post.fields.title>()
 expectTypeOf(CreatePost.members.authorId.relation.target()).toEqualTypeOf<typeof Blog.Author>()
+
+const PostForEdit = Entity.selectFor(CreatePost)
+// a Selection of `title` and `author`, the members the input writes; `author` as a ref
+
+void Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
+// { title: 'Hello', authorId: 'a1' }
+expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
+  readonly title: string
+  readonly author: EntityRef<'Author'>
+}>()

@@ -85,7 +85,9 @@ const RenameForm = Page.at(Slot, {
 - **Read any key's state while walking `controls`:** `Rename.field(model.rename, key)`
   gives `Field<Draft>`; `model.rename.fields.title` is the same value typed to its key.
 - **Edit existing values:** `RenameForm.helpers.fill({ id, title })` is an
-  `Update.Step` of the parent; keys not passed keep their draft.
+  `Update.Step` of the parent; keys not passed keep their draft. With Remote:
+  load `Data.get(Entity.selectFor(Rename.input), id)`, then
+  `fill(Entity.valuesFor(Rename.input, loaded))`.
 - **Enable the button:** `Rename.canSubmit(model.rename)`.
 
 ## Drawing it

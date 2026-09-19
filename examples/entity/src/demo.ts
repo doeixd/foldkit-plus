@@ -13,7 +13,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
-import { AuthorPage, Blog, PostEdit, PostPage } from './domain.js'
+import { Entity } from 'foldkit-entity'
+import { AuthorPage, Blog, PostPage } from './domain.js'
 import { EditPostForm } from './editForm.js'
 import { EditPostMutation } from './operations.js'
 import { openServer } from './server.js'
@@ -144,19 +145,18 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
         .map(entry => `${entry.label}:${entry.control._tag}${entry.required ? '*' : ''}`)
         .join(', ')}`,
     )
-    const editing = Data.get(PostEdit, 'p2')
+    // What to load is what the form writes: its fields, and each relation as a ref.
+    const editing = Data.get(Entity.selectFor(EditPostForm.input), 'p2')
     const ready = await Effect.runPromise(Data.prefetch(both, editing).pipe(Effect.provide(client)))
     const current = editing.read(ready)
     if (current._tag !== 'Ready') throw new Error('the post to edit did not load')
     lines.push(`row before: ${JSON.stringify(backend.row('p2'))}`)
 
-    // An edit form starts from what is there. The editor is a ref; the form holds its id.
-    let model = EditForm.helpers.fill({
-      id: 'p2',
-      title: current.value.title,
-      published: current.value.published,
-      editorId: current.value.editor?.id ?? null,
-    })(ready).model
+    // An edit form starts from what is there. The editor arrives as a ref, and
+    // `valuesFor` reads it back as the id the form holds.
+    let model = EditForm.helpers.fill(Entity.valuesFor(EditPostForm.input, current.value))(
+      ready,
+    ).model
     lines.push(`filled: ${describeForm(model)}`)
 
     // Clearing the title fails the input's own schema, so the submit goes nowhere.

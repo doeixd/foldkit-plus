@@ -326,11 +326,22 @@ type InputMembers<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapp
  * writes. The operation decides what may be submitted; the Entity only says
  * what each submitted key means.
  */
-export interface EntityInput<Name extends string, Fields extends Schema.Struct.Fields, Members> {
-  readonly entity: Entity<Name, any, any, any>
+export interface EntityInput<E extends AnyEntity, Fields extends Schema.Struct.Fields, Members> {
+  readonly entity: E
   readonly schema: Schema.Struct<Fields>
   readonly members: Members
 }
+
+/** The Entity member an input key writes, by its key; nothing for an unmapped key. */
+type WrittenKey<M> =
+  M extends EntityField<any, infer Key, any>
+    ? Key
+    : M extends RelationInput<EntityRelation<any, infer Key, any, any, any>>
+      ? Key
+      : never
+
+/** `true` for every member the input writes: what to read to show the input's current values. */
+type WrittenSpec<Members> = { readonly [K in keyof Members as WrittenKey<Members[K]>]: true }
 
 const unmapped: Unmapped = Object.freeze({ _tag: 'Unmapped' })
 
@@ -581,7 +592,7 @@ export const Entity = {
     ...mapping: keyof InputMapping<E, Fields, Mapping> extends never
       ? [mapping?: Mapping & InputMapping<E, Fields, Mapping>]
       : [mapping: Mapping & InputMapping<E, Fields, Mapping>]
-  ): EntityInput<E['name'], Fields, InputMembers<E, Fields, Mapping>> => {
+  ): EntityInput<E, Fields, InputMembers<E, Fields, Mapping>> => {
     const given: Readonly<Record<string, InputMember | undefined>> = mapping[0] ?? {}
     for (const key of Object.keys(given))
       if (!(key in schema.fields))
@@ -612,6 +623,53 @@ export const Entity = {
 
   /** For an input key that is about the operation rather than the Entity. */
   unmapped,
+
+  /**
+   * The Selection of every member an input writes, with each relation as refs:
+   * what an edit screen loads before it shows the input's current values.
+   */
+  selectFor: <E extends AnyEntity, Fields extends Schema.Struct.Fields, Members>(
+    input: EntityInput<E, Fields, Members>,
+  ): Selection<E['name'], WrittenSpec<Members>, SelectionSchema<E, WrittenSpec<Members>>> => {
+    const members: Readonly<Record<string, InputMember>> = input.members as never
+    const written = Object.values(members).flatMap(member =>
+      member._tag === 'Field'
+        ? [member.key]
+        : member._tag === 'RelationInput'
+          ? [member.relation.key]
+          : [],
+    )
+    const spec = Object.fromEntries(written.map(key => [key, true] as const))
+    return Entity.select(input.entity, spec as never) as never
+  },
+
+  /**
+   * The input values that reproduce `value`, a value read through `selectFor`
+   * (or any Selection with those members): a field as it is, a relation as the
+   * id or ids of its refs. A key whose member `value` lacks is left out, as is
+   * an unmapped key, which the Entity knows nothing about.
+   */
+  valuesFor: <E extends AnyEntity, Fields extends Schema.Struct.Fields, Members>(
+    input: EntityInput<E, Fields, Members>,
+    value: Readonly<Record<string, unknown>>,
+  ): Partial<Schema.Struct.Type<Fields>> => {
+    const members: Readonly<Record<string, InputMember>> = input.members as never
+    const idOf = (ref: unknown): unknown =>
+      ref !== null && typeof ref === 'object' && 'id' in ref ? ref.id : ref
+    const entries = Object.entries(members).flatMap(([key, member]) => {
+      if (member._tag === 'Unmapped') return []
+      const written = member._tag === 'Field' ? member.key : member.relation.key
+      if (!(written in value)) return []
+      const read = value[written]
+      return [
+        [
+          key,
+          member._tag === 'Field' ? read : Array.isArray(read) ? read.map(idOf) : idOf(read),
+        ] as const,
+      ]
+    })
+    return Object.fromEntries(entries) as Partial<Schema.Struct.Type<Fields>>
+  },
 
   is: isEntity,
 

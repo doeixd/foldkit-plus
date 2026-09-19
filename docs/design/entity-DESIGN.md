@@ -3470,6 +3470,12 @@ The abstractions merely make conventional structure derivable.
 >   application declares the `Schema.Struct` once and passes it to both. If forms
 >   should start from a mutation, `MutationDescriptor` needs to keep its fields.
 >
+> Later, from the first edit screen: `Entity.selectFor(input)` and
+> `Entity.valuesFor(input, value)`. What an edit loads, and how the loaded value
+> becomes input values, both follow from the reading (a relation is loaded as a
+> ref and read back as an id), so §49's `edit: { selection }` need not be
+> written for the common case.
+>
 > Not explored: nested input (a create that embeds a new Author), and whether
 > the result should carry per-key metadata of its own for a form to read.
 

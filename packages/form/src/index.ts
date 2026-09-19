@@ -10,7 +10,7 @@
  */
 import { Result, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import type { EntityInput, InputMember } from 'foldkit-entity'
+import type { AnyEntity, EntityInput, InputMember } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { defineMessageUnion } from 'foldkit/message'
@@ -173,9 +173,9 @@ export const Form = {
    * resolver cannot decide, or should not: an unmapped key with an unusual
    * schema, or text that wants a multiline control in this form only.
    */
-  make: <const Name extends string, EntityName extends string, Fields extends Schema.Struct.Fields>(
+  make: <const Name extends string, E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     name: Name,
-    input: EntityInput<EntityName, Fields, { readonly [K in keyof Fields]: InputMember }>,
+    input: EntityInput<E, Fields, { readonly [K in keyof Fields]: InputMember }>,
     options: { readonly inputs?: { readonly [K in keyof Fields]?: Control } } = {},
   ) => {
     type Key = keyof Fields & string
@@ -312,6 +312,8 @@ export const Form = {
     return {
       bundle,
       Message,
+      /** The reading the form was made from, for `Entity.selectFor` and `Entity.valuesFor`. */
+      input,
       /** The keys in the input's order, each with its control, label, and member. */
       controls: keys.map((key): FormControl<Key> => {
         const { control, label, description, required, member } = plans[key]

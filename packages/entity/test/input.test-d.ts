@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Entity, Relation } from '../src/index.js'
+import { Entity, Relation, type EntityRef } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post, Author } = Blog
@@ -70,3 +70,25 @@ Entity.input(Post, Schema.Struct({ ids: Schema.Array(Schema.String) }), {
   // @ts-expect-error `posts` is a relation of Author, not of Post
   ids: Relation.input(Author.relations.posts),
 })
+
+// What `Create` needs loaded, and what a loaded value gives back.
+const Needed = Entity.selectFor(Create)
+expectTypeOf<typeof Needed.schema.Type>().toEqualTypeOf<{
+  readonly title: string
+  readonly author: EntityRef<'Author'>
+  readonly editor: EntityRef<'Author'> | null
+  readonly comments: ReadonlyArray<EntityRef<'Comment'>>
+}>()
+expectTypeOf(Entity.valuesFor(Create, {})).toEqualTypeOf<
+  Partial<{
+    readonly title: string
+    readonly authorId: string
+    readonly editor: string | null
+    readonly commentIds: ReadonlyArray<string>
+  }>
+>()
+// `Publish` writes `published` under the key `live`; `reason` writes nothing.
+expectTypeOf(Entity.selectFor(Publish).members).toEqualTypeOf<{
+  readonly id: true
+  readonly published: true
+}>()

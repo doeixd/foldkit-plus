@@ -73,7 +73,7 @@ invalid submit: Title="" (Required), Published=false ok, Editor="a2" ok
 valid submit:
   command Remote.mutate(EditPost): MutationSucceeded
 row after: {"id":"p2","headline":"Compilers, revised","published":1,"author_id":"a1","editor_id":null}
-edited: Ready {"title":"Compilers, revised","published":true,"editor":null}
+edited: Ready {"id":"p2","title":"Compilers, revised","published":true,"editor":null}
 author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
 ```
 
@@ -82,8 +82,10 @@ author again: Ready {"name":"Ada","posts":[… "Compilers, revised" …]}
   required because its schema admits no empty value; `Editor` is a picker
   because `editorId` is mapped to the `editor` relation, and its label is Entity
   metadata since a relation has no schema to annotate.
-- **`filled`** is an edit form starting from the loaded value. The editor arrives
-  as a ref and the form holds its id.
+- **`filled`** is an edit form starting from the loaded value. Neither what to
+  load nor how to fill is written: `Entity.selectFor(form.input)` selects the
+  members the form writes, and `Entity.valuesFor` reads the loaded value back as
+  input values, the editor's ref as the id the form holds.
 - **`invalid submit`** goes nowhere: the form emits no out Message while a key
   fails the input's schema, so no mutation starts.
 - **`valid submit`** is the page's `onOut` turning the decoded `EditPostInput`

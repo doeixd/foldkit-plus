@@ -170,6 +170,19 @@ draft.
 const load = RenameForm.helpers.fill({ id: 'p1', title: 'Hello' }) // an Update.Step of the page
 ```
 
+What to load, and how a loaded value becomes input values, both follow from the
+form's input, which the form keeps as `Rename.input`:
+
+```ts
+const Current = Entity.selectFor(Rename.input) // a Selection of `id` and `title`
+
+declare const loaded: typeof Current.schema.Type
+const prefill = RenameForm.helpers.fill(Entity.valuesFor(Rename.input, loaded))
+```
+
+A relation is loaded as a ref and read back as the id the form holds. See
+[`foldkit-entity`](../entity/README.md#showing-what-is-there).
+
 ## Limits
 
 - Headless: no view here (see `foldkit-mixins-form`), and no relation picker data. `RelationOne` and

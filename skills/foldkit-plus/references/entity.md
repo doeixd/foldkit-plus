@@ -111,6 +111,19 @@ CreatePost.members.authorId.relation.target() // Blog.Author: what a picker choo
 CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 ```
 
+**Load and prefill an edit.** Both follow from the reading: `Entity.selectFor(input)`
+is the Selection of the members the input writes (relations as refs), and
+`Entity.valuesFor(input, value)` turns a value read through it into input values
+(a relation as its id or ids). An unmapped key appears in neither.
+
+```ts
+const PostForEdit = Entity.selectFor(CreatePost)
+// a Selection of `title` and `author`, the members the input writes; `author` as a ref
+
+Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
+// { title: 'Hello', authorId: 'a1' }
+```
+
 **Attach an interpreter's metadata** (package authors). Entity core never reads
 it; annotating again combines through the key's own `merge`.
 
