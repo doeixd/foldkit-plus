@@ -5,7 +5,7 @@
  */
 import { Schema } from 'effect'
 import { Mutation, Query } from 'foldkit-remote'
-import { Blog, EditPostInput, PostId } from './domain.js'
+import { Blog, EditPostInput, PostId, WritePostInput } from './domain.js'
 
 export const EditPostMutation = Mutation.make('EditPost', {
   Input: EditPostInput,
@@ -30,6 +30,12 @@ export const AuthorsQuery = Query.make('Authors', {
   // What the editor picker's search box holds. Authors are found, not all listed.
   Input: { search: Schema.String },
   Result: Query.connection(Blog.Author),
+})
+
+/** A post and its new author in one operation. What a nested write does is the handler's. */
+export const WritePostMutation = Mutation.make('WritePost', {
+  Input: WritePostInput,
+  Output: { id: PostId },
 })
 
 export const DeletePostMutation = Mutation.make('DeletePost', {

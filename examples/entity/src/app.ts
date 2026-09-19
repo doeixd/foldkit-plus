@@ -19,6 +19,7 @@ import {
   DeletePostMutation,
   EditPostMutation,
   PostSort,
+  WritePostMutation,
   PostsQuery,
 } from './operations.js'
 
@@ -87,7 +88,7 @@ export const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   entities: Object.values(Blog),
-  mutations: [EditPostMutation, DeletePostMutation],
+  mutations: [EditPostMutation, DeletePostMutation, WritePostMutation],
   queries: [PostsQuery, AuthorsQuery],
 })
 

@@ -127,6 +127,33 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
   returned patches for the columns it wrote, and both Projections read the one
   normalized post.
 
+### A page of a relation
+
+```text
+page plan: windows {"comments":{"first":1}}
+latest comment: Ready {"title":"Notes on the Engine","comments":{"items":[{"body":"Remarkable."}],"hasNext":true,"hasPrevious":false}}
+```
+
+`LatestComment` selects `comments` with `Entity.page(..., { first: 1 })`. The
+window travels with the read, SQL answers with one row and whether more follow,
+and the value is the page the Selection's schema describes.
+
+### A nested write
+
+```text
+nested invalid submit: author.name Invalid; sent false
+nested submit: {"title":"On Looms","author":{"name":"Joseph"}}
+  command Remote.mutate(WritePost): MutationSucceeded
+rows after write: 2 posts, 3 authors
+new post: Ready {"title":"On Looms","author":{"name":"Joseph"}}
+```
+
+`WritePost` maps its `author` key with `Relation.nested`, so `WritePostForm`
+holds a row of the author's own form. An empty submit fails inside the row; a
+valid one carries the author in the value. The server inserts the author, then
+the post, and returns both as patches, so the new post reads with its author and
+no fetch. This runs in the printed trace; the browser page does not draw it.
+
 ### Searching and sorting
 
 The post list's search box and its sortable Title header change two Model

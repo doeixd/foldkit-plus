@@ -9,6 +9,8 @@ describe('foldkit-entity example', () => {
       'before fetch: Initial',
       'after fetch: Ready {"title":"Notes on the Engine","published":true,"commentCount":2,"author":{"name":"Ada"},"editor":null,"comments":[{"body":"Remarkable.","author":{"name":"Grace"}},{"body":"Thank you.","author":{"name":"Ada"}}]}',
       "matches the domain's Selection: true",
+      'page plan: windows {"comments":{"first":1}}',
+      'latest comment: Ready {"title":"Notes on the Engine","comments":{"items":[{"body":"Remarkable."}],"hasNext":true,"hasPrevious":false}}',
       'second plan: Author:a1 [posts]',
       'author: Ready {"name":"Ada","posts":[{"title":"Notes on the Engine","commentCount":2},{"title":"Compilers","commentCount":0}]}',
       'form controls: Title:Text*, Published:Toggle, Editor:RelationOne',
@@ -30,6 +32,11 @@ describe('foldkit-entity example', () => {
       'confirmed: Deleted; rows 1 posts, 0 comments',
       'post list after delete: p2 "Compilers, revised"',
       'author after delete: Ready {"name":"Ada","posts":[{"title":"Compilers, revised","commentCount":0}]}',
+      'nested invalid submit: author.name Invalid; sent false',
+      'nested submit: {"title":"On Looms","author":{"name":"Joseph"}}',
+      '  command Remote.mutate(WritePost): MutationSucceeded',
+      'rows after write: 2 posts, 3 authors',
+      'new post: Ready {"title":"On Looms","author":{"name":"Joseph"}}',
     ])
   })
 })

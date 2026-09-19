@@ -22,6 +22,8 @@ version changed; `pnpm` skips versions already in the registry.
   (`search` slot, `searchLabel`). `foldkit-crud`: `Crud.options(form, lists, { chosen })`
   keeps what a picker holds among its choices and returns `active` to require
   those rows; a placed list gains `row(id)`, `choiceOf(model, id)` and `owner`.
+- `examples/entity` shows a page of a relation (`Entity.page`) and a nested write
+  (`Relation.nested`, a form that nests a form, a server that writes both).
 - `foldkit-crud`: an editor's `open` and new `target(model)` use the Entity's id
   type; a remover takes the id type its `input` names; a list's rows are typed
   from its Selection with or without a `choice`.

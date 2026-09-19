@@ -25,9 +25,11 @@ import {
   update,
   type Model,
 } from './app.js'
-import { PostId, PostPage } from './domain.js'
+import { LatestComment, PostByline, PostId, PostPage } from './domain.js'
 import { EditPostForm } from './editForm.js'
+import { WritePostMutation } from './operations.js'
 import { openServer } from './server.js'
+import { WritePostForm } from './writeForm.js'
 
 const describe = <Value>(data: RemoteData<Value>): string =>
   RemoteData.match(data, {
@@ -93,6 +95,18 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     lines.push(
       `matches the domain's Selection: ${read._tag === 'Ready' && Schema.is(PostPage.schema)(read.value)}`,
     )
+
+    // --- A page of a relation ---
+    // The Selection says "the first comment"; the window travels with the read and
+    // SQL answers with one row and whether more follow. A fresh Model: Remote holds
+    // one relation of one entity whole or as one window, not both at once.
+    const latest = Data.get(LatestComment, 'p1')
+    const [pagePlan] = Data.plan(initial, latest)
+    lines.push(`page plan: windows ${JSON.stringify(pagePlan?.windows)}`)
+    const paged = await Effect.runPromise(
+      Data.prefetch(initial, latest).pipe(Effect.provide(client)),
+    )
+    lines.push(`latest comment: ${describe(latest.read(paged))}`)
 
     // A second Surface walks the same graph from the other side. Ada's name came
     // in as the post's author, so only her posts are planned.
@@ -193,6 +207,51 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // The server said what is gone and named no list; every list dropped it.
     lines.push(`post list after delete: ${describeList(model)}`)
     lines.push(`author after delete: ${describe(author.read(model).author)}`)
+
+    // --- A nested write ---
+    // The form's `author` key holds a row of the author's own form. An empty submit
+    // shows the failure inside the row; a valid one carries the author in the value.
+    const author0 = WritePostForm.rows(WritePostForm.initial, 'author')[0]!.id
+    const authorControl = WritePostForm.controls.find(entry => entry.key === 'author')!.control
+    if (authorControl._tag !== 'Nested') throw new Error('author is not nested')
+    const write = (
+      draft: typeof WritePostForm.initial,
+      message: typeof WritePostForm.Message.Type,
+    ) => WritePostForm.bundle.update(draft, message, undefined)
+    const named = (name: string) =>
+      WritePostForm.Message.Nested({
+        key: 'author',
+        row: author0,
+        message: (authorControl.form.Message.Changed as (payload: object) => unknown)({
+          key: 'name',
+          value: name,
+        }),
+      })
+    const titled = write(
+      WritePostForm.initial,
+      WritePostForm.Message.Changed({ key: 'title', value: 'On Looms' }),
+    ).model
+    const unnamed = write(titled, WritePostForm.Message.Submitted())
+    lines.push(
+      `nested invalid submit: author.name ${WritePostForm.rows(unnamed.model, 'author')[0]!.model.fields.name._tag}; sent ${unnamed.outMessage !== undefined}`,
+    )
+    const written = write(write(titled, named('Joseph')).model, WritePostForm.Message.Submitted())
+    lines.push(`nested submit: ${JSON.stringify(written.outMessage?.value)}`)
+
+    const started = Data.mutate(model, WritePostMutation, written.outMessage!.value)
+    const settled = await Effect.runPromise(started.command.effect.pipe(Effect.provide(client)))
+    lines.push(`  command ${started.command.name}: ${settled._tag}`)
+    model = await dispatch(started.model, settled as Message)
+    lines.push(
+      `rows after write: ${backend.count('posts')} posts, ${backend.count('authors')} authors`,
+    )
+    // Both came back as patches, so the new post reads with its author and no fetch.
+    // A view that also wants comments would be `Initial` until Remote fetched them.
+    const fresh =
+      settled._tag === 'MutationSucceeded'
+        ? (settled.entities.find(patch => patch.entity === 'Post')?.id ?? '')
+        : ''
+    lines.push(`new post: ${describe(Data.get(PostByline, fresh).read(model))}`)
   } finally {
     backend.close()
   }

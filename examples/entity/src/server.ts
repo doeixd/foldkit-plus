@@ -10,8 +10,14 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
 import { bind, databaseLayer, query, returning, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Blog } from './domain.js'
-import { AuthorsQuery, DeletePostMutation, EditPostMutation, PostsQuery } from './operations.js'
+import { Blog, PostId } from './domain.js'
+import {
+  AuthorsQuery,
+  DeletePostMutation,
+  EditPostMutation,
+  PostsQuery,
+  WritePostMutation,
+} from './operations.js'
 
 const authors = sqliteTable('authors', {
   id: text('id').primaryKey(),
@@ -83,6 +89,32 @@ export const openServer = () => {
     }),
   )
 
+  // The nested write: the author first, then the post that points at them. Both
+  // come back as patches, so the client's store has the new post and its author.
+  let serial = 2
+  const writtenAuthor = returning(Db.Author, ['id', 'name'])
+  const writtenPost = returning(Db.Post, ['id', 'title', 'published', 'author'])
+  const WritePost = RemoteServer.mutation(WritePostMutation, ({ input }) =>
+    Effect.promise(async () => {
+      // Ids the seed rows do not use; a count would reuse a deleted post's.
+      serial += 1
+      const authorId = `a${serial}`
+      const postId = `p${serial}`
+      const authorRows = await db
+        .insert(authors)
+        .values({ id: authorId, name: input.author.name })
+        .returning(writtenAuthor.columns)
+      const postRows = await db
+        .insert(posts)
+        .values({ id: postId, headline: input.title, published: false, authorId, editorId: null })
+        .returning(writtenPost.columns)
+      return {
+        output: { id: PostId.make(postId) },
+        entities: [...writtenAuthor.patches(authorRows), ...writtenPost.patches(postRows)],
+      }
+    }),
+  )
+
   const DeletePost = RemoteServer.mutation(DeletePostMutation, ({ input }) =>
     Effect.promise(async () => {
       await db.delete(comments).where(eq(comments.postId, input.id))
@@ -95,7 +127,7 @@ export const openServer = () => {
   return {
     server: RemoteServer.make({
       entities: [source(Db.Author), source(Db.Post), source(Db.Comment)],
-      mutations: [EditPost, DeletePost],
+      mutations: [EditPost, DeletePost, WritePost],
       // A list is a query someone declared: nothing lists a table because a relation points at it.
       queries: [
         query(PostsQuery, {
@@ -117,7 +149,7 @@ export const openServer = () => {
     layer: databaseLayer(db),
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.prepare('select * from posts where id = ?').get(id),
-    count: (table: 'posts' | 'comments'): number =>
+    count: (table: 'posts' | 'comments' | 'authors'): number =>
       Number(
         (sqlite.prepare(`select count(*) as n from ${table}`).get() as { readonly n: number }).n,
       ),

@@ -52,6 +52,18 @@ export const PostPage = Entity.select(Blog.Post, {
   comments: Entity.select(Blog.Comment, { body: true, author: AuthorName }),
 })
 
+/**
+ * A long relation read a page at a time. The shape of a page is the view's to
+ * declare; what a cursor is, and the order, are the server's.
+ */
+export const LatestComment = Entity.select(Blog.Post, {
+  title: true,
+  comments: Entity.page(Entity.select(Blog.Comment, { body: true }), { first: 1 }),
+})
+
+/** A post and who wrote it: what a write of both hands back, so it reads with no fetch. */
+export const PostByline = Entity.select(Blog.Post, { title: true, author: AuthorName })
+
 /** A row of the post list, and an author as a picker offers one. */
 export const PostRow = Entity.select(Blog.Post, { id: true, title: true, published: true })
 export const AuthorChoice = Entity.select(Blog.Author, { id: true, name: true })
@@ -70,4 +82,21 @@ export const EditPostInput = Schema.Struct({
   title: Blog.Post.fields.title.schema,
   published: Blog.Post.fields.published.schema,
   editorId: Schema.NullOr(AuthorId),
+})
+
+/**
+ * Writing a post together with its author, who does not exist yet. The `author`
+ * key holds the author itself, written through an input of its own, so a form
+ * built from this nests a form.
+ */
+export const NewAuthor = Entity.input(
+  Blog.Author,
+  Schema.Struct({ name: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Name' }) }),
+)
+export const WritePostInput = Schema.Struct({
+  title: Blog.Post.fields.title.schema,
+  author: NewAuthor.schema,
+})
+export const WritePost = Entity.input(Blog.Post, WritePostInput, {
+  author: Relation.nested(Blog.Post.relations.author, NewAuthor),
 })
