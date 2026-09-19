@@ -46,6 +46,7 @@
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-metadata": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-surface": "workspace:*"
   },

@@ -12,13 +12,16 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
+  SelectionPageTypeId,
   type AnyEntity,
   type EntityInput,
   type EntityMember,
   type Selection,
   type IdOf,
+  type SelectionPage,
 } from 'foldkit-entity'
 import { Form, type FormControl, type Submitted } from 'foldkit-form'
+import { Display, type DisplayColumn } from './display.js'
 import type {
   MutationDescriptor,
   Page,
@@ -137,13 +140,11 @@ export interface Choice {
   readonly label: string
 }
 
-/** One column of a list, or one line of a detail: a member the Selection reads. */
-export interface ListColumn<Key extends string = string> {
-  readonly key: Key
-  /** The schema's `title` annotation, else `Form.label` metadata, else the key. */
-  readonly label: string
-  readonly member: EntityMember
-}
+/**
+ * One column of a list, or one line of a detail: a member the Selection reads,
+ * with its words and its `Display`.
+ */
+export type ListColumn<Key extends string = string> = DisplayColumn<Key>
 
 const columnLabel = (key: string, member: EntityMember): string => {
   const title =
@@ -153,16 +154,36 @@ const columnLabel = (key: string, member: EntityMember): string => {
   return typeof title === 'string' ? title : (Form.labelOf(member) ?? key)
 }
 
-/** The selected members in the Selection's order, each with its label. */
+type AnySelection = Selection<string, unknown, Schema.Constraint>
+
+/** The selected members in the Selection's order, each with its label and its Display. */
 const columnsOf = <Members>(
   selection: Selection<string, Members, Schema.Constraint>,
 ): ReadonlyArray<ListColumn<keyof Members & string>> => {
   const members: Readonly<Record<string, EntityMember>> = selection.entity.members
-  return Object.keys(selection.members as object).map(key => ({
-    key: key as keyof Members & string,
-    label: columnLabel(key, members[key]!),
-    member: members[key]!,
-  }))
+  const selected = selection.members as Readonly<
+    Record<string, true | AnySelection | SelectionPage<string, Schema.Constraint>>
+  >
+  return Object.keys(selected).map(key => {
+    const member = members[key]!
+    const how = selected[key]!
+    // A relation read through a Selection shows the target's own members.
+    const nested =
+      how === true || member._tag !== 'Relation'
+        ? undefined
+        : SelectionPageTypeId in how
+          ? { shape: 'page' as const, columns: columnsOf(how.selection) }
+          : {
+              shape: member.cardinality === 'many' ? ('many' as const) : ('one' as const),
+              columns: columnsOf(how),
+            }
+    return {
+      key: key as keyof Members & string,
+      label: columnLabel(key, member),
+      member,
+      display: Display.resolve(member, nested),
+    }
+  })
 }
 
 const RemoverMessage = defineMessageUnion({ Confirmed: {}, Cancelled: {} })
@@ -697,3 +718,5 @@ export const Crud = {
     }
   },
 }
+
+export { Display, type DisplayColumn, type DisplayWords } from './display.js'

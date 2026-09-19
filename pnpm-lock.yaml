@@ -562,6 +562,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../form
+      foldkit-metadata:
+        specifier: workspace:*
+        version: link:../metadata
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote
