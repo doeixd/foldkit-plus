@@ -56,7 +56,7 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
   const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
     messages: {
       required: field => `${field.label} is missing`,
-      notANumber: field => `${field.label} must be a number`,
+      unparsed: field => `${field.label} must be a number`,
       invalid: (field, message) => `${field.label}: ${message}`,
       form: message => message,
     },

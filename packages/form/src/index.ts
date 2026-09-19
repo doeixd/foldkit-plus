@@ -18,15 +18,27 @@ import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import {
   Input,
-  draftKind,
+  isControlChange,
   type Control,
+  type ControlChange,
   type Draft,
   type DraftKind,
   type FormRow,
   type NestedForm,
 } from './input.js'
 
-export { Input, type Control, type Draft, type FormRow, type NestedForm } from './input.js'
+export {
+  Input,
+  type Control,
+  type ControlChange,
+  type ControlKind,
+  type Draft,
+  type DraftKind,
+  type FormRow,
+  type NestedData,
+  type NestedForm,
+  type RelationData,
+} from './input.js'
 
 /** The draft a key holds, as far as the input's type says: a flag, a list of ids, or text. */
 export type DraftOf<Value> = [Exclude<Value, null | undefined>] extends [boolean]
@@ -113,8 +125,8 @@ export interface MessageField<Key extends string = string> {
 export interface FormMessages<Key extends string = string> {
   /** An empty draft the schema does not admit. Default `Required`. */
   readonly required?: (field: MessageField<Key>) => string
-  /** A `Number` control whose draft is not a number. Default `Enter a number`. */
-  readonly notANumber?: (field: MessageField<Key>) => string
+  /** Text its control cannot read: a `Number` that is not one. Default: the kind's own words (`Enter a number`). */
+  readonly unparsed?: (field: MessageField<Key>) => string
   /** A draft the key's schema rejects. `message` is the check's own, or Schema's. Default: `message`. */
   readonly invalid?: (field: MessageField<Key>, message: string) => string
   /** A failure of the input as a whole: a rule that spans keys. Default: `message`. */
@@ -127,7 +139,9 @@ export interface FormOptions<Fields extends Schema.Struct.Fields, Members, R> {
    * The control for a key the resolver cannot decide, or should not: an unmapped
    * key with an unusual schema, or text that wants a multiline control here only.
    */
-  readonly inputs?: { readonly [K in Exclude<keyof Fields, NestedKey<Members>>]?: Control }
+  readonly inputs?: {
+    readonly [K in Exclude<keyof Fields, NestedKey<Members>>]?: Control | ControlChange
+  }
   /** The form's own words, and a rewrite of Schema's: for wording and for translation. */
   readonly messages?: FormMessages<keyof Fields & string>
   /** Rules answered outside the form, by key. The key reads `Validating` while one runs. */
@@ -206,13 +220,16 @@ const isEdit = (message: { readonly _tag: string; readonly message?: unknown }):
     : ['Changed', 'RowAdded', 'RowRemoved', 'Reset'].includes(message._tag)
 
 interface Plan extends FormControl {
-  readonly kind: DraftKind
+  readonly kind: HeldDraft
   readonly empty: Draft
   readonly check: (draft: Draft) => Checked
   readonly rules: FieldValidation.Rules<Draft>
 }
 
-const kindOf = (draft: unknown): DraftKind | undefined =>
+/** The drafts a key holds. `rows` is a nested key's, which holds rows instead. */
+type HeldDraft = Exclude<DraftKind, 'rows'>
+
+const kindOf = (draft: unknown): HeldDraft | undefined =>
   typeof draft === 'string'
     ? 'text'
     : typeof draft === 'boolean'
@@ -229,9 +246,10 @@ const sameDraft = (left: Draft, right: Draft): boolean =>
 const isEmpty = (draft: Draft): boolean =>
   draft === '' || (Array.isArray(draft) && draft.length === 0)
 
-/** A number's draft is blank when it is only spaces: `Number(' ')` is 0, which nobody typed. */
+/** Text that is read as something else is blank when it is only spaces: `Number(' ')` is 0, which nobody typed. */
 const isBlank = (control: Control, draft: Draft): boolean =>
-  isEmpty(draft) || (control._tag === 'Number' && typeof draft === 'string' && draft.trim() === '')
+  isEmpty(draft) ||
+  (control.parse !== undefined && typeof draft === 'string' && draft.trim() === '')
 
 const annotationsOf = (schema: Schema.Top): { title?: unknown; description?: unknown } =>
   Schema.resolveAnnotations(schema) ?? {}
@@ -272,7 +290,7 @@ const nestedPlanOf = (
   return {
     key,
     ...wordsOf(key, schema, member),
-    control: { _tag: 'Nested', cardinality, optional, form },
+    control: Input.Nested.of({ cardinality, optional, form }),
     required: !optional,
     member,
     form,
@@ -287,24 +305,23 @@ const planOf = (
   key: string,
   schema: Schema.Top,
   member: InputMember,
-  override: Control | undefined,
+  override: Control | ControlChange | undefined,
   messages: FormMessages,
 ): Plan => {
-  const resolved =
-    override?._tag === 'Search'
-      ? Input.resolve(member, schema)
-      : (override ?? Input.resolve(member, schema))
-  const found = resolved ?? fail(name, `no control for "${key}"; name one under "inputs"`)
-  if (override?._tag === 'Search' && found._tag !== 'RelationOne' && found._tag !== 'RelationMany')
-    return fail(name, `"${key}" is not a relation, so it has no picker to search`)
-  const control: Control =
-    override?._tag === 'Search' && (found._tag === 'RelationOne' || found._tag === 'RelationMany')
-      ? { ...found, search: true }
-      : found
-  if (control._tag === 'Search') return fail(name, `"${key}" resolved to no picker to search`)
-  if (control._tag === 'Nested')
-    return fail(name, `"${key}" cannot be given a Nested control; map it with Relation.nested`)
-  const kind = draftKind(control)
+  const resolved = Input.resolve(member, schema)
+  const chosen =
+    override === undefined
+      ? resolved
+      : isControlChange(override)
+        ? attempt(name, () => override.change(resolved, key))
+        : override
+  const control = chosen ?? fail(name, `no control for "${key}"; name one under "inputs"`)
+  if (control.draft === 'rows')
+    return fail(
+      name,
+      `"${key}" cannot be given a ${control.kind} control; map it with Relation.nested`,
+    )
+  const kind = control.draft
   const type = Schema.toType(schema) as Schema.Codec<unknown>
   const decode = Schema.decodeUnknownResult(type)
   const accepts = Schema.is(type)
@@ -314,13 +331,13 @@ const planOf = (
   const samples: ReadonlyArray<unknown> =
     kind === 'flag' ? [true, false] : kind === 'list' ? [[], ['id']] : []
   if (samples.length > 0 && !samples.some(accepts))
-    fail(name, `"${key}" is edited as ${control._tag}, but its schema accepts no such value`)
+    fail(name, `"${key}" is edited as ${control.kind}, but its schema accepts no such value`)
 
   const { label, description } = wordsOf(key, schema, member)
   const field: MessageField = { key, label, control }
   const say = {
     required: messages.required?.(field) ?? 'Required',
-    notANumber: messages.notANumber?.(field) ?? 'Enter a number',
+    unparsed: messages.unparsed?.(field) ?? control.unparsed ?? 'Not valid',
     invalid: (message: string) => messages.invalid?.(field, message) ?? message,
   }
 
@@ -331,8 +348,10 @@ const planOf = (
         if (accepts(nothing)) return Result.succeed(nothing)
       return Result.fail(say.required)
     }
-    const value = control._tag === 'Number' ? Number(draft) : draft
-    if (typeof value === 'number' && !Number.isFinite(value)) return Result.fail(say.notANumber)
+    // A kind may read its text as something else before the schema sees it.
+    const value =
+      control.parse !== undefined && typeof draft === 'string' ? control.parse(draft) : draft
+    if (value === undefined) return Result.fail(say.unparsed)
     return Result.mapError(decode(value), error => say.invalid(error.message))
   }
 
@@ -362,6 +381,15 @@ const planOf = (
 
 const fail = (name: string, message: string): never => {
   throw new Error(`Form "${name}": ${message}`)
+}
+
+/** A failure inside a control change, said as the form's. */
+const attempt = <A>(name: string, run: () => A): A => {
+  try {
+    return run()
+  } catch (error) {
+    return fail(name, error instanceof Error ? error.message : String(error))
+  }
 }
 
 /** The draft that shows `value`: a number as its text, nothing as the empty draft. */
@@ -405,7 +433,8 @@ export const Form = {
       key => members[key]!._tag === 'NestedInput',
     ) as unknown as ReadonlyArray<RowsKey>
 
-    const overrides: Readonly<Record<string, Control | undefined>> = options.inputs ?? {}
+    const overrides: Readonly<Record<string, Control | ControlChange | undefined>> =
+      options.inputs ?? {}
     const plans = Object.fromEntries(
       keys.map(key => [
         key,
@@ -435,7 +464,7 @@ export const Form = {
       ]),
     ) as Readonly<Record<RowsKey, NestedPlan>>
 
-    const draftSchema: Record<DraftKind, Schema.Codec<Draft, any>> = {
+    const draftSchema: Record<HeldDraft, Schema.Codec<Draft, any>> = {
       text: Schema.String,
       flag: Schema.Boolean,
       list: Schema.Array(Schema.String),
@@ -753,10 +782,7 @@ export const Form = {
             )
           }
           case 'Searched': {
-            const { control } = plans[message.key]
-            const searches =
-              (control._tag === 'RelationOne' || control._tag === 'RelationMany') && control.search
-            return searches
+            return plans[message.key].control.searches
               ? {
                   model: { ...model, searches: { ...model.searches, [message.key]: message.text } },
                 }

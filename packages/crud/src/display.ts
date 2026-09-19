@@ -8,25 +8,32 @@ import { Schema } from 'effect'
 import type { AnyEntity, EntityMember } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 
-export type Display =
-  /** Text as it is, or through `format`: a date, a price, a status in words. */
-  | { readonly _tag: 'Text'; readonly format?: ((value: unknown) => string) | undefined }
-  | { readonly _tag: 'Number'; readonly format?: ((value: number) => string) | undefined }
-  | { readonly _tag: 'Flag' }
-  /** Read, so a row can be opened or keyed by it, and not shown: usually the id. */
-  | { readonly _tag: 'Hidden' }
-  /** A relation read as refs: which one, with nothing to say about it but its id. */
-  | { readonly _tag: 'Ref'; readonly target: AnyEntity; readonly many: boolean }
+/**
+ * How one selected member shows: the primitive every kind of Display is a value
+ * of. `Display.text()` and `Display.flag()` are values of it, made by
+ * `Display.kind`, which is what an application calls for a badge or a relative
+ * date. The kinds here are a collection, not a special case.
+ */
+export interface Display<Data = unknown> {
+  /** The name a renderer is found by. */
+  readonly kind: string
+  /** Whether a view draws it. A member read and not shown, usually the id, is `false`. */
+  readonly shown: boolean
+  /** What this kind needs: a format, a relation's target. */
+  readonly data: Data
   /**
-   * A relation read through a Selection: the target's own members, each with a
-   * Display. `shape` is how many there are: one, a list, or a page of a list.
+   * The value as text: what a cell says when nothing draws it specially. It is
+   * never given `null` or `undefined`; `Display.show` says `nothing` for those.
    */
-  | {
-      readonly _tag: 'Nested'
-      readonly target: AnyEntity
-      readonly shape: 'one' | 'many' | 'page'
-      readonly columns: ReadonlyArray<DisplayColumn>
-    }
+  readonly text: (value: unknown, words: DisplayWords) => string
+}
+
+/** A kind of Display: how its values are made, and how one is told from another. */
+export interface DisplayKind<Data> {
+  readonly kind: string
+  readonly of: (data: Data) => Display<Data>
+  readonly is: (display: Display) => display is Display<Data>
+}
 
 /** A selected member with its words and its Display. A list's column, a detail's line. */
 export interface DisplayColumn<Key extends string = string> {
@@ -51,7 +58,7 @@ export interface DisplayWords {
 const key = Metadata.key<Display>('foldkit-crud/display', {
   // The last Display attached wins: a later annotation refines an earlier one.
   merge: displays => displays.slice(-1),
-  summarize: display => display._tag,
+  summarize: display => display.kind,
 })
 
 interface AstLike {
@@ -66,16 +73,109 @@ const fromSchema = (schema: Schema.Top): Display => {
       ? (ast.types ?? []).filter(member => member._tag !== 'Null' && member._tag !== 'Undefined')
       : [ast]
   const [only] = members
-  if (members.length === 1 && only?._tag === 'Number') return { _tag: 'Number' }
-  if (members.length === 1 && only?._tag === 'Boolean') return { _tag: 'Flag' }
-  return { _tag: 'Text' }
+  if (members.length === 1 && only?._tag === 'Number') return Number_.of({})
+  if (members.length === 1 && only?._tag === 'Boolean') return Flag.of(nothing)
+  return Text.of({})
 }
 
+/** A kind of Display. The kinds below are made with it, and so is an application's. */
+const kind = <Data = Record<string, never>>(
+  name: string,
+  spec: {
+    readonly shown?: boolean
+    readonly text: (data: Data, value: unknown, words: DisplayWords) => string
+  },
+): DisplayKind<Data> => ({
+  kind: name,
+  of: data =>
+    Object.freeze({
+      kind: name,
+      shown: spec.shown ?? true,
+      data,
+      text: (value: unknown, words: DisplayWords) => spec.text(data, value, words),
+    }),
+  is: (display): display is Display<Data> => display.kind === name,
+})
+
+const show = (display: Display, value: unknown, words: DisplayWords = {}): string =>
+  value === null || value === undefined ? (words.nothing ?? '') : display.text(value, words)
+
+const Text = kind<{ readonly format?: ((value: unknown) => string) | undefined }>('Text', {
+  text: (data, value) => (data.format === undefined ? String(value) : data.format(value)),
+})
+const Number_ = kind<{ readonly format?: ((value: number) => string) | undefined }>('Number', {
+  text: (data, value) =>
+    typeof value === 'number' && data.format !== undefined ? data.format(value) : String(value),
+})
+const Flag = kind('Flag', {
+  text: (_, value, words) => (value === true ? (words.yes ?? 'yes') : (words.no ?? 'no')),
+})
+const Hidden = kind('Hidden', { shown: false, text: () => '' })
+/** A relation read as refs: which one, with nothing to say about it but its id. */
+const Ref = kind<{ readonly target: AnyEntity; readonly many: boolean }>('Ref', {
+  text: (_, value, words) => {
+    const ids = (Array.isArray(value) ? value : [value]).map(ref =>
+      typeof ref === 'object' && ref !== null && 'id' in ref ? String(ref.id) : String(ref),
+    )
+    return ids.length === 0 ? (words.nothing ?? '') : ids.join(words.separator ?? ', ')
+  },
+})
+/**
+ * A relation read through a Selection: the target's own members, each with a
+ * Display. `shape` is how many there are: one, a list, or a page of a list.
+ */
+const Nested = kind<{
+  readonly target: AnyEntity
+  readonly shape: 'one' | 'many' | 'page'
+  readonly columns: ReadonlyArray<DisplayColumn>
+}>('Nested', {
+  text: (data, value, words) => {
+    const one = (item: unknown): string =>
+      data.columns
+        .filter(column => column.display.shown)
+        .map(column =>
+          show(
+            column.display,
+            (item as Readonly<Record<string, unknown>> | null)?.[column.key],
+            words,
+          ),
+        )
+        .filter(text => text !== '')
+        .join(' ')
+    const items =
+      data.shape === 'one'
+        ? [value]
+        : data.shape === 'page'
+          ? ((value as { readonly items?: ReadonlyArray<unknown> }).items ?? [])
+          : (value as ReadonlyArray<unknown>)
+    return items.length === 0 ? (words.nothing ?? '') : items.map(one).join(words.separator ?? ', ')
+  },
+})
+
+const nothing: Record<string, never> = Object.freeze({})
+
 export const Display = {
-  text: (format?: (value: unknown) => string): Display => ({ _tag: 'Text', format }),
-  number: (format?: (value: number) => string): Display => ({ _tag: 'Number', format }),
-  flag: (): Display => ({ _tag: 'Flag' }),
-  hidden: (): Display => ({ _tag: 'Hidden' }),
+  /**
+   * A kind of Display. `Display.kind<{ tone: string }>('Badge', { text: (_, value) => String(value) })`
+   * gives `.of(data)` to make one and `.is(display)` to tell one, exactly as the
+   * kinds below were made. `text` is the floor; a view draws it specially once
+   * it is given a renderer for `Badge`.
+   */
+  kind,
+
+  // The kinds this package resolves to. A view finds its renderer by `kind`.
+  Text,
+  Number: Number_,
+  Flag,
+  Hidden,
+  Ref,
+  Nested,
+
+  text: (format?: (value: unknown) => string): Display => Text.of({ format }),
+  number: (format?: (value: number) => string): Display => Number_.of({ format }),
+  flag: (): Display => Flag.of(nothing),
+  /** Read, so a row can be opened or keyed by it, and not shown: usually the id. */
+  hidden: (): Display => Hidden.of(nothing),
 
   /**
    * Entity metadata: how a member shows wherever it is listed, e.g.
@@ -101,57 +201,14 @@ export const Display = {
     if (member._tag !== 'Relation') return fromSchema(member.schema as Schema.Top)
     const target = member.target()
     return nested === undefined
-      ? { _tag: 'Ref', target, many: member.cardinality === 'many' }
-      : { _tag: 'Nested', target, shape: nested.shape, columns: nested.columns }
+      ? Ref.of({ target, many: member.cardinality === 'many' })
+      : Nested.of({ target, shape: nested.shape, columns: nested.columns })
   },
 
   /**
    * A value as the text its Display calls for: what a cell says when nothing
-   * draws it specially. A view that wants a link or a badge reads `display` and
-   * the value itself; this is the floor every view can stand on.
+   * draws it specially. A view that wants a link or a badge reads the Display
+   * and the value itself; this is the floor every view can stand on.
    */
-  show: (display: Display, value: unknown, words: DisplayWords = {}): string => {
-    const nothing = words.nothing ?? ''
-    const separator = words.separator ?? ', '
-    if (value === null || value === undefined) return nothing
-    switch (display._tag) {
-      case 'Hidden':
-        return ''
-      case 'Flag':
-        return value === true ? (words.yes ?? 'yes') : (words.no ?? 'no')
-      case 'Number':
-        return typeof value === 'number' && display.format !== undefined
-          ? display.format(value)
-          : String(value)
-      case 'Text':
-        return display.format === undefined ? String(value) : display.format(value)
-      case 'Ref': {
-        const ids = (Array.isArray(value) ? value : [value]).map(ref =>
-          typeof ref === 'object' && ref !== null && 'id' in ref ? String(ref.id) : String(ref),
-        )
-        return ids.length === 0 ? nothing : ids.join(separator)
-      }
-      case 'Nested': {
-        const one = (item: unknown): string =>
-          display.columns
-            .filter(column => column.display._tag !== 'Hidden')
-            .map(column =>
-              Display.show(
-                column.display,
-                (item as Readonly<Record<string, unknown>> | null)?.[column.key],
-                words,
-              ),
-            )
-            .filter(text => text !== '')
-            .join(' ')
-        const items =
-          display.shape === 'one'
-            ? [value]
-            : display.shape === 'page'
-              ? ((value as { readonly items?: ReadonlyArray<unknown> }).items ?? [])
-              : (value as ReadonlyArray<unknown>)
-        return items.length === 0 ? nothing : items.map(one).join(separator)
-      }
-    }
-  },
+  show,
 }

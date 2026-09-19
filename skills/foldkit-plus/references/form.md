@@ -90,9 +90,15 @@ const RenameForm = Page.at(Slot, {
   The form holds the typed text (`Message.Searched({ key, text })`,
   `form.search(model, key)`); read it as the input of the query that lists the
   choices. `foldkit-mixins-form` draws the search box.
+- **A control of your own** (date, rich text, money): controls are one primitive,
+  `{ kind, draft, shown, searches, data, parse? }`, and the shipped kinds are made
+  the way yours is: `const Cents = Input.kind<{ currency: string }>('Cents', { draft: 'text', parse, unparsed })`,
+  then `inputs: { cents: Cents.of({ currency: 'USD' }) }` and `Cents.is(control)`.
+  Draw it with `FormView.define(form, { renderers: { Cents: ctx => ... } })`; the
+  same table replaces a shipped renderer.
 - **Word or translate it:** put a rule's words on the rule
   (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
-  option for the form's own (`required`, `notANumber`), a rewrite of Schema's
+  option for the form's own (`required`, `unparsed`), a rewrite of Schema's
   (`invalid(field, message)`), and cross-key failures (`form(message)`).
 - **Carry a key without showing it** (the id being edited):
   `inputs: { id: Input.hidden() }`, then set it with `fill`.

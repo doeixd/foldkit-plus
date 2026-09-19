@@ -1,3 +1,6 @@
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
 import { Attr, Behavior, Capability, SlotView, Style } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from '../src/index.js'
@@ -195,5 +198,61 @@ describe('FormView styling', () => {
     const tracked = byId(render(initial, withField(Tracked)), 'Edit-title')
     expect(tracked?.data?.attrs).toMatchObject({ 'data-field': 'title' })
     expect(() => render(initial, withField(Overriding))).toThrow('two owners for "AriaInvalid"')
+  })
+})
+
+describe('renderers', () => {
+  const Stars = Input.kind<{ readonly max: number }>('Stars', {
+    draft: 'text',
+    parse: draft => (/^[0-9]+$/.test(draft) ? Number(draft) : undefined),
+  })
+  const Rated = Form.make(
+    'Rated',
+    Entity.input(
+      Entity.define('Film', Schema.Struct({ id: Schema.String, stars: Schema.Number })),
+      Schema.Struct({ stars: Schema.Number, title: Schema.String }),
+      { title: Entity.unmapped },
+    ),
+    { inputs: { stars: Stars.of({ max: 5 }) } },
+  )
+  const draw = (view: ReturnType<typeof FormView.define<'stars' | 'title', any, any>>) =>
+    view(
+      { model: Rated.initial, errors: [], canSubmit: true },
+      SlotView.inertBuilder(),
+    ) as unknown as Node
+
+  it('draws a kind the application made, with the renderer it gives', () => {
+    const root = draw(
+      FormView.define(Rated, {
+        renderers: {
+          Stars: ({ control, state, h }) =>
+            h.div(state, [`up to ${Stars.is(control) ? control.data.max : 0}`]),
+        },
+      }),
+    )
+    // The renderer puts the field's id and accessibility state where the value is.
+    expect(byId(root, 'Rated-stars')?.sel).toBe('div')
+    expect(text(byId(root, 'Rated-stars'))).toBe('up to 5')
+    expect(byId(root, 'Rated-stars')?.data?.attrs?.['aria-invalid']).toBe('false')
+    // The shipped renderers still draw the rest.
+    expect(byId(root, 'Rated-title')?.sel).toBe('input')
+  })
+
+  it('lets a shipped kind be drawn another way, by the same means', () => {
+    const root = draw(
+      FormView.define(Rated, {
+        renderers: {
+          Stars: ({ state, h }) => h.div(state, []),
+          Text: ({ state, h }) => h.div(state, ['custom text']),
+        },
+      }),
+    )
+    expect(byId(root, 'Rated-title')?.sel).toBe('div')
+  })
+
+  it('says which kind has no renderer, and where to give one', () => {
+    expect(() => draw(FormView.define(Rated))).toThrow(
+      'FormView: no renderer for a "Stars" control ("stars"); pass one under "renderers"',
+    )
   })
 })

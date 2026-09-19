@@ -230,13 +230,28 @@ const Post = Blog.Post.pipe(
 Display.show(column.display, row[column.key], { yes: 'Live', no: 'Draft' }) // the cell's text
 ```
 
-| Display | For |
+| Kind | For |
 | --- | --- |
 | `Text`, `Number` | a value as it is, or through `format` |
 | `Flag` | a boolean, in the words given (`yes` / `no`) |
 | `Hidden` | a member read and not shown |
 | `Ref` | a relation selected with `true`: its id, or ids |
 | `Nested` | a relation read through a Selection: the target's own columns, with `shape` `one`, `many`, or `page` |
+
+There is one primitive, as with a form's controls: a `kind`, whether it is
+`shown`, its `data`, and its `text`. The kinds above are made with
+`Display.kind`, and so is yours:
+
+```ts
+const Badge = Display.kind<{ readonly tone: string }>('Badge', {
+  text: (_, value) => String(value), // the floor: what it says when nothing draws it specially
+})
+
+const Post = Blog.Post.pipe(Entity.annotateMembers({ status: Display.of(Badge.of({ tone: 'soft' })) }))
+```
+
+`Badge.is(display)` narrows `display.data`. A drawn view draws it specially once
+given a renderer for `Badge`.
 
 It is resolved from the most to the least explicit source: `Display.of`
 metadata on the member, how the relation was selected, then the shape of the

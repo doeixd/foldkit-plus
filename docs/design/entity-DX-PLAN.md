@@ -7,7 +7,7 @@ it, so it can be judged rather than taken on faith. Items are marked as they are
 resolved. The design these packages came from is
 [entity-DESIGN.md](./entity-DESIGN.md).
 
-## 1. One primitive for controls and for displays
+## 1. One primitive for controls and for displays (resolved)
 
 **Friction.** `Control` was a closed union of eight kinds and `Display` of six.
 An application needs a date picker, rich text, or a money field on its first

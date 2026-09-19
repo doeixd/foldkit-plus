@@ -6,6 +6,7 @@
  * then a managed edit from a list row to the SQL row.
  */
 import { Effect, Layer, Schema } from 'effect'
+import { Input } from 'foldkit-form'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -43,7 +44,7 @@ const describe = <Value>(data: RemoteData<Value>): string =>
 
 const describeForm = (model: Model): string =>
   EditPostForm.controls
-    .filter(entry => entry.control._tag !== 'Hidden')
+    .filter(entry => entry.control.shown)
     .map(({ key, label }) =>
       FieldValidation.match(EditPostForm.field(model.editPost.form, key), {
         onNotValidated: value => `${label}=${JSON.stringify(value)}`,
@@ -122,8 +123,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // --- Editing ---
     lines.push(
       `form controls: ${EditPostForm.controls
-        .filter(entry => entry.control._tag !== 'Hidden')
-        .map(entry => `${entry.label}:${entry.control._tag}${entry.required ? '*' : ''}`)
+        .filter(entry => entry.control.shown)
+        .map(entry => `${entry.label}:${entry.control.kind}${entry.required ? '*' : ''}`)
         .join(', ')}`,
     )
     // What to load is what the form writes: its fields, and each relation as a ref.
@@ -213,7 +214,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // shows the failure inside the row; a valid one carries the author in the value.
     const author0 = WritePostForm.rows(WritePostForm.initial, 'author')[0]!.id
     const authorControl = WritePostForm.controls.find(entry => entry.key === 'author')!.control
-    if (authorControl._tag !== 'Nested') throw new Error('author is not nested')
+    if (!Input.Nested.is(authorControl)) throw new Error('author is not nested')
     const write = (
       draft: typeof WritePostForm.initial,
       message: typeof WritePostForm.Message.Type,
@@ -222,7 +223,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       WritePostForm.Message.Nested({
         key: 'author',
         row: author0,
-        message: (authorControl.form.Message.Changed as (payload: object) => unknown)({
+        message: (authorControl.data.form.Message.Changed as (payload: object) => unknown)({
           key: 'name',
           value: name,
         }),

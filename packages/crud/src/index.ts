@@ -20,7 +20,7 @@ import {
   type IdOf,
   type SelectionPage,
 } from 'foldkit-entity'
-import { Form, type FormControl, type Submitted } from 'foldkit-form'
+import { Form, Input, type FormControl, type Submitted } from 'foldkit-form'
 import { Display, type DisplayColumn } from './display.js'
 import type {
   MutationDescriptor,
@@ -482,11 +482,12 @@ export const Crud = {
     options: { readonly chosen?: (root: Root) => FormModel | undefined } = {},
   ) => {
     const pickers = form.controls.flatMap(({ key, control }) => {
-      if (control._tag !== 'RelationOne' && control._tag !== 'RelationMany') return []
-      const list = lists.find(candidate => Entity.same(candidate.entity, control.target))
+      if (!Input.RelationOne.is(control) && !Input.RelationMany.is(control)) return []
+      const { target } = control.data
+      const list = lists.find(candidate => Entity.same(candidate.entity, target))
       if (list === undefined)
         throw new Error(
-          `Crud.options: "${key}" picks a ${control.target.name}, and no list given is over ${control.target.name}`,
+          `Crud.options: "${key}" picks a ${target.name}, and no list given is over ${target.name}`,
         )
       if (!list.offersChoices)
         throw new Error(
@@ -723,4 +724,4 @@ export const Crud = {
   },
 }
 
-export { Display, type DisplayColumn, type DisplayWords } from './display.js'
+export { Display, type DisplayColumn, type DisplayKind, type DisplayWords } from './display.js'

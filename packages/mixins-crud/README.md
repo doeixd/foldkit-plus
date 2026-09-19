@@ -95,8 +95,12 @@ PostTable(
   [`foldkit-crud`](../crud/README.md#limits)). `sort` names the columns that sort,
   how each is sorted now, and the Message a click sends. The header becomes a
   button and the column carries `aria-sort`.
-- `cells` draws a column specially; every other cell is `Display.show`. A cell
-  gets the whole row, so a link can use the id.
+- `cells` draws one column specially, and gets the whole row, so a link can use
+  the id. `renderers` draws every column of a Display **kind**, a shipped one or
+  your own, in any list or detail:
+  `renderers: { Badge: ({ display, value, h }) => h.span([...], [String(value)]) }`.
+  A column's `cells` entry wins over its kind's renderer, and a kind with neither
+  says `Display.show`.
 - `words` supplies every word the view says itself, and the words `Display.show`
   uses (`yes`, `no`, `nothing`, `separator`), for wording and for translation.
 

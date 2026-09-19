@@ -54,7 +54,7 @@ const displayOf = (key: string) => Posts.columns.find(column => column.key === k
 
 describe('Display', () => {
   it('gives each column a Display from its metadata, how it was selected, or its schema', () => {
-    expect(Posts.columns.map(column => [column.key, column.display._tag])).toEqual([
+    expect(Posts.columns.map(column => [column.key, column.display.kind])).toEqual([
       ['id', 'Hidden'],
       ['title', 'Text'],
       ['cents', 'Number'],
@@ -65,16 +65,16 @@ describe('Display', () => {
       ['editor', 'Ref'],
       ['comments', 'Nested'],
     ])
-    expect(displayOf('author')).toMatchObject({ shape: 'one', target: Blog.Author })
-    expect(displayOf('comments')).toMatchObject({ shape: 'many' })
-    expect(displayOf('editor')).toMatchObject({ many: false, target: Blog.Author })
+    expect(displayOf('author').data).toMatchObject({ shape: 'one', target: Blog.Author })
+    expect(displayOf('comments').data).toMatchObject({ shape: 'many' })
+    expect(displayOf('editor').data).toMatchObject({ many: false, target: Blog.Author })
   })
 
   it('reads a page of a relation as a page', () => {
     const Latest = Crud.detail('Latest', {
       selection: Entity.select(Shown, { comments: Entity.page(Body, { first: 1 }) }),
     })
-    expect(Latest.fields[0]!.display).toMatchObject({ _tag: 'Nested', shape: 'page' })
+    expect(Latest.fields[0]!.display).toMatchObject({ kind: 'Nested', data: { shape: 'page' } })
     expect(
       Display.show(Latest.fields[0]!.display, {
         items: [{ id: 'c1', body: 'First' }],
@@ -109,5 +109,18 @@ describe('Display', () => {
     expect(Display.show(displayOf('subtitle'), null, { nothing: '—' })).toBe('—')
     expect(Display.show(displayOf('comments'), [], { nothing: 'none' })).toBe('none')
     expect(Display.show(displayOf('editor'), null, { nothing: '—' })).toBe('—')
+  })
+
+  it('takes a kind an application makes, by the call the shipped kinds were made with', () => {
+    const Badge = Display.kind<{ readonly tone: string }>('Badge', {
+      text: (_, value) => String(value).toUpperCase(),
+    })
+    const Toned = Blog.Post.pipe(
+      Entity.annotateMembers({ title: Display.of(Badge.of({ tone: 'loud' })) }),
+    )
+    const [title] = Crud.detail('T', { selection: Entity.select(Toned, { title: true }) }).fields
+    expect(Badge.is(title!.display) && title!.display.data.tone).toBe('loud')
+    expect(Display.Text.is(title!.display)).toBe(false)
+    expect(Display.show(title!.display, 'hello')).toBe('HELLO')
   })
 })

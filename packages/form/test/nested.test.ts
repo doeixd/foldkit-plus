@@ -1,7 +1,7 @@
 import { Effect, Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Form } from '../src/index.js'
+import { Form, Input } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
@@ -52,7 +52,7 @@ type Message = typeof PostForm.Message.Type
 
 const authorForm = PostForm.controls[1]!.control
 const commentForm = PostForm.controls[3]!.control
-if (authorForm._tag !== 'Nested' || commentForm._tag !== 'Nested') throw new Error('not nested')
+if (!Input.Nested.is(authorForm) || !Input.Nested.is(commentForm)) throw new Error('not nested')
 
 const step = (model: Model, message: Message) => PostForm.bundle.update(model, message, undefined)
 /** What the runtime does: run the Commands and feed their Messages back. */
@@ -71,9 +71,9 @@ const settle = async (
 const inRow = (key: string, row: string, inner: unknown): Message =>
   Message.Nested({ key, row, message: inner })
 const named = (row: string, value: string): Message =>
-  inRow('author', row, authorForm.form.Message.Changed({ key: 'name', value } as never))
+  inRow('author', row, authorForm.data.form.Message.Changed({ key: 'name', value } as never))
 const said = (row: string, value: string): Message =>
-  inRow('comments', row, commentForm.form.Message.Changed({ key: 'body', value } as never))
+  inRow('comments', row, commentForm.data.form.Message.Changed({ key: 'body', value } as never))
 
 describe('a form with nested keys', () => {
   it('starts a one that must be there with its row, and every other nested key with none', () => {
@@ -85,16 +85,16 @@ describe('a form with nested keys', () => {
   })
 
   it('describes a nested key as a control holding the nested form', () => {
-    expect(PostForm.controls.map(control => [control.key, control.control._tag])).toEqual([
+    expect(PostForm.controls.map(control => [control.key, control.control.kind])).toEqual([
       ['title', 'Text'],
       ['author', 'Nested'],
       ['editor', 'Nested'],
       ['comments', 'Nested'],
     ])
-    expect(authorForm).toMatchObject({ cardinality: 'one', optional: false })
-    expect(PostForm.controls[2]!.control).toMatchObject({ cardinality: 'one', optional: true })
-    expect(commentForm).toMatchObject({ cardinality: 'many', optional: true })
-    expect(authorForm.form.controls.map(control => control.key)).toEqual(['name'])
+    expect(authorForm.data).toMatchObject({ cardinality: 'one', optional: false })
+    expect(PostForm.controls[2]!.control.data).toMatchObject({ cardinality: 'one', optional: true })
+    expect(commentForm.data).toMatchObject({ cardinality: 'many', optional: true })
+    expect(authorForm.data.form.controls.map(control => control.key)).toEqual(['name'])
   })
 
   it('edits a row through the nested form, and validates it by that form’s schema', () => {

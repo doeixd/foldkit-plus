@@ -100,9 +100,12 @@ const RenameForm = Page.at(Slot, {
 
 ## Controls
 
-A control is data: the kind of editing, with nothing about how it is drawn.
+A control is data: a `kind` (a name), the `draft` the Model holds while it is
+edited, and whatever `data` its kind needs, with nothing about how it is drawn.
+There is one primitive, and every kind is a value of it, the ones below
+included.
 
-| Control | Draft | Chosen when |
+| Kind | Draft | Chosen when |
 | --- | --- | --- |
 | `Text`, `Multiline` | `string` | the schema is a string (`Multiline` only when asked for) |
 | `Hidden` | `string` | only when asked for: a key the form carries and does not show, such as the id being edited |
@@ -128,6 +131,33 @@ const Cms = Post.pipe(Entity.annotateMembers({ title: Input.of(Input.multiline()
 
 Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { id: Input.text() } })
 ```
+
+### Your own kind of control
+
+The kinds above are made with `Input.kind`, and so is a date picker, a rich text
+editor, or a price:
+
+```ts
+const Cents = Input.kind<{ readonly currency: string }>('Cents', {
+  draft: 'text', // what the Model holds while it is edited
+  // The value the schema is given, when that is not the text itself.
+  parse: draft => (/^\d+(\.\d{1,2})?$/.test(draft) ? Math.round(Number(draft) * 100) : undefined),
+  unparsed: 'Enter an amount',
+})
+
+Form.make('Price', input, { inputs: { cents: Cents.of({ currency: 'USD' }) } })
+
+Cents.is(control) && control.data.currency // 'USD'
+```
+
+- `draft` is `'text'`, `'flag'` (a boolean) or `'list'` (ids).
+- `parse` reads text as something else before the key's schema sees it, as
+  `Number` does; `undefined` means it does not read, and `unparsed` is what to
+  say. Text that is only spaces is nothing entered, not a failure to parse.
+- `shown: false` makes a kind that is carried and not drawn, as `Hidden` is.
+- Nothing else in the form treats a shipped kind differently. A view draws your
+  kind once it has a renderer for it; see
+  [`foldkit-mixins-form`](../mixins-form/README.md#renderers).
 
 ### A picker that searches
 
@@ -229,7 +259,7 @@ rewrites what Schema says by default, which is also how a form is translated:
 const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
   messages: {
     required: field => `${field.label} is missing`,
-    notANumber: field => `${field.label} must be a number`,
+    unparsed: field => `${field.label} must be a number`,
     invalid: (field, message) => `${field.label}: ${message}`,
     form: message => message,
   },
@@ -239,7 +269,7 @@ const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
 | Message | Said when | Default |
 | --- | --- | --- |
 | `required(field)` | an empty draft the schema does not admit | `Required` |
-| `notANumber(field)` | a `Number` control whose draft is not a number | `Enter a number` |
+| `unparsed(field)` | text its control cannot read, such as a `Number` that is not one | the kind's own words (`Enter a number`) |
 | `invalid(field, message)` | the key's schema rejects the draft; `message` is the check's own, or Schema's | `message` |
 | `form(message)` | the input as a whole fails: a rule that spans keys | `message` |
 
@@ -278,7 +308,8 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 - A row is edited with the nested form's own Messages, wrapped:
   `Message.Nested({ key, row, message })`. A Message for a row that is gone, or
   that is not one of the nested form, is dropped. A row's id is never reused.
-- A nested key's control is `{ _tag: 'Nested', cardinality, optional, form }`;
+- A nested key's control is of kind `Nested`, with `data` `{ cardinality, optional, form }`
+  (narrow it with `Input.Nested.is(control)`);
   `form` is the nested form, with its own `controls`, `field`, and `rows`. Nested
   keys are in `model.rows`, not `model.fields`.
 - A submit validates every row too and shows every failure; it waits for a check

@@ -6,10 +6,17 @@
  * application styles and extends a generated form the way it does any other
  * SlotView, and the form stays free of a view dependency.
  */
-import type { Draft, FormControl, FormRow, NestedForm } from 'foldkit-form'
-import { Attr, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
+import {
+  Input,
+  type Control,
+  type Draft,
+  type FormControl,
+  type FormRow,
+  type NestedForm,
+} from 'foldkit-form'
+import { Attr, Capability, Event, Slot, Slots, SlotView, type SlotBuilders } from 'foldkit-mixins'
 import * as FieldValidation from 'foldkit/fieldValidation'
-import type { Html } from 'foldkit/html'
+import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
 
 /** One thing a select or a relation picker offers. */
@@ -192,11 +199,130 @@ type FieldView<Key extends string, Message> = SlotView.SlotView<
 const errorsOf = (field: FieldValidation.Field<Draft>): ReadonlyArray<string> =>
   field._tag === 'Invalid' ? field.errors : []
 
+/** What a renderer draws one control from. */
+export interface RenderContext<Message> {
+  readonly input: FieldInput
+  /** The control, whose `data` is its kind's: narrow it with the kind's `is`. */
+  readonly control: Control
+  readonly draft: Draft
+  readonly change: (value: Draft) => Message
+  readonly blurred: Message
+  /** The control's id and its accessibility state. Put them on the element that holds the value. */
+  readonly state: ReadonlyArray<Attribute<Message>>
+  readonly slots: SlotBuilders<typeof FieldSlots, Message>
+  readonly h: HtmlBuilder<Message>
+}
+
+/** Draws the control of one kind. The label, description and error around it are the field's. */
+export type Renderer<Message> = (context: RenderContext<Message>) => Html
+
+/** Renderers by the `kind` of control they draw. */
+export type Renderers<Message> = Readonly<Record<string, Renderer<Message>>>
+
+/**
+ * The renderers this package ships, by kind. They are entries like any other: an
+ * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
+ * its own beside them.
+ */
+const defaultRenderers = <Message>(): Renderers<Message> => {
+  const typed = ({ state, draft, change, blurred, h }: RenderContext<Message>) => [
+    ...state,
+    h.Value(String(draft)),
+    h.OnInput(change),
+    h.OnBlur(blurred),
+  ]
+  // A blank option whenever nothing is chosen, required or not: without one the
+  // browser shows its first option as chosen while the draft is still empty.
+  const pick = (
+    { state, draft, change, blurred, slots, h }: RenderContext<Message>,
+    options: ReadonlyArray<Option>,
+    blank: boolean,
+  ): Html =>
+    h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
+      ...(blank || draft === '' ? [h.option([h.Value(''), h.Selected(draft === '')], [''])] : []),
+      ...options.map(option =>
+        h.option([h.Value(option.value), h.Selected(draft === option.value)], [option.label]),
+      ),
+    ])
+  return {
+    [Input.Text.kind]: context =>
+      context.h.input(context.slots.text.attrs([...typed(context), context.h.Type('text')])),
+    [Input.Multiline.kind]: context =>
+      // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
+      // and no mixin can supply, so the narrowing loses nothing.
+      context.h.textarea(
+        context.slots.multiline.attrs(typed(context)) as Parameters<typeof context.h.textarea>[0],
+      ),
+    // A number is a text input because its draft is text: `"4."` is a fine thing to
+    // have typed, and `type="number"` would refuse to report it.
+    [Input.Number.kind]: context =>
+      context.h.input(
+        context.slots.number.attrs([
+          ...typed(context),
+          context.h.Type('text'),
+          context.h.InputMode('decimal'),
+        ]),
+      ),
+    [Input.Toggle.kind]: ({ state, draft, change, blurred, slots, h }) =>
+      h.input(
+        slots.toggle.attrs([
+          ...state,
+          h.Type('checkbox'),
+          h.Checked(draft === true),
+          h.OnClick(change(draft !== true)),
+          h.OnBlur(blurred),
+        ]),
+      ),
+    [Input.Select.kind]: context =>
+      pick(
+        context,
+        (Input.Select.is(context.control) ? context.control.data.options : []).map(value => ({
+          value,
+          label: value,
+        })),
+        !context.input.control.required,
+      ),
+    [Input.RelationOne.kind]: context => pick(context, context.input.options, true),
+    [Input.RelationMany.kind]: ({ input, draft, change, slots, h }) => {
+      const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
+      return h.div(
+        slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
+        input.options.map(option =>
+          h.label(
+            [],
+            [
+              h.input(
+                slots.choice.attrs([
+                  h.Type('checkbox'),
+                  h.Checked(chosen.includes(option.value)),
+                  h.OnClick(
+                    change(
+                      chosen.includes(option.value)
+                        ? chosen.filter(value => value !== option.value)
+                        : [...chosen, option.value],
+                    ),
+                  ),
+                ]),
+              ),
+              option.label,
+            ],
+          ),
+        ),
+      )
+    },
+  }
+}
+
 /** The view of one field, to style or extend before handing it to `FormView.define`. */
 const field = <Key extends string, Model, Message extends { readonly _tag: string }>(
   form: FormLike<Key, Model, Message>,
-): FieldView<Key, Message> =>
-  SlotView.forMessages<Message>().define(
+  options: {
+    /** Renderers by kind, beside the ones shipped: a new kind, or another way to draw a shipped one. */
+    readonly renderers?: Renderers<Message>
+  } = {},
+): FieldView<Key, Message> => {
+  const renderers: Renderers<Message> = { ...defaultRenderers<Message>(), ...options.renderers }
+  return SlotView.forMessages<Message>().define(
     FieldSlots,
     (input: FieldInput<Key>, slots, h) => {
       const { control, id, invalid } = input
@@ -208,9 +334,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const blurred = send === undefined ? form.Message.Blurred({ key }) : (send.blurred as Message)
       const searched = (text: string): Message =>
         send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
-      const searches =
-        (control.control._tag === 'RelationOne' || control.control._tag === 'RelationMany') &&
-        control.control.search === true
+      const searches = control.control.searches
       const describedBy = [
         ...(description === undefined ? [] : [`${id}-description`]),
         ...(invalid ? [`${id}-error`] : []),
@@ -223,70 +347,21 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(required ? [h.AriaRequired(true)] : []),
         ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
       ]
-      const typed = [...state, h.Value(String(draft)), h.OnInput(change), h.OnBlur(blurred)]
-      // A blank option whenever nothing is chosen, required or not: without one the
-      // browser shows its first option as chosen while the draft is still empty.
-      const pick = (options: ReadonlyArray<Option>, blank: boolean): Html =>
-        h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
-          ...(blank || draft === ''
-            ? [h.option([h.Value(''), h.Selected(draft === '')], [''])]
-            : []),
-          ...options.map(option =>
-            h.option([h.Value(option.value), h.Selected(draft === option.value)], [option.label]),
-          ),
-        ])
-
-      const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
-      const body: Html =
-        control.control._tag === 'Multiline'
-          ? // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
-            // and no mixin can supply, so the narrowing loses nothing.
-            h.textarea(slots.multiline.attrs(typed) as Parameters<typeof h.textarea>[0])
-          : control.control._tag === 'Number'
-            ? h.input(slots.number.attrs([...typed, h.Type('text'), h.InputMode('decimal')]))
-            : control.control._tag === 'Toggle'
-              ? h.input(
-                  slots.toggle.attrs([
-                    ...state,
-                    h.Type('checkbox'),
-                    h.Checked(draft === true),
-                    h.OnClick(change(draft !== true)),
-                    h.OnBlur(blurred),
-                  ]),
-                )
-              : control.control._tag === 'Select'
-                ? pick(
-                    control.control.options.map(value => ({ value, label: value })),
-                    !required,
-                  )
-                : control.control._tag === 'RelationOne'
-                  ? pick(input.options, true)
-                  : control.control._tag === 'RelationMany'
-                    ? h.div(
-                        slots.choices.attrs([h.Id(id), h.Role('group'), h.AriaLabel(label)]),
-                        input.options.map(option =>
-                          h.label(
-                            [],
-                            [
-                              h.input(
-                                slots.choice.attrs([
-                                  h.Type('checkbox'),
-                                  h.Checked(chosen.includes(option.value)),
-                                  h.OnClick(
-                                    change(
-                                      chosen.includes(option.value)
-                                        ? chosen.filter(value => value !== option.value)
-                                        : [...chosen, option.value],
-                                    ),
-                                  ),
-                                ]),
-                              ),
-                              option.label,
-                            ],
-                          ),
-                        ),
-                      )
-                    : h.input(slots.text.attrs([...typed, h.Type('text')]))
+      const render = renderers[control.control.kind]
+      if (render === undefined)
+        throw new Error(
+          `FormView: no renderer for a "${control.control.kind}" control ("${key}"); pass one under "renderers"`,
+        )
+      const body = render({
+        input: input as FieldInput,
+        control: control.control,
+        draft,
+        change,
+        blurred,
+        state,
+        slots,
+        h,
+      })
 
       return h.div(slots.root.attrs(), [
         h.label(slots.label.attrs([h.For(id)]), [label]),
@@ -316,6 +391,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
     },
     { name: 'FormField' },
   )
+}
 
 export const FormView = {
   field,
@@ -327,9 +403,15 @@ export const FormView = {
    */
   define: <Key extends string, Model, Message extends { readonly _tag: string }>(
     form: FormLike<Key, Model, Message> & { readonly bundle: { readonly name: string } },
-    options: { readonly field?: FieldView<Key, Message> } = {},
+    options: {
+      readonly field?: FieldView<Key, Message>
+      /** Renderers by kind, for the field view this makes. With `field` given, give them to `FormView.field`. */
+      readonly renderers?: Renderers<Message>
+    } = {},
   ): SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, Message> => {
-    const fieldView = options.field ?? field(form)
+    const fieldView =
+      options.field ??
+      field(form, options.renderers === undefined ? {} : { renderers: options.renderers })
     type Make = (payload: object) => unknown
     return SlotView.forMessages<Message>().define(
       FormSlots,
@@ -342,11 +424,11 @@ export const FormView = {
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
         const draw = (walk: Walk<Message>, id: string, path: string): ReadonlyArray<Html> =>
           walk.controls
-            .filter(control => control.control._tag !== 'Hidden')
+            .filter(control => control.control.shown)
             .map((control): Html => {
               const { key, label } = control
               const here = `${id}-${key}`
-              if (control.control._tag !== 'Nested') {
+              if (!Input.Nested.is(control.control)) {
                 const state = walk.field(key)
                 return fieldView(
                   {
@@ -367,7 +449,7 @@ export const FormView = {
                   h,
                 )
               }
-              const { form: nested, cardinality, optional } = control.control
+              const { form: nested, cardinality, optional } = control.control.data
               const rows = walk.rows(key)
               const addLabel = input.addLabel?.(label) ?? `Add ${label}`
               return h.fieldset(slots.group.attrs([h.Id(here)]), [

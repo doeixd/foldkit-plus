@@ -82,7 +82,7 @@ const filled = [
 
 describe('Form.make controls', () => {
   it('resolves a control per key: metadata, then the relation, then the schema', () => {
-    expect(CreatePost.controls.map(entry => [entry.key, entry.control._tag])).toEqual([
+    expect(CreatePost.controls.map(entry => [entry.key, entry.control.kind])).toEqual([
       ['title', 'Text'],
       ['body', 'Multiline'],
       ['status', 'Select'],
@@ -94,9 +94,9 @@ describe('Form.make controls', () => {
       ['notify', 'Toggle'],
     ])
     const byKey = Object.fromEntries(CreatePost.controls.map(entry => [entry.key, entry]))
-    expect(byKey.status?.control).toEqual({ _tag: 'Select', options: ['draft', 'live'] })
-    expect(byKey.authorId?.control).toMatchObject({ target: Blog.Author })
-    expect(byKey.tagIds?.control).toMatchObject({ target: Blog.Tag })
+    expect(byKey.status?.control).toEqual(Input.select(['draft', 'live']))
+    expect(byKey.authorId?.control.data).toMatchObject({ target: Blog.Author })
+    expect(byKey.tagIds?.control.data).toMatchObject({ target: Blog.Tag })
   })
 
   it('labels from the schema annotation, then Form.label, then the key', () => {
@@ -116,7 +116,7 @@ describe('Form.make controls', () => {
     const Quick = Form.make('Quick', Entity.input(Cms, Schema.Struct({ title: Schema.String })), {
       inputs: { title: Input.multiline() },
     })
-    expect(Quick.controls[0]?.control).toEqual({ _tag: 'Multiline' })
+    expect(Quick.controls[0]?.control).toEqual(Input.multiline())
   })
 
   it('carries a hidden key as text and reads any key through `field`', () => {
@@ -125,7 +125,7 @@ describe('Form.make controls', () => {
     })
     const { model } = Edit.bundle.helpers!.fill(Edit.bundle.init(undefined).model, { id: 'p1' })
 
-    expect(Edit.controls[0]?.control).toEqual({ _tag: 'Hidden' })
+    expect(Edit.controls[0]?.control).toMatchObject({ kind: 'Hidden', shown: false })
     expect(Edit.field(model, 'id')).toEqual({ _tag: 'NotValidated', value: 'p1' })
     expect(Edit.bundle.update(model, Edit.Message.Submitted(), undefined).outMessage).toEqual({
       _tag: 'Submitted',
@@ -322,7 +322,7 @@ describe('Form messages', () => {
     return {
       required: blurred._tag === 'Invalid' ? blurred.errors[0] : undefined,
       rule: send('title', 'ab'),
-      notANumber: send('rating', 'five'),
+      unparsed: send('rating', 'five'),
       range: send('rating', '9'),
     }
   }
@@ -332,7 +332,7 @@ describe('Form messages', () => {
 
     expect(said.required).toBe('Required')
     expect(said.rule).toMatchObject({ errors: ['Give it at least 3 letters'] })
-    expect(said.notANumber).toMatchObject({ errors: ['Enter a number'] })
+    expect(said.unparsed).toMatchObject({ errors: ['Enter a number'] })
   })
 
   it('takes every word from the application, naming the field', () => {
@@ -340,7 +340,7 @@ describe('Form messages', () => {
       Form.make('F', input, {
         messages: {
           required: field => `${field.label} fehlt`,
-          notANumber: field => `${field.label}: bitte eine Zahl`,
+          unparsed: field => `${field.label}: bitte eine Zahl`,
           invalid: (field, message) =>
             field.key === 'rating' ? 'Zwischen 1 und 5' : `${field.label}: ${message}`,
         },
@@ -348,7 +348,7 @@ describe('Form messages', () => {
     )
 
     expect(said.required).toBe('Title fehlt')
-    expect(said.notANumber).toMatchObject({ errors: ['rating: bitte eine Zahl'] })
+    expect(said.unparsed).toMatchObject({ errors: ['rating: bitte eine Zahl'] })
     expect(said.range).toMatchObject({ errors: ['Zwischen 1 und 5'] })
     // The rule's own message still arrives, for `invalid` to keep or replace.
     expect(said.rule).toMatchObject({ errors: ['Title: Give it at least 3 letters'] })
@@ -400,9 +400,9 @@ describe('a relation picker that searches', () => {
   it('keeps the picker of the relation, and marks it as searching', () => {
     const control = (key: string) =>
       Searching.controls.find(candidate => candidate.key === key)!.control
-    expect(control('authorId')).toMatchObject({ _tag: 'RelationOne', search: true })
-    expect(control('tagIds')).toMatchObject({ _tag: 'RelationMany', search: true })
-    expect(control('editorId')).not.toHaveProperty('search')
+    expect(control('authorId')).toMatchObject({ kind: 'RelationOne', searches: true })
+    expect(control('tagIds')).toMatchObject({ kind: 'RelationMany', searches: true })
+    expect(control('editorId')).toMatchObject({ searches: false })
   })
 
   it('holds what was typed, changing no draft and validating nothing', () => {
@@ -427,5 +427,41 @@ describe('a relation picker that searches', () => {
     expect(() => Form.make('Wrong', input, { inputs: { title: Input.search() } })).toThrow(
       '"title" is not a relation, so it has no picker to search',
     )
+  })
+})
+
+describe('a kind of control an application makes', () => {
+  // Made with the call the shipped kinds were made with.
+  const Cents = Input.kind<{ readonly currency: string }>('Cents', {
+    draft: 'text',
+    parse: draft => (/^\d+(\.\d{1,2})?$/.test(draft) ? Math.round(Number(draft) * 100) : undefined),
+    unparsed: 'Enter an amount',
+  })
+  const Priced = Form.make(
+    'Priced',
+    Entity.input(
+      Entity.define('Item', Schema.Struct({ id: Schema.String, cents: Schema.Number })),
+      Schema.Struct({ cents: Schema.Number }),
+    ),
+    { inputs: { cents: Cents.of({ currency: 'USD' }) } },
+  )
+  const typed = (value: string) =>
+    Priced.bundle.update(Priced.initial, Priced.Message.Changed({ key: 'cents', value }), undefined)
+
+  it('is a control like any other: told by its kind, carrying its data', () => {
+    const [{ control }] = Priced.controls as [(typeof Priced.controls)[number]]
+    expect(Cents.is(control) && control.data.currency).toBe('USD')
+    expect(Input.Number.is(control)).toBe(false)
+    expect(control).toMatchObject({ kind: 'Cents', draft: 'text', shown: true })
+  })
+
+  it('reads its text its own way before the schema sees it, and says so when it cannot', () => {
+    expect(typed('12.50').model.fields.cents).toEqual({ _tag: 'Valid', value: '12.50' })
+    expect(typed('12.505').model.fields.cents).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Enter an amount'],
+    })
+    const sent = Priced.bundle.update(typed('12.50').model, Priced.Message.Submitted(), undefined)
+    expect(sent.outMessage).toEqual({ _tag: 'Submitted', value: { cents: 1250 } })
   })
 })

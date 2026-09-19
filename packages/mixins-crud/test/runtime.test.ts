@@ -183,6 +183,30 @@ it('draws a list as a table and a detail as a description list, and sends the ap
   }
 })
 
+it('draws every column of a kind through the renderer given for that kind', () => {
+  const Plain = ListView.forMessages<Message>().define(Posts)
+  const root = Plain(
+    {
+      page: ready,
+      renderers: {
+        // A shipped kind, drawn another way; a kind of the application's goes in the same table.
+        Flag: ({ value, h }) => h.span([h.Class(value === true ? 'on' : 'off')], ['●']),
+      },
+      // One column by key wins over its kind.
+      cells: { title: (row, h) => h.strong([], [row.title]) },
+    },
+    SlotView.inertBuilder(),
+  ) as unknown as { readonly children: ReadonlyArray<unknown> }
+  const found: Array<string> = []
+  const walk = (node: unknown): void => {
+    const { sel, children } = (node ?? {}) as { sel?: string; children?: ReadonlyArray<unknown> }
+    if (sel === 'span' || sel === 'strong') found.push(sel)
+    for (const child of children ?? []) walk(child)
+  }
+  walk(root)
+  expect(found).toEqual(['strong', 'span', 'strong', 'span'])
+})
+
 it('says what stands in for the rows: loading, failed, and empty', () => {
   // Rendered without a runtime: the states are text, read off the tree.
   const Plain = ListView.forMessages<Message>().define(Posts)

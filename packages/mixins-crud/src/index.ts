@@ -9,6 +9,8 @@
  * as inputs.
  */
 import { Display, type DisplayColumn, type DisplayWords } from 'foldkit-crud'
+
+type AnyDisplay = DisplayColumn['display']
 import { Attr, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
 import type { Page, RemoteData, RemoteError } from 'foldkit-remote'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -25,6 +27,25 @@ export interface ViewWords extends DisplayWords {
   readonly more?: string
 }
 
+/** What a renderer draws one value from. `row` is the list's row, or the detail's whole value. */
+export interface DisplayContext<Message> {
+  /** The Display, whose `data` is its kind's: narrow it with the kind's `is`. */
+  readonly display: AnyDisplay
+  readonly value: unknown
+  readonly row: unknown
+  readonly words: ViewWords
+  readonly h: HtmlBuilder<Message>
+}
+
+/**
+ * Renderers by the `kind` of Display they draw. A kind with none says its text
+ * (`Display.show`), so this is how a badge, a link, or a relative date is drawn
+ * wherever that kind appears, in any list or detail.
+ */
+export type DisplayRenderers<Message> = Readonly<
+  Record<string, (context: DisplayContext<Message>) => Html>
+>
+
 /** How one column is sorted now, and the Message a click on its header sends. */
 export interface ColumnSort<Message> {
   readonly direction?: 'asc' | 'desc' | undefined
@@ -40,7 +61,9 @@ export interface ListInput<Row, Message, Key extends string = string> {
   readonly onMore?: Message | undefined
   /** The columns that sort, each with its state and its Message. */
   readonly sort?: { readonly [K in Key]?: ColumnSort<Message> } | undefined
-  /** A cell drawn specially: a link, a badge. Every other cell says `Display.show`. */
+  /** Renderers by Display kind, for every column of that kind. */
+  readonly renderers?: DisplayRenderers<Message> | undefined
+  /** One column drawn specially; it wins over a renderer. Every other cell says `Display.show`. */
   readonly cells?: { readonly [K in Key]?: (row: Row, h: HtmlBuilder<Message>) => Html } | undefined
   /** What identifies a row across renders. Default its `id`, else its position. */
   readonly rowKey?: ((row: Row) => string) | undefined
@@ -50,6 +73,8 @@ export interface ListInput<Row, Message, Key extends string = string> {
 /** What a detail's attachments may read, and what the application gives it. */
 export interface DetailInput<Value, Message, Key extends string = string> {
   readonly value: RemoteData<Value>
+  /** Renderers by Display kind, for every field of that kind. */
+  readonly renderers?: DisplayRenderers<Message> | undefined
   readonly cells?:
     { readonly [K in Key]?: (value: Value, h: HtmlBuilder<Message>) => Html } | undefined
   readonly words?: ViewWords | undefined
@@ -85,7 +110,7 @@ export const DetailSlots = Slots.define({
 
 const shown = <Key extends string>(
   columns: ReadonlyArray<DisplayColumn<Key>>,
-): ReadonlyArray<DisplayColumn<Key>> => columns.filter(column => column.display._tag !== 'Hidden')
+): ReadonlyArray<DisplayColumn<Key>> => columns.filter(column => column.display.shown)
 
 const failedWords = (words: ViewWords | undefined, error: RemoteError): string =>
   words?.failed?.(error) ?? error.message
@@ -112,6 +137,15 @@ const list = <Message>() => ({
           h.div(slots.root.attrs([h.Id(listed.name)]), [
             h.p(slots.status.attrs(alert ? [h.Role('alert')] : [h.Role('status')]), [text]),
           ])
+
+        const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
+          input.renderers?.[column.display.kind]?.({
+            display: column.display,
+            value,
+            row,
+            words: words ?? {},
+            h,
+          }) ?? Display.show(column.display, value, words)
 
         const table = (page: Page<Row>, refreshing: boolean): Html => {
           if (page.items.length === 0) return status(words?.empty ?? 'Nothing here.')
@@ -155,10 +189,7 @@ const list = <Message>() => ({
                     slots.row.attrs([h.Key(key)]),
                     columns.map((column, index) => {
                       const special = input.cells?.[column.key]
-                      const content: Html | string =
-                        special === undefined
-                          ? Display.show(column.display, values[column.key], words)
-                          : special(row, h)
+                      const content = special?.(row, h) ?? draw(column, values[column.key], row)
                       // The way into a row is a button, so a keyboard reaches it.
                       const opens = index === 0 && input.onOpen !== undefined
                       return h.td(slots.cell.attrs(), [
@@ -236,13 +267,19 @@ const detail = <Message>() => ({
               return [
                 h.dt(slots.term.attrs(), [field.label]),
                 h.dd(slots.value.attrs(), [
-                  special === undefined
-                    ? Display.show(
-                        field.display,
-                        (value as Readonly<Record<string, unknown>>)[field.key],
-                        words,
-                      )
-                    : special(value, h),
+                  special?.(value, h) ??
+                    input.renderers?.[field.display.kind]?.({
+                      display: field.display,
+                      value: (value as Readonly<Record<string, unknown>>)[field.key],
+                      row: value,
+                      words: words ?? {},
+                      h,
+                    }) ??
+                    Display.show(
+                      field.display,
+                      (value as Readonly<Record<string, unknown>>)[field.key],
+                      words,
+                    ),
                 ]),
               ]
             }),

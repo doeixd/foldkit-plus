@@ -139,9 +139,12 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 
 ## Display, and drawing a list
 
-Each column (`list.columns`, `detail.fields`) has a `display`: `Text`, `Number`,
-`Flag`, `Hidden`, `Ref`, or `Nested` (a relation read through a Selection, with the
-target's columns). Set one with `Entity.annotateMembers({ id: Display.of(Display.hidden()) })`;
+Each column (`list.columns`, `detail.fields`) has a `display`, one primitive
+`{ kind, shown, data, text }`. The shipped kinds are `Text`, `Number`, `Flag`,
+`Hidden`, `Ref`, and `Nested`; make your own with `Display.kind('Badge', { text })`,
+narrow with `Badge.is(display)`, and draw it everywhere with
+`renderers: { Badge: ctx => ... }` in `foldkit-mixins-crud`. `Nested` is a relation
+read through a Selection, with the target's columns. Set one with `Entity.annotateMembers({ id: Display.of(Display.hidden()) })`;
 `Display.show(display, value, words?)` is the cell's text.
 
 `foldkit-mixins-crud` draws them through Mixins slots. A list holds no state, so

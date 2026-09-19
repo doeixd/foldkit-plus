@@ -106,6 +106,28 @@ A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 and naming the picker it controls with `aria-controls`. `searchLabel` in the
 view inputs replaces the word.
 
+### Renderers
+
+The table above is a set of renderers found by a control's `kind`, and the
+shipped ones are entries like any other. Add a kind of your own, or draw a
+shipped one another way, by passing renderers beside them:
+
+```ts
+FormView.define(PriceForm, {
+  renderers: {
+    Cents: ({ control, draft, change, blurred, state, h }) =>
+      h.input([...state, h.Value(String(draft)), h.OnInput(change), h.OnBlur(blurred)]),
+    RelationOne: myCombobox, // replaces the shipped select
+  },
+})
+```
+
+A renderer draws the control only; the label, description, error, and a search
+box are the field's. `state` is the control's `id` and its accessibility
+attributes, to put on the element that holds the value. A control whose kind has
+no renderer throws when it is drawn, naming the kind and the key.
+`FormView.field(form, { renderers })` takes them too, for a field view you style.
+
 A number is a text input because its draft is text: `"4."` is a fine thing to
 have typed, and `type="number"` would refuse to report it.
 

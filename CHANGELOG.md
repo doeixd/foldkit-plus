@@ -7,6 +7,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **One primitive for controls, and one for displays. Breaking.** A form's
+  `Control` is `{ kind, draft, shown, searches, data, parse?, unparsed? }` and a
+  Crud `Display` is `{ kind, shown, data, text }`; both were closed unions on
+  `_tag`. `Input.kind` and `Display.kind` make a kind, and the shipped ones
+  (`Input.Text`, `Input.Number`, `Input.RelationOne`, ..., `Display.Flag`, ...)
+  are made with them. Narrow with `Kind.is(control)` and read `control.data`
+  where code read `control._tag` and its fields. `foldkit-mixins-form` draws by a
+  table of `renderers` whose defaults are entries; `foldkit-mixins-crud` takes
+  `renderers` by kind beside `cells` by column. `FormMessages.notANumber` is
+  `unparsed`. `Input.search()` is a `ControlChange`, not a control.
+
 - **`foldkit-mixins-crud` 0.1.0 (new).** Draws a `Crud.list` as an accessible
   table and a `Crud.detail` as a description list through Mixins slots. Opening
   a row, sorting, and loading more are Messages the application passes in.
