@@ -102,6 +102,70 @@ const fail = (message: string): never => {
   throw new Error(`[foldkit-remote-drizzle] ${message}`)
 }
 
+type PlainKind = 'string' | 'number' | 'boolean'
+
+interface AstLike {
+  readonly _tag: string
+  readonly literal?: unknown
+  readonly types?: ReadonlyArray<AstLike>
+}
+
+const kindOfAst = (ast: AstLike): PlainKind | undefined => {
+  const members =
+    ast._tag === 'Union'
+      ? (ast.types ?? []).filter(member => member._tag !== 'Null' && member._tag !== 'Undefined')
+      : [ast]
+  const kinds = new Set(
+    members.map((member): PlainKind | undefined =>
+      member._tag === 'String'
+        ? 'string'
+        : member._tag === 'Number'
+          ? 'number'
+          : member._tag === 'Boolean'
+            ? 'boolean'
+            : member._tag === 'Literal' &&
+                (typeof member.literal === 'string' ||
+                  typeof member.literal === 'number' ||
+                  typeof member.literal === 'boolean')
+              ? (typeof member.literal as PlainKind)
+              : undefined,
+    ),
+  )
+  const [only] = kinds
+  return kinds.size === 1 ? only : undefined
+}
+
+/**
+ * What a field plainly holds, `null` and `undefined` set aside: text, a number,
+ * or a flag, the same decoded as on the wire. Anything else (a transformation, a
+ * struct, a mixed union) is `undefined`, and is not checked.
+ */
+const plainKind = (schema: Schema.Top): PlainKind | undefined => {
+  const decoded = kindOfAst(Schema.toType(schema).ast as unknown as AstLike)
+  const encoded = kindOfAst(Schema.toEncoded(schema).ast as unknown as AstLike)
+  return decoded === encoded ? decoded : undefined
+}
+
+/**
+ * Refuses a column that cannot hold the field: text under a number, a nullable
+ * column under a field that admits nothing. Only what both sides state plainly
+ * is compared, so a custom column or a transforming schema passes unchecked.
+ */
+const checkColumn = (name: string, field: string, schema: Schema.Top, column: AnyColumn): void => {
+  const holds = plainKind(schema)
+  // Drizzle may qualify the kind (`number int53`, `string uuid`); the kind comes first.
+  const [stored = ''] = (column.dataType as string).split(' ')
+  if (holds !== undefined && ['string', 'number', 'boolean'].includes(stored) && stored !== holds)
+    fail(
+      `field "${field}" on entity "${name}" is a ${holds}, but column "${column.name}" holds a ${stored}`,
+    )
+  const admits = Schema.is(Schema.toType(schema) as Schema.Codec<unknown>)
+  if (column.notNull === false && !admits(null) && !admits(undefined))
+    fail(
+      `field "${field}" on entity "${name}" sits on nullable column "${column.name}"; let its schema admit null, or make the column not null`,
+    )
+}
+
 const oneColumn = (
   stored: AnyStorage,
   relation: Domain.EntityMember & { readonly _tag: 'Relation' },
@@ -152,6 +216,11 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
         overrides[field] ??
         tableColumns[field] ??
         fail(`field "${field}" on entity "${name}" has no column; name one under "fields"`)
+    for (const [field, member] of Object.entries(
+      entity.fields as Readonly<Record<string, Domain.EntityMember>>,
+    ))
+      if (member._tag === 'Field')
+        checkColumn(name, field, member.schema as Schema.Top, columns[field]!)
 
     const relations = Object.create(null) as Record<string, RelationBinding>
     const members: Readonly<Record<string, Domain.EntityMember>> = entity.relations

@@ -299,6 +299,14 @@ derived member with no storage, a `one` stored as a `many` or the reverse, a
 count over a `one` relation, and a required `one` over a nullable column
 (declare the relation `{ optional: true }`).
 
+`bind` also refuses a column that plainly cannot hold its field: text under a
+number field (a Postgres `numeric` reads as text), a number under a flag, and a
+nullable column under a field whose schema admits neither `null` nor
+`undefined`. It compares only what both sides state plainly. A schema that
+transforms (`Schema.NumberFromString`), a mixed union, a struct, and a custom,
+JSON or date column all pass unchecked, so the check never refuses a mapping
+that could work.
+
 ## Field authorization stays in `RemoteServer`
 
 The adapter never decides what a principal may read. It compiles only the fields

@@ -2623,8 +2623,11 @@ Entity.relations(...)
 > `EntityBinding` over `Entity.from`'s descriptor, so the query compiler is
 > unchanged. Checked at definition: missing column, missing storage, storage of
 > the wrong cardinality, a count over a `one`, and a required `one` over a
-> nullable column. Not checked: column type against field schema, and
-> uniqueness for a one-to-one inverse (§33).
+> nullable column. A column's kind is checked against the field's schema, but
+> only where both state it plainly (text, number, flag, and nullability): a
+> check that guessed at transformations or custom columns would refuse mappings
+> that work, which is worse than saying nothing. Not checked: uniqueness for a
+> one-to-one inverse (§33).
 
 Introduce:
 

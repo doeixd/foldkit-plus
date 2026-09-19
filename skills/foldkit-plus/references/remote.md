@@ -345,7 +345,10 @@ source(Db.Post) // an ordinary binding
 Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ field }`; `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
 foreignColumn }`; derived = `{ relation, where? }` (a count). A required `one`
-over a nullable column throws: declare it `{ optional: true }`.
+over a nullable column throws: declare it `{ optional: true }`. So does a column
+that plainly cannot hold its field (text under a number, a nullable column under
+a field that admits no `null`); transforming schemas and custom columns pass
+unchecked.
 
 ## Gotchas
 

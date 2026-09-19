@@ -65,7 +65,8 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
 
 - `bind(entities, storage)` binds an `Entity.relate` result to tables: fields by
   column name, a relation as `{ field }`, `{ foreignKey }` or `{ through, … }`, a
-  derived member as a count. Bindings may point at each other. New dependency:
+  derived member as a count. Bindings may point at each other, and a column
+  that plainly cannot hold its field is refused at definition. New dependency:
   `foldkit-entity`.
 
 ### `foldkit-bundle`

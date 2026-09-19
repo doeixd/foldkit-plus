@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import {
@@ -343,5 +343,58 @@ describe('bind definition errors', () => {
     ).toThrow(
       'derived "summary" on entity "Thing" is stored as a count, but its schema is not a number',
     )
+  })
+})
+
+describe('bind column checks', () => {
+  const things = sqliteTable('things', {
+    id: text('id').primaryKey(),
+    size: integer('size').notNull(),
+    done: integer('done', { mode: 'boolean' }).notNull(),
+    note: text('note'),
+    stamp: text('stamp').notNull(),
+  })
+  const bindThing = (fields: Schema.Struct.Fields) =>
+    bind(
+      { Thing: Entity.define('Thing', Schema.Struct({ id: Id, ...fields })) } as never,
+      {
+        Thing: { table: things },
+      } as never,
+    )
+
+  it('accepts columns that hold what the fields do', () => {
+    expect(() =>
+      bindThing({
+        size: Schema.Number.check(Schema.isGreaterThan(0)),
+        done: Schema.Boolean,
+        note: Schema.NullOr(Schema.String),
+        stamp: Schema.Literals(['a', 'b']),
+      }),
+    ).not.toThrow()
+  })
+
+  it('refuses a column of another kind than the field', () => {
+    expect(() => bindThing({ size: Schema.String })).toThrow(
+      'field "size" on entity "Thing" is a string, but column "size" holds a number',
+    )
+    expect(() => bindThing({ stamp: Schema.Boolean })).toThrow(
+      'field "stamp" on entity "Thing" is a boolean, but column "stamp" holds a string',
+    )
+  })
+
+  it('refuses a nullable column under a field that admits nothing', () => {
+    expect(() => bindThing({ note: Schema.String })).toThrow(
+      'field "note" on entity "Thing" sits on nullable column "note"',
+    )
+    expect(() => bindThing({ note: Schema.optional(Schema.String) })).not.toThrow()
+  })
+
+  it('leaves alone what it cannot state plainly: a transformation, a mixed union', () => {
+    expect(() =>
+      bindThing({
+        stamp: Schema.NumberFromString,
+        size: Schema.Union([Schema.Number, Schema.String]),
+      }),
+    ).not.toThrow()
   })
 })
