@@ -71,7 +71,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   (`EditPostForm.Message.Changed(...)` wrapped in `Message.GotEditorMessage`).
 - **Read state:** `PostEditor.status(model)` is `Closed`, `Loading`, `NotFound`,
   `LoadFailed`, `Editing`, `Saving`, `Saved`, or `SaveFailed`;
-  `PostEditor.saveError(model)` is why a save failed. The form's Model is
+  `PostEditor.saveError(model)` is why a save failed, and
+  `PostEditor.target(model)` the id being edited (`null` for a new one). The form's Model is
   `model.editor.form`.
 - **Draw it:** give the editor's Bundle the form's view, lifted:
   `Editor.bundle.pipe(Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, view))))`,

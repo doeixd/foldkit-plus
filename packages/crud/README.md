@@ -107,7 +107,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
     what the form writes is fetched and retained like any Surface's requirement.
   - `after(update)`: wraps `update` so `sync` runs after every Message.
   - `sync`, the Step itself, if you compose `update` another way.
-  - `status(model)`, and `saveError(model)` while it is `SaveFailed`.
+  - `status(model)`, `saveError(model)` while it is `SaveFailed`, and
+    `target(model)`, the id being edited (`null` for a new one or when closed).
 - The save is a Command that needs `RemoteClient`, so the parent scope names it
   with `withServices<RemoteClient>()`.
 
