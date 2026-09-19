@@ -359,6 +359,20 @@ reads the id being edited as that type. A remover is asked about the id its
 are its Selection's own value, so `row.id` is a `PostId` when the Selection
 reads `id`.
 
+## Wiring a page
+
+Every placed piece has an `active`: what it requires of Remote while it is on
+screen. A piece whose `active` is not wired never loads, and says nothing.
+`Crud.actives` gathers them from the pieces themselves:
+
+```ts
+Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers }))
+```
+
+It takes a placed editor, list, or detail, and the pickers from `Crud.options`,
+and gives `{ posts: Posts.active, ... }`, for `Data.wiring` or
+`Data.subscriptions`.
+
 ## Limits
 
 - A list has no sorting, filtering, or selection state of its own: those are the

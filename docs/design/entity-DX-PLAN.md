@@ -42,7 +42,7 @@ through a `nested: { author: { inputs, checks } }` bag that recursed.
 **Plan.** `nested: { author: AuthorForm }` takes a form made with `Form.make`.
 One author form serves alone and nested. The options bag goes.
 
-## 4. Placing an editor takes eight steps
+## 4. Placing an editor takes eight steps (resolved: `Crud.actives`)
 
 **Friction.** `Bundle.declare`, spread fields, spread cases, `.at`, `Page.at`
 with `onOut`, wrap `update` in `after`, add `active`, and for a searching picker

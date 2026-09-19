@@ -134,12 +134,8 @@ export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 export const placements = Page.assemble(
   EditForm,
   RemoveForm,
-  Data.wiring({
-    posts: Posts.active,
-    authors: Authors.active,
-    editor: PostEditor.active,
-    chosen: pickers.active,
-  }),
+  // Every piece on the page, handed over: each one's requirement is gathered.
+  Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers })),
 )
 
 // `after` lets the editor show the loaded value whichever Message brings it.

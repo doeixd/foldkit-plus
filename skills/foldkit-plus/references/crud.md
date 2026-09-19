@@ -190,6 +190,9 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 
 ## Gotchas
 
+- **Wire every piece's `active`**, or it never loads: `Data.wiring(Crud.actives({ posts: Posts, editor: PostEditor, pickers }))`
+  gathers them from placed editors, lists, details, and `Crud.options` pickers.
+
 - **Sorting and filtering a list** are the query's input: keep them in your Model,
   return them from `.at({ input })`, and read them in the server query's `where`
   and `orderBy` (both may be functions of the input in `foldkit-remote-drizzle`).

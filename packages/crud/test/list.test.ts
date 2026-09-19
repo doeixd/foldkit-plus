@@ -189,6 +189,20 @@ describe('Crud.list', () => {
     expect(Crud.options(EditPost, [AuthorList]).active.projectionOf(searched)).toBeUndefined()
   })
 
+  it('gathers the requirement of every piece handed over, by the names given', () => {
+    const EditPost = Form.make(
+      'EditPost',
+      Entity.input(Blog.Post, Schema.Struct({ authorId: Schema.String }), {
+        authorId: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    const pickers = Crud.options(EditPost, [AuthorList])
+    const actives = Crud.actives({ authors: AuthorList, pickers })
+    expect(actives.authors).toBe(AuthorList.active)
+    expect(actives.pickers).toBe(pickers.active)
+    expect(Object.keys(actives)).toEqual(['authors', 'pickers'])
+  })
+
   it('reports a picker with no list over its target, and a list with no choice', () => {
     const EditPost = Form.make(
       'EditPost',

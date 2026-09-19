@@ -544,6 +544,22 @@ export const Crud = {
   },
 
   /**
+   * What the pieces on a page require of Remote, by the names given: a placed
+   * editor, list, or detail, or the pickers from `Crud.options`. It is each one's
+   * `active`, gathered, so handing the pieces over is enough and none is left out:
+   *
+   * ```ts
+   * Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers }))
+   * ```
+   */
+  actives: <const Pieces extends Readonly<Record<string, { readonly active: unknown }>>>(
+    pieces: Pieces,
+  ): { readonly [K in keyof Pieces]: Pieces[K]['active'] } =>
+    Object.fromEntries(Object.entries(pieces).map(([name, piece]) => [name, piece.active])) as {
+      readonly [K in keyof Pieces]: Pieces[K]['active']
+    },
+
+  /**
    * An editor for one form and the mutation its value feeds. The form's value
    * must be the mutation's input, which is what declaring the input once and
    * giving it to both guarantees.

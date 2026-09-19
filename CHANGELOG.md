@@ -7,6 +7,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-crud`: `Crud.actives({ ...pieces })` gathers the `active` of every placed
+  editor, list, detail, and `Crud.options` result, for `Data.wiring`.
+
 - **`foldkit-form`: a nested key takes a form. Breaking.** `nested: { author: AuthorForm }`
   replaces the recursing options bag; the form that edits an author alone is the
   one a post nests. `form.nested.author` is that form, typed, and
