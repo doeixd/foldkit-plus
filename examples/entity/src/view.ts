@@ -5,6 +5,7 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { ListView } from 'foldkit-mixins-crud'
+import { PostSort } from './operations.js'
 import {
   EditForm,
   Message,
@@ -28,19 +29,8 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
       page: Posts.page(model),
       onOpen: row => Message.OpenedPost({ id: row.id }),
       onMore: Message.RequestedMorePosts(),
-      sort: {
-        title: {
-          direction:
-            model.postSort === 'title'
-              ? 'asc'
-              : model.postSort === 'title-desc'
-                ? 'desc'
-                : undefined,
-          message: Message.SortedPosts({
-            sort: model.postSort === 'title' ? 'title-desc' : 'title',
-          }),
-        },
-      },
+      // Every order the list offers, with its state and the Message a click sends.
+      sort: PostSort.inputs(model.postSort, sort => Message.SortedPosts({ sort })),
       words: { loading: 'Loading posts…', empty: 'No posts.' },
     },
     h,

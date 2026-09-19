@@ -193,6 +193,11 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 - **Wire every piece's `active`**, or it never loads: `Data.wiring(Crud.actives({ posts: Posts, editor: PostEditor, pickers }))`
   gathers them from placed editors, lists, details, and `Crud.options` pickers.
 
+- **Sort state written once:** `const PostSort = Sort.make(['title', 'created'])`
+  gives `PostSort.Schema` (Model field and query input), `none`, `toggle(current, column)`,
+  and `inputs(current, sort => Message.Sorted({ sort }))` for `ListView`'s `sort`.
+  Server: `orderBy: ({ sort }) => sortTerms(sort, { title: posts.title })` from
+  `foldkit-remote-drizzle`.
 - **Sorting and filtering a list** are the query's input: keep them in your Model,
   return them from `.at({ input })`, and read them in the server query's `where`
   and `orderBy` (both may be functions of the input in `foldkit-remote-drizzle`).

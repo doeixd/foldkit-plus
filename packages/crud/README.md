@@ -359,6 +359,29 @@ reads the id being edited as that type. A remover is asked about the id its
 are its Selection's own value, so `row.id` is a `PostId` when the Selection
 reads `id`.
 
+## Sorting a list
+
+How a list is sorted is your state and the query's input. `Sort` writes that
+state down once, so the Model, the header clicks, and the server agree:
+
+```ts
+const PostSort = Sort.make(['title', 'created']) // the orders offered, by name
+
+const PostsQuery = Query.make('Posts', {
+  Input: { sort: PostSort.Schema },
+  Result: Query.connection(Blog.Post),
+})
+// Model: `postSort: PostSort.Schema`, starting at `PostSort.none`
+// update: `SortedPosts` sets `postSort` to the state the Message carries
+
+PostSort.toggle(model.postSort, 'title') // asc, then desc, then the server's own order
+PostSort.inputs(model.postSort, sort => Message.SortedPosts({ sort })) // a drawn table's `sort`
+```
+
+`Sort` holds nothing. A name is an order the server offers, never a column; on
+the server, `foldkit-remote-drizzle`'s `sortTerms(sort, { title: posts.title })`
+says what each name means and ignores any other.
+
 ## Wiring a page
 
 Every placed piece has an `active`: what it requires of Remote while it is on

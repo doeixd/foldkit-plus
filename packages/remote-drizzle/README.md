@@ -581,6 +581,10 @@ query(PostsQuery, {
 })
 ```
 
+- `sortTerms(sort, { title: posts.title, created: posts.createdAt })` turns the
+  state `foldkit-crud`'s `Sort` makes (`{ by, direction }`, or `null`) into order
+  terms: `orderBy: ({ sort }) => sortTerms(sort, { ... })`. A name the map lacks,
+  or no sort, is no terms, which orders by id.
 - The input should name an order (`'title'`), never a column: which columns may
   sort is the server's to decide.
 - The input is part of a connection's identity, so each order is its own

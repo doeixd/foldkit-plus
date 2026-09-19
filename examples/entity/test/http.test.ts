@@ -54,11 +54,17 @@ describe('the HTTP transport the browser uses', () => {
       return page._tag === 'Ready' ? page.value.items.map(row => row.title) : page._tag
     }
 
-    const byTitle = update(initial(), Message.SortedPosts({ sort: 'title' })).model
+    const byTitle = update(
+      initial(),
+      Message.SortedPosts({ sort: { by: 'title', direction: 'asc' } }),
+    ).model
     const [first, second] = (await titles(byTitle)) as ReadonlyArray<string>
     expect(first! < second!).toBe(true)
 
-    const reversed = update(byTitle, Message.SortedPosts({ sort: 'title-desc' })).model
+    const reversed = update(
+      byTitle,
+      Message.SortedPosts({ sort: { by: 'title', direction: 'desc' } }),
+    ).model
     expect(await titles(reversed)).toEqual([second, first])
 
     const searched = update(reversed, Message.SearchedPosts({ text: 'Engine' })).model

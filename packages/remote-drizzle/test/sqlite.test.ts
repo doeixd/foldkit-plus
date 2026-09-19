@@ -14,6 +14,7 @@ import {
   query,
   source,
   type AnyEntityBinding,
+  sortTerms,
 } from '../src/index.js'
 
 const users = sqliteTable('users', {
@@ -345,6 +346,24 @@ describe('a query ordered by its input', () => {
     } finally {
       sqlite.close()
     }
+  })
+})
+
+describe('sortTerms', () => {
+  const columns = { name: projects.name, created: projects.createdAt }
+
+  it('reads the order a client asked for through the columns the server offers', () => {
+    expect(sortTerms({ by: 'name', direction: 'desc' }, columns)).toEqual([
+      { column: projects.name, direction: 'desc' },
+    ])
+  })
+
+  it('gives no terms for no sort, or for a name the server does not offer', () => {
+    expect(sortTerms(null, columns)).toEqual([])
+    expect(sortTerms(undefined, columns)).toEqual([])
+    expect(sortTerms({ by: 'ownerId', direction: 'asc' }, columns)).toEqual([])
+    // Not a column of the map, however it is spelled.
+    expect(sortTerms({ by: 'constructor', direction: 'asc' }, columns)).toEqual([])
   })
 })
 

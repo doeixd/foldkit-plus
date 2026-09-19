@@ -4,6 +4,7 @@
  * submitted value is this mutation's input by construction.
  */
 import { Schema } from 'effect'
+import { Sort } from 'foldkit-crud'
 import { Mutation, Query } from 'foldkit-remote'
 import { Blog, EditPostInput, PostId, WritePostInput } from './domain.js'
 
@@ -12,9 +13,11 @@ export const EditPostMutation = Mutation.make('EditPost', {
   Output: { id: PostId },
 })
 
-/** The orders the post list offers. The server decides what each one means. */
-export const PostSort = Schema.Literals(['oldest', 'title', 'title-desc'])
-export type PostSort = typeof PostSort.Type
+/**
+ * The orders the post list offers, by name. The client toggles them and the
+ * server decides what each one means; `Sort` is that state written once.
+ */
+export const PostSort = Sort.make(['title'])
 
 /**
  * Posts, searched and sorted. Which rows and in what order is the query's input,
@@ -23,7 +26,7 @@ export type PostSort = typeof PostSort.Type
  * relation picker.
  */
 export const PostsQuery = Query.make('Posts', {
-  Input: { search: Schema.String, sort: PostSort },
+  Input: { search: Schema.String, sort: PostSort.Schema },
   Result: Query.connection(Blog.Post),
 })
 export const AuthorsQuery = Query.make('Authors', {

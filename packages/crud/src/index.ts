@@ -741,3 +741,4 @@ export const Crud = {
 }
 
 export { Display, type DisplayColumn, type DisplayKind, type DisplayWords } from './display.js'
+export { Sort, type SortState, type SortedColumn } from './sort.js'

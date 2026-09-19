@@ -8,7 +8,7 @@ import { eq, like } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import { bind, databaseLayer, query, returning, source } from 'foldkit-remote-drizzle'
+import { bind, databaseLayer, query, returning, source, sortTerms } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog, PostId } from './domain.js'
 import {
@@ -133,11 +133,9 @@ export const openServer = () => {
         query(PostsQuery, {
           entity: Db.Post,
           where: ({ search }) => (search === '' ? undefined : like(posts.headline, `%${search}%`)),
-          // The order reads the input. A title is not unique, so the adapter breaks ties by id.
-          orderBy: ({ sort }) =>
-            sort === 'oldest'
-              ? [{ column: posts.id, direction: 'asc' }]
-              : [{ column: posts.headline, direction: sort === 'title' ? 'asc' : 'desc' }],
+          // The order reads the input: `title` is a name, and this is what it means here.
+          // A title is not unique, so the adapter breaks ties by id; no sort is id order.
+          orderBy: ({ sort }) => sortTerms(sort, { title: posts.headline }),
         }),
         query(AuthorsQuery, {
           entity: Db.Author,

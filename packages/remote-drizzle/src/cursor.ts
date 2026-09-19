@@ -32,6 +32,20 @@ export interface OrderTerm {
   readonly direction: 'asc' | 'desc'
 }
 
+/**
+ * The order a client asked for, as order terms. `sort` names one of the orders
+ * the server offers, never a column: `columns` is the server's say in what each
+ * name means. A name it does not offer, or no sort at all, is no terms, which a
+ * query orders by id.
+ */
+export const sortTerms = (
+  sort: { readonly by: string; readonly direction: 'asc' | 'desc' } | null | undefined,
+  columns: Readonly<Record<string, AnyColumn>>,
+): readonly OrderTerm[] => {
+  if (sort === null || sort === undefined || !Object.hasOwn(columns, sort.by)) return []
+  return [{ column: columns[sort.by]!, direction: sort.direction }]
+}
+
 export type Traversal = 'forward' | 'backward'
 
 /** Equality that treats a null cursor value as `IS NULL`, not `= NULL`. */

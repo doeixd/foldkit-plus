@@ -52,7 +52,7 @@ loads and says nothing.
 **Plan.** `Crud.actives(...)` collects every requirement of the pieces given, so
 none is forgotten. The explicit pieces stay; this is what most pages call.
 
-## 5. Sorting is written three times
+## 5. Sorting is written three times (resolved: `Sort`, `sortTerms`)
 
 **Friction.** The example wrote `'title' | 'title-desc'` toggling in the Model,
 in the view's `sort` input, and in the server's `orderBy`.

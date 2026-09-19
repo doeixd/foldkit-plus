@@ -7,6 +7,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-crud`: `Sort.make(columns)` is a list's sort state written once: its
+  schema, `toggle`, and the `sort` input a drawn table takes.
+  `foldkit-remote-drizzle`: `sortTerms(sort, columns)` reads that state into order
+  terms through the columns the server offers.
+
 - `foldkit-crud`: `Crud.actives({ ...pieces })` gathers the `active` of every placed
   editor, list, detail, and `Crud.options` result, for `Data.wiring`.
 

@@ -63,7 +63,7 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
   // What the post list shows is the page's state, and the query's input.
   postSearch: Schema.String,
-  postSort: PostSort,
+  postSort: PostSort.Schema,
   ...EditSlot.fields,
   ...RemoveSlot.fields,
 })
@@ -77,7 +77,7 @@ export const Message = defineMessageUnion({
   ClosedEditor: {},
   RequestedMorePosts: {},
   SearchedPosts: { text: Schema.String },
-  SortedPosts: { sort: PostSort },
+  SortedPosts: { sort: PostSort.Schema },
 })
 export type Message = typeof Message.Type
 
@@ -164,7 +164,7 @@ export const update = PostEditor.after(
 )
 
 export const initial = (): Model =>
-  placements.initial({ remote: Remote.initial, postSearch: '', postSort: 'oldest' }).model
+  placements.initial({ remote: Remote.initial, postSearch: '', postSort: PostSort.none }).model
 
 export const PostSurface = App.surface('PostPage', {
   params: { postId: Schema.String },

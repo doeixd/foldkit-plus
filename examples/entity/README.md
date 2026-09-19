@@ -166,7 +166,9 @@ The post list's search box and its sortable Title header change two Model
 fields, `postSearch` and `postSort`. Those are `PostsQuery`'s input, so the list
 now names another connection, and Remote fetches it because it is on screen. No
 Message asks for data. On the server the same input picks the `where` and the
-`orderBy`; the sort is a name (`'title'`), never a column.
+`orderBy`; the sort is a name (`'title'`), never a column. `Sort.make(['title'])`
+is that state written once: the Model's field, the header's toggle, and the
+query's input, with `sortTerms` giving it meaning on the server.
 
 ### A picker that searches
 
