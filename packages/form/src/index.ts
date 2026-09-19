@@ -51,6 +51,30 @@ export interface FormControl<Key extends string = string> {
   readonly member: InputMember
 }
 
+/** The key a message is about, for wording that names it. */
+export interface MessageField<Key extends string = string> {
+  readonly key: Key
+  readonly label: string
+  readonly control: Control
+}
+
+/**
+ * The form's words. A rule's own wording belongs on the rule
+ * (`Schema.isMinLength(3, { message: '…' })`) and arrives here as `message`;
+ * these cover what the form says itself, and let an application translate or
+ * rewrite what Schema says by default.
+ */
+export interface FormMessages<Key extends string = string> {
+  /** An empty draft the schema does not admit. Default `Required`. */
+  readonly required?: (field: MessageField<Key>) => string
+  /** A `Number` control whose draft is not a number. Default `Enter a number`. */
+  readonly notANumber?: (field: MessageField<Key>) => string
+  /** A draft the key's schema rejects. `message` is the check's own, or Schema's. Default: `message`. */
+  readonly invalid?: (field: MessageField<Key>, message: string) => string
+  /** A failure of the input as a whole: a rule that spans keys. Default: `message`. */
+  readonly form?: (message: string) => string
+}
+
 interface Label {
   readonly label: string
   readonly description?: string | undefined
@@ -95,6 +119,7 @@ const planOf = (
   schema: Schema.Top,
   member: InputMember,
   override: Control | undefined,
+  messages: FormMessages,
 ): Plan => {
   const control =
     override ??
@@ -112,19 +137,6 @@ const planOf = (
   if (samples.length > 0 && !samples.some(accepts))
     fail(name, `"${key}" is edited as ${control._tag}, but its schema accepts no such value`)
 
-  const check = (draft: Draft): Checked => {
-    if (isBlank(control, draft)) {
-      // What "nothing entered" submits is whatever the schema admits for it.
-      for (const nothing of [undefined, null, empty])
-        if (accepts(nothing)) return Result.succeed(nothing)
-      return Result.fail('Required')
-    }
-    const value = control._tag === 'Number' ? Number(draft) : draft
-    if (typeof value === 'number' && !Number.isFinite(value)) return Result.fail('Enter a number')
-    return Result.mapError(decode(value), error => error.message)
-  }
-
-  const required = kind !== 'flag' && Result.isFailure(check(empty))
   const own =
     member._tag === 'Unmapped' ? undefined : member._tag === 'Field' ? member : member.relation
   const [labelled] = own === undefined ? [] : labelKey.get(own.metadata)
@@ -136,6 +148,27 @@ const planOf = (
     .map(entry => entry.description)
     .find(value => typeof value === 'string')
 
+  const label = (title as string | undefined) ?? labelled?.label ?? key
+  const field: MessageField = { key, label, control }
+  const say = {
+    required: messages.required?.(field) ?? 'Required',
+    notANumber: messages.notANumber?.(field) ?? 'Enter a number',
+    invalid: (message: string) => messages.invalid?.(field, message) ?? message,
+  }
+
+  const check = (draft: Draft): Checked => {
+    if (isBlank(control, draft)) {
+      // What "nothing entered" submits is whatever the schema admits for it.
+      for (const nothing of [undefined, null, empty])
+        if (accepts(nothing)) return Result.succeed(nothing)
+      return Result.fail(say.required)
+    }
+    const value = control._tag === 'Number' ? Number(draft) : draft
+    if (typeof value === 'number' && !Number.isFinite(value)) return Result.fail(say.notANumber)
+    return Result.mapError(decode(value), error => say.invalid(error.message))
+  }
+
+  const required = kind !== 'flag' && Result.isFailure(check(empty))
   return {
     key,
     control,
@@ -144,11 +177,11 @@ const planOf = (
     check,
     required,
     member,
-    label: (title as string | undefined) ?? labelled?.label ?? key,
+    label,
     description: (description as string | undefined) ?? labelled?.description,
     rules: FieldValidation.makeRules<Draft>({
       isEmpty: draft => isBlank(control, draft),
-      ...(required ? { required: 'Required' } : {}),
+      ...(required ? { required: say.required } : {}),
       rules: [
         [
           draft => Result.isSuccess(check(draft)),
@@ -180,7 +213,11 @@ export const Form = {
   make: <const Name extends string, E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     name: Name,
     input: EntityInput<E, Fields, { readonly [K in keyof Fields]: InputMember }>,
-    options: { readonly inputs?: { readonly [K in keyof Fields]?: Control } } = {},
+    options: {
+      readonly inputs?: { readonly [K in keyof Fields]?: Control }
+      /** The form's own words, and a rewrite of Schema's: for wording and for translation. */
+      readonly messages?: FormMessages<keyof Fields & string>
+    } = {},
   ) => {
     type Key = keyof Fields & string
     type Value = Schema.Struct.Type<Fields>
@@ -197,6 +234,7 @@ export const Form = {
           input.schema.fields[key] as Schema.Top,
           input.members[key],
           overrides[key],
+          (options.messages ?? {}) as FormMessages,
         ),
       ]),
     ) as Readonly<Record<Key, Plan>>
@@ -263,7 +301,9 @@ export const Form = {
       })
       return Result.match(decodeInput(Object.fromEntries(entries)), {
         onSuccess: value => ({ model: validated, value }),
-        onFailure: error => ({ model: { fields, errors: [error.message] } }),
+        onFailure: error => ({
+          model: { fields, errors: [options.messages?.form?.(error.message) ?? error.message] },
+        }),
       })
     }
 

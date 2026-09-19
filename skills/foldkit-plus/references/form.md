@@ -80,6 +80,10 @@ const RenameForm = Page.at(Slot, {
   schema's shape. No match throws at `Form.make`, naming the key.
 - **Label:** `Schema.String.annotate({ title, description })` on the input key or
   the Entity field. A relation takes `Form.label('Author')` as Entity metadata.
+- **Word or translate it:** put a rule's words on the rule
+  (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
+  option for the form's own (`required`, `notANumber`), a rewrite of Schema's
+  (`invalid(field, message)`), and cross-key failures (`form(message)`).
 - **Carry a key without showing it** (the id being edited):
   `inputs: { id: Input.hidden() }`, then set it with `fill`.
 - **Read any key's state while walking `controls`:** `Rename.field(model.rename, key)`
@@ -138,7 +142,7 @@ those throws a two-owners conflict at render.
 - `onOut` is required when placing; omitting it is a type error.
 - A `Changed` with a draft of the wrong kind for the key (a string for a toggle)
   is ignored, not stored.
-- Flat inputs only, no async validation, and messages are Effect Schema's own.
+- Flat inputs only, and no async validation.
 
 ## See also
 

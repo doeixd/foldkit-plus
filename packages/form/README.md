@@ -162,6 +162,38 @@ Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Valid`,
 `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,
 and the rest.
 
+### Messages
+
+Say a rule in its own words on the rule, where Effect Schema already takes
+them:
+
+```ts
+Schema.String.check(Schema.isMinLength(3, { message: 'Give it at least 3 letters' }))
+```
+
+The form has three things to say for itself, and `messages` words them, or
+rewrites what Schema says by default, which is also how a form is translated:
+
+```ts
+const Rename = Form.make('Rename', Entity.input(Post, RenameInput), {
+  messages: {
+    required: field => `${field.label} is missing`,
+    notANumber: field => `${field.label} must be a number`,
+    invalid: (field, message) => `${field.label}: ${message}`,
+    form: message => message,
+  },
+})
+```
+
+| Message | Said when | Default |
+| --- | --- | --- |
+| `required(field)` | an empty draft the schema does not admit | `Required` |
+| `notANumber(field)` | a `Number` control whose draft is not a number | `Enter a number` |
+| `invalid(field, message)` | the key's schema rejects the draft; `message` is the check's own, or Schema's | `message` |
+| `form(message)` | the input as a whole fails: a rule that spans keys | `message` |
+
+`field` is the key, its label, and its control.
+
 ## Editing existing values
 
 `fill` shows values as drafts, for an edit form. Keys you do not pass keep their
@@ -195,4 +227,3 @@ A relation is loaded as a ref and read back as the id the form holds. See
 - No asynchronous validation; `Validating` is never entered.
 - Flat inputs only: a key whose value is itself a struct or a list of structs
   has no control.
-- Messages are in English and come from Effect Schema's own errors.

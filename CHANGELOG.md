@@ -21,7 +21,8 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   `Entity.annotate` / `annotateMembers`, and, experimental, `Entity.input` with
   `selectFor` and `valuesFor`.
 - **`foldkit-form` 0.1.0.** A headless form as a Bundle over core
-  `fieldValidation`, built from an `Entity.input`.
+  `fieldValidation`, built from an `Entity.input`, with its words supplied or
+  translated through `messages`.
 - **`foldkit-mixins-form` 0.1.0.** Draws a `foldkit-form` form as accessible
   HTML with every element a Mixins Slot.
 - **`foldkit-admin` 0.1.0.** `Admin.editor`: a form, the Remote mutation its

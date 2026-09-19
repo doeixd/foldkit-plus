@@ -298,3 +298,85 @@ describe('Form update', () => {
     expect(run('2', '5').outMessage).toMatchObject({ value: { low: 2, high: 5 } })
   })
 })
+
+describe('Form messages', () => {
+  const Rated = Schema.Struct({
+    title: Schema.String.check(Schema.isMinLength(3, { message: 'Give it at least 3 letters' })),
+    rating: Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 5 })),
+  })
+  const input = Entity.input(Cms, Rated)
+  const errorsOf = (form: ReturnType<typeof Form.make<'F', typeof Cms, typeof Rated.fields>>) => {
+    const send = (key: 'title' | 'rating', value: string) =>
+      form.bundle.update(
+        form.bundle.init(undefined).model,
+        form.Message.Changed({ key, value }),
+        undefined,
+      ).model.fields[key]
+    const blurred = form.bundle.update(
+      form.bundle.init(undefined).model,
+      form.Message.Blurred({ key: 'title' }),
+      undefined,
+    ).model.fields.title
+    return {
+      required: blurred._tag === 'Invalid' ? blurred.errors[0] : undefined,
+      rule: send('title', 'ab'),
+      notANumber: send('rating', 'five'),
+      range: send('rating', '9'),
+    }
+  }
+
+  it('says a rule in the words written on the rule, and its own in plain English', () => {
+    const said = errorsOf(Form.make('F', input))
+
+    expect(said.required).toBe('Required')
+    expect(said.rule).toMatchObject({ errors: ['Give it at least 3 letters'] })
+    expect(said.notANumber).toMatchObject({ errors: ['Enter a number'] })
+  })
+
+  it('takes every word from the application, naming the field', () => {
+    const said = errorsOf(
+      Form.make('F', input, {
+        messages: {
+          required: field => `${field.label} fehlt`,
+          notANumber: field => `${field.label}: bitte eine Zahl`,
+          invalid: (field, message) =>
+            field.key === 'rating' ? 'Zwischen 1 und 5' : `${field.label}: ${message}`,
+        },
+      }),
+    )
+
+    expect(said.required).toBe('Title fehlt')
+    expect(said.notANumber).toMatchObject({ errors: ['rating: bitte eine Zahl'] })
+    expect(said.range).toMatchObject({ errors: ['Zwischen 1 und 5'] })
+    // The rule's own message still arrives, for `invalid` to keep or replace.
+    expect(said.rule).toMatchObject({ errors: ['Title: Give it at least 3 letters'] })
+  })
+
+  it('rewrites a failure that spans keys', () => {
+    const Range = Form.make(
+      'Range',
+      Entity.input(
+        Cms,
+        Schema.Struct({ low: Schema.Number, high: Schema.Number }).check(
+          Schema.makeFilter(range => range.low <= range.high || 'low>high'),
+        ),
+        { low: Entity.unmapped, high: Entity.unmapped },
+      ),
+      {
+        messages: {
+          form: message => (message.includes('low>high') ? 'Von muss vor Bis liegen' : message),
+        },
+      },
+    )
+    const model = [
+      Range.Message.Changed({ key: 'low', value: '5' }),
+      Range.Message.Changed({ key: 'high', value: '2' }),
+      Range.Message.Submitted(),
+    ].reduce(
+      (current, message) => Range.bundle.update(current, message, undefined).model,
+      Range.bundle.init(undefined).model,
+    )
+
+    expect(model.errors).toEqual(['Von muss vor Bis liegen'])
+  })
+})
