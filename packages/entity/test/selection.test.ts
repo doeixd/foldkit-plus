@@ -132,3 +132,51 @@ describe('Entity.select', () => {
     expect(() => selectUntyped(Blog.Post, spec)).toThrow(message)
   })
 })
+
+describe('Entity.page', () => {
+  const PostWithPage = Entity.select(Blog.Post, {
+    title: true,
+    comments: Entity.page(CommentBody, { first: 2 }),
+  })
+
+  it('reads a many relation as a page of the Selection it pages', () => {
+    const value = {
+      title: 'Hello',
+      comments: { items: [{ body: 'First' }], hasNext: true, hasPrevious: false },
+    }
+    expect(decodes(PostWithPage, value)).toBe(true)
+    // A page is not the list.
+    expect(decodes(PostWithPage, { title: 'Hello', comments: [{ body: 'First' }] })).toBe(false)
+  })
+
+  it('keeps the Selection and the window for whoever interprets it', () => {
+    const page = PostWithPage.members.comments
+    expect(page.selection).toBe(CommentBody)
+    expect(page.window).toEqual({ first: 2 })
+    expect(Object.isFrozen(page)).toBe(true)
+  })
+
+  it('takes first or last, a non-negative integer, and a cursor on the matching side', () => {
+    expect(() => Entity.page(CommentBody, {})).toThrow(/takes first or last/)
+    expect(() => Entity.page(CommentBody, { first: 1, last: 1 })).toThrow(/takes first or last/)
+    expect(() => Entity.page(CommentBody, { first: 1.5 })).toThrow(/non-negative integer/)
+    expect(() => Entity.page(CommentBody, { last: -1 })).toThrow(/non-negative integer/)
+    expect(() => Entity.page(CommentBody, { first: 1, before: 'c' })).toThrow(
+      /first after a cursor/,
+    )
+    expect(() => Entity.page(CommentBody, { last: 1, after: 'c' })).toThrow(/last before one/)
+    expect(Entity.page(CommentBody, { last: 3, before: 'c' }).window).toEqual({
+      last: 3,
+      before: 'c',
+    })
+  })
+
+  it('refuses a page of a one relation, and a page of another Entity', () => {
+    expect(() =>
+      selectUntyped(Blog.Post, { author: Entity.page(AuthorOption, { first: 1 }) }),
+    ).toThrow(/"author" is one Author, so it has no pages/)
+    expect(() =>
+      selectUntyped(Blog.Post, { comments: Entity.page(AuthorOption, { first: 1 }) }),
+    ).toThrow(/"comments" pages a Selection of Comment/)
+  })
+})

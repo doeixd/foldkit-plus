@@ -58,3 +58,21 @@ expectTypeOf(Schema.decodeUnknownSync(AuthorOption.schema)).returns.toEqualTypeO
   readonly id: string
   readonly name: string
 }>()
+
+{
+  const Body = Entity.select(Blog.Comment, { body: true })
+  const Paged = Entity.select(Blog.Post, { comments: Entity.page(Body, { first: 2 }) })
+  expectTypeOf<typeof Paged.schema.Type>().toEqualTypeOf<{
+    readonly comments: {
+      readonly items: ReadonlyArray<{ readonly body: string }>
+      readonly hasNext: boolean
+      readonly hasPrevious: boolean
+    }
+  }>()
+
+  const Name = Entity.select(Blog.Author, { name: true })
+  // @ts-expect-error a one relation has no pages
+  Entity.select(Blog.Post, { author: Entity.page(Name, { first: 1 }) })
+  // @ts-expect-error a page of another Entity than the relation's target
+  Entity.select(Blog.Post, { comments: Entity.page(Name, { first: 1 }) })
+}

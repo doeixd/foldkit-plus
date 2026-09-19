@@ -85,3 +85,14 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   readonly title: string
   readonly author: EntityRef<'Author'>
 }>()
+
+{
+  const CommentBody = Entity.select(Blog.Comment, { body: true })
+
+  const PostWithComments = Entity.select(Blog.Post, {
+    title: true,
+    comments: Entity.page(CommentBody, { first: 10 }),
+  })
+  // { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
+  void PostWithComments
+}

@@ -179,7 +179,8 @@ describe('one Entity declaration, client to database', () => {
     tags: true,
   })
 
-  it('reads an Entity Selection through RemoteServer and SQL into the value it describes', async () => {
+  /** What the client reads of `p1` after one round trip through RemoteServer and SQL. */
+  const through = async (selection: Parameters<typeof Selection.from>[0]) => {
     const definition = Remote.define({ entities: Object.values(Db) })
     const store = { current: emptyStore }
     const bound = {
@@ -187,7 +188,7 @@ describe('one Entity declaration, client to database', () => {
       contract: { name: 'test' },
       store: { get: () => ({ ...initialRemoteModel, entities: store.current }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
-    const projection = Remote.select(bound, Selection.from(Card))('p1')
+    const projection = Remote.select(bound, Selection.from(selection))('p1')
     const requests = requirementsOf(projection)
 
     const server = RemoteServer.make({
@@ -204,8 +205,11 @@ describe('one Entity declaration, client to database', () => {
     } finally {
       sqlite.close()
     }
+    return projection.read(undefined)
+  }
 
-    const read = projection.read(undefined)
+  it('reads an Entity Selection through RemoteServer and SQL into the value it describes', async () => {
+    const read = await through(Card)
     const value = {
       name: 'Alpha',
       commentCount: 2,
@@ -222,6 +226,20 @@ describe('one Entity declaration, client to database', () => {
     }
     expect(read).toEqual({ _tag: 'Ready', value })
     expect(Schema.is(Card.schema)(value)).toBe(true)
+  })
+
+  it('reads a page of a many relation as SQL windows it', async () => {
+    const Body = Entity.select(Domain.Comment, { body: true })
+    const Paged = Entity.select(Domain.Project, {
+      name: true,
+      comments: Entity.page(Body, { first: 1 }),
+    })
+    const value = {
+      name: 'Alpha',
+      comments: { items: [{ body: 'b' }], hasNext: true, hasPrevious: false },
+    }
+    expect(await through(Paged)).toEqual({ _tag: 'Ready', value })
+    expect(Schema.is(Paged.schema)(value)).toBe(true)
   })
 })
 

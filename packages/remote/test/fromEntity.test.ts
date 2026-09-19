@@ -230,3 +230,51 @@ describe('a domain that registers Entities directly', () => {
     )
   })
 })
+
+describe('Selection.from an Entity page', () => {
+  const CommentLine = Domain.select(Work.Comment, { body: true, author: UserSummary })
+  const Paged = Domain.select(Work.Project, {
+    name: true,
+    comments: Domain.page(CommentLine, { first: 1 }),
+  })
+  const projection = Remote.select(AppRemote, Selection.from(Paged))('p1')
+
+  it('is the relation connection a hand-written Remote Selection would state', () => {
+    expect(requirementsOf(projection)).toEqual([
+      {
+        entity: 'Project',
+        id: 'p1',
+        fields: ['name', 'comments'],
+        windows: { comments: { first: 1 } },
+        relations: {
+          comments: {
+            entity: 'Comment',
+            fields: ['body', 'author'],
+            relations: { author: { entity: 'User', fields: ['id', 'name'] } },
+          },
+        },
+      },
+    ])
+  })
+
+  it('reads the page the store holds into the value the Entity Selection describes', () => {
+    const store = writeEntity(
+      fullStore(),
+      entityKey('Project', 'p1'),
+      { comments: { refs: ['Comment:c1'], hasNext: true, hasPrevious: false } },
+      undefined,
+      { comments: '[1,null,null,null]' },
+    )
+    const read = projection.read(root(store))
+    const value = {
+      name: 'Apollo',
+      comments: {
+        items: [{ body: 'hi', author: { id: 'u2', name: 'grace' } }],
+        hasNext: true,
+        hasPrevious: false,
+      },
+    }
+    expect(read).toEqual({ _tag: 'Ready', value })
+    expect(Schema.is(Paged.schema)(value)).toBe(true)
+  })
+})

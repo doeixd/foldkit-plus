@@ -835,6 +835,14 @@ AuthorSummary | null
 
 # 14. Pagination remains an interpreter extension
 
+> **Status: revised.** The *shape* of a page moved into `foldkit-entity` as
+> `Entity.page(selection, window)`; what stays with the interpreter is what this
+> section was protecting: cursors, ordering, and fetching. A Selection that
+> could not say "the first ten" forced every paged view down to Remote's
+> descriptor layer, which made the documented path the incomplete one. Remote
+> compiles a page to its existing `Selection.connection`, and `remote-drizzle`
+> windows it in SQL with no change.
+
 Do not force pagination into `foldkit-entity`.
 
 Pagination is a data-access concern.
@@ -2555,10 +2563,11 @@ derived schema included
 > table-derived `entity()` share, not a second way to declare a domain. It is
 > the kernel path; `foldkit-entity` is the documented one.
 >
-> Still open: paginated relations, which an Entity Selection cannot express
-> (§14). A page is a view concept (first N, has-next) as neutral as `many` is
-> an array, so the likely home is `foldkit-entity`, with cursors left to the
-> interpreter.
+> Paginated relations are built as `Entity.page` (§14): a page is a view concept
+> (first N, has-next) as neutral as `many` is an array, and cursors stay with
+> the interpreter. One limit is Remote's own and older than this: a relation
+> field of one entity is stored whole or as one window, so the same relation
+> read both ways at once by two views is not supported.
 
 Change Remote's entity registry to consume foundational Entities.
 

@@ -142,12 +142,35 @@ PostRow.schema.Type
 | Field, Derived | `true` | the member's own schema, checks included |
 | Relation | `true` | an `EntityRef`: `{ entity, id }` |
 | Relation | a Selection of its target | that Selection's value |
+| `many` Relation | `Entity.page(selection, window)` | a `Page` of that Selection's values |
 
 A `many` relation yields an array, and an optional `one` is nullable. A
 Selection is an ordinary value, so `AuthorOption` above is declared once and
 reused. Nesting is always explicit, which is what keeps a cycle finite.
 
-An unknown member, a nested Selection on a field, and a Selection of the wrong
+### A page of a relation
+
+A post may have ten thousand comments. `Entity.page` reads a `many` relation a
+page at a time:
+
+```ts
+const CommentBody = Entity.select(Blog.Comment, { body: true })
+
+const PostWithComments = Entity.select(Blog.Post, {
+  title: true,
+  comments: Entity.page(CommentBody, { first: 10 }),
+})
+// { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
+```
+
+The window is `first` or `last`, with `after` or `before` a cursor. A page is a
+view's shape, as neutral as "`many` means an array", so it is declared here.
+What a cursor is and how the rows are ordered belong to whoever fetches: the
+cursor is an opaque string an earlier answer handed out. Reading on is another
+Selection with another window.
+
+An unknown member, a nested Selection on a field, a page of a `one` relation,
+and a Selection of the wrong
 Entity are type errors, and `Entity.select` throws for untyped callers.
 
 ## Reading an operation's input
@@ -242,6 +265,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
+| `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a `Page`: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |
 | `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
@@ -255,8 +279,8 @@ Annotating again combines with what is there, using the key's own `merge`.
 
 - IDs are untyped; nothing marks which field is the identifier yet, and an
   `EntityRef` id is a `string`.
-- A Selection has no pagination, filtering, or ordering; those belong to the
-  interpreter that fetches.
+- A Selection has no filtering or ordering, and a page has no total; those
+  belong to the interpreter that fetches.
 - Relations reach only the entities of one `Entity.relate` call; relating the
   result again adds relations but earlier targets keep pointing at the earlier
   result.

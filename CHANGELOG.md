@@ -17,7 +17,8 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
   and `Metadata.is` made public. Surface re-exports it, so no import changes.
 - **`foldkit-entity` 0.1.0.** A domain declared once: `Entity.define`,
   `Entity.derived`, `Entity.relate` (all relations in one step, so Entities that
-  point at each other type-check), `Entity.select` with an assembled schema,
+  point at each other type-check), `Entity.select` with an assembled schema, `Entity.page` for a `many` relation
+  read a page at a time,
   `Entity.annotate` / `annotateMembers`, and, experimental, `Entity.input` with
   `selectFor` and `valuesFor`.
 - **`foldkit-form` 0.1.0.** A headless form as a Bundle over core
@@ -39,7 +40,7 @@ the order things were built in: [entity-DESIGN.md](./docs/design/entity-DESIGN.m
 - `Remote.make` / `Remote.define` take `foldkit-entity` Entities beside
   descriptors, and `Data.get`, `Data.live`, `Remote.select` and a query's `select`
   take Entity Selections. `Entity.from` and `Selection.from` are the compile
-  steps. New dependency: `foldkit-entity`.
+  steps; an `Entity.page` compiles to a relation connection. New dependency: `foldkit-entity`.
 - **Behaviour change.** A read the server answers without an id it was asked
   for by name now tombstones that entity, so its Projection reads `NotFound`
   instead of `Initial` / `Loading` for good. It is refetched only by

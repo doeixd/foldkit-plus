@@ -210,10 +210,48 @@ export interface Selection<Name extends string, Members, S extends Schema.Constr
 type AnySelection<Name extends string = string> = Selection<Name, any, any>
 
 /** `true` for any member; a relation also takes a Selection of its target. */
+/**
+ * Which part of a `many` relation to read: the first or last so many, from a
+ * cursor or from the end. A cursor is whatever the interpreter handed out with an
+ * earlier page; nothing here looks inside it.
+ */
+export interface PageWindow {
+  readonly first?: number | undefined
+  readonly last?: number | undefined
+  readonly after?: string | undefined
+  readonly before?: string | undefined
+}
+
+/** One page of a `many` relation: the items read, and whether more lie on either side. */
+export interface Page<Item> {
+  readonly items: ReadonlyArray<Item>
+  readonly hasNext: boolean
+  readonly hasPrevious: boolean
+}
+
+export const SelectionPageTypeId: unique symbol = Symbol.for('foldkit-entity/SelectionPage')
+export type SelectionPageTypeId = typeof SelectionPageTypeId
+
+/** A Selection of a `many` relation's target, read a page at a time. */
+export interface SelectionPage<Name extends string, S extends Schema.Constraint> {
+  readonly [SelectionPageTypeId]: SelectionPageTypeId
+  readonly selection: Selection<Name, any, S>
+  readonly window: PageWindow
+}
+
+type PageSchema<S extends Schema.Constraint> = Schema.Struct<{
+  readonly items: Schema.$Array<S>
+  readonly hasNext: Schema.Boolean
+  readonly hasPrevious: Schema.Boolean
+}>
+
 type SelectionSpec<E extends AnyEntity, Spec> = {
   readonly [K in keyof Spec]: K extends keyof E['relations']
-    ? E['relations'][K] extends EntityRelation<any, any, infer Target, any, any>
-      ? true | AnySelection<Target['name']>
+    ? E['relations'][K] extends EntityRelation<any, any, infer Target, infer C, any>
+      ? | true
+        | AnySelection<Target['name']>
+        // Only a `many` relation has pages.
+        | (C extends 'many' ? SelectionPage<Target['name'], any> : never)
       : never
     : K extends keyof E['members']
       ? true
@@ -230,16 +268,21 @@ type SelectedSchema<Member, Selected> = Member extends
   EntityField<any, any, infer S> | EntityDerived<any, any, infer S>
   ? S
   : Member extends EntityRelation<any, any, infer Target, infer C, infer Optional>
-    ? RelationShape<
-        C,
-        Optional,
-        Selected extends Selection<any, any, infer S> ? S : RefSchema<Target['name']>
-      >
+    ? Selected extends SelectionPage<any, infer S>
+      ? PageSchema<S>
+      : RelationShape<
+          C,
+          Optional,
+          Selected extends Selection<any, any, infer S> ? S : RefSchema<Target['name']>
+        >
     : never
 
 type SelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
   readonly [K in keyof Spec & keyof E['members']]: SelectedSchema<E['members'][K], Spec[K]>
 }>
+
+const isSelectionPage = (value: unknown): value is SelectionPage<string, Schema.Constraint> =>
+  typeof value === 'object' && value !== null && SelectionPageTypeId in value
 
 const isSelection = (value: unknown): value is AnySelection =>
   typeof value === 'object' && value !== null && SelectionTypeId in value
@@ -506,6 +549,19 @@ export const Entity = {
         return member.schema
       }
       const target = member.target()
+      if (isSelectionPage(selected)) {
+        if (member.cardinality !== 'many')
+          throw new Error(
+            `Entity "${entity.name}": "${key}" is one ${target.name}, so it has no pages`,
+          )
+        if (!isSameEntity(selected.selection.entity, target))
+          throw new Error(`Entity "${entity.name}": "${key}" pages a Selection of ${target.name}`)
+        return Schema.Struct({
+          items: Schema.Array(selected.selection.schema as Schema.Top),
+          hasNext: Schema.Boolean,
+          hasPrevious: Schema.Boolean,
+        })
+      }
       let item: Schema.Top
       if (selected === true)
         item = Schema.Struct({ entity: Schema.Literal(target.name), id: Schema.String })
@@ -527,6 +583,35 @@ export const Entity = {
       members: spec,
       schema: Schema.Struct(fields),
     }) as never
+  },
+
+  /**
+   * A `many` relation read a page at a time, in place of its Selection:
+   * `comments: Entity.page(CommentSummary, { first: 10 })`. The value is a `Page`
+   * of the Selection's values. Reading on from a cursor is another window.
+   */
+  page: <Name extends string, S extends Schema.Constraint>(
+    selection: Selection<Name, any, S>,
+    window: PageWindow,
+  ): SelectionPage<Name, S> => {
+    const sides = [window.first, window.last].filter(size => size !== undefined)
+    if (sides.length !== 1 || !sides.every(size => Number.isInteger(size) && size >= 0))
+      throw new Error(
+        `Entity.page: a window of ${selection.entity.name} takes first or last, a non-negative integer`,
+      )
+    if (
+      (window.first !== undefined && window.before !== undefined) ||
+      (window.last !== undefined && window.after !== undefined)
+    )
+      throw new Error(
+        `Entity.page: a window of ${selection.entity.name} reads first after a cursor, or last before one`,
+      )
+    const page: SelectionPage<Name, S> = {
+      [SelectionPageTypeId]: SelectionPageTypeId,
+      selection,
+      window,
+    }
+    return Object.freeze(page)
   },
 
   /** Adds readable members that are not part of `entity.schema`. */

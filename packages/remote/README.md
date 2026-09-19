@@ -449,8 +449,12 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
   result; `Object.values(Work)` registers them all.
 - `Entity.from(entity)` and `Selection.from(selection)` are the compile steps,
   for when you need the descriptor itself: `patch` and `ref` in a mutation
-  handler, or `Selection.connection` for a paginated relation, which an Entity
-  Selection cannot express since it has no windows.
+  handler.
+- `Entity.page(selection, window)` in an Entity Selection is Remote's
+  `Selection.connection`: the window travels with the read, and the server
+  answers with a page of refs. One relation of one entity is held whole or as
+  one window at a time, so two views of the same entity should not read the
+  same relation both ways at once.
 
 `Entity.make` with `Entity.ref` keeps working, and both kinds can share one
 domain. Both packages export `Entity`; a module that needs `Entity.from` beside

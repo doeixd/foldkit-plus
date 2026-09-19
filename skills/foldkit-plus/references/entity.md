@@ -111,6 +111,19 @@ CreatePost.members.authorId.relation.target() // Blog.Author: what a picker choo
 CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
 ```
 
+**Read a long relation a page at a time.** `many` only; the value is
+`{ items, hasNext, hasPrevious }`, and the cursor is the interpreter's.
+
+```ts
+const CommentBody = Entity.select(Blog.Comment, { body: true })
+
+const PostWithComments = Entity.select(Blog.Post, {
+  title: true,
+  comments: Entity.page(CommentBody, { first: 10 }),
+})
+// { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
+```
+
 **Load and prefill an edit.** Both follow from the reading: `Entity.selectFor(input)`
 is the Selection of the members the input writes (relations as refs), and
 `Entity.valuesFor(input, value)` turns a value read through it into input values

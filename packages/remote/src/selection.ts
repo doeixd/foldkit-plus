@@ -4,7 +4,7 @@
  * and their assembly from the normalized store.
  */
 import { Option, Schema } from 'effect'
-import type * as Domain from 'foldkit-entity'
+import * as Domain from 'foldkit-entity'
 import type { RelationRequirement } from './requirement.js'
 import {
   Entity,
@@ -129,10 +129,25 @@ export const Selection = {
     const spec: Record<string, true | Selection<unknown>> = {}
     for (const [key, selected] of Object.entries(
       selection.members as Readonly<
-        Record<string, true | Domain.Selection<string, unknown, Schema.Constraint>>
+        Record<
+          string,
+          | true
+          | Domain.Selection<string, unknown, Schema.Constraint>
+          | Domain.SelectionPage<string, Schema.Constraint>
+        >
       >,
     ))
-      spec[key] = selected === true ? true : Selection.from(selected)
+      spec[key] =
+        selected === true
+          ? true
+          : Domain.SelectionPageTypeId in selected
+            ? // A page of a `many` relation is Remote's relation connection.
+              Selection.connection(
+                Entity.from(selected.selection.entity as never),
+                selected.window,
+                Selection.from(selected.selection) as never,
+              )
+            : Selection.from(selected)
     return Selection.make(Entity.from(selection.entity as never), spec as never) as never
   },
 

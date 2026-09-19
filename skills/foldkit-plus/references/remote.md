@@ -198,7 +198,8 @@ yield `undefined` from `hydrate` (`restore` yields `emptyStore` and removes the 
 nothing downstream changes. Relations become ref fields, derived members become
 fields the server supplies, and the Entity needs an `id` field. `Entity.from` /
 `Selection.from` give the compiled descriptor and Selection when a handler
-needs `patch`, `ref`, or `Selection.connection`. `Entity.make` + `Entity.ref`
+needs `patch` or `ref`. `Entity.page(selection, window)` in an Entity Selection
+compiles to `Selection.connection`. `Entity.make` + `Entity.ref`
 still works alongside.
 
 ```ts
