@@ -109,6 +109,7 @@ export const openServer = () => {
         }),
         query(AuthorsQuery, {
           entity: Db.Author,
+          where: ({ search }) => (search === '' ? undefined : like(authors.name, `%${search}%`)),
           orderBy: [{ column: authors.id, direction: 'asc' }],
         }),
       ],

@@ -86,6 +86,10 @@ const RenameForm = Page.at(Slot, {
   is dropped; `debounce` (default 300ms) rests a key before asking. A submit during
   a check sets `submitPending` and goes out when the last check passes. The check's
   requirements become the Bundle's.
+- **A relation with too many targets to list:** `inputs: { authorId: Input.search() }`.
+  The form holds the typed text (`Message.Searched({ key, text })`,
+  `form.search(model, key)`); read it as the input of the query that lists the
+  choices. `foldkit-mixins-form` draws the search box.
 - **Word or translate it:** put a rule's words on the rule
   (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
   option for the form's own (`required`, `notANumber`), a rewrite of Schema's

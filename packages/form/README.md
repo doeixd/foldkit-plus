@@ -129,6 +129,24 @@ const Cms = Post.pipe(Entity.annotateMembers({ title: Input.of(Input.multiline()
 Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { id: Input.text() } })
 ```
 
+### A picker that searches
+
+A relation usually has too many targets to list. `Input.search()` keeps the
+key's picker and gives it a search:
+
+```ts
+const EditPost = Form.make('EditPost', input, { inputs: { authorId: Input.search() } })
+
+EditPost.Message.Searched({ key: 'authorId', text: 'ad' })
+EditPost.search(model, 'authorId') // 'ad'
+```
+
+The form holds what was typed and does nothing else with it: it changes no
+draft and validates nothing. The application reads it as the input of the query
+that lists the choices, so finding an author is an ordinary query. A fill or a
+reset starts the search over. `Input.search()` on a key that is not a relation
+throws.
+
 ### Labels
 
 A label is the schema's own `title` annotation, and the description its

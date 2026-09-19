@@ -122,4 +122,12 @@ Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
   }>()
   // @ts-expect-error the query's input is `{ search }`
   Authors.at({ data: Data, input: () => ({ term: 'a' }) })
+
+  // When a picker searches: the chosen rows stay offered, and are required.
+  const searching = Crud.options(EditPostForm, [AuthorList], {
+    chosen: (_: typeof ListModel.Type) => EditPostForm.initial,
+  })
+  expectTypeOf(searching(model).authorId).toEqualTypeOf<ReadonlyArray<Choice> | undefined>()
+  void Data.subscriptions({ authors: AuthorList.active, chosen: searching.active })
+  expectTypeOf(EditPostForm.search(EditPostForm.initial, 'authorId')).toEqualTypeOf<string>()
 }

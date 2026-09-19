@@ -15,5 +15,7 @@ export const EditPostForm = Form.make(
   // `id`, `title` and `published` name fields, so they map themselves.
   Entity.input(Post, EditPostInput, { editorId: Relation.input(Post.relations.editor) }),
   // The id says which post is edited. The form carries it; nobody types it.
-  { inputs: { id: Input.hidden() } },
+  // Authors are too many to list, so the editor's picker searches: the form holds
+  // what was typed, and the author list takes it as its query's input.
+  { inputs: { id: Input.hidden(), editorId: Input.search() } },
 )

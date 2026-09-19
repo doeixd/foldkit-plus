@@ -29,7 +29,7 @@ import type {
   RemoteError,
   RemoteMessage,
 } from 'foldkit-remote'
-import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
+import { Projection, type ActiveSurface, type ModelRef } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -365,6 +365,13 @@ export const Crud = {
           },
 
           name,
+          /** Whose requirement the list is, for anything that requires beside it. */
+          owner: data.contract.owner ?? {},
+          /**
+           * One of the list's Entity through the list's Selection, by id, whether or
+           * not the query finds it now: what a picker reads to name what is chosen.
+           */
+          row: (id: string): Projection<Root, RemoteData<any>> => data.get(selection, id),
           /** The Entity the rows are of, which is how a picker finds the list for its target. */
           entity: selection.entity as AnyEntity,
           /** Whether the list was given a `choice`, so its rows can be a picker's choices. */
@@ -385,6 +392,15 @@ export const Crud = {
                   label: choice.label(row),
                 }))
               : []
+          },
+
+          /** That row as a choice, once it is read. */
+          choiceOf: (root: Root, id: string): Choice | undefined => {
+            if (choice === undefined) return undefined
+            const read = data.get(selection, id).read(root)
+            return read._tag === 'Ready' || read._tag === 'Refreshing'
+              ? { value: choice.value(read.value), label: choice.label(read.value) }
+              : undefined
           },
         }
       },
@@ -418,16 +434,28 @@ export const Crud = {
    * The choices of every relation picker in a form, from the lists of their
    * targets: `foldkit-mixins-form`'s `options`, keyed by the form's keys. A
    * picker whose target no list here is over is a wiring mistake, reported now.
+   *
+   * With `chosen`, the form's Model as the page has it, what a picker already
+   * holds stays among its choices when the list no longer finds it (a search
+   * narrowed it, or it is on a later page), and `active` requires those rows so
+   * their words are there. Give `chosen` to any form whose pickers search.
    */
-  options: <Key extends string, Root>(
-    form: { readonly controls: ReadonlyArray<FormControl<Key>> },
+  options: <Key extends string, Root, FormModel = never>(
+    form: {
+      readonly controls: ReadonlyArray<FormControl<Key>>
+      readonly field?: (model: FormModel, key: never) => { readonly value: unknown }
+    },
     lists: ReadonlyArray<{
       readonly name: string
       readonly entity: AnyEntity
       readonly offersChoices: boolean
+      readonly owner: object
       readonly choices: (root: Root) => ReadonlyArray<Choice>
+      readonly row: (id: string) => Projection<Root, RemoteData<any>>
+      readonly choiceOf: (root: Root, id: string) => Choice | undefined
     }>,
-  ): ((root: Root) => { readonly [K in Key]?: ReadonlyArray<Choice> }) => {
+    options: { readonly chosen?: (root: Root) => FormModel | undefined } = {},
+  ) => {
     const pickers = form.controls.flatMap(({ key, control }) => {
       if (control._tag !== 'RelationOne' && control._tag !== 'RelationMany') return []
       const list = lists.find(candidate => Entity.same(candidate.entity, control.target))
@@ -441,10 +469,52 @@ export const Crud = {
         )
       return [[key, list] as const]
     })
-    return root =>
-      Object.fromEntries(pickers.map(([key, list]) => [key, list.choices(root)])) as {
-        readonly [K in Key]?: ReadonlyArray<Choice>
-      }
+
+    /** The ids each picker holds now: the draft of a `one`, or of a `many`. */
+    const held = (root: Root): ReadonlyArray<readonly [Key, (typeof lists)[number], string]> => {
+      const model = options.chosen?.(root)
+      const field = form.field as
+        ((model: FormModel, key: string) => { readonly value: unknown }) | undefined
+      if (model === undefined || field === undefined) return []
+      return pickers.flatMap(([key, list]) => {
+        const draft = field(model, key).value
+        const ids = Array.isArray(draft) ? draft : typeof draft === 'string' ? [draft] : []
+        return ids
+          .filter((id): id is string => typeof id === 'string' && id !== '')
+          .map(id => [key, list, id] as const)
+      })
+    }
+
+    const choices = (root: Root): { readonly [K in Key]?: ReadonlyArray<Choice> } => {
+      const chosen = held(root)
+      return Object.fromEntries(
+        pickers.map(([key, list]) => {
+          const listed = list.choices(root)
+          const missing = chosen
+            .filter(([heldBy, , id]) => heldBy === key && !listed.some(item => item.value === id))
+            .flatMap(([, , id]) => list.choiceOf(root, id) ?? [])
+          // What is chosen leads, so it is in reach whatever the list shows.
+          return [key, [...missing, ...listed]]
+        }),
+      ) as unknown as { readonly [K in Key]?: ReadonlyArray<Choice> }
+    }
+
+    const [first] = lists
+    return Object.assign(choices, {
+      /** For `Data.subscriptions`: what the pickers hold is read, so it can be named. */
+      active: {
+        name: `${pickers.map(([key]) => key).join('+')} chosen`,
+        owner: first?.owner ?? {},
+        projectionOf: (root: Root) => {
+          const rows = held(root)
+          return rows.length === 0
+            ? undefined
+            : Projection.struct(
+                Object.fromEntries(rows.map(([key, list, id]) => [`${key}:${id}`, list.row(id)])),
+              )
+        },
+      } satisfies ActiveSurface<Root>,
+    })
   },
 
   /**

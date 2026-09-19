@@ -137,6 +137,20 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 - `Crud.detail(name, { selection }).at({ data, id: model => ... })` gives `value(model)`
   (a `RemoteData`), `active`, and `fields` (labelled like a list's `columns`). No state.
 
+## Pickers that search
+
+```ts
+const AuthorList = Authors.at({
+  data: Data,
+  input: model => ({ search: EditPostForm.search(model.editor.form, 'authorId') }),
+})
+const pickers = Crud.options(EditPostForm, [AuthorList], { chosen: model => model.editor.form })
+Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })
+```
+
+`chosen` keeps what a picker holds among its choices when the search no longer
+finds it, and `pickers.active` has Remote read those rows so they can be named.
+
 ## Gotchas
 
 - **Sorting and filtering a list** are the query's input: keep them in your Model,

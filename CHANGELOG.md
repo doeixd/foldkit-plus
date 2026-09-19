@@ -16,6 +16,12 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-remote-drizzle`: a `query`'s `orderBy` may be a function of the input
   and the principal, as `where` is, so a list sorts by what the user chose. A
   computed order without the id is tie-broken by it.
+- **Pickers that search.** `foldkit-form`: `Input.search()` marks a relation
+  picker as searching; the form holds the text (`Searched`, `form.search`). The
+  form's Model gains `searches`. `foldkit-mixins-form` draws the search box
+  (`search` slot, `searchLabel`). `foldkit-crud`: `Crud.options(form, lists, { chosen })`
+  keeps what a picker holds among its choices and returns `active` to require
+  those rows; a placed list gains `row(id)`, `choiceOf(model, id)` and `owner`.
 - `foldkit-crud`: an editor's `open` and new `target(model)` use the Entity's id
   type; a remover takes the id type its `input` names; a list's rows are typed
   from its Selection with or without a `choice`.

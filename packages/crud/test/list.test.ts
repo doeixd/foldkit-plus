@@ -154,6 +154,41 @@ describe('Crud.list', () => {
     })
   })
 
+  it('keeps what a picker holds among its choices, and requires it so it can be named', async () => {
+    const EditPost = Form.make(
+      'EditPost',
+      Entity.input(Blog.Post, Schema.Struct({ authorId: Schema.String }), {
+        authorId: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    // The form holds Grace (a3); the page has it wherever it keeps the form.
+    const form = EditPost.fill(EditPost.initial, { authorId: 'a3' }).model
+    const options = Crud.options(EditPost, [AuthorList], { chosen: () => form })
+
+    // A search for "al" finds Alan only, and Grace was never read: nothing names her yet.
+    const searched = await load({ ...initial, search: 'al' })
+    expect(options(searched)).toEqual({ authorId: [{ value: 'a1', label: 'Alan' }] })
+
+    // Being chosen is a requirement, so Remote reads her.
+    const required = options.active.projectionOf(searched)!
+    const read = await run(Data.prefetch(searched, required))
+    expect(options(read)).toEqual({
+      authorId: [
+        { value: 'a3', label: 'Grace' },
+        { value: 'a1', label: 'Alan' },
+      ],
+    })
+
+    // Found by the list itself, she is offered once, where the list has her.
+    const found = await load({ ...read, search: 'g' })
+    expect(options(found)).toEqual({ authorId: [{ value: 'a3', label: 'Grace' }] })
+
+    // With nothing held there is nothing to require.
+    const empty = Crud.options(EditPost, [AuthorList], { chosen: () => EditPost.initial })
+    expect(empty.active.projectionOf(searched)).toBeUndefined()
+    expect(Crud.options(EditPost, [AuthorList]).active.projectionOf(searched)).toBeUndefined()
+  })
+
   it('reports a picker with no list over its target, and a list with no choice', () => {
     const EditPost = Form.make(
       'EditPost',

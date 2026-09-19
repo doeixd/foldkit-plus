@@ -97,6 +97,16 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
       Array.from(element('#EditPost-editorId').querySelectorAll('option'), o => o.textContent),
     ).toEqual(['', 'Ada', 'Grace'])
 
+    // The picker searches: the text is the form's, and the author list's query input.
+    // Grace is this post's editor, so she stays a choice though the search finds only Ada.
+    const offered = () =>
+      Array.from(element('#EditPost-editorId').querySelectorAll('option'), o => o.textContent)
+    type('#EditPost-editorId-search', 'Ada')
+    await vi.waitFor(() => expect(offered()).toEqual(['', 'Grace', 'Ada']))
+    expect(element<HTMLSelectElement>('#EditPost-editorId').value).toBe('a2')
+    type('#EditPost-editorId-search', '')
+    await vi.waitFor(() => expect(offered()).toEqual(['', 'Ada', 'Grace']))
+
     type('#EditPost-title', '')
     element('#EditPost-title').dispatchEvent(new Event('blur'))
     await vi.waitFor(() => expect(element('#EditPost-title-error')?.textContent).toBe('Required'))

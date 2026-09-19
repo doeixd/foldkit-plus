@@ -135,6 +135,14 @@ now names another connection, and Remote fetches it because it is on screen. No
 Message asks for data. On the server the same input picks the `where` and the
 `orderBy`; the sort is a name (`'title'`), never a column.
 
+### A picker that searches
+
+The editor's Editor picker has a search box. Its text is the form's
+(`EditPostForm.search`), and the author list takes it as `AuthorsQuery`'s input,
+so the server finds authors by name. The post's current editor stays a choice
+when the search no longer finds them: `Crud.options` was given the form's Model
+as `chosen`, and `pickers.active` is wired beside the lists.
+
 ### Deleting
 
 ```text

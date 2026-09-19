@@ -27,7 +27,8 @@ export const PostsQuery = Query.make('Posts', {
   Result: Query.connection(Blog.Post),
 })
 export const AuthorsQuery = Query.make('Authors', {
-  Input: {},
+  // What the editor picker's search box holds. Authors are found, not all listed.
+  Input: { search: Schema.String },
   Result: Query.connection(Blog.Author),
 })
 

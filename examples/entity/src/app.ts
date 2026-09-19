@@ -103,7 +103,11 @@ export const Authors = Crud.list('Authors', {
   selection: AuthorChoice,
   // How an author reads as a choice: this list feeds the editor's picker.
   choice: { value: row => row.id, label: row => row.name },
-}).at({ data: Data, input: () => ({}) })
+}).at({
+  data: Data,
+  // The picker's search text is the form's; here it becomes the query's input.
+  input: (model: Model) => ({ search: EditPostForm.search(model.editPost.form, 'editorId') }),
+})
 
 // Where the editor lives: its slice of the Model, and the domain it saves through.
 export const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
@@ -111,7 +115,11 @@ export const PostEditor = Editor.at({ data: Data, model: App.model.editPost })
 export const PostRemover = Remover.at({ data: Data, model: App.model.removePost })
 
 // Every relation picker of the form, fed by the list over its target.
-export const pickers = Crud.options(EditPostForm, [Authors])
+// `chosen` keeps the editor a post already has among the choices when a search
+// no longer finds them, and `pickers.active` reads them so they can be named.
+export const pickers = Crud.options(EditPostForm, [Authors], {
+  chosen: (model: Model) => model.editPost.form,
+})
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 // The form knows nothing of Remote. The editor's `onOut` is what turns a decoded
@@ -125,7 +133,12 @@ export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 export const placements = Page.assemble(
   EditForm,
   RemoveForm,
-  Data.wiring({ posts: Posts.active, authors: Authors.active, editor: PostEditor.active }),
+  Data.wiring({
+    posts: Posts.active,
+    authors: Authors.active,
+    editor: PostEditor.active,
+    chosen: pickers.active,
+  }),
 )
 
 // `after` lets the editor show the loaded value whichever Message brings it.

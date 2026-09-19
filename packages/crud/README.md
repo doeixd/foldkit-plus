@@ -224,6 +224,28 @@ const pickers = Crud.options(EditPostForm, [AuthorList])
 Placed.view(model, h, { options: pickers(model) }) // with foldkit-mixins-form
 ```
 
+#### When a picker searches
+
+```ts
+const AuthorList = Authors.at({
+  data: Data,
+  // What the picker's search box holds is the form's; here it is the query's input.
+  input: model => ({ search: EditPostForm.search(model.editor.form, 'authorId') }),
+})
+
+const pickers = Crud.options(EditPostForm, [AuthorList], {
+  chosen: model => model.editor.form, // the form's Model, wherever the page keeps it
+})
+
+const subscriptions = Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })
+```
+
+A search narrows the list, and what the picker already holds may no longer be
+in it. With `chosen`, those rows stay among the choices, first, and
+`pickers.active` makes them a requirement so Remote reads them and they can be
+named. Without it a `select` would show a post's author as blank the moment a
+search stopped finding them.
+
 `pickers(model)` is keyed by the form's keys: `{ authorId: [{ value, label }, …] }`.
 A list is matched to a picker by Entity, so one author list serves `authorId`
 and `editorId` alike. A picker whose target no list is over, or whose list has no `choice`, throws

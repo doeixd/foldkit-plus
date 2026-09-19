@@ -101,6 +101,11 @@ EditForm.view(model, h, {
 
 | `Nested` | a `fieldset` with a `legend`, a `div` per row holding the nested form's fields, and `button type="button"`s to add and remove a row | `group`, `legend`, `row`, `add`, `remove` |
 
+A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
+`input type="search"` above it, in the `search` slot, labelled `Search <label>`
+and naming the picker it controls with `aria-controls`. `searchLabel` in the
+view inputs replaces the word.
+
 A number is a text input because its draft is text: `"4."` is a fine thing to
 have typed, and `type="number"` would refuse to report it.
 
@@ -132,7 +137,8 @@ attribute conflict, reported when the view renders. The slots declare
 - One layout: label, control, description, error, in that order, and fields in
   the input's order. For another arrangement, draw from `form.controls`
   yourself; this package is the default, not the only way.
-- A `select` for a relation suits tens of choices, not thousands. There is no
-  search or paging.
+- A relation picker is a `select`, or checkboxes for a `many`. With
+  `Input.search()` it searches, but it is not a combobox: the choices are the
+  rows the query found, with no paging inside the picker.
 - The Bundle gains a view through `Bundle.withView`, so place the drawn Bundle,
   not `form.bundle`.

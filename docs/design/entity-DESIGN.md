@@ -2771,8 +2771,12 @@ Input IR -> Foldkit UI control registry
 > submit recurse through the same code. Row ids are never reused, so a check's
 > late answer cannot land in another row.
 >
-> Not built: picker search or paging, and
-> `Form.from` sugar, which `Entity.input`'s self-mapping made unnecessary.
+> Picker search is built without the form learning about queries: the form
+> holds the typed text and nothing more, the application's list takes it as its
+> query's input, and `Crud.options` keeps the chosen row offered and required.
+> Finding a target is thereby an ordinary, authorized query.
+>
+> Not built: `Form.from` sugar, which `Entity.input`'s self-mapping made unnecessary.
 
 Implement a Form descriptor and Foldkit Submodel.
 
