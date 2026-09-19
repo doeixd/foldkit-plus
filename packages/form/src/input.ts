@@ -17,9 +17,15 @@ export type Control =
   | { readonly _tag: 'Number' }
   | { readonly _tag: 'Toggle' }
   | { readonly _tag: 'Select'; readonly options: ReadonlyArray<string> }
-  /** Chooses one of `target`. The options are the application's to supply. */
-  | { readonly _tag: 'RelationOne'; readonly target: AnyEntity }
-  | { readonly _tag: 'RelationMany'; readonly target: AnyEntity }
+  /**
+   * Chooses one of `target`. The options are the application's to supply. With
+   * `search`, the form also holds what the user typed to find one, which the
+   * application reads as the input of the query that lists the options.
+   */
+  | { readonly _tag: 'RelationOne'; readonly target: AnyEntity; readonly search?: boolean }
+  | { readonly _tag: 'RelationMany'; readonly target: AnyEntity; readonly search?: boolean }
+  /** Only as an override, under `inputs`: the key's relation picker, with a search. See `Input.search`. */
+  | { readonly _tag: 'Search' }
   /**
    * The target itself, edited through a form of its own (`Relation.nested`). The
    * key holds rows of that form: exactly one, at most one, or any number.
@@ -67,7 +73,9 @@ export type Draft = string | boolean | ReadonlyArray<string>
 export type DraftKind = 'text' | 'flag' | 'list'
 
 /** The draft of a control that edits one value. A `Nested` key holds rows, not a draft. */
-export const draftKind = (control: Exclude<Control, { readonly _tag: 'Nested' }>): DraftKind =>
+export const draftKind = (
+  control: Exclude<Control, { readonly _tag: 'Nested' | 'Search' }>,
+): DraftKind =>
   control._tag === 'Toggle' ? 'flag' : control._tag === 'RelationMany' ? 'list' : 'text'
 
 const key = Metadata.key<Control>('foldkit-form/input', {
@@ -109,6 +117,12 @@ export const Input = {
   number: (): Control => ({ _tag: 'Number' }),
   toggle: (): Control => ({ _tag: 'Toggle' }),
   select: (options: ReadonlyArray<string>): Control => ({ _tag: 'Select', options }),
+  /**
+   * For a relation key, under `inputs`: its picker, with a search. Too many to
+   * list is the usual case for a relation; the form holds the search text, and
+   * the query that lists the options takes it as input.
+   */
+  search: (): Control => ({ _tag: 'Search' }),
 
   /**
    * Entity metadata: the control a member is edited with wherever it appears,

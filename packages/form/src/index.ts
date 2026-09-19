@@ -60,6 +60,8 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}> {
   }
   /** Counts the rows ever added, so a row's id is never reused. */
   readonly nextRow: number
+  /** What was typed to find a choice, by key, for the relation pickers that search. */
+  readonly searches: Readonly<Record<string, string>>
   /** Failures of the input as a whole, from the last submit: a rule that spans keys. */
   readonly errors: ReadonlyArray<string>
   /** A submit is waiting for checks still running; it goes out when the last one passes. */
@@ -288,10 +290,18 @@ const planOf = (
   override: Control | undefined,
   messages: FormMessages,
 ): Plan => {
-  const control =
-    override ??
-    Input.resolve(member, schema) ??
-    fail(name, `no control for "${key}"; name one under "inputs"`)
+  const resolved =
+    override?._tag === 'Search'
+      ? Input.resolve(member, schema)
+      : (override ?? Input.resolve(member, schema))
+  const found = resolved ?? fail(name, `no control for "${key}"; name one under "inputs"`)
+  if (override?._tag === 'Search' && found._tag !== 'RelationOne' && found._tag !== 'RelationMany')
+    return fail(name, `"${key}" is not a relation, so it has no picker to search`)
+  const control: Control =
+    override?._tag === 'Search' && (found._tag === 'RelationOne' || found._tag === 'RelationMany')
+      ? { ...found, search: true }
+      : found
+  if (control._tag === 'Search') return fail(name, `"${key}" resolved to no picker to search`)
   if (control._tag === 'Nested')
     return fail(name, `"${key}" cannot be given a Nested control; map it with Relation.nested`)
   const kind = draftKind(control)
@@ -447,6 +457,7 @@ export const Form = {
         ),
       ),
       nextRow: Schema.Number,
+      searches: Schema.Record(Schema.String, Schema.String),
       errors: Schema.Array(Schema.String),
       submitPending: Schema.Boolean,
     }) as unknown as Schema.Codec<Model, unknown>
@@ -466,6 +477,8 @@ export const Form = {
       Reset: {},
       /** The answer of a check for the draft it was asked about; one for an older draft is dropped. */
       Checked: { key: KeySchema, draft: DraftSchema, error: Schema.NullOr(Schema.String) },
+      /** What was typed to find a choice for a relation key. It changes no draft and validates nothing. */
+      Searched: { key: KeySchema, text: Schema.String },
       /** A Message of the nested form in one row of a nested key. One that row does not take is dropped. */
       Nested: { key: Schema.String, row: Schema.String, message: Schema.Unknown },
       /** A new, empty row. A `one` that already has its row takes no other. */
@@ -504,6 +517,7 @@ export const Form = {
         fields: fieldsFrom(plan => FieldValidation.NotValidated({ value: plan.empty })),
         rows: {} as Model['rows'],
         nextRow: 0,
+        searches: {},
         errors: [],
         submitPending: false,
       },
@@ -674,6 +688,8 @@ export const Form = {
       const given = values as Readonly<Record<string, unknown>>
       const filled: Model = {
         ...model,
+        // Another value to edit is another search.
+        searches: {},
         errors: [],
         submitPending: false,
         fields: fieldsFrom(plan =>
@@ -735,6 +751,16 @@ export const Form = {
                   : FieldValidation.Invalid({ value: state.value, errors: [message.error] }),
               ),
             )
+          }
+          case 'Searched': {
+            const { control } = plans[message.key]
+            const searches =
+              (control._tag === 'RelationOne' || control._tag === 'RelationMany') && control.search
+            return searches
+              ? {
+                  model: { ...model, searches: { ...model.searches, [message.key]: message.text } },
+                }
+              : { model }
           }
           case 'Nested': {
             const plan: NestedPlan | undefined = nestedPlans[message.key as RowsKey]
@@ -812,6 +838,8 @@ export const Form = {
        */
       field: (model: Model, key: Key): FieldValidation.Field<Draft> =>
         drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`),
+      /** What was typed to find a choice for a relation key that searches; `''` until something is. */
+      search: (model: Model, key: Key): string => model.searches[key] ?? '',
       /** The rows of a nested key, each a Model of `control.form`. */
       rows: (model: Model, key: RowsKey): Model['rows'][RowsKey] =>
         (rowsOf(model)[key] ?? fail(name, `"${key}" holds a draft, not rows`)) as never,

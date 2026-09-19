@@ -382,3 +382,50 @@ describe('Form messages', () => {
     expect(model.errors).toEqual(['Von muss vor Bis liegen'])
   })
 })
+
+describe('a relation picker that searches', () => {
+  const input = Entity.input(Cms, CreatePostInput, {
+    authorId: Relation.input(Cms.relations.author),
+    editorId: Relation.input(Cms.relations.editor),
+    tagIds: Relation.input(Cms.relations.tags),
+    notify: Entity.unmapped,
+  })
+  const Searching = Form.make('Searching', input, {
+    inputs: { authorId: Input.search(), tagIds: Input.search() },
+  })
+  const start = Searching.initial
+  const step = (model: typeof start, message: typeof Searching.Message.Type) =>
+    Searching.bundle.update(model, message, undefined).model
+
+  it('keeps the picker of the relation, and marks it as searching', () => {
+    const control = (key: string) =>
+      Searching.controls.find(candidate => candidate.key === key)!.control
+    expect(control('authorId')).toMatchObject({ _tag: 'RelationOne', search: true })
+    expect(control('tagIds')).toMatchObject({ _tag: 'RelationMany', search: true })
+    expect(control('editorId')).not.toHaveProperty('search')
+  })
+
+  it('holds what was typed, changing no draft and validating nothing', () => {
+    const typed = step(start, Searching.Message.Searched({ key: 'authorId', text: 'ad' }))
+    expect(Searching.search(typed, 'authorId')).toBe('ad')
+    expect(Searching.search(typed, 'tagIds')).toBe('')
+    expect(typed.fields).toBe(start.fields)
+  })
+
+  it('ignores a search for a key whose picker does not search', () => {
+    const typed = step(start, Searching.Message.Searched({ key: 'editorId', text: 'ad' }))
+    expect(typed).toBe(start)
+  })
+
+  it('starts over with the form: a fill or a reset is another search', () => {
+    const typed = step(start, Searching.Message.Searched({ key: 'authorId', text: 'ad' }))
+    expect(Searching.search(Searching.fill(typed, { title: 'x' }).model, 'authorId')).toBe('')
+    expect(Searching.search(step(typed, Searching.Message.Reset()), 'authorId')).toBe('')
+  })
+
+  it('refuses a search on a key that is not a relation', () => {
+    expect(() => Form.make('Wrong', input, { inputs: { title: Input.search() } })).toThrow(
+      '"title" is not a relation, so it has no picker to search',
+    )
+  })
+})
