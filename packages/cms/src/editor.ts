@@ -91,6 +91,7 @@ export type EditorOut =
   | { readonly _tag: 'Save' }
   | { readonly _tag: 'Publish' }
   | { readonly _tag: 'Discard' }
+  | { readonly _tag: 'Restore'; readonly revision: number }
   | { readonly _tag: 'Unpublish' }
   | { readonly _tag: 'Unschedule' }
   | { readonly _tag: 'Archive' }
@@ -166,7 +167,8 @@ export const makeEditor =
         | 'Schedule'
         | 'Unschedule'
         | 'Archive'
-        | 'Unarchive',
+        | 'Unarchive'
+        | 'Restore',
         any
       >
     >
@@ -233,6 +235,8 @@ export const makeEditor =
       ArchiveAsked: {},
       UnarchiveAsked: {},
       DiscardAsked: {},
+      /** Makes a revision's value the working copy. It replaces what is here, and publishes nothing. */
+      RestoreAsked: { revision: Schema.Number },
       UnpublishAsked: {},
       /** After a conflict: drop what is here and show the server's copy. */
       ReloadAsked: {},
@@ -253,6 +257,7 @@ export const makeEditor =
       'ArchiveAsked',
       'UnarchiveAsked',
       'DiscardAsked',
+      'RestoreAsked',
       'UnpublishAsked',
       'ReloadAsked',
       'OverwriteAsked',
@@ -260,7 +265,10 @@ export const makeEditor =
     const isOwn = (message: Message): message is Own => own.has(message._tag)
 
     const asks: Readonly<
-      Record<Exclude<Own['_tag'], 'Rested' | 'PublishAsked' | 'ScheduleAsked'>, EditorOut>
+      Record<
+        Exclude<Own['_tag'], 'Rested' | 'PublishAsked' | 'ScheduleAsked' | 'RestoreAsked'>,
+        EditorOut
+      >
     > = {
       DiscardAsked: { _tag: 'Discard' },
       UnpublishAsked: { _tag: 'Unpublish' },
@@ -314,6 +322,8 @@ export const makeEditor =
               : { model }
           case 'PublishAsked':
             return viaForm({ ...model, scheduleAt: null }, form.Message.Submitted())
+          case 'RestoreAsked':
+            return { model, outMessage: { _tag: 'Restore', revision: message.revision } }
           case 'ScheduleAsked':
             return viaForm({ ...model, scheduleAt: message.at }, form.Message.Submitted())
           default:
@@ -558,6 +568,28 @@ export const makeEditor =
           }
         }
 
+        /** The form is emptied, and filled from the restored draft once the restore has settled. */
+        const restore =
+          (revision: number): Step =>
+          root => {
+            const editor = slice.get(root)
+            if (editor.entry === null) return { model: root }
+            const started = data.mutate(root, cms.Operations.Restore, {
+              entry: editor.entry,
+              revision,
+            })
+            return {
+              model: slice.set(started.model, {
+                ...closed,
+                mode: 'edit',
+                entry: editor.entry,
+                otherId: started.requestId,
+                settling: 'reload',
+              }),
+              commands: [started.command],
+            }
+          }
+
         /**
          * What follows from what has arrived: the loaded value is shown, a save
          * that waited its turn starts, and a publish goes once its draft is saved.
@@ -634,6 +666,8 @@ export const makeEditor =
                   return sync(slice.set(root, { ...editor, saveWanted: true }))
                 case 'Publish':
                   return sync(slice.set(root, { ...editor, publishWanted: true }))
+                case 'Restore':
+                  return restore(out.revision)(root)
                 case 'Discard':
                   return discard(root)
                 case 'Unpublish':

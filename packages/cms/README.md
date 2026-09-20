@@ -10,7 +10,7 @@ are: **audience** (a visitor sees what is published, an author sees everything),
 > **Status: the core and the editor.** Roles, content types, the three Entities,
 > the operations as descriptors, the lifecycle, and the authoring editor's state. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
 > which saves, discards, publishes and unpublishes, and enforces the audience
-> boundary; history and an example are next in
+> boundary; in-app preview and an example are next in
 > [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
 > is on npm.
 
@@ -132,7 +132,7 @@ Data.subscriptions({ ...yourSurfaces, ...PostEditor.actives })
 Placed.helpers.open(entryId) // resume the draft, else show what is published
 Placed.helpers.create(Cms.newEntryId()) // something new; its first save makes the entry
 Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked,
-// UnpublishAsked, ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
+// RestoreAsked({ revision }), UnpublishAsked, ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 
 PostEditor.status(model) // Loading | Editing | Saving | Saved | Conflict | Publishing | Published | ...
 PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
@@ -157,6 +157,8 @@ PostEditor.state(model) // the entry's lifecycle state, as the server last deriv
 - **A second author's save is a `Conflict`**, with the text still in the form.
   `ReloadAsked` shows the server's copy; `OverwriteAsked` saves over it, based on
   it. Merging is not attempted.
+- **Restoring** a revision replaces what is in the form with that value, as a
+  draft. It publishes nothing.
 - **Discarding** shows what is published again; something never published has
   nothing left, and the editor closes.
 - What the server holds is read from Remote and never copied: a save is based on
@@ -233,7 +235,8 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 
 ## Limits
 
-- No history or restore yet: see the status above.
+- A revision list is a `Crud.list` you declare over `Cms.Entities.Revision`; there
+  is no in-app preview yet.
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
   and the status and buttons yourself.
 - A taken slug arrives as the editor's `error`;

@@ -9,7 +9,7 @@ of that is CMS-specific and none is repeated here.
 **Status: core, editor state, server.** `foldkit-cms` is roles, content types,
 three Entities, the operations as descriptors, the lifecycle, and `Cms.editor`.
 `foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
-publishing and unpublishing, the worklist, an entry's derived state. There is no history or restore yet, and neither is on npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
+publishing and unpublishing, the worklist, an entry's derived state. There is no in-app preview yet, and neither is on npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
 
 ## Ownership
 
@@ -81,7 +81,7 @@ Data.subscriptions({ ...surfaces, ...PostEditor.actives })
 
 Placed.helpers.open(entryId)
 Placed.helpers.create(Cms.newEntryId()) // make the id in a Command or handler, not in update
-Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked, UnpublishAsked,
+Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked, RestoreAsked({ revision }), UnpublishAsked,
 // ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 PostEditor.status(model) // Closed Loading NotFound LoadFailed Editing Saving Saved Conflict SaveFailed
 // Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
@@ -127,7 +127,7 @@ const cms = CmsServer.make({
 RemoteServer.make({
   entities: [...cms.sources, source(Db.Author)], // cms.sources, not source(Db.Post)
   queries: [...cms.queries], // Cms.Entries: the worklist
-  mutations: [...cms.mutations], // every Cms operation but CmsRestore
+  mutations: [...cms.mutations], // every Cms operation
 })
 ```
 
@@ -149,6 +149,8 @@ RemoteServer.make({
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
   queue: the package owns no timer). A failed one stays scheduled with its error
   (state reads overdue) and is not retried until the draft changes.
+- `CmsRestore { entry, revision }` makes that revision's value the draft (replacing
+  it, clearing its schedule) and publishes nothing.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`
   brings it back unpublished.
 - A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to

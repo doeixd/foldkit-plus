@@ -20,6 +20,8 @@ version changed; `pnpm` skips versions already in the registry.
   no timer. `CmsArchive` also takes what can be hidden off show. The editor gains
   `ScheduleAsked({ at })`, which submits and saves first, and `UnscheduleAsked`,
   `ArchiveAsked`, `UnarchiveAsked`. `cms_drafts` gains `scheduled_by`.
+- **Restoring.** `CmsRestore` makes a revision's value the working copy and
+  publishes nothing; the editor's `RestoreAsked({ revision })` shows it in the form.
 - **`foldkit-cms`: kinds and their renderers.** `Cms.slug(from)` and
   `Cms.dateTime()` for a form's `inputs`; `Cms.Display.State` and
   `Cms.Display.Moment`, which `Cms.Entities` are annotated with;

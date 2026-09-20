@@ -585,6 +585,50 @@ describe('scheduling from the editor', () => {
   })
 })
 
+describe('restoring a revision', () => {
+  it('makes what was published before the working copy, and publishes nothing', async () => {
+    const { author, rows, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    // Two more revisions, so there is a past to go back to.
+    await ada.send(ada.type('body', 'Second'))
+    await ada.send(ada.form(Editor.Message.PublishAsked()))
+    await ada.send(ada.type('body', 'Third'))
+    await ada.send(ada.form(Editor.Message.PublishAsked()))
+    await ada.send(ada.type('body', 'Unsaved musings'))
+
+    await ada.send(ada.form(Editor.Message.RestoreAsked({ revision: 2 })))
+    await ada.load()
+    expect(ada.error()).toBeUndefined()
+    expect(ada.field('body').value).toBe('Second')
+    expect(ada.resumed()).toBe('Values')
+    expect(ada.state()).toBe('Changed')
+    expect(rows(`select body from posts where id = 'p1'`)).toEqual([{ body: 'Third' }])
+    expect(sent.at(-1)).toBe('CmsRestore')
+    // The Model saved with the musings is not the restored value's, and goes.
+    expect(rows(`select model from cms_drafts where id = 'e1'`)).toEqual([{ model: null }])
+
+    // It is a draft like any other: publishing it makes the next revision.
+    await ada.send(ada.form(Editor.Message.PublishAsked()))
+    expect(rows(`select body from posts where id = 'p1'`)).toEqual([{ body: 'Second' }])
+    expect(rows(`select revision from cms_entries where id = 'e1'`)).toEqual([{ revision: 4 }])
+  })
+
+  it('says a revision that is not there is not there, and leaves the draft alone', async () => {
+    const { author, rows } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.type('body', 'Kept'))
+    await ada.send(ada.form(Editor.Message.RestoreAsked({ revision: 9 })))
+    await ada.load()
+    expect(ada.error()).toContain('no revision 9')
+    expect(rows(`select "values" from cms_drafts where id = 'e1'`)).toEqual([
+      { values: '{"title":"Live","body":"Kept"}' },
+    ])
+    expect(ada.field('body').value).toBe('Kept')
+  })
+})
+
 describe('unpublishing from the editor', () => {
   it('hides the row, and the state follows', async () => {
     const { author, rows } = world()

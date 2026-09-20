@@ -826,3 +826,48 @@ describe('archiving', () => {
     await expect(as(ian).mutate('CmsArchive', { entry: 'e1' })).rejects.toThrow('may not archive')
   })
 })
+
+describe('restoring', () => {
+  it('takes back a promise made of what the draft held before', async () => {
+    const { as, rows } = open()
+    // e1's draft is scheduled, and its last try failed.
+    await as(ada).mutate('CmsRestore', { entry: 'e1', revision: 1 })
+    expect(
+      rows(
+        `select "values", model, form, scheduled_for, schedule_error, base_revision from cms_drafts where id = 'e1'`,
+      ),
+    ).toEqual([
+      {
+        values: '{"title":"Live"}',
+        model: null,
+        form: 'restored@1',
+        scheduled_for: null,
+        schedule_error: null,
+        base_revision: 1,
+      },
+    ])
+  })
+
+  it('restores an entry’s own revisions, and no other entry’s', async () => {
+    const { as, sqlite } = open()
+    sqlite.exec(
+      `insert into cms_revisions values ('e2:5', 'e2', 5, '{"title":"Not yours"}', '2026-01-02T00:00:00.000Z', 'ada')`,
+    )
+    await expect(as(ada).mutate('CmsRestore', { entry: 'e1', revision: 5 })).rejects.toThrow(
+      'no revision 5',
+    )
+  })
+
+  it('refuses what was never published, a visitor, and an author who may not', async () => {
+    const { as } = open()
+    await expect(as(ada).mutate('CmsRestore', { entry: 'e3', revision: 1 })).rejects.toThrow(
+      'cannot be restored',
+    )
+    await expect(as(null).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
+      'Only an author',
+    )
+    await expect(as(ian).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
+      'may not restore',
+    )
+  })
+})

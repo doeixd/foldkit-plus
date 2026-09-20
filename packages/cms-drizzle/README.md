@@ -6,9 +6,10 @@ unpublished work in three tables beside your own, and it is where the **audience
 boundary** is enforced: who is not an author is refused entries, drafts and
 revisions outright, and sees of your content only what is published.
 
-> **Status: everything but history.** Saving and discarding a draft, publishing
-> and unpublishing, scheduling, archiving, the worklist, an entry's derived state,
-> and the boundary. Restoring a revision is the next step of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
+> **Status: every operation.** Saving and discarding a draft, publishing and
+> unpublishing, scheduling, archiving, restoring a revision, the worklist, an
+> entry's derived state, and the boundary. In-app preview and an example are what
+> is left of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
 > Not on npm. SQLite and Postgres; MySQL has no `returning`, which the conflict
 > rule needs.
 
@@ -182,6 +183,15 @@ export default {
   error, or `null`.
 - An archived entry keeps its promise, and keeps it waiting.
 
+## Restoring
+
+`CmsRestore` makes a revision's value the working copy. **It publishes nothing**:
+what comes back is a draft like any other, to look at, change, and publish, which
+makes the next revision. It replaces what the draft held, and takes back a
+promise made of that. The saved Model goes with it, so an editor fills its form
+from the values, key by key, and a revision older than the form still opens.
+Only what has been published has a past to restore.
+
 ## Archiving
 
 `CmsArchive` puts an entry away: off the worklist, and, for a type with a
@@ -210,7 +220,7 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 
 ## Limits
 
-- No restore yet. `allow` is asked about every transition but `restore`.
+- `allow` is asked about every transition.
 - There is no way to show an unpublished row again as it is: publishing needs a
   draft, so an author edits and publishes.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the

@@ -76,7 +76,15 @@ export interface ServedContent<P = any> {
 
 /** What an author may be refused, by `allow`. */
 export type Asked =
-  'save' | 'discard' | 'publish' | 'unpublish' | 'schedule' | 'unschedule' | 'archive' | 'unarchive'
+  | 'save'
+  | 'discard'
+  | 'publish'
+  | 'unpublish'
+  | 'schedule'
+  | 'unschedule'
+  | 'archive'
+  | 'unarchive'
+  | 'restore'
 
 /**
  * Runs some work so that it happened entirely or did not. Drizzle's own
@@ -585,6 +593,7 @@ export const CmsServer = {
       unschedule: 'unscheduled',
       archive: 'archived',
       unarchive: 'unarchived',
+      restore: 'restored',
     }
     /** The entry, if its state offers this transition now. */
     const offering = (id: string, transition: Exclude<Asked, 'save' | 'discard'>) =>
@@ -860,6 +869,71 @@ export const CmsServer = {
       )
 
     /**
+     * A revision's value becomes the working copy, and nothing is published. It
+     * replaces what the draft held, and takes back a promise made of that: what
+     * was scheduled is not what is there now. The saved Model goes too, so an
+     * editor fills its form from the values, key by key.
+     */
+    const Restore = operation(Cms.Operations.Restore, ({ input, principal }) =>
+      Effect.gen(function* () {
+        const { entry } = yield* offering(input.entry, 'restore')
+        yield* asking(principal, 'restore', entry)
+        const database = yield* DrizzleDatabase
+        const [revision] = yield* Effect.promise(() =>
+          Promise.resolve(
+            database
+              .select({ values: tables.revisions.values })
+              .from(tables.revisions)
+              .where(
+                and(eq(tables.revisions.entryId, entry.id), eq(tables.revisions.n, input.revision)),
+              )
+              .limit(1),
+          ),
+        )
+        if (revision === undefined)
+          return yield* refuse(`This entry has no revision ${input.revision}`)
+
+        const writes = database as unknown as Writes
+        const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, entry.id)
+        const at = now().toISOString()
+        const updatedAt =
+          held !== undefined && at <= String(held.updatedAt)
+            ? new Date(new Date(String(held.updatedAt)).getTime() + 1).toISOString()
+            : at
+        const restored = {
+          values: revision.values,
+          model: null,
+          form: `restored@${input.revision}`,
+          updatedAt,
+          updatedBy: nameOf(principal),
+          baseRevision: entry.revision,
+          scheduledFor: null,
+          scheduledBy: null,
+          scheduleError: null,
+        }
+        yield* Effect.promise(() =>
+          Promise.resolve(
+            held === undefined
+              ? writes.insert(tables.drafts).values({ id: entry.id, ...restored })
+              : writes
+                  .update(tables.drafts)
+                  .set(restored)
+                  .where(eq(tables.drafts.id, entry.id))
+                  .returning({ id: tables.drafts.id }),
+          ),
+        )
+        return {
+          output: { updatedAt },
+          entities: [
+            ...(yield* entryPatches(entry.id)),
+            ...draftPatch.patches(yield* readRows(Db.Draft, draftPatch.columns, entry.id)),
+            ...scheduledPatch.patches(yield* readRows(Db.Draft, scheduledPatch.columns, entry.id)),
+          ],
+        }
+      }),
+    )
+
+    /**
      * Publishes every draft whose time has come, each in its own transaction, as
      * whoever scheduled it: `as` says who a stored name is. One that fails stays
      * scheduled with the reason, and is left alone until its draft changes, so a
@@ -947,6 +1021,7 @@ export const CmsServer = {
       Unschedule,
       archiving('archive'),
       archiving('unarchive'),
+      Restore,
     ]
 
     // A content type with an address is found by it, behind the same boundary as

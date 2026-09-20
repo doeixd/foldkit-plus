@@ -410,7 +410,8 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    since a principal cannot be stored; an archived entry does not come due; and
    archiving takes what can be hidden off show, which §5 left unsaid.* `Schedule`, `Unschedule`, `due(now)` with a clock passed in,
    the failure path, and a Cloudflare cron example.
-7. **History and preview.** The revision list and `Restore`; in `foldkit-remote`,
+7. **History and preview.** *`Restore` is built, server and editor. The Remote
+   overlay without a request, and so in-app preview, is not.* The revision list and `Restore`; in `foldkit-remote`,
    an optimistic overlay that is held without a request, and the in-app preview
    over it.
 8. **`examples/cms`.** A small site and its authoring app over SQLite: a visitor's
