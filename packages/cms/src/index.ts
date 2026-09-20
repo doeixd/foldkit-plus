@@ -18,7 +18,7 @@ import {
   type EntityInput,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
-import { Mutation, Query, type MutationDescriptor } from 'foldkit-remote'
+import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { makeEditor } from './editor.js'
 import { Display } from 'foldkit-crud'
@@ -252,6 +252,14 @@ export interface Content<
   }
   readonly roles: Roles
   readonly words: { readonly one: string; readonly many: string }
+  /**
+   * How a value of the form would look in the store: the operations an optimistic
+   * publish of it would show. Declared, an author can preview what they have
+   * entered in the application's own views; not declared, there is no preview.
+   * `id` is the row's, or the entry's while there is no row yet.
+   */
+  readonly preview?:
+    ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>) | undefined
 }
 
 const editor = makeEditor({ Entities, Operations })
@@ -314,6 +322,7 @@ export const Cms = {
       readonly form: F & ContentForm<NoInfer<E>, Value>
       readonly publish: Content<Name, E, NoInfer<Value>, TargetId>['publish']
       readonly words: { readonly one: string; readonly many: string }
+      readonly preview?: Content<Name, E, NoInfer<Value>, TargetId>['preview']
     },
   ): Content<Name, E, Value, TargetId, F> => {
     if (!Entity.same(config.form.input.entity, config.entity))

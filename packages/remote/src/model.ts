@@ -150,6 +150,17 @@ export type RemoteMessage =
       readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
     }
   | { readonly _tag: 'MutationFailed'; readonly requestId: string; readonly error: RemoteError }
+  /**
+   * Operations shown over the store with no request behind them, until they are
+   * lifted: a preview of a change nobody has made. Showing an id again replaces
+   * what it showed.
+   */
+  | {
+      readonly _tag: 'OverlayShown'
+      readonly id: string
+      readonly optimistic: ReadonlyArray<OptimisticOperation>
+    }
+  | { readonly _tag: 'OverlayLifted'; readonly id: string }
   | {
       readonly _tag: 'LiveReceived'
       readonly stream: string
@@ -208,6 +219,8 @@ export const remoteMessageCases = {
     ),
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
+  OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
+  OverlayLifted: { id: Schema.String },
   LiveReceived: {
     stream: Schema.String,
     event: Schema.Unknown,
@@ -252,6 +265,9 @@ export const remoteMessageSchema = Schema.Union(
     Schema.Struct({ _tag: Schema.Literal(tag), ...fields }),
   ),
 ) as unknown as Schema.Schema<RemoteMessage>
+
+/** An overlay's layer, named apart from every request's: a request id is the application's to choose too. */
+const overlayLayer = (id: string): string => `overlay:${id}`
 
 const marksOf = (
   requests: ReadonlyArray<Requirement>,
@@ -396,6 +412,22 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         mutations: settled.state,
         optimistic: settled.optimistic,
       }
+    }
+    case 'OverlayShown':
+      return {
+        ...model,
+        optimistic: beginOptimistic(
+          settleFailure(model.optimistic, overlayLayer(message.id)),
+          overlayLayer(message.id),
+          message.optimistic,
+        ),
+      }
+    case 'OverlayLifted': {
+      const optimistic = settleFailure(model.optimistic, overlayLayer(message.id))
+      return optimistic.layers.length === model.optimistic.layers.length &&
+        optimistic.overlays.length === model.optimistic.overlays.length
+        ? model
+        : { ...model, optimistic }
     }
     case 'MutationFailed':
       return {

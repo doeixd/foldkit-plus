@@ -9,7 +9,7 @@ of that is CMS-specific and none is repeated here.
 **Status: core, editor state, server.** `foldkit-cms` is roles, content types,
 three Entities, the operations as descriptors, the lifecycle, and `Cms.editor`.
 `foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
-publishing and unpublishing, the worklist, an entry's derived state. There is no in-app preview yet, and neither is on npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
+publishing and unpublishing, the worklist, an entry's derived state. Neither is on npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
 
 ## Ownership
 
@@ -94,6 +94,9 @@ PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
 - Opening resumes the draft: saved Model (same form name and `version`), else
   saved values key by key, else what is published. `resumed` is `Lost` when a
   draft fit nothing.
+- Preview: give `Cms.content` a `preview: (value, id) => operations`; `PreviewShown` /
+  `PreviewHidden` lay the form's decodable value over Remote's store (`Data.overlay`),
+  so the app's own views draw it. Nothing is sent. `PostEditor.canPreview`, `.previewing(model)`.
 - `Conflict`: `ReloadAsked` takes the server's copy, `OverwriteAsked` saves over it.
 - Register `Cms.Entities` and `Cms.operations` with `Remote.make`.
 

@@ -10,7 +10,7 @@ are: **audience** (a visitor sees what is published, an author sees everything),
 > **Status: the core and the editor.** Roles, content types, the three Entities,
 > the operations as descriptors, the lifecycle, and the authoring editor's state. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
 > which saves, discards, publishes and unpublishes, and enforces the audience
-> boundary; in-app preview and an example are next in
+> boundary; an example application is next in
 > [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
 > is on npm.
 
@@ -68,6 +68,8 @@ const Posts = Cms.content('posts', {
   form: PostForm, // an ordinary form: Form.make('PostForm', Entity.input(Post, PostInput))
   publish: { create: CreatePostMutation, update: UpdatePostMutation },
   words: { one: 'Post', many: 'Posts' },
+  // Optional: how a value would look in the store, for in-app preview.
+  preview: (value, id) => [{ entity: 'Post', id, values: value }],
 })
 ```
 
@@ -159,6 +161,12 @@ PostEditor.state(model) // the entry's lifecycle state, as the server last deriv
   it. Merging is not attempted.
 - **Restoring** a revision replaces what is in the form with that value, as a
   draft. It publishes nothing.
+- **Preview is the application's own views.** Give the content type `preview`,
+  the operations an optimistic publish of a value would show, and `PreviewShown`
+  lays what is in the form over Remote's store until `PreviewHidden`: every
+  Selection and view draws it, edit by edit, and nothing is sent. Only what
+  decodes is shown. It is lifted when the editor closes, reloads or discards. No
+  `preview`, no preview: `PostEditor.canPreview` says which.
 - **Discarding** shows what is published again; something never published has
   nothing left, and the editor closes.
 - What the server holds is read from Remote and never copied: a save is based on
@@ -220,7 +228,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | --- | --- |
 | `Cms.roles({ label?, slug?, published? })` | Pipe step: the members of an Entity that play a CMS part. |
 | `Cms.rolesOf(entity)` | Those roles, as Fields; `undefined` for a part nobody named. |
-| `Cms.content(name, { entity, form, publish, words })` | A type of content: its Entity, form, publish operations, and name. |
+| `Cms.content(name, { entity, form, publish, words, preview? })` | A type of content: its Entity, form, publish operations, and name. |
 | `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
 | `Cms.newEntryId()` | An id for something new. |
 | `Cms.slug(from, options?)`, `Cms.dateTime()`, `Cms.slugify(text)` | Controls for a form's `inputs`. |
@@ -235,8 +243,9 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 
 ## Limits
 
-- A revision list is a `Crud.list` you declare over `Cms.Entities.Revision`; there
-  is no in-app preview yet.
+- A revision list is a `Crud.list` you declare over `Cms.Entities.Revision`.
+- Preview is for the author, in their own session. A link someone else can open
+  is an audience, and is [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
   and the status and buttons yourself.
 - A taken slug arrives as the editor's `error`;

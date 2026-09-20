@@ -163,6 +163,8 @@ case 'ClickedRefresh': {
   pending layers), released on settle by `requestId`; settlement is idempotent.
   Optimistic list edits: `optimistic: ({ tempId }) => [Project.patch(tempId, {...}), ConnectionChange.prepend(projects.ref, Project.ref(tempId))]`,
   where `projects` is the `Data.query(...)` Projection above.
+- `Data.overlay(model, id, operations)` shows optimistic operations with no request
+  (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
 - `Data.refresh(model, target)` accepts a Projection or a Surface **without
   params**. It only works if something observes that Projection (an active
   read entry). For unobserved data use `Data.prefetch` with `RemotePolicy.networkOnly`.

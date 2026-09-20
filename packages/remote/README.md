@@ -516,6 +516,24 @@ Projection itself.
 
 ### Refreshing from `update`
 
+### Showing a change nobody has made
+
+A mutation's `optimistic` operations show over the store while it is in flight.
+`Data.overlay` shows operations the same way with no request behind them, until
+`Data.lift`: a preview, in every Selection and view, of something not yet sent.
+
+```ts
+const previewed = Data.overlay(model, 'post-preview', [Project.patch(id, { name: draft })])
+const back = Data.lift(previewed, 'post-preview')
+```
+
+- Both are called from `update`, and neither performs I/O or touches what the
+  server said: the store beneath is as it was.
+- Showing an id again replaces what it showed. Lifting what was never shown
+  returns the same Model.
+- An overlay's id is apart from every request's, so a mutation that settles does
+  not take a preview with it.
+
 To revalidate what a screen already declares — a refresh button, a focus
 regained — hand its Projection (or a Surface without params) to `Data.refresh`:
 

@@ -49,7 +49,10 @@ const Posts = Cms.content('posts', {
     }),
   },
   words: { one: 'Post', many: 'Posts' },
+  // What an optimistic publish of a value would show: the row, with the value in it.
+  preview: (value, id) => [{ entity: 'Post', id, values: value }],
 })
+const PostBody = Entity.select(Post, { title: true, body: true })
 
 // ---- the application ----
 
@@ -239,6 +242,12 @@ const world = () => {
       resumed: () => PostEditor.resumed(model),
       state: () => PostEditor.state(model)?._tag,
       schedule: () => PostEditor.state(model)?.schedule,
+      previewing: () => PostEditor.previewing(model),
+      /** The post as any view of the application reads it. */
+      post: (id: string) => {
+        const read = Data.get(PostBody, id).read(model)
+        return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value : read._tag
+      },
       error: () => PostEditor.error(model)?.message,
       field: (key: 'title' | 'body') => PostForm.field(model.editor.form, key),
     }
@@ -626,6 +635,64 @@ describe('restoring a revision', () => {
       { values: '{"title":"Live","body":"Kept"}' },
     ])
     expect(ada.field('body').value).toBe('Kept')
+  })
+})
+
+describe('previewing', () => {
+  it('lays what is in the form over the store for the application’s own views, and sends nothing', async () => {
+    const { author, rows, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    expect(ada.post('p1')).toEqual({ title: 'Live', body: 'As published' })
+
+    await ada.send(ada.form(Editor.Message.PreviewShown()))
+    ada.hold(ada.type('body', 'As it will read'))
+    expect(ada.post('p1')).toEqual({ title: 'Live', body: 'As it will read' })
+    // It follows the form, edit by edit.
+    ada.hold(ada.type('title', 'Retitled'))
+    expect(ada.post('p1')).toEqual({ title: 'Retitled', body: 'As it will read' })
+    expect(sent).toEqual([])
+    expect(rows(`select body from posts where id = 'p1'`)).toEqual([{ body: 'As published' }])
+
+    await ada.send(ada.form(Editor.Message.PreviewHidden()))
+    expect(ada.post('p1')).toEqual({ title: 'Live', body: 'As published' })
+  })
+
+  it('shows only what decodes: a title that is not valid yet stays as published', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.form(Editor.Message.PreviewShown()))
+    ada.hold(ada.type('title', ''))
+    ada.hold(ada.type('body', 'Half done'))
+    expect(ada.post('p1')).toEqual({ title: 'Live', body: 'Half done' })
+  })
+
+  it('is lifted when the editor closes or the draft is discarded, however preview was left', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.form(Editor.Message.PreviewShown()))
+    await ada.send(ada.type('body', 'Second thoughts'))
+    await ada.send(ada.form(Editor.Message.DiscardAsked()))
+    await ada.load()
+    expect(ada.previewing()).toBe(false)
+    expect(ada.post('p1')).toEqual({ title: 'Live', body: 'As published' })
+  })
+
+  it('is a capability declared, never implied', () => {
+    const { preview: _, ...unpreviewed } = Posts
+    const Plain = Cms.editor('PlainEditor', { content: unpreviewed, rest: 0 })
+    const open = {
+      ...Plain.bundle.init(undefined).model,
+      mode: 'edit' as const,
+      entry: 'e1',
+      filled: true,
+    }
+    const asked = (editor: typeof Plain | typeof Editor) =>
+      editor.bundle.update(open as never, Editor.Message.PreviewShown(), undefined).model.previewing
+    expect(asked(Plain)).toBe(false)
+    expect(asked(Editor)).toBe(true)
   })
 })
 

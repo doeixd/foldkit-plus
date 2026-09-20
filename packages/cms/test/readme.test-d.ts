@@ -38,6 +38,8 @@ const Posts = Cms.content('posts', {
   form: PostForm, // an ordinary form: Form.make('PostForm', Entity.input(Post, PostInput))
   publish: { create: CreatePostMutation, update: UpdatePostMutation },
   words: { one: 'Post', many: 'Posts' },
+  // Optional: how a value would look in the store, for in-app preview.
+  preview: (value, id) => [{ entity: 'Post', id, values: value }],
 })
 
 expectTypeOf(Cms.rolesOf(Post).slug).toEqualTypeOf<(typeof Posts)['roles']['slug']>()

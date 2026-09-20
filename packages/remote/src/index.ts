@@ -304,6 +304,15 @@ export interface RemoteDomain<
   ): QueryRef<Name, Input> | undefined
   /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
   fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
+  /**
+   * Shows operations over the store with no request behind them, as a mutation's
+   * `optimistic` ones show while it is in flight: every Selection and view draws
+   * them. For a preview of a change nobody has made. They stay until `lift`;
+   * showing an id again replaces what it showed. Called from `update`.
+   */
+  overlay(model: AppModel, id: string, optimistic: ReadonlyArray<OptimisticOperation>): AppModel
+  /** Lifts what `overlay` showed under this id. Lifting nothing returns the same Model. */
+  lift(model: AppModel, id: string): AppModel
   /** `Remote.refresh`: marks what a projection or a Surface requires as due, for its read entry to refetch. */
   refresh(
     model: AppModel,
@@ -1586,6 +1595,16 @@ const bindDomain = <
         : undefined
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),
+    overlay: (model, id, optimistic) =>
+      bound.store.set(
+        model,
+        updateRemote(bound.store.get(model), { _tag: 'OverlayShown', id, optimistic }) as Store,
+      ),
+    lift: (model, id) => {
+      const remote = bound.store.get(model)
+      const lifted = updateRemote(remote, { _tag: 'OverlayLifted', id })
+      return lifted === remote ? model : bound.store.set(model, lifted as Store)
+    },
     fetch: ref => ({
       name: `Remote.query(${ref.query})`,
       args: { connection: ref.identity, window: ref.window },

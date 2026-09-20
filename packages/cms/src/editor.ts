@@ -17,6 +17,7 @@ import { Entity, type AnyEntity } from 'foldkit-entity'
 import type { Submitted } from 'foldkit-form'
 import type {
   MutationStatus,
+  OptimisticOperation,
   RemoteClient,
   RemoteData,
   RemoteError,
@@ -82,6 +83,10 @@ export interface EditorModel<FormModel> {
   readonly scheduleAt: string | null
   /** The discard or unpublish in progress or last settled. */
   readonly otherId: string | null
+  /** Whether what is in the form is laid over the store, for the application's own views to draw. */
+  readonly previewing: boolean
+  /** The edit the overlay was last made from; it is made again when the form has moved on. */
+  readonly previewedEdit: number
   /** After a conflict: waiting for the server's copy, to show it or to save over it. */
   readonly settling: 'reload' | 'overwrite' | null
 }
@@ -133,6 +138,8 @@ export interface EditorDomain<Root> {
   get(selection: any, id: string): Projection<Root, RemoteData<any>>
   mutation(model: Root, requestId: string): MutationStatus
   refresh(model: Root, target: any): Root
+  overlay(model: Root, id: string, optimistic: ReadonlyArray<OptimisticOperation>): Root
+  lift(model: Root, id: string): Root
   readonly contract: { readonly owner?: object | undefined }
 }
 
@@ -141,6 +148,8 @@ export interface EditorContent<FormModel, FormMessage, Value> {
   readonly entity: AnyEntity
   readonly form: EditorForm<FormModel, FormMessage, Value>
   readonly roles: { readonly label: { readonly key: string } | undefined }
+  readonly preview?:
+    ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>) | undefined
 }
 
 const isEdit = (message: { readonly _tag: string; readonly message?: unknown }): boolean =>
@@ -205,6 +214,8 @@ export const makeEditor =
       publishWanted: false,
       scheduleAt: null,
       otherId: null,
+      previewing: false,
+      previewedEdit: -1,
       settling: null,
     }
     const Model = Schema.Struct({
@@ -221,6 +232,8 @@ export const makeEditor =
       publishWanted: Schema.Boolean,
       scheduleAt: Schema.NullOr(Schema.String),
       otherId: Schema.NullOr(Schema.String),
+      previewing: Schema.Boolean,
+      previewedEdit: Schema.Number,
       settling: Schema.NullOr(Schema.Literals(['reload', 'overwrite'])),
     }) as unknown as Schema.Codec<Model, unknown>
 
@@ -229,6 +242,9 @@ export const makeEditor =
     const Own = defineMessageUnion({
       Rested: { edit: Schema.Number },
       PublishAsked: {},
+      /** Lays what is in the form over the store, until `PreviewHidden`. Nothing is sent. */
+      PreviewShown: {},
+      PreviewHidden: {},
       /** Publishes later: the form is submitted and saved now, and the server keeps the promise. */
       ScheduleAsked: { at: Schema.String },
       UnscheduleAsked: {},
@@ -252,6 +268,8 @@ export const makeEditor =
     const own = new Set([
       'Rested',
       'PublishAsked',
+      'PreviewShown',
+      'PreviewHidden',
       'ScheduleAsked',
       'UnscheduleAsked',
       'ArchiveAsked',
@@ -266,7 +284,15 @@ export const makeEditor =
 
     const asks: Readonly<
       Record<
-        Exclude<Own['_tag'], 'Rested' | 'PublishAsked' | 'ScheduleAsked' | 'RestoreAsked'>,
+        Exclude<
+          Own['_tag'],
+          | 'Rested'
+          | 'PublishAsked'
+          | 'ScheduleAsked'
+          | 'RestoreAsked'
+          | 'PreviewShown'
+          | 'PreviewHidden'
+        >,
         EditorOut
       >
     > = {
@@ -322,6 +348,13 @@ export const makeEditor =
               : { model }
           case 'PublishAsked':
             return viaForm({ ...model, scheduleAt: null }, form.Message.Submitted())
+          case 'PreviewShown':
+            // A capability is declared, never implied.
+            return content.preview === undefined
+              ? { model }
+              : { model: { ...model, previewing: true, previewedEdit: -1 } }
+          case 'PreviewHidden':
+            return { model: { ...model, previewing: false } }
           case 'RestoreAsked':
             return { model, outMessage: { _tag: 'Restore', revision: message.revision } }
           case 'ScheduleAsked':
@@ -594,8 +627,30 @@ export const makeEditor =
          * What follows from what has arrived: the loaded value is shown, a save
          * that waited its turn starts, and a publish goes once its draft is saved.
          */
+        const overlayId = `${name}.preview`
+        /**
+         * What is in the form, over the store, while preview is on: made again when
+         * the form has moved on, and lifted the moment it is off, however that came
+         * about (a close, a discard, a reload).
+         */
+        const previewed = (root: Root): Root => {
+          const editor = slice.get(root)
+          if (!editor.previewing || content.preview === undefined || editor.entry === null)
+            return data.lift(root, overlayId)
+          if (editor.previewedEdit === editor.edits) return root
+          const id =
+            held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
+            editor.entry
+          const shown = data.overlay(
+            root,
+            overlayId,
+            content.preview(form.partial(editor.form), id),
+          )
+          return slice.set(shown, { ...slice.get(shown), previewedEdit: editor.edits })
+        }
+
         const sync: Step = given => {
-          let root = fill(given)
+          let root = previewed(fill(given))
           const commands: Array<Command<RemoteMessage, never, RemoteClient>> = []
           const run = (step: Step) => {
             const next = step(root)
@@ -739,6 +794,9 @@ export const makeEditor =
               }
             },
 
+          /** Whether this content type can be previewed, and whether it is being. */
+          canPreview: content.preview !== undefined,
+          previewing: (root: Root): boolean => slice.get(root).previewing,
           /** The entry being edited; `null` while closed. */
           entry: (root: Root): string | null => slice.get(root).entry,
           /** How the form came to hold what it holds; `Lost` is worth telling the author. */

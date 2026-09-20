@@ -272,6 +272,63 @@ describe('Data.mutate starts a mutation from update', () => {
   })
 })
 
+describe('Data.overlay shows a change nobody has made', () => {
+  const summary = Project.select({ name: true })
+  const known = Data.reduce(initial, {
+    _tag: 'ReadReceived',
+    requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+    result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Saved' } }] },
+    now: 0,
+  })
+  const name = (model: Model) => Data.get(summary, 'p1').read(model)
+
+  it('over the store, for every Selection, until it is lifted, and the store is as it was', () => {
+    const shown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    expect(name(shown)).toEqual({ _tag: 'Ready', value: { name: 'Previewed' } })
+    // No request began, and what the server said is untouched beneath.
+    expect(shown.remote.mutations).toBe(known.remote.mutations)
+    expect(shown.remote.entities).toBe(known.remote.entities)
+
+    const lifted = Data.lift(shown, 'preview')
+    expect(name(lifted)).toEqual({ _tag: 'Ready', value: { name: 'Saved' } })
+    expect(lifted.remote.optimistic).toEqual(known.remote.optimistic)
+  })
+
+  it('replaces what an id showed when it is shown again', () => {
+    const first = Data.overlay(known, 'preview', [
+      Project.patch('p1', { name: 'First' }),
+      ConnectionChange.prepend('Feed', Project.ref('p1')),
+    ])
+    const second = Data.overlay(first, 'preview', [Project.patch('p1', { name: 'Second' })])
+    expect(name(second)).toEqual({ _tag: 'Ready', value: { name: 'Second' } })
+    expect(second.remote.optimistic.layers).toHaveLength(1)
+    expect(second.remote.optimistic.overlays).toEqual([])
+  })
+
+  it('is apart from a request of the same id, and outlives it', () => {
+    const shown = Data.overlay(known, 'remote-1', [Project.patch('p1', { name: 'Previewed' })])
+    const started = Data.mutate(
+      shown,
+      Rename,
+      { id: 'p1', name: 'x' },
+      {
+        optimistic: [Project.patch('p1', { name: 'Pending' })],
+      },
+    )
+    expect(started.requestId).toBe('remote-1')
+    const failed = Data.reduce(started.model, {
+      _tag: 'MutationFailed',
+      requestId: 'remote-1',
+      error: { _tag: 'RemoteMutationError', message: 'no' },
+    })
+    expect(name(failed)).toEqual({ _tag: 'Ready', value: { name: 'Previewed' } })
+  })
+
+  it('lifting what was never shown is the same Model', () => {
+    expect(Data.lift(known, 'nothing')).toBe(known)
+  })
+})
+
 describe('Data.live and Data.subscriptions', () => {
   const summary = Project.select({ name: true })
   const Page = App.surface('Page', {

@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   no timer. `CmsArchive` also takes what can be hidden off show. The editor gains
   `ScheduleAsked({ at })`, which submits and saves first, and `UnscheduleAsked`,
   `ArchiveAsked`, `UnarchiveAsked`. `cms_drafts` gains `scheduled_by`.
+- **In-app preview.** `foldkit-remote` gains `Data.overlay(model, id, operations)`
+  and `Data.lift(model, id)` (`OverlayShown`, `OverlayLifted`): optimistic
+  operations shown with no request behind them. A content type's `preview` says
+  how a value would look in the store, and the editor's `PreviewShown` lays what
+  is in the form over it, edit by edit, until `PreviewHidden`.
 - **Restoring.** `CmsRestore` makes a revision's value the working copy and
   publishes nothing; the editor's `RestoreAsked({ revision })` shows it in the form.
 - **`foldkit-cms`: kinds and their renderers.** `Cms.slug(from)` and
