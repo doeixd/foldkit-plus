@@ -133,3 +133,17 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
   )
   void Finished
 }
+
+{
+  const input = Entity.input(
+    Entity.define('Addressed', Schema.Struct({ id: Schema.String, title: Schema.String })),
+    Schema.Struct({ title: Schema.String, slug: Schema.String }),
+    { slug: Entity.unmapped },
+  )
+  const slugify = (text: string): string => text.toLowerCase()
+  const PostForm = Form.make('PostForm', input, {
+    inputs: { slug: Input.following('title', slugify) },
+  })
+
+  PostForm.isFollowing(PostForm.initial, 'slug') // false once the author has written it
+}

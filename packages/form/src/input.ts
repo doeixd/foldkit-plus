@@ -42,6 +42,17 @@ export interface Control<Data = unknown> {
   readonly parse?: ((draft: string) => unknown) | undefined
   /** What to say when `parse` gives `undefined`. */
   readonly unparsed?: string | undefined
+  /**
+   * For a `text` draft: another key of the form this one is written from until
+   * the author writes it themselves. A slug follows a title.
+   */
+  readonly follows?: Follows | undefined
+}
+
+/** Which key a draft follows, and what it makes of that key's text. */
+export interface Follows {
+  readonly key: string
+  readonly through: (text: string) => string
 }
 
 /** A kind of control: how its values are made, and how one is told from another. */
@@ -80,6 +91,7 @@ export interface NestedForm {
   readonly field: (model: never, key: never) => unknown
   readonly rows: (model: never, key: never) => ReadonlyArray<FormRow>
   readonly search: (model: never, key: never) => string
+  readonly isFollowing: (model: never, key: never) => boolean
   readonly Message: {
     readonly Changed: (payload: never) => unknown
     readonly Blurred: (payload: never) => unknown
@@ -227,6 +239,21 @@ export const Input = {
       if (resolved !== undefined && RelationMany.is(resolved))
         return RelationMany.of({ ...resolved.data, search: true })
       throw new Error(`"${inputKey}" is not a relation, so it has no picker to search`)
+    },
+  }),
+
+  /**
+   * Under `inputs`: the key's own control, following another key. Until the
+   * author writes this key, its draft is `through` of that key's text, rewritten
+   * as that key is edited; once they write it, it is theirs. Emptying it hands
+   * it back. A form filled with a value for it does not follow: an address that
+   * is already published must not move because its title did.
+   */
+  following: (key: string, through: (text: string) => string = text => text): ControlChange => ({
+    change: (resolved, inputKey) => {
+      if (resolved === undefined || resolved.draft !== 'text')
+        throw new Error(`"${inputKey}" holds no text, so it cannot follow "${key}"`)
+      return Object.freeze({ ...resolved, follows: { key, through } })
     },
   }),
 

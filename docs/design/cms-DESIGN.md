@@ -366,7 +366,8 @@ It is the first PR (§13) because the slug control cannot be written without it.
 
 Each is a PR that stands on its own and leaves `pnpm check` green.
 
-1. **`foldkit-form`: a draft that follows another key.** `follows`, `touched`,
+1. **`foldkit-form`: a draft that follows another key.** *Built as
+   `Input.following(key, through)`, with `form.isFollowing`.* `follows`, `touched`,
    and the rule that a fill or a reset clears `touched`. No CMS in it.
 2. **`foldkit-cms`: declarations and the lifecycle.** `Cms.roles` as Entity
    metadata, checked by type and at runtime, with `Cms.rolesOf`; `Cms.content`; the three Entities; `Cms.state(facts, now)`

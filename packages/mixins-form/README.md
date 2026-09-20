@@ -124,6 +124,11 @@ FormView.define(PriceForm, {
 })
 ```
 
+A renderer is told `input.following`: whether the key is still written from the
+key it follows ([`Input.following`](../form/README.md#a-key-that-follows-another)).
+A renderer that wants a "regenerate" button shows it when that is `false` and
+sends the key an empty draft.
+
 A renderer draws the control only; the label, description, error, and a search
 box are the field's. `state` is the control's `id` and its accessibility
 attributes, to put on the element that holds the value. A control whose kind has

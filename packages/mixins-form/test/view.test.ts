@@ -250,6 +250,36 @@ describe('renderers', () => {
     expect(byId(root, 'Rated-title')?.sel).toBe('div')
   })
 
+  it('tells a renderer whether its key still follows another, so it can offer to regenerate', () => {
+    const Addressed = Form.make(
+      'Addressed',
+      Entity.input(
+        Entity.define('Page', Schema.Struct({ id: Schema.String, title: Schema.String })),
+        Schema.Struct({ title: Schema.String, slug: Schema.String }),
+        { slug: Entity.unmapped },
+      ),
+      { inputs: { slug: Input.following('title', text => text.toLowerCase()) } },
+    )
+    const View = FormView.define(Addressed, {
+      renderers: {
+        Text: ({ input, state, h }) => h.div(state, [input.following ? 'following' : 'own']),
+      },
+    })
+    const says = (model: typeof Addressed.initial) =>
+      text(
+        byId(
+          View({ model, errors: [], canSubmit: true }, SlotView.inertBuilder()) as unknown as Node,
+          'Addressed-slug',
+        ),
+      )
+    const written = Addressed.bundle.update(
+      Addressed.initial,
+      Addressed.Message.Changed({ key: 'slug', value: 'mine' }),
+      undefined,
+    ).model
+    expect([says(Addressed.initial), says(written)]).toEqual(['following', 'own'])
+  })
+
   it('says which kind has no renderer, and where to give one', () => {
     expect(() => draw(FormView.define(Rated))).toThrow(
       'FormView: no renderer for a "Stars" control ("stars"); pass one under "renderers"',

@@ -34,6 +34,7 @@ export {
   type ControlKind,
   type Draft,
   type DraftKind,
+  type Follows,
   type FormRow,
   type NestedData,
   type NestedForm,
@@ -74,6 +75,11 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}> {
   readonly nextRow: number
   /** What was typed to find a choice, by key, for the relation pickers that search. */
   readonly searches: Readonly<Record<string, string>>
+  /**
+   * The keys that follow another and that the author has written themselves, so
+   * they follow no longer. A key that follows nothing is never here.
+   */
+  readonly touched: Readonly<Record<string, boolean>>
   /** Failures of the input as a whole, from the last submit: a rule that spans keys. */
   readonly errors: ReadonlyArray<string>
   /** A submit is waiting for checks still running; it goes out when the last one passes. */
@@ -589,6 +595,7 @@ const Core = {
       ),
       nextRow: Schema.Number,
       searches: Schema.Record(Schema.String, Schema.String),
+      touched: Schema.Record(Schema.String, Schema.Boolean),
       errors: Schema.Array(Schema.String),
       submitPending: Schema.Boolean,
     }) as unknown as Schema.Codec<Model, unknown>
@@ -649,6 +656,7 @@ const Core = {
         rows: {} as Model['rows'],
         nextRow: 0,
         searches: {},
+        touched: {},
         errors: [],
         submitPending: false,
       },
@@ -728,6 +736,72 @@ const Core = {
           } as Command<Message, never, R>,
         ],
       }
+    }
+
+    // The keys that follow another, and for each key, the keys that follow it.
+    const followers = keys.filter(key => plans[key].control.follows !== undefined)
+    const followedBy = (key: Key): ReadonlyArray<Key> =>
+      followers.filter(follower => plans[follower].control.follows!.key === key)
+    for (const follower of followers) {
+      const source = plans[follower].control.follows!.key as Key
+      if (plans[source] === undefined || plans[source].kind !== 'text' || source === follower)
+        fail(name, `"${follower}" follows "${source}", which is not another text key of the form`)
+      // A follows B follows A never settles.
+      const seen = new Set<string>([follower])
+      for (let next: Key | undefined = source; next !== undefined;) {
+        if (seen.has(next)) fail(name, `"${follower}" follows itself, through "${next}"`)
+        seen.add(next)
+        next = plans[next].control.follows?.key as Key | undefined
+      }
+    }
+
+    /** What a follower's draft is, from the key it follows. */
+    const derived = (model: Model, follower: Key): string => {
+      const { key, through } = plans[follower].control.follows!
+      return through(String(drafts(model)[key as Key].value))
+    }
+
+    /**
+     * An author's edit of one key, and what follows from it. The key becomes theirs,
+     * unless they emptied a key that follows another, which hands it back. Every
+     * key still following this one is rewritten, and so on down.
+     */
+    const changed = (
+      model: Model,
+      key: Key,
+      draft: Draft,
+    ): { readonly model: Model; readonly commands: Commands } => {
+      const follows = plans[key].control.follows !== undefined
+      const handedBack = follows && isEmpty(draft)
+      const owned: Model = follows
+        ? { ...model, touched: { ...model.touched, [key]: !handedBack } }
+        : model
+      const written = validateKey(owned, key, handedBack ? derived(owned, key) : draft)
+      return followedBy(key).reduce((result, follower) => {
+        if (result.model.touched[follower] === true) return result
+        const next = rewritten(result.model, follower)
+        return { model: next.model, commands: [...result.commands, ...next.commands] }
+      }, written)
+    }
+
+    /** A follower written from the key it follows, and its own followers after it. */
+    const rewritten = (
+      model: Model,
+      follower: Key,
+    ): { readonly model: Model; readonly commands: Commands } => {
+      const draft = derived(model, follower)
+      // Nothing to follow yet is nothing entered, not a failure to show.
+      const written = isEmpty(draft)
+        ? {
+            model: withField(model, follower, FieldValidation.NotValidated({ value: draft })),
+            commands: [] as Commands,
+          }
+        : validateKey(model, follower, draft)
+      return followedBy(follower).reduce((result, next) => {
+        if (result.model.touched[next] === true) return result
+        const after = rewritten(result.model, next)
+        return { model: after.model, commands: [...result.commands, ...after.commands] }
+      }, written)
     }
 
     const decodeInput = Schema.decodeUnknownResult(
@@ -824,6 +898,19 @@ const Core = {
         ...model,
         // Another value to edit is another search.
         searches: {},
+        // A key given a value is the author's: a published address does not move
+        // because its title did. One given nothing follows again.
+        touched: Object.fromEntries(
+          followers.flatMap(key =>
+            key in given
+              ? isEmpty(draftOf(plans[key], given[key]))
+                ? []
+                : [[key, true] as const]
+              : model.touched[key] === true
+                ? [[key, true] as const]
+                : [],
+          ),
+        ),
         errors: [],
         submitPending: false,
         fields: fieldsFrom(plan =>
@@ -862,7 +949,7 @@ const Core = {
             // A draft of another kind than the control of the key holds is not an edit.
             return kindOf(message.value) !== plans[message.key].kind
               ? { model }
-              : validateKey(edited(model), message.key, message.value)
+              : changed(edited(model), message.key, message.value)
           case 'Blurred': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
@@ -1029,6 +1116,12 @@ const Core = {
           ),
         } as never
       },
+      /**
+       * Whether a key that follows another still does: `false` once the author has
+       * written it themselves. A view offers "regenerate" by sending the key an empty draft.
+       */
+      isFollowing: (model: Model, key: Key): boolean =>
+        plans[key].control.follows !== undefined && model.touched[key] !== true,
       /** The rows of a nested key, each a Model of `control.form`. */
       rows: (model: Model, key: RowsKey): Model['rows'][RowsKey] =>
         (rowsOf(model)[key] ?? fail(name, `"${key}" holds a draft, not rows`)) as never,

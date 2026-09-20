@@ -159,6 +159,31 @@ Cents.is(control) && control.data.currency // 'USD'
   kind once it has a renderer for it; see
   [`foldkit-mixins-form`](../mixins-form/README.md#renderers).
 
+### A key that follows another
+
+A slug is its title until the author decides otherwise. `Input.following` keeps
+the key's own control and writes its draft from another key:
+
+```ts
+const PostForm = Form.make('PostForm', input, {
+  inputs: { slug: Input.following('title', slugify) },
+})
+
+PostForm.isFollowing(model, 'slug') // false once the author has written it
+```
+
+- While the author has not written the key, each edit of the key it follows
+  rewrites it, through the function given, and it is validated and checked as if
+  typed. With nothing to follow yet it shows no failure; a submit still does.
+- **Once they write it, it is theirs**, and the key it followed moves on without
+  it. Emptying it hands it back, which is how a view offers "regenerate".
+- **A form filled with a value for it does not follow.** An address that is
+  already published must not move because its title was edited. Filled with
+  nothing for it, it follows.
+- A key may follow a key that follows. A key that follows itself, through any
+  chain, or that follows something that is not another text key of the form, is
+  refused when the form is made.
+
 ### A picker that searches
 
 A relation usually has too many targets to list. `Input.search()` keeps the

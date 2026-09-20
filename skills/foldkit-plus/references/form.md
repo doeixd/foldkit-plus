@@ -104,6 +104,9 @@ const RenameForm = Page.at(Slot, {
   `'Add {label}'`) and share no key, so `const words = {...} satisfies FormMessages & FormViewWords & ViewWords`
   serves all three. Never put a function in a placed view's inputs below the top
   level: Foldkit throws.
+- **A key written from another until the author writes it** (a slug from a title):
+  `inputs: { slug: Input.following('title', slugify) }`. Emptying it hands it back;
+  a form filled with a value for it does not follow; `form.isFollowing(model, key)`.
 - **Word or translate it:** put a rule's words on the rule
   (`Schema.isMinLength(3, { message: '…' })`); give `Form.make` a `messages`
   option for the form's own (`required`, `unparsed`), a rewrite of Schema's

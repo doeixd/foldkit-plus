@@ -83,6 +83,11 @@ export interface FieldInput<Key extends string = string> {
     | undefined
   /** What was typed to find a choice, for a relation picker that searches. */
   readonly search: string
+  /**
+   * Whether the key is still written from the key it follows. A renderer offers
+   * "regenerate" when it is not, by sending the key an empty draft.
+   */
+  readonly following: boolean
 }
 
 /** What the form's own Style and Behavior attachments may read. */
@@ -151,6 +156,7 @@ interface FormLike<Key extends string, Model, Message> {
   /** The rows of a nested key. A form with none takes no key here. */
   readonly rows: (model: Model, key: never) => ReadonlyArray<FormRow>
   readonly search: (model: Model, key: Key) => string
+  readonly isFollowing: (model: Model, key: Key) => boolean
   readonly canSubmit: (model: Model) => boolean
   readonly Message: {
     /** The union, so `Message` is inferred from it and not from one constructor's case. */
@@ -181,6 +187,7 @@ interface Walk<Message> {
   readonly field: (key: string) => FieldValidation.Field<Draft>
   readonly rows: (key: string) => ReadonlyArray<FormRow>
   readonly search: (key: string) => string
+  readonly following: (key: string) => boolean
   readonly wrap: (message: unknown) => Message
   readonly make: NestedForm['Message']
 }
@@ -197,6 +204,8 @@ const rowWalk = <Message>(
   rows: inner =>
     (form.rows as (model: unknown, key: string) => ReadonlyArray<FormRow>)(row.model, inner),
   search: inner => (form.search as (model: unknown, key: string) => string)(row.model, inner),
+  following: inner =>
+    (form.isFollowing as (model: unknown, key: string) => boolean)(row.model, inner),
   wrap: message =>
     parent.wrap(
       (parent.make.Nested as (payload: object) => unknown)({ key, row: row.id, message }),
@@ -453,6 +462,7 @@ export const FormView = {
                     options: options[`${path}${key}`] ?? [],
                     id: here,
                     search: walk.search(key),
+                    following: walk.following(key),
                     searchWord: input.words?.search,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
@@ -512,6 +522,7 @@ export const FormView = {
           field: key => form.field(input.model, key as Key),
           rows: key => form.rows(input.model, key as never),
           search: key => form.search(input.model, key as Key),
+          following: key => form.isFollowing(input.model, key as Key),
           wrap: message => message as Message,
           make: form.Message as unknown as NestedForm['Message'],
         }

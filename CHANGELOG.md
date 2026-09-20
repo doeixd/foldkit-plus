@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-form`: `Input.following(key, through)` writes a key's draft from
+  another key until the author writes it themselves (a slug from a title).
+  Emptying it hands it back, and a form filled with a value for it does not
+  follow. The Model gains `touched`; a control gains `follows`; a form gains
+  `isFollowing`, and a drawn field is told `following`. The first step of
+  [the CMS design](./docs/design/cms-DESIGN.md).
+
 - `foldkit-remote`: `Selection.from` compiles an Entity Selection once. `Data.get`
   and `Data.query` are called with one on every render, and compiling it each
   time rebuilt its schemas and missed Remote's read cache, which is keyed by the
