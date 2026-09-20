@@ -199,7 +199,10 @@ nothing downstream changes. Relations become ref fields, derived members become
 fields the server supplies, and the Entity needs an `id` field. `Entity.from` /
 `Selection.from` give the compiled descriptor and Selection when a handler
 needs `patch` or `ref`. `Entity.page(selection, window)` in an Entity Selection
-compiles to `Selection.connection`. `Entity.make` + `Entity.ref`
+compiles to `Selection.connection`. A page of a whole list is read under an alias
+(`comments@first=10` in a requirement's `fields`, `windows`, and `relations`), so the
+list and a page of it can be read at once; `RemoteServer` resolves it, so upgrade
+both packages together. `Entity.make` + `Entity.ref`
 still works alongside.
 
 ```ts
