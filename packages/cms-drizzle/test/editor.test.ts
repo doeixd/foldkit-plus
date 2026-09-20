@@ -805,4 +805,19 @@ describe('unpublishing from the editor', () => {
     await ada.load()
     expect(ada.state()).toBe('Unpublished')
   })
+
+  it('shows it again as it was: a publish with nothing changed saves what is there, then publishes it', async () => {
+    const { author, rows, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.form(Editor.Message.UnpublishAsked()))
+    sent.length = 0
+    await ada.send(ada.form(Editor.Message.PublishAsked()))
+    expect(ada.error()).toBeUndefined()
+    expect(sent).toEqual(['CmsSaveDraft', 'CmsPublish'])
+    expect(ada.state()).toBe('Published')
+    expect(
+      rows(`select title, body, published_at is not null as shown from posts where id = 'p1'`),
+    ).toEqual([{ title: 'Live', body: 'As published', shown: 1 }])
+  })
 })

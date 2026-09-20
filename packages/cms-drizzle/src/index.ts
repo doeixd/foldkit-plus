@@ -176,6 +176,12 @@ export interface CmsServerConfig<P> {
   readonly allow?: (principal: P, transition: Asked, entry: EntryRow) => boolean
   /** The server's clock, passed in so a test can hold it. */
   readonly now?: () => Date
+  /**
+   * The most a draft may hold, as the characters of its JSON: its values and its
+   * form's Model together. An author is trusted with their own content, not with
+   * the database's disk. Default: one million.
+   */
+  readonly maxDraftSize?: number
   /** Who a principal is, for `createdBy` and `updatedBy`. */
   readonly nameOf?: (principal: P) => string | null
 }
@@ -232,6 +238,7 @@ export const CmsServer = {
     const { tables, isAuthor } = config
     const now = config.now ?? (() => new Date())
     const nameOf = config.nameOf ?? (() => null)
+    const maxDraftSize = config.maxDraftSize ?? 1_000_000
 
     const byType = new Map(config.content.map(served => [served.type.name, served]))
     for (const { type, binding, create, update } of config.content) {
@@ -514,6 +521,11 @@ export const CmsServer = {
       Effect.gen(function* () {
         if (!byType.has(input.type))
           return yield* refuse(`"${input.type}" is not a type of content this server knows`)
+        const size = JSON.stringify([input.values, input.model]).length
+        if (size > maxDraftSize)
+          return yield* refuse(
+            `This draft is too large to save: ${size} characters, and ${maxDraftSize} is the most`,
+          )
         // An id nobody has is something new: the client named it, and this makes it.
         const existing = yield* findEntry(input.entry)
         if (existing !== undefined && existing.type !== input.type)

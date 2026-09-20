@@ -977,3 +977,15 @@ describe('the worklist’s search', () => {
     expect(await as(ada).list({ type: 'posts', search: '%' })).toEqual(['e7'])
   })
 })
+
+describe('a draft’s size', () => {
+  it('is bounded: an author is trusted with their content, not with the disk', async () => {
+    const { as, count } = open()
+    const huge = save({ entry: 'e8', values: { title: 'x'.repeat(1_000_001) } })
+    await expect(as(ada).mutate('CmsSaveDraft', huge)).rejects.toThrow('too large to save')
+    expect(count(`cms_entries where id = 'e8'`)).toBe(0)
+    // The Model counts too: it is the larger half of most drafts.
+    const heavy = save({ entry: 'e8', model: { fields: { title: 'x'.repeat(1_000_001) } } })
+    await expect(as(ada).mutate('CmsSaveDraft', heavy)).rejects.toThrow('too large to save')
+  })
+})

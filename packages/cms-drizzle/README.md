@@ -97,6 +97,8 @@ new (`Cms.newEntryId()`), and the first save of an id nobody has makes the entry
   newer one on the server means someone else saved in between, and the save is
   refused with `CmsConflict: ...` instead of undoing their work. It is one
   statement, compare and set, so two saves cannot both win.
+- A draft is bounded: `maxDraftSize` characters of JSON, values and Model
+  together, one million by default. More is refused, and nothing is written.
 - Two saves in the same instant still get different `updatedAt`s, so the next
   save can tell them apart.
 - It answers with the entry and the draft as patches, so the client holds both
@@ -227,14 +229,14 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
 | `published(column, isAuthor)` | A `visible` rule for a content table: a visitor sees rows whose column is set. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf? })` | `sources`, `queries`, `mutations`, `due`, and `bindings`. |
+| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, and `bindings`. |
 | `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each. |
 
 ## Limits
 
 - `allow` is asked about every transition.
-- There is no way to show an unpublished row again as it is: publishing needs a
-  draft, so an author edits and publishes.
+- `CmsPublish` needs a draft. To show an unpublished row again as it is, the
+  editor's publish saves what is there first; a client of your own does the same.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the
   column's name). SQLite and Postgres say both; a constraint named without the
   column arrives as the driver's own error.

@@ -29,7 +29,8 @@ version changed; `pnpm` skips versions already in the registry.
     write arriving between another request's `begin` and `rollback` was rolled
     back with it after being reported done. Every operation is now one
     transaction, so a save cannot leave an entry without its draft.
-  - The worklist's search treats `%` and `_` as characters.
+  - The worklist's search treats `%` and `_` as characters, and a draft's size is
+    bounded (`maxDraftSize`, one million characters of JSON by default).
   - The editor asks once when publish is pressed twice; lists a draft by what its
     author typed, valid or not; forgets an old failure at the next save; resumes
     a stored Model with nothing in flight (`form.settled`, new in `foldkit-form`);
