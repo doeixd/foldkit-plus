@@ -1,10 +1,10 @@
-# Foldkit Plus: Composable Data, Query, Read Contracts, and Local-First Architecture
+# Foldkit Plus: Composable Data, Query, Read Contracts, Routing, and Local-First Architecture
 
 **Status:** design proposal; no implementation implied by this document  
 **Date:** September 2026  
 **Target:** doeixd/foldkit-plus  
 **Primary packages:** foldkit-entity, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-surface, foldkit-sync, foldkit-durable  
-**Internal prior art:** doeixd/gen2, doeixd/data-forge, doeixd/tanstackstart-db  
+**Internal prior art:** doeixd/gen2, doeixd/data-forge, doeixd/tanstackstart-db, doeixd/combi-router, Foldkit Router  
 **External prior art:** TanStack DB, LiveStore 0.4
 
 ## 1. Decision
@@ -59,6 +59,21 @@ The missing capability is narrower:
 The proposed architecture is:
 
 ~~~text
+                         URL SEMANTICS
+
+URL
+ │
+ ▼
+Foldkit Router
+bidirectional parser/printer
+ │
+ ▼
+typed AppRoute
+ │
+ ▼
+Model
+
+
                          DOMAIN SEMANTICS
 
 Entity / Field
@@ -119,7 +134,9 @@ remote-drizzle
 
 The central rules are:
 
-> **Compose query semantics first. Name and bind them second. Add consumer read requirements third. Interpret last.**
+> **Compose query semantics first. Name and bind them second. Let Model state activate feature/read requirements third. Interpret last.**
+
+> **Routing describes URL state; it does not own application data loading.**
 
 and:
 
@@ -1847,7 +1864,569 @@ Do not make fluent syntax a prerequisite for the semantic redesign.
 
 ---
 
-## 31. Recommended implementation sequence
+
+## 31. Routing, Surfaces, and page contracts
+
+Foldkit Router, doeixd/combi-router, and doeixd/tanstackstart-db expose three different ways of thinking about routing. Taken together, they clarify where route-driven data belongs in Foldkit Plus.
+
+The recommendation is:
+
+> **Foldkit Router should remain the pure URL ↔ typed route-state layer. Route state lives in Model. Active route state activates Surfaces. Surfaces declare ReadContracts and permitted Messages. Data/interpreters perform the work.**
+
+That preserves Foldkit's single application-state semantics while gaining the useful page-contract ergonomics explored by combi-router and tanstackstart-db.
+
+### 31.1 Foldkit Router is a bidirectional URL algebra
+
+Current Foldkit Router is not fundamentally a loader framework. It is a compositional bidirectional parser/printer.
+
+Its important values include:
+
+~~~text
+Route.root
+literal
+slash
+string / int / schemaSegment
+Route.query
+Route.mapTo
+Route.oneOf
+Route.parseUrlWithFallback
+~~~
+
+For example:
+
+~~~ts
+export const AppRoute = defineRouteUnion({
+  Home: {},
+  Project: { projectId: ProjectId },
+  Search: {
+    q: Schema.Option(Schema.String),
+  },
+  NotFound: { path: Schema.String },
+})
+
+export const projectRouter = pipe(
+  literal("projects"),
+  slash(schemaSegment("projectId", ProjectId)),
+  Route.mapTo(AppRoute.Project),
+)
+
+export const searchRouter = pipe(
+  literal("search"),
+  Route.query(
+    Schema.Struct({
+      q: Schema.OptionFromOptional(Schema.String),
+    }),
+  ),
+  Route.mapTo(AppRoute.Search),
+)
+~~~
+
+A mapped Router can:
+
+~~~text
+parse URL -> typed AppRoute
+typed route payload -> URL
+~~~
+
+Current Foldkit applications then keep the AppRoute in Model and handle URL changes through ordinary Messages/update.
+
+That is a strong boundary and should remain small.
+
+### 31.2 Router should not become a second data runtime
+
+Do not move these responsibilities into Foldkit Router:
+
+~~~text
+normalized server data
+query execution
+loader-result caches
+resource state
+Remote retention
+optimistic server mutations
+live subscriptions
+read invalidation
+~~~
+
+Those responsibilities already have homes:
+
+~~~text
+Model / Message / update
+Surface
+Projection metadata
+Data / Remote
+Command / Subscription
+TanStack / LiveStore interpreters
+~~~
+
+This is the major difference from routers whose route object becomes a page runtime.
+
+### 31.3 Route state activates Surface state
+
+The normal route-driven read path should be:
+
+~~~text
+URL
+ ↓ parse
+AppRoute
+ ↓
+Model.route
+ ↓
+Surface activation
+ ↓
+Projection metadata
+ ↓
+ReadContracts
+ ↓
+Data.subscriptions
+ ↓
+Remote / TanStack / LiveStore
+ ↓
+Messages
+ ↓
+update
+ ↓
+Model
+~~~
+
+This is the Foldkit-native analogue of a route loader.
+
+No special route-owned data state is required.
+
+### 31.4 The current API already supports the architecture
+
+Today:
+
+~~~ts
+Data.subscriptions({
+  page: Surface.at(
+    ProjectPage,
+    model =>
+      model.route._tag === "Project"
+        ? { projectId: model.route.projectId }
+        : undefined,
+  ),
+})
+~~~
+
+already means:
+
+~~~text
+Project route active
+      ↓
+ProjectPage Surface active
+      ↓
+its Projection requirements active
+      ↓
+Remote reads/live/retention active
+~~~
+
+Navigating away changes Model.route, which makes the Surface inactive and removes its requirements.
+
+This is better aligned with Foldkit than attaching imperative loaders to the route parser itself.
+
+### 31.5 Route params should flow into Surface params, then QueryDefinition inputs
+
+A page Surface can expose the feature contract:
+
+~~~ts
+const ProjectPage = App.surface("ProjectPage", {
+  params: {
+    projectId: ProjectId,
+  },
+
+  model: ({ params }) => ({
+    project: Data.get(
+      Project,
+      params.projectId,
+      ProjectDetail,
+    ),
+
+    comments: Data.query(
+      CommentsForProject,
+      { projectId: params.projectId },
+      {
+        select: CommentRow,
+        first: 50,
+      },
+    ),
+  }),
+})
+~~~
+
+The route only contributes the typed parameter:
+
+~~~text
+/project/p1
+   ↓
+AppRoute.Project({ projectId: p1 })
+   ↓
+Surface params { projectId: p1 }
+   ↓
+CommentsForProject input
+   ↓
+QueryRef
+   ↓
+ReadContract
+~~~
+
+That creates a clean separation:
+
+~~~text
+Router
+  URL semantics
+
+AppRoute
+  navigation state
+
+Surface
+  feature activation and boundary
+
+QueryDefinition / QueryRef
+  population semantics and identity
+
+ReadContract
+  consumer shape/window/expectation
+
+Data
+  interpretation
+~~~
+
+### 31.6 Route.query and data Query are intentionally different namespaces
+
+There are two distinct meanings of "query":
+
+~~~text
+Route.query(...)
+  URL query-string parsing/printing
+
+Query.from(...)
+Query.where(...)
+Query.define(...)
+  relational data semantics
+~~~
+
+The overlap is acceptable because the namespaces and roles are different, but documentation should make the distinction explicit.
+
+A typed URL such as:
+
+~~~text
+/projects?q=foldkit&status=open&sort=recent
+~~~
+
+can flow naturally into data semantics:
+
+~~~text
+Route.query(URL Schema)
+      ↓
+typed AppRoute fields
+      ↓
+Surface params
+      ↓
+QueryDefinition input
+      ↓
+QueryRef
+      ↓
+ReadContract
+~~~
+
+The URL describes user-visible navigation/filter state. It does not execute database work.
+
+### 31.7 What to steal from combi-router
+
+combi-router's strongest relevant idea is that routes/page descriptions are first-class composable values.
+
+It explores:
+
+~~~text
+route(...)
+extend(parent, ...)
+pipe(route, enhancer...)
+parent
+ancestors
+depth
+routeChain
+metadata
+~~~
+
+That suggests useful future Foldkit capabilities:
+
+~~~text
+route hierarchy inspection
+route -> Surface manifests
+head/SEO metadata
+prefetch hints
+DevTools route trees
+pure page-level contract composition
+~~~
+
+But Foldkit should not copy combi-router's router-owned Resource/cache model.
+
+The compositional **contract** idea is useful. The parallel router runtime is not.
+
+### 31.8 What to steal from tanstackstart-db routes
+
+tanstackstart-db demonstrates excellent page-contract ergonomics:
+
+~~~ts
+createDbFileRoute("/posts/$postId")
+  .views(({ params, q }) => ({
+    post: q.post.byId(params.postId)
+      .as(PostCard)
+      .required(),
+
+    comments: q.comment.byPost(params.postId)
+      .as(CommentCard),
+  }))
+  .actions(({ a, data }) => ({
+    rename: a.post.patch.with({
+      id: data.post.id,
+    }),
+  }))
+  .build()
+~~~
+
+The important ideas are:
+
+~~~text
+page reads are explicit
+read shapes are late-bound
+route params feed reads
+actions can be exposed/bound at the page boundary
+contracts can be reused as fragments
+dependent read stages can be expressed
+SSR/preload policy is inspectable
+~~~
+
+Foldkit should express those ideas through its existing semantic pieces:
+
+~~~text
+AppRoute
+Surface
+Projection
+ReadContract
+Message subset
+Wiring / SSR metadata
+~~~
+
+rather than making the Router own a second loader/cache lifecycle.
+
+### 31.9 Surface is already most of a Foldkit page contract
+
+A Surface describes:
+
+~~~text
+what the feature may observe
++
+what Messages the feature may cause
++
+params needed to instantiate that boundary
+~~~
+
+Once ReadContracts are represented through Projection metadata, a route-activated Surface is already close to:
+
+~~~text
+page data contract
++
+page action contract
+~~~
+
+Therefore a new `Page` or `RouteContract` primitive is not justified yet.
+
+First improve composition between Router and Surface.
+
+### 31.10 Route activation could become more inspectable
+
+`Surface.at(surface, model => params | undefined)` is semantically correct, but an arbitrary callback hides why the Surface is active.
+
+A future generic tagged-state helper could be explored:
+
+~~~ts
+Surface.when(
+  ProjectPage,
+  App.fields.route,
+  AppRoute.Project,
+  route => ({
+    projectId: route.projectId,
+  }),
+)
+~~~
+
+or:
+
+~~~ts
+Surface.whenTag(...)
+~~~
+
+The helper should not be router-specific. Routes are only one kind of tagged Model state that may activate a Surface.
+
+Potential benefits:
+
+~~~text
+less repeated route-tag matching
+static route -> Surface manifests
+better DevTools explanations
+SSR/prefetch analysis
+architecture validation
+~~~
+
+Do not add this until it can remain as small and unsurprising as `Surface.at`.
+
+### 31.11 Page/RouteContract may become useful later
+
+If several concerns repeatedly need one route-associated value:
+
+~~~text
+Surface activation
+head metadata
+SSR/preload policy
+route-local Message/action aliases
+layout metadata
+~~~
+
+then a pure Page/RouteContract abstraction may become justified.
+
+Its constraints should be:
+
+~~~text
+pure metadata
+no hidden state
+no reducer
+no normalized cache
+no independent async runtime
+compiles to existing Router/Surface/Wiring primitives
+~~~
+
+combi-router provides useful inspiration for the composition API, but not for ownership.
+
+### 31.12 Dependent reads should be solved at the feature/data level
+
+tanstackstart-db supports staged route reads:
+
+~~~text
+stage 1 reads
+    ↓
+resolved data
+    ↓
+stage 2 reads
+~~~
+
+Foldkit should not immediately reproduce this as route-loader stages.
+
+A more Foldkit-native future model is:
+
+~~~text
+Model
+ ↓
+active Surface requirements
+ ↓
+satisfy reads
+ ↓
+Messages/update
+ ↓
+new Model
+ ↓
+new/changed requirements
+ ↓
+repeat until requirements are satisfied
+~~~
+
+This is a general dependency process, not a routing concept.
+
+It could support dependent data activated by any application state.
+
+Do not build a fixed-point runtime until a concrete dependent-read use case proves it necessary.
+
+### 31.13 SSR should use the same route -> Model -> Surface semantics
+
+A server render can conceptually do:
+
+~~~text
+initial URL
+   ↓
+Foldkit Router
+   ↓
+initial AppRoute / Model
+   ↓
+determine active Surfaces
+   ↓
+collect ReadContracts
+   ↓
+prefetch through Data interpreter
+   ↓
+Remote/Data Messages
+   ↓
+update Model
+   ↓
+render
+   ↓
+serialize consumed/required state
+~~~
+
+That avoids inventing a route-specific server data protocol.
+
+Browser navigation and SSR reason from the same declarations.
+
+### 31.14 Router, Surface, Query, and ReadContract form one compositional chain
+
+The resulting architecture is:
+
+~~~text
+                         URL
+
+                         │
+                         ▼
+                  Foldkit Router
+                         │
+                         ▼
+                     AppRoute
+                         │
+                         ▼
+                       Model
+                         │
+                 route/tag state
+                         │
+                         ▼
+                      Surface
+                         │
+                Projection metadata
+                         │
+                         ▼
+                    ReadContract
+                         │
+             ┌───────────┼───────────┐
+             ▼           ▼           ▼
+           Remote      TanStack    LiveStore
+             │
+       RemoteServer
+             │
+      remote-drizzle
+~~~
+
+For query-backed reads:
+
+~~~text
+Entity / Field
+      ↓
+     Expr
+      ↓
+ Predicate
+      ↓
+anonymous Query
+      ↓
+QueryDefinition
+      ↓
+QueryRef + Selection/window
+      ↓
+ReadContract
+      ↓
+Surface requirement
+~~~
+
+This preserves one semantic home for every concern.
+
+---
+
+## 32. Recommended implementation sequence
 
 ### Phase 0 — terminology and tests
 
@@ -1912,19 +2491,38 @@ This may remain an internal type.
 
 The goal is separation, not a new public API.
 
-### Phase 5 — compile one real query through remote-drizzle
+### Phase 5 — prove route -> Surface -> ReadContract integration
+
+Use one current Foldkit Router path whose typed route payload activates a parameterized Surface.
+
+Verify:
+
+~~~text
+URL parses to AppRoute
+AppRoute lives in Model
+Surface.at derives params or inactivity
+Data.subscriptions follows Surface activation
+QueryDefinition input comes from Surface params
+navigating away releases read/live/retain work
+~~~
+
+Use the existing Router and Surface APIs first.
+
+Only after that should an inspectable activation helper such as `Surface.when` be evaluated.
+
+### Phase 6 — compile one real query through remote-drizzle
 
 Migrate a current CMS/Remote query so common where/order semantics are no longer duplicated in the Drizzle binding.
 
 Keep native callbacks as escape hatches.
 
-### Phase 6 — in-memory reference interpreter
+### Phase 7 — in-memory reference interpreter
 
 Execute the same QueryDefinition over in-memory rows.
 
 Add differential tests against real Drizzle.
 
-### Phase 7 — migrate several real query shapes
+### Phase 8 — migrate several real query shapes
 
 Use examples that exercise:
 
@@ -1939,7 +2537,7 @@ multiple windows over one Connection
 
 This specifically tests the QueryRef vs ReadContract distinction.
 
-### Phase 8 — TanStack DB spike
+### Phase 9 — TanStack DB spike
 
 Compile Query IR to TanStack DB.
 
@@ -1954,13 +2552,13 @@ read identity/dedup
 incremental updates
 ~~~
 
-### Phase 9 — LiveStore spike
+### Phase 10 — LiveStore spike
 
 Execute the same read semantics through LiveStore/SQLite.
 
 Keep durable ownership explicit.
 
-### Phase 10 — derived helpers
+### Phase 11 — derived helpers
 
 Only after the core works, experiment with generated:
 
@@ -1972,7 +2570,7 @@ relation queries
 
 All helpers must lower to the same algebra.
 
-### Phase 11 — decide package placement
+### Phase 12 — decide package placement
 
 Only after multiple interpreters exist, decide whether source-neutral pieces belong in:
 
@@ -1984,7 +2582,7 @@ a small foldkit-query package
 
 Follow dependency direction and real reuse, not naming aesthetics.
 
-### Phase 12 — advanced relational semantics
+### Phase 13 — advanced relational semantics
 
 Only as required:
 
@@ -2003,7 +2601,7 @@ TanStack DB may remain the engine for some advanced cases rather than being reim
 
 ---
 
-## 32. Acceptance criteria
+## 33. Acceptance criteria
 
 The design has found the correct seam if this works.
 
@@ -2075,9 +2673,29 @@ RecentPosts
 
 The application feature should not care which interpreter runs it unless it deliberately uses a backend-specific escape hatch.
 
+A route-driven feature should additionally satisfy:
+
+~~~text
+/project/p1
+    ↓
+projectRouter
+    ↓
+AppRoute.Project({ projectId: p1 })
+    ↓
+Model.route
+    ↓
+ProjectPage Surface active
+    ↓
+ReadContracts active
+    ↓
+Data interpreter work active
+~~~
+
+Navigating away should make the Surface inactive and remove its read/live/retain requirements without a router-owned loader cache.
+
 ---
 
-## 33. Non-goals
+## 34. Non-goals
 
 This design does not aim to:
 
@@ -2087,6 +2705,10 @@ This design does not aim to:
 - add a second normalized cache;
 - reproduce gen2's whole application compiler;
 - reproduce tanstackstart-db's whole route/component framework;
+- turn Foldkit Router into a loader/cache/resource runtime;
+- make route matches a second application state store;
+- require routes to own data fetching;
+- add a Page/RouteContract primitive before Router + Surface composition proves insufficient;
 - reproduce data-forge's whole proposed data model;
 - recreate SQL in TypeScript;
 - reproduce all of TanStack DB;
@@ -2102,10 +2724,22 @@ This design does not aim to:
 
 ---
 
-## 34. References
+## 35. References
 
-Internal prior art inspected:
+Internal/core prior art inspected:
 
+- `foldkit/foldkit` Router
+  - bidirectional Biparser / callable Router
+  - defineRouteUnion
+  - literal / slash / schemaSegment / Route.query
+  - Route.mapTo / Route.oneOf / Route.parseUrlWithFallback
+  - typed AppRoute values used as Model navigation state
+- `doeixd/combi-router`
+  - routes as first-class immutable values
+  - parent/child extension by reference
+  - pipeable route enhancers
+  - route hierarchy/introspection
+  - loader/resource ownership considered as contrast prior art
 - `doeixd/gen2`
   - Expr / Predicate representation
   - QueryExpression vs QueryFunction
@@ -2137,7 +2771,7 @@ These are prior art, not architectural dependencies.
 
 ---
 
-## 35. Final thesis
+## 36. Final thesis
 
 Foldkit Plus already owns the important semantic/runtime pieces:
 
@@ -2154,7 +2788,25 @@ Sync / Durable
 
 The missing addition is not another store.
 
-It is a small composable semantic language for **what data means to read**, with an explicit distinction between the logical query and a particular consumer's read contract:
+It is a small composable semantic language for **what data means to read**, integrated with Foldkit's existing semantic language for **where the application is**:
+
+~~~text
+URL
+ ↓
+Foldkit Router
+ ↓
+AppRoute
+ ↓
+Model
+ ↓
+Surface activation
+ ↓
+ReadContract
+ ↓
+interpreter
+~~~
+
+The query side remains:
 
 ~~~text
 Field
@@ -2178,14 +2830,18 @@ Surface
 interpreter
 ~~~
 
-The resulting design has four important boundaries:
+The resulting design has six important boundaries:
 
-> **Query composes population semantics.**
+> **Router composes URL semantics and produces typed navigation state.**
 
-> **QueryDefinition names a reusable parameterized capability.**
+> **Model owns the current route like any other application state.**
+
+> **Surface turns active Model state into a feature observation/action boundary.**
+
+> **Query composes population semantics; QueryDefinition names a reusable parameterized capability.**
 
 > **QueryRef identifies one concrete logical population.**
 
 > **ReadContract adds the Selection/window/result requirements of one consumer without changing that logical population's identity.**
 
-This synthesizes the strongest ideas from Foldkit Plus, gen2, data-forge, tanstackstart-db, TanStack DB, and LiveStore while preserving Foldkit's strongest properties: explicit transition ownership, semantic Messages, pure update, late-bound observation, normalized Remote state, server-authoritative authorization, and replaceable interpreters.
+This synthesizes the strongest ideas from Foldkit Router, Foldkit Plus, combi-router, gen2, data-forge, tanstackstart-db, TanStack DB, and LiveStore while preserving Foldkit's strongest properties: explicit transition ownership, semantic Messages, pure update, late-bound observation, normalized Remote state, server-authoritative authorization, and replaceable interpreters.
