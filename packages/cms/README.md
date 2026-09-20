@@ -9,10 +9,11 @@ are: **audience** (a visitor sees what is published, an author sees everything),
 
 > **Status: declarations and rules only.** This package is the pure core: roles,
 > content types, the three Entities, the operations as descriptors, and the
-> lifecycle. Nothing here runs a publish. The server that does
-> (`foldkit-cms-drizzle`) and the authoring editor are next in
-> [the design](../../docs/design/cms-DESIGN.md#13-build-order), and neither is on
-> npm.
+> lifecycle. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
+> which so far saves and discards drafts and enforces the audience boundary;
+> publishing and the authoring editor are next in
+> [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
+> is on npm.
 
 ## What it owns
 
@@ -137,10 +138,11 @@ An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
 | `Cms.state(facts, now)` | The state of an entry, with its schedule. |
 | `Cms.offers(facts, now, content)` | The transitions it offers now. |
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
+| `Cms.Entries` | The worklist query: one content type's entries, by label, archived or not. |
 
 ## Limits
 
-- No server and no editor yet: see the status above.
+- No publish and no editor yet: see the status above.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
   [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).

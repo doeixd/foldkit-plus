@@ -375,7 +375,13 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    metadata, checked by type and at runtime, with `Cms.rolesOf`; `Cms.content`; the three Entities; `Cms.state(facts, now)`
    as a pure function with a table test over every row of §5; the operation
    descriptors. Nothing runs yet.
-3. **`foldkit-cms-drizzle`: drafts.** The tables, `SaveDraft` and `Discard` with
+3. **`foldkit-cms-drizzle`: drafts.** *Built. It needed two things of
+   `foldkit-remote-drizzle` first: row visibility on a binding, because a source's
+   `policies` only reached a relation's children and a by-id read returned any
+   row to anyone; and a derived member the application supplies, for an entry's
+   state. The guard is narrower than planned: it checks that a content type that
+   can be unpublished has a `visible` rule, not that the rule is right, since
+   only the application knows what a principal is.* The tables, `SaveDraft` and `Discard` with
    the conflict rule, the `entries` query, and the audience policy with its
    tests: a visitor's principal is refused entries, drafts, revisions, and any
    unpublished row, at every depth of a nested read.

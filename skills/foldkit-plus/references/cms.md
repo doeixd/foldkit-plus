@@ -6,10 +6,12 @@ a schedule), and **address** (a slug). The domain is a `foldkit-entity` Entity,
 editing it is a `foldkit-form` form, and the screens are `foldkit-crud`'s; none
 of that is CMS-specific and none is repeated here.
 
-**Status: the pure core only.** Roles, content types, three Entities, the
-operations as descriptors, and the lifecycle. No server and no editor yet, and
-it is not on npm. Do not tell a user this package publishes content: it declares
-how content would be published.
+**Status: drafts, not publishing.** `foldkit-cms` is the pure core: roles,
+content types, three Entities, the operations as descriptors, the lifecycle.
+`foldkit-cms-drizzle` is its server so far: the audience boundary, saving and
+discarding a draft, the worklist, an entry's derived state. There is no publish
+and no editor yet, and neither is on npm. Do not tell a user these publish
+content.
 
 ## Ownership
 
@@ -69,6 +71,35 @@ Cms.offers(facts, now, Posts) // ['save', 'discard', 'publish', 'schedule', 'unp
 - **Register the CMS's data:** `Remote.make({ entities: [...yours, ...Object.values(Cms.Entities)], mutations: [...yours, ...Cms.operations] })`.
   `Cms.Entities` is `Entry`, `Draft`, `Revision`; list them with `Crud.list`.
 
+## The server
+
+```ts
+import { CmsServer, published, sqliteTables } from 'foldkit-cms-drizzle'
+
+const Db = bind(Blog, {
+  Post: { table: posts, visible: published(posts.publishedAt, isAuthor) }, // a visitor sees published rows
+})
+const cms = CmsServer.make({
+  tables: sqliteTables(), // or pgTables()
+  content: [{ type: Posts, binding: Db.Post }],
+  isAuthor: principal => principal?.role === 'author',
+})
+RemoteServer.make({
+  entities: [...cms.sources, source(Db.Author)], // cms.sources, not source(Db.Post)
+  queries: [...cms.queries], // Cms.Entries: the worklist
+  mutations: [...cms.mutations], // CmsSaveDraft, CmsDiscardDraft
+})
+```
+
+- The audience boundary is a binding's `visible`, so it holds by id, through
+  relations, refs and queries. To a visitor, entries, drafts and revisions are
+  empty tables, and every CMS operation is refused.
+- `CmsServer.make` throws for a content type with a `published` role whose
+  binding has no `visible`.
+- `CmsSaveDraft` carries `basedOn` (the draft's `updatedAt`); a stale one is
+  refused as `CmsConflict: ...`. Its first save with `entry: null` makes the entry.
+- `allow(principal, transition, entry)` decides which author may; `now` is the clock.
+
 ## Gotchas
 
 - State is never stored. Do not add a `status` column to content; a draft beside
@@ -83,4 +114,5 @@ Cms.offers(facts, now, Posts) // ['save', 'discard', 'publish', 'schedule', 'unp
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/cms/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/cms-drizzle/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/design/cms-DESIGN.md

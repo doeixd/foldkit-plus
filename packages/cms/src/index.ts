@@ -18,7 +18,7 @@ import {
   type EntityInput,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
-import { Mutation, type MutationDescriptor } from 'foldkit-remote'
+import { Mutation, Query, type MutationDescriptor } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 
 export type { Facts, Schedule, State, StateTag, Transition } from './lifecycle.js'
@@ -201,6 +201,16 @@ const Operations = {
   }),
 }
 
+/**
+ * What an author works on: the entries of one content type, searched by what
+ * they are called. `archived` chooses the put-away ones or the rest. It lists
+ * entries, not content rows, so something never published is here too.
+ */
+const Entries = Query.make('CmsEntries', {
+  Input: { type: Schema.String, search: Schema.String, archived: Schema.Boolean },
+  Result: Query.connection(Entities.Entry),
+})
+
 /** A form as a content type needs it: what it was made from, and what it edits. */
 interface ContentForm<E extends AnyEntity, Value> {
   readonly name: string
@@ -296,6 +306,8 @@ export const Cms = {
   /** The operations, to register with Remote's `mutations`. */
   Operations,
   operations: Object.values(Operations),
+  /** The worklist query, to register with Remote's `queries` and list with `Crud.list`. */
+  Entries,
 
   /** The state of an entry, from what is known of it and a clock. */
   state: (facts: Facts, now: Date): State => state(facts, now),

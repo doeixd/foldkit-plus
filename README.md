@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/doeixd/foldkit-plus/actions/workflows/ci.yml) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/doeixd/foldkit-plus)
 
-> Twenty-seven packages that extend a [Foldkit](https://foldkit.dev/) application
+> Twenty-eight packages that extend a [Foldkit](https://foldkit.dev/) application
 > outward — to agents, servers, other devices, the URL, and design systems —
 > without giving it a second place to keep state.
 
@@ -247,7 +247,7 @@ so the front page cannot quietly drift from the API.
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
-| Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` (core only so far; not yet on npm) | [package README](./packages/cms) |
+| Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (drafts so far, no publish; not yet on npm) | [package README](./packages/cms) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole
@@ -280,6 +280,7 @@ flowchart TB
   mixinsForm["foldkit-mixins-form"]
   mixinsCrud["foldkit-mixins-crud"]
   cms["foldkit-cms<br/>drafts beside the row · derived state"]
+  cmsDrizzle["foldkit-cms-drizzle<br/>audience boundary · drafts"]
   crud["foldkit-crud<br/>editor · list · detail · remover"]
 
   app -- "describe observation / capability" --> surface
@@ -306,6 +307,8 @@ flowchart TB
   crud --> mixinsCrud
   entity --> cms
   form --> cms
+  cms --> cmsDrizzle
+  drizzle --> cmsDrizzle
   mixins --> mixinsCrud
   remote --> crud
 ```
@@ -385,7 +388,8 @@ pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
 pnpm add foldkit-entity foldkit-form foldkit-mixins-form
 pnpm add foldkit-crud foldkit-remote # an editor, list, detail, and remover over Remote
 pnpm add foldkit-mixins-crud # draws a list as a table and a detail as a description list
-pnpm add foldkit-cms # content types, drafts beside the row, and a derived lifecycle (core only so far)
+pnpm add foldkit-cms # content types, drafts beside the row, and a derived lifecycle
+pnpm add foldkit-cms-drizzle # its server: the audience boundary and the draft operations (no publish yet)
 
 # ready-made primitives: media, timers, sockets, observers, clipboard
 pnpm add foldkit-primitives

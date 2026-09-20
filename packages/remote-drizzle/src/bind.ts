@@ -82,6 +82,15 @@ type ManyKeys<E extends Domain.AnyEntity> = {
 }[keyof E['relations']]
 
 /** How a derived member is computed. A count of a `many` relation is the one kind so far. */
+/**
+ * A derived member this package does not compute: the application supplies it,
+ * by wrapping the source and answering for the field itself. `bind` registers
+ * the member and reads nothing for it.
+ */
+export interface SuppliedDerived {
+  readonly supplied: true
+}
+
 export interface CountDerived<Relation extends PropertyKey = string> {
   readonly relation: Relation
   /** An optional filter on the counted rows. */
@@ -107,7 +116,7 @@ export type EntityStorage<E extends Domain.AnyEntity> = {
   Required_<
     'derived',
     E['derived'],
-    { readonly [K in keyof E['derived']]: CountDerived<ManyKeys<E>> }
+    { readonly [K in keyof E['derived']]: CountDerived<ManyKeys<E>> | SuppliedDerived }
   >
 
 type Storage<Es extends Domain.Entities> = { readonly [K in keyof Es]: EntityStorage<Es[K]> }
@@ -119,7 +128,7 @@ interface LooseStorage {
   readonly table: DrizzleTable
   readonly fields?: Readonly<Record<string, AnyColumn | undefined>> | undefined
   readonly relations?: Readonly<Record<string, AnyStorage>> | undefined
-  readonly derived?: Readonly<Record<string, CountDerived>> | undefined
+  readonly derived?: Readonly<Record<string, CountDerived | SuppliedDerived>> | undefined
   readonly visible?: Visible | undefined
 }
 
@@ -331,7 +340,10 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     const computed = Object.create(null) as Record<string, ComputedConfig>
     const counts = config.derived ?? {}
     for (const field of Object.keys(entity.derived)) {
-      const count = counts[field] ?? fail(`derived "${field}" on entity "${name}" has no storage`)
+      const stored = counts[field] ?? fail(`derived "${field}" on entity "${name}" has no storage`)
+      // Supplied by the application's own source: nothing to compile.
+      if ('supplied' in stored) continue
+      const count = stored
       const counted = relations[count.relation]
       if (
         counted === undefined ||

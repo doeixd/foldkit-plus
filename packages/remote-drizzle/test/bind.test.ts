@@ -366,6 +366,22 @@ describe('bind definition errors', () => {
     )
   })
 
+  it('binds a derived member the application supplies, and compiles nothing for it', () => {
+    const Stated = Entity.relate(
+      {
+        Thing: Entity.define('Thing', Schema.Struct({ id: Id })).pipe(
+          // Not a number, and not a count: something only the application can work out.
+          Entity.derived({ state: Derived.make(Schema.Struct({ _tag: Schema.String })) }),
+        ),
+      },
+      {},
+    )
+    const things = sqliteTable('things', { id: text('id').primaryKey() })
+    const bound = bind(Stated, { Thing: { table: things, derived: { state: { supplied: true } } } })
+    expect(Object.keys(bound.Thing.fields)).toContain('state')
+    expect(bound.Thing.computed).toEqual({})
+  })
+
   it('rejects count storage for a derived member that is not a number', () => {
     const Labelled = Entity.relate(
       {

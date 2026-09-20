@@ -28,6 +28,7 @@
     { "path": "./packages/mixins-form" },
     { "path": "./packages/mixins-crud" },
     { "path": "./packages/cms" },
+    { "path": "./packages/cms-drizzle" },
     { "path": "./examples/todo" },
     { "path": "./examples/sync" },
     { "path": "./examples/mixins" },

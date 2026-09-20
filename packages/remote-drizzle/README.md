@@ -284,6 +284,11 @@ source(Db.Post) // an ordinary binding
 
 `orderBy` and `where` go on a `many` storage as they do on `many(…)`.
 
+A derived member is a count, `{ relation, where? }`, the one kind this package
+computes. One it cannot compute is `{ supplied: true }`: `bind` registers the
+member and reads nothing for it, and you wrap the binding's `source` to answer
+for that field yourself, as `foldkit-cms-drizzle` does for an entry's state.
+
 A `one` may also be read from the other side, where the foreign key is a column
 of the target's table, as a member's profile points at its member:
 

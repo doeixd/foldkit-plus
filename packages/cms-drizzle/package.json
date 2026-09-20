@@ -1,0 +1,62 @@
+{
+  "name": "foldkit-cms-drizzle",
+  "version": "0.1.0",
+  "description": "The server half of foldkit-cms over Drizzle: the entries, drafts and revisions tables, the draft operations with their conflict rule, the worklist query, and the audience boundary between a visitor and an author.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "cms",
+    "drizzle",
+    "drafts",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/cms-drizzle"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/cms-drizzle#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
+    "foldkit-cms": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "foldkit-form": "workspace:*",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}
