@@ -7,6 +7,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-remote`: `Selection.from` compiles an Entity Selection once. `Data.get`
+  and `Data.query` are called with one on every render, and compiling it each
+  time rebuilt its schemas and missed Remote's read cache, which is keyed by the
+  Selection: a list read is about eleven times faster, and repeated reads now
+  return the same value, not an equal one.
+
 - **`foldkit-remote` and `foldkit-remote-server`: a relation may be read whole and
   by the page at once.** A page of a whole list (`Entity.page`, or
   `Selection.connection` over an array of refs) is read under an alias,

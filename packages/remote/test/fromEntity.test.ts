@@ -123,6 +123,17 @@ describe('Entity.from', () => {
 describe('Selection.from', () => {
   const selection = Selection.from(ProjectCard)
 
+  it('compiles an Entity Selection once, so a read made on every render is the same read', () => {
+    expect(Selection.from(ProjectCard)).toBe(selection)
+    // Remote caches a read by its Selection, so the value is the same one, not an equal one.
+    const model = root(fullStore())
+    const read = () => Remote.select(AppRemote, Selection.from(ProjectCard))('p1').read(model)
+    const [first, second] = [read(), read()]
+    expect(first._tag === 'Ready' && second._tag === 'Ready' && first.value).toBe(
+      second._tag === 'Ready' ? second.value : undefined,
+    )
+  })
+
   it('states the same requirement graph a hand-written Remote Selection would', () => {
     const Hand = {
       User: Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String })),

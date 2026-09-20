@@ -118,6 +118,8 @@ export const relationOf = (selection: Selection<unknown>): RelationRequirement =
   ...(selection.relations === undefined ? {} : { relations: selection.relations }),
 })
 
+const fromEntitySelections = new WeakMap<object, Selection<unknown>>()
+
 export const Selection = {
   /**
    * The Remote Selection of a `foldkit-entity` Selection: the same members, read
@@ -126,6 +128,10 @@ export const Selection = {
   from: <Name extends string, S extends Schema.Constraint>(
     selection: Domain.Selection<Name, unknown, S>,
   ): Selection<S['Type'], Name, 'entity'> => {
+    // Compiled once per Entity Selection: `Data.get` and `Data.query` are called
+    // with one on every render, and Remote caches its reads by the Selection's identity.
+    const compiled = fromEntitySelections.get(selection)
+    if (compiled !== undefined) return compiled as never
     const spec: Record<string, true | Selection<unknown>> = {}
     for (const [key, selected] of Object.entries(
       selection.members as Readonly<
@@ -148,7 +154,9 @@ export const Selection = {
                 Selection.from(selected.selection) as never,
               )
             : Selection.from(selected)
-    return Selection.make(Entity.from(selection.entity as never), spec as never) as never
+    const made = Selection.make(Entity.from(selection.entity as never), spec as never)
+    fromEntitySelections.set(selection, made as Selection<unknown>)
+    return made as never
   },
 
   /**
