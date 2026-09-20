@@ -131,34 +131,55 @@ visible, instead of `Published` and wrong.
 
 ## 6. Declaring content
 
-A content type says which Entity it is, which operation publishes it, and which
-of the Entity's members play a CMS role. It adds no fields and generates
-nothing. Roles are checked against the Entity by type, as `Entity.input`'s
-mapping is.
+Two declarations, because there are two kinds of fact.
+
+**Which members play a CMS role is a fact about the Entity**, so it is Entity
+metadata, attached by a pipe step, as `Input.of` and `Display.of` are. The
+interpreter owns its key (entity-DESIGN §5), the Entity's identity is unchanged
+(§10), and the annotated Entity is the one to register and bind:
 
 ```ts
 import { Cms } from 'foldkit-cms'
 
-export const Posts = Cms.content('posts', {
-  entity: Blog.Post,
-  form: EditPostForm, // made with Form.make from Entity.input(Blog.Post, PostInput)
-  publish: { create: CreatePostMutation, update: UpdatePostMutation },
-  roles: {
+const Post = Blog.Post.pipe(
+  Cms.roles({
     label: 'title', // what an entry is called in a list
     slug: 'slug', // its address: a string field, unique
-    published: 'publishedAt', // nullable: present means visible. Omit it and the type cannot be unpublished.
-  },
+    published: 'publishedAt', // nullable: present means visible
+  }),
+)
+
+Cms.rolesOf(Post) // { label: Post.fields.title, slug: ..., published: ... }
+```
+
+- A role names a member, checked by type where it is written: `slug` on a field
+  that is not text, or `published` on a field that does not admit `null`, is a
+  type error and throws.
+- Anything may read them with `Cms.rolesOf`: the server's audience policy, the
+  `bySlug` query, and code this package knows nothing of, such as a sitemap or a
+  feed. None of those needs the content declaration below.
+- **A capability is declared, never implied**, as in Crud. No `slug` role, no
+  slug handling. No `published` role, no unpublish, and every row is visible.
+
+**How a type of content is authored is a fact about the application**: which form
+edits it, which operations publish it, what it is called.
+
+```ts
+export const Posts = Cms.content('posts', {
+  entity: Post,
+  form: EditPostForm, // made with Form.make from Entity.input(Post, PostInput)
+  publish: { create: CreatePostMutation, update: UpdatePostMutation },
+  words: { one: 'Post', many: 'Posts' },
 })
 ```
 
 - `form` is an ordinary form. The one that would edit a post without a CMS is
   the one the CMS uses. `publish.update`'s input is `publish.create`'s plus the
   id; the form's value is `create`'s.
-- **A capability is declared, never implied**, as in Crud. No `slug` role, no
-  slug handling. No `published` role, no unpublish, and every row is visible.
-- A role names a member of the Entity, so it is refused at the declaration when
-  the member is missing or the wrong type (`published` on a field that does not
-  admit `null`).
+- `words` is text, like every other word in the stack
+  ([DX plan §9](./entity-DX-PLAN.md)), and is all a content type says about how
+  it is named. It is not a registry: §15.
+- `Cms.content` adds no fields and generates nothing.
 
 The package contributes three Entities of its own, registered with Remote like
 any other: `Cms.Entry`, `Cms.Draft`, `Cms.Revision`. A draft's and a revision's
@@ -238,8 +259,8 @@ RemoteServer.make({
 
 - **`cms.sources` is how the audience boundary cannot be forgotten.** A content
   type's source is made by the CMS, wrapping `source(binding)` with the policy:
-  a principal that is not an author reads only rows whose `published` role is
-  set. `Cms.Entry`, `Cms.Draft` and `Cms.Revision` refuse a principal that is
+  a principal that is not an author reads only rows whose `published` role,
+  read off the Entity with `Cms.rolesOf`, is set. `Cms.Entry`, `Cms.Draft` and `Cms.Revision` refuse a principal that is
   not an author outright. An application that registers `source(Db.Post)` itself
   has opted out, visibly, in one line. Relations are covered because the server
   already authorizes every level through the target's source.
@@ -347,8 +368,8 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
 
 1. **`foldkit-form`: a draft that follows another key.** `follows`, `touched`,
    and the rule that a fill or a reset clears `touched`. No CMS in it.
-2. **`foldkit-cms`: declarations and the lifecycle.** `Cms.content` with roles
-   checked by type and at runtime; the three Entities; `Cms.state(facts, now)`
+2. **`foldkit-cms`: declarations and the lifecycle.** `Cms.roles` as Entity
+   metadata, checked by type and at runtime, with `Cms.rolesOf`; `Cms.content`; the three Entities; `Cms.state(facts, now)`
    as a pure function with a table test over every row of §5; the operation
    descriptors. Nothing runs yet.
 3. **`foldkit-cms-drizzle`: drafts.** The tables, `SaveDraft` and `Discard` with
@@ -398,9 +419,12 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
 - **A generated admin.** Already rejected in entity-DESIGN §66, and nothing here
   changes it: `Cms.editor` and `Crud.list` are headless, and a CMS's screens are
   its most application-specific part.
-- **A `collections` registry** that a whole admin is drawn from. It is the
-  universal `Resource` of entity-DESIGN §69 under another name. An application's
-  navigation is a list it writes.
+- **A `collections` registry** that a whole admin is drawn from: every content
+  type in one value, with its screens, from which navigation and routes are
+  derived. It is the universal `Resource` of entity-DESIGN §69 under another
+  name, and an application's navigation is a list it writes. What is *not*
+  rejected is a content type having a name (§6's `words`); entity-DESIGN §50
+  lists "content collections" as CMS semantics, and that much of it is.
 - **Owning a scheduler.** §9.
 - **Revisions in `foldkit-durable`.** It is an ordered operation log, which is
   what revisions are, and it was considered. It is keyed for replay, not for
@@ -410,7 +434,49 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
 - **Storing rendered HTML.** A value is stored; a view draws it. Content that is
   HTML in the database cannot be re-drawn.
 
-## 16. Open questions
+## 16. How this relates to entity-DESIGN
+
+entity-DESIGN has no CMS design. It has guardrails for one, a list of nine
+candidate features (§50), and examples written before the packages existed.
+
+**Guardrails kept.** §27, do not make Entity imply CRUD: every capability here is
+declared. §21, the CMS renderer is not a second component framework: there is no
+CMS view package, only renderers. §44, do not name generic functionality `cms`:
+the two generic needs found here went to `foldkit-form` (a draft that follows
+another key) and `foldkit-remote` (an overlay held without a request). §51, do
+not build it yet: it waited. §5 and §10, an interpreter's facts are metadata
+under its own key on an Entity whose identity does not change: §6's roles.
+
+**Where this departs from it, deliberately.**
+
+- **Its examples model a draft as a field on the row.** §46 and the end-to-end
+  example give `Post` a `published` boolean, edited with `Input.toggle()` and
+  shown as a `Published` / `Draft` badge. That is the design §2 argues against.
+  The two are closer than they look: this design keeps a `published` role on
+  the row, but it means *visible*, not *unfinished*, and unfinished work is
+  never on the row at all.
+- **Its list has no audience.** §50's nine features are all about time and
+  address. None is the read boundary between a visitor and an author, which this
+  design treats as the first thing a CMS must get right and the one a status
+  column gets wrong by default.
+- **"Content collections"** is on §50's list and a registry of them is rejected
+  in §15 here. The line between the two is drawn there.
+
+**Where its prediction holds, and where it does not.** §50 says the package
+should be "surprisingly small", and the success criteria that "CMS becomes mostly
+derivation". That is true of the screens: the editor wraps Crud's, the lists are
+`Crud.list`, the form is the application's. It is not true of the server half,
+which is three tables, a transactional publish, a policy, and scheduling. The
+prediction counted the editing and not the audience.
+
+**§50's nine, and where each is here.** Draft/published lifecycle, slug
+handling, revision history, scheduled publishing: the first version (§5–§9).
+Content preview: in-app in the first version (§7), shareable later (§14). Media
+fields, SEO metadata: later, and additive (§14, §1). Authoring workflows: `allow`
+now, more states later (§5, §14). Content collections: a name, not a registry
+(§6, §15).
+
+## 17. Open questions
 
 1. **Does the entry own the slug, or the row?** The design above says the row
    (a `slug` role on the Entity), so a visitor's read needs no CMS table. Slug

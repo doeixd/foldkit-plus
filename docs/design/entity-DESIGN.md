@@ -2230,6 +2230,12 @@ export const CmsPost = Post.pipe(
 
 The metadata changed.
 
+> **Note.** The `published` toggle above models a draft as a field on the row.
+> [cms-DESIGN.md](./cms-DESIGN.md) §2 argues against that for a CMS and keeps a
+> draft beside the row instead; §16 there records the difference. The example
+> still stands for what it shows here: metadata on an Entity whose identity does
+> not change, which is how that design attaches its roles.
+
 The Entity did not become a different domain entity.
 
 ---
