@@ -7,12 +7,13 @@ What a CMS adds to a domain that is already declared. The domain is a
 are: **audience** (a visitor sees what is published, an author sees everything),
 **time** (drafts, revisions, a schedule), and **address** (a slug).
 
-> **Status: the core and the editor.** Roles, content types, the three Entities,
-> the operations as descriptors, the lifecycle, and the authoring editor's state. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
-> which saves, discards, publishes and unpublishes, and enforces the audience
-> boundary; an example application is next in
-> [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
-> is on npm.
+> **Status: built, unpublished.** Roles, content types, the three Entities, the
+> operations, the lifecycle, the kinds, and the authoring editor's state. Its
+> server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md), which runs every
+> operation and enforces the audience boundary, and
+> [`examples/cms`](../../examples/cms) runs the two together. What
+> [the design](../../docs/design/cms-DESIGN.md#13-build-order) set out is built
+> but for a browser mode of the example. Neither package is on npm.
 
 ## What it owns
 
@@ -240,6 +241,12 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.Entries` | The worklist query: one content type's entries, by label, archived or not. |
 | `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Throws with no `slug` role. |
 | `Cms.slugTaken.key(message)` | The form key a server's `CmsSlugTaken: ...` error names, or `undefined`. |
+
+## Example
+
+[`examples/cms`](../../examples/cms) takes a post from its first keystroke to being
+taken off show, from a writer's, an editor's and a visitor's chair, over SQLite,
+with its transcript pinned by a test.
 
 ## Limits
 

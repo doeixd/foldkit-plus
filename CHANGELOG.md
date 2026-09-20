@@ -20,6 +20,8 @@ version changed; `pnpm` skips versions already in the registry.
   no timer. `CmsArchive` also takes what can be hidden off show. The editor gains
   `ScheduleAsked({ at })`, which submits and saves first, and `UnscheduleAsked`,
   `ArchiveAsked`, `UnarchiveAsked`. `cms_drafts` gains `scheduled_by`.
+- **`examples/cms`**: a post from its first keystroke to being taken off show, from
+  three chairs, over SQLite, with its transcript pinned.
 - **In-app preview.** `foldkit-remote` gains `Data.overlay(model, id, operations)`
   and `Data.lift(model, id)` (`OverlayShown`, `OverlayLifted`): optimistic
   operations shown with no request behind them. A content type's `preview` says

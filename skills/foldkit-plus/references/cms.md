@@ -177,4 +177,5 @@ RemoteServer.make({
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/cms/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/cms-drizzle/README.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/cms (a whole application, with a pinned transcript)
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/design/cms-DESIGN.md

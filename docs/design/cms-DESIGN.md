@@ -415,7 +415,8 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    reuse: a content type declares `preview` instead.* The revision list and `Restore`; in `foldkit-remote`,
    an optimistic overlay that is held without a request, and the in-app preview
    over it.
-8. **`examples/cms`.** A small site and its authoring app over SQLite: a visitor's
+8. **`examples/cms`.** *Built as a printed trace, pinned by a test: a writer, an
+   editor and a visitor over one SQLite server. The browser mode is not.* A small site and its authoring app over SQLite: a visitor's
    read and an author's, one domain, in a printed trace and in a browser. Then
    the READMEs, the docs map, the release matrix, and the skill.
 

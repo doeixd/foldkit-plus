@@ -1,0 +1,64 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "types": ["node"],
+    "paths": {
+      "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
+      "foldkit-cms": ["../../packages/cms/src/index.ts"],
+      "foldkit-cms-drizzle": ["../../packages/cms-drizzle/src/index.ts"],
+      "foldkit-crud": ["../../packages/crud/src/index.ts"],
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-form": ["../../packages/form/src/index.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
+      "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    {
+      "path": "../../packages/bundle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/cms/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/cms-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/crud/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/form/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-drizzle/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
+    }
+  ]
+}
