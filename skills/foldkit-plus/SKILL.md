@@ -66,6 +66,7 @@ foldkit-mixins (standalone) ─ foldkit-mixins-surface (with Surface), foldkit-m
 foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-primitives, foldkit-form
 foldkit-entity (standalone) ─ read by foldkit-remote, foldkit-remote-drizzle, foldkit-form
 foldkit-crud ─ joins foldkit-form, foldkit-remote, foldkit-entity
+foldkit-cms ─ over foldkit-entity, foldkit-form, foldkit-remote: drafts beside the row, derived lifecycle
 ```
 
 `foldkit-surface` is the shared seam: most packages consume a Projection
