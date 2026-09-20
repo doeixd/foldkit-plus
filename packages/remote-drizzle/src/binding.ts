@@ -108,7 +108,17 @@ export interface EntityBinding<
   readonly columns: Readonly<Record<string, AnyColumn>>
   readonly relations: Relations
   readonly computed: Readonly<Record<string, ComputedConfig>>
+  /**
+   * Which rows a principal may see at all; `undefined` for every row. It is on
+   * the binding because a table is read four ways (by id, as the children of a
+   * relation, as the target of a ref, through a query) and a rule on one of them
+   * would leave three open. A row it hides is, to that principal, not there.
+   */
+  readonly visible?: Visible | undefined
 }
+
+/** The rows of a table a principal may see, as a condition over that table's columns. */
+export type Visible = (principal: unknown) => SQL | undefined
 
 /**
  * A binding with its derived field map erased. The field map is invariant
@@ -192,6 +202,8 @@ export const entity = <
     readonly fields?: F | undefined
     readonly relations?: Relations | undefined
     readonly computed?: Computed | undefined
+    /** Which rows a principal may see at all. See `EntityBinding.visible`. */
+    readonly visible?: Visible | undefined
   },
 ): EntityBinding<
   Name,
@@ -273,6 +285,7 @@ export const entity = <
     columns,
     relations,
     computed,
+    ...(options?.visible === undefined ? {} : { visible: options.visible }),
   } as unknown as EntityBinding<
     Name,
     Table,

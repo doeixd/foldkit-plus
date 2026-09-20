@@ -11,7 +11,7 @@ import { getTableColumns } from 'drizzle-orm'
 import { Schema } from 'effect'
 import type * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
-import type { ComputedConfig, EntityBinding, RelationBinding } from './binding.js'
+import type { ComputedConfig, EntityBinding, RelationBinding, Visible } from './binding.js'
 import type { OrderTerm } from './cursor.js'
 
 /** A `one` relation: the foreign key is a column of the owner's table. */
@@ -97,6 +97,8 @@ export type EntityStorage<E extends Domain.AnyEntity> = {
   readonly table: DrizzleTable
   /** A column for a field whose name differs from the column's; the rest match by name. */
   readonly fields?: { readonly [K in keyof E['fields']]?: AnyColumn } | undefined
+  /** Which rows a principal may see at all; every read of the table applies it. */
+  readonly visible?: Visible | undefined
 } & Required_<
   'relations',
   E['relations'],
@@ -118,6 +120,7 @@ interface LooseStorage {
   readonly fields?: Readonly<Record<string, AnyColumn | undefined>> | undefined
   readonly relations?: Readonly<Record<string, AnyStorage>> | undefined
   readonly derived?: Readonly<Record<string, CountDerived>> | undefined
+  readonly visible?: Visible | undefined
 }
 
 const fail = (message: string): never => {
@@ -356,6 +359,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       columns,
       relations,
       computed,
+      ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }
   return bindings as never

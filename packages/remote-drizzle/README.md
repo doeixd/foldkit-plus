@@ -321,6 +321,38 @@ transforms (`Schema.NumberFromString`), a mixed union, a struct, and a custom,
 JSON or date column all pass unchecked, so the check never refuses a mapping
 that could work.
 
+## Which rows a principal may see
+
+`authorize` decides which **fields** a principal may read. Which **rows** exist
+for them is the binding's `visible`: a condition over the table's columns, or
+`undefined` for every row.
+
+```ts
+const Db = bind(Blog, {
+  Post: {
+    table: posts,
+    // A visitor sees what is published; an author sees every row.
+    visible: principal => (isAuthor(principal) ? undefined : isNotNull(posts.publishedAt)),
+  },
+})
+```
+
+It is on the binding, not on a source, because a table is read four ways and a
+rule on one would leave three open. Every one applies it:
+
+| The table is read | What a hidden row is |
+| --- | --- |
+| by id | not returned, so the client knows it as `NotFound` |
+| as the children of a relation | not listed, not counted by a derived count, and not a gap in a page |
+| as the target of a `one` ref | the ref reads `null`, so it does not say the row exists |
+| through a query | not in any page; a cursor on a hidden row does not resolve |
+
+- A required `one` whose target can be hidden will read `null` for a principal
+  who may not see it, which its schema refuses. Make such a relation
+  `{ optional: true }`, or make the owner's `visible` depend on the target's.
+- A relation's own `policies` still apply, beside the target's `visible`.
+- `entity(name, table, { visible })` takes the same rule.
+
 ## Field authorization stays in `RemoteServer`
 
 The adapter never decides what a principal may read. It compiles only the fields

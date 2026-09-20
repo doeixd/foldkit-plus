@@ -285,16 +285,22 @@ export const source = <P = unknown>(
           const { parentKey } = childSide(binding, relation)
           columns[parentKey.name] = parentKey
         }
+        // A row the principal may not see is not read, so it is not there to them.
         const rows = yield* selectRows(database, binding.table, columns, {
-          where: whereIds(binding, context.ids),
+          where: withFilters(whereIds(binding, context.ids), binding.visible?.(context.principal)),
         })
 
         for (const field of context.fields) {
           const relation = binding.relations[field]
           if (relation === undefined) continue
 
-          // A principal-scoped filter applies only to collection relations.
-          const policyWhere = pick(options?.policies, field)?.(context.principal)
+          // The relation's own policy, and the rows of its target this principal may see.
+          const targetVisible = relation.entity.visible?.(context.principal)
+          const relationPolicy = pick(options?.policies, field)?.(context.principal)
+          const policyWhere =
+            relationPolicy === undefined || targetVisible === undefined
+              ? (relationPolicy ?? targetVisible)
+              : and(relationPolicy, targetVisible)
           const window = pick(context.windows, field)
           if (relation.kind === 'one') {
             if (window !== undefined) {
@@ -302,10 +308,26 @@ export const source = <P = unknown>(
                 message: `Relation "${field}" is singular and cannot be windowed`,
               })
             }
+            // A ref to a row this principal may not see would say the row exists, and
+            // which one. One read finds the targets they may see; the rest read as none.
+            const held = [
+              ...new Set(rows.map(row => row[field]).filter(id => id !== null && id !== undefined)),
+            ]
+            const seen =
+              targetVisible === undefined || held.length === 0
+                ? undefined
+                : new Set(
+                    (yield* selectRows(
+                      database,
+                      relation.entity.table,
+                      { id: idColumn(relation.entity) },
+                      { where: and(inArray(idColumn(relation.entity), held), targetVisible) },
+                    )).map(target => String(target.id)),
+                  )
             for (const row of rows) {
               const id = row[field]
               row[field] =
-                id === null || id === undefined
+                id === null || id === undefined || seen?.has(String(id)) === false
                   ? null
                   : Entity.refKey({ entity: relation.entity.name, id: String(id) })
             }
@@ -469,7 +491,13 @@ export const source = <P = unknown>(
             ),
           ]
           const counts = new Map<string, number>()
-          const countPolicy = pick(options?.policies, computed.relation)?.(context.principal)
+          const countVisible = relation.entity.visible?.(context.principal)
+          const countRelation = pick(options?.policies, computed.relation)?.(context.principal)
+          // A count of rows the principal may not see would say how many there are.
+          const countPolicy =
+            countRelation === undefined || countVisible === undefined
+              ? (countRelation ?? countVisible)
+              : and(countRelation, countVisible)
           if (parentKeys.length > 0) {
             const count = sql<number>`count(*)`.mapWith(Number)
             const countRows = yield* selectRows(
@@ -554,7 +582,10 @@ export const query = <P = unknown, Input = unknown>(
           typeof options.orderBy !== 'function' || computed.some(term => term.column === id)
             ? computed
             : [...computed, { column: id, direction: 'asc' }]
-        const baseWhere = options.where?.(input as Input, principal)
+        const asked = options.where?.(input as Input, principal)
+        const visible = binding.visible?.(principal)
+        const baseWhere =
+          asked === undefined || visible === undefined ? (asked ?? visible) : and(asked, visible)
         let where = baseWhere
 
         if (shape.cursor !== undefined) {

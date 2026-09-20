@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- `foldkit-remote-drizzle`: **row visibility.** A binding takes
+  `visible: principal => SQL | undefined`, applied on every path its table is
+  read: by id, as a relation's children (listed, counted, paged), as the target
+  of a `one` ref (which reads `null`), and through a query. Before this, a
+  by-id read and a query returned any row to any principal; only a collection
+  relation could be filtered, through `policies`.
+
 - **`foldkit-cms` 0.1.0 (new): the pure core.** `Cms.roles` marks the members of
   an Entity that play a CMS part (`label`, `slug`, `published`) as metadata, read
   with `Cms.rolesOf`. `Cms.content` declares a type of content: its Entity, its
