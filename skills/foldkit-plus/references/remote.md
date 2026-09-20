@@ -153,7 +153,8 @@ case 'ClickedMore': {
 }
 case 'ClickedRefresh': {
   if (model.projectId === null) return { model }
-  // Mark-only, no I/O: fields read Refreshing, connections invalidated, refresh generation bumped.
+  // Mark-only, no I/O: fields read Refreshing, a NotFound is forgotten (reads Loading, asked for again),
+  // connections invalidated, refresh generation bumped.
   return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.projectId })) }
 }
 ```
