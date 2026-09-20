@@ -13,6 +13,11 @@ version changed; `pnpm` skips versions already in the registry.
   values key by key, then what is published, and never failing to open;
   `Conflict` with reload and overwrite; discard. End to end tests drive it
   against the real server over SQLite.
+- **`foldkit-cms`: kinds and their renderers.** `Cms.slug(from)` and
+  `Cms.dateTime()` for a form's `inputs`; `Cms.Display.State` and
+  `Cms.Display.Moment`, which `Cms.Entities` are annotated with;
+  `Cms.controlRenderers()` and `Cms.displayRenderers()` to spread beside the
+  mixins' own. `foldkit-cms` now depends on `foldkit-crud`.
 - **Breaking, `foldkit-cms` and `foldkit-cms-drizzle`:** `CmsSaveDraft`'s `entry`
   is required, and the first save of an id nobody has makes the entry
   (`Cms.newEntryId()`), because a mutation's status carries no output for a

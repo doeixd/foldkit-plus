@@ -10,8 +10,7 @@ of that is CMS-specific and none is repeated here.
 three Entities, the operations as descriptors, the lifecycle, and `Cms.editor`.
 `foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
 publishing and unpublishing, the worklist, an entry's derived state. There is no
-scheduling, no history or restore, and no CMS view kinds yet, and neither is on
-npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
+scheduling, and no history or restore yet, and neither is on npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
 
 ## Ownership
 
@@ -96,6 +95,18 @@ PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
   draft fit nothing.
 - `Conflict`: `ReloadAsked` takes the server's copy, `OverwriteAsked` saves over it.
 - Register `Cms.Entities` and `Cms.operations` with `Remote.make`.
+
+## Kinds
+
+- Form `inputs`: `slug: Cms.slug('title', { prefix: '/blog/' })` (follows the title
+  through `Cms.slugify` until written; a filled slug never follows),
+  `goesLiveAt: Cms.dateTime()` (ISO string out).
+- Columns: `Cms.Entities` are already annotated, so an entry's `state` and times
+  show as `Cms.Display.State` / `Cms.Display.Moment`; `Moment.of({ now })` is relative.
+- Draw them: `FormView.define(form, { renderers: Cms.controlRenderers() })`,
+  `ListView(...)({ page, renderers: Cms.displayRenderers() }, h)`. The state badge
+  carries `data-cms-state` and `data-cms-schedule`.
+- Narrow with `Cms.Input.Slug.is(control)`, as with `Input.Text.is`.
 
 ## The server
 

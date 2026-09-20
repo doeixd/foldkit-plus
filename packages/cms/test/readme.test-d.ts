@@ -98,3 +98,28 @@ expectTypeOf(PostEditor.status(model)).toEqualTypeOf<EditorStatus>()
 expectTypeOf(PostEditor.state(model)).toEqualTypeOf<State | undefined>()
 // The editor's form is the content type's own, typed.
 expectTypeOf(model.editor.form.fields.title.value).toEqualTypeOf<string>()
+
+// ---- Kinds ----
+
+const Scheduled = Entity.define(
+  'Scheduled',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    slug: Schema.String,
+    goesLiveAt: Schema.String,
+  }),
+)
+export const ScheduledForm = Form.make(
+  'ScheduledForm',
+  Entity.input(
+    Scheduled,
+    Schema.Struct({ title: Schema.String, slug: Schema.String, goesLiveAt: Schema.String }),
+  ),
+  {
+    inputs: {
+      slug: Cms.slug('title', { prefix: '/blog/' }), // follows the title until the author writes it
+      goesLiveAt: Cms.dateTime(), // a datetime-local input, submitted as an ISO string
+    },
+  },
+)

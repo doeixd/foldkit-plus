@@ -8,9 +8,13 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
+      "foldkit-crud": ["../crud/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
+      "foldkit-mixins": ["../mixins/src/index.ts"],
+      "foldkit-mixins-crud": ["../mixins-crud/src/index.ts"],
+      "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
@@ -21,6 +25,9 @@
       "path": "../bundle/tsconfig.build.json"
     },
     {
+      "path": "../crud/tsconfig.build.json"
+    },
+    {
       "path": "../entity/tsconfig.build.json"
     },
     {
@@ -28,6 +35,15 @@
     },
     {
       "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-crud/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
     },
     {
       "path": "../remote/tsconfig.build.json"

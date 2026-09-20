@@ -559,6 +559,9 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
+      foldkit-crud:
+        specifier: workspace:*
+        version: link:../crud
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -581,6 +584,15 @@ importers:
       foldkit:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../mixins
+      foldkit-mixins-crud:
+        specifier: workspace:*
+        version: link:../mixins-crud
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../mixins-form
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

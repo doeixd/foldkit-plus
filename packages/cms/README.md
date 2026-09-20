@@ -49,7 +49,7 @@ exists before the row does, and after the row is hidden.
 ## Install
 
 ```sh
-pnpm add effect foldkit foldkit-entity foldkit-form foldkit-remote foldkit-cms
+pnpm add effect foldkit foldkit-entity foldkit-form foldkit-crud foldkit-remote foldkit-cms
 ```
 
 ## Example
@@ -160,6 +160,35 @@ PostEditor.state(model) // the entry's lifecycle state, as the server last deriv
 - `create` takes the id so that `update` stays pure: make it in a Command or an
   event handler.
 
+## Kinds, and how they are drawn
+
+Two controls and two displays, made with `Input.kind` and `Display.kind` exactly
+as you make your own. There is no CMS view package: a kind and its renderer are
+all a view needs.
+
+```ts
+const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
+  inputs: {
+    slug: Cms.slug('title', { prefix: '/blog/' }), // follows the title until the author writes it
+    goesLiveAt: Cms.dateTime(), // a datetime-local input, submitted as an ISO string
+  },
+})
+
+FormView.define(PostForm, { renderers: Cms.controlRenderers() })
+EntryTable({ page, renderers: Cms.displayRenderers() }, h)
+```
+
+| Kind | What it is |
+| --- | --- |
+| `Cms.Input.Slug` | Text shown after the address it completes. `Cms.slug(from, { prefix?, through? })` makes one that follows `from` through `Cms.slugify`. A form filled with a published slug does not follow: an address must not move because its title did. |
+| `Cms.Input.DateTime` | A moment. Text that is none is `Invalid`, not submitted. |
+| `Cms.Display.State` | An entry's state as words: `Changed, scheduled`, `New, overdue`. `of({ words })` takes yours. Its renderer is a `span` with `data-cms-state` and `data-cms-schedule` to style. |
+| `Cms.Display.Moment` | A time. `of({ now })` reads relative to that clock (`3 days ago`), and you decide how often it moves; without one it is the date and time. Its renderer is a `time`. |
+
+`Cms.Entities` already say how they are shown: an entry's `state` is a `State`,
+and its times are `Moment`s, so a `Crud.list` over `Cms.Entries` needs only the
+renderers.
+
 ## Entities and operations
 
 `Cms.Entities` is `Entry`, `Draft` and `Revision`, related: an entry has one
@@ -187,6 +216,9 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.content(name, { entity, form, publish, words })` | A type of content: its Entity, form, publish operations, and name. |
 | `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
 | `Cms.newEntryId()` | An id for something new. |
+| `Cms.slug(from, options?)`, `Cms.dateTime()`, `Cms.slugify(text)` | Controls for a form's `inputs`. |
+| `Cms.Input.{Slug, DateTime}`, `Cms.Display.{State, Moment}` | The kinds: `.of(data)`, `.is(x)`. |
+| `Cms.controlRenderers()`, `Cms.displayRenderers()` | Their renderers, to spread beside the mixins' own. |
 | `Cms.state(facts, now)` | The state of an entry, with its schedule. |
 | `Cms.offers(facts, now, content)` | The transitions it offers now. |
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
@@ -198,9 +230,11 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 
 - No scheduling, history or restore yet: see the status above.
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
-  and the status and buttons yourself. The CMS kinds and renderers are not built.
-- A taken slug arrives as the editor's `error`; landing it on the slug's key
-  (`Cms.slugTaken.key`) is the view's to do for now.
+  and the status and buttons yourself.
+- A taken slug arrives as the editor's `error`;
+  `Cms.slugTaken.key(PostEditor.error(model)?.message ?? '')` is the key to show it
+  on. There is no is-it-free check while typing yet: a check sees the form's
+  values and not the row being edited, so it would call a post's own slug taken.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
   [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).

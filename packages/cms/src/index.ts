@@ -21,6 +21,8 @@ import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { makeEditor } from './editor.js'
+import { Display } from 'foldkit-crud'
+import { Kinds } from './kinds.js'
 
 export type { Facts, Schedule, State, StateTag, Transition } from './lifecycle.js'
 
@@ -110,6 +112,12 @@ const Entry = Entity.define(
 ).pipe(
   // Derived by the server, with its clock, so a list can show and filter by it.
   Entity.derived({ state: Derived.make(StateSchema) }),
+  // How a list or a detail shows them, with nothing said where it is declared.
+  Entity.annotateMembers({
+    state: Display.of(Kinds.Display.State.of({})),
+    createdAt: Display.of(Kinds.Display.Moment.of({})),
+    archivedAt: Display.of(Kinds.Display.Moment.of({})),
+  }),
 )
 
 // The entry's one working copy: what an author has entered and not published.
@@ -143,7 +151,7 @@ const Revision = Entity.define(
     publishedAt: Schema.String.annotate({ title: 'Published' }),
     publishedBy: Schema.NullOr(Schema.String),
   }),
-)
+).pipe(Entity.annotateMembers({ publishedAt: Display.of(Kinds.Display.Moment.of({})) }))
 
 const Entities = Entity.relate(
   { Entry, Draft, Revision },
@@ -347,6 +355,14 @@ export const Cms = {
   },
 
   /**
+   * The kinds a CMS adds, and a renderer for each: `Cms.slug('title')` and
+   * `Cms.dateTime()` for a form's `inputs`; `Cms.Display.State` and
+   * `Cms.Display.Moment` for a list's columns; `Cms.controlRenderers()` and `Cms.displayRenderers()` to spread
+   * beside the mixins' own.
+   */
+  ...Kinds,
+
+  /**
    * The authoring editor of a content type: its form, the entry, and the draft
    * that keeps what the author has entered. Saving is automatic and is not
    * publishing; publishing submits the form.
@@ -373,3 +389,4 @@ export type {
   EditorStatus,
   Resumed,
 } from './editor.js'
+export type { ControlContext, DisplayContext, StateWords } from './kinds.js'

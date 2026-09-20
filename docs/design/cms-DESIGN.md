@@ -395,7 +395,10 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    again and a shown one keeps its first date.* The transaction: the application's handler, the revision, the
    draft's deletion; `Unpublish`; the base-revision conflict; the slug check and
    the unique-index failure arriving on the slug's key.
-5. **`Cms.editor`.** *Built, as state: the kinds and renderers of §10 are not.
+5. **`Cms.editor`.** *Built, with the kinds and renderers of §10, grouped as
+   `Cms.Input` and `Cms.Display` because `Cms.State` beside `Cms.state` differed
+   only by case. The form's is-it-free slug check is not: a check sees the form's
+   values and not the row being edited.
    It is a Bundle around the form and not around `Crud.editor`, whose one
    mutation and one loaded value are the wrong shape for an entry, a draft and a
    row. Two things it needed changed what was built before it: a mutation's

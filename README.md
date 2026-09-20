@@ -307,6 +307,7 @@ flowchart TB
   crud --> mixinsCrud
   entity --> cms
   form --> cms
+  crud --> cms
   cms --> cmsDrizzle
   drizzle --> cmsDrizzle
   mixins --> mixinsCrud
