@@ -31,6 +31,36 @@ export interface RelationShape {
   readonly entity: string
 }
 
+/**
+ * A page of a relation that is a whole list is read under a name of its own, the
+ * field's name and the page's size: `comments@first=10`. It is a field like any
+ * other to the store, the planner, and the wire, so the whole list and a page of
+ * it are held side by side, merged, marked stale, and persisted each on its own.
+ * The server reads the name apart, reads the relation with the window, and
+ * answers under the alias. A cursor is not part of the name: a page read from a
+ * cursor merges onto the page it continues.
+ */
+export const RELATION_ALIAS = '@'
+
+/** The alias a relation field is read under, for a window of this size. */
+export const relationAlias = (
+  field: string,
+  window: {
+    readonly first?: number | undefined
+    readonly last?: number | undefined
+    // A cursor is no part of the name: a page read from one merges onto the page it continues.
+    readonly after?: string | undefined
+    readonly before?: string | undefined
+  },
+): string =>
+  `${field}${RELATION_ALIAS}${window.last !== undefined ? `last=${window.last}` : `first=${window.first ?? ''}`}`
+
+/** The field an alias reads; a name that is no alias is its own field. */
+export const aliasedField = (name: string): string => {
+  const at = name.indexOf(RELATION_ALIAS)
+  return at === -1 ? name : name.slice(0, at)
+}
+
 /** Splits a ref key (`"Entity:id"`, the store key too) back into its parts. */
 export const refParts = (encoded: string): RefParts => {
   const separator = encoded.indexOf(':')

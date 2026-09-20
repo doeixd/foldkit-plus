@@ -14,7 +14,7 @@ import {
   type RefPage,
 } from './entity.js'
 import type { QueryWindow } from './query.js'
-import { isRefPage, relationShape, targetsOf } from './relation.js'
+import { aliasedField, isRefPage, relationAlias, relationShape, targetsOf } from './relation.js'
 import { entityKey, isFieldStale, isTombstone, readField, type EntityStore } from './store.js'
 
 /** One page of a paginated relation with each target assembled through a nested selection. */
@@ -164,12 +164,15 @@ export const Selection = {
       throw new Error(`Selection.make: a selection of "${entity.name}" picks at least one field`)
     }
     const picked: Record<string, AnySchema> = {}
+    // The names read: a field's own, or the alias a page of a list is read under.
+    const names: string[] = []
     const connections: Record<string, QueryWindow> = {}
     const relations: Record<string, RelationRequirement> = {}
     for (const key of Object.keys(selection)) {
       const choice = (selection as Record<string, unknown>)[key]
       if (choice === true) {
         picked[key] = entity.fields[key] as AnySchema
+        names.push(key)
         continue
       }
       const nested = choice as Selection<unknown>
@@ -187,12 +190,17 @@ export const Selection = {
       const nullable = (codec: AnySchema): AnySchema =>
         shape.nullable ? (Schema.NullOr(codec) as unknown as AnySchema) : codec
       if (nested.window !== undefined) {
-        // A connection: the nested selection already carries its page codec.
-        connections[key] = nested.window
+        // A connection: the nested selection already carries its page codec. A page
+        // of a whole list is read under its alias, so the list can be read beside it;
+        // a field that is always a page has nothing to be beside.
+        const name = shape.kind === 'many' ? relationAlias(key, nested.window) : key
+        names.push(name)
+        connections[name] = nested.window
         picked[key] = nullable(nested.schema as AnySchema)
-        if (nested.fields.length > 0) relations[key] = relationOf(nested)
+        if (nested.fields.length > 0) relations[name] = relationOf(nested)
         continue
       }
+      names.push(key)
       const item = nested.schema as AnySchema
       picked[key] = nullable(
         shape.kind === 'many'
@@ -205,7 +213,7 @@ export const Selection = {
     }
     return {
       entity: entity.name,
-      fields: Object.keys(selection),
+      fields: names,
       schema: Schema.Struct(picked) as unknown as Schema.Codec<
         SelectionValue<F, Sel>,
         unknown,
@@ -281,14 +289,15 @@ export const assemble = (
     const value = readField(store, key, field)
     if (Option.isNone(value)) return undefined
     refreshing ||= isFieldStale(store, key, field)
+    // A page read under an alias is the value of the field the alias reads.
     const relation = requirement.relations?.[field]
     if (relation === undefined) {
-      values[field] = value.value
+      values[aliasedField(field)] = value.value
       continue
     }
     const nested = assembleRelation(store, value.value, relation)
     if (nested === undefined) return undefined
-    values[field] = nested.values
+    values[aliasedField(field)] = nested.values
     refreshing ||= nested.refreshing
   }
   return { values, refreshing }

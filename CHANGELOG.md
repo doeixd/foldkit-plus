@@ -7,6 +7,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-remote` and `foldkit-remote-server`: a relation may be read whole and
+  by the page at once.** A page of a whole list (`Entity.page`, or
+  `Selection.connection` over an array of refs) is read under an alias,
+  `comments@first=10`, so it is a field of its own to the store, the planner and
+  the wire; `RemoteServer` reads the alias apart and answers under it, and the
+  live hub re-reads a subscriber's page when its list changes. A write to the
+  list marks its pages stale. Requirements for such a Selection now name the
+  alias in `fields`, `windows` and `relations`. Both packages must be upgraded
+  together: an older server does not know an alias. `RELATION_ALIAS`,
+  `relationAlias` and `aliasedField` are exported.
+
 - **Words are text. Breaking.** `FormMessages` entries may be text with blanks
   (`'{label} is required'`). `foldkit-mixins-form` takes `words: { submit, search, add, remove }`
   in place of `submitLabel`, `searchLabel`, `addLabel` and `removeLabel`, and

@@ -29,6 +29,8 @@ import {
   type RemoteDescriptor,
   Requirement,
   type RemoteRpcClient,
+  RELATION_ALIAS,
+  aliasedField,
 } from 'foldkit-remote'
 
 export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
@@ -247,6 +249,8 @@ interface Selected {
 /** The subscribers one source read answers, and the fields each wants of it. */
 interface ReadGroup<P> {
   readonly windows: Readonly<Record<string, QueryWindow>>
+  /** The alias each field read here is answered under. */
+  readonly renames: Readonly<Record<string, string>>
   readonly entries: Array<{ readonly subscriber: Subscriber<P>; readonly fields: string[] }>
 }
 
@@ -318,23 +322,41 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
           for (const subscriber of subscribers) {
             const selected = subscriber.selected.get(key)
             if (selected === undefined) continue
-            const wanted = fields.filter(field => selected.fields.has(field))
-            if (wanted.length === 0) continue
-            const windows = Object.fromEntries(
-              wanted.flatMap(field => {
-                const window = selected.windows.get(field)
-                return window === undefined ? [] : [[field, window] as const]
-              }),
-            )
             const byWindows = groups.get(subscriber.principal) ?? new Map<string, ReadGroup<P>>()
             groups.set(subscriber.principal, byWindows)
-            const windowKey = stableStringify(windows)
-            const group = byWindows.get(windowKey) ?? { windows, entries: [] }
-            byWindows.set(windowKey, group)
-            group.entries.push({ subscriber, fields: wanted })
+            const join = (
+              windows: Readonly<Record<string, QueryWindow>>,
+              renames: Readonly<Record<string, string>>,
+              wanted: string[],
+            ): void => {
+              const groupKey = `${stableStringify(windows)}\u0000${stableStringify(renames)}`
+              const group = byWindows.get(groupKey) ?? { windows, renames, entries: [] }
+              byWindows.set(groupKey, group)
+              group.entries.push({ subscriber, fields: wanted })
+            }
+            const wanted = fields.filter(field => selected.fields.has(field))
+            if (wanted.length > 0)
+              join(
+                Object.fromEntries(
+                  wanted.flatMap(field => {
+                    const window = selected.windows.get(field)
+                    return window === undefined ? [] : [[field, window] as const]
+                  }),
+                ),
+                {},
+                wanted,
+              )
+            // A page read under an alias changes when the relation it reads does, and
+            // is re-read on its own, with its window, so the whole list can be too.
+            for (const alias of selected.fields) {
+              const window = selected.windows.get(alias)
+              const field = aliasedField(alias)
+              if (field === alias || window === undefined || !fields.includes(field)) continue
+              join({ [field]: window }, { [field]: alias }, [field])
+            }
           }
           for (const [principal, byWindows] of groups) {
-            for (const { windows, entries: group } of byWindows.values()) {
+            for (const { windows, renames, entries: group } of byWindows.values()) {
               const requested = [...new Set(group.flatMap(entry => entry.fields))]
               const allowed = allowedFields(source, principal, requested)
               if (allowed.length === 0) continue
@@ -351,7 +373,7 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
                 const values: Record<string, unknown> = Object.create(null)
                 for (const field of wanted) {
                   if (allowedSet.has(field) && Object.hasOwn(record.values, field)) {
-                    values[field] = record.values[field]
+                    values[renames[field] ?? field] = record.values[field]
                   }
                 }
                 const changed = Object.keys(values)
@@ -394,6 +416,76 @@ interface EntityGroup {
   readonly ids: Set<string>
   /** The union of the requests' fields, windows, and relations. */
   slice: RelationRequirement
+  /** The alias each field read here is answered under; see `RELATION_ALIAS`. */
+  readonly renames: Readonly<Record<string, string>>
+}
+
+/** A request, or the part of one that reads a relation under an alias. */
+type Part = Requirement & { readonly renames?: Readonly<Record<string, string>> }
+
+const pickNames = <T>(
+  record: Readonly<Record<string, T>> | undefined,
+  names: ReadonlyArray<string>,
+): Readonly<Record<string, T>> | undefined => {
+  if (record === undefined) return undefined
+  const picked = names.flatMap(name =>
+    Object.hasOwn(record, name) ? [[name, record[name]!] as const] : [],
+  )
+  return picked.length === 0 ? undefined : Object.fromEntries(picked)
+}
+
+/**
+ * A request's aliased fields, each as a read of its own. `comments@first=10` is
+ * the `comments` relation read with the alias's window, so a source sees the
+ * field it knows and one window for it, while the whole list rides beside it in
+ * another read. The answer goes back under the alias, which is also the key of
+ * the relation followed from it.
+ */
+const splitAliases = (request: Requirement): ReadonlyArray<Part> => {
+  const aliases = request.fields.filter(field => field.includes(RELATION_ALIAS))
+  if (aliases.length === 0) return [request]
+  const plain = request.fields.filter(field => !field.includes(RELATION_ALIAS))
+  interface Building {
+    fields: string[]
+    windows: Record<string, QueryWindow>
+    relations: Record<string, RelationRequirement>
+    renames: Record<string, string>
+  }
+  const first: Building = {
+    fields: [...plain],
+    windows: { ...pickNames(request.windows, plain) },
+    relations: { ...pickNames(request.relations, plain) },
+    renames: {},
+  }
+  const building: Building[] = [first]
+  for (const alias of aliases) {
+    const window = request.windows?.[alias]
+    // An alias is a page: one that names no window asks for nothing.
+    if (window === undefined) continue
+    const field = aliasedField(alias)
+    // It rides in a read that does not already read its relation, so a request
+    // costs one read unless the list and a page of it are both wanted.
+    let part = building.find(candidate => !candidate.fields.includes(field))
+    if (part === undefined) {
+      part = { fields: [], windows: {}, relations: {}, renames: {} }
+      building.push(part)
+    }
+    part.fields.push(field)
+    part.windows[field] = window
+    part.renames[field] = alias
+    const relation = request.relations?.[alias]
+    if (relation !== undefined) part.relations[alias] = relation
+  }
+  return building
+    .filter(part => part.fields.length > 0)
+    .map(part => ({
+      entity: request.entity,
+      id: request.id,
+      fields: part.fields,
+      ...(Object.keys(part.windows).length === 0 ? {} : { windows: part.windows }),
+      ...(Object.keys(part.relations).length === 0 ? {} : { relations: part.relations }),
+      ...(Object.keys(part.renames).length === 0 ? {} : { renames: part.renames }),
+    }))
 }
 
 /**
@@ -403,13 +495,15 @@ interface EntityGroup {
  */
 const groupByEntity = (requests: ReadonlyArray<Requirement>): EntityGroup[] => {
   const grouped = new Map<string, EntityGroup>()
-  for (const request of requests) {
-    const groupKey = `${request.entity}\u0000${stableStringify(request.windows ?? null)}`
+  for (const request of requests.flatMap(splitAliases)) {
+    const renames = request.renames ?? {}
+    const groupKey = `${request.entity}\u0000${stableStringify(request.windows ?? null)}\u0000${stableStringify(renames)}`
     const group = grouped.get(groupKey)
     if (group === undefined) {
       grouped.set(groupKey, {
         ids: new Set([request.id]),
         slice: Requirement.mergeRelation({ entity: request.entity, fields: [] }, request),
+        renames,
       })
     } else {
       group.ids.add(request.id)
@@ -633,7 +727,7 @@ export const RemoteServer = {
           }
         }
 
-        for (const { ids, slice } of groupByEntity(pending)) {
+        for (const { ids, slice, renames } of groupByEntity(pending)) {
           const name = slice.entity
           const source = server.entities.get(name)
           if (source === undefined) continue
@@ -663,15 +757,17 @@ export const RemoteServer = {
           for (const record of records) {
             // Null-prototype so a crafted field name (`__proto__`) cannot reach
             // the prototype, and `Object.hasOwn` so inherited names are ignored.
+            // A field read under an alias is answered, and remembered, under the alias.
             const values: Record<string, unknown> = Object.create(null)
             for (const field of allowed) {
-              if (Object.hasOwn(record.values, field)) values[field] = record.values[field]
+              if (Object.hasOwn(record.values, field))
+                values[renames[field] ?? field] = record.values[field]
             }
             entities.push({ entity: name, id: record.id, values })
 
             const key = `${name}:${record.id}`
             const known = fetched.get(key) ?? new Set<string>()
-            for (const field of allowed) known.add(field)
+            for (const field of allowed) known.add(renames[field] ?? field)
             fetched.set(key, known)
             fetchedValues.set(key, { ...fetchedValues.get(key), ...values })
 

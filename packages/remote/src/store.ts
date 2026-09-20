@@ -7,6 +7,7 @@
  * new store.
  */
 import { Option } from 'effect'
+import { RELATION_ALIAS } from './relation.js'
 
 export type EntityKey = string
 
@@ -63,6 +64,10 @@ const written = (
     const requested = windows?.[field]
     if (requested !== undefined && requested !== '') nextWindows[field] = requested
     else delete nextWindows[field]
+    // The whole list changed, so a page of it read under an alias may have too.
+    if (!field.includes(RELATION_ALIAS))
+      for (const held of present)
+        if (held.startsWith(`${field}${RELATION_ALIAS}`) && !(held in values)) stale.add(held)
   }
   return {
     values: { ...previous.values, ...values },

@@ -98,15 +98,19 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
     // --- A page of a relation ---
     // The Selection says "the first comment"; the window travels with the read and
-    // SQL answers with one row and whether more follow. A fresh Model: Remote holds
-    // one relation of one entity whole or as one window, not both at once.
+    // SQL answers with one row and whether more follow. The Model already holds every
+    // comment of this post; the page is read under a name of its own, beside them.
     const latest = Data.get(LatestComment, PostId.make('p1'))
-    const [pagePlan] = Data.plan(initial, latest)
-    lines.push(`page plan: windows ${JSON.stringify(pagePlan?.windows)}`)
+    const [pagePlan] = Data.plan(loaded, latest)
+    lines.push(`page plan: [${pagePlan?.fields.join(',')}] ${JSON.stringify(pagePlan?.windows)}`)
     const paged = await Effect.runPromise(
-      Data.prefetch(initial, latest).pipe(Effect.provide(client)),
+      Data.prefetch(loaded, latest).pipe(Effect.provide(client)),
     )
     lines.push(`latest comment: ${describe(latest.read(paged))}`)
+    const still = post.read(paged).post
+    lines.push(
+      `every comment, still: ${still._tag === 'Ready' ? still.value.comments.length : still._tag}`,
+    )
 
     // A second Surface walks the same graph from the other side. Ada's name came
     // in as the post's author, so only her posts are planned.

@@ -2572,9 +2572,9 @@ derived schema included
 >
 > Paginated relations are built as `Entity.page` (§14): a page is a view concept
 > (first N, has-next) as neutral as `many` is an array, and cursors stay with
-> the interpreter. One limit is Remote's own and older than this: a relation
-> field of one entity is stored whole or as one window, so the same relation
-> read both ways at once by two views is not supported.
+> the interpreter. A page of a whole list is read under an alias
+> (`comments@first=10`), so the list and a page of it are two fields to Remote's
+> store and wire, and two views may read the same relation both ways at once.
 
 Change Remote's entity registry to consume foundational Entities.
 

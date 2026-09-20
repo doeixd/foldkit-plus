@@ -12,6 +12,7 @@ import {
   requirementsOf,
   type BoundRemote,
   type RemoteModel,
+  plan,
 } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -226,6 +227,50 @@ describe('one Entity declaration, client to database', () => {
     }
     expect(read).toEqual({ _tag: 'Ready', value })
     expect(Schema.is(Card.schema)(value)).toBe(true)
+  })
+
+  it('reads the whole list and a page of it in one batch, and holds them side by side', async () => {
+    const Body = Entity.select(Domain.Comment, { body: true })
+    // One screen shows every comment and its latest, of the same project.
+    const Both = {
+      whole: Entity.select(Domain.Project, { comments: Body }),
+      latest: Entity.select(Domain.Project, { comments: Entity.page(Body, { first: 1 }) }),
+    }
+    const definition = Remote.define({ entities: Object.values(Db) })
+    const store = { current: emptyStore }
+    const bound = {
+      definition,
+      contract: { name: 'test' },
+      store: { get: () => ({ ...initialRemoteModel, entities: store.current }) },
+    } as unknown as BoundRemote<unknown, RemoteModel>
+    const whole = Remote.select(bound, Selection.from(Both.whole))('p1')
+    const latest = Remote.select(bound, Selection.from(Both.latest))('p1')
+    // What one Surface showing both would require: the two, planned together.
+    const requests = plan(emptyStore, [...requirementsOf(whole), ...requirementsOf(latest)])
+    expect(requests.map(request => request.fields)).toEqual([['comments', 'comments@first=1']])
+
+    const server = RemoteServer.make({
+      entities: Object.values(Db).map(binding => source(binding)),
+    })
+    const { sqlite, database } = setup()
+    try {
+      const result = await Effect.runPromise(
+        RemoteServer.handlers(server, null)
+          .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests })
+          .pipe(Effect.provide(databaseLayer(database))),
+      )
+      store.current = Remote.writeRead(emptyStore, requests, result)
+    } finally {
+      sqlite.close()
+    }
+    expect(whole.read(undefined)).toEqual({
+      _tag: 'Ready',
+      value: { comments: [{ body: 'b' }, { body: 'a' }] },
+    })
+    expect(latest.read(undefined)).toEqual({
+      _tag: 'Ready',
+      value: { comments: { items: [{ body: 'b' }], hasNext: true, hasPrevious: false } },
+    })
   })
 
   it('reads a page of a many relation as SQL windows it', async () => {

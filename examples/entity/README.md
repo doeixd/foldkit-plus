@@ -130,13 +130,16 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
 ### A page of a relation
 
 ```text
-page plan: windows {"comments":{"first":1}}
+page plan: [comments@first=1] {"comments@first=1":{"first":1}}
 latest comment: Ready {"title":"Notes on the Engine","comments":{"items":[{"body":"Remarkable."}],"hasNext":true,"hasPrevious":false}}
 ```
 
 `LatestComment` selects `comments` with `Entity.page(..., { first: 1 })`. The
 window travels with the read, SQL answers with one row and whether more follow,
-and the value is the page the Selection's schema describes.
+and the value is the page the Selection's schema describes. The Model already
+held every comment of that post from the read above; the page is read under a
+name of its own, so only it is planned, and afterwards both are there
+(`every comment, still: 2`).
 
 ### A nested write
 

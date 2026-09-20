@@ -454,9 +454,12 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
   handler.
 - `Entity.page(selection, window)` in an Entity Selection is Remote's
   `Selection.connection`: the window travels with the read, and the server
-  answers with a page of refs. One relation of one entity is held whole or as
-  one window at a time, so two views of the same entity should not read the
-  same relation both ways at once.
+  answers with a page of refs. A page of a whole list is read under a name of
+  its own, `comments@first=10`, so one view can show every comment while another
+  shows the first ten of the same post: they are two fields to the store, fetched
+  in one batch, merged and refreshed each on its own. A write to the list (a
+  mutation's patch, a live change) marks its pages stale, so they are read again.
+  A cursor is not part of the name: a page read from a cursor continues its page.
 
 `Entity.make` with `Entity.ref` keeps working, and both kinds can share one
 domain. Both packages export `Entity`; a module that needs `Entity.from` beside

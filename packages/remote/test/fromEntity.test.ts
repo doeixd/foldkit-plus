@@ -11,6 +11,7 @@ import {
   emptyStore,
   entityKey,
   initialRemoteModel,
+  missingFields,
   relationShape,
   requirementsOf,
   writeEntity,
@@ -244,10 +245,11 @@ describe('Selection.from an Entity page', () => {
       {
         entity: 'Project',
         id: 'p1',
-        fields: ['name', 'comments'],
-        windows: { comments: { first: 1 } },
+        // A page of a whole list is read under a name of its own.
+        fields: ['name', 'comments@first=1'],
+        windows: { 'comments@first=1': { first: 1 } },
         relations: {
-          comments: {
+          'comments@first=1': {
             entity: 'Comment',
             fields: ['body', 'author'],
             relations: { author: { entity: 'User', fields: ['id', 'name'] } },
@@ -258,13 +260,9 @@ describe('Selection.from an Entity page', () => {
   })
 
   it('reads the page the store holds into the value the Entity Selection describes', () => {
-    const store = writeEntity(
-      fullStore(),
-      entityKey('Project', 'p1'),
-      { comments: { refs: ['Comment:c1'], hasNext: true, hasPrevious: false } },
-      undefined,
-      { comments: '[1,null,null,null]' },
-    )
+    const store = writeEntity(fullStore(), entityKey('Project', 'p1'), {
+      'comments@first=1': { refs: ['Comment:c1'], hasNext: true, hasPrevious: false },
+    })
     const read = projection.read(root(store))
     const value = {
       name: 'Apollo',
@@ -276,5 +274,34 @@ describe('Selection.from an Entity page', () => {
     }
     expect(read).toEqual({ _tag: 'Ready', value })
     expect(Schema.is(Paged.schema)(value)).toBe(true)
+  })
+
+  it('holds the whole list and a page of it side by side', () => {
+    // fullStore has `comments` whole; the page is written beside it.
+    const store = writeEntity(fullStore(), entityKey('Project', 'p1'), {
+      'comments@first=1': { refs: ['Comment:c1'], hasNext: true, hasPrevious: false },
+    })
+    const whole = Remote.select(AppRemote, Selection.from(ProjectCard))('p1').read(root(store))
+    const paged = projection.read(root(store))
+    expect(whole._tag === 'Ready' && whole.value.comments).toEqual([
+      { body: 'hi', author: { id: 'u2', name: 'grace' } },
+    ])
+    expect(paged._tag === 'Ready' && paged.value.comments.hasNext).toBe(true)
+  })
+
+  it('makes a page stale when the whole list is written, so it is read again', () => {
+    const paged = writeEntity(fullStore(), entityKey('Project', 'p1'), {
+      'comments@first=1': { refs: ['Comment:c1'], hasNext: false, hasPrevious: false },
+    })
+    expect(missingFields(paged, entityKey('Project', 'p1'), ['comments@first=1'])).toEqual([])
+    // A mutation's patch, or a live change, writes the list: a comment was added.
+    const patched = writeEntity(paged, entityKey('Project', 'p1'), {
+      comments: ['Comment:c1', 'Comment:c2'],
+    })
+    expect(missingFields(patched, entityKey('Project', 'p1'), ['comments@first=1'])).toEqual([
+      'comments@first=1',
+    ])
+    // The page still reads, as refreshing, until the new one arrives.
+    expect(projection.read(root(patched))._tag).toBe('Refreshing')
   })
 })

@@ -1,7 +1,6 @@
 # Entity, Form, and Crud: DX plan
 
-Status: eight of nine items resolved; the last is recorded with why it was not
-done. Friction found while building `foldkit-entity`, `foldkit-form`,
+Status: all resolved. Friction found while building `foldkit-entity`, `foldkit-form`,
 `foldkit-mixins-form`, `foldkit-crud`, and `foldkit-mixins-crud` and wiring them
 into [`examples/entity`](../../examples/entity). Each item names what prompted
 it, so it can be judged rather than taken on faith. Items are marked as they are
@@ -93,21 +92,18 @@ so a library cannot hand over a partly configured form.
   inputs. Words are now text with blanks (`'{label} is required'`), the three
   shapes share no key, and one object `satisfies` all of them.
 - **A relation is stored whole or as one window**, never both, in Remote.
-  **Not done, and not a small fix.** "Key the stored value by its window" was
-  the plan; reading the read path showed why it is not one change:
-  - the wire carries one window per field per request, and a batch's answers are
-    merged by entity and field name, so a whole list and a page of it collide
-    before they reach the store;
-  - a cursor page merges onto the stored page by field name, and live changes,
-    optimistic patches, staleness, retention, persistence, and the inspector all
-    address a relation by that one name.
-
-  It is a protocol and store change to a published package, with pinned tests on
-  each of those paths, and deserves its own design: answers that say which
-  request they answer, a storage key of field plus base window, and a rule for
-  what a write to the whole relation does to its pages (mark them stale). Until
-  then the limit is documented where it bites: `foldkit-remote`'s README and
-  `Entity.page`.
+  **Resolved, by a smaller design than the one first recorded here.** The first
+  reading found the collision everywhere a relation is addressed by its field
+  name: the wire's one window per field, a batch's answers merged by name, cursor
+  merging, live changes, staleness, persistence. That argued for a protocol and
+  store redesign. The observation that made it small is that all of those work
+  *per field name* already, so the page only needs a name of its own. A page of
+  a whole list is read as `comments@first=10`: the client's store, planner and
+  merging hold it as one more field, and the server reads the name apart, reads
+  the relation with the window, and answers under the alias, in the same source
+  read unless the list is being read too. A write to the list marks its pages
+  stale. A field that is always a page (`Entity.refPage`) keeps its own name,
+  since there is no list for it to collide with.
 - **A picker that searches is a `select` under a search box**, not a combobox.
   Recorded, not planned: it is the accessible floor, and a combobox is a renderer
   an application can now add (item 1).
