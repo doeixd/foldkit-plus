@@ -10,7 +10,7 @@ are: **audience** (a visitor sees what is published, an author sees everything),
 > **Status: the core and the editor.** Roles, content types, the three Entities,
 > the operations as descriptors, the lifecycle, and the authoring editor's state. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
 > which saves, discards, publishes and unpublishes, and enforces the audience
-> boundary; scheduling, history and an example are next in
+> boundary; history and an example are next in
 > [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
 > is on npm.
 
@@ -131,7 +131,8 @@ Data.subscriptions({ ...yourSurfaces, ...PostEditor.actives })
 
 Placed.helpers.open(entryId) // resume the draft, else show what is published
 Placed.helpers.create(Cms.newEntryId()) // something new; its first save makes the entry
-Editor.Message.PublishAsked() // also: DiscardAsked, UnpublishAsked, ReloadAsked, OverwriteAsked
+Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked,
+// UnpublishAsked, ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 
 PostEditor.status(model) // Loading | Editing | Saving | Saved | Conflict | Publishing | Published | ...
 PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
@@ -144,6 +145,10 @@ PostEditor.state(model) // the entry's lifecycle state, as the server last deriv
 - **Publishing submits the form**, so its rules and checks decide, and an invalid
   form publishes nothing and says why in place. What is published is the saved
   draft, so a publish saves first when the last edit has not.
+- **Scheduling is a publish promised for later**: `ScheduleAsked({ at })` submits
+  and saves the form now, and the server keeps the promise. The entry's `state`
+  says for when, and whether it happened. The form's own submit is always a
+  publish now.
 - **A draft never fails to open.** The saved Model is tried first, guarded by the
   form's name and `version`; then the saved values, key by key, keeping what the
   form still accepts; then what is published. `PostEditor.resumed(model)` says
@@ -228,7 +233,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 
 ## Limits
 
-- No scheduling, history or restore yet: see the status above.
+- No history or restore yet: see the status above.
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
   and the status and buttons yourself.
 - A taken slug arrives as the editor's `error`;

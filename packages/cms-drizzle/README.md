@@ -6,9 +6,9 @@ unpublished work in three tables beside your own, and it is where the **audience
 boundary** is enforced: who is not an author is refused entries, drafts and
 revisions outright, and sees of your content only what is published.
 
-> **Status: drafts and publishing.** Saving and discarding a draft, publishing
-> and unpublishing, the worklist, an entry's derived state, and the boundary.
-> Scheduling and restoring are the next steps of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
+> **Status: everything but history.** Saving and discarding a draft, publishing
+> and unpublishing, scheduling, archiving, the worklist, an entry's derived state,
+> and the boundary. Restoring a revision is the next step of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
 > Not on npm. SQLite and Postgres; MySQL has no `returning`, which the conflict
 > rule needs.
 
@@ -153,6 +153,41 @@ same key as the Entity's.
 kept; a visitor stops seeing it, by every path, and publishing shows it again.
 Only a type with a `published` role offers it.
 
+## Scheduling
+
+`CmsSchedule` promises a draft for later: it sets the draft's `scheduledFor`,
+after checking the publish mutation would take the draft now. What could not be
+published now is not promised for later. `CmsUnschedule` takes the promise back.
+
+Nothing else happens until you call `due`:
+
+```ts
+// A Cloudflare cron trigger, a setInterval, a queue consumer: the host's choice.
+export default {
+  scheduled: () =>
+    run(cms.due(new Date(), { as: name => authors.byName(name) })),
+}
+```
+
+- **The package owns no timer.** Hosts keep time differently, and a library that
+  starts its own runs twice behind a load balancer.
+- `due(now, { as })` publishes every draft whose time has come, each in its own
+  transaction, **as whoever scheduled it**: a draft keeps the name your `nameOf`
+  gave, and `as` says who that is now. Someone who has since lost the right
+  publishes nothing.
+- **A publish that fails stays scheduled, with the reason.** The entry reads
+  overdue with that error, because that is true. It is not tried again until the
+  draft changes: a fault the author must fix is not hammered every minute.
+- One failure does not stop the rest. `due` answers with each entry and its
+  error, or `null`.
+- An archived entry keeps its promise, and keeps it waiting.
+
+## Archiving
+
+`CmsArchive` puts an entry away: off the worklist, and, for a type with a
+`published` role, off show. `CmsUnarchive` brings it back as unpublished work;
+publishing shows it again. Put away, an entry offers nothing else.
+
 ## The worklist, and an entry's state
 
 `cms.queries` is `Cms.Entries`: the entries of one content type, searched by
@@ -170,12 +205,14 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
 | `published(column, isAuthor)` | A `visible` rule for a content table: a visitor sees rows whose column is set. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf? })` | `sources`, `queries`, `mutations`, and `bindings`. |
+| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf? })` | `sources`, `queries`, `mutations`, `due`, and `bindings`. |
+| `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each. |
 
 ## Limits
 
-- No scheduling, archive or restore yet; `allow` is asked about `save`, `discard`,
-  `publish` and `unpublish`.
+- No restore yet. `allow` is asked about every transition but `restore`.
+- There is no way to show an unpublished row again as it is: publishing needs a
+  draft, so an author edits and publishes.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the
   column's name). SQLite and Postgres say both; a constraint named without the
   column arrives as the driver's own error.

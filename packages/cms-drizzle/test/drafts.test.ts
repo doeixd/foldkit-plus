@@ -126,8 +126,8 @@ const open = () => {
       ('e3', 'posts', null, 'Unwritten', 'ada', '2026-01-03T00:00:00.000Z', null, null),
       ('e4', 'posts', 'p1', 'Put away', 'ada', '2026-01-04T00:00:00.000Z', '2026-02-01T00:00:00.000Z', null);
     insert into cms_drafts values
-      ('e1', '{"title":"Live, revised"}', null, 'postsForm@1', '2026-03-01T00:00:00.000Z', 'ada', null, '2026-03-02T00:00:00.000Z', 'slug taken'),
-      ('e3', '{"title":"Unwritten"}', null, 'postsForm@1', '2026-03-01T00:00:00.000Z', 'ada', null, null, null);
+      ('e1', '{"title":"Live, revised"}', null, 'postsForm@1', '2026-03-01T00:00:00.000Z', 'ada', null, '2026-03-02T00:00:00.000Z', 'ada', 'slug taken'),
+      ('e3', '{"title":"Unwritten"}', null, 'postsForm@1', '2026-03-01T00:00:00.000Z', 'ada', null, null, null, null);
     insert into cms_revisions values ('e1:1', 'e1', 1, '{"title":"Live"}', '2026-01-01T00:00:00.000Z', 'ada');
   `)
   let clock = new Date('2026-06-01T00:00:00.000Z')
@@ -185,7 +185,20 @@ const open = () => {
         ),
     }
   }
+  // Who a stored name is, when a schedule comes due with nobody at the keyboard.
+  const known: Record<string, Principal> = { ada, ian }
+  let fired = false
   return {
+    due: (at: string) =>
+      Effect.runPromise(
+        cms
+          .due(new Date(at), { as: name => (fired ? null : (known[name ?? ''] ?? null)) })
+          .pipe(Effect.provide(layer)),
+      ),
+    /** Everyone who scheduled anything has since lost the right to. */
+    fire: () => {
+      fired = true
+    },
     as,
     sqlite,
     tick: (to: string) => {
@@ -632,5 +645,184 @@ describe('Transaction.drizzle', () => {
     expect(log).toEqual(['rollback'])
     expect(String(exit)).toContain('refused')
     expect(exit._tag).toBe('Failure')
+  })
+})
+
+describe('scheduling', () => {
+  const soon = '2026-07-01T09:00:00.000Z'
+  const stateOf = async (as: ReturnType<typeof open>['as'], entry: string) =>
+    (await as(ada).read('CmsEntry', [entry], ['state']))[`CmsEntry:${entry}`]!['state']
+
+  it('promises a draft for later, and the entry says so until the time comes', async () => {
+    const { as, rows } = open()
+    const result = await as(ada).mutate('CmsSchedule', {
+      entry: 'e3',
+      at: '2026-07-01T11:00:00+02:00',
+    })
+    expect(rows(`select scheduled_for, scheduled_by from cms_drafts where id = 'e3'`)).toEqual([
+      { scheduled_for: soon, scheduled_by: 'ada' },
+    ])
+    // The client holds the entry's new state and the draft's schedule with no refetch.
+    expect(result.entities.map(patch => patch.entity).sort()).toEqual(['CmsDraft', 'CmsEntry'])
+    expect(await stateOf(as, 'e3')).toEqual({
+      _tag: 'New',
+      schedule: { at: soon, overdue: false, error: null },
+    })
+  })
+
+  it('does not promise for later what could not be published now', async () => {
+    const { as, rows } = open()
+    await as(ada).mutate(
+      'CmsSaveDraft',
+      save({ entry: 'e3', values: { title: 7 }, basedOn: '2026-03-01T00:00:00.000Z' }),
+    )
+    await expect(as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })).rejects.toThrow(
+      'not ready to publish',
+    )
+    await expect(as(ada).mutate('CmsSchedule', { entry: 'e3', at: 'whenever' })).rejects.toThrow()
+    expect(rows(`select scheduled_for from cms_drafts where id = 'e3'`)).toEqual([
+      { scheduled_for: null },
+    ])
+  })
+
+  it('refuses an entry with nothing to schedule, one already scheduled, and an author who may not', async () => {
+    const { as } = open()
+    await expect(as(ada).mutate('CmsSchedule', { entry: 'e2', at: soon })).rejects.toThrow(
+      'cannot be scheduled',
+    )
+    await expect(as(ada).mutate('CmsSchedule', { entry: 'e1', at: soon })).rejects.toThrow(
+      'cannot be scheduled',
+    )
+    await expect(as(ian).mutate('CmsSchedule', { entry: 'e3', at: soon })).rejects.toThrow(
+      'may not schedule',
+    )
+    await expect(as(ada).mutate('CmsUnschedule', { entry: 'e3' })).rejects.toThrow(
+      'cannot be unscheduled',
+    )
+  })
+
+  it('takes the promise back', async () => {
+    const { as, rows } = open()
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
+    await as(ada).mutate('CmsUnschedule', { entry: 'e3' })
+    expect(rows(`select scheduled_for, scheduled_by from cms_drafts where id = 'e3'`)).toEqual([
+      { scheduled_for: null, scheduled_by: null },
+    ])
+    expect(await stateOf(as, 'e3')).toEqual({ _tag: 'New', schedule: null })
+  })
+})
+
+describe('what comes due', () => {
+  const soon = '2026-07-01T09:00:00.000Z'
+
+  it('is published when its time has come, not before, as whoever scheduled it', async () => {
+    const { as, rows, due, tick } = open()
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
+    expect(await due('2026-07-01T08:59:59.000Z')).toEqual([])
+    expect(rows(`select id from cms_revisions where entry_id = 'e3'`)).toEqual([])
+
+    tick('2026-07-01T09:00:05.000Z')
+    expect(await due('2026-07-01T09:00:05.000Z')).toEqual([{ entry: 'e3', error: null }])
+    expect(rows(`select n, published_by from cms_revisions where entry_id = 'e3'`)).toEqual([
+      { n: 1, published_by: 'ada' },
+    ])
+    expect(rows(`select id from cms_drafts where id = 'e3'`)).toEqual([])
+    // Done is done: the next call finds nothing.
+    expect(await due('2026-07-01T09:05:00.000Z')).toEqual([])
+  })
+
+  it('leaves a publish that failed scheduled, with the reason, and does not try it again until the draft changes', async () => {
+    const { as, rows, due, sqlite, tick } = open()
+    await as(ada).mutate('CmsSaveDraft', save({ entry: 'e9', values: { title: 'Fails' } }))
+    await as(ada).mutate('CmsSchedule', { entry: 'e9', at: soon })
+    const before = Number(
+      (sqlite.prepare('select count(*) as n from posts').get() as { n: number }).n,
+    )
+
+    tick('2026-07-02T00:00:00.000Z')
+    expect(await due('2026-07-02T00:00:00.000Z')).toEqual([
+      { entry: 'e9', error: 'The application refused' },
+    ])
+    // Nothing of the failed publish is left, and the entry reads overdue, with why.
+    expect(rows('select count(*) as n from posts')).toEqual([{ n: before }])
+    expect((await as(ada).read('CmsEntry', ['e9'], ['state']))['CmsEntry:e9']!['state']).toEqual({
+      _tag: 'New',
+      schedule: { at: soon, overdue: true, error: 'The application refused' },
+    })
+    expect(await due('2026-07-02T00:01:00.000Z')).toEqual([])
+
+    // The author fixes it: the draft changed, so its time comes again.
+    const [{ updated_at: basedOn }] = rows(`select updated_at from cms_drafts where id = 'e9'`) as [
+      { updated_at: string },
+    ]
+    await as(ada).mutate('CmsSaveDraft', save({ entry: 'e9', values: { title: 'Works' }, basedOn }))
+    expect(await due('2026-07-02T00:02:00.000Z')).toEqual([{ entry: 'e9', error: null }])
+  })
+
+  it('one failure does not stop the rest', async () => {
+    const { as, due } = open()
+    await as(ada).mutate('CmsSaveDraft', save({ entry: 'e9', values: { title: 'Fails' } }))
+    await as(ada).mutate('CmsSchedule', { entry: 'e9', at: soon })
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
+    const outcomes = await due('2026-07-02T00:00:00.000Z')
+    expect([...outcomes].sort((a, b) => a.entry.localeCompare(b.entry))).toEqual([
+      { entry: 'e3', error: null },
+      { entry: 'e9', error: 'The application refused' },
+    ])
+  })
+
+  it('publishes nothing for someone who has since lost the right', async () => {
+    const { as, rows, due, fire } = open()
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
+    fire()
+    expect(await due('2026-07-02T00:00:00.000Z')).toEqual([
+      { entry: 'e3', error: 'Whoever scheduled this is no longer an author' },
+    ])
+    expect(rows(`select id from cms_revisions where entry_id = 'e3'`)).toEqual([])
+  })
+})
+
+describe('archiving', () => {
+  it('puts the entry away and takes what can be hidden off show; unarchiving leaves it unpublished', async () => {
+    const { as, rows } = open()
+    expect(await as(null).read('Post', ['p1'], ['title'])).not.toEqual({})
+    const result = await as(ada).mutate('CmsArchive', { entry: 'e1' })
+    expect(result.entities.map(patch => patch.entity).sort()).toEqual(['CmsEntry', 'Post'])
+    expect(await as(null).read('Post', ['p1'], ['title'])).toEqual({})
+    expect(await as(ada).list({ type: 'posts', archived: true })).toContain('e1')
+    expect(await as(ada).list({ type: 'posts' })).not.toContain('e1')
+    // Put away, nothing else applies.
+    await expect(as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })).rejects.toThrow(
+      'cannot be published',
+    )
+
+    await as(ada).mutate('CmsUnarchive', { entry: 'e1' })
+    expect(rows(`select archived_at from cms_entries where id = 'e1'`)).toEqual([
+      { archived_at: null },
+    ])
+    expect(
+      (await as(ada).read('CmsEntry', ['e1'], ['state']))['CmsEntry:e1']!['state'],
+    ).toMatchObject({
+      _tag: 'Unpublished',
+    })
+  })
+
+  it('does not come due while it is put away', async () => {
+    const { as, due, rows } = open()
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: '2026-07-01T09:00:00.000Z' })
+    await as(ada).mutate('CmsArchive', { entry: 'e3' })
+    expect(await due('2026-07-02T00:00:00.000Z')).toEqual([])
+    expect(rows(`select id from cms_revisions where entry_id = 'e3'`)).toEqual([])
+  })
+
+  it('refuses what is already put away, and an author who may not', async () => {
+    const { as } = open()
+    await expect(as(ada).mutate('CmsArchive', { entry: 'e4' })).rejects.toThrow(
+      'cannot be archived',
+    )
+    await expect(as(ada).mutate('CmsUnarchive', { entry: 'e1' })).rejects.toThrow(
+      'cannot be unarchived',
+    )
+    await expect(as(ian).mutate('CmsArchive', { entry: 'e1' })).rejects.toThrow('may not archive')
   })
 })

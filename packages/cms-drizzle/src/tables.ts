@@ -33,6 +33,7 @@ export const sqliteTables = () => ({
     updatedBy: text('updated_by'),
     baseRevision: integer('base_revision'),
     scheduledFor: text('scheduled_for'),
+    scheduledBy: text('scheduled_by'),
     scheduleError: text('schedule_error'),
   }),
   revisions: sqliteTable('cms_revisions', {
@@ -65,6 +66,7 @@ export const pgTables = () => ({
     updatedBy: pgText('updated_by'),
     baseRevision: pgInteger('base_revision'),
     scheduledFor: pgText('scheduled_for'),
+    scheduledBy: pgText('scheduled_by'),
     scheduleError: pgText('schedule_error'),
   }),
   revisions: pgTable('cms_revisions', {
@@ -86,7 +88,7 @@ create table if not exists cms_entries (
 create table if not exists cms_drafts (
   id text primary key, "values" text, model text, form text not null,
   updated_at text not null, updated_by text, base_revision integer,
-  scheduled_for text, schedule_error text
+  scheduled_for text, scheduled_by text, schedule_error text
 );
 create table if not exists cms_revisions (
   id text primary key, entry_id text not null, n integer not null, "values" text,

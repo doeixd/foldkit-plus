@@ -247,7 +247,7 @@ so the front page cannot quietly drift from the API.
 | Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
-| Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server; no scheduling yet; not yet on npm) | [package README](./packages/cms) |
+| Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server; no history yet; not yet on npm) | [package README](./packages/cms) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole

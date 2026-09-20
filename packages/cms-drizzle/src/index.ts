@@ -18,6 +18,7 @@ import {
   isNotNull,
   isNull,
   like,
+  lte,
   ne,
   sql,
   type AnyColumn,
@@ -74,7 +75,8 @@ export interface ServedContent<P = any> {
 }
 
 /** What an author may be refused, by `allow`. */
-export type Asked = 'save' | 'discard' | 'publish' | 'unpublish'
+export type Asked =
+  'save' | 'discard' | 'publish' | 'unpublish' | 'schedule' | 'unschedule' | 'archive' | 'unarchive'
 
 /**
  * Runs some work so that it happened entirely or did not. Drizzle's own
@@ -489,6 +491,8 @@ export const CmsServer = {
           form: input.form,
           updatedAt,
           updatedBy: who,
+          // A draft that changed is worth trying again when its time comes.
+          scheduleError: null,
         }
 
         // The first draft of an entry has nothing to have been based on. Asked before
@@ -574,8 +578,16 @@ export const CmsServer = {
       }),
     )
 
+    const done: Readonly<Record<Exclude<Asked, 'save' | 'discard'>, string>> = {
+      publish: 'published',
+      unpublish: 'unpublished',
+      schedule: 'scheduled',
+      unschedule: 'unscheduled',
+      archive: 'archived',
+      unarchive: 'unarchived',
+    }
     /** The entry, if its state offers this transition now. */
-    const offering = (id: string, transition: 'publish' | 'unpublish') =>
+    const offering = (id: string, transition: Exclude<Asked, 'save' | 'discard'>) =>
       Effect.gen(function* () {
         const entry = yield* findEntry(id)
         if (entry === undefined) return yield* refuse('There is no such entry')
@@ -584,7 +596,7 @@ export const CmsServer = {
           return yield* refuse(`"${entry.type}" is not a type of content this server knows`)
         const facts = (yield* factsOf([entry])).get(entry.id)!
         if (!Cms.offers(facts, now(), served.type).includes(transition))
-          return yield* refuse(`This entry cannot be ${transition}ed as it stands`)
+          return yield* refuse(`This entry cannot be ${done[transition]} as it stands`)
         return { entry, served, facts }
       })
 
@@ -594,19 +606,15 @@ export const CmsServer = {
       return kind === 'string' ? at.toISOString() : kind === 'number' ? at.getTime() : at
     }
 
+    const scheduledPatch = returning(Db.Draft, ['scheduledFor', 'scheduleError'])
     const revisionPatch = returning(Db.Revision, ['n', 'values', 'publishedAt', 'publishedBy'])
 
-    const Publish = operation(Cms.Operations.Publish, ({ input, principal }) =>
+    type Found = Effect.Success<ReturnType<typeof offering>>
+
+    /** The draft as the publish mutation would take it, or why it would not. */
+    const readied = ({ entry, served, facts }: Found) =>
       Effect.gen(function* () {
-        const { entry, served, facts } = yield* offering(input.entry, 'publish')
-        yield* asking(principal, 'publish', entry)
-
-        const database = yield* DrizzleDatabase
         const [draft] = yield* readRows(Db.Draft, { values: tables.drafts.values }, entry.id)
-        const held = entry.revision
-        const conflict = refuse('CmsConflict: this entry was published by someone else since')
-        if (held !== input.basedOn) return yield* conflict
-
         // A row that was deleted under its entry is made again.
         const creating = facts.row === 'none'
         const handler = creating ? served.create : served.update
@@ -617,6 +625,18 @@ export const CmsServer = {
         const decoded = yield* Schema.decodeUnknownEffect(handler.Input)(value).pipe(
           Effect.mapError(error => refuse(`This draft is not ready to publish: ${String(error)}`)),
         )
+        return { draft, creating, handler, decoded }
+      })
+
+    /** A publish, for the operation that asks for one and for the schedule that comes due. */
+    const publishing = (found: Found, principal: P, basedOn: number | null) =>
+      Effect.gen(function* () {
+        const { entry, served } = found
+        const database = yield* DrizzleDatabase
+        const held = entry.revision
+        const conflict = refuse('CmsConflict: this entry was published by someone else since')
+        if (held !== basedOn) return yield* conflict
+        const { draft, creating, handler, decoded } = yield* readied(found)
 
         // A taken slug is refused by name, on its key. This is advice: two publishes
         // can both pass it, and then the unique index is the rule, below.
@@ -735,8 +755,156 @@ export const CmsServer = {
                 : Effect.die(defect),
             ),
           )
+      })
+
+    const Publish = operation(Cms.Operations.Publish, ({ input, principal }) =>
+      Effect.gen(function* () {
+        const found = yield* offering(input.entry, 'publish')
+        yield* asking(principal, 'publish', found.entry)
+        return yield* publishing(found, principal, input.basedOn)
       }),
     )
+
+    /** Writes to an entry's draft, and answers with both as the client should now hold them. */
+    const drafted = (id: string, values: object) =>
+      Effect.gen(function* () {
+        const writes = (yield* DrizzleDatabase) as unknown as Writes
+        yield* Effect.promise(() =>
+          Promise.resolve(
+            writes
+              .update(tables.drafts)
+              .set(values)
+              .where(eq(tables.drafts.id, id))
+              .returning({ id: tables.drafts.id }),
+          ),
+        )
+        return {
+          output: {},
+          entities: [
+            ...(yield* entryPatches(id)),
+            ...scheduledPatch.patches(yield* readRows(Db.Draft, scheduledPatch.columns, id)),
+          ],
+        }
+      })
+
+    const Schedule = operation(Cms.Operations.Schedule, ({ input, principal }) =>
+      Effect.gen(function* () {
+        const found = yield* offering(input.entry, 'schedule')
+        yield* asking(principal, 'schedule', found.entry)
+        if (Number.isNaN(new Date(input.at).getTime()))
+          return yield* refuse(`"${input.at}" is not a time`)
+        // What cannot be published now is not promised for later.
+        yield* readied(found)
+        return yield* drafted(found.entry.id, {
+          scheduledFor: new Date(input.at).toISOString(),
+          scheduledBy: nameOf(principal),
+          scheduleError: null,
+        })
+      }),
+    )
+
+    const Unschedule = operation(Cms.Operations.Unschedule, ({ input, principal }) =>
+      Effect.gen(function* () {
+        const found = yield* offering(input.entry, 'unschedule')
+        yield* asking(principal, 'unschedule', found.entry)
+        return yield* drafted(found.entry.id, {
+          scheduledFor: null,
+          scheduledBy: null,
+          scheduleError: null,
+        })
+      }),
+    )
+
+    /** Archiving and its undoing: a fact about the entry, and for what can be hidden, the row. */
+    const archiving = (transition: 'archive' | 'unarchive') =>
+      operation(
+        transition === 'archive' ? Cms.Operations.Archive : Cms.Operations.Unarchive,
+        ({ input, principal }) =>
+          Effect.gen(function* () {
+            const { entry, served } = yield* offering(input.entry, transition)
+            yield* asking(principal, transition, entry)
+            const writes = (yield* DrizzleDatabase) as unknown as Writes
+            yield* Effect.promise(() =>
+              Promise.resolve(
+                writes
+                  .update(tables.entries)
+                  .set({ archivedAt: transition === 'archive' ? now().toISOString() : null })
+                  .where(eq(tables.entries.id, entry.id))
+                  .returning({ id: tables.entries.id }),
+              ),
+            )
+            const shown = served.type.roles.published
+            if (transition === 'unarchive' || shown === undefined || entry.targetId === null)
+              return { output: {}, entities: yield* entryPatches(entry.id) }
+            // What is put away is not left on show. It comes back as unpublished work.
+            yield* Effect.promise(() =>
+              Promise.resolve(
+                writes
+                  .update(served.binding.table)
+                  .set({ [shown.key]: null })
+                  .where(eq(served.binding.columns.id!, entry.targetId!))
+                  .returning({ id: served.binding.columns.id! }),
+              ),
+            )
+            const content = returning(served.binding, [shown.key])
+            return {
+              output: {},
+              entities: [
+                ...content.patches(
+                  yield* readRows(served.binding, content.columns, entry.targetId),
+                ),
+                ...(yield* entryPatches(entry.id)),
+              ],
+            }
+          }),
+      )
+
+    /**
+     * Publishes every draft whose time has come, each in its own transaction, as
+     * whoever scheduled it: `as` says who a stored name is. One that fails stays
+     * scheduled with the reason, and is left alone until its draft changes, so a
+     * fault the author must fix is not tried again every minute. The package owns
+     * no timer: a cron trigger, an interval or a queue calls this.
+     */
+    const due = (at: Date, options: { readonly as: (scheduledBy: string | null) => P }) =>
+      Effect.gen(function* () {
+        const database = yield* DrizzleDatabase
+        const waiting = yield* Effect.promise(() =>
+          Promise.resolve(
+            database
+              .select({ id: tables.drafts.id, scheduledBy: tables.drafts.scheduledBy })
+              .from(tables.drafts)
+              .where(
+                and(
+                  isNotNull(tables.drafts.scheduledFor),
+                  lte(tables.drafts.scheduledFor, at.toISOString()),
+                  isNull(tables.drafts.scheduleError),
+                  // What is put away keeps its promise, and keeps it waiting.
+                  sql`${tables.drafts.id} in (select ${tables.entries.id} from ${tables.entries} where ${tables.entries.archivedAt} is null)`,
+                ),
+              ),
+          ),
+        )
+        const outcomes: Array<{ readonly entry: string; readonly error: string | null }> = []
+        for (const draft of waiting) {
+          const id = String(draft.id)
+          const principal = options.as((draft.scheduledBy as string | null) ?? null)
+          const error = yield* Effect.gen(function* () {
+            if (!isAuthor(principal))
+              return yield* refuse('Whoever scheduled this is no longer an author')
+            const found = yield* offering(id, 'publish')
+            yield* asking(principal, 'publish', found.entry)
+            yield* publishing(found, principal, found.entry.revision)
+            return null
+          }).pipe(
+            Effect.catch(failure => Effect.succeed(failure.message)),
+            Effect.catchDefect(defect => Effect.succeed(String(defect))),
+          )
+          if (error !== null) yield* drafted(id, { scheduleError: error })
+          outcomes.push({ entry: id, error })
+        }
+        return outcomes
+      })
 
     const Unpublish = operation(Cms.Operations.Unpublish, ({ input, principal }) =>
       Effect.gen(function* () {
@@ -775,6 +943,10 @@ export const CmsServer = {
       DiscardDraft,
       Publish,
       Unpublish,
+      Schedule,
+      Unschedule,
+      archiving('archive'),
+      archiving('unarchive'),
     ]
 
     // A content type with an address is found by it, behind the same boundary as
@@ -801,6 +973,7 @@ export const CmsServer = {
       sources,
       queries: [worklist, ...bySlug] as ReadonlyArray<QuerySource<P, DrizzleDatabase>>,
       mutations,
+      due,
       /** The bindings of `Entry`, `Draft` and `Revision`, for a handler that returns patches of them. */
       bindings: Db,
     }

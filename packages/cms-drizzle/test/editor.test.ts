@@ -238,6 +238,7 @@ const world = () => {
       status: () => PostEditor.status(model),
       resumed: () => PostEditor.resumed(model),
       state: () => PostEditor.state(model)?._tag,
+      schedule: () => PostEditor.state(model)?.schedule,
       error: () => PostEditor.error(model)?.message,
       field: (key: 'title' | 'body') => PostForm.field(model.editor.form, key),
     }
@@ -402,7 +403,7 @@ describe('opening an entry', () => {
   it('keeps the keys of a draft the form still accepts, and drops the rest', async () => {
     const { author, sqlite } = world()
     sqlite.exec(`insert into cms_drafts values
-      ('e1', '{"title":7,"body":"Still fits","gone":"a key of an older form"}', null, 'OlderForm@1', '2026-03-01T00:00:00.000Z', 'ada', 1, null, null)`)
+      ('e1', '{"title":7,"body":"Still fits","gone":"a key of an older form"}', null, 'OlderForm@1', '2026-03-01T00:00:00.000Z', 'ada', 1, null, null, null)`)
     const ada = author('ada')
     await ada.open('e1')
     expect(ada.resumed()).toBe('Values')
@@ -413,7 +414,7 @@ describe('opening an entry', () => {
   it('never fails to open: a draft nothing of which fits shows what is published, and says so', async () => {
     const { author, rows, sqlite } = world()
     sqlite.exec(`insert into cms_drafts values
-      ('e1', '"not even an object"', '{"nonsense":true}', 'PostForm@1', '2026-03-01T00:00:00.000Z', 'ada', 1, null, null)`)
+      ('e1', '"not even an object"', '{"nonsense":true}', 'PostForm@1', '2026-03-01T00:00:00.000Z', 'ada', 1, null, null, null)`)
     const ada = author('ada')
     await ada.open('e1')
     expect(ada.resumed()).toBe('Lost')
@@ -512,6 +513,75 @@ describe('two authors on one entry', () => {
     expect(rows(`select "values", updated_by from cms_drafts where id = 'e1'`)).toEqual([
       { values: '{"title":"Live","body":"Bo was here"}', updated_by: 'bo' },
     ])
+  })
+})
+
+describe('scheduling from the editor', () => {
+  const at = '2030-01-01T09:00:00.000Z'
+
+  it('submits and saves the form now, and leaves the publishing to the server', async () => {
+    const { author, rows, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    ada.hold(ada.type('body', 'For the new year'))
+    await ada.send(ada.form(Editor.Message.ScheduleAsked({ at })))
+
+    expect(sent).toEqual(['CmsSaveDraft', 'CmsSchedule'])
+    expect(ada.status()).toBe('Scheduled')
+    expect(
+      rows(`select "values", scheduled_for, scheduled_by from cms_drafts where id = 'e1'`),
+    ).toEqual([
+      {
+        values: '{"title":"Live","body":"For the new year"}',
+        scheduled_for: at,
+        scheduled_by: 'ada',
+      },
+    ])
+    // Nothing is published, and the entry says what was promised, with no refetch.
+    expect(rows(`select body from posts where id = 'p1'`)).toEqual([{ body: 'As published' }])
+    expect(ada.schedule()).toEqual({ at, overdue: false, error: null })
+  })
+
+  it('promises nothing of a form that does not validate', async () => {
+    const { author, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.type('title', ''))
+    await ada.send(ada.form(Editor.Message.ScheduleAsked({ at })))
+    expect(sent).toEqual(['CmsSaveDraft'])
+    expect(ada.field('title')._tag).toBe('Invalid')
+  })
+
+  it.each([
+    ['the form’s own submit', () => PostForm.Message.Submitted()],
+    ['a publish', () => Editor.Message.PublishAsked()],
+  ])('publishes now when %s follows a schedule that was asked and not kept', async (_, message) => {
+    const { author, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.type('title', ''))
+    await ada.send(ada.form(Editor.Message.ScheduleAsked({ at })))
+    await ada.send(ada.type('title', 'Fixed'))
+    await ada.send(ada.form(message()))
+    expect(sent.at(-1)).toBe('CmsPublish')
+    expect(ada.status()).toBe('Published')
+  })
+
+  it('takes the promise back, and archives and unarchives, and the state follows each', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.type('body', 'Later'))
+    await ada.send(ada.form(Editor.Message.ScheduleAsked({ at })))
+    await ada.send(ada.form(Editor.Message.UnscheduleAsked()))
+    expect(ada.error()).toBeUndefined()
+    expect(ada.schedule()).toBeNull()
+
+    await ada.send(ada.form(Editor.Message.ArchiveAsked()))
+    expect(ada.state()).toBe('Archived')
+    await ada.send(ada.form(Editor.Message.UnarchiveAsked()))
+    expect(ada.error()).toBeUndefined()
+    expect(ada.state()).toBe('Unpublished')
   })
 })
 

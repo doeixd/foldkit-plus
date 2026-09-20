@@ -406,7 +406,9 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    row holds its latest `revision`; and refreshing an entity Remote believed
    absent did nothing, which a reload after a conflict depends on.* Open, resume (§11's ladder, each rung tested), autosave,
    publish, status. The kinds of §10 and their renderers.
-6. **Scheduling.** `Schedule`, `Unschedule`, `due(now)` with a clock passed in,
+6. **Scheduling.** *Built. `due` takes `as`, which says who a stored name is,
+   since a principal cannot be stored; an archived entry does not come due; and
+   archiving takes what can be hidden off show, which §5 left unsaid.* `Schedule`, `Unschedule`, `due(now)` with a clock passed in,
    the failure path, and a Cloudflare cron example.
 7. **History and preview.** The revision list and `Restore`; in `foldkit-remote`,
    an optimistic overlay that is held without a request, and the in-app preview

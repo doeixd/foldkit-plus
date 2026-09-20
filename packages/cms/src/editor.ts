@@ -56,6 +56,10 @@ export type EditorStatus =
   | 'Publishing'
   | 'Published'
   | 'PublishFailed'
+  | 'Scheduling'
+  /** Promised for later. The entry's `state` says for when, and whether it happened. */
+  | 'Scheduled'
+  | 'ScheduleFailed'
 
 /**
  * An editor's slice of the parent Model. `edits` counts the edits made, and
@@ -74,6 +78,8 @@ export interface EditorModel<FormModel> {
   readonly saveWanted: boolean
   readonly publishId: string | null
   readonly publishWanted: boolean
+  /** When the publish that is wanted, under way or last settled is a promise for later: for when. */
+  readonly scheduleAt: string | null
   /** The discard or unpublish in progress or last settled. */
   readonly otherId: string | null
   /** After a conflict: waiting for the server's copy, to show it or to save over it. */
@@ -86,6 +92,9 @@ export type EditorOut =
   | { readonly _tag: 'Publish' }
   | { readonly _tag: 'Discard' }
   | { readonly _tag: 'Unpublish' }
+  | { readonly _tag: 'Unschedule' }
+  | { readonly _tag: 'Archive' }
+  | { readonly _tag: 'Unarchive' }
   | { readonly _tag: 'Reload' }
   | { readonly _tag: 'Overwrite' }
 
@@ -149,7 +158,17 @@ export const makeEditor =
   (cms: {
     readonly Entities: { readonly Entry: AnyEntity; readonly Draft: AnyEntity }
     readonly Operations: Readonly<
-      Record<'SaveDraft' | 'DiscardDraft' | 'Publish' | 'Unpublish', any>
+      Record<
+        | 'SaveDraft'
+        | 'DiscardDraft'
+        | 'Publish'
+        | 'Unpublish'
+        | 'Schedule'
+        | 'Unschedule'
+        | 'Archive'
+        | 'Unarchive',
+        any
+      >
     >
   }) =>
   <const Name extends string, FormModel, FormMessage extends { readonly _tag: string }, Value>(
@@ -182,6 +201,7 @@ export const makeEditor =
       saveWanted: false,
       publishId: null,
       publishWanted: false,
+      scheduleAt: null,
       otherId: null,
       settling: null,
     }
@@ -197,6 +217,7 @@ export const makeEditor =
       saveWanted: Schema.Boolean,
       publishId: Schema.NullOr(Schema.String),
       publishWanted: Schema.Boolean,
+      scheduleAt: Schema.NullOr(Schema.String),
       otherId: Schema.NullOr(Schema.String),
       settling: Schema.NullOr(Schema.Literals(['reload', 'overwrite'])),
     }) as unknown as Schema.Codec<Model, unknown>
@@ -206,6 +227,11 @@ export const makeEditor =
     const Own = defineMessageUnion({
       Rested: { edit: Schema.Number },
       PublishAsked: {},
+      /** Publishes later: the form is submitted and saved now, and the server keeps the promise. */
+      ScheduleAsked: { at: Schema.String },
+      UnscheduleAsked: {},
+      ArchiveAsked: {},
+      UnarchiveAsked: {},
       DiscardAsked: {},
       UnpublishAsked: {},
       /** After a conflict: drop what is here and show the server's copy. */
@@ -222,6 +248,10 @@ export const makeEditor =
     const own = new Set([
       'Rested',
       'PublishAsked',
+      'ScheduleAsked',
+      'UnscheduleAsked',
+      'ArchiveAsked',
+      'UnarchiveAsked',
       'DiscardAsked',
       'UnpublishAsked',
       'ReloadAsked',
@@ -229,9 +259,14 @@ export const makeEditor =
     ])
     const isOwn = (message: Message): message is Own => own.has(message._tag)
 
-    const asks: Readonly<Record<Exclude<Own['_tag'], 'Rested' | 'PublishAsked'>, EditorOut>> = {
+    const asks: Readonly<
+      Record<Exclude<Own['_tag'], 'Rested' | 'PublishAsked' | 'ScheduleAsked'>, EditorOut>
+    > = {
       DiscardAsked: { _tag: 'Discard' },
       UnpublishAsked: { _tag: 'Unpublish' },
+      UnscheduleAsked: { _tag: 'Unschedule' },
+      ArchiveAsked: { _tag: 'Archive' },
+      UnarchiveAsked: { _tag: 'Unarchive' },
       ReloadAsked: { _tag: 'Reload' },
       OverwriteAsked: { _tag: 'Overwrite' },
     }
@@ -265,7 +300,12 @@ export const makeEditor =
       init: () => ({ model: closed }),
       update: (model: Model, message: Message): Returned => {
         if (model.mode === 'closed') return { model }
-        if (!isOwn(message)) return viaForm(model, message)
+        // A submit from the form's own button is a publish now, whatever was asked before.
+        if (!isOwn(message))
+          return viaForm(
+            message._tag === 'Submitted' ? { ...model, scheduleAt: null } : model,
+            message,
+          )
         switch (message._tag) {
           case 'Rested':
             // An edit since then started its own rest; this one has nothing to say.
@@ -273,7 +313,9 @@ export const makeEditor =
               ? { model, outMessage: { _tag: 'Save' } }
               : { model }
           case 'PublishAsked':
-            return viaForm(model, form.Message.Submitted())
+            return viaForm({ ...model, scheduleAt: null }, form.Message.Submitted())
+          case 'ScheduleAsked':
+            return viaForm({ ...model, scheduleAt: message.at }, form.Message.Submitted())
           default:
             return { model, outMessage: asks[message._tag] }
         }
@@ -469,18 +511,21 @@ export const makeEditor =
           }
         }
 
-        const unpublish: Step = root => {
-          const editor = slice.get(root)
-          if (editor.entry === null) return { model: root }
-          const started = data.mutate(root, cms.Operations.Unpublish, { entry: editor.entry })
-          return {
-            model: slice.set(started.model, {
-              ...slice.get(started.model),
-              otherId: started.requestId,
-            }),
-            commands: [started.command],
+        /** An operation that names the entry and nothing else. The server's patches say what it did. */
+        const simple =
+          (operation: 'Unpublish' | 'Unschedule' | 'Archive' | 'Unarchive'): Step =>
+          root => {
+            const editor = slice.get(root)
+            if (editor.entry === null) return { model: root }
+            const started = data.mutate(root, cms.Operations[operation], { entry: editor.entry })
+            return {
+              model: slice.set(started.model, {
+                ...slice.get(started.model),
+                otherId: started.requestId,
+              }),
+              commands: [started.command],
+            }
           }
-        }
 
         /**
          * A discarded draft takes what is on screen with it, the edits still resting
@@ -547,10 +592,11 @@ export const makeEditor =
             } else {
               const basedOn =
                 held<{ readonly revision: number | null }>(read(root, 'entry'))?.revision ?? null
-              const started = data.mutate(root, cms.Operations.Publish, {
-                entry: editor().entry,
-                basedOn,
-              })
+              const at = editor().scheduleAt
+              const started =
+                at === null
+                  ? data.mutate(root, cms.Operations.Publish, { entry: editor().entry, basedOn })
+                  : data.mutate(root, cms.Operations.Schedule, { entry: editor().entry, at })
               root = slice.set(started.model, {
                 ...slice.get(started.model),
                 publishId: started.requestId,
@@ -591,7 +637,13 @@ export const makeEditor =
                 case 'Discard':
                   return discard(root)
                 case 'Unpublish':
-                  return unpublish(root)
+                  return simple('Unpublish')(root)
+                case 'Unschedule':
+                  return simple('Unschedule')(root)
+                case 'Archive':
+                  return simple('Archive')(root)
+                case 'Unarchive':
+                  return simple('Unarchive')(root)
                 case 'Reload': {
                   const refreshed = (['entry', 'draft', 'row'] as const).reduce((next, part) => {
                     const projection = projections[part](next)
@@ -677,15 +729,16 @@ export const makeEditor =
             }
             const publish = statusOf(root, editor.publishId)
             const save = statusOf(root, editor.saveId)
-            if (publish._tag === 'Pending') return 'Publishing'
+            const later = editor.scheduleAt !== null
+            if (publish._tag === 'Pending') return later ? 'Scheduling' : 'Publishing'
             if (save._tag === 'Pending' || editor.settling === 'overwrite') return 'Saving'
             const conflicted = (status: MutationStatus) =>
               status._tag === 'Failed' && status.error.message.includes('CmsConflict')
             if (editor.edits > editor.savedEdit) return 'Editing'
             if (conflicted(save) || conflicted(publish)) return 'Conflict'
             if (save._tag === 'Failed') return 'SaveFailed'
-            if (publish._tag === 'Failed') return 'PublishFailed'
-            if (publish._tag === 'Applied') return 'Published'
+            if (publish._tag === 'Failed') return later ? 'ScheduleFailed' : 'PublishFailed'
+            if (publish._tag === 'Applied') return later ? 'Scheduled' : 'Published'
             return save._tag === 'Applied' ? 'Saved' : 'Editing'
           },
         }

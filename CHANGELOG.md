@@ -13,6 +13,13 @@ version changed; `pnpm` skips versions already in the registry.
   values key by key, then what is published, and never failing to open;
   `Conflict` with reload and overwrite; discard. End to end tests drive it
   against the real server over SQLite.
+- **Scheduling and archiving.** `CmsSchedule` promises a draft that would publish
+  now, `CmsUnschedule` takes it back, and `cms.due(now, { as })` publishes what has
+  come due, each in its own transaction, as whoever scheduled it; a failure stays
+  scheduled with its reason and waits for the draft to change. The package owns
+  no timer. `CmsArchive` also takes what can be hidden off show. The editor gains
+  `ScheduleAsked({ at })`, which submits and saves first, and `UnscheduleAsked`,
+  `ArchiveAsked`, `UnarchiveAsked`. `cms_drafts` gains `scheduled_by`.
 - **`foldkit-cms`: kinds and their renderers.** `Cms.slug(from)` and
   `Cms.dateTime()` for a form's `inputs`; `Cms.Display.State` and
   `Cms.Display.Moment`, which `Cms.Entities` are annotated with;
