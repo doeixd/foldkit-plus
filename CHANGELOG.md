@@ -7,14 +7,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
-- **`foldkit-cms-drizzle` 0.1.0 (new): drafts and the audience boundary.** The
+- **`foldkit-cms-drizzle` 0.1.0 (new): drafts, publishing, and the audience boundary.** The
   entries, drafts and revisions tables for SQLite and Postgres; `CmsSaveDraft`
   (compare and set on what the save was based on, so a second author is a
   conflict) and `CmsDiscardDraft`; the `Cms.Entries` worklist; an entry's state
   derived with the server's clock. To a principal that is not an author, the
   three tables are empty on every read path and every operation is refused, and
   `published(column, isAuthor)` makes a content table's `visible` rule, which
-  `CmsServer.make` requires of a type that can be unpublished. No publish yet.
+  `CmsServer.make` requires of a type that can be unpublished. `CmsPublish` runs
+  the application's own `create` or `update` handler with the draft's value,
+  inside a transaction (`Transaction.statements` or `Transaction.drizzle`) that
+  also shows the row, appends the revision and removes the draft; a publish made
+  from an older revision is a conflict. `CmsUnpublish` hides the row and keeps it.
+  A visitor is refused before anything is looked up.
   `foldkit-cms` gains `Cms.Entries`.
 - `foldkit-remote-drizzle`: a derived member may be `{ supplied: true }`: bound,
   and answered by the application's own source.

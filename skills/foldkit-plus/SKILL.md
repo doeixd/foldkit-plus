@@ -42,7 +42,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A domain entity's fields, relations, and derived members, declared once, and typed selections of them (Remote registers and reads them as they are; `remote-drizzle` binds them to tables) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
 | An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [crud.md](references/crud.md) |
-| Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (drafts; no publish yet) | [cms.md](references/cms.md) |
+| Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (server only; no editor yet) | [cms.md](references/cms.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 
 Install the peers with the packages you pick, for example
@@ -67,7 +67,7 @@ foldkit-bundle (standalone) ─ foldkit-bundle-surface (with Surface), foldkit-p
 foldkit-entity (standalone) ─ read by foldkit-remote, foldkit-remote-drizzle, foldkit-form
 foldkit-crud ─ joins foldkit-form, foldkit-remote, foldkit-entity
 foldkit-cms ─ over foldkit-entity, foldkit-form, foldkit-remote: drafts beside the row, derived lifecycle
-  └─ foldkit-cms-drizzle ─ over foldkit-remote-drizzle, -server: the audience boundary, the draft operations
+  └─ foldkit-cms-drizzle ─ over foldkit-remote-drizzle, -server: the audience boundary, drafts, publish in a transaction
 ```
 
 `foldkit-surface` is the shared seam: most packages consume a Projection

@@ -11,7 +11,7 @@ declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
 | --- | --- | --- | --- |
-| [`foldkit-cms-drizzle`](../packages/cms-drizzle) | 0.1.0 | Not yet published | The server half of `foldkit-cms`: the entries, drafts and revisions tables, saving and discarding a draft with a conflict rule, the worklist, and the audience boundary. No publish yet. |
+| [`foldkit-cms-drizzle`](../packages/cms-drizzle) | 0.1.0 | Not yet published | The server half of `foldkit-cms`: the entries, drafts and revisions tables, saving and discarding a draft with a conflict rule, publishing through the application's own mutation in a transaction, unpublishing, the worklist, and the audience boundary. |
 | [`foldkit-crud`](../packages/crud) | 0.1.0 | Published | Create, read, update and delete screens assembled from a form, a Remote operation, and their Entity: an editor, a list, a detail, and a remover. Published as `foldkit-admin` in 0.7.0, which is deprecated. |
 | [`foldkit-agent`](../packages/agent) | 0.3.1 | Published | Protocol-neutral agent contract: projects a Model and Message union into an agent interface. |
 | [`foldkit-agent-webmcp`](../packages/agent-webmcp) | 0.3.0 | Published | Browser WebMCP adapter; projects exposed Messages into `document.modelContext`. |

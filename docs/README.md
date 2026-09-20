@@ -97,7 +97,7 @@ Foundation       foldkit-surface + foldkit-metadata
 Domain           foldkit-entity (declaration and selection; Remote and remote-drizzle read it)
 Forms            foldkit-form (headless; on foldkit-bundle and foldkit-entity) + mixins-form (draws it)
 Screens          foldkit-crud (an editor, a list, a detail and a remover, joined from a form, Remote operations, and their Entity) + mixins-crud (draws lists and details)
-Content          foldkit-cms (drafts beside the row, derived lifecycle) + cms-drizzle (the audience boundary and drafts; no publish yet)
+Content          foldkit-cms (drafts beside the row, derived lifecycle) + cms-drizzle (the audience boundary, drafts, publish)
 Agents           foldkit-agent + agent-webmcp / agent-mcp / agent-a2a / agent-native
 Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable

@@ -10,8 +10,8 @@ are: **audience** (a visitor sees what is published, an author sees everything),
 > **Status: declarations and rules only.** This package is the pure core: roles,
 > content types, the three Entities, the operations as descriptors, and the
 > lifecycle. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
-> which so far saves and discards drafts and enforces the audience boundary;
-> publishing and the authoring editor are next in
+> which saves, discards, publishes and unpublishes, and enforces the audience
+> boundary; the authoring editor and scheduling are next in
 > [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
 > is on npm.
 
@@ -142,7 +142,7 @@ An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
 
 ## Limits
 
-- No publish and no editor yet: see the status above.
+- No editor and no scheduling yet: see the status above.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
   [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).

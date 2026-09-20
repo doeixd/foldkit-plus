@@ -7,8 +7,9 @@
  * outright, and sees of the content only the rows its `published` role shows.
  * Both are a binding's `visible`, so they hold on every path a table is read by.
  *
- * So far: drafts. Saving, discarding, the worklist, and the boundary. Publishing
- * is the next step of the design.
+ * Publishing runs the application's own mutation with the draft's value, inside
+ * a transaction that also appends the revision and removes the draft, so a
+ * publish happened entirely or did not happen.
  */
 import {
   and,
@@ -21,7 +22,7 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { Effect } from 'effect'
+import { Effect, Exit, Schema } from 'effect'
 import { Cms, type Content, type Facts } from 'foldkit-cms'
 import type { MutationDescriptor } from 'foldkit-remote'
 import {
@@ -31,6 +32,7 @@ import {
   returning,
   source,
   type AnyEntityBinding,
+  type DrizzleDatabaseService,
   type Visible,
 } from 'foldkit-remote-drizzle'
 import {
@@ -58,22 +60,94 @@ interface Writes {
   delete(table: unknown): { where(condition: SQL | undefined): PromiseLike<unknown> }
 }
 
-/** A content type as the server holds it: its declaration, and the binding of its table. */
-export interface ServedContent {
+/**
+ * A content type as the server holds it: its declaration, the binding of its
+ * table, and the application's own handlers of its two publish mutations. What
+ * publishing a post does stays the application's code.
+ */
+export interface ServedContent<P = any> {
   readonly type: Content<string, any, any, any>
   readonly binding: AnyEntityBinding
+  readonly create: MutationSource<P, DrizzleDatabase>
+  readonly update: MutationSource<P, DrizzleDatabase>
+}
+
+/** What an author may be refused, by `allow`. */
+export type Asked = 'save' | 'discard' | 'publish' | 'unpublish'
+
+/**
+ * Runs some work so that it happened entirely or did not. Drizzle's own
+ * transactions differ by driver, so the application says which this is.
+ */
+export type Transaction = <A, E>(
+  work: Effect.Effect<A, E, DrizzleDatabase>,
+) => Effect.Effect<A, E, DrizzleDatabase>
+
+const statement = (database: DrizzleDatabaseService, text: string) =>
+  Effect.promise(() => {
+    const runs = database as unknown as {
+      run?: (query: SQL) => unknown
+      execute?: (query: SQL) => unknown
+    }
+    return Promise.resolve(
+      runs.run !== undefined ? runs.run(sql.raw(text)) : runs.execute!(sql.raw(text)),
+    )
+  })
+
+export const Transaction = {
+  /**
+   * `begin`, the work, then `commit` or `rollback`, as statements. For a database
+   * that is one connection, such as a SQLite file. Over a pool each statement may
+   * take a different connection: use `drizzle` there.
+   */
+  statements: (<A, E>(work: Effect.Effect<A, E, DrizzleDatabase>) =>
+    Effect.gen(function* () {
+      const database = yield* DrizzleDatabase
+      yield* statement(database, 'begin')
+      return yield* work.pipe(
+        Effect.onExit(exit => statement(database, Exit.isSuccess(exit) ? 'commit' : 'rollback')),
+      )
+    })) as Transaction,
+  /**
+   * Drizzle's `database.transaction`, with the work given the transaction as its
+   * database. For a driver whose transactions are asynchronous: Postgres, libSQL.
+   */
+  drizzle: (<A, E>(work: Effect.Effect<A, E, DrizzleDatabase>) =>
+    Effect.gen(function* () {
+      const database = (yield* DrizzleDatabase) as unknown as {
+        transaction: <T>(run: (inner: DrizzleDatabaseService) => Promise<T>) => Promise<T>
+      }
+      const failed = Symbol('failed')
+      let exit: Exit.Exit<A, E> | undefined
+      // A failure must leave the callback as a rejection, or Drizzle commits.
+      yield* Effect.promise(() =>
+        database
+          .transaction(async inner => {
+            exit = await Effect.runPromiseExit(
+              work.pipe(Effect.provideService(DrizzleDatabase, inner)),
+            )
+            if (!Exit.isSuccess(exit)) throw failed
+          })
+          .catch(error => {
+            if (error !== failed) throw error
+          }),
+      )
+      return yield* exit!
+    })) as Transaction,
 }
 
 export interface CmsServerConfig<P> {
   readonly tables: CmsTables
-  readonly content: ReadonlyArray<ServedContent>
+  readonly content: ReadonlyArray<ServedContent<P>>
+  /** How a publish is made whole: `Transaction.statements` or `Transaction.drizzle`. */
+  readonly transaction: Transaction
   /** Who reads and writes unpublished work. Everyone else is a visitor. */
   readonly isAuthor: (principal: P) => boolean
   /**
    * Whether this author may make this transition. It is asked after the entry is
    * found and the transition is one its state offers. Default: any author may.
    */
-  readonly allow?: (principal: P, transition: 'save' | 'discard', entry: EntryRow) => boolean
+  readonly allow?: (principal: P, transition: Asked, entry: EntryRow) => boolean
   /** The server's clock, passed in so a test can hold it. */
   readonly now?: () => Date
   readonly newId?: () => string
@@ -111,7 +185,15 @@ export const CmsServer = {
     const nameOf = config.nameOf ?? (() => null)
 
     const byType = new Map(config.content.map(served => [served.type.name, served]))
-    for (const { type, binding } of config.content) {
+    for (const { type, binding, create, update } of config.content) {
+      for (const [handler, declared] of [
+        [create, type.publish.create],
+        [update, type.publish.update],
+      ] as const)
+        if (handler.mutation !== declared.name)
+          throw new Error(
+            `foldkit-cms-drizzle: content "${type.name}" publishes through "${declared.name}", but was given the handler of "${handler.mutation}"`,
+          )
       if (type.roles.published === undefined) continue
       // Whether the rule is right is the application's to say: only it knows what a
       // principal is. That there is one at all is checked here.
@@ -305,15 +387,18 @@ export const CmsServer = {
         readonly principal: P
       }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError, DrizzleDatabase>,
     ): MutationSource<P, DrizzleDatabase> =>
-      RemoteServer.mutation<P, DrizzleDatabase, Name, Input, Output>(descriptor, run)
+      // Asked before anything is looked up: a visitor is not told which entries there are.
+      RemoteServer.mutation<P, DrizzleDatabase, Name, Input, Output>(descriptor, context =>
+        isAuthor(context.principal)
+          ? run(context)
+          : Effect.fail(refuse('Only an author may change unpublished work')),
+      )
 
-    /** Asks the two questions every operation asks: is this an author, and may they do this. */
-    const asking = (principal: P, transition: 'save' | 'discard', entry: EntryRow | undefined) =>
-      !isAuthor(principal)
-        ? Effect.fail(refuse('Only an author may change unpublished work'))
-        : entry !== undefined && config.allow?.(principal, transition, entry) === false
-          ? Effect.fail(refuse(`This author may not ${transition} this entry`))
-          : Effect.void
+    /** Whether the application lets this author do this, once the entry is known. */
+    const asking = (principal: P, transition: Asked, entry: EntryRow | undefined) =>
+      entry !== undefined && config.allow?.(principal, transition, entry) === false
+        ? Effect.fail(refuse(`This author may not ${transition} this entry`))
+        : Effect.void
 
     const draftFields = ['values', 'model', 'form', 'updatedAt', 'updatedBy', 'baseRevision']
     const draftPatch = returning(Db.Draft, draftFields)
@@ -438,13 +523,162 @@ export const CmsServer = {
       }),
     )
 
+    /** The entry, if its state offers this transition now. */
+    const offering = (id: string, transition: 'publish' | 'unpublish') =>
+      Effect.gen(function* () {
+        const entry = yield* findEntry(id)
+        if (entry === undefined) return yield* refuse('There is no such entry')
+        const served = byType.get(entry.type)
+        if (served === undefined)
+          return yield* refuse(`"${entry.type}" is not a type of content this server knows`)
+        const facts = (yield* factsOf([entry])).get(entry.id)!
+        if (!Cms.offers(facts, now(), served.type).includes(transition))
+          return yield* refuse(`This entry cannot be ${transition}ed as it stands`)
+        return { entry, served, facts }
+      })
+
+    /** What the `published` role's column holds for "now". */
+    const stamp = (column: AnyColumn, at: Date) => {
+      const kind = column.dataType.split(' ')[0]
+      return kind === 'string' ? at.toISOString() : kind === 'number' ? at.getTime() : at
+    }
+
+    const revisionPatch = returning(Db.Revision, ['n', 'values', 'publishedAt', 'publishedBy'])
+
+    const Publish = operation(Cms.Operations.Publish, ({ input, principal }) =>
+      Effect.gen(function* () {
+        const { entry, served, facts } = yield* offering(input.entry, 'publish')
+        yield* asking(principal, 'publish', entry)
+
+        const database = yield* DrizzleDatabase
+        const [draft] = yield* readRows(Db.Draft, { values: tables.drafts.values }, entry.id)
+        const [latest] = yield* Effect.promise(() =>
+          Promise.resolve(
+            database
+              .select({ n: sql<number | null>`max(${tables.revisions.n})` })
+              .from(tables.revisions)
+              .where(eq(tables.revisions.entryId, entry.id)),
+          ),
+        )
+        const held = latest?.n == null ? null : Number(latest.n)
+        if (held !== input.basedOn)
+          return yield* refuse('CmsConflict: this entry was published by someone else since')
+
+        // A row that was deleted under its entry is made again.
+        const creating = facts.row === 'none'
+        const handler = creating ? served.create : served.update
+        const value =
+          creating || typeof draft?.values !== 'object' || draft.values === null
+            ? draft?.values
+            : { ...draft.values, id: entry.targetId }
+        const decoded = yield* Schema.decodeUnknownEffect(handler.Input)(value).pipe(
+          Effect.mapError(error => refuse(`This draft is not ready to publish: ${String(error)}`)),
+        )
+
+        return yield* config.transaction(
+          Effect.gen(function* () {
+            const writes = (yield* DrizzleDatabase) as unknown as Writes
+            const ran = yield* handler.run({ input: decoded, principal })
+            const targetId = creating
+              ? String((ran.output as { readonly id: unknown }).id)
+              : entry.targetId!
+            const at = now()
+            const shown = served.type.roles.published
+            if (shown !== undefined) {
+              // Publishing shows the row. One already shown keeps its first date.
+              const column = served.binding.columns[shown.key]!
+              yield* Effect.promise(() =>
+                Promise.resolve(
+                  writes
+                    .update(served.binding.table)
+                    .set({ [shown.key]: stamp(column, at) })
+                    .where(and(eq(served.binding.columns.id!, targetId), isNull(column)))
+                    .returning({ id: served.binding.columns.id! }),
+                ),
+              )
+            }
+            const n = (held ?? 0) + 1
+            const revisionId = `${entry.id}:${n}`
+            yield* Effect.promise(() =>
+              Promise.resolve(
+                writes.insert(tables.revisions).values({
+                  id: revisionId,
+                  entryId: entry.id,
+                  n,
+                  values: draft?.values,
+                  publishedAt: at.toISOString(),
+                  publishedBy: nameOf(principal),
+                }),
+              ),
+            )
+            yield* Effect.promise(() =>
+              Promise.resolve(writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
+            )
+            yield* Effect.promise(() =>
+              Promise.resolve(
+                writes
+                  .update(tables.entries)
+                  .set({ targetId })
+                  .where(eq(tables.entries.id, entry.id))
+                  .returning({ id: tables.entries.id }),
+              ),
+            )
+            const content = returning(served.binding, shown === undefined ? [] : [shown.key])
+            return {
+              output: { entry: entry.id as never, targetId, revision: n },
+              entities: [
+                ...ran.entities,
+                ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
+                ...entryPatch.patches(yield* readRows(Db.Entry, entryPatch.columns, entry.id)),
+                ...revisionPatch.patches(
+                  yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
+                ),
+              ],
+              connections: ran.connections,
+              deleted: [...ran.deleted, { entity: 'CmsDraft', id: entry.id }],
+            }
+          }),
+        )
+      }),
+    )
+
+    const Unpublish = operation(Cms.Operations.Unpublish, ({ input, principal }) =>
+      Effect.gen(function* () {
+        const { entry, served } = yield* offering(input.entry, 'unpublish')
+        yield* asking(principal, 'unpublish', entry)
+        const shown = served.type.roles.published!
+        const writes = (yield* DrizzleDatabase) as unknown as Writes
+        yield* Effect.promise(() =>
+          Promise.resolve(
+            writes
+              .update(served.binding.table)
+              .set({ [shown.key]: null })
+              .where(eq(served.binding.columns.id!, entry.targetId!))
+              .returning({ id: served.binding.columns.id! }),
+          ),
+        )
+        const content = returning(served.binding, [shown.key])
+        return {
+          output: {},
+          entities: content.patches(
+            yield* readRows(served.binding, content.columns, entry.targetId!),
+          ),
+        }
+      }),
+    )
+
     const sources: ReadonlyArray<EntitySource<P, DrizzleDatabase>> = [
       entries,
       source<P>(Db.Draft),
       source<P>(Db.Revision),
       ...config.content.map(served => source<P>(served.binding)),
     ]
-    const mutations: ReadonlyArray<MutationSource<P, DrizzleDatabase>> = [SaveDraft, DiscardDraft]
+    const mutations: ReadonlyArray<MutationSource<P, DrizzleDatabase>> = [
+      SaveDraft,
+      DiscardDraft,
+      Publish,
+      Unpublish,
+    ]
 
     return {
       /**

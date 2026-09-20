@@ -5,16 +5,17 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
+import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
-import { bind, databaseLayer } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
+import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { CmsServer, published, sqliteSchema, sqliteTables } from '../src/index.js'
+import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from '../src/index.js'
 
 type Principal = { readonly name: string; readonly role: 'author' | 'intern' } | null
 const isAuthor = (principal: Principal): boolean => principal !== null
@@ -56,6 +57,53 @@ const content = <E extends typeof Post | typeof Page>(name: string, entity: E) =
 const Posts = content('posts', Post)
 const Pages = content('pages', Page)
 
+// The application's own publish handlers. One that writes and then fails shows
+// whether a publish is whole.
+type Writes = {
+  insert: (table: unknown) => { values: (values: object) => unknown }
+  update: (table: unknown) => { set: (values: object) => { where: (where: unknown) => unknown } }
+}
+let made = 0
+const handlers = (type: typeof Posts | typeof Pages, table: typeof posts | typeof pages) => ({
+  create: RemoteServer.mutation<
+    Principal,
+    DrizzleDatabase,
+    string,
+    { title: string },
+    { id: string }
+  >(type.publish.create as never, ({ input }) =>
+    Effect.gen(function* () {
+      const database = (yield* DrizzleDatabase) as unknown as Writes
+      const id = `made${++made}`
+      yield* Effect.promise(() =>
+        Promise.resolve(database.insert(table).values({ id, title: input.title })),
+      )
+      if (input.title === 'Fails')
+        return yield* new RemoteServerError({ message: 'The application refused' })
+      return { output: { id } }
+    }),
+  ),
+  update: RemoteServer.mutation<
+    Principal,
+    DrizzleDatabase,
+    string,
+    { id: string; title: string },
+    {}
+  >(type.publish.update as never, ({ input }) =>
+    Effect.gen(function* () {
+      const database = (yield* DrizzleDatabase) as unknown as Writes
+      yield* Effect.promise(() =>
+        Promise.resolve(
+          database.update(table).set({ title: input.title }).where(eq(table.id, input.id)),
+        ),
+      )
+      if (input.title === 'Fails')
+        return yield* new RemoteServerError({ message: 'The application refused' })
+      return { output: {} }
+    }),
+  ),
+})
+
 const tables = sqliteTables()
 const Db = bind(
   { Post, Page },
@@ -88,9 +136,10 @@ const open = () => {
   const cms = CmsServer.make<Principal>({
     tables,
     content: [
-      { type: Posts, binding: Db.Post },
-      { type: Pages, binding: Db.Page },
+      { type: Posts, binding: Db.Post, ...handlers(Posts, posts) },
+      { type: Pages, binding: Db.Page, ...handlers(Pages, pages) },
     ],
+    transaction: Transaction.statements,
     isAuthor,
     allow: principal => principal?.role !== 'intern',
     now: () => clock,
@@ -144,6 +193,7 @@ const open = () => {
     tick: (to: string) => {
       clock = new Date(to)
     },
+    rows: (query: string) => sqlite.prepare(query).all() as ReadonlyArray<Record<string, unknown>>,
     count: (table: string) =>
       Number((sqlite.prepare(`select count(*) as n from ${table}`).get() as { n: number }).n),
   }
@@ -213,13 +263,19 @@ describe('the audience boundary', () => {
     expect(() =>
       CmsServer.make<Principal>({
         tables,
-        content: [{ type: Posts, binding: Open.Post }],
+        content: [{ type: Posts, binding: Open.Post, ...handlers(Posts, posts) }],
+        transaction: Transaction.statements,
         isAuthor,
       }),
     ).toThrow('content "posts" can be unpublished, but its binding shows every row to everyone')
     // A type with no `published` role has nothing to hide.
     expect(() =>
-      CmsServer.make<Principal>({ tables, content: [{ type: Pages, binding: Db.Page }], isAuthor }),
+      CmsServer.make<Principal>({
+        tables,
+        content: [{ type: Pages, binding: Db.Page, ...handlers(Pages, pages) }],
+        transaction: Transaction.statements,
+        isAuthor,
+      }),
     ).not.toThrow()
   })
 })
@@ -375,5 +431,195 @@ describe('discarding a draft', () => {
     } finally {
       sqlite.close()
     }
+  })
+})
+
+describe('publishing', () => {
+  it('runs the application’s own mutation with the draft, and leaves a revision and no draft', async () => {
+    const { as, rows, count } = open()
+    const result = await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
+    expect(result.output).toEqual({ entry: 'e1', targetId: 'p1', revision: 2 })
+    expect(rows(`select title from posts where id = 'p1'`)).toEqual([{ title: 'Live, revised' }])
+    expect(
+      rows(`select n, "values", published_by from cms_revisions where entry_id = 'e1' order by n`),
+    ).toEqual([
+      { n: 1, values: '{"title":"Live"}', published_by: 'ada' },
+      { n: 2, values: '{"title":"Live, revised"}', published_by: 'ada' },
+    ])
+    expect(count(`cms_drafts where id = 'e1'`)).toBe(0)
+    // The client holds the outcome with no refetch.
+    expect(result.deleted).toEqual([{ entity: 'CmsDraft', id: 'e1' }])
+    expect(result.entities.map(patch => `${patch.entity}:${patch.id}`).sort()).toEqual([
+      'CmsEntry:e1',
+      'CmsRevision:e1:2',
+      'Post:p1',
+    ])
+    expect(await as(ada).read('CmsEntry', ['e1'], ['state'])).toEqual({
+      'CmsEntry:e1': { state: { _tag: 'Published', schedule: null } },
+    })
+  })
+
+  it('makes the row of something new, shows it to a visitor, and names it on the entry', async () => {
+    const { as, rows } = open()
+    expect(await as(null).list({ type: 'posts' })).toEqual([])
+    const result = await as(ada).mutate('CmsPublish', { entry: 'e3', basedOn: null })
+    const { targetId } = result.output as { targetId: string }
+    expect(result.output).toEqual({ entry: 'e3', targetId, revision: 1 })
+    expect(rows(`select target_id from cms_entries where id = 'e3'`)).toEqual([
+      { target_id: targetId },
+    ])
+    expect(rows(`select title, published_at from posts where id = '${targetId}'`)).toEqual([
+      { title: 'Unwritten', published_at: '2026-06-01T00:00:00.000Z' },
+    ])
+    expect(await as(null).read('Post', [targetId], ['title'])).toEqual({
+      [`Post:${targetId}`]: { title: 'Unwritten' },
+    })
+  })
+
+  it('keeps the date something was first published on', async () => {
+    const { as, rows } = open()
+    await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
+    expect(rows(`select published_at from posts where id = 'p1'`)).toEqual([
+      { published_at: '2026-01-01' },
+    ])
+  })
+
+  it('happens entirely or does not: a handler that fails after writing leaves nothing behind', async () => {
+    const { as, rows, count } = open()
+    const saved = await as(ada).mutate('CmsSaveDraft', save({ values: { title: 'Fails' } }))
+    const { entry } = saved.output as { entry: string }
+    const before = count('posts')
+    await expect(as(ada).mutate('CmsPublish', { entry, basedOn: null })).rejects.toThrow(
+      'The application refused',
+    )
+    expect(count('posts')).toBe(before)
+    expect(count(`cms_revisions where entry_id = '${entry}'`)).toBe(0)
+    expect(rows(`select target_id from cms_entries where id = '${entry}'`)).toEqual([
+      { target_id: null },
+    ])
+    expect(count(`cms_drafts where id = '${entry}'`)).toBe(1)
+    // The connection is left usable: the next publish is its own transaction.
+    await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
+  })
+
+  it('refuses a publish made from an older revision than the latest', async () => {
+    const { as, count } = open()
+    await expect(as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: null })).rejects.toThrow(
+      'CmsConflict',
+    )
+    expect(count(`cms_revisions where entry_id = 'e1'`)).toBe(1)
+    expect(count(`cms_drafts where id = 'e1'`)).toBe(1)
+  })
+
+  it('refuses a draft the publish mutation would not take, and says why', async () => {
+    const { as, count } = open()
+    const saved = await as(ada).mutate('CmsSaveDraft', save({ values: { title: 7 } }))
+    const { entry } = saved.output as { entry: string }
+    await expect(as(ada).mutate('CmsPublish', { entry, basedOn: null })).rejects.toThrow(
+      'not ready to publish',
+    )
+    expect(count(`cms_drafts where id = '${entry}'`)).toBe(1)
+  })
+
+  it('refuses an entry with nothing to publish, a visitor, and an author who may not', async () => {
+    const { as, count } = open()
+    await expect(as(ada).mutate('CmsPublish', { entry: 'e2', basedOn: null })).rejects.toThrow(
+      'cannot be published',
+    )
+    await expect(as(null).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })).rejects.toThrow(
+      'Only an author',
+    )
+    await expect(as(ian).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })).rejects.toThrow(
+      'may not publish',
+    )
+    // A visitor is not told which entries there are.
+    for (const mutation of ['CmsPublish', 'CmsUnpublish', 'CmsDiscardDraft'])
+      await expect(as(null).mutate(mutation, { entry: 'nothing', basedOn: null })).rejects.toThrow(
+        'Only an author',
+      )
+    expect(count(`cms_revisions where entry_id = 'e1'`)).toBe(1)
+  })
+
+  it('refuses, when it is made, a handler of some other mutation', () => {
+    expect(() =>
+      CmsServer.make<Principal>({
+        tables,
+        content: [{ type: Pages, binding: Db.Page, ...handlers(Posts, posts) }],
+        transaction: Transaction.statements,
+        isAuthor,
+      }),
+    ).toThrow('publishes through "Createpages", but was given the handler of "Createposts"')
+  })
+})
+
+describe('unpublishing', () => {
+  it('hides the row from a visitor and keeps it, and publishing shows it again', async () => {
+    const { as, rows } = open()
+    const result = await as(ada).mutate('CmsUnpublish', { entry: 'e1' })
+    expect(result.entities).toEqual([
+      { entity: 'Post', id: 'p1', values: { id: 'p1', publishedAt: null } },
+    ])
+    expect(await as(null).read('Post', ['p1'], ['title'])).toEqual({})
+    expect(rows(`select title from posts where id = 'p1'`)).toEqual([{ title: 'Live' }])
+
+    await as(ada).mutate('CmsPublish', { entry: 'e1', basedOn: 1 })
+    expect(rows(`select published_at from posts where id = 'p1'`)).toEqual([
+      { published_at: '2026-06-01T00:00:00.000Z' },
+    ])
+  })
+
+  it('refuses what is not published, and a type that has no such thing', async () => {
+    const { as } = open()
+    await expect(as(ada).mutate('CmsUnpublish', { entry: 'e2' })).rejects.toThrow(
+      'cannot be unpublished',
+    )
+    await expect(as(ian).mutate('CmsUnpublish', { entry: 'e1' })).rejects.toThrow(
+      'may not unpublish',
+    )
+  })
+})
+
+describe('Transaction.drizzle', () => {
+  // A driver whose transaction takes a promise: it commits when the promise
+  // resolves and rolls back when it rejects.
+  const driver = () => {
+    const log: Array<string> = []
+    const inner = { name: 'inner' }
+    const database = {
+      transaction: async <T>(run: (tx: unknown) => Promise<T>): Promise<T> => {
+        try {
+          const result = await run(inner)
+          log.push('commit')
+          return result
+        } catch (error) {
+          log.push('rollback')
+          throw error
+        }
+      },
+    }
+    return { log, inner, layer: databaseLayer(database) }
+  }
+
+  it('gives the work the transaction as its database, and commits', async () => {
+    const { log, inner, layer } = driver()
+    const seen = await Effect.runPromise(
+      Transaction.drizzle(
+        Effect.gen(function* () {
+          return yield* DrizzleDatabase
+        }),
+      ).pipe(Effect.provide(layer)),
+    )
+    expect(seen).toBe(inner)
+    expect(log).toEqual(['commit'])
+  })
+
+  it('rolls back work that fails, and fails with its error', async () => {
+    const { log, layer } = driver()
+    const exit = await Effect.runPromiseExit(
+      Transaction.drizzle(Effect.fail('refused' as const)).pipe(Effect.provide(layer)),
+    )
+    expect(log).toEqual(['rollback'])
+    expect(String(exit)).toContain('refused')
+    expect(exit._tag).toBe('Failure')
   })
 })

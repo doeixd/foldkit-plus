@@ -385,7 +385,12 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    the conflict rule, the `entries` query, and the audience policy with its
    tests: a visitor's principal is refused entries, drafts, revisions, and any
    unpublished row, at every depth of a nested read.
-4. **Publish.** The transaction: the application's handler, the revision, the
+4. **Publish.** *Built, but for slugs. The transaction is the application's to
+   name (`Transaction.statements` for one connection, `Transaction.drizzle` for an
+   asynchronous driver), because Drizzle's differ by driver and a wrong guess
+   either throws or silently does not roll back. Publishing also sets the
+   `published` role's column when it is empty, so an unpublished row is shown
+   again and a shown one keeps its first date.* The transaction: the application's handler, the revision, the
    draft's deletion; `Unpublish`; the base-revision conflict; the slug check and
    the unique-index failure arriving on the slug's key.
 5. **`Cms.editor`.** Open, resume (§11's ladder, each rung tested), autosave,

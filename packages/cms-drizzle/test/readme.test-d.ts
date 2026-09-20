@@ -1,13 +1,13 @@
 // The README's snippets, compiled. Keep the two in step.
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation } from 'foldkit-remote'
-import { bind, source } from 'foldkit-remote-drizzle'
+import { DrizzleDatabase, bind, source } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { CmsServer, published, sqliteTables } from '../src/index.js'
+import { CmsServer, Transaction, published, sqliteTables } from '../src/index.js'
 
 type Principal = { readonly role: 'author' | 'reader' } | null
 const isAuthor = (principal: Principal): boolean => principal?.role === 'author'
@@ -58,9 +58,18 @@ const Db = bind(Blog, {
   Author: { table: authors },
 })
 
+// Your own handlers of the two mutations the content type publishes through.
+const CreatePost = RemoteServer.mutation<Principal, DrizzleDatabase>(Posts.publish.create, () =>
+  Effect.succeed({ output: { id: 'p1' } }),
+)
+const UpdatePost = RemoteServer.mutation<Principal, DrizzleDatabase>(Posts.publish.update, () =>
+  Effect.succeed({ output: {} }),
+)
+
 const cms = CmsServer.make<Principal>({
   tables: cmsTables,
-  content: [{ type: Posts, binding: Db.Post }],
+  content: [{ type: Posts, binding: Db.Post, create: CreatePost, update: UpdatePost }],
+  transaction: Transaction.statements, // one connection; Transaction.drizzle for Postgres
   isAuthor: principal => principal?.role === 'author',
 })
 

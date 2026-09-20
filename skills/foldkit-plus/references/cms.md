@@ -6,12 +6,12 @@ a schedule), and **address** (a slug). The domain is a `foldkit-entity` Entity,
 editing it is a `foldkit-form` form, and the screens are `foldkit-crud`'s; none
 of that is CMS-specific and none is repeated here.
 
-**Status: drafts, not publishing.** `foldkit-cms` is the pure core: roles,
-content types, three Entities, the operations as descriptors, the lifecycle.
-`foldkit-cms-drizzle` is its server so far: the audience boundary, saving and
-discarding a draft, the worklist, an entry's derived state. There is no publish
-and no editor yet, and neither is on npm. Do not tell a user these publish
-content.
+**Status: a server, no editor.** `foldkit-cms` is the pure core: roles, content
+types, three Entities, the operations as descriptors, the lifecycle.
+`foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
+publishing and unpublishing, the worklist, an entry's derived state. There is no
+client editor, no scheduling and no restore yet, and neither is on npm. Do not
+tell a user there is an authoring screen.
 
 ## Ownership
 
@@ -74,20 +74,22 @@ Cms.offers(facts, now, Posts) // ['save', 'discard', 'publish', 'schedule', 'unp
 ## The server
 
 ```ts
-import { CmsServer, published, sqliteTables } from 'foldkit-cms-drizzle'
+import { CmsServer, Transaction, published, sqliteTables } from 'foldkit-cms-drizzle'
 
 const Db = bind(Blog, {
   Post: { table: posts, visible: published(posts.publishedAt, isAuthor) }, // a visitor sees published rows
 })
 const cms = CmsServer.make({
   tables: sqliteTables(), // or pgTables()
-  content: [{ type: Posts, binding: Db.Post }],
+  // create/update: your own RemoteServer.mutation handlers of Posts.publish.create/.update
+  content: [{ type: Posts, binding: Db.Post, create: CreatePost, update: UpdatePost }],
+  transaction: Transaction.statements, // one connection (SQLite); Transaction.drizzle for Postgres, libSQL
   isAuthor: principal => principal?.role === 'author',
 })
 RemoteServer.make({
   entities: [...cms.sources, source(Db.Author)], // cms.sources, not source(Db.Post)
   queries: [...cms.queries], // Cms.Entries: the worklist
-  mutations: [...cms.mutations], // CmsSaveDraft, CmsDiscardDraft
+  mutations: [...cms.mutations], // CmsSaveDraft, CmsDiscardDraft, CmsPublish, CmsUnpublish
 })
 ```
 
@@ -98,6 +100,13 @@ RemoteServer.make({
   binding has no `visible`.
 - `CmsSaveDraft` carries `basedOn` (the draft's `updatedAt`); a stale one is
   refused as `CmsConflict: ...`. Its first save with `entry: null` makes the entry.
+- `CmsPublish` runs `create` (no row yet) or `update` (the draft's value plus the
+  row's `id`) inside `transaction`, with the row shown, the revision appended and
+  the draft removed, all or nothing. Do not register `create`/`update` with
+  `RemoteServer.make` yourself unless authors should also bypass drafts.
+- `CmsPublish` carries `basedOn` (the latest revision's `n`, or `null`); a stale
+  one is `CmsConflict: ...`. A draft the mutation's Input refuses is not published.
+- `CmsUnpublish` empties the `published` column; the row is kept.
 - `allow(principal, transition, entry)` decides which author may; `now` is the clock.
 
 ## Gotchas
