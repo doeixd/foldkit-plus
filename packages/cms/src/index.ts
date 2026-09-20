@@ -20,6 +20,7 @@ import {
 import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
+import { makeEditor } from './editor.js'
 
 export type { Facts, Schedule, State, StateTag, Transition } from './lifecycle.js'
 
@@ -103,6 +104,8 @@ const Entry = Entity.define(
     label: Schema.String.annotate({ title: 'Title' }),
     createdAt: Schema.String,
     archivedAt: Schema.NullOr(Schema.String),
+    /** The number of the latest published revision: what the next publish is based on. */
+    revision: Schema.NullOr(Schema.Number),
   }),
 ).pipe(
   // Derived by the server, with its clock, so a list can show and filter by it.
@@ -161,13 +164,14 @@ const entryInput = { entry: EntryId }
  */
 const Operations = {
   /**
-   * Saves the working copy, valid or not. `entry` is `null` for the first save of
-   * something new, which makes the entry. `basedOn` is the `updatedAt` this save
-   * was made from: a newer one on the server is a conflict, not an overwrite.
+   * Saves the working copy, valid or not. The first save of an id nobody has
+   * makes the entry, so a client names something new itself (`Cms.newEntryId`) and
+   * need not wait to be told what it is called. `basedOn` is the `updatedAt` this
+   * save was made from: a newer one on the server is a conflict, not an overwrite.
    */
   SaveDraft: Mutation.make('CmsSaveDraft', {
     Input: {
-      entry: Schema.NullOr(EntryId),
+      entry: EntryId,
       type: Schema.String,
       label: Schema.String,
       values: Schema.Unknown,
@@ -221,10 +225,17 @@ interface ContentForm<E extends AnyEntity, Value> {
 }
 
 /** How a type of content is authored: the application's facts, beside the Entity's roles. */
-export interface Content<Name extends string, E extends AnyEntity, Value, TargetId extends string> {
+export interface Content<
+  Name extends string,
+  E extends AnyEntity,
+  Value,
+  TargetId extends string,
+  F extends ContentForm<E, Value> = ContentForm<E, Value>,
+> {
   readonly name: Name
   readonly entity: E
-  readonly form: ContentForm<E, Value>
+  /** The form as it was given, so an editor of this content is typed by it. */
+  readonly form: F
   readonly publish: {
     /** Makes the row, the first time. Its input is the form's value; its output names the row. */
     readonly create: MutationDescriptor<string, Value, { readonly id: TargetId }>
@@ -234,6 +245,8 @@ export interface Content<Name extends string, E extends AnyEntity, Value, Target
   readonly roles: Roles
   readonly words: { readonly one: string; readonly many: string }
 }
+
+const editor = makeEditor({ Entities, Operations })
 
 export const Cms = {
   /**
@@ -285,15 +298,16 @@ export const Cms = {
     E extends AnyEntity,
     Value,
     TargetId extends string = string,
+    F extends ContentForm<NoInfer<E>, Value> = ContentForm<NoInfer<E>, Value>,
   >(
     name: Name,
     config: {
       readonly entity: E
-      readonly form: ContentForm<NoInfer<E>, Value>
+      readonly form: F & ContentForm<NoInfer<E>, Value>
       readonly publish: Content<Name, E, NoInfer<Value>, TargetId>['publish']
       readonly words: { readonly one: string; readonly many: string }
     },
-  ): Content<Name, E, Value, TargetId> => {
+  ): Content<Name, E, Value, TargetId, F> => {
     if (!Entity.same(config.form.input.entity, config.entity))
       fail(
         `content "${name}" is of ${config.entity.name}, but its form edits ${config.form.input.entity.name}`,
@@ -301,6 +315,8 @@ export const Cms = {
     return Object.freeze({ name, ...config, roles: Cms.rolesOf(config.entity) })
   },
 
+  /** An id for something new, made where it is written: the first save of it makes the entry. */
+  newEntryId: (): EntryId => globalThis.crypto.randomUUID() as EntryId,
   /** `Entry`, `Draft` and `Revision`: register them with Remote beside the application's own. */
   Entities,
   /** The operations, to register with Remote's `mutations`. */
@@ -313,7 +329,7 @@ export const Cms = {
    * connection of one or none. It throws for a content type with no `slug` role:
    * a capability is declared, never implied.
    */
-  bySlug: <Name extends string, E extends AnyEntity>(content: Content<Name, E, any, any>) => {
+  bySlug: <Name extends string, E extends AnyEntity>(content: Content<Name, E, any, any, any>) => {
     if (content.roles.slug === undefined)
       fail(`content "${content.name}" has no slug role, so nothing is found by slug`)
     return Query.make(`${content.name}BySlug` as `${Name}BySlug`, {
@@ -330,6 +346,13 @@ export const Cms = {
     key: (message: string): string | undefined => /CmsSlugTaken: ([^:]+): /.exec(message)?.[1],
   },
 
+  /**
+   * The authoring editor of a content type: its form, the entry, and the draft
+   * that keeps what the author has entered. Saving is automatic and is not
+   * publishing; publishing submits the form.
+   */
+  editor,
+
   /** The state of an entry, from what is known of it and a clock. */
   state: (facts: Facts, now: Date): State => state(facts, now),
   /** The transitions an entry offers now, before anyone asks who is asking. */
@@ -340,3 +363,13 @@ export const Cms = {
   ): ReadonlyArray<Transition> =>
     offers(facts, now, { unpublishes: content.roles.published !== undefined }),
 }
+
+export type {
+  EditorContent,
+  EditorDomain,
+  EditorForm,
+  EditorModel,
+  EditorOut,
+  EditorStatus,
+  Resumed,
+} from './editor.js'

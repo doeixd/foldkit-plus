@@ -716,6 +716,27 @@ describe('Data.query reads a connection as a page of selected items', () => {
       expect(project.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'name of p1' } })
     })
 
+    it('asks again for an entity it knew to be absent', async () => {
+      const project = Data.get(summary, 'p9')
+      // The server answered a read of p9 with nothing.
+      const absent = Data.reduce(initial, {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Project', id: 'p9', fields: ['name'] }],
+        result: { entities: [] },
+        now: 0,
+      })
+      expect(project.read(absent)._tag).toBe('NotFound')
+      const client = paging([])
+      expect(await observe(absent, project, client.layer)).toBe(absent)
+
+      const refreshed = Data.refresh(absent, project)
+
+      expect(project.read(refreshed)._tag).not.toBe('NotFound')
+      const settled = await observe(refreshed, project, client.layer)
+      expect(client.reads).toEqual([['p9']])
+      expect(project.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'name of p9' } })
+    })
+
     it('invalidates a loaded connection: one page query, then one read of its items', async () => {
       const known = read(merged(initial, ['p1', 'p2']), ['p1', 'p2'])
       const client = paging(['p1', 'p2', 'p3'])

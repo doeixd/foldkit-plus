@@ -1133,6 +1133,24 @@ const Core = {
         const next = submit(model)
         return next.value !== undefined || next.model.submitPending
       },
+      /**
+       * What of the form decodes as it stands, by key: the value, less every key
+       * that is not valid yet. For saving unfinished work, which `engine.value`
+       * cannot give. A nested key is there once each of its rows has a value.
+       */
+      partial: (model: Model): Partial<Value> => ({
+        ...decoded(model),
+        ...Object.fromEntries(
+          rowsKeys.flatMap(key => {
+            const plan = nestedPlans[key]
+            const values = rowsOf(model)[key]!.map(row => plan.form.engine.value(row.model))
+            if (values.includes(undefined)) return []
+            const held =
+              plan.cardinality === 'many' ? values : values.length === 0 ? plan.nothing : values[0]
+            return [[key, held] as const]
+          }),
+        ),
+      }),
       /** The form as the form that nests it drives it. */
       engine: {
         submit: (model: Model) => {

@@ -7,11 +7,10 @@ What a CMS adds to a domain that is already declared. The domain is a
 are: **audience** (a visitor sees what is published, an author sees everything),
 **time** (drafts, revisions, a schedule), and **address** (a slug).
 
-> **Status: declarations and rules only.** This package is the pure core: roles,
-> content types, the three Entities, the operations as descriptors, and the
-> lifecycle. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
+> **Status: the core and the editor.** Roles, content types, the three Entities,
+> the operations as descriptors, the lifecycle, and the authoring editor's state. Its server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md),
 > which saves, discards, publishes and unpublishes, and enforces the audience
-> boundary; the authoring editor and scheduling are next in
+> boundary; scheduling, history and an example are next in
 > [the design](../../docs/design/cms-DESIGN.md#13-build-order). Neither package
 > is on npm.
 
@@ -24,9 +23,11 @@ are: **audience** (a visitor sees what is published, an author sees everything),
 | Which state a piece of content is in | nobody stores it: `Cms.state` derives it |
 | Which transitions that state offers | `Cms.offers`, before anyone asks who is asking |
 | Who may make a transition | your `allow`, asked by the server |
-| The draft being typed | `foldkit-form`, in your Model |
+| The draft being typed | `foldkit-form`, in your Model, inside the editor's slice |
+| How far the saves have got | `Cms.editor`, in that slice |
+| The draft's `updatedAt`, the entry's `revision` | Remote's store: read, never copied |
 
-It owns no state and reads no database.
+It reads no database.
 
 ## Mental model
 
@@ -112,6 +113,53 @@ not read `Published`.
 before it asks who is asking. `unpublish` is offered only to a content type with
 a `published` role.
 
+## The editor
+
+`Cms.editor` is the authoring screen's state: a form, the entry it belongs to,
+and the draft that keeps what the author has entered. It is a Bundle, placed
+like any other; the view is the form's own.
+
+```ts
+const Editor = Cms.editor('PostEditor', { content: Posts })
+const Slot = Bundle.declare(Editor.bundle, 'editor') // its Model and its Messages, in yours
+
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+const update = PostEditor.after(Page.assemble(Placed).update(yourUpdate))
+
+Data.subscriptions({ ...yourSurfaces, ...PostEditor.actives })
+
+Placed.helpers.open(entryId) // resume the draft, else show what is published
+Placed.helpers.create(Cms.newEntryId()) // something new; its first save makes the entry
+Editor.Message.PublishAsked() // also: DiscardAsked, UnpublishAsked, ReloadAsked, OverwriteAsked
+
+PostEditor.status(model) // Loading | Editing | Saving | Saved | Conflict | Publishing | Published | ...
+PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
+```
+
+- **Saving is automatic and is not publishing.** Each edit starts a rest (`rest`,
+  one second by default), and the edit that is still the last one when its rest
+  ends saves the form as it stands, valid or not. There is no Save button to
+  forget, and a validation error never costs an author their work.
+- **Publishing submits the form**, so its rules and checks decide, and an invalid
+  form publishes nothing and says why in place. What is published is the saved
+  draft, so a publish saves first when the last edit has not.
+- **A draft never fails to open.** The saved Model is tried first, guarded by the
+  form's name and `version`; then the saved values, key by key, keeping what the
+  form still accepts; then what is published. `PostEditor.resumed(model)` says
+  which: `Model`, `Values`, `Published`, `Blank`, or `Lost`, which is worth
+  telling the author. Bump `version` when you change the form incompatibly.
+- **A second author's save is a `Conflict`**, with the text still in the form.
+  `ReloadAsked` shows the server's copy; `OverwriteAsked` saves over it, based on
+  it. Merging is not attempted.
+- **Discarding** shows what is published again; something never published has
+  nothing left, and the editor closes.
+- What the server holds is read from Remote and never copied: a save is based on
+  the draft's `updatedAt` in the store, a publish on the entry's `revision`. The
+  server answers each operation with patches, so nothing is refetched to know them.
+- `create` takes the id so that `update` stays pure: make it in a Command or an
+  event handler.
+
 ## Entities and operations
 
 `Cms.Entities` is `Entry`, `Draft` and `Revision`, related: an entry has one
@@ -127,6 +175,8 @@ publish is a conflict and not an overwrite. `Cms.operations` is the list, for
 `Remote.make({ mutations })`.
 
 An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
+The client names something new (`Cms.newEntryId()`), and the first save of an id
+nobody has makes the entry, so an editor need not wait to learn what it edits.
 
 ## API
 
@@ -135,6 +185,8 @@ An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
 | `Cms.roles({ label?, slug?, published? })` | Pipe step: the members of an Entity that play a CMS part. |
 | `Cms.rolesOf(entity)` | Those roles, as Fields; `undefined` for a part nobody named. |
 | `Cms.content(name, { entity, form, publish, words })` | A type of content: its Entity, form, publish operations, and name. |
+| `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
+| `Cms.newEntryId()` | An id for something new. |
 | `Cms.state(facts, now)` | The state of an entry, with its schedule. |
 | `Cms.offers(facts, now, content)` | The transitions it offers now. |
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
@@ -144,7 +196,11 @@ An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
 
 ## Limits
 
-- No editor and no scheduling yet: see the status above.
+- No scheduling, history or restore yet: see the status above.
+- The editor has no view of its own: render the form with `foldkit-mixins-form`,
+  and the status and buttons yourself. The CMS kinds and renderers are not built.
+- A taken slug arrives as the editor's `error`; landing it on the slug's key
+  (`Cms.slugTaken.key`) is the view's to do for now.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
   [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).

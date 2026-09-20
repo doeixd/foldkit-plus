@@ -170,6 +170,7 @@ const PostForm = Form.make('PostForm', input, {
 })
 
 PostForm.isFollowing(model, 'slug') // false once the author has written it
+PostForm.partial(model) // what decodes as it stands, by key: for saving unfinished work
 ```
 
 - While the author has not written the key, each edit of the key it follows

@@ -1,10 +1,13 @@
 // The README's snippets, compiled. Keep the two in step.
 import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { Mutation } from 'foldkit-remote'
+import { Mutation, Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import { defineMessageUnion } from 'foldkit/message'
 import { expectTypeOf } from 'vitest'
-import { Cms, type State } from '../src/index.js'
+import { Cms, type EditorStatus, type State } from '../src/index.js'
 
 const PostId = Schema.String.pipe(Schema.brand('PostId'))
 const Blog = {
@@ -61,3 +64,37 @@ expectTypeOf(
   | 'restore'
   | undefined
 >()
+
+// ---- The editor ----
+
+const Editor = Cms.editor('PostEditor', { content: Posts })
+const Slot = Bundle.declare(Editor.bundle, 'editor') // its Model and its Messages, in yours
+
+const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
+const Message = defineMessageUnion({ ...Remote.messages, ...Slot.cases })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Post, ...Object.values(Cms.Entities)],
+  mutations: [...Cms.operations],
+})
+const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
+
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+export const update = PostEditor.after(
+  Page.assemble(Placed).update((model: typeof Model.Type, message: typeof Message.Type) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
+
+export const subscriptions = Data.subscriptions({ ...PostEditor.actives })
+
+declare const model: typeof Model.Type
+Placed.helpers.open('an entry id')
+Placed.helpers.create(Cms.newEntryId())
+Editor.Message.PublishAsked()
+expectTypeOf(PostEditor.status(model)).toEqualTypeOf<EditorStatus>()
+expectTypeOf(PostEditor.state(model)).toEqualTypeOf<State | undefined>()
+// The editor's form is the content type's own, typed.
+expectTypeOf(model.editor.form.fields.title.value).toEqualTypeOf<string>()

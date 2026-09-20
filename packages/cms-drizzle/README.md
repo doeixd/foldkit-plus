@@ -89,8 +89,8 @@ RemoteServer.make({
 
 ## Saving a draft
 
-`CmsSaveDraft` writes the working copy, valid or not. Its first save of something
-new makes the entry.
+`CmsSaveDraft` writes the working copy, valid or not. The client names something
+new (`Cms.newEntryId()`), and the first save of an id nobody has makes the entry.
 
 - **A save names what it was made from** (`basedOn`, the draft's `updatedAt`). A
   newer one on the server means someone else saved in between, and the save is
@@ -99,7 +99,8 @@ new makes the entry.
 - Two saves in the same instant still get different `updatedAt`s, so the next
   save can tell them apart.
 - It answers with the entry and the draft as patches, so the client holds both
-  with no refetch.
+  with no refetch. Every operation patches the entry with its `state` and its
+  `revision`, so what is on screen follows what was done.
 - Refused: a type the server does not know, an entry that is not there or is of
   another type, an archived entry, a principal that is not an author, and an
   author your `allow` refuses.
@@ -122,8 +123,10 @@ fails after writing leaves nothing behind.
   `database.transaction`, for a driver whose transactions are asynchronous
   (Postgres, libSQL); your handlers then get the transaction as their
   `DrizzleDatabase`. Statements over a pool would not roll back.
-- **A publish names the revision it was made from** (`basedOn`, the latest `n`, or
-  `null`). A newer one is `CmsConflict: ...`, not a publish over someone else's.
+- **A publish names the revision it was made from** (`basedOn`, the entry's
+  `revision`, or `null`). A newer one is `CmsConflict: ...`, not a publish over
+  someone else's. The entry's `revision` is compared and set first, inside the
+  transaction, so of two publishes made from one revision one writes nothing.
 - A draft your mutation's Input refuses is not published, and the error says why.
   The draft is kept.
 - A row that is already shown keeps the date it was first published on.
@@ -167,7 +170,7 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
 | `published(column, isAuthor)` | A `visible` rule for a content table: a visitor sees rows whose column is set. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, newId?, nameOf? })` | `sources`, `queries`, `mutations`, and `bindings`. |
+| `CmsServer.make({ tables, content, transaction, isAuthor, allow?, now?, nameOf? })` | `sources`, `queries`, `mutations`, and `bindings`. |
 
 ## Limits
 

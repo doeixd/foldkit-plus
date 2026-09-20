@@ -395,7 +395,13 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    again and a shown one keeps its first date.* The transaction: the application's handler, the revision, the
    draft's deletion; `Unpublish`; the base-revision conflict; the slug check and
    the unique-index failure arriving on the slug's key.
-5. **`Cms.editor`.** Open, resume (§11's ladder, each rung tested), autosave,
+5. **`Cms.editor`.** *Built, as state: the kinds and renderers of §10 are not.
+   It is a Bundle around the form and not around `Crud.editor`, whose one
+   mutation and one loaded value are the wrong shape for an entry, a draft and a
+   row. Two things it needed changed what was built before it: a mutation's
+   status carries no output, so the client names a new entry's id and the entry
+   row holds its latest `revision`; and refreshing an entity Remote believed
+   absent did nothing, which a reload after a conflict depends on.* Open, resume (§11's ladder, each rung tested), autosave,
    publish, status. The kinds of §10 and their renderers.
 6. **Scheduling.** `Schedule`, `Unschedule`, `due(now)` with a clock passed in,
    the failure path, and a Cloudflare cron example.

@@ -42,10 +42,12 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-metadata": "workspace:*",
-    "foldkit-remote": "workspace:*"
+    "foldkit-remote": "workspace:*",
+    "foldkit-surface": "workspace:*"
   },
   "peerDependencies": {
     "effect": "^4.0.0-rc.112",

@@ -22,6 +22,7 @@ export const sqliteTables = () => ({
     createdBy: text('created_by'),
     createdAt: text('created_at').notNull(),
     archivedAt: text('archived_at'),
+    revision: integer('revision'),
   }),
   drafts: sqliteTable('cms_drafts', {
     id: text('id').primaryKey(),
@@ -53,6 +54,7 @@ export const pgTables = () => ({
     createdBy: pgText('created_by'),
     createdAt: pgText('created_at').notNull(),
     archivedAt: pgText('archived_at'),
+    revision: pgInteger('revision'),
   }),
   drafts: pgTable('cms_drafts', {
     id: pgText('id').primaryKey(),
@@ -79,7 +81,7 @@ export const pgTables = () => ({
 export const sqliteSchema = `
 create table if not exists cms_entries (
   id text primary key, type text not null, target_id text, label text not null,
-  created_by text, created_at text not null, archived_at text
+  created_by text, created_at text not null, archived_at text, revision integer
 );
 create table if not exists cms_drafts (
   id text primary key, "values" text, model text, form text not null,

@@ -7,6 +7,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-cms`: `Cms.editor`, the authoring editor's state.** A Bundle around
+  the content type's form: autosave after a rest, valid or not; publish by
+  submitting the form, saving first; a draft resumed by its saved Model, then its
+  values key by key, then what is published, and never failing to open;
+  `Conflict` with reload and overwrite; discard. End to end tests drive it
+  against the real server over SQLite.
+- **Breaking, `foldkit-cms` and `foldkit-cms-drizzle`:** `CmsSaveDraft`'s `entry`
+  is required, and the first save of an id nobody has makes the entry
+  (`Cms.newEntryId()`), because a mutation's status carries no output for a
+  client to learn a server-made id from. `CmsEntry` gains `revision`, a column of
+  `cms_entries`, which a publish compares and sets inside its transaction. Every
+  operation patches the entry with its `state`. `newId` is gone from the server's
+  config. A save based on a draft that is gone no longer leaves an entry behind.
+- **Fix, `foldkit-remote`:** `Data.refresh` of an entity known to be absent asks
+  for it again, as the README said it did. It did nothing: a tombstone has no
+  field to mark stale, and nothing planned a read of it.
+- `foldkit-form`: `form.partial(model)`, what decodes as it stands, by key.
+
 - **`foldkit-cms-drizzle` 0.1.0 (new): drafts, publishing, and the audience boundary.** The
   entries, drafts and revisions tables for SQLite and Postgres; `CmsSaveDraft`
   (compare and set on what the save was based on, so a second author is a

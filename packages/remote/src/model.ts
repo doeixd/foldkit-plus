@@ -33,6 +33,8 @@ import {
 import {
   entityKey,
   emptyStore,
+  isTombstone,
+  remove,
   setStale,
   tombstone,
   writeEntities,
@@ -350,7 +352,16 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         entities: RemotePersistence.mergeStores(model.entities, message.entities, message.merge),
       }
     case 'RefreshStarted': {
-      const entities = setStale(model.entities, marksOf(message.requests), true)
+      // An entity known to be absent has no field to mark, and nothing plans a
+      // read of it again. Asked about again, it is forgotten, so it is.
+      const asked = message.requests.reduce(
+        (store, request) =>
+          isTombstone(store, entityKey(request.entity, request.id))
+            ? remove(store, entityKey(request.entity, request.id))
+            : store,
+        model.entities,
+      )
+      const entities = setStale(asked, marksOf(message.requests), true)
       return entities === model.entities ? model : { ...model, entities }
     }
     case 'ReadStarted': {

@@ -121,17 +121,16 @@ const open = () => {
     create table pages (id text primary key, title text not null);
     insert into posts values ('p1', 'Live', '2026-01-01'), ('p2', 'Hidden', null);
     insert into cms_entries values
-      ('e1', 'posts', 'p1', 'Live', 'ada', '2026-01-01T00:00:00.000Z', null),
-      ('e2', 'posts', 'p2', 'Hidden', 'ada', '2026-01-02T00:00:00.000Z', null),
-      ('e3', 'posts', null, 'Unwritten', 'ada', '2026-01-03T00:00:00.000Z', null),
-      ('e4', 'posts', 'p1', 'Put away', 'ada', '2026-01-04T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
+      ('e1', 'posts', 'p1', 'Live', 'ada', '2026-01-01T00:00:00.000Z', null, 1),
+      ('e2', 'posts', 'p2', 'Hidden', 'ada', '2026-01-02T00:00:00.000Z', null, null),
+      ('e3', 'posts', null, 'Unwritten', 'ada', '2026-01-03T00:00:00.000Z', null, null),
+      ('e4', 'posts', 'p1', 'Put away', 'ada', '2026-01-04T00:00:00.000Z', '2026-02-01T00:00:00.000Z', null);
     insert into cms_drafts values
       ('e1', '{"title":"Live, revised"}', null, 'postsForm@1', '2026-03-01T00:00:00.000Z', 'ada', null, '2026-03-02T00:00:00.000Z', 'slug taken'),
       ('e3', '{"title":"Unwritten"}', null, 'postsForm@1', '2026-03-01T00:00:00.000Z', 'ada', null, null, null);
     insert into cms_revisions values ('e1:1', 'e1', 1, '{"title":"Live"}', '2026-01-01T00:00:00.000Z', 'ada');
   `)
   let clock = new Date('2026-06-01T00:00:00.000Z')
-  let ids = 0
   let requests = 0
   const cms = CmsServer.make<Principal>({
     tables,
@@ -143,7 +142,6 @@ const open = () => {
     isAuthor,
     allow: principal => principal?.role !== 'intern',
     now: () => clock,
-    newId: () => `n${++ids}`,
     nameOf: principal => principal?.name ?? null,
   })
   const server = RemoteServer.make({
@@ -200,7 +198,7 @@ const open = () => {
 }
 
 const save = (over: object) => ({
-  entry: null,
+  entry: 'n1',
   type: 'posts',
   label: 'New post',
   values: { title: 'New post' },
@@ -381,13 +379,18 @@ describe('saving a draft', () => {
       save({ type: 'recipes' }),
       'is not a type of content',
     ],
-    ['an entry that is not there', save({ entry: 'nope' }), 'There is no such entry'],
+    [
+      'a save made from a draft that is gone, and makes no entry for it',
+      save({ entry: 'nope', basedOn: '2026-01-01T00:00:00.000Z' }),
+      'CmsConflict: this draft was discarded',
+    ],
     ['an entry of another type', save({ entry: 'e1', type: 'pages' }), 'This entry is of "posts"'],
     ['an archived entry', save({ entry: 'e4' }), 'An archived entry takes no draft'],
   ])('refuses %s', async (_, input, message) => {
-    const { as, sqlite } = open()
+    const { as, sqlite, count } = open()
     try {
       await expect(as(ada).mutate('CmsSaveDraft', input)).rejects.toThrow(message)
+      expect(count(`cms_entries where id = 'nope'`)).toBe(0)
     } finally {
       sqlite.close()
     }
@@ -556,9 +559,17 @@ describe('unpublishing', () => {
   it('hides the row from a visitor and keeps it, and publishing shows it again', async () => {
     const { as, rows } = open()
     const result = await as(ada).mutate('CmsUnpublish', { entry: 'e1' })
-    expect(result.entities).toEqual([
-      { entity: 'Post', id: 'p1', values: { id: 'p1', publishedAt: null } },
-    ])
+    // The row, and the entry with the state it is now in: the client holds both.
+    expect(result.entities[0]).toEqual({
+      entity: 'Post',
+      id: 'p1',
+      values: { id: 'p1', publishedAt: null },
+    })
+    expect(result.entities[1]).toMatchObject({
+      entity: 'CmsEntry',
+      id: 'e1',
+      values: { state: { _tag: 'Unpublished' } },
+    })
     expect(await as(null).read('Post', ['p1'], ['title'])).toEqual({})
     expect(rows(`select title from posts where id = 'p1'`)).toEqual([{ title: 'Live' }])
 

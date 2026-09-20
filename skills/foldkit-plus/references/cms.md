@@ -6,12 +6,12 @@ a schedule), and **address** (a slug). The domain is a `foldkit-entity` Entity,
 editing it is a `foldkit-form` form, and the screens are `foldkit-crud`'s; none
 of that is CMS-specific and none is repeated here.
 
-**Status: a server, no editor.** `foldkit-cms` is the pure core: roles, content
-types, three Entities, the operations as descriptors, the lifecycle.
+**Status: core, editor state, server.** `foldkit-cms` is roles, content types,
+three Entities, the operations as descriptors, the lifecycle, and `Cms.editor`.
 `foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
 publishing and unpublishing, the worklist, an entry's derived state. There is no
-client editor, no scheduling and no restore yet, and neither is on npm. Do not
-tell a user there is an authoring screen.
+scheduling, no history or restore, and no CMS view kinds yet, and neither is on
+npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
 
 ## Ownership
 
@@ -71,6 +71,32 @@ Cms.offers(facts, now, Posts) // ['save', 'discard', 'publish', 'schedule', 'unp
 - **Register the CMS's data:** `Remote.make({ entities: [...yours, ...Object.values(Cms.Entities)], mutations: [...yours, ...Cms.operations] })`.
   `Cms.Entities` is `Entry`, `Draft`, `Revision`; list them with `Crud.list`.
 
+## The editor
+
+```ts
+const Editor = Cms.editor('PostEditor', { content: Posts }) // rest?, version?, untitled?
+const Slot = Bundle.declare(Editor.bundle, 'editor')
+const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+const update = PostEditor.after(Page.assemble(Placed).update(yourUpdate)) // required: it syncs after every Message
+Data.subscriptions({ ...surfaces, ...PostEditor.actives })
+
+Placed.helpers.open(entryId)
+Placed.helpers.create(Cms.newEntryId()) // make the id in a Command or handler, not in update
+Editor.Message.PublishAsked() // DiscardAsked, UnpublishAsked, ReloadAsked, OverwriteAsked
+PostEditor.status(model) // Closed Loading NotFound LoadFailed Editing Saving Saved Conflict SaveFailed Publishing Published PublishFailed
+PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
+```
+
+- The editor's Messages are the form's plus its own, so a form view works as is.
+- Autosave: an edit rests (`rest`, 1s), then the form is saved, valid or not.
+  Publish submits the form; invalid publishes nothing. A publish saves first.
+- Opening resumes the draft: saved Model (same form name and `version`), else
+  saved values key by key, else what is published. `resumed` is `Lost` when a
+  draft fit nothing.
+- `Conflict`: `ReloadAsked` takes the server's copy, `OverwriteAsked` saves over it.
+- Register `Cms.Entities` and `Cms.operations` with `Remote.make`.
+
 ## The server
 
 ```ts
@@ -99,7 +125,7 @@ RemoteServer.make({
 - `CmsServer.make` throws for a content type with a `published` role whose
   binding has no `visible`.
 - `CmsSaveDraft` carries `basedOn` (the draft's `updatedAt`); a stale one is
-  refused as `CmsConflict: ...`. Its first save with `entry: null` makes the entry.
+  refused as `CmsConflict: ...`. The first save of an id nobody has makes the entry.
 - `CmsPublish` runs `create` (no row yet) or `update` (the draft's value plus the
   row's `id`) inside `transaction`, with the row shown, the revision appended and
   the draft removed, all or nothing. Do not register `create`/`update` with

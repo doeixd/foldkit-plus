@@ -556,6 +556,9 @@ importers:
 
   packages/cms:
     dependencies:
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
@@ -568,6 +571,9 @@ importers:
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
     devDependencies:
       effect:
         specifier: 4.0.0-rc.112
@@ -609,9 +615,15 @@ importers:
       foldkit:
         specifier: 0.158.2
         version: 0.158.2(effect@4.0.0-rc.112)
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
       foldkit-form:
         specifier: workspace:*
         version: link:../form
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

@@ -211,6 +211,16 @@ describe('Form update', () => {
     expect(invalid).toEqual(['title', 'status', 'authorId'])
   })
 
+  it('gives what decodes as it stands, less every key that does not yet', () => {
+    const { model } = send(initial, change('title', 'Hello'), change('rating', '9'))
+    const partial = CreatePost.partial(model)
+    expect(partial.title).toBe('Hello')
+    // Out of range, and an author not chosen: neither is part of unfinished work.
+    expect('rating' in partial).toBe(false)
+    expect('authorId' in partial).toBe(false)
+    expect(CreatePost.engine.value(model)).toBeUndefined()
+  })
+
   it('submits the decoded input: numbers parsed, nothing as the schema admits it', () => {
     const { out, model } = send(initial, ...filled, Message.Submitted())
     expect(out).toEqual({

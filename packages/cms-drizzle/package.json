@@ -55,7 +55,9 @@
   "devDependencies": {
     "effect": "4.0.0-rc.112",
     "foldkit": "0.158.2",
+    "foldkit-bundle": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
   }

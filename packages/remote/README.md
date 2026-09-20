@@ -528,8 +528,9 @@ case 'ClickedRefresh': {
 ```
 
 `Data.refresh` performs no I/O and restates no request. It returns the Model
-with every selected field the store holds reading `Refreshing` and every loaded
-connection invalidated; the `Data.subscriptions` read entries then refetch it,
+with every selected field the store holds reading `Refreshing`, every entity it
+knew to be absent forgotten, so `NotFound` reads `Loading` and is asked for
+again, and every loaded connection invalidated; the `Data.subscriptions` read entries then refetch it,
 since stale data is planned again under every policy, so the page is requested
 once. The Projection must be observed, as it is while it is on screen; for data
 nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.

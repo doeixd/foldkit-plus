@@ -71,8 +71,8 @@ const open = () => {
     create table articles (id text primary key, title text not null, slug text not null unique, published_at text);
     insert into articles values ('a1', 'Live', 'live', '2026-01-01'), ('a2', 'Hidden', 'hidden', null);
     insert into cms_entries values
-      ('e1', 'articles', 'a1', 'Live', null, '2026-01-01T00:00:00.000Z', null),
-      ('e5', 'articles', null, 'New', null, '2026-01-05T00:00:00.000Z', null);
+      ('e1', 'articles', 'a1', 'Live', null, '2026-01-01T00:00:00.000Z', null, null),
+      ('e5', 'articles', null, 'New', null, '2026-01-05T00:00:00.000Z', null, null);
   `)
   let made = 0
   const cms = CmsServer.make<Principal>({

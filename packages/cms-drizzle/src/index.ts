@@ -151,7 +151,6 @@ export interface CmsServerConfig<P> {
   readonly allow?: (principal: P, transition: Asked, entry: EntryRow) => boolean
   /** The server's clock, passed in so a test can hold it. */
   readonly now?: () => Date
-  readonly newId?: () => string
   /** Who a principal is, for `createdBy` and `updatedBy`. */
   readonly nameOf?: (principal: P) => string | null
 }
@@ -163,6 +162,7 @@ export interface EntryRow {
   readonly targetId: string | null
   readonly label: string
   readonly archivedAt: string | null
+  readonly revision: number | null
 }
 
 const refuse = (message: string) => new RemoteServerError({ message })
@@ -206,7 +206,6 @@ export const CmsServer = {
   make: <P = unknown>(config: CmsServerConfig<P>) => {
     const { tables, isAuthor } = config
     const now = config.now ?? (() => new Date())
-    const newId = config.newId ?? (() => globalThis.crypto.randomUUID())
     const nameOf = config.nameOf ?? (() => null)
 
     const byType = new Map(config.content.map(served => [served.type.name, served]))
@@ -331,6 +330,7 @@ export const CmsServer = {
       targetId: tables.entries.targetId,
       label: tables.entries.label,
       archivedAt: tables.entries.archivedAt,
+      revision: tables.entries.revision,
     }
     const findEntry = (id: string) =>
       Effect.gen(function* () {
@@ -371,6 +371,7 @@ export const CmsServer = {
               targetId: (record.values.targetId as string | null) ?? null,
               label: '',
               archivedAt: (record.values.archivedAt as string | null) ?? null,
+              revision: null,
             })),
           )
           const at = now()
@@ -427,7 +428,29 @@ export const CmsServer = {
 
     const draftFields = ['values', 'model', 'form', 'updatedAt', 'updatedBy', 'baseRevision']
     const draftPatch = returning(Db.Draft, draftFields)
-    const entryPatch = returning(Db.Entry, ['type', 'targetId', 'label', 'createdAt', 'archivedAt'])
+    const entryPatch = returning(Db.Entry, [
+      'type',
+      'targetId',
+      'label',
+      'createdAt',
+      'archivedAt',
+      'revision',
+    ])
+    /**
+     * The entry as the client should now hold it, its state with it: an operation
+     * changes the state, and a patch without it would leave the old one on screen.
+     */
+    const entryPatches = (id: string) =>
+      Effect.gen(function* () {
+        const patches = entryPatch.patches(yield* readRows(Db.Entry, entryPatch.columns, id))
+        const entry = yield* findEntry(id)
+        if (entry === undefined) return patches
+        const facts = (yield* factsOf([entry])).get(id)!
+        return patches.map(patch => ({
+          ...patch,
+          values: { ...patch.values, state: Cms.state(facts, now()) },
+        }))
+      })
     const readRows = (binding: AnyEntityBinding, columns: Record<string, AnyColumn>, id: string) =>
       Effect.gen(function* () {
         const database = yield* DrizzleDatabase
@@ -442,9 +465,8 @@ export const CmsServer = {
       Effect.gen(function* () {
         if (!byType.has(input.type))
           return yield* refuse(`"${input.type}" is not a type of content this server knows`)
-        const existing = input.entry === null ? undefined : yield* findEntry(input.entry)
-        if (input.entry !== null && existing === undefined)
-          return yield* refuse('There is no such entry')
+        // An id nobody has is something new: the client named it, and this makes it.
+        const existing = yield* findEntry(input.entry)
         if (existing !== undefined && existing.type !== input.type)
           return yield* refuse(`This entry is of "${existing.type}", not "${input.type}"`)
         if (existing?.archivedAt != null) return yield* refuse('An archived entry takes no draft')
@@ -452,7 +474,7 @@ export const CmsServer = {
 
         const database = (yield* DrizzleDatabase) as unknown as Writes
         const who = nameOf(principal)
-        const id = existing?.id ?? newId()
+        const id = existing?.id ?? input.entry
         const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, id)
         const previous = held === undefined ? null : String(held.updatedAt)
         // Two saves in one millisecond must still be told apart by the next one.
@@ -469,6 +491,10 @@ export const CmsServer = {
           updatedBy: who,
         }
 
+        // The first draft of an entry has nothing to have been based on. Asked before
+        // anything is written, so a refusal leaves no entry behind.
+        if (previous === null && input.basedOn !== null)
+          return yield* refuse('CmsConflict: this draft was discarded')
         if (existing === undefined) {
           yield* Effect.promise(() =>
             Promise.resolve(
@@ -480,13 +506,12 @@ export const CmsServer = {
                 createdBy: who,
                 createdAt: at,
                 archivedAt: null,
+                revision: null,
               }),
             ),
           )
         }
         if (previous === null) {
-          // The first draft of an entry: nothing to have been based on.
-          if (input.basedOn !== null) return yield* refuse('CmsConflict: this draft was discarded')
           yield* Effect.promise(() =>
             Promise.resolve(
               database.insert(tables.drafts).values({ id, ...written, baseRevision: null }),
@@ -522,7 +547,7 @@ export const CmsServer = {
         }
 
         const entities = [
-          ...entryPatch.patches(yield* readRows(Db.Entry, entryPatch.columns, id)),
+          ...(yield* entryPatches(id)),
           ...draftPatch.patches(yield* readRows(Db.Draft, draftPatch.columns, id)),
         ]
         return { output: { entry: id as never, updatedAt }, entities }
@@ -540,7 +565,8 @@ export const CmsServer = {
         )
         const gone = [{ entity: 'CmsDraft', id: entry.id }]
         // Never published, and now with nothing entered: there is nothing left of it.
-        if (entry.targetId !== null) return { output: {}, deleted: gone }
+        if (entry.targetId !== null)
+          return { output: {}, deleted: gone, entities: yield* entryPatches(entry.id) }
         yield* Effect.promise(() =>
           Promise.resolve(database.delete(tables.entries).where(eq(tables.entries.id, entry.id))),
         )
@@ -577,17 +603,9 @@ export const CmsServer = {
 
         const database = yield* DrizzleDatabase
         const [draft] = yield* readRows(Db.Draft, { values: tables.drafts.values }, entry.id)
-        const [latest] = yield* Effect.promise(() =>
-          Promise.resolve(
-            database
-              .select({ n: sql<number | null>`max(${tables.revisions.n})` })
-              .from(tables.revisions)
-              .where(eq(tables.revisions.entryId, entry.id)),
-          ),
-        )
-        const held = latest?.n == null ? null : Number(latest.n)
-        if (held !== input.basedOn)
-          return yield* refuse('CmsConflict: this entry was published by someone else since')
+        const held = entry.revision
+        const conflict = refuse('CmsConflict: this entry was published by someone else since')
+        if (held !== input.basedOn) return yield* conflict
 
         // A row that was deleted under its entry is made again.
         const creating = facts.row === 'none'
@@ -627,6 +645,26 @@ export const CmsServer = {
           .transaction(
             Effect.gen(function* () {
               const writes = (yield* DrizzleDatabase) as unknown as Writes
+              const n = (held ?? 0) + 1
+              // Compare and set, first: of two publishes made from one revision, one
+              // finds the number already moved, and nothing of it is written.
+              const moved = yield* Effect.promise(() =>
+                Promise.resolve(
+                  writes
+                    .update(tables.entries)
+                    .set({ revision: n })
+                    .where(
+                      and(
+                        eq(tables.entries.id, entry.id),
+                        held === null
+                          ? isNull(tables.entries.revision)
+                          : eq(tables.entries.revision, held),
+                      ),
+                    )
+                    .returning({ id: tables.entries.id }),
+                ),
+              )
+              if (moved.length === 0) return yield* conflict
               const ran = yield* handler.run({ input: decoded, principal })
               const targetId = creating
                 ? String((ran.output as { readonly id: unknown }).id)
@@ -646,7 +684,6 @@ export const CmsServer = {
                   ),
                 )
               }
-              const n = (held ?? 0) + 1
               const revisionId = `${entry.id}:${n}`
               yield* Effect.promise(() =>
                 Promise.resolve(
@@ -678,7 +715,7 @@ export const CmsServer = {
                 entities: [
                   ...ran.entities,
                   ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
-                  ...entryPatch.patches(yield* readRows(Db.Entry, entryPatch.columns, entry.id)),
+                  ...(yield* entryPatches(entry.id)),
                   ...revisionPatch.patches(
                     yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
                   ),
@@ -719,9 +756,10 @@ export const CmsServer = {
         const content = returning(served.binding, [shown.key])
         return {
           output: {},
-          entities: content.patches(
-            yield* readRows(served.binding, content.columns, entry.targetId!),
-          ),
+          entities: [
+            ...content.patches(yield* readRows(served.binding, content.columns, entry.targetId!)),
+            ...(yield* entryPatches(entry.id)),
+          ],
         }
       }),
     )
