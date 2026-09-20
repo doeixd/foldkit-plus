@@ -2347,6 +2347,8 @@ No declared capability means no generated screen.
 > is the list below, which is nine products, not one. The first version should
 > be the one a real site needs; draft/published with slugs is the likeliest, since
 > it is mostly a lifecycle over an Entity plus two `Input`/`Display` kinds.
+>
+> **Designed in [cms-DESIGN.md](./cms-DESIGN.md).**
 
 Once the above exists, `foldkit-cms` should be surprisingly small.
 
