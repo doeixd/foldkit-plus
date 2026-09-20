@@ -4,7 +4,12 @@
  */
 import { Schema, SchemaGetter } from 'effect'
 import type * as Domain from 'foldkit-entity'
-import { RelationAnnotation, RelationEntityAnnotation, refParts } from './relation.js'
+import {
+  RelationAnnotation,
+  RelationEntityAnnotation,
+  refParts,
+  RELATION_ALIAS,
+} from './relation.js'
 // selection.ts imports this module too; both only use the other inside
 // function bodies, so the cycle is never observed at module evaluation.
 import { Selection, type SelectionOf, type SelectionValue } from './selection.js'
@@ -183,6 +188,13 @@ export const Entity = {
     name: Name,
     schema: Schema.Struct<F>,
   ): EntityDescriptor<Name, F> => {
+    // A page of a relation is read as `field@size`, so a field may not look like one.
+    const reserved = Object.keys(schema.fields).find(field => field.includes(RELATION_ALIAS))
+    if (reserved !== undefined) {
+      throw new Error(
+        `Entity.make: field "${reserved}" of "${name}" contains "${RELATION_ALIAS}", which names a page of a relation`,
+      )
+    }
     const descriptor: EntityDescriptor<Name, F> = {
       name,
       schema,

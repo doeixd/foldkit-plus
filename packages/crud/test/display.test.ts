@@ -104,6 +104,25 @@ describe('Display', () => {
     ).toBe('c1 First, c2 Second')
   })
 
+  it('leaves a hidden member out of a nested value', () => {
+    // Read, so a row can be keyed by it, and not shown. It has text of its own, which
+    // `Hidden` does not, so only `shown` keeps it out.
+    const Key = Display.kind('Key', { shown: false, text: (_, value) => String(value) })
+    const Quiet = Entity.relate(
+      {
+        Comment: Blog.Comment.pipe(Entity.annotateMembers({ id: Display.of(Key.of({})) })),
+        Post: Entity.define('QuietPost', Schema.Struct({ id: Schema.String })),
+      },
+      { Post: { comments: Relation.many(Blog.Comment) } },
+    )
+    const [comments] = Crud.detail('Quiet', {
+      selection: Entity.select(Quiet.Post, {
+        comments: Entity.select(Quiet.Comment, { id: true, body: true }),
+      }),
+    }).fields
+    expect(Display.show(comments!.display, [{ id: 'c1', body: 'First' }])).toBe('First')
+  })
+
   it('says nothing, in the words given, for what is absent or empty', () => {
     expect(Display.show(displayOf('subtitle'), null)).toBe('')
     expect(Display.show(displayOf('subtitle'), null, { nothing: '—' })).toBe('—')

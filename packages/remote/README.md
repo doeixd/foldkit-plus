@@ -460,6 +460,8 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
   in one batch, merged and refreshed each on its own. A write to the list (a
   mutation's patch, a live change) marks its pages stale, so they are read again.
   A cursor is not part of the name: a page read from a cursor continues its page.
+  The server refuses a request that pages one relation more than four ways, and
+  a field's own name may not contain `@`.
 
 `Entity.make` with `Entity.ref` keeps working, and both kinds can share one
 domain. Both packages export `Entity`; a module that needs `Entity.from` beside

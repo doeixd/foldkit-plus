@@ -14,7 +14,7 @@ export type SortState<Column extends string> = {
 
 /** How one column is sorted now, and the Message a click on its header sends. */
 export interface SortedColumn<Message> {
-  readonly direction: 'asc' | 'desc' | undefined
+  readonly direction?: 'asc' | 'desc' | undefined
   readonly message: Message
 }
 

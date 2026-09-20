@@ -155,6 +155,39 @@ describe('a relation read under an alias', () => {
     expect(reads.every(entry => !entry.fields.includes('comments'))).toBe(true)
   })
 
+  it('refuses more pages of one relation than a screen would show, at any depth', async () => {
+    const pages = [1, 2, 3, 4, 5].map(first => relationAlias('comments', { first }))
+    const windows = Object.fromEntries(pages.map((name, index) => [name, { first: index + 1 }]))
+    // Each would be a source read of its own, and the client names them.
+    await expect(
+      read('admin', [{ entity: 'Project', id: 'p1', fields: pages, windows }]),
+    ).rejects.toMatchObject({ message: 'Too many pages of "Project.comments" in one read' })
+    expect(reads).toEqual([])
+
+    await expect(
+      read('admin', [
+        {
+          entity: 'Comment',
+          id: 'c1',
+          fields: ['body'],
+          relations: { body: { entity: 'Project', fields: pages, windows } },
+        },
+      ]),
+    ).rejects.toMatchObject({ message: 'Too many pages of "Project.comments" in one read' })
+
+    // Four is within what a screen shows.
+    const allowed = pages.slice(0, 4)
+    const result = await read('admin', [
+      {
+        entity: 'Project',
+        id: 'p1',
+        fields: allowed,
+        windows: Object.fromEntries(allowed.map((name, index) => [name, { first: index + 1 }])),
+      },
+    ])
+    expect(Object.keys(valuesOf(result, 'Project:p1'))).toEqual(allowed)
+  })
+
   it('asks for nothing when an alias names no window', async () => {
     const result = await read('admin', [{ entity: 'Project', id: 'p1', fields: ['name', page] }])
     expect(valuesOf(result, 'Project:p1')).toEqual({ name: 'Apollo' })

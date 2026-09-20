@@ -251,13 +251,6 @@ export interface PageWindow {
   readonly before?: string | undefined
 }
 
-/** One page of a `many` relation: the items read, and whether more lie on either side. */
-export interface Page<Item> {
-  readonly items: ReadonlyArray<Item>
-  readonly hasNext: boolean
-  readonly hasPrevious: boolean
-}
-
 export const SelectionPageTypeId: unique symbol = Symbol.for('foldkit-entity/SelectionPage')
 export type SelectionPageTypeId = typeof SelectionPageTypeId
 
@@ -703,8 +696,8 @@ export const Entity = {
 
   /**
    * A `many` relation read a page at a time, in place of its Selection:
-   * `comments: Entity.page(CommentSummary, { first: 10 })`. The value is a `Page`
-   * of the Selection's values. Reading on from a cursor is another window.
+   * `comments: Entity.page(CommentSummary, { first: 10 })`. The value is a page
+   * of the Selection's values: `items`, `hasNext`, `hasPrevious`. Reading on from a cursor is another window.
    */
   page: <Name extends string, S extends Schema.Constraint>(
     selection: Selection<Name, any, S>,

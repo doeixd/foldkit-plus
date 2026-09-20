@@ -8,7 +8,7 @@
  * no state, so the Messages for opening a row, sorting, and loading more arrive
  * as inputs.
  */
-import { Display, type DisplayColumn, type DisplayWords } from 'foldkit-crud'
+import { Display, type DisplayColumn, type DisplayWords, type SortedColumn } from 'foldkit-crud'
 import { fillWords } from 'foldkit-form'
 
 type AnyDisplay = DisplayColumn['display']
@@ -47,12 +47,6 @@ export type DisplayRenderers<Message> = Readonly<
   Record<string, (context: DisplayContext<Message>) => Html>
 >
 
-/** How one column is sorted now, and the Message a click on its header sends. */
-export interface ColumnSort<Message> {
-  readonly direction?: 'asc' | 'desc' | undefined
-  readonly message: Message
-}
-
 /** What a list's Style and Behavior attachments may read, and what the application gives it. */
 export interface ListInput<Row, Message, Key extends string = string> {
   readonly page: RemoteData<Page<Row>>
@@ -61,7 +55,7 @@ export interface ListInput<Row, Message, Key extends string = string> {
   /** Loads the next page. Shown while the page has one. */
   readonly onMore?: Message | undefined
   /** The columns that sort, each with its state and its Message. */
-  readonly sort?: { readonly [K in Key]?: ColumnSort<Message> } | undefined
+  readonly sort?: { readonly [K in Key]?: SortedColumn<Message> } | undefined
   /** Renderers by Display kind, for every column of that kind. */
   readonly renderers?: DisplayRenderers<Message> | undefined
   /** One column drawn specially; it wins over a renderer. Every other cell says `Display.show`. */

@@ -179,7 +179,7 @@ PostRow.schema.Type
 | Field, Derived | `true` | the member's own schema, checks included |
 | Relation | `true` | an `EntityRef`: `{ entity, id }` |
 | Relation | a Selection of its target | that Selection's value |
-| `many` Relation | `Entity.page(selection, window)` | a `Page` of that Selection's values |
+| `many` Relation | `Entity.page(selection, window)` | a page of that Selection's values: `{ items, hasNext, hasPrevious }` |
 
 A `many` relation yields an array, and an optional `one` is nullable. A
 Selection is an ordinary value, so `AuthorOption` above is declared once and
@@ -330,7 +330,7 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
-| `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a `Page`: `items`, `hasNext`, `hasPrevious`. |
+| `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |

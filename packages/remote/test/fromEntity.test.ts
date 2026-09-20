@@ -106,6 +106,12 @@ describe('Entity.from', () => {
     expect(Entity.from(Work.Project)).toBe(descriptor)
   })
 
+  it('refuses a field named like a page of a relation', () => {
+    expect(() =>
+      Entity.make('Odd', Schema.Struct({ id: Schema.String, 'notes@first=1': Schema.String })),
+    ).toThrow('field "notes@first=1" of "Odd" contains "@"')
+  })
+
   it('needs an id field', () => {
     const Keyless = Domain.define('Keyless', Schema.Struct({ name: Schema.String }))
     expect(() => Entity.from(Keyless as never)).toThrow(

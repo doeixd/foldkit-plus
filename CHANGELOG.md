@@ -14,8 +14,10 @@ version changed; `pnpm` skips versions already in the registry.
   the wire; `RemoteServer` reads the alias apart and answers under it, and the
   live hub re-reads a subscriber's page when its list changes. A write to the
   list marks its pages stale. Requirements for such a Selection now name the
-  alias in `fields`, `windows` and `relations`. Both packages must be upgraded
-  together: an older server does not know an alias. `RELATION_ALIAS`,
+  alias in `fields`, `windows` and `relations`. A request may page one
+  relation at most four ways, since each is a source read the client names, and
+  `Entity.make` refuses a field whose name contains `@`. Both packages must be
+  upgraded together: an older server does not know an alias. `RELATION_ALIAS`,
   `relationAlias` and `aliasedField` are exported.
 
 - **Words are text. Breaking.** `FormMessages` entries may be text with blanks

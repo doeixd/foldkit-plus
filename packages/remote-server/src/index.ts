@@ -191,6 +191,32 @@ export interface HandlerOptions<P, R = never> {
 }
 
 /** Fails when the requirements name more distinct ids of one entity than `maxIds`. */
+/**
+ * Each page of a relation read beside another is a source read of its own, and
+ * the names come from the client, so how many one relation may have is bounded.
+ * A screen shows a list and a page or two of it, not dozens.
+ */
+const MAX_PAGES_PER_RELATION = 4
+
+/** The relation a request pages more ways than allowed, at any depth; `undefined` when none. */
+const checkPagesPerRelation = (
+  requirements: ReadonlyArray<RelationRequirement>,
+): string | undefined => {
+  for (const requirement of requirements) {
+    const pages = new Map<string, number>()
+    for (const name of requirement.fields) {
+      if (!name.includes(RELATION_ALIAS)) continue
+      const field = aliasedField(name)
+      const count = (pages.get(field) ?? 0) + 1
+      if (count > MAX_PAGES_PER_RELATION) return `${requirement.entity}.${field}`
+      pages.set(field, count)
+    }
+    const nested = checkPagesPerRelation(Object.values(requirement.relations ?? {}))
+    if (nested !== undefined) return nested
+  }
+  return undefined
+}
+
 const checkIdsPerEntity = (
   requirements: ReadonlyArray<Requirement>,
   maxIds: number,
@@ -285,6 +311,12 @@ const liveHub = <P, R>(entities: ReadonlyArray<EntitySource<P, R>>): Effect.Effe
             if (over !== undefined) {
               return yield* new RemoteServerError({
                 message: `Too many "${over}" ids in one live subscription`,
+              })
+            }
+            const paged = checkPagesPerRelation(requirements)
+            if (paged !== undefined) {
+              return yield* new RemoteServerError({
+                message: `Too many pages of "${paged}" in one live subscription`,
               })
             }
             const selected = new Map<string, Selected>()
@@ -684,6 +716,10 @@ export const RemoteServer = {
       const over = checkIdsPerEntity(payload.requests, maxIds)
       if (over !== undefined) {
         return yield* new RemoteReadError({ message: `Too many "${over}" ids in one read batch` })
+      }
+      const paged = checkPagesPerRelation(payload.requests)
+      if (paged !== undefined) {
+        return yield* new RemoteReadError({ message: `Too many pages of "${paged}" in one read` })
       }
 
       // Level by level: a level's relation refs become the next level's requests.
