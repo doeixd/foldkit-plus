@@ -7,6 +7,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-cms` 0.1.0 (new): the pure core.** `Cms.roles` marks the members of
+  an Entity that play a CMS part (`label`, `slug`, `published`) as metadata, read
+  with `Cms.rolesOf`. `Cms.content` declares a type of content: its Entity, its
+  form, the application's own publish operations, its words. `Cms.Entities`
+  (`Entry`, `Draft`, `Revision`) and `Cms.Operations` are ordinary Entities and
+  Remote mutations. `Cms.state` and `Cms.offers` derive an entry's state and its
+  transitions from facts and a clock; nothing stores a status. No server yet.
+
 - `foldkit-form`: `Input.following(key, through)` writes a key's draft from
   another key until the author writes it themselves (a slug from a title).
   Emptying it hands it back, and a form filled with a value for it does not

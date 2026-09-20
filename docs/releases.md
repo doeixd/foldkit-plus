@@ -23,6 +23,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-entity`](../packages/entity) | 0.1.0 | Published | Domain structure: an Entity's fields, relations, and derived members as typed values, and Selections of them with an assembled schema. |
 | [`foldkit-form`](../packages/form) | 0.1.0 | Published | A form as a Bundle over core field validation, built from an operation's input and the Entity it writes. Headless. |
 | [`foldkit-mixins-crud`](../packages/mixins-crud) | 0.1.0 | Not yet published | Draws a `foldkit-crud` list as an accessible table and a detail as a description list, with every element a Mixins Slot. |
+| [`foldkit-cms`](../packages/cms) | 0.1.0 | Not yet published | What a CMS adds to a declared domain: roles, content types, drafts beside the row, and a lifecycle derived from facts. The pure core; no server yet. |
 | [`foldkit-mixins-form`](../packages/mixins-form) | 0.1.0 | Published | Draws a `foldkit-form` form as accessible HTML with every element a Mixins Slot. |
 | [`foldkit-surface`](../packages/surface) | 0.3.0 | Published | Observation boundary: pure Model projections, field references, and typed Message subsets. |
 | [`foldkit-remote`](../packages/remote) | 0.4.0 | Published | Normalized server state as a Foldkit Submodel: entities, selections, queries, connections, mutations, and live changes. |
@@ -83,7 +84,7 @@ Regular `dependencies` between workspace packages, declared as `workspace:*`
 and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-entity` depend on
 `foldkit-metadata`; `foldkit-agent`, `foldkit-mirror`,
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
-`foldkit-surface`; `foldkit-remote` and `foldkit-remote-drizzle` also depend on `foldkit-entity`; `foldkit-form` depends on `foldkit-bundle`, `foldkit-entity`, and `foldkit-metadata`; `foldkit-mixins-form` depends on `foldkit-bundle`, `foldkit-form`, and `foldkit-mixins`; `foldkit-crud` depends on `foldkit-bundle`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-remote`, and `foldkit-surface`; `foldkit-mixins-crud` depends on `foldkit-crud`, `foldkit-form`, `foldkit-mixins`, and `foldkit-remote`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
+`foldkit-surface`; `foldkit-remote` and `foldkit-remote-drizzle` also depend on `foldkit-entity`; `foldkit-form` depends on `foldkit-bundle`, `foldkit-entity`, and `foldkit-metadata`; `foldkit-mixins-form` depends on `foldkit-bundle`, `foldkit-form`, and `foldkit-mixins`; `foldkit-crud` depends on `foldkit-bundle`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-remote`, and `foldkit-surface`; `foldkit-cms` depends on `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, and `foldkit-remote`; `foldkit-mixins-crud` depends on `foldkit-crud`, `foldkit-form`, `foldkit-mixins`, and `foldkit-remote`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
 `foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.

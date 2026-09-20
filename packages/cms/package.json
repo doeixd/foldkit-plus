@@ -1,0 +1,60 @@
+{
+  "name": "foldkit-cms",
+  "version": "0.1.0",
+  "description": "What a CMS adds to a Foldkit Plus domain: audience, time, and address. A draft is an unsent form kept beside the content row; state is derived, never stored. Headless.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "cms",
+    "content",
+    "drafts",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/cms"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/cms#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*",
+    "foldkit-metadata": "workspace:*",
+    "foldkit-remote": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.112",
+    "foldkit": "^0.158.2"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}
