@@ -19,8 +19,11 @@
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
-      "foldkit-surface": ["../../packages/surface/src/index.ts"]
-    }
+      "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
+      "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"]
+    },
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
@@ -59,6 +62,12 @@
     },
     {
       "path": "../../packages/surface/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-crud/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-form/tsconfig.build.json"
     }
   ]
 }

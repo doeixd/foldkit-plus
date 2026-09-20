@@ -30,11 +30,12 @@ row was never a draft's to spoil.
 ```bash
 pnpm install
 pnpm build
-pnpm --filter foldkit-example-cms demo
+pnpm --filter foldkit-example-cms demo  # the scripted run, printed
+pnpm --filter foldkit-example-cms dev   # the same application, in a browser
 ```
 
-It uses an in-memory `node:sqlite` database, so there is no service to start.
-`test/demo.test.ts` pins the transcript.
+Both use an in-memory `node:sqlite` database, so there is no service to start,
+and a restart is a fresh start. `test/demo.test.ts` pins the transcript.
 
 ## What the run shows
 
@@ -62,6 +63,24 @@ It uses an in-memory `node:sqlite` database, so there is no service to start.
   post. Nothing about the placement is CMS-specific.
 - `demo.ts` is the three chairs and the clock.
 
-There is no browser mode yet. The views would be `FormView` over the editor's
-form with `Cms.controlRenderers()`, and `ListView` over the worklist with
-`Cms.displayRenderers()`.
+## In the browser
+
+`pnpm dev` serves the same `app.ts` on Foldkit's runtime, with an HTTP transport
+in place of the in-process one. **Which chair you sit in is in the address**
+(`?as=wren`, `?as=edda`, `?as=visitor`), so a reload is a change of chair, and
+two windows side by side are two authors on one entry.
+
+- `view.ts` is the only file the scripted run does not share. The form is
+  `FormView` with `Cms.controlRenderers()` beside its own, the worklist is
+  `ListView` with `Cms.displayRenderers()`, and what is left is the status line
+  and the buttons, which are an application's to word.
+- The right-hand panes are the point: **the post's page** is the application's
+  own reading of the row, so turning preview on draws the form's text there
+  without sending anything; **the public site** reads by address as a visitor
+  would. Publish, and the two agree.
+- `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
+  five seconds. Schedule something a minute out and watch it go.
+- **`x-chair` stands in for authentication.** It is the client saying who it is,
+  which no real server believes: a real one derives the principal from a session
+  it has verified. Everything else about the boundary is real — a visitor's reads
+  are refused by the same `visible` rules.

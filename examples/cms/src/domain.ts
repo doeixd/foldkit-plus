@@ -60,4 +60,4 @@ export const Posts = Cms.content('posts', {
 
 /** The public page's reading of a post, and the worklist's reading of an entry. */
 export const PostPage = Entity.select(Post, { title: true, slug: true, body: true })
-export const EntryRow = Entity.select(Cms.Entities.Entry, { label: true, state: true })
+export const EntryRow = Entity.select(Cms.Entities.Entry, { id: true, label: true, state: true })

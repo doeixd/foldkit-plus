@@ -20,7 +20,7 @@ import {
 import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
-import { makeEditor } from './editor.js'
+import { editorView, makeEditor } from './editor.js'
 import { Display } from 'foldkit-crud'
 import { Kinds } from './kinds.js'
 
@@ -377,6 +377,8 @@ export const Cms = {
    * publishing; publishing submits the form.
    */
   editor,
+  /** A form's Submodel view as its editor's, for `Bundle.withView`. */
+  editorView,
 
   /** The state of an entry, from what is known of it and a clock. */
   state: (facts: Facts, now: Date): State => state(facts, now),
@@ -391,6 +393,7 @@ export const Cms = {
 
 export type {
   EditorContent,
+  EditorMessage,
   EditorDomain,
   EditorForm,
   EditorModel,

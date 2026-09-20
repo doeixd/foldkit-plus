@@ -86,6 +86,8 @@ Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, Discard
 PostEditor.status(model) // Closed Loading NotFound LoadFailed Editing Saving Saved Conflict SaveFailed
 // Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
 PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
+PostEditor.pageId(model) // row id, else the entry's: what the app's own pages and a preview use
+Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(form, view)))), 'editor')
 ```
 
 - The editor's Messages are the form's plus its own, so a form view works as is.

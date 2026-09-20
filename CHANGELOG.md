@@ -37,7 +37,9 @@ version changed; `pnpm` skips versions already in the registry.
     follows a previewed post to the row publishing gives it; and gains `flush`,
     for an author who leaves within the rest of their last edit.
 - **`examples/cms`**: a post from its first keystroke to being taken off show, from
-  three chairs, over SQLite, with its transcript pinned.
+  three chairs, over SQLite, with its transcript pinned, and the same application
+  in a browser (`pnpm dev`) where the chair is in the address. `foldkit-cms` gains
+  `Cms.editorView` and the editor's `pageId`, which the browser mode needed.
 - **In-app preview.** `foldkit-remote` gains `Data.overlay(model, id, operations)`
   and `Data.lift(model, id)` (`OverlayShown`, `OverlayLifted`): optimistic
   operations shown with no request behind them. A content type's `preview` says

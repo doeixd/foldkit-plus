@@ -139,6 +139,7 @@ Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, D
 
 PostEditor.status(model) // Loading | Editing | Saving | Saved | Conflict | Publishing | Published | ...
 PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
+PostEditor.pageId(model) // the row's id, or the entry's until there is a row: what a preview shows under
 ```
 
 - **Saving is automatic and is not publishing.** Each edit starts a rest (`rest`,
@@ -239,6 +240,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.content(name, { entity, form, publish, words, preview? })` | A type of content: its Entity, form, publish operations, and name. |
 | `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
 | `Cms.newEntryId()` | An id for something new. |
+| `Cms.editorView(view)` | A form's Submodel view as its editor's, for `Bundle.withView`. |
 | `Cms.slug(from, options?)`, `Cms.dateTime()`, `Cms.slugify(text)` | Controls for a form's `inputs`. |
 | `Cms.Input.{Slug, DateTime}`, `Cms.Display.{State, Moment}` | The kinds: `.of(data)`, `.is(x)`. |
 | `Cms.controlRenderers()`, `Cms.displayRenderers()` | Their renderers, to spread beside the mixins' own. |

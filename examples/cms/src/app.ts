@@ -1,30 +1,51 @@
 /**
- * The authoring application: the worklist, the editor, and the application's own
- * reading of a post, which is what a preview is drawn through. There is nothing
- * CMS-specific about how any of it is placed.
+ * The authoring application: the worklist, the editor, the entry's history, and
+ * the application's own reading of a post, which is what a preview is drawn
+ * through. The scripted run and the browser both drive this one `update`.
+ * Nothing about how any of it is placed is CMS-specific.
  */
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
+import { Entity } from 'foldkit-entity'
+import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
+import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
-import { EntryRow, Post, PostPage, Posts } from './domain.js'
+import { EntryRow, Post, PostForm, PostPage, Posts } from './domain.js'
 
-export const Editor = Cms.editor('PostEditor', { content: Posts, rest: 0 })
-const Slot = Bundle.declare(Editor.bundle, 'editor')
+export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
 
-export const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
+// The form is drawn by `foldkit-mixins-form`; the CMS adds renderers for its two kinds.
+const PostFormView = FormView.define(PostForm, { renderers: Cms.controlRenderers() })
+const Slot = Bundle.declare(
+  Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(PostForm, PostFormView)))),
+  'editor',
+)
+
+export const Model = Schema.Struct({
+  remote: Remote.Model,
+  ...Slot.fields,
+  /** What the schedule box holds: the text of a `datetime-local` input. */
+  scheduleAt: Schema.String,
+  /** The address the public page is looking at. */
+  visiting: Schema.String,
+})
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   ...Remote.messages,
   ...Slot.cases,
   OpenedEntry: { entry: Schema.String },
-  /** The id is made where the click is handled, so `update` stays pure. */
+  /** Asked for something new; its id is made in a Command, so `update` stays pure. */
+  AskedForPost: {},
   StartedPost: { entry: Schema.String },
   ClosedEditor: {},
+  TypedSchedule: { text: Schema.String },
+  AskedForHistory: {},
+  Visited: { slug: Schema.String },
   /** Nothing happened; something may have arrived. */
   Ticked: {},
 })
@@ -41,7 +62,8 @@ export const Data = Remote.make({
 export const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 
 /** What an author works on: entries, not rows, so something never published is here. */
-export const Worklist = Crud.list('Worklist', { query: Cms.Entries, selection: EntryRow }).at({
+export const WorklistList = Crud.list('Worklist', { query: Cms.Entries, selection: EntryRow })
+export const Worklist = WorklistList.at({
   data: Data,
   input: () => ({ type: Posts.name, search: '', archived: false }),
 })
@@ -49,11 +71,57 @@ export const Worklist = Crud.list('Worklist', { query: Cms.Entries, selection: E
 /** The post as the application's own pages read it. */
 export const postPage = (id: string) => Data.get(PostPage, id as never)
 
+/** What was published, newest first: what `RestoreAsked` goes back to. */
+const History = Entity.select(Cms.Entities.Entry, {
+  revisions: Entity.select(Cms.Entities.Revision, {
+    n: true,
+    publishedAt: true,
+    publishedBy: true,
+  }),
+})
+export const history = (model: Model) => {
+  const entry = PostEditor.entry(model)
+  return entry === null ? undefined : Data.get(History, entry as never)
+}
+
+/** The public site: whatever is at an address, for whoever is asking. */
+export const Site = Crud.list('Site', { query: Cms.bySlug(Posts), selection: PostPage }).at({
+  data: Data,
+  input: (model: Model) => ({ slug: model.visiting }),
+})
+
+/** What Remote fetches and retains while it is on screen. */
+export const actives = {
+  worklist: Worklist.active,
+  site: Site.active,
+  ...PostEditor.actives,
+  history: {
+    name: 'History',
+    owner: Data.contract.owner ?? {},
+    projectionOf: history,
+  },
+  page: {
+    name: 'PostPage',
+    owner: Data.contract.owner ?? {},
+    projectionOf: (model: Model) => {
+      const id = PostEditor.pageId(model)
+      return id === null ? undefined : postPage(id)
+    },
+  },
+}
+
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+export const EditorSlot = Page.at(Slot, { onOut: PostEditor.onOut })
+export const placements = Page.assemble(EditorSlot, Data.wiring(actives))
+
+const newPost: Command<Message> = {
+  name: 'NewEntryId',
+  args: {},
+  effect: Effect.sync(() => Message.StartedPost({ entry: Cms.newEntryId() })),
+}
 
 export const update = PostEditor.after(
-  Page.assemble(Placed).update((model: Model, message: Message) => {
+  placements.update((model: Model, message: Message) => {
     // Leaving drops what is in the form, so what has not been saved is saved first:
     // an author who types and leaves within the rest loses nothing.
     const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
@@ -62,21 +130,31 @@ export const update = PostEditor.after(
     }
     switch (message._tag) {
       case 'OpenedEntry':
-        return leaving(Placed.helpers.open(message.entry))
+        return leaving(EditorSlot.helpers.open(message.entry))
+      case 'AskedForPost':
+        return { model, commands: [newPost] }
       case 'StartedPost':
-        return leaving(Placed.helpers.create(message.entry))
+        return leaving(EditorSlot.helpers.create(message.entry))
       case 'ClosedEditor':
-        return leaving(Placed.helpers.close())
+        return leaving(EditorSlot.helpers.close())
+      case 'TypedSchedule':
+        return { model: { ...model, scheduleAt: message.text } }
+      case 'AskedForHistory': {
+        // A publish patches the new revision in; its place in the list is asked for.
+        const projection = history(model)
+        const refreshed = projection === undefined ? model : Data.refresh(model, projection)
+        return { model: Data.refresh(refreshed, Worklist.active.projectionOf(refreshed)!) }
+      }
+      case 'Visited':
+        return { model: { ...model, visiting: message.slug } }
       default:
-        return Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model }
+        return { model }
     }
   }),
 )
 
-/** What Remote fetches and retains while it is on screen. */
-export const actives = { worklist: Worklist.active, ...PostEditor.actives }
-
-export const initial: Model = {
+export const initial: Model = placements.initial({
   remote: Remote.initial,
-  editor: Editor.bundle.init(undefined).model,
-}
+  scheduleAt: '',
+  visiting: 'hello-world',
+}).model

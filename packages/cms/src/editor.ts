@@ -26,6 +26,8 @@ import type {
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import type { State } from './lifecycle.js'
 
@@ -166,6 +168,55 @@ const held = <A>(read: RemoteData<A> | undefined): A | undefined =>
 const fresh = (read: RemoteData<unknown> | undefined): boolean =>
   read?._tag === 'Ready' || read?._tag === 'NotFound'
 
+// The editor's own Messages, beside the form's. `Rested` is the end of the
+// rest an edit started; the rest are what an author asks.
+export const EditorMessage = defineMessageUnion({
+  Rested: { edit: Schema.Number },
+  PublishAsked: {},
+  /** Lays what is in the form over the store, until `PreviewHidden`. Nothing is sent. */
+  PreviewShown: {},
+  PreviewHidden: {},
+  /** Publishes later: the form is submitted and saved now, and the server keeps the promise. */
+  ScheduleAsked: { at: Schema.String },
+  UnscheduleAsked: {},
+  ArchiveAsked: {},
+  UnarchiveAsked: {},
+  DiscardAsked: {},
+  /** Makes a revision's value the working copy. It replaces what is here, and publishes nothing. */
+  RestoreAsked: { revision: Schema.Number },
+  UnpublishAsked: {},
+  /** After a conflict: drop what is here and show the server's copy. */
+  ReloadAsked: {},
+  /** After a conflict: save what is here over the server's copy. */
+  OverwriteAsked: {},
+})
+export type EditorMessage = typeof EditorMessage.Type
+const Own = EditorMessage
+type Own = EditorMessage
+
+/**
+ * A form's Submodel view as the view of the editor that wraps it, for
+ * `Bundle.withView`: the editor's Model holds the form's under `form`, and what
+ * the form's view sends is among the editor's Messages.
+ *
+ * ```ts
+ * Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(form, view))))
+ * ```
+ */
+export const editorView = <FormModel, FormMessage, ViewInputs>(
+  view: Submodel.View<FormModel, FormMessage, ViewInputs>,
+): Submodel.View<EditorModel<FormModel>, FormMessage | EditorMessage, ViewInputs> =>
+  Submodel.defineView<EditorModel<FormModel>, FormMessage | EditorMessage, ViewInputs>(((
+    model: EditorModel<FormModel>,
+    inputs: ViewInputs,
+    h: HtmlBuilder<FormMessage>,
+  ): Html =>
+    (view as (model: FormModel, inputs: ViewInputs, h: HtmlBuilder<FormMessage>) => Html)(
+      model.form,
+      inputs,
+      h,
+    )) as never)
+
 export const makeEditor =
   (cms: {
     readonly Entities: { readonly Entry: AnyEntity; readonly Draft: AnyEntity }
@@ -239,29 +290,6 @@ export const makeEditor =
       settling: Schema.NullOr(Schema.Literals(['reload', 'overwrite'])),
     }) as unknown as Schema.Codec<Model, unknown>
 
-    // The editor's own Messages, beside the form's. `Rested` is the end of the
-    // rest an edit started; the rest are what an author asks.
-    const Own = defineMessageUnion({
-      Rested: { edit: Schema.Number },
-      PublishAsked: {},
-      /** Lays what is in the form over the store, until `PreviewHidden`. Nothing is sent. */
-      PreviewShown: {},
-      PreviewHidden: {},
-      /** Publishes later: the form is submitted and saved now, and the server keeps the promise. */
-      ScheduleAsked: { at: Schema.String },
-      UnscheduleAsked: {},
-      ArchiveAsked: {},
-      UnarchiveAsked: {},
-      DiscardAsked: {},
-      /** Makes a revision's value the working copy. It replaces what is here, and publishes nothing. */
-      RestoreAsked: { revision: Schema.Number },
-      UnpublishAsked: {},
-      /** After a conflict: drop what is here and show the server's copy. */
-      ReloadAsked: {},
-      /** After a conflict: save what is here over the server's copy. */
-      OverwriteAsked: {},
-    })
-    type Own = typeof Own.Type
     type Message = FormMessage | Own
     const Message = Schema.Union([form.bundle.Message, Own]) as unknown as Schema.Codec<
       Message,
@@ -820,6 +848,13 @@ export const makeEditor =
           /** Whether this content type can be previewed, and whether it is being. */
           canPreview: content.preview !== undefined,
           previewing: (root: Root): boolean => slice.get(root).previewing,
+          /**
+           * The id the application's own pages know this content by: the row's, or
+           * the entry's while there is no row. It is what a preview is shown under.
+           */
+          pageId: (root: Root): string | null =>
+            held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
+            slice.get(root).entry,
           /** The entry being edited; `null` while closed. */
           entry: (root: Root): string | null => slice.get(root).entry,
           /** How the form came to hold what it holds; `Lost` is worth telling the author. */
