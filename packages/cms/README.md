@@ -139,6 +139,8 @@ An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
 | `Cms.offers(facts, now, content)` | The transitions it offers now. |
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
 | `Cms.Entries` | The worklist query: one content type's entries, by label, archived or not. |
+| `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Throws with no `slug` role. |
+| `Cms.slugTaken.key(message)` | The form key a server's `CmsSlugTaken: ...` error names, or `undefined`. |
 
 ## Limits
 

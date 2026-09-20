@@ -18,6 +18,7 @@ import {
   isNotNull,
   isNull,
   like,
+  ne,
   sql,
   type AnyColumn,
   type SQL,
@@ -165,6 +166,30 @@ export interface EntryRow {
 }
 
 const refuse = (message: string) => new RemoteServerError({ message })
+
+/**
+ * Whether a unique index on this column refused a write. Drivers say so in their
+ * own words, and Drizzle wraps what they say, so every message down the chain of
+ * causes is read. SQLite names the column; Postgres names the constraint, which
+ * by default is made of the column's name.
+ */
+const refusedAsDuplicate = (defect: unknown, column: string): boolean => {
+  const said: Array<string> = []
+  for (let at = defect, depth = 0; at != null && depth < 5; depth++) {
+    const { message, constraint, cause } = at as {
+      readonly message?: unknown
+      readonly constraint?: unknown
+      readonly cause?: unknown
+    }
+    // Drizzle's own message quotes the statement, which names every column.
+    if (!String(message).startsWith('Failed query'))
+      said.push(String(message ?? at), String(constraint ?? ''))
+    at = cause
+  }
+  const text = said.join(' ')
+  const named = new RegExp(`(^|[^a-zA-Z0-9])${column.replace(/[^\w]/g, '.')}([^a-zA-Z0-9]|$)`)
+  return /unique|duplicate/i.test(text) && named.test(text)
+}
 
 /**
  * For a content table's binding: a visitor sees the rows whose `published`
@@ -575,70 +600,104 @@ export const CmsServer = {
           Effect.mapError(error => refuse(`This draft is not ready to publish: ${String(error)}`)),
         )
 
-        return yield* config.transaction(
-          Effect.gen(function* () {
-            const writes = (yield* DrizzleDatabase) as unknown as Writes
-            const ran = yield* handler.run({ input: decoded, principal })
-            const targetId = creating
-              ? String((ran.output as { readonly id: unknown }).id)
-              : entry.targetId!
-            const at = now()
-            const shown = served.type.roles.published
-            if (shown !== undefined) {
-              // Publishing shows the row. One already shown keeps its first date.
-              const column = served.binding.columns[shown.key]!
+        // A taken slug is refused by name, on its key. This is advice: two publishes
+        // can both pass it, and then the unique index is the rule, below.
+        const address = served.type.roles.slug
+        const slug =
+          address === undefined
+            ? undefined
+            : (decoded as Readonly<Record<string, unknown>> | null)?.[address.key]
+        const taken = (key: string) => refuse(Cms.slugTaken.message(key, String(slug)))
+        if (address !== undefined && typeof slug === 'string') {
+          const column = served.binding.columns[address.key]!
+          const id = served.binding.columns.id!
+          const others = yield* Effect.promise(() =>
+            Promise.resolve(
+              database
+                .select({ id })
+                .from(served.binding.table)
+                .where(and(eq(column, slug), creating ? undefined : ne(id, entry.targetId!)))
+                .limit(1),
+            ),
+          )
+          if (others.length > 0) return yield* taken(address.key)
+        }
+
+        return yield* config
+          .transaction(
+            Effect.gen(function* () {
+              const writes = (yield* DrizzleDatabase) as unknown as Writes
+              const ran = yield* handler.run({ input: decoded, principal })
+              const targetId = creating
+                ? String((ran.output as { readonly id: unknown }).id)
+                : entry.targetId!
+              const at = now()
+              const shown = served.type.roles.published
+              if (shown !== undefined) {
+                // Publishing shows the row. One already shown keeps its first date.
+                const column = served.binding.columns[shown.key]!
+                yield* Effect.promise(() =>
+                  Promise.resolve(
+                    writes
+                      .update(served.binding.table)
+                      .set({ [shown.key]: stamp(column, at) })
+                      .where(and(eq(served.binding.columns.id!, targetId), isNull(column)))
+                      .returning({ id: served.binding.columns.id! }),
+                  ),
+                )
+              }
+              const n = (held ?? 0) + 1
+              const revisionId = `${entry.id}:${n}`
+              yield* Effect.promise(() =>
+                Promise.resolve(
+                  writes.insert(tables.revisions).values({
+                    id: revisionId,
+                    entryId: entry.id,
+                    n,
+                    values: draft?.values,
+                    publishedAt: at.toISOString(),
+                    publishedBy: nameOf(principal),
+                  }),
+                ),
+              )
+              yield* Effect.promise(() =>
+                Promise.resolve(writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
+              )
               yield* Effect.promise(() =>
                 Promise.resolve(
                   writes
-                    .update(served.binding.table)
-                    .set({ [shown.key]: stamp(column, at) })
-                    .where(and(eq(served.binding.columns.id!, targetId), isNull(column)))
-                    .returning({ id: served.binding.columns.id! }),
+                    .update(tables.entries)
+                    .set({ targetId })
+                    .where(eq(tables.entries.id, entry.id))
+                    .returning({ id: tables.entries.id }),
                 ),
               )
-            }
-            const n = (held ?? 0) + 1
-            const revisionId = `${entry.id}:${n}`
-            yield* Effect.promise(() =>
-              Promise.resolve(
-                writes.insert(tables.revisions).values({
-                  id: revisionId,
-                  entryId: entry.id,
-                  n,
-                  values: draft?.values,
-                  publishedAt: at.toISOString(),
-                  publishedBy: nameOf(principal),
-                }),
-              ),
-            )
-            yield* Effect.promise(() =>
-              Promise.resolve(writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
-            )
-            yield* Effect.promise(() =>
-              Promise.resolve(
-                writes
-                  .update(tables.entries)
-                  .set({ targetId })
-                  .where(eq(tables.entries.id, entry.id))
-                  .returning({ id: tables.entries.id }),
-              ),
-            )
-            const content = returning(served.binding, shown === undefined ? [] : [shown.key])
-            return {
-              output: { entry: entry.id as never, targetId, revision: n },
-              entities: [
-                ...ran.entities,
-                ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
-                ...entryPatch.patches(yield* readRows(Db.Entry, entryPatch.columns, entry.id)),
-                ...revisionPatch.patches(
-                  yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
-                ),
-              ],
-              connections: ran.connections,
-              deleted: [...ran.deleted, { entity: 'CmsDraft', id: entry.id }],
-            }
-          }),
-        )
+              const content = returning(served.binding, shown === undefined ? [] : [shown.key])
+              return {
+                output: { entry: entry.id as never, targetId, revision: n },
+                entities: [
+                  ...ran.entities,
+                  ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
+                  ...entryPatch.patches(yield* readRows(Db.Entry, entryPatch.columns, entry.id)),
+                  ...revisionPatch.patches(
+                    yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
+                  ),
+                ],
+                connections: ran.connections,
+                deleted: [...ran.deleted, { entity: 'CmsDraft', id: entry.id }],
+              }
+            }),
+          )
+          .pipe(
+            // The publish that lost the race: the index refused it, and it is the same
+            // news as the check's. Any other defect is left as it was.
+            Effect.catchDefect(defect =>
+              address !== undefined &&
+              refusedAsDuplicate(defect, served.binding.columns[address.key]!.name)
+                ? Effect.fail(taken(address.key))
+                : Effect.die(defect),
+            ),
+          )
       }),
     )
 
@@ -680,6 +739,21 @@ export const CmsServer = {
       Unpublish,
     ]
 
+    // A content type with an address is found by it, behind the same boundary as
+    // every other read of its table.
+    const bySlug = config.content.flatMap(({ type, binding }) => {
+      const address = type.roles.slug
+      if (address === undefined) return []
+      const column = binding.columns[address.key]!
+      return [
+        query<P, { readonly slug: string }>(Cms.bySlug(type), {
+          entity: binding,
+          where: input => eq(column, input.slug),
+          orderBy: [{ column: binding.columns.id!, direction: 'asc' }],
+        }) as QuerySource<P, DrizzleDatabase>,
+      ]
+    })
+
     return {
       /**
        * The sources of the content types and of the CMS's own Entities, each behind
@@ -687,7 +761,7 @@ export const CmsServer = {
        * table: that is how the boundary cannot be forgotten.
        */
       sources,
-      queries: [worklist] as ReadonlyArray<QuerySource<P, DrizzleDatabase>>,
+      queries: [worklist, ...bySlug] as ReadonlyArray<QuerySource<P, DrizzleDatabase>>,
       mutations,
       /** The bindings of `Entry`, `Draft` and `Revision`, for a handler that returns patches of them. */
       bindings: Db,

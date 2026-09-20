@@ -19,7 +19,9 @@ version changed; `pnpm` skips versions already in the registry.
   inside a transaction (`Transaction.statements` or `Transaction.drizzle`) that
   also shows the row, appends the revision and removes the draft; a publish made
   from an older revision is a conflict. `CmsUnpublish` hides the row and keeps it.
-  A visitor is refused before anything is looked up.
+  A visitor is refused before anything is looked up. A `slug` role adds a
+  `<name>BySlug` query (`Cms.bySlug`), and a publish to a taken slug fails as
+  `CmsSlugTaken: <key>: ...`, whether the check or the unique index caught it.
   `foldkit-cms` gains `Cms.Entries`.
 - `foldkit-remote-drizzle`: a derived member may be `{ supplied: true }`: bound,
   and answered by the application's own source.

@@ -107,6 +107,10 @@ RemoteServer.make({
 - `CmsPublish` carries `basedOn` (the latest revision's `n`, or `null`); a stale
   one is `CmsConflict: ...`. A draft the mutation's Input refuses is not published.
 - `CmsUnpublish` empties the `published` column; the row is kept.
+- A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to
+  `cms.queries`; a visitor finds only published rows. A taken slug fails a publish
+  as `CmsSlugTaken: <key>: ...`; `Cms.slugTaken.key(message)` is the key. Put a
+  unique index on the column: the check alone loses a race.
 - `allow(principal, transition, entry)` decides which author may; `now` is the clock.
 
 ## Gotchas

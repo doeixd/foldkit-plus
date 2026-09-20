@@ -308,6 +308,27 @@ export const Cms = {
   operations: Object.values(Operations),
   /** The worklist query, to register with Remote's `queries` and list with `Crud.list`. */
   Entries,
+  /**
+   * The query that finds a piece of content by its address: `<name>BySlug`, a
+   * connection of one or none. It throws for a content type with no `slug` role:
+   * a capability is declared, never implied.
+   */
+  bySlug: <Name extends string, E extends AnyEntity>(content: Content<Name, E, any, any>) => {
+    if (content.roles.slug === undefined)
+      fail(`content "${content.name}" has no slug role, so nothing is found by slug`)
+    return Query.make(`${content.name}BySlug` as `${Name}BySlug`, {
+      Input: { slug: Schema.String },
+      Result: Query.connection(content.entity as E & { readonly name: E['name'] }),
+    })
+  },
+  /**
+   * How a server says a slug is taken, as a mutation's error: `CmsSlugTaken: <key>: ...`.
+   * `slugTaken.key(message)` is the form key it names, or `undefined` for another error.
+   */
+  slugTaken: {
+    message: (key: string, slug: string) => `CmsSlugTaken: ${key}: "${slug}" is already used`,
+    key: (message: string): string | undefined => /CmsSlugTaken: ([^:]+): /.exec(message)?.[1],
+  },
 
   /** The state of an entry, from what is known of it and a clock. */
   state: (facts: Facts, now: Date): State => state(facts, now),

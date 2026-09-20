@@ -385,7 +385,9 @@ Each is a PR that stands on its own and leaves `pnpm check` green.
    the conflict rule, the `entries` query, and the audience policy with its
    tests: a visitor's principal is refused entries, drafts, revisions, and any
    unpublished row, at every depth of a nested read.
-4. **Publish.** *Built, but for slugs. The transaction is the application's to
+4. **Publish.** *Built. A mutation's error is a message and no more, so a taken
+   slug names its key in a prefix, `CmsSlugTaken: <key>:`, as a conflict does;
+   the form's own is-it-free check belongs to the editor, next. The transaction is the application's to
    name (`Transaction.statements` for one connection, `Transaction.drizzle` for an
    asynchronous driver), because Drizzle's differ by driver and a wrong guess
    either throws or silently does not roll back. Publishing also sets the

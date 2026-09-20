@@ -8,7 +8,7 @@ revisions outright, and sees of your content only what is published.
 
 > **Status: drafts and publishing.** Saving and discarding a draft, publishing
 > and unpublishing, the worklist, an entry's derived state, and the boundary.
-> Scheduling, restoring and slugs are the next steps of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
+> Scheduling and restoring are the next steps of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
 > Not on npm. SQLite and Postgres; MySQL has no `returning`, which the conflict
 > rule needs.
 
@@ -130,6 +130,22 @@ fails after writing leaves nothing behind.
 - What your handler returns (patches, connection changes, deletions) goes to the
   client with the entry, the revision and the row's `published` member.
 
+### Slugs
+
+A content type with a `slug` role is found by it: `cms.queries` has
+`Cms.bySlug(Posts)`, behind the same `visible` rule as every other read, so a
+visitor does not find what is not published.
+
+A publish to a slug another row has is refused as
+`CmsSlugTaken: slug: "hello" is already used`, and `Cms.slugTaken.key(message)`
+is the form key to show it on. **The check is advice; a unique index is the
+rule.** Two publishes can both pass the check, and the one the index refuses
+gets the same error. Without a unique index on the column, that race publishes
+two rows at one address. The slug is read from the publish input's member of the
+same key as the Entity's.
+
+### Unpublishing
+
 `CmsUnpublish` empties the `published` column. The row and its revisions are
 kept; a visitor stops seeing it, by every path, and publishing shows it again.
 Only a type with a `published` role offers it.
@@ -157,7 +173,9 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 
 - No scheduling, archive or restore yet; `allow` is asked about `save`, `discard`,
   `publish` and `unpublish`.
-- No slug handling yet: a unique index refuses a taken slug, as an ordinary error.
+- A driver's refusal is recognised by its words (`unique` or `duplicate`, and the
+  column's name). SQLite and Postgres say both; a constraint named without the
+  column arrives as the driver's own error.
 - Conflicts are refused, not merged.
 - A client that holds an entry's `revisions` list refetches it after a publish;
   the new revision arrives as a patch, not as a place in that list.
