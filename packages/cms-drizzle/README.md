@@ -118,12 +118,19 @@ transaction: the `published` column is set if it was empty, the revision is
 appended, the draft is removed, and the entry is told its row. A handler that
 fails after writing leaves nothing behind.
 
+- **Every operation is one transaction**, not only a publish: a save that made an
+  entry and could not make its draft leaves neither.
 - **You name the transaction**, because Drizzle's differ by driver.
   `Transaction.statements` is `begin` and `commit` as statements, for a database
   that is one connection (a SQLite file). `Transaction.drizzle` is
   `database.transaction`, for a driver whose transactions are asynchronous
   (Postgres, libSQL); your handlers then get the transaction as their
   `DrizzleDatabase`. Statements over a pool would not roll back.
+- **One connection holds one transaction**, so under `Transaction.statements` this
+  package's operations take turns at the database. Without that, a save arriving
+  while a publish is failing would be rolled back with it, after it was reported
+  done. A write of your own on the same connection does not take a turn unless
+  you make it inside `Transaction.statements` too.
 - **A publish names the revision it was made from** (`basedOn`, the entry's
   `revision`, or `null`). A newer one is `CmsConflict: ...`, not a publish over
   someone else's. The entry's `revision` is compared and set first, inside the
@@ -179,6 +186,11 @@ export default {
 - **A publish that fails stays scheduled, with the reason.** The entry reads
   overdue with that error, because that is true. It is not tried again until the
   draft changes: a fault the author must fix is not hammered every minute.
+- **What was promised is changed only by someone who could have promised it.**
+  Since a scheduled draft is published as whoever scheduled it, saving over it,
+  restoring over it or discarding it is refused to an author your `allow` would
+  not let `schedule`. Otherwise someone who may not publish would publish through
+  someone who may.
 - One failure does not stop the rest. `due` answers with each entry and its
   error, or `null`.
 - An archived entry keeps its promise, and keeps it waiting.
@@ -201,7 +213,7 @@ publishing shows it again. Put away, an entry offers nothing else.
 ## The worklist, and an entry's state
 
 `cms.queries` is `Cms.Entries`: the entries of one content type, searched by
-label, the archived ones or the rest. It lists entries, not content rows, so
+label (as typed: `%` and `_` are characters, not wildcards), the archived ones or the rest. It lists entries, not content rows, so
 something never published is in it.
 
 An entry's `state` is not a column. This server derives it, with `Cms.state`,

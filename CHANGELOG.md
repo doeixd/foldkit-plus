@@ -20,6 +20,21 @@ version changed; `pnpm` skips versions already in the registry.
   no timer. `CmsArchive` also takes what can be hidden off show. The editor gains
   `ScheduleAsked({ at })`, which submits and saves first, and `UnscheduleAsked`,
   `ArchiveAsked`, `UnarchiveAsked`. `cms_drafts` gains `scheduled_by`.
+- **Review of the CMS, and what it fixed.**
+  - *Security:* a scheduled draft is published as whoever scheduled it, and any
+    author could save, restore or discard over it, so an author who may not
+    publish could publish through one who may. That is now refused to anyone
+    `allow` would not let `schedule`.
+  - *Correctness:* `Transaction.statements` takes turns at its one connection; a
+    write arriving between another request's `begin` and `rollback` was rolled
+    back with it after being reported done. Every operation is now one
+    transaction, so a save cannot leave an entry without its draft.
+  - The worklist's search treats `%` and `_` as characters.
+  - The editor asks once when publish is pressed twice; lists a draft by what its
+    author typed, valid or not; forgets an old failure at the next save; resumes
+    a stored Model with nothing in flight (`form.settled`, new in `foldkit-form`);
+    follows a previewed post to the row publishing gives it; and gains `flush`,
+    for an author who leaves within the rest of their last edit.
 - **`examples/cms`**: a post from its first keystroke to being taken off show, from
   three chairs, over SQLite, with its transcript pinned.
 - **In-app preview.** `foldkit-remote` gains `Data.overlay(model, id, operations)`

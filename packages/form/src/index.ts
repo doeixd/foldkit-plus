@@ -185,6 +185,7 @@ export interface FormFor<
     readonly isValidating: (model: any) => boolean
     readonly value: (model: any) => unknown
   }
+  readonly settled: (model: any) => any
 }
 
 /** The forms a form may be given for its nested keys: each one made from that key's nested input. */
@@ -286,6 +287,7 @@ interface AnyForm extends NestedForm {
     readonly isValidating: (model: any) => boolean
     readonly value: (model: any) => unknown
   }
+  readonly settled: (model: any) => any
 }
 
 /** Assigned once `Form` exists: a form builds the forms of its nested keys with itself. */
@@ -1133,6 +1135,30 @@ const Core = {
         const next = submit(model)
         return next.value !== undefined || next.model.submitPending
       },
+      /**
+       * The Model with nothing in flight, for one that was stored and is shown
+       * again: a check that was running when it was stored will never answer, so
+       * its key is not validated yet, and no submit is waiting. Rows too.
+       */
+      settled: (model: Model): Model => ({
+        ...model,
+        submitPending: false,
+        fields: fieldsFrom(plan => {
+          const field = drafts(model)[plan.key as Key]
+          return field._tag === 'Validating'
+            ? FieldValidation.NotValidated({ value: field.value })
+            : field
+        }),
+        rows: Object.fromEntries(
+          rowsKeys.map(key => [
+            key,
+            rowsOf(model)[key]!.map(row => ({
+              ...row,
+              model: nestedPlans[key].form.settled(row.model),
+            })),
+          ]),
+        ) as unknown as Model['rows'],
+      }),
       /**
        * What of the form decodes as it stands, by key: the value, less every key
        * that is not valid yet. For saving unfinished work, which `engine.value`

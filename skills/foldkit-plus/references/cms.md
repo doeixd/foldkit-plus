@@ -97,6 +97,8 @@ PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
 - Preview: give `Cms.content` a `preview: (value, id) => operations`; `PreviewShown` /
   `PreviewHidden` lay the form's decodable value over Remote's store (`Data.overlay`),
   so the app's own views draw it. Nothing is sent. `PostEditor.canPreview`, `.previewing(model)`.
+- `open`/`create`/`close` drop the form: run `PostEditor.flush(model)` first (it
+  returns `{ model, commands }`) so edits made within the rest are saved.
 - `Conflict`: `ReloadAsked` takes the server's copy, `OverwriteAsked` saves over it.
 - Register `Cms.Entities` and `Cms.operations` with `Remote.make`.
 
@@ -154,6 +156,10 @@ RemoteServer.make({
   (state reads overdue) and is not retried until the draft changes.
 - `CmsRestore { entry, revision }` makes that revision's value the draft (replacing
   it, clearing its schedule) and publishes nothing.
+- A scheduled draft is published as its scheduler, so saving, restoring or
+  discarding it is refused to an author `allow` would not let `schedule`.
+- Every operation is one `transaction`; `Transaction.statements` serialises them
+  on the connection. Wrap your own writes on that connection in it too.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`
   brings it back unpublished.
 - A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to

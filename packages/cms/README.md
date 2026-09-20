@@ -145,6 +145,8 @@ PostEditor.state(model) // the entry's lifecycle state, as the server last deriv
   one second by default), and the edit that is still the last one when its rest
   ends saves the form as it stands, valid or not. There is no Save button to
   forget, and a validation error never costs an author their work.
+- A draft is listed by what its author called it, valid or not, and `untitled`
+  until they have. Publish pressed twice asks once.
 - **Publishing submits the form**, so its rules and checks decide, and an invalid
   form publishes nothing and says why in place. What is published is the saved
   draft, so a publish saves first when the last edit has not.
@@ -152,10 +154,15 @@ PostEditor.state(model) // the entry's lifecycle state, as the server last deriv
   and saves the form now, and the server keeps the promise. The entry's `state`
   says for when, and whether it happened. The form's own submit is always a
   publish now.
+- **Leaving within the rest.** `open`, `create` and `close` drop what is in the
+  form. Run `PostEditor.flush(model)` first, as
+  [the example](../../examples/cms/src/app.ts) does: it saves what has not been
+  saved, now, and does nothing when there is nothing to save.
 - **A draft never fails to open.** The saved Model is tried first, guarded by the
   form's name and `version`; then the saved values, key by key, keeping what the
   form still accepts; then what is published. `PostEditor.resumed(model)` says
-  which: `Model`, `Values`, `Published`, `Blank`, or `Lost`, which is worth
+  which: `Model` (shown with nothing in flight: a check that was running when it
+  was saved will never answer), `Values`, `Published`, `Blank`, or `Lost`, which is worth
   telling the author. Bump `version` when you change the form incompatibly.
 - **A second author's save is a `Conflict`**, with the text still in the form.
   `ReloadAsked` shows the server's copy; `OverwriteAsked` saves over it, based on

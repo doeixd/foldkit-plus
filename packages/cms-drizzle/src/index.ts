@@ -17,14 +17,13 @@ import {
   inArray,
   isNotNull,
   isNull,
-  like,
   lte,
   ne,
   sql,
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { Effect, Exit, Schema } from 'effect'
+import { Effect, Exit, Schema, Semaphore } from 'effect'
 import { Cms, type Content, type Facts } from 'foldkit-cms'
 import type { MutationDescriptor } from 'foldkit-remote'
 import {
@@ -105,18 +104,34 @@ const statement = (database: DrizzleDatabaseService, text: string) =>
     )
   })
 
+// One connection holds one transaction. Without this, a write another request
+// makes between this one's `begin` and its `rollback` is rolled back with it,
+// after it was reported done.
+const turns = new WeakMap<object, Semaphore.Semaphore>()
+const turnOf = (database: object): Semaphore.Semaphore => {
+  const held = turns.get(database)
+  if (held !== undefined) return held
+  const made = Semaphore.makeUnsafe(1)
+  turns.set(database, made)
+  return made
+}
+
 export const Transaction = {
   /**
    * `begin`, the work, then `commit` or `rollback`, as statements. For a database
-   * that is one connection, such as a SQLite file. Over a pool each statement may
-   * take a different connection: use `drizzle` there.
+   * that is one connection, such as a SQLite file, which it takes turns at: the
+   * operations of this package wait for one another. A write of your own on the
+   * same connection does not, so make it inside `Transaction.statements` too.
+   * Over a pool each statement may take a different connection: use `drizzle` there.
    */
   statements: (<A, E>(work: Effect.Effect<A, E, DrizzleDatabase>) =>
     Effect.gen(function* () {
       const database = yield* DrizzleDatabase
-      yield* statement(database, 'begin')
-      return yield* work.pipe(
-        Effect.onExit(exit => statement(database, Exit.isSuccess(exit) ? 'commit' : 'rollback')),
+      return yield* turnOf(database).withPermit(
+        statement(database, 'begin').pipe(
+          Effect.andThen(work),
+          Effect.onExit(exit => statement(database, Exit.isSuccess(exit) ? 'commit' : 'rollback')),
+        ),
       )
     })) as Transaction,
   /**
@@ -409,7 +424,9 @@ export const CmsServer = {
             input.archived
               ? isNotNull(tables.entries.archivedAt)
               : isNull(tables.entries.archivedAt),
-            input.search === '' ? undefined : like(tables.entries.label, `%${input.search}%`),
+            input.search === ''
+              ? undefined
+              : sql`${tables.entries.label} like ${`%${input.search.replace(/[\\%_]/g, found => `\\${found}`)}%`} escape '\\'`,
           ),
         orderBy: [{ column: tables.entries.createdAt, direction: 'desc' }],
       },
@@ -424,11 +441,33 @@ export const CmsServer = {
       }) => Effect.Effect<MutationOutcome<Output>, RemoteServerError, DrizzleDatabase>,
     ): MutationSource<P, DrizzleDatabase> =>
       // Asked before anything is looked up: a visitor is not told which entries there are.
+      // Then the whole of it is one transaction: a save that made an entry and
+      // could not make its draft leaves neither.
       RemoteServer.mutation<P, DrizzleDatabase, Name, Input, Output>(descriptor, context =>
         isAuthor(context.principal)
-          ? run(context)
+          ? config.transaction(run(context))
           : Effect.fail(refuse('Only an author may change unpublished work')),
       )
+
+    /**
+     * A scheduled draft is published, when its time comes, as whoever scheduled it.
+     * So changing it, replacing it or removing it is for someone who could have
+     * scheduled it: otherwise an author who may not publish would publish through
+     * someone who may.
+     */
+    const promised = (principal: P, entry: EntryRow) =>
+      Effect.gen(function* () {
+        const [draft] = yield* readRows(
+          Db.Draft,
+          { scheduledFor: tables.drafts.scheduledFor },
+          entry.id,
+        )
+        if (draft?.scheduledFor == null) return
+        if (config.allow?.(principal, 'schedule', entry) === false)
+          return yield* refuse(
+            'This draft is scheduled, and only someone who may schedule it may change it',
+          )
+      })
 
     /** Whether the application lets this author do this, once the entry is known. */
     const asking = (principal: P, transition: Asked, entry: EntryRow | undefined) =>
@@ -481,6 +520,7 @@ export const CmsServer = {
           return yield* refuse(`This entry is of "${existing.type}", not "${input.type}"`)
         if (existing?.archivedAt != null) return yield* refuse('An archived entry takes no draft')
         yield* asking(principal, 'save', existing)
+        if (existing !== undefined) yield* promised(principal, existing)
 
         const database = (yield* DrizzleDatabase) as unknown as Writes
         const who = nameOf(principal)
@@ -571,6 +611,7 @@ export const CmsServer = {
         const entry = yield* findEntry(input.entry)
         if (entry === undefined) return yield* refuse('There is no such entry')
         yield* asking(principal, 'discard', entry)
+        yield* promised(principal, entry)
         const database = (yield* DrizzleDatabase) as unknown as Writes
         yield* Effect.promise(() =>
           Promise.resolve(database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
@@ -670,100 +711,96 @@ export const CmsServer = {
           if (others.length > 0) return yield* taken(address.key)
         }
 
-        return yield* config
-          .transaction(
-            Effect.gen(function* () {
-              const writes = (yield* DrizzleDatabase) as unknown as Writes
-              const n = (held ?? 0) + 1
-              // Compare and set, first: of two publishes made from one revision, one
-              // finds the number already moved, and nothing of it is written.
-              const moved = yield* Effect.promise(() =>
-                Promise.resolve(
-                  writes
-                    .update(tables.entries)
-                    .set({ revision: n })
-                    .where(
-                      and(
-                        eq(tables.entries.id, entry.id),
-                        held === null
-                          ? isNull(tables.entries.revision)
-                          : eq(tables.entries.revision, held),
-                      ),
-                    )
-                    .returning({ id: tables.entries.id }),
-                ),
-              )
-              if (moved.length === 0) return yield* conflict
-              const ran = yield* handler.run({ input: decoded, principal })
-              const targetId = creating
-                ? String((ran.output as { readonly id: unknown }).id)
-                : entry.targetId!
-              const at = now()
-              const shown = served.type.roles.published
-              if (shown !== undefined) {
-                // Publishing shows the row. One already shown keeps its first date.
-                const column = served.binding.columns[shown.key]!
-                yield* Effect.promise(() =>
-                  Promise.resolve(
-                    writes
-                      .update(served.binding.table)
-                      .set({ [shown.key]: stamp(column, at) })
-                      .where(and(eq(served.binding.columns.id!, targetId), isNull(column)))
-                      .returning({ id: served.binding.columns.id! }),
+        return yield* Effect.gen(function* () {
+          const writes = (yield* DrizzleDatabase) as unknown as Writes
+          const n = (held ?? 0) + 1
+          // Compare and set, first: of two publishes made from one revision, one
+          // finds the number already moved, and nothing of it is written.
+          const moved = yield* Effect.promise(() =>
+            Promise.resolve(
+              writes
+                .update(tables.entries)
+                .set({ revision: n })
+                .where(
+                  and(
+                    eq(tables.entries.id, entry.id),
+                    held === null
+                      ? isNull(tables.entries.revision)
+                      : eq(tables.entries.revision, held),
                   ),
                 )
-              }
-              const revisionId = `${entry.id}:${n}`
-              yield* Effect.promise(() =>
-                Promise.resolve(
-                  writes.insert(tables.revisions).values({
-                    id: revisionId,
-                    entryId: entry.id,
-                    n,
-                    values: draft?.values,
-                    publishedAt: at.toISOString(),
-                    publishedBy: nameOf(principal),
-                  }),
-                ),
-              )
-              yield* Effect.promise(() =>
-                Promise.resolve(writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
-              )
-              yield* Effect.promise(() =>
-                Promise.resolve(
-                  writes
-                    .update(tables.entries)
-                    .set({ targetId })
-                    .where(eq(tables.entries.id, entry.id))
-                    .returning({ id: tables.entries.id }),
-                ),
-              )
-              const content = returning(served.binding, shown === undefined ? [] : [shown.key])
-              return {
-                output: { entry: entry.id as never, targetId, revision: n },
-                entities: [
-                  ...ran.entities,
-                  ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
-                  ...(yield* entryPatches(entry.id)),
-                  ...revisionPatch.patches(
-                    yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
-                  ),
-                ],
-                connections: ran.connections,
-                deleted: [...ran.deleted, { entity: 'CmsDraft', id: entry.id }],
-              }
-            }),
-          )
-          .pipe(
-            // The publish that lost the race: the index refused it, and it is the same
-            // news as the check's. Any other defect is left as it was.
-            Effect.catchDefect(defect =>
-              address !== undefined &&
-              refusedAsDuplicate(defect, served.binding.columns[address.key]!.name)
-                ? Effect.fail(taken(address.key))
-                : Effect.die(defect),
+                .returning({ id: tables.entries.id }),
             ),
           )
+          if (moved.length === 0) return yield* conflict
+          const ran = yield* handler.run({ input: decoded, principal })
+          const targetId = creating
+            ? String((ran.output as { readonly id: unknown }).id)
+            : entry.targetId!
+          const at = now()
+          const shown = served.type.roles.published
+          if (shown !== undefined) {
+            // Publishing shows the row. One already shown keeps its first date.
+            const column = served.binding.columns[shown.key]!
+            yield* Effect.promise(() =>
+              Promise.resolve(
+                writes
+                  .update(served.binding.table)
+                  .set({ [shown.key]: stamp(column, at) })
+                  .where(and(eq(served.binding.columns.id!, targetId), isNull(column)))
+                  .returning({ id: served.binding.columns.id! }),
+              ),
+            )
+          }
+          const revisionId = `${entry.id}:${n}`
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes.insert(tables.revisions).values({
+                id: revisionId,
+                entryId: entry.id,
+                n,
+                values: draft?.values,
+                publishedAt: at.toISOString(),
+                publishedBy: nameOf(principal),
+              }),
+            ),
+          )
+          yield* Effect.promise(() =>
+            Promise.resolve(writes.delete(tables.drafts).where(eq(tables.drafts.id, entry.id))),
+          )
+          yield* Effect.promise(() =>
+            Promise.resolve(
+              writes
+                .update(tables.entries)
+                .set({ targetId })
+                .where(eq(tables.entries.id, entry.id))
+                .returning({ id: tables.entries.id }),
+            ),
+          )
+          const content = returning(served.binding, shown === undefined ? [] : [shown.key])
+          return {
+            output: { entry: entry.id as never, targetId, revision: n },
+            entities: [
+              ...ran.entities,
+              ...content.patches(yield* readRows(served.binding, content.columns, targetId)),
+              ...(yield* entryPatches(entry.id)),
+              ...revisionPatch.patches(
+                yield* readRows(Db.Revision, revisionPatch.columns, revisionId),
+              ),
+            ],
+            connections: ran.connections,
+            deleted: [...ran.deleted, { entity: 'CmsDraft', id: entry.id }],
+          }
+        }).pipe(
+          // The publish that lost the race: the index refused it, and it is the same
+          // news as the check's. Any other defect is left as it was.
+          Effect.catchDefect(defect =>
+            address !== undefined &&
+            refusedAsDuplicate(defect, served.binding.columns[address.key]!.name)
+              ? Effect.fail(taken(address.key))
+              : Effect.die(defect),
+          ),
+        )
       })
 
     const Publish = operation(Cms.Operations.Publish, ({ input, principal }) =>
@@ -878,6 +915,7 @@ export const CmsServer = {
       Effect.gen(function* () {
         const { entry } = yield* offering(input.entry, 'restore')
         yield* asking(principal, 'restore', entry)
+        yield* promised(principal, entry)
         const database = yield* DrizzleDatabase
         const [revision] = yield* Effect.promise(() =>
           Promise.resolve(
@@ -963,18 +1001,23 @@ export const CmsServer = {
         for (const draft of waiting) {
           const id = String(draft.id)
           const principal = options.as((draft.scheduledBy as string | null) ?? null)
-          const error = yield* Effect.gen(function* () {
-            if (!isAuthor(principal))
-              return yield* refuse('Whoever scheduled this is no longer an author')
-            const found = yield* offering(id, 'publish')
-            yield* asking(principal, 'publish', found.entry)
-            yield* publishing(found, principal, found.entry.revision)
-            return null
-          }).pipe(
-            Effect.catch(failure => Effect.succeed(failure.message)),
-            Effect.catchDefect(defect => Effect.succeed(String(defect))),
-          )
-          if (error !== null) yield* drafted(id, { scheduleError: error })
+          const error = yield* config
+            .transaction(
+              Effect.gen(function* () {
+                if (!isAuthor(principal))
+                  return yield* refuse('Whoever scheduled this is no longer an author')
+                const found = yield* offering(id, 'publish')
+                yield* asking(principal, 'publish', found.entry)
+                yield* publishing(found, principal, found.entry.revision)
+                return null
+              }),
+            )
+            .pipe(
+              Effect.catch(failure => Effect.succeed(failure.message)),
+              Effect.catchDefect(defect => Effect.succeed(String(defect))),
+            )
+          // Recorded after the failed publish was undone, or it would be undone with it.
+          if (error !== null) yield* config.transaction(drafted(id, { scheduleError: error }))
           outcomes.push({ entry: id, error })
         }
         return outcomes

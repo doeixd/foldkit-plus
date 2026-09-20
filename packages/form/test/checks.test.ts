@@ -171,3 +171,18 @@ describe('Form checks', () => {
     expect(blurred.model).toBe(answered)
   })
 })
+
+describe('a Model that was stored', () => {
+  it('is shown again with nothing in flight: the check that was running will never answer', () => {
+    // The Commands are left unrun: this is the Model as it is while the check runs.
+    const asking = step(step(PostForm.initial, change('slug', 'fresh')).model, Message.Submitted())
+    expect(asking.model.fields.slug._tag).toBe('Validating')
+    expect(asking.model.submitPending).toBe(true)
+
+    const settled = PostForm.settled(asking.model)
+    expect(settled.fields.slug).toEqual({ _tag: 'NotValidated', value: 'fresh' })
+    expect(settled.submitPending).toBe(false)
+    // What was decided stays decided.
+    expect(settled.fields.rank).toEqual(asking.model.fields.rank)
+  })
+})

@@ -120,6 +120,8 @@ const RenameForm = Page.at(Slot, {
   load `Data.get(Entity.selectFor(Rename.input), id)`, then
   `fill(Entity.valuesFor(Rename.input, loaded))`.
 - **Enable the button:** `Rename.canSubmit(model.rename)`.
+- **Show a stored Model again:** `form.settled(model)`; a check that was running
+  when it was stored never answers, so its key reads `NotValidated`.
 - **Save unfinished work:** `form.partial(model)` is the value less every key that
   is not valid yet; `engine.value` is all or nothing.
 

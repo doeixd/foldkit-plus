@@ -37,7 +37,11 @@ const Post = Entity.define(
 ).pipe(Cms.roles({ label: 'title', published: 'publishedAt' }))
 
 const PostInput = Schema.Struct({ title: Post.fields.title.schema, body: Schema.String })
-const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), { debounce: 0 })
+const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
+  debounce: 0,
+  // A rule the form cannot answer itself, so a key can be caught mid-check.
+  checks: { body: body => Effect.succeed(body === 'Forbidden' ? 'Not that' : undefined) },
+})
 const Posts = Cms.content('posts', {
   entity: Post,
   form: PostForm,
@@ -190,7 +194,10 @@ const world = () => {
     const Client = Layer.succeed(RemoteClient, service)
 
     let model: Model = { remote: Remote.initial, editor: Editor.bundle.init().model } as Model
-    type Commands = ReadonlyArray<{ readonly effect: Effect.Effect<unknown, never, RemoteClient> }>
+    type Commands = ReadonlyArray<{
+      readonly name: string
+      readonly effect: Effect.Effect<unknown, never, RemoteClient>
+    }>
     const settle = async (commands: Commands): Promise<void> => {
       for (const command of commands) {
         const settled = await Effect.runPromise(command.effect.pipe(Effect.provide(Client)))
@@ -237,6 +244,11 @@ const world = () => {
       open: async (entry: string) => {
         await send(Message.Opened({ entry }))
         await load()
+      },
+      flush: async () => {
+        const next = PostEditor.flush(model)
+        model = next.model
+        await settle((next.commands ?? []) as Commands)
       },
       status: () => PostEditor.status(model),
       resumed: () => PostEditor.resumed(model),
@@ -362,6 +374,90 @@ describe('something new', () => {
     await ada.send(ada.form(Editor.Message.DiscardAsked()))
     expect(ada.status()).toBe('Closed')
     expect(sent).toEqual([])
+  })
+})
+
+describe('what the review found', () => {
+  it('asks once, however many times publish is pressed', async () => {
+    const { author, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.type('body', 'Once'))
+    sent.length = 0
+    // Both presses land before anything has settled.
+    const first = ada.hold(ada.form(Editor.Message.PublishAsked()))
+    const second = ada.hold(ada.form(Editor.Message.PublishAsked()))
+    await ada.settle([...first, ...second])
+    expect(sent).toEqual(['CmsPublish'])
+    expect(ada.status()).toBe('Published')
+    expect(ada.error()).toBeUndefined()
+  })
+
+  it('calls a draft what its author called it, valid or not', async () => {
+    const { author, rows } = world()
+    const ada = author('ada')
+    await ada.send(Message.Created({ entry: 'new1' }))
+    // Not a title the form accepts, and still what the author called it.
+    await ada.send(ada.type('title', '   '))
+    expect(rows(`select label from cms_entries where id = 'new1'`)).toEqual([{ label: 'Untitled' }])
+    await ada.send(ada.type('title', ' Hello '))
+    expect(rows(`select label from cms_entries where id = 'new1'`)).toEqual([{ label: 'Hello' }])
+  })
+
+  it('resumes a draft that was saved mid-check with nothing in flight', async () => {
+    const { author, rows } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    // The rest ends and the draft is saved while the check of the body is still out.
+    const commands = ada.hold(ada.type('body', 'Checked later'))
+    await ada.settle(commands.filter(command => command.name.endsWith('.rest')))
+    expect(String(rows(`select model from cms_drafts where id = 'e1'`)[0]!['model'])).toContain(
+      'Validating',
+    )
+
+    const later = author('ada')
+    await later.open('e1')
+    expect(later.resumed()).toBe('Model')
+    expect(later.field('body')).toEqual({ _tag: 'NotValidated', value: 'Checked later' })
+  })
+
+  it('forgets an old failure once the author has moved on', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    await ada.send(ada.form(Editor.Message.RestoreAsked({ revision: 9 })))
+    await ada.load()
+    expect(ada.error()).toContain('no revision 9')
+    await ada.send(ada.type('body', 'Moving on'))
+    expect(ada.error()).toBeUndefined()
+  })
+
+  it('saves what was typed when the author leaves within the rest', async () => {
+    const { author, rows, sent } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    ada.hold(ada.type('body', 'Typed, then gone'))
+    expect(sent).toEqual([])
+    await ada.flush()
+    expect(rows(`select "values" from cms_drafts where id = 'e1'`)).toEqual([
+      { values: '{"title":"Live","body":"Typed, then gone"}' },
+    ])
+    // Nothing to save, nothing sent.
+    await ada.flush()
+    expect(sent).toEqual(['CmsSaveDraft'])
+  })
+
+  it('follows something new to the row publishing gives it, while it is previewed', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    await ada.send(Message.Created({ entry: 'new1' }))
+    await ada.send(ada.form(Editor.Message.PreviewShown()))
+    await ada.send(ada.type('title', 'Hello'))
+    expect(ada.post('new1')).toEqual({ title: 'Hello', body: '' })
+    await ada.send(ada.form(Editor.Message.PublishAsked()))
+    await ada.send(Message.Nudged())
+    // The overlay is on the row now, and off the id that was only ever the entry's.
+    expect(ada.post('new1')).not.toEqual({ title: 'Hello', body: '' })
   })
 })
 
@@ -532,7 +628,9 @@ describe('scheduling from the editor', () => {
     const { author, rows, sent } = world()
     const ada = author('ada')
     await ada.open('e1')
-    ada.hold(ada.type('body', 'For the new year'))
+    // The check of the body answers; the rest of the edit has not ended.
+    const typed = ada.hold(ada.type('body', 'For the new year'))
+    await ada.settle(typed.filter(command => !command.name.endsWith('.rest')))
     await ada.send(ada.form(Editor.Message.ScheduleAsked({ at })))
 
     expect(sent).toEqual(['CmsSaveDraft', 'CmsSchedule'])

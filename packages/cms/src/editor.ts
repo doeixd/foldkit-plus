@@ -85,8 +85,8 @@ export interface EditorModel<FormModel> {
   readonly otherId: string | null
   /** Whether what is in the form is laid over the store, for the application's own views to draw. */
   readonly previewing: boolean
-  /** The edit the overlay was last made from; it is made again when the form has moved on. */
-  readonly previewedEdit: number
+  /** What the overlay was last made of: the edit, and the row it is shown on. */
+  readonly previewedAs: string | null
   /** After a conflict: waiting for the server's copy, to show it or to save over it. */
   readonly settling: 'reload' | 'overwrite' | null
 }
@@ -121,6 +121,8 @@ export interface EditorForm<FormModel, FormMessage, Value> {
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
   readonly partial: (model: FormModel) => Partial<Value>
+  readonly settled: (model: FormModel) => FormModel
+  readonly field: (model: FormModel, key: never) => { readonly value: unknown }
 }
 
 /** The parts of a bound Remote domain the editor uses. */
@@ -215,7 +217,7 @@ export const makeEditor =
       scheduleAt: null,
       otherId: null,
       previewing: false,
-      previewedEdit: -1,
+      previewedAs: null,
       settling: null,
     }
     const Model = Schema.Struct({
@@ -233,7 +235,7 @@ export const makeEditor =
       scheduleAt: Schema.NullOr(Schema.String),
       otherId: Schema.NullOr(Schema.String),
       previewing: Schema.Boolean,
-      previewedEdit: Schema.Number,
+      previewedAs: Schema.NullOr(Schema.String),
       settling: Schema.NullOr(Schema.Literals(['reload', 'overwrite'])),
     }) as unknown as Schema.Codec<Model, unknown>
 
@@ -352,7 +354,7 @@ export const makeEditor =
             // A capability is declared, never implied.
             return content.preview === undefined
               ? { model }
-              : { model: { ...model, previewing: true, previewedEdit: -1 } }
+              : { model: { ...model, previewing: true, previewedAs: null } }
           case 'PreviewHidden':
             return { model: { ...model, previewing: false } }
           case 'RestoreAsked':
@@ -502,7 +504,8 @@ export const makeEditor =
           }>(draft)
           if (saved !== undefined) {
             const model = saved.form === formTag ? decodeModel(saved.model) : Option.none()
-            if (Option.isSome(model)) return shown('Model', model.value)
+            // A check that was running when it was saved will never answer.
+            if (Option.isSome(model)) return shown('Model', form.settled(model.value))
             const values = fitting(saved.values)
             if (Object.keys(values).length > 0)
               return shown('Values', form.fill(form.initial, values).model)
@@ -528,7 +531,9 @@ export const makeEditor =
           const editor = slice.get(root)
           const values = form.partial(editor.form) as Readonly<Record<string, unknown>>
           const labelKey = content.roles.label?.key
-          const label = labelKey === undefined ? '' : String(values[labelKey] ?? '')
+          const typed =
+            labelKey === undefined ? '' : form.field(editor.form, labelKey as never).value
+          const label = typeof typed === 'string' ? typed.trim() : ''
           const basedOn =
             held<{ readonly updatedAt: string }>(read(root, 'draft'))?.updatedAt ?? null
           const started = data.mutate(root, cms.Operations.SaveDraft, {
@@ -546,6 +551,7 @@ export const makeEditor =
               saveId: started.requestId,
               // A save starts a new round: the last publish no longer describes the form.
               publishId: null,
+              otherId: null,
               savedEdit: editor.edits,
               saveWanted: false,
               settling: null,
@@ -637,16 +643,18 @@ export const makeEditor =
           const editor = slice.get(root)
           if (!editor.previewing || content.preview === undefined || editor.entry === null)
             return data.lift(root, overlayId)
-          if (editor.previewedEdit === editor.edits) return root
+          // Something new is shown under its entry's id until publishing gives it a row.
           const id =
             held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
             editor.entry
+          const as = `${editor.edits}:${id}`
+          if (editor.previewedAs === as) return root
           const shown = data.overlay(
             root,
             overlayId,
             content.preview(form.partial(editor.form), id),
           )
-          return slice.set(shown, { ...slice.get(shown), previewedEdit: editor.edits })
+          return slice.set(shown, { ...slice.get(shown), previewedAs: as })
         }
 
         const sync: Step = given => {
@@ -665,6 +673,9 @@ export const makeEditor =
           if (editor().settling === 'overwrite' && fresh(read(root, 'draft'))) run(startSave)
           if (editor().saveWanted && !saving() && editor().settling === null) run(startSave)
 
+          // A second ask while the first is on its way is the same ask.
+          if (editor().publishWanted && statusOf(root, editor().publishId)._tag === 'Pending')
+            root = slice.set(root, { ...editor(), publishWanted: false })
           if (editor().publishWanted && !saving() && editor().settling === null) {
             const save = statusOf(root, editor().saveId)
             const resumedDraft = editor().resumed === 'Model' || editor().resumed === 'Values'
@@ -772,6 +783,18 @@ export const makeEditor =
           >,
 
           sync,
+
+          /**
+           * Saves what has not been saved, now, without waiting for the rest to end.
+           * Run it before `close` or `open`, which drop what is in the form: an
+           * author who types and leaves within the rest would otherwise lose it.
+           */
+          flush: (root => {
+            const editor = slice.get(root)
+            return editor.mode === 'closed' || !editor.filled || editor.edits === editor.savedEdit
+              ? { model: root }
+              : sync(slice.set(root, { ...editor, saveWanted: true }))
+          }) satisfies Step,
 
           /**
            * Wraps the application's `update` so `sync` runs after every Message: a

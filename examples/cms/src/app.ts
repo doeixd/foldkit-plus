@@ -54,13 +54,19 @@ const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
 
 export const update = PostEditor.after(
   Page.assemble(Placed).update((model: Model, message: Message) => {
+    // Leaving drops what is in the form, so what has not been saved is saved first:
+    // an author who types and leaves within the rest loses nothing.
+    const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
+      const flushed = PostEditor.flush(model)
+      return { model: next(flushed.model).model, commands: flushed.commands ?? [] }
+    }
     switch (message._tag) {
       case 'OpenedEntry':
-        return Placed.helpers.open(message.entry)(model)
+        return leaving(Placed.helpers.open(message.entry))
       case 'StartedPost':
-        return Placed.helpers.create(message.entry)(model)
+        return leaving(Placed.helpers.create(message.entry))
       case 'ClosedEditor':
-        return Placed.helpers.close()(model)
+        return leaving(Placed.helpers.close())
       default:
         return Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model }
     }

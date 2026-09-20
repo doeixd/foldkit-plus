@@ -17,10 +17,12 @@ import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from '../src/index.js'
 
-type Principal = { readonly name: string; readonly role: 'author' | 'intern' } | null
+type Principal = { readonly name: string; readonly role: 'author' | 'writer' | 'intern' } | null
 const isAuthor = (principal: Principal): boolean => principal !== null
 const ada: Principal = { name: 'ada', role: 'author' }
 const ian: Principal = { name: 'ian', role: 'intern' }
+// May write, and may not put anything in front of a visitor.
+const wren: Principal = { name: 'wren', role: 'writer' }
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -78,7 +80,9 @@ const handlers = (type: typeof Posts | typeof Pages, table: typeof posts | typeo
       yield* Effect.promise(() =>
         Promise.resolve(database.insert(table).values({ id, title: input.title })),
       )
-      if (input.title === 'Fails')
+      // Long enough for another request to get a word in, if anything lets it.
+      if (input.title === 'Fails slowly') yield* Effect.sleep('20 millis')
+      if (input.title.startsWith('Fails'))
         return yield* new RemoteServerError({ message: 'The application refused' })
       return { output: { id } }
     }),
@@ -140,7 +144,11 @@ const open = () => {
     ],
     transaction: Transaction.statements,
     isAuthor,
-    allow: principal => principal?.role !== 'intern',
+    allow: (principal, transition) =>
+      principal?.role === 'intern'
+        ? false
+        : principal?.role !== 'writer' ||
+          !['publish', 'unpublish', 'schedule', 'unschedule'].includes(transition),
     now: () => clock,
     nameOf: principal => principal?.name ?? null,
   })
@@ -869,5 +877,103 @@ describe('restoring', () => {
     await expect(as(ian).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
       'may not restore',
     )
+  })
+})
+
+describe('a scheduled draft is published as whoever scheduled it', () => {
+  const soon = '2026-07-01T09:00:00.000Z'
+
+  it('so one who may not schedule may not change, replace or remove what was promised', async () => {
+    const { as, rows } = open()
+    // Before the promise, the draft is the writer's to change.
+    const saved = await as(wren).mutate(
+      'CmsSaveDraft',
+      save({ entry: 'e3', values: { title: 'By Wren' }, basedOn: '2026-03-01T00:00:00.000Z' }),
+    )
+    const { updatedAt } = saved.output as { updatedAt: string }
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
+
+    const swapped = save({
+      entry: 'e3',
+      values: { title: 'Not what Ada read' },
+      basedOn: updatedAt,
+    })
+    await expect(as(wren).mutate('CmsSaveDraft', swapped)).rejects.toThrow(
+      'This draft is scheduled',
+    )
+    await expect(as(wren).mutate('CmsDiscardDraft', { entry: 'e3' })).rejects.toThrow(
+      'This draft is scheduled',
+    )
+    // e1 is scheduled too, and has a past to restore.
+    await expect(as(wren).mutate('CmsRestore', { entry: 'e1', revision: 1 })).rejects.toThrow(
+      'This draft is scheduled',
+    )
+    expect(rows(`select "values" from cms_drafts where id = 'e3'`)).toEqual([
+      { values: '{"title":"By Wren"}' },
+    ])
+
+    // Someone who could have promised it may change it, and the promise stands.
+    await as(ada).mutate('CmsSaveDraft', swapped)
+    expect(rows(`select scheduled_for from cms_drafts where id = 'e3'`)).toEqual([
+      { scheduled_for: soon },
+    ])
+  })
+})
+
+describe('one connection, two requests', () => {
+  it('a save that arrives while a publish is failing is not undone with it', async () => {
+    const { as, rows } = open()
+    await as(ada).mutate('CmsSaveDraft', save({ entry: 'e9', values: { title: 'Fails slowly' } }))
+    const [publish, saved] = await Promise.allSettled([
+      as(ada).mutate('CmsPublish', { entry: 'e9', basedOn: null }),
+      new Promise(resolve => setTimeout(resolve, 5)).then(() =>
+        as(ada).mutate(
+          'CmsSaveDraft',
+          save({ entry: 'e3', values: { title: 'Kept' }, basedOn: '2026-03-01T00:00:00.000Z' }),
+        ),
+      ),
+    ])
+    expect(publish.status).toBe('rejected')
+    expect(saved.status).toBe('fulfilled')
+    expect(rows(`select "values" from cms_drafts where id = 'e3'`)).toEqual([
+      { values: '{"title":"Kept"}' },
+    ])
+  })
+
+  it('makes each operation one transaction', async () => {
+    let transactions = 0
+    const counted = CmsServer.make<Principal>({
+      tables,
+      content: [{ type: Posts, binding: Db.Post, ...handlers(Posts, posts) }],
+      transaction: work => {
+        transactions += 1
+        return Transaction.statements(work)
+      },
+      isAuthor,
+    })
+    const { sqlite } = open()
+    const layer = databaseLayer(drizzle({ client: sqlite }))
+    const handlersOf = RemoteServer.handlers(
+      RemoteServer.make({ entities: [...counted.sources], mutations: [...counted.mutations] }),
+      ada,
+    )
+    const mutate = (mutation: string, input: unknown, requestId: string) =>
+      Effect.runPromise(
+        handlersOf.FoldkitRemoteMutate({ requestId, mutation, input }).pipe(Effect.provide(layer)),
+      )
+    await mutate('CmsSaveDraft', save({ entry: 'e8' }), 'c1')
+    expect(transactions).toBe(1)
+    await mutate('CmsPublish', { entry: 'e8', basedOn: null }, 'c2')
+    expect(transactions).toBe(2)
+  })
+})
+
+describe('the worklist’s search', () => {
+  it('looks for what was typed as it was typed: % and _ are characters, not wildcards', async () => {
+    const { as } = open()
+    await as(ada).mutate('CmsSaveDraft', save({ entry: 'e7', label: '100% done' }))
+    expect(await as(ada).list({ type: 'posts', search: '100%' })).toEqual(['e7'])
+    expect(await as(ada).list({ type: 'posts', search: '1_0' })).toEqual([])
+    expect(await as(ada).list({ type: 'posts', search: '%' })).toEqual(['e7'])
   })
 })
