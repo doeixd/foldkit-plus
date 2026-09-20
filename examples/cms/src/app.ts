@@ -45,6 +45,7 @@ export const Message = defineMessageUnion({
   ClosedEditor: {},
   TypedSchedule: { text: Schema.String },
   AskedForHistory: {},
+  LookedAgain: {},
   Visited: { slug: Schema.String },
   /** Nothing happened; something may have arrived. */
   Ticked: {},
@@ -120,38 +121,58 @@ const newPost: Command<Message> = {
   effect: Effect.sync(() => Message.StartedPost({ entry: Cms.newEntryId() })),
 }
 
-export const update = PostEditor.after(
-  placements.update((model: Model, message: Message) => {
-    // Leaving drops what is in the form, so what has not been saved is saved first:
-    // an author who types and leaves within the rest loses nothing.
-    const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
-      const flushed = PostEditor.flush(model)
-      return { model: next(flushed.model).model, commands: flushed.commands ?? [] }
+/**
+ * An entry the worklist has not heard of is asked for again. A save patches the
+ * entry, but a connection is a list the server put in order, and something new
+ * joins it only when the query is asked again. Remote returns the same Model
+ * while that is already under way, so this settles by itself.
+ */
+const listing = (model: Model): Model => {
+  const entry = PostEditor.entry(model)
+  const page = Worklist.page(model)
+  if (entry === null || page._tag !== 'Ready') return model
+  return page.value.items.some(row => row.id === entry)
+    ? model
+    : Data.refresh(model, Worklist.active.projectionOf(model)!)
+}
+
+const placed = placements.update((model: Model, message: Message) => {
+  // Leaving drops what is in the form, so what has not been saved is saved first:
+  // an author who types and leaves within the rest loses nothing.
+  const leaving = (next: (flushed: Model) => { readonly model: Model }) => {
+    const flushed = PostEditor.flush(model)
+    return { model: next(flushed.model).model, commands: flushed.commands ?? [] }
+  }
+  switch (message._tag) {
+    case 'OpenedEntry':
+      return leaving(EditorSlot.helpers.open(message.entry))
+    case 'AskedForPost':
+      return { model, commands: [newPost] }
+    case 'StartedPost':
+      return leaving(EditorSlot.helpers.create(message.entry))
+    case 'ClosedEditor':
+      return leaving(EditorSlot.helpers.close())
+    case 'TypedSchedule':
+      return { model: { ...model, scheduleAt: message.text } }
+    case 'AskedForHistory': {
+      // A publish patches the new revision in; its place in the list is asked for.
+      const projection = history(model)
+      const refreshed = projection === undefined ? model : Data.refresh(model, projection)
+      return { model: Data.refresh(refreshed, Worklist.active.projectionOf(refreshed)!) }
     }
-    switch (message._tag) {
-      case 'OpenedEntry':
-        return leaving(EditorSlot.helpers.open(message.entry))
-      case 'AskedForPost':
-        return { model, commands: [newPost] }
-      case 'StartedPost':
-        return leaving(EditorSlot.helpers.create(message.entry))
-      case 'ClosedEditor':
-        return leaving(EditorSlot.helpers.close())
-      case 'TypedSchedule':
-        return { model: { ...model, scheduleAt: message.text } }
-      case 'AskedForHistory': {
-        // A publish patches the new revision in; its place in the list is asked for.
-        const projection = history(model)
-        const refreshed = projection === undefined ? model : Data.refresh(model, projection)
-        return { model: Data.refresh(refreshed, Worklist.active.projectionOf(refreshed)!) }
-      }
-      case 'Visited':
-        return { model: { ...model, visiting: message.slug } }
-      default:
-        return { model }
-    }
-  }),
-)
+    case 'Visited':
+      return { model: { ...model, visiting: message.slug } }
+    case 'LookedAgain':
+      return { model: Data.refresh(model, Site.active.projectionOf(model)!) }
+    default:
+      return { model }
+  }
+})
+
+export const update = PostEditor.after((model: Model, message: Message) => {
+  const next = placed(model, message)
+  return { ...next, model: listing(next.model) }
+})
 
 export const initial: Model = placements.initial({
   remote: Remote.initial,

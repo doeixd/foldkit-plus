@@ -91,7 +91,7 @@ const StateSchema = Schema.Struct({
       error: Schema.NullOr(Schema.String),
     }),
   ),
-})
+}).annotate({ title: 'State' })
 
 // A piece of content from its first keystroke to its archive: the thing an author
 // works on. It exists before the content row does, and after the row is hidden.
@@ -114,6 +114,8 @@ const Entry = Entity.define(
   Entity.derived({ state: Derived.make(StateSchema) }),
   // How a list or a detail shows them, with nothing said where it is declared.
   Entity.annotateMembers({
+    // An entry's id is how it is opened, not something to read in a list.
+    id: Display.of(Display.hidden()),
     state: Display.of(Kinds.Display.State.of({})),
     createdAt: Display.of(Kinds.Display.Moment.of({})),
     archivedAt: Display.of(Kinds.Display.Moment.of({})),

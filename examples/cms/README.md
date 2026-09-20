@@ -78,6 +78,10 @@ two windows side by side are two authors on one entry.
   own reading of the row, so turning preview on draws the form's text there
   without sending anything; **the public site** reads by address as a visitor
   would. Publish, and the two agree.
+- **A connection is a list the server put in order**, so something newly made or
+  newly published joins one only when the query is asked again. The worklist does
+  that for itself (`listing` in `app.ts`); the public site has a **Look again**
+  button, which is what loading the page is for a visitor.
 - `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
   five seconds. Schedule something a minute out and watch it go.
 - **`x-chair` stands in for authentication.** It is the client saying who it is,

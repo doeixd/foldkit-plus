@@ -35,7 +35,7 @@ const statusLine: Readonly<Record<EditorStatus, string>> = {
   Loading: 'Loading…',
   NotFound: 'That entry does not exist.',
   LoadFailed: 'The entry could not be read.',
-  Editing: 'Not saved yet…',
+  Editing: 'Editing…',
   Saving: 'Saving…',
   Saved: 'Draft saved.',
   Conflict: 'Someone else saved this since you opened it. Your text is still here.',
@@ -51,12 +51,13 @@ const statusLine: Readonly<Record<EditorStatus, string>> = {
 const chairsNav = (h: HtmlBuilder<Message>): Html =>
   h.nav(
     [h.AriaLabel('Who is looking')],
-    chairs.map(name =>
+    chairs.flatMap((name, at) => [
+      ...(at === 0 ? [] : [h.span([h.Class('muted')], [' · '])]),
       h.a(
         [h.Href(`?as=${name}`), ...(name === chair ? [h.AriaCurrent('page')] : [])],
         [name === 'wren' ? 'Wren, a writer' : name === 'edda' ? 'Edda, an editor' : 'A visitor'],
       ),
-    ),
+    ]),
   )
 
 const site = (model: Model, h: HtmlBuilder<Message>): Html => {
@@ -67,6 +68,9 @@ const site = (model: Model, h: HtmlBuilder<Message>): Html => {
     [h.Id('site')],
     [
       h.h2([], ['The public site']),
+      // A row that was just published joins this connection when the query is asked
+      // again, which for a visitor is loading the page.
+      h.button([h.Id('look'), h.OnClick(Message.LookedAgain())], ['Look again']),
       h.label(
         [],
         [
@@ -159,7 +163,8 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
         [h.Id('status'), h.Role('status')],
         [
           state === undefined ? '' : `${Display.show(Cms.Display.State.of({}), state)}. `,
-          statusLine[status],
+          // The state and the status are two facts, and sometimes one word: say it once.
+          state?._tag === statusLine[status]?.replace('.', '') ? '' : statusLine[status],
           error === undefined ? '' : `: ${error.message}`,
           PostEditor.resumed(model) === 'Lost'
             ? ' A draft was here that no longer fits this form; what is published is shown.'
@@ -168,11 +173,12 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
       ),
       ...(loaded
         ? [
-            EditorSlot.view(model, h, {}),
+            // The form's own submit is the publish: publishing submits the form, so
+            // its rules and checks decide, and an invalid form publishes nothing.
+            EditorSlot.view(model, h, { words: { submit: 'Publish' } }),
             h.div(
               [h.Class('actions')],
               [
-                button('publish', 'Publish', ask(Editor.Message.PublishAsked())),
                 h.input([
                   h.Id('at'),
                   h.Type('datetime-local'),
