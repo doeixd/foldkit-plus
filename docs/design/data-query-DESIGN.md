@@ -1,10 +1,11 @@
-# Foldkit Plus: Composable Data, Query, and Local-First Architecture
+# Foldkit Plus: Composable Data, Query, Read Contracts, and Local-First Architecture
 
 **Status:** design proposal; no implementation implied by this document  
 **Date:** September 2026  
 **Target:** doeixd/foldkit-plus  
 **Primary packages:** foldkit-entity, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-surface, foldkit-sync, foldkit-durable  
-**Reference systems:** LiveStore 0.4, TanStack DB, doeixd/gen2, doeixd/data-forge
+**Internal prior art:** doeixd/gen2, doeixd/data-forge, doeixd/tanstackstart-db  
+**External prior art:** TanStack DB, LiveStore 0.4
 
 ## 1. Decision
 
@@ -53,33 +54,76 @@ foldkit-sync + foldkit-durable
 
 The missing capability is narrower:
 
-> **Foldkit Plus has typed, stable query identities, but the meaning of a query is not yet a first-class, composable, source-neutral value.**
+> **The meaning of a query should become a first-class, composable, source-neutral value, without collapsing query semantics, query identity, consumer selection, pagination, and observation policy into one object.**
 
-The earlier version of this design proposed adding `from`, `where`, and `orderBy` fields directly to `Query.make`. That is too configuration-oriented.
-
-The revised recommendation is:
-
-> **Introduce a small expression/query algebra below the named Remote Query layer. Compose anonymous query values first; give them stable names and inputs only at the application capability boundary.**
-
-The conceptual stack becomes:
+The proposed architecture is:
 
 ~~~text
+                         DOMAIN SEMANTICS
+
 Entity / Field
-      ↓
+      │
+      ▼
      Expr
-      ↓
-  Predicate
-      ↓
+      │
+      ▼
+ Predicate
+      │
+      ▼
 anonymous Query
-      ↓
-named QueryDefinition
-      ↓
-Data / Surface
-      ↓
-interpreter
+      │
+      ▼
+QueryDefinition
+named + parameterized
+      │
+      ▼
+   QueryRef
+definition + concrete input
+stable logical identity
+
+
+                         CONSUMER CONTRACT
+
+   QueryRef / EntityRef
+      │
+      ├── Selection
+      ├── requested window
+      ├── required / optional expectation
+      └── observation / delivery requirement
+      │
+      ▼
+ ReadContract
+(conceptual; need not be public)
+      │
+      ▼
+  Projection
+      │
+      ▼
+   Surface
+
+
+                         EXECUTION
+
+ ReadContract / requirement
+      │
+  ┌───┼───────────────┐
+  ▼   ▼               ▼
+Remote TanStack     LiveStore
+  │
+RemoteServer
+  │
+remote-drizzle
+  │
+ SQL
 ~~~
 
-This separation is the most important change in this revision.
+The central rules are:
+
+> **Compose query semantics first. Name and bind them second. Add consumer read requirements third. Interpret last.**
+
+and:
+
+> **One transition authority per fact; any number of explicit derived, cached, mirrored, indexed, or rendered representations.**
 
 ---
 
@@ -87,33 +131,30 @@ This separation is the most important change in this revision.
 
 ### 2.1 One transition authority per fact
 
-Use the more precise ownership rule:
-
-> **One transition authority per fact. Secondary representations are allowed when their derivation and authority are explicit.**
-
-Examples:
+Secondary representations are normal and useful. They are not automatically competing state owners.
 
 | Representation | Authority |
 | --- | --- |
 | ordinary local domain/UI state | application Model / Message / update |
-| server-owned facts in Remote.Model | server; Remote cache is disposable |
+| server-owned facts represented in Remote.Model | server |
 | Sync optimistic shared value | authoritative journal + pending durable Messages |
-| URL or KV mirror | application Model |
+| URL / KV mirror | application Model |
 | local SQLite read model | the facts/materializer that produce it |
 | TanStack live-query result | its source collections |
 | DOM | current Foldkit Model |
 
 Do not let LiveStore's event log and foldkit-sync both own the same durable fact.
 
-### 2.2 Reads and writes remain different languages
+### 2.2 Reads and writes remain different semantic layers
 
-A query describes observation:
+Reads describe observation:
 
 ~~~text
 Expr / Predicate / Query
+Selection / ReadContract
 ~~~
 
-Application writes remain semantic Foldkit transitions:
+Writes remain semantic Foldkit transitions:
 
 ~~~text
 Message
@@ -123,56 +164,71 @@ update
 Model
 ~~~
 
-Do not replace semantic Messages with imperative record mutation as the application API.
+Do not replace semantic Messages with imperative record mutation as the application transition API.
 
-### 2.3 Declarations are data; interpreters execute them
+### 2.3 Declarations are data
 
-Portable semantics should be inspectable values.
+Portable semantics should be inspectable values:
 
 ~~~text
-Query declaration
-      ↓
-plain typed IR
-      ↓
+declaration
+    ↓
+typed immutable IR
+    ↓
 interpreter
 ~~~
 
-not opaque backend callbacks.
+not arbitrary backend callbacks retained as the only representation of meaning.
 
-### 2.4 Generalize declarations before runtimes
+### 2.4 Query semantics are not consumer policy
 
-Remote's EntityStore, Connection, optimistic layers, and planner already work well.
+A query should describe the population/relation.
 
-Do not extract them merely because they look reusable.
+It should not also have to own:
 
-First make query declarations portable. Only extract runtime infrastructure after a second implementation proves that it wants the same structure.
+~~~text
+which fields this component needs
+whether absence is an error
+which pagination window this component is requesting
+whether SSR should defer it
+whether a particular Surface is active
+how a renderer subscribes
+~~~
+
+Those belong above the relational Query.
+
+### 2.5 Generalize declarations before runtimes
+
+Remote's EntityStore, Connection, optimistic layers, mutation ledger, retention, and planner are substantial working infrastructure.
+
+Do not extract them because they look generic.
+
+First prove portable declarations through multiple interpreters.
 
 ---
 
 ## 3. Existing Foldkit Plus pieces and their roles
 
-### 3.1 Entity remains the domain noun
+### 3.1 Entity is the semantic noun
 
 foldkit-entity already answers:
 
 ~~~text
 What is a Project?
-Which fields does it have?
+Which intrinsic fields does it have?
 Which relations may be followed?
 Which derived members may an interpreter supply?
 ~~~
 
-It should continue to own domain structure, not storage or execution.
+Keep Entity independent of SQL, TanStack, LiveStore, routes, CRUD, and storage.
 
-Do not introduce another generic "Collection schema" beside Entity.
+Do not introduce another generic record/Collection schema beside Entity.
 
-### 3.2 Selection remains the read shape
+### 3.2 Selection is the semantic entity shape
 
 Selection answers:
 
 > Which facts about each entity does this consumer need?
-
-For example:
 
 ~~~ts
 const ProjectSummary = Entity.select(Project, {
@@ -182,38 +238,29 @@ const ProjectSummary = Entity.select(Project, {
 })
 ~~~
 
-Selection should remain independent from Query.
+Selection should remain independently reusable and late-bound to a query/read.
 
-### 3.3 Query answers population semantics
+### 3.3 Query is population semantics
 
 Query answers:
 
-> Which rows/entities belong in this result, and in what order?
+> Which entities/rows belong in this relation, under what conditions and ordering?
 
-Keep the core distinction:
+Keep:
 
 ~~~text
-Selection
-  which fields?
-
 Query
   which rows?
-~~~
 
-For ordinary Remote entity lists, Data continues to combine them:
-
-~~~ts
-Data.query(ProjectsByOwner, { ownerId }, {
-  select: ProjectSummary,
-  first: 25,
-})
+Selection
+  which facts about each row?
 ~~~
 
 ### 3.4 Data is already the application-facing seam
 
-"Data" is the bound RemoteDomain returned by Remote.make, not a separate package.
+`Data` is the bound `RemoteDomain` returned by `Remote.make`, not a separate package.
 
-Current application code already has:
+Existing operations include:
 
 ~~~ts
 Data.get(...)
@@ -228,227 +275,295 @@ Data.plan(...)
 Data.storeOf(...)
 ~~~
 
-That is valuable evidence for the desired application-facing shape.
+This is already strong application vocabulary.
 
-Do not create a competing foldkit-data package simply to recreate this vocabulary.
+Do not create a parallel `foldkit-data` package merely to rename the same concepts.
 
 ### 3.5 Remote is already a substantial client data runtime
 
-Remote already has:
+Remote already provides:
 
 ~~~text
-normalized entities
-field presence/staleness
+normalized EntityStore
+field presence / staleness
 tombstones
 Connections
-pagination segments and boundaries
+pagination segments and explicit boundaries
 stable QueryRef identity
-optimistic entity/connection overlays
-live inserts/removes/invalidations
+optimistic entity layers
+connection overlays
+live insert/remove/invalidate
 mutation reconciliation
 retention / GC
 persistence
 Surface-driven subscription lifetime
 ~~~
 
-This is already much of what a client database runtime needs.
+TanStack DB or LiveStore should initially sit behind/alongside the semantic layer, not cause this runtime to be rewritten.
 
-### 3.6 Surface remains the lifecycle boundary
+### 3.6 Surface is already the semantic lifecycle boundary
 
 Preserve:
 
 ~~~text
-Surface.at(...)
+Surface active
     ↓
-feature active
+Projection metadata active
     ↓
-Projection requirements active
+read requirements active
     ↓
-Data.subscriptions
-    ↓
-read/live work starts
+Data.subscriptions / interpreter work
 ~~~
 
-A Projection declares a requirement. Rendering does not perform I/O.
+Rendering should not perform I/O.
 
 ---
 
-## 4. Lessons from gen2 and data-forge
+## 4. Prior-art synthesis
 
-### 4.1 gen2: QueryExpression and QueryFunction are different things
+### 4.1 gen2: separate relational programs from named functions
 
-This is the most useful idea from gen2.
-
-Its concrete implementation separates:
+gen2 concretely separates:
 
 ~~~text
 QueryExpression
-  relational program itself
+  the relational program
 
 QueryFunction
-  stable name
+  name
   input type
   output type
   reactivity metadata
-  authorization
   requirements
-  runtime targets
+  authorization/runtime metadata
 ~~~
 
-Foldkit Plus should adopt the same conceptual split without importing gen2's entire compiler architecture.
-
-In Foldkit terminology:
+Foldkit should adopt this conceptual split in a smaller form:
 
 ~~~text
 Query<Row>
-  anonymous, composable relational value
+  anonymous composable relation
 
-QueryDefinition<Name, Input, Row>
-  named parameterized application capability
+QueryDefinition<Input, Row>
+  named parameterized capability
 ~~~
 
-The named definition is what Remote/Data registers.
+### 4.2 gen2: Expr values enable analysis
 
-The anonymous Query is what application/domain code composes.
-
-### 4.2 gen2: expressions are values, not callbacks
-
-gen2's expression AST contains values such as:
-
-~~~text
-literal
-field reference
-parameter reference
-operation call
-~~~
-
-and tracks referenced fields.
+gen2's expression AST makes field and parameter references inspectable.
 
 That enables:
 
 ~~~text
-SQL compilation
+compilation
 dependency extraction
-reactivity planning
-authorization analysis
+runtime capability checking
+reactivity analysis
 diagnostics
-multiple execution targets
 ~~~
 
-Foldkit Plus should adopt a much smaller version of this principle.
+Foldkit should use a much smaller Expr kernel to gain the same leverage.
 
-### 4.3 gen2: requirements can be derived and checked
+### 4.3 gen2: do not copy the whole compiler taxonomy
 
-gen2 tracks query requirements/capabilities and validates whether a runtime supports them.
+gen2 needs separate Expr, RuleExpr, QueryExpr, ActionExpr, PatchExpr, PlanExpr, and more because it is attempting a much broader application compiler.
 
-Foldkit can use a smaller form:
-
-~~~text
-query requires:
-  filter.eq
-  order
-  join
-  aggregate
-~~~
-
-An interpreter can declare support.
-
-Unsupported semantics should fail during binding/planning, not silently degrade.
-
-### 4.4 gen2: do not copy the proliferation of mini-languages
-
-gen2 has separate Expr, Predicate, RuleExpr, QueryExpr, ActionExpr, PatchExpr, PlanExpr, and more because it is attempting a full application compiler.
-
-Foldkit Plus should stay smaller.
-
-Prefer initially:
+Foldkit Plus should begin with:
 
 ~~~text
 Expr<T>
 Predicate = Expr<boolean>
-
 Query<Row>
 QueryDefinition<Input, Row>
 ~~~
 
-A future Rule can wrap the same Predicate algebra rather than create another expression language.
+A future Rule can wrap the same Predicate instead of inventing another boolean language.
 
-### 4.5 data-forge: filters and projections are reusable components
+### 4.4 data-forge: filters and projections are reusable
 
-data-forge is primarily a design sketch rather than a built implementation, but two ideas are still useful:
+data-forge is mostly a design sketch, but its split between reusable filters and reusable projections reinforces:
 
 ~~~text
-filter
+Predicate / Query fragment
   reusable population constraint
 
-lens
-  reusable projection
+Selection
+  reusable entity projection
 ~~~
 
-Foldkit already has the stronger projection abstraction: Entity.Selection.
+Foldkit's Entity.Selection is already the stronger projection abstraction.
 
-The reusable-filter idea supports making Predicate/Query fragments first-class rather than burying all filtering inside Query.make.
+### 4.5 tanstackstart-db: query composition and read-contract composition are different
 
-### 4.6 data-forge: algebraic properties are useful as metadata, not the core API
+doeixd/tanstackstart-db is especially useful because its `DbQuerySpec` combines several operations that look fluent together but mean different things:
 
-data-forge imagined operations with properties such as purity, determinism, commutativity, idempotence, and reversibility.
+~~~ts
+q.post
+  .byId(id)       // query identity / population
+  .as(PostView)   // selection
+  .required()     // result expectation
+  .live()         // observation policy
+  .defer()        // loading/SSR policy
+~~~
 
-Foldkit Query does not need that entire system.
+This exposes an important design boundary for Foldkit:
 
-But it is useful for Query to expose derived capabilities/dependencies so planners can make informed choices.
+> **There are two separate composition problems: composing what a query means, and composing how a consumer wants to read it.**
+
+Foldkit should preserve the ergonomics without collapsing the semantics.
+
+### 4.6 tanstackstart-db: logical key and resource key differ
+
+tanstackstart-db distinguishes the underlying query key from a consumer/resource key that additionally includes view/selector composition.
+
+That maps naturally to Foldkit:
+
+~~~text
+QueryRef identity
+  QueryDefinition + canonical encoded input
+
+Read identity
+  QueryRef
+  + Selection
+  + requested window
+  + result expectation
+  + relevant observation/delivery semantics
+~~~
+
+A Selection or window may change a consumer requirement without changing the logical Remote Connection identity.
+
+### 4.7 tanstackstart-db: Selection can be pushed down or materialized later
+
+Its Views can sometimes compile directly into TanStack select/join operations and otherwise materialize nested relationships after execution.
+
+Foldkit should preserve the same freedom:
+
+~~~text
+Selection semantics
+      ↓
+interpreter decides
+      ├── push down into SQL / local query
+      └── satisfy/materialize after base query
+~~~
+
+The application should not care.
+
+### 4.8 tanstackstart-db: generated helpers are useful sugar, not the primitive
+
+Schema/index/relationship declarations generate ergonomics such as:
+
+~~~text
+q.post.byId(id)
+q.post.byAuthor(authorId)
+q.post.author(id)
+~~~
+
+Foldkit can eventually derive similar helpers from Entity identity/fields/relations.
+
+But generated helpers should lower to the same Query/QueryDefinition algebra; they should not become a second query system.
+
+### 4.9 tanstackstart-db: query bundles are prior art for grouped read contracts
+
+`db.request(...)` groups named reads and allows later stages to depend on earlier results.
+
+Foldkit already has Surface/Projection as its semantic observation boundary, so it should not immediately add a Request subsystem.
+
+Still, staged read dependency is a useful future problem to remember.
+
+### 4.10 TanStack DB: keep the execution engine beneath Foldkit semantics
+
+TanStack DB contributes:
+
+~~~text
+incremental view maintenance
+joins
+aggregates
+derived collections
+source adapters
+query-driven loading
+optimistic transactions
+~~~
+
+Treat these as execution capabilities, not reasons to replace Foldkit Model/Message/update.
+
+### 4.11 LiveStore: materialization and durable local SQL
+
+LiveStore contributes:
+
+~~~text
+durable events
+materializers
+local SQLite
+reactive SQL
+offline persistence
+atomic event commits
+~~~
+
+Its event log can be the durable authority for a domain, or Foldkit Sync/Durable can be.
+
+Not both for the same fact.
 
 ---
 
-## 5. Revised semantic model
+## 5. Semantic layers
 
-The proposed semantic layers are:
+The target vocabulary is:
 
 ~~~text
 Entity
   semantic noun
 
 Field
-  addressable member of an Entity
+  addressable member
 
 Expr<T>
-  typed inspectable scalar computation
+  typed scalar computation
 
 Predicate
   Expr<boolean>
 
 Query<Row>
-  anonymous inspectable relational computation
+  anonymous relational computation
 
 QueryDefinition<Input, Row>
-  named parameterized read capability
+  named parameterized query capability
+
+QueryRef
+  QueryDefinition + concrete input
+  stable logical query identity
 
 Selection
-  requested Entity result shape
+  reusable requested entity shape
 
-Data
-  application-bound read/write API
+ReadContract
+  QueryRef/EntityRef + consumer read requirements
+  conceptual layer; public name/API not yet decided
+
+Projection
+  pure read into Foldkit Model plus interpreter metadata
 
 Surface
-  observation and capability boundary
+  active semantic observation boundary
 
-interpreter
-  Remote/Drizzle, memory, TanStack, LiveStore, etc.
+Message
+  semantic transition
+
+Wiring
+  structural installation boundary
 ~~~
 
-This is deliberately smaller than gen2.
+This is intentionally smaller than gen2 and more semantically separated than tanstackstart-db's DbQuerySpec.
 
 ---
 
-## 6. Expr: the smallest portable computation
+## 6. Expr: the portable scalar kernel
 
-Expr is the base portable value.
-
-A minimal initial AST needs only:
+A minimal Expr AST needs:
 
 ~~~text
 literal
-field
-input parameter
+field reference
+input parameter reference
 operation
 ~~~
 
@@ -462,7 +577,9 @@ type Expr<T> =
   | OperationExpr<T>
 ~~~
 
-Initial operations:
+Initial operations should be driven by real existing queries.
+
+A likely first kernel:
 
 ~~~text
 eq / neq
@@ -471,81 +588,81 @@ and / or / not
 in / notIn
 isNull / isNotNull
 contains / startsWith / endsWith
-asc / desc (or separate Order values)
+~~~
+
+Ordering may be a separate value:
+
+~~~text
+Asc(Expr)
+Desc(Expr)
 ~~~
 
 Do not model arbitrary JavaScript.
 
-Do not model all of SQL.
+Do not recreate SQL.
 
-### 6.1 Core API should be functional
+### 6.1 Prefer a functional core
 
-Prefer an explicit, small namespace:
-
-~~~ts
-Expr.field(Project.fields.ownerId)
-Expr.input('ownerId', ProjectId)
-Expr.literal('active')
-
-Expr.eq(left, right)
-Expr.and(a, b)
-~~~
-
-Ergonomic sugar may allow:
+Canonical:
 
 ~~~ts
-Project.fields.ownerId.eq(input.ownerId)
-Project.fields.updatedAt.desc()
-~~~
+Expr.eq(Project.fields.status, "active")
 
-later, but the underlying representation should not require methods on Field.
-
-### 6.2 ExprLike conversion can keep call sites terse
-
-A practical API may accept Expr-like values:
-
-~~~ts
-Expr.eq(Project.fields.status, 'active')
-~~~
-
-and lower them to:
-
-~~~text
-Eq(
-  Field(Project.status),
-  Literal("active")
-)
-~~~
-
-Likewise QueryDefinition inputs exposed to the builder should already be Expr values:
-
-~~~ts
-({ input }) =>
-  Expr.eq(Project.fields.ownerId, input.ownerId)
-~~~
-
-### 6.3 Dependencies are derived
-
-Every Expr should make its refs inspectable.
-
-For example:
-
-~~~ts
-const predicate = Expr.and(
-  Expr.eq(Project.fields.status, 'active'),
+Expr.and(
+  Expr.eq(Project.fields.status, "active"),
   Expr.eq(Project.fields.ownerId, input.ownerId),
 )
 ~~~
 
-can yield:
+The API may coerce Fields/literals into Expr values.
 
-~~~text
-Project.status
-Project.ownerId
-input.ownerId
+Method sugar such as:
+
+~~~ts
+Project.fields.status.eq("active")
 ~~~
 
-This becomes the basis for query dependency extraction.
+can exist later without being the semantic representation.
+
+### 6.2 QueryDefinition inputs become Expr values during construction
+
+~~~ts
+Query.define(
+  "ProjectsByOwner",
+  { ownerId: ProjectId },
+  ({ input }) => ...
+)
+~~~
+
+Inside the builder, `input.ownerId` is an InputExpr, not the runtime value.
+
+The callback executes while constructing the static declaration.
+
+### 6.3 Dependencies are derivable
+
+From:
+
+~~~ts
+Expr.and(
+  Expr.eq(Project.fields.status, "active"),
+  Expr.eq(Project.fields.ownerId, input.ownerId),
+)
+~~~
+
+derive:
+
+~~~text
+fields:
+  Project.status
+  Project.ownerId
+
+inputs:
+  ownerId
+
+operations:
+  eq
+  and
+~~~
 
 ---
 
@@ -557,54 +674,46 @@ Initially:
 type Predicate = Expr<boolean>
 ~~~
 
-Use the same operators:
+Reusable predicates:
 
 ~~~ts
-const Active = Expr.eq(Project.fields.status, 'active')
+const ActiveProject = Expr.eq(
+  Project.fields.status,
+  "active",
+)
 
 const OwnedBy = (ownerId: Expr<ProjectId>) =>
   Expr.eq(Project.fields.ownerId, ownerId)
-
-const Visible = Expr.and(
-  Active,
-  OwnedBy(input.ownerId),
-)
 ~~~
 
-This avoids gen2's duplication between general expressions and RuleExpr.
-
-Later, a named Rule can simply give a Predicate an identity/input contract:
+A future named Rule can simply be:
 
 ~~~text
 Rule
   name
   Input
-  body: Predicate
+  predicate: Predicate
 ~~~
 
-That same Predicate may then inform authorization, SQL filtering, UI hints, or query composition.
-
-Rule is not required for the first Query implementation.
+so authorization/query/UI tooling can share one boolean algebra.
 
 ---
 
-## 8. Query: an anonymous immutable relational value
+## 8. Query: anonymous immutable relational composition
 
-A Query should not begin life as a named endpoint/capability.
-
-The primitive is:
+The primitive:
 
 ~~~ts
 Query.from(Project)
 ~~~
 
-which creates an anonymous Query value.
+produces an anonymous Query value.
 
-Combinators transform Query -> Query:
+Pipeable transformations compose it:
 
 ~~~ts
 const Active = Query.where(
-  Expr.eq(Project.fields.status, 'active'),
+  Expr.eq(Project.fields.status, "active"),
 )
 
 const Recent = Query.orderBy(
@@ -612,15 +721,13 @@ const Recent = Query.orderBy(
   Query.asc(Project.fields.id),
 )
 
-const ActiveRecentProjects = Query.from(Project).pipe(
+const RecentActiveProjects = Query.from(Project).pipe(
   Active,
   Recent,
 )
 ~~~
 
-The important property is that `Active` and `Recent` are reusable transformations.
-
-### 8.1 Canonical API: pipeable combinators
+### 8.1 Pipeable combinators are canonical
 
 Prefer:
 
@@ -631,101 +738,70 @@ Query.from(Project).pipe(
 )
 ~~~
 
-over making fluent mutation the canonical implementation.
+because fragments themselves are reusable.
 
-A fluent facade can exist later, but pipeable transformations give better reuse:
+A fluent facade may exist later, but should lower to the same immutable values.
 
-~~~ts
-const Published = Query.where(...)
-const Recent = Query.orderBy(...)
+### 8.2 Query composition creates data, not work
 
-const Feed = Query.from(Post).pipe(
-  Published,
-  Recent,
-)
-~~~
+Each transformation returns a new inspectable Query.
 
-### 8.2 Query values are immutable data
+No network access, subscription, SQL execution, or cache mutation occurs.
 
-Each combinator returns a new inspectable query value.
+### 8.3 Composition laws should be explicit
 
-Conceptually:
-
-~~~ts
-interface Query<Row> {
-  readonly source: QuerySource<Row>
-  readonly predicates: readonly Predicate[]
-  readonly ordering: readonly Order[]
-  readonly joins: readonly Join[]
-  readonly grouping: readonly Expr[]
-  readonly projection?: ...
-}
-~~~
-
-Exact fields should be discovered from implementation.
-
-The invariant matters more than the shape:
-
-> Query composition creates data. It does not execute work.
-
-### 8.3 Multiple where calls compose
-
-Prefer composition semantics such as:
-
-~~~ts
-base.pipe(
-  Query.where(Active),
-  Query.where(OwnedBy(input.ownerId)),
-)
-~~~
-
-meaning conjunction, rather than "last where wins".
-
-This makes independent fragments naturally composable.
-
-### 8.4 Ordering should also compose deliberately
-
-Define whether repeated Query.orderBy calls append terms or replace ordering.
-
-The likely default should be append:
-
-~~~ts
-Query.orderBy(desc(updatedAt))
-Query.orderBy(asc(id))
-~~~
-
-becomes:
+Likely defaults:
 
 ~~~text
-ORDER BY updatedAt DESC, id ASC
+where + where
+  conjunction
+
+orderBy + orderBy
+  append ordering terms
 ~~~
 
-If replacement is needed, expose it explicitly.
+If replacement is needed, provide an explicit replace/reset combinator rather than hidden last-write-wins behavior.
+
+### 8.4 Do not add Selection to ordinary Entity Query yet
+
+For normal entity reads, preserve:
+
+~~~text
+Query
+  which rows?
+
+Selection
+  which fields?
+~~~
+
+General relational projection becomes necessary for joins/aggregates that return non-Entity rows.
+
+Add that only when a real query requires it.
 
 ---
 
-## 9. QueryDefinition: name composition only at the boundary
+## 9. QueryDefinition: naming and parameterization at the boundary
 
-After an anonymous Query has been composed, give it a stable application identity.
-
-Conceptually:
+Compose anonymously first:
 
 ~~~ts
 const BaseProjects = Query.from(Project).pipe(
   Query.where(
-    Expr.eq(Project.fields.status, 'active'),
+    Expr.eq(Project.fields.status, "active"),
   ),
   Query.orderBy(
     Query.desc(Project.fields.updatedAt),
     Query.asc(Project.fields.id),
   ),
 )
+~~~
 
+Then give the program an application identity:
+
+~~~ts
 const ProjectsByOwner = Query.define(
-  'ProjectsByOwner',
-  {
-    ownerId: ProjectId,
-  },
+  "ProjectsByOwner",
+  { ownerId: ProjectId },
   ({ input }) =>
     BaseProjects.pipe(
       Query.where(
@@ -735,56 +811,60 @@ const ProjectsByOwner = Query.define(
 )
 ~~~
 
-The callback is allowed because it is a construction-time builder: `input.ownerId` is an Expr parameter reference, and the callback returns static Query data.
-
-It is not a runtime row predicate.
-
-### 9.1 Why the distinction matters
-
-Do not make one object simultaneously be:
+A QueryDefinition owns concepts such as:
 
 ~~~text
-relational AST
-parameter schema
-stable name
-Remote registration
-connection identity
-pagination window
-live policy
+stable name/id
+input Schema
+row/result entity or result kind
+anonymous Query body
+derived requirements/dependencies
 ~~~
 
-Those concerns can compose, but they are not identical.
+It should not automatically own:
 
-### 9.2 Naming
+~~~text
+consumer Selection
+pagination window
+required/optional expectation
+Surface lifetime
+SSR deferral
+Remote connection state
+~~~
 
-This document uses `QueryDefinition` conceptually.
+### 9.1 Public type naming is not decided
 
-The eventual public API may call it:
+This document uses `QueryDefinition`.
+
+Possible exported names include:
 
 ~~~text
 Query.Def
 QueryDefinition
 Query.define return type
-QueryFunction
 ~~~
 
-Do not choose the exported type name until the implementation shape is clear.
-
-Avoid "QueryFunction" if it suggests arbitrary executable JavaScript; the value should remain static/inspectable.
+Avoid `QueryFunction` if it suggests arbitrary runtime JavaScript.
 
 ---
 
-## 10. Preserve current QueryRef identity and pagination
+## 10. QueryRef: concrete input and stable logical identity
 
-The current Remote QueryRef design is good.
+The current Remote QueryRef behavior is valuable and should be preserved.
 
-Keep:
+Logical identity:
 
-> logical connection identity = named query definition + canonical encoded input
+> **QueryDefinition + canonical encoded input**
 
-and exclude pagination window from identity.
+For example:
 
-Therefore:
+~~~text
+ProjectsByOwner(owner=u1)
+~~~
+
+is the stable logical connection/query identity.
+
+Pagination window is excluded:
 
 ~~~text
 ProjectsByOwner(owner=u1).first(25)
@@ -794,31 +874,60 @@ ProjectsByOwner(owner=u1)
   .first(25)
 ~~~
 
-are windows over the same logical connection.
+remain windows over the same logical connection.
 
-A likely relationship is:
+Conceptually:
 
 ~~~text
 QueryDefinition
       +
-encoded input
+concrete input
       ↓
-QueryRef
-      +
-window
+   QueryRef
+      │
+      └── stable identity
 ~~~
 
-The anonymous Query IR should not itself need to know Remote's cursor/window semantics.
-
-This is an important separation from the previous design.
+The source-neutral Query IR should not need to absorb Remote cursor/Connection semantics.
 
 ---
 
-## 11. Selection stays separate from Query for ordinary entity reads
+## 11. ReadContract: consumer composition above QueryRef
 
-Do not immediately add projection/select semantics to the core Query algebra.
+tanstackstart-db makes this missing layer visible.
 
-Today this is strong:
+A particular consumer does not merely ask for a QueryRef.
+
+It asks for a QueryRef **in a particular shape and mode**.
+
+Conceptually:
+
+~~~text
+ReadContract
+  source:
+    QueryRef or EntityRef
+
+  shape:
+    Selection
+
+  window:
+    first / last / after / before where applicable
+
+  expectation:
+    optional / required
+
+  observation:
+    whatever read/live policy the Data interpreter needs
+
+  delivery:
+    interpreter/Surface/SSR metadata where appropriate
+~~~
+
+`ReadContract` is a conceptual name. It does not need to become a public package/type.
+
+### 11.1 Current Data.query already approximates this layer
+
+Today:
 
 ~~~ts
 Data.query(
@@ -831,81 +940,182 @@ Data.query(
 )
 ~~~
 
-It keeps:
+already combines:
 
 ~~~text
-Query
-  which Project entities?
-
-Selection
-  which Project facts?
+QueryDefinition
++ input
++ Selection
++ window
+    ↓
+Projection + Remote requirement metadata
 ~~~
 
-Eventually joins/aggregates may produce rows that are not one Entity Selection.
+The implementation experiment can introduce the semantic separation internally without forcing a new public API.
 
-At that point add a more general relational projection operation deliberately.
+### 11.2 A future fluent read API is possible, but not required
 
-Do not weaken Entity.Selection prematurely to accommodate hypothetical aggregate queries.
+tanstackstart-db shows the ergonomics of:
+
+~~~ts
+q.post.byId(id)
+  .as(PostCard)
+  .required()
+~~~
+
+A Foldkit experiment might eventually support something like:
+
+~~~ts
+Data.query(ProjectsByOwner, { ownerId })
+  .select(ProjectSummary)
+  .first(25)
+~~~
+
+or pipeable Read combinators.
+
+Do not commit to this until it fits Projection/Data typing cleanly.
+
+The architectural requirement is the separation, not the chaining syntax.
+
+### 11.3 Required/optional is not relational semantics
+
+`required()` means:
+
+> the consumer treats absence as an error/NotFound boundary
+
+It does not change which row satisfies the Query.
+
+Therefore it belongs to the read/result contract.
+
+### 11.4 Observation mode is not relational semantics
+
+Whether a consumer observes live changes or performs a one-shot/static read is not part of the relational predicate.
+
+Foldkit should preserve its existing Data/Surface lifecycle model rather than importing `.live()` into Query.
+
+### 11.5 SSR defer/preload policy belongs even higher
+
+tanstackstart-db's `.defer()` and `.preloadOnly()` are useful route-delivery policies.
+
+For Foldkit these should live in Surface/Wiring/SSR integration, not QueryDefinition.
 
 ---
 
-## 12. Query fragments become first-class reusable domain values
+## 12. Two identities: logical query vs consumer read
 
-The new algebra enables domain-level fragments:
+This should be explicit.
 
-~~~ts
-const Active = Query.where(
-  Expr.eq(Project.fields.status, 'active'),
-)
+### 12.1 Logical query identity
 
-const Published = Query.where(
-  Expr.eq(Post.fields.published, true),
-)
-
-const OwnedBy = (owner: Expr<UserId>) =>
-  Query.where(
-    Expr.eq(Project.fields.ownerId, owner),
-  )
-
-const Recent = Query.orderBy(
-  Query.desc(Project.fields.updatedAt),
-)
+~~~text
+QueryDefinition
++ canonical input
+=
+QueryRef identity
 ~~~
 
-Composition:
+Used for:
 
-~~~ts
-const RecentActiveProjects = Query.from(Project).pipe(
-  Active,
-  Recent,
-)
+~~~text
+Remote Connection identity
+server/live query identity
+logical invalidation
+shared population semantics
 ~~~
 
-This is especially useful for CMS and CRUD.
+### 12.2 Consumer read identity
 
-CMS-specific helpers can return ordinary Query transformations instead of inventing another list engine:
+Conceptually:
 
-~~~ts
-Cms.published(Post)
-Cms.scheduled(Post)
-Cms.ownedBy(Post, actor)
+~~~text
+QueryRef
++ Selection
++ window
++ result expectation
++ relevant observation/delivery policy
+=
+Read identity
 ~~~
 
-if such helpers later prove useful.
+Used for:
+
+~~~text
+resource/subscription dedup
+SSR consumed-data tracking
+Projection requirement comparison
+DevTools explanation
+~~~
+
+Important:
+
+> Two reads may have different Read identities while sharing one underlying Remote Connection.
+
+That is the same useful distinction tanstackstart-db discovered with query key vs resource/cache key, but adapted to Foldkit's stronger normalized Remote model.
 
 ---
 
-## 13. Query dependencies and capabilities are derived
+## 13. Selection remains late-bound and interpreter-neutral
 
-A static Query can explain itself.
+A Selection can be satisfied differently by each interpreter.
 
-Given:
+~~~text
+Remote/Drizzle
+  compile selected fields/relations into SQL when possible
+
+TanStack
+  compile into select/join when useful
+
+LiveStore
+  compile into SQLite query or materialize from local rows
+
+Remote cache
+  request/fill only missing selected fields
+~~~
+
+Nested relation Selection should continue to reuse Entity relation semantics rather than be reimplemented inside Query.
+
+This is especially important because remote-drizzle already knows how to compile Selection/relations.
+
+---
+
+## 14. Generated helpers should lower to the core algebra
+
+tanstackstart-db demonstrates the usefulness of schema-derived helpers.
+
+Foldkit could eventually derive conveniences such as:
+
+~~~text
+by identity
+by an explicitly queryable/indexed field
+through a Relation
+~~~
+
+Possible ergonomics:
 
 ~~~ts
-const q = Query.from(Project).pipe(
+Query.by(Project.fields.ownerId)
+Query.relation(Project.relations.owner)
+~~~
+
+or helpers exposed from a bound Data/Entity namespace.
+
+But the invariant should be:
+
+> Generated helpers produce Query / QueryDefinition / QueryRef values; they are not a separate query runtime.
+
+Start with the explicit algebra. Add generation after common patterns are proven.
+
+---
+
+## 15. Query dependencies and capabilities are derived
+
+A static query can explain itself.
+
+~~~ts
+const query = Query.from(Project).pipe(
   Query.where(
     Expr.and(
-      Expr.eq(Project.fields.status, 'active'),
+      Expr.eq(Project.fields.status, "active"),
       Expr.eq(Project.fields.ownerId, input.ownerId),
     ),
   ),
@@ -915,7 +1125,7 @@ const q = Query.from(Project).pipe(
 )
 ~~~
 
-derive:
+Derive:
 
 ~~~text
 entities:
@@ -935,21 +1145,21 @@ operations:
   order
 ~~~
 
-Expose internal/public helpers only where useful:
+Potential helpers:
 
 ~~~ts
-Query.dependencies(q)
-Query.requirements(q)
+Query.dependencies(query)
+Query.requirements(query)
 ~~~
 
-Potential consumers:
+Consumers include:
 
 ~~~text
 remote-drizzle
-  required SQL columns
+  SQL columns / compiler checks
 
 Remote planner
-  requirements / pushdown
+  source pushdown / requirements
 
 TanStack
   execution/index planning
@@ -958,20 +1168,20 @@ DevTools
   explanation
 
 SSR
-  consumed data graph
+  consumed dependency graph
 
 agents
   capability description
 
-future reactivity
-  affected-query analysis
+future invalidation
+  candidate affected reads
 ~~~
 
 ---
 
-## 14. Interpreter capability checking
+## 16. Interpreter capability checking
 
-An interpreter should be able to declare the portable operators it supports.
+An interpreter should declare its supported portable operators.
 
 Conceptually:
 
@@ -979,51 +1189,30 @@ Conceptually:
 remote-drizzle:
   eq
   range
-  and/or/not
-  ordering
-  joins
-  pagination
+  boolean composition
+  order
   ...
 
-in-memory reference:
+in-memory:
   portable kernel
 
-simple REST adapter:
+simple REST source:
   eq
-  ordering
+  order
   pagination
 ~~~
 
-Binding a QueryDefinition to an interpreter can validate requirements.
+Binding/compilation should fail explicitly for unsupported semantics.
 
-For example:
+Do not silently change meaning.
 
-~~~text
-Query "ProjectStats"
-requires:
-  aggregate.count
-  groupBy
-
-Adapter "SimpleRest"
-supports:
-  eq
-  order
-  page
-
-=> binding error
-~~~
-
-Do not silently fall back to different semantics.
-
-Backend-specific escape hatches are still allowed, but they are explicitly non-portable.
+Backend-native escape hatches remain first-class and explicitly non-portable.
 
 ---
 
-## 15. remote-drizzle is the first compiler
+## 17. remote-drizzle is the first compiler
 
-remote-drizzle already occupies the right architectural boundary.
-
-Today query meaning is split:
+Today query semantics are split between the Remote descriptor and Drizzle adapter configuration:
 
 ~~~ts
 const ProjectsByOwner = Query.make(...)
@@ -1034,11 +1223,11 @@ query(ProjectBinding, ProjectsByOwner, {
 })
 ~~~
 
-The first implementation goal is to move the common semantics into the composed QueryDefinition:
+The first implementation goal is:
 
 ~~~ts
 const ProjectsByOwner = Query.define(
-  'ProjectsByOwner',
+  "ProjectsByOwner",
   { ownerId: ProjectId },
   ({ input }) =>
     Query.from(Project).pipe(
@@ -1053,19 +1242,19 @@ const ProjectsByOwner = Query.define(
 )
 ~~~
 
-Then the Drizzle binding should need little or no repeated filter/order logic:
+Then:
 
 ~~~ts
 query(ProjectBinding, ProjectsByOwner)
 ~~~
 
-The current native callback form should remain initially as an escape hatch and migration path.
+with no duplicated common predicate/order semantics.
 
-### 15.1 Authorization remains outside query semantics
+Keep the current adapter callback form as a native escape hatch and migration path.
 
-Portable Query IR must not bypass current security boundaries.
+### 17.1 Authorization remains an independent authoritative boundary
 
-Preserve:
+Portable Query semantics must not bypass:
 
 ~~~text
 RemoteServer field authorization
@@ -1076,27 +1265,21 @@ application authentication
 
 A Query describes requested rows.
 
-Authorization decides which requested rows/facts a principal may actually observe.
+Authorization determines which requested facts a principal may observe.
 
-The recent remote-drizzle visibility work makes this distinction especially important: every read path must continue through the same visibility boundary.
+The current remote-drizzle visibility work is therefore complementary to this design, not replaced by it.
 
 ---
 
-## 16. Add an in-memory reference interpreter second
+## 18. Add an in-memory reference interpreter second
 
-Before TanStack or LiveStore, implement the smallest second interpreter.
-
-Input:
+Before integrating another large runtime, implement:
 
 ~~~text
 Entity rows
-Query IR
-query input
-~~~
-
-Output:
-
-~~~text
++ Query IR
++ input
+    ↓
 matching ordered rows
 ~~~
 
@@ -1104,82 +1287,73 @@ Use it for:
 
 ~~~text
 unit tests
-differential tests against Drizzle
 operator semantic tests
+differential tests against real Drizzle SQL
 portable-kernel conformance
 ~~~
 
 Acceptance criterion:
 
-> The same QueryDefinition produces equivalent results through the in-memory evaluator and remote-drizzle for the supported subset.
-
-This proves the IR is semantic rather than merely a Drizzle AST.
+> The same QueryDefinition returns equivalent results through the in-memory interpreter and remote-drizzle for the supported subset.
 
 ---
 
-## 17. TanStack DB should be an execution engine, not the Foldkit model
+## 19. TanStack DB should be an execution engine
 
-TanStack DB is valuable for:
+The tanstackstart-db repo confirms a good architectural pattern:
+
+> Add application contracts above TanStack DB; do not duplicate its engine.
+
+For Foldkit:
+
+~~~text
+Query / ReadContract
+      ↓
+TanStack interpreter
+      ↓
+TanStack collections
++ incremental live query
+      ↓
+explicit Foldkit boundary
+      ↓
+Message / Model / Projection
+~~~
+
+Useful TanStack capabilities:
 
 ~~~text
 incremental view maintenance
 joins
 aggregates
-indexes
 derived collections
-query composition
+indexes
+source adapters
 query-driven loading
 ~~~
 
-Prototype:
+Do not make application Views directly depend on hidden mutable TanStack runtime state.
 
-~~~text
-Entity + Query IR
-      ↓
-TanStack adapter
-      ↓
-TanStack source collections
-      ↓
-incremental live query
-      ↓
-explicit Foldkit boundary
-      ↓
-Message / Model
-~~~
-
-Do not make application Views directly depend on hidden mutable TanStack state.
-
-Do not replace semantic Foldkit Messages with TanStack record mutation as the application transition API.
-
-The important proof:
-
-> The same Foldkit QueryDefinition executes through remote-drizzle on the server and TanStack DB locally.
-
-Only after that experiment should a generalized Data interface be considered.
+Do not replace Foldkit Messages with TanStack record mutation as the semantic application API.
 
 ---
 
-## 18. LiveStore should be an adapter with explicit durable ownership
-
-A LiveStore path can interpret queries while LiveStore supplies SQLite/materialization/event-log infrastructure.
+## 20. LiveStore should be an interpreter with explicit ownership
 
 Read path:
 
 ~~~text
 Surface active
     ↓
-Data query requirement
+ReadContract active
     ↓
 LiveStore adapter
     ↓
-Store.subscribe / subscribeStream
+SQLite/live query
     ↓
-Foldkit Message
-    ↓
-Model
+Foldkit Message / Model
 ~~~
 
-Two valid write architectures remain.
+Two valid durable ownership modes:
 
 ### A. LiveStore owns durable history
 
@@ -1197,31 +1371,150 @@ materializer
 SQLite
 ~~~
 
-Do not also use foldkit-sync as the durable authority for those facts.
-
-### B. Foldkit Sync owns durable history
+### B. Foldkit Sync/Durable owns durable history
 
 ~~~text
 durable Foldkit Message
     ↓
-foldkit-sync / durable
+Sync / Durable
     ↓
 authoritative operation order
     ↓
-Foldkit materializer
+materializer
     ↓
-queryable read model
+queryable local read model
 ~~~
 
-Do not add LiveStore's event log as another authority for the same operations.
+Never use both logs as co-authorities for the same fact.
 
 ---
 
-## 19. Future Foldkit materialization
+## 21. Query-driven loading becomes richer with ReadContract
 
-LiveStore demonstrates the usefulness of rebuildable read models.
+Remote already performs:
 
-A future primitive could be:
+~~~text
+active Selection requirement
+    ↓
+compare normalized cache
+    ↓
+fetch missing/stale selected fields
+~~~
+
+With semantic Query + ReadContract, the planner can reason about:
+
+~~~text
+population predicate
+ordering
+Selection
+window
+current cache coverage
+~~~
+
+Then execution can vary:
+
+~~~text
+Remote/Drizzle
+  push predicate/order/window/selection to server
+
+TanStack
+  execute locally over synced collections
+
+LiveStore
+  execute in local SQLite
+
+hybrid future
+  remote pushdown + local derived composition
+~~~
+
+This is the most direct place where Query semantics and existing Remote planning reinforce each other.
+
+---
+
+## 22. Query bundles: useful prior art, not a new Foldkit subsystem
+
+tanstackstart-db supports:
+
+~~~ts
+db.request(({ q }) => ({
+  post: ...,
+  comments: ...,
+}))
+~~~
+
+and staged extension when later reads need earlier values.
+
+Foldkit already has:
+
+~~~text
+Surface
+Projection composition
+Bundle/Wiring
+Model transitions
+~~~
+
+so do not add `Request` merely to copy this API.
+
+However, if real features repeatedly need staged dependent reads, consider a small read-set abstraction later:
+
+~~~text
+parallel ReadContracts
+      ↓
+stage result
+      ↓
+dependent ReadContracts
+~~~
+
+It should compose with Surface rather than own another cache/lifecycle system.
+
+---
+
+## 23. Action "affects" is useful prior art; derive before declaring
+
+tanstackstart-db actions can declare:
+
+~~~text
+this mutation affects query X / field Y
+~~~
+
+to drive pending UI/invalidation.
+
+Foldkit has stronger semantic ingredients:
+
+~~~text
+Message
+changed Model paths/fields
+Expr/Query dependencies
+Remote mutation metadata/live updates
+~~~
+
+Prefer deriving candidate affected reads where possible.
+
+Conceptually:
+
+~~~text
+Message changes:
+  Project.status
+  Project.ownerId
+
+Query dependencies:
+  Project.status
+  Project.ownerId
+
+=> query may be affected
+~~~
+
+For exact cases that cannot be derived, allow explicit metadata/overrides.
+
+Do not require every mutation author to manually maintain a parallel affected-query list if the architecture can infer it.
+
+---
+
+## 24. Future Foldkit materialization
+
+LiveStore demonstrates the value of rebuildable read models.
+
+Conceptually:
 
 ~~~text
 authoritative facts
@@ -1231,31 +1524,25 @@ Materializer
 derived index / table / search view
 ~~~
 
-The invariant:
+The invariant remains:
 
 ~~~text
 update
-  application transition semantics
+  application transition meaning
 
 Materializer
-  derived read/index representation
+  rebuildable searchable representation
 ~~~
 
-Materialization should be disposable/rebuildable from its source facts unless another authority is explicitly declared.
-
-Start with a simple in-memory target before SQLite.
+Start with an in-memory target before SQLite if this work is pursued.
 
 ---
 
-## 20. Sync improvements that support materialization
+## 25. Sync improvements that support materialization
 
-Useful future additions:
+Potential additions:
 
-### 20.1 Committed-operation observation
-
-Expose committed durable facts without requiring consumers to inspect Replica internals.
-
-Conceptually:
+### 25.1 Committed-operation observation
 
 ~~~ts
 TodoSync.committed(replica)
@@ -1271,9 +1558,9 @@ yielding:
 }
 ~~~
 
-### 20.2 Atomic semantic Message batches
+Useful for indexes/materializers without exposing Sync internals.
 
-Conceptually:
+### 25.2 Atomic semantic Message batches
 
 ~~~ts
 replica.submitBatch([
@@ -1285,85 +1572,39 @@ replica.submitBatch([
 
 with matching journal atomicity.
 
-The semantic unit remains a Message.
+### 25.3 Durable encoding evolution
 
-### 20.3 Durable encoding evolution
+Historical durable wire formats should migrate to current Message representations.
 
-Historical durable encodings should migrate into the current Message representation.
-
-Do not require the current application Message union to preserve every historical wire shape forever.
-
-Design the exact API only after exercising a real migration.
+Design the exact API only after a real migration is exercised.
 
 ---
 
-## 21. Query-driven loading
+## 26. Cross-source composition is a future planner problem
 
-Remote already performs query-adjacent demand planning:
+The Query algebra should not assume one physical source forever.
 
-~~~text
-Surface requirement
-    ↓
-normalized cache comparison
-    ↓
-fetch missing/stale selected fields
-~~~
-
-Composable Query semantics can extend that requirement graph toward:
-
-~~~text
-entity/source
-predicate
-ordering
-selection
-window
-~~~
-
-Interpreters decide what to push down.
-
-~~~text
-Remote/Drizzle
-  server executes predicate/order/window
-
-TanStack
-  local engine executes query
-
-LiveStore
-  SQLite executes query
-
-future hybrid
-  remote fragment + local composition
-~~~
-
-Do not require every backend to support every operation.
-
----
-
-## 22. Cross-source composition is a future planner problem
-
-gen2 models cross-store planning explicitly. Foldkit should not implement that now, but the Query algebra should avoid assuming one source forever.
-
-A future query might join:
+A future query could involve:
 
 ~~~text
 Project
-  Remote/server-owned
+  server/Remote-owned
 
 Draft
-  Sync/local-owned
+  local/Sync-owned
 ~~~
 
-A planner could eventually produce:
+A future planner might produce:
 
 ~~~text
 Remote fragment
       +
-local Sync fragment
+local fragment
       ↓
-TanStack/local composition
+TanStack/local join
 ~~~
 
-Possible strategies include:
+Possible strategies:
 
 ~~~text
 server composition
@@ -1372,62 +1613,32 @@ streaming/local join
 event-derived view
 ~~~
 
-This is a reason to keep Query semantic and source-neutral, not a reason to build a cross-store planner now.
+Do not build this planner until there is a real cross-source query that needs it.
 
 ---
 
-## 23. Keep UI interaction state separate
+## 27. Reactivity integration
 
-Do not make Query own application interaction state.
-
-~~~text
-Query
-  which rows match?
-
-QueryRef window
-  which data window is requested?
-
-application Pagination state
-  which window does the user want?
-
-SelectionSet
-  which rows did the user choose?
-
-Virtual
-  which rows are physically visible?
-
-Surface
-  which feature/data requirements are active?
-~~~
-
-The existing QueryRef may continue to carry the requested server/data pagination window.
-
-The user's navigation state belongs to the application Model.
-
----
-
-## 24. Reactivity integration
-
-The existing reactivity design already distinguishes semantics from propagation:
+The existing reactivity design distinguishes semantics from propagation:
 
 ~~~text
 Message -> update -> Model
 
 Projection.dependencies
        ↓
-which consumers need recomputation?
+affected consumer recomputation
 ~~~
 
-Query should contribute inspectable dependency metadata, not create a competing Foldkit reactive graph.
+Query/ReadContract should contribute inspectable dependencies and requirement metadata.
 
-An external engine may internally maintain incremental state, but crossing into application-observable Foldkit state should remain explicit.
+They should not create another Foldkit reactive state graph.
 
-Conceptually:
+An external engine may maintain its own internal incremental graph, but crossing into Foldkit application-observable state remains explicit.
 
 ~~~text
                     Projection
                    /          \
-        Model dependencies    Query requirement
+        Model dependencies    Read requirement
                  │                  │
                  ▼                  ▼
           Model transition      source change
@@ -1437,53 +1648,54 @@ Conceptually:
 
 ---
 
-## 25. Data should be generalized only from evidence
+## 28. Data should be generalized only from evidence
 
-Do not create a DataProvider abstraction first.
+Do not create a generic DataProvider interface first.
 
 Build:
 
 ~~~text
 Remote/Drizzle
-in-memory reference
-then one of TanStack / LiveStore
+in-memory reference interpreter
+TanStack or LiveStore interpreter
 ~~~
 
-and compare.
+then compare.
 
-Likely common concepts may include:
+Likely common application concepts:
 
 ~~~text
 get
 query
-live
-subscriptions
-wiring
-Projection results
+Selection
+ReadContract
+Projection
 Surface activation
+subscriptions
 ~~~
 
-Likely Remote-specific concepts include:
+Likely Remote-specific concepts:
 
 ~~~text
-RemoteData
 RemoteClient
+RemoteData
 storeOf
 plan
-Data.reduce over Remote.Model
+Remote.Model reducer
 Remote persistence
 Remote mutation reconciliation
+Connections
 ~~~
 
-Let the interface emerge from real implementations.
+Let the abstraction emerge from implementations.
 
 ---
 
-## 26. DevTools and agents
+## 29. DevTools, agents, and CMS
 
-Static Query values make architectural explanation possible.
+### 29.1 DevTools
 
-A DevTools view could show:
+A read can explain both its logical query and its consumer contract:
 
 ~~~text
 Surface: ProjectPage
@@ -1491,75 +1703,70 @@ Surface: ProjectPage
 QueryDefinition:
   ProjectsByOwner(ownerId)
 
-composed query:
+Query:
   FROM Project
   WHERE Project.status = "active"
   AND Project.ownerId = $ownerId
-  ORDER BY Project.updatedAt DESC, Project.id ASC
+  ORDER BY Project.updatedAt DESC
 
-dependencies:
+QueryRef identity:
+  ProjectsByOwner + owner=u1
+
+Read:
+  Selection: ProjectSummary
+  Window: first 25
+  Expectation: list
+  Executor: remote-drizzle
+
+Dependencies:
   Project.status
   Project.ownerId
   Project.updatedAt
-
-selection:
-  Project.id
-  Project.name
-  Project.owner.name
-
-executor:
-  remote-drizzle
 ~~~
 
-For agents, QueryDefinition can become an application-sanctioned read capability rather than unrestricted database access.
+### 29.2 Agents
+
+A QueryDefinition can become an application-sanctioned read capability rather than unrestricted DB access.
+
+The application controls which named definitions and selections an agent may use.
 
 Server authorization remains authoritative.
 
----
+### 29.3 CMS
 
-## 27. CMS synergy
+CMS already has concrete queries such as worklists and by-slug reads.
 
-The current CMS work already reuses Entity, Remote queries, visibility, Form, and CRUD concepts.
-
-Do not add a CMS-specific query subsystem.
-
-Composable query fragments can make CMS behavior easier to express:
+These are good migration candidates because they exercise:
 
 ~~~text
-published
-scheduled
-owned by actor
-by slug
-revision history
-worklist
+real QueryDefinitions
+visibility rules
+Selections
+Remote/Drizzle execution
+different consumer read shapes
 ~~~
 
-but those should lower into the same Query/Predicate vocabulary where appropriate.
-
-The recent CMS by-slug and worklist queries are useful concrete candidates when testing the new Query API.
+Do not add CMS-specific query infrastructure.
 
 ---
 
-## 28. Proposed API sketch
+## 30. Proposed API sketch
 
-This is illustrative, not a committed public API.
+This is illustrative, not committed.
 
-### 28.1 Reusable expressions/predicates
+### 30.1 Reusable predicate
 
 ~~~ts
 const ActiveProject = Expr.eq(
   Project.fields.status,
-  'active',
+  "active",
 )
 
 const OwnedBy = (ownerId: Expr<ProjectId>) =>
-  Expr.eq(
-    Project.fields.ownerId,
-    ownerId,
-  )
+  Expr.eq(Project.fields.ownerId, ownerId)
 ~~~
 
-### 28.2 Anonymous reusable Query
+### 30.2 Anonymous query
 
 ~~~ts
 const RecentActiveProjects = Query.from(Project).pipe(
@@ -1571,14 +1778,12 @@ const RecentActiveProjects = Query.from(Project).pipe(
 )
 ~~~
 
-### 28.3 Named parameterized definition
+### 30.3 Named parameterized query
 
 ~~~ts
 const ProjectsByOwner = Query.define(
-  'ProjectsByOwner',
-  {
-    ownerId: ProjectId,
-  },
+  "ProjectsByOwner",
+  { ownerId: ProjectId },
   ({ input }) =>
     RecentActiveProjects.pipe(
       Query.where(
@@ -1588,7 +1793,7 @@ const ProjectsByOwner = Query.define(
 )
 ~~~
 
-### 28.4 Existing Data usage remains recognizable
+### 30.4 Existing Data API can remain
 
 ~~~ts
 const Data = Remote.make({
@@ -1609,73 +1814,70 @@ const projects = Data.query(
 )
 ~~~
 
-### 28.5 Reuse through transformations
+Internally this can be understood as:
 
-~~~ts
-const Open = Query.where(
-  Expr.eq(Project.fields.status, 'open'),
-)
-
-const Mine = (actorId: Expr<UserId>) =>
-  Query.where(
-    Expr.eq(Project.fields.ownerId, actorId),
-  )
-
-const OpenProjects = Query.from(Project).pipe(Open)
-
-const MyOpenProjects = Query.define(
-  'MyOpenProjects',
-  { actorId: UserId },
-  ({ input }) =>
-    OpenProjects.pipe(
-      Mine(input.actorId),
-    ),
-)
+~~~text
+ProjectsByOwner
+  + { ownerId }
+      ↓
+   QueryRef
+      +
+ ProjectSummary
+      +
+   first 25
+      ↓
+ ReadContract
+      ↓
+ Projection
 ~~~
 
-The important property is not the exact spelling.
+### 30.5 Optional future read ergonomics
 
-It is:
+Only if it fits cleanly:
 
-> **Composition happens before naming/registration.**
+~~~ts
+Data.query(ProjectsByOwner, { ownerId })
+  .select(ProjectSummary)
+  .first(25)
+~~~
+
+or an equivalent pipeable form.
+
+Do not make fluent syntax a prerequisite for the semantic redesign.
 
 ---
 
-## 29. Recommended build order
+## 31. Recommended implementation sequence
 
-### Phase 0 -- revise documentation
+### Phase 0 — terminology and tests
 
-Document the semantic distinction:
+Document/test current invariants:
 
 ~~~text
-Entity
-Selection
-Expr / Predicate
-anonymous Query
-named QueryDefinition
-QueryRef
-Data / Remote
+QueryDescriptor identity
+QueryRef canonical input identity
+pagination window excluded from Connection identity
+Selection behavior
+Remote visibility/authorization
 ~~~
 
-### Phase 1 -- tiny Expr kernel
+### Phase 1 — tiny Expr kernel
 
-Implement only:
+Implement only what one real existing query needs:
 
 ~~~text
-field ref
-input ref
-literal
+FieldExpr
+InputExpr
+LiteralExpr
 eq
 and
-ordering
+Order asc/desc
 dependency extraction
 ~~~
 
 Use ordinary immutable discriminated unions.
 
-Do not build a generic compiler framework.
-
-### Phase 2 -- anonymous Query + pipeable transformations
+### Phase 2 — anonymous Query + pipeable transformations
 
 Implement:
 
@@ -1685,81 +1887,94 @@ Query.where
 Query.orderBy
 ~~~
 
-Define composition laws explicitly:
+Specify composition laws.
+
+### Phase 3 — Query.define bridge to current Remote
+
+Make the new QueryDefinition adapt to current Remote registration/QueryDescriptor requirements.
+
+Preserve current QueryRef and Connection behavior.
+
+Avoid a broad Remote rewrite.
+
+### Phase 4 — make ReadContract explicit internally
+
+Refactor `Data.query` planning so it is conceptually clear which pieces are:
 
 ~~~text
-multiple where => AND
-multiple orderBy => append terms
+QueryRef
+Selection
+window
+expectation/observation metadata
 ~~~
 
-### Phase 3 -- Query.define bridge to current Remote descriptor
+This may remain an internal type.
 
-Make Query.define produce or adapt to the current Remote QueryDescriptor requirements:
+The goal is separation, not a new public API.
 
-~~~text
-name
-Input codec
-Result/entity
-stable ref(input)
-~~~
+### Phase 5 — compile one real query through remote-drizzle
 
-Preserve QueryRef identity/window behavior.
-
-Avoid a breaking Remote redesign in the first experiment.
-
-### Phase 4 -- compile to remote-drizzle
-
-Migrate one existing query away from duplicated adapter-side where/orderBy.
-
-Candidate queries should include at least one real current CMS/Remote query, not only a synthetic example.
+Migrate a current CMS/Remote query so common where/order semantics are no longer duplicated in the Drizzle binding.
 
 Keep native callbacks as escape hatches.
 
-### Phase 5 -- in-memory reference interpreter
+### Phase 6 — in-memory reference interpreter
 
-Execute the same IR over in-memory rows.
+Execute the same QueryDefinition over in-memory rows.
 
-Add differential tests against real Drizzle SQL.
+Add differential tests against real Drizzle.
 
-### Phase 6 -- broaden the portable kernel from examples
+### Phase 7 — migrate several real query shapes
 
-Possible next operations:
-
-~~~text
-neq
-range comparison
-or / not
-in
-null checks
-string matching
-~~~
-
-Only add what real queries need.
-
-### Phase 7 -- TanStack DB spike
-
-Compile the same Query into TanStack DB.
-
-Measure:
+Use examples that exercise:
 
 ~~~text
-type/API fit
-incremental query usefulness
-lifecycle fit with Surface
-bundle/runtime cost
-cross-source potential
-which Data operations truly generalize
+by field
+compound predicate
+ordering
+CMS by-slug/worklist style queries
+different Selections over the same QueryRef
+multiple windows over one Connection
 ~~~
 
-### Phase 8 -- LiveStore spike
+This specifically tests the QueryRef vs ReadContract distinction.
 
-Bind one read/query path through LiveStore and Surface-driven lifecycle.
+### Phase 8 — TanStack DB spike
+
+Compile Query IR to TanStack DB.
+
+Test:
+
+~~~text
+same QueryDefinition
+same Selection
+different local executor
+Surface lifecycle
+read identity/dedup
+incremental updates
+~~~
+
+### Phase 9 — LiveStore spike
+
+Execute the same read semantics through LiveStore/SQLite.
 
 Keep durable ownership explicit.
 
-### Phase 9 -- decide package placement
+### Phase 10 — derived helpers
 
-Only after two interpreters work, decide whether source-neutral pieces live in:
+Only after the core works, experiment with generated:
+
+~~~text
+byId
+byField/index
+relation queries
+~~~
+
+All helpers must lower to the same algebra.
+
+### Phase 11 — decide package placement
+
+Only after multiple interpreters exist, decide whether source-neutral pieces belong in:
 
 ~~~text
 foldkit-remote
@@ -1767,17 +1982,11 @@ foldkit-entity
 a small foldkit-query package
 ~~~
 
-Do not decide from aesthetics alone; follow dependency direction.
+Follow dependency direction and real reuse, not naming aesthetics.
 
-### Phase 10 -- materialization / Sync work
+### Phase 12 — advanced relational semantics
 
-Experiment with committed-operation observation and a rebuildable local read model.
-
-Atomic batches and durable migration APIs should follow concrete use cases.
-
-### Phase 11 -- advanced relational features
-
-Only after demonstrated need:
+Only as required:
 
 ~~~text
 joins
@@ -1786,36 +1995,51 @@ aggregates
 distinct
 subqueries
 general projection
-derived-query composition
+derived queries
 cross-source planning
 ~~~
 
-TanStack DB may remain the execution engine for some of these rather than being reimplemented.
+TanStack DB may remain the engine for some advanced cases rather than being reimplemented.
 
 ---
 
-## 30. Acceptance criteria
+## 32. Acceptance criteria
 
-The seam is correct if one domain declaration and one named query can execute through multiple interpreters.
+The design has found the correct seam if this works.
+
+One domain:
 
 ~~~ts
 const Post = Entity.define(...)
+~~~
 
-const PostRow = Entity.select(Post, {
+One Selection:
+
+~~~ts
+const PostCard = Entity.select(Post, {
   id: true,
   title: true,
 })
+~~~
 
-const Published = Query.where(
-  Expr.eq(Post.fields.published, true),
+One reusable predicate:
+
+~~~ts
+const Published = Expr.eq(
+  Post.fields.published,
+  true,
 )
+~~~
 
+One QueryDefinition:
+
+~~~ts
 const RecentPosts = Query.define(
-  'RecentPosts',
+  "RecentPosts",
   {},
   () =>
     Query.from(Post).pipe(
-      Published,
+      Query.where(Published),
       Query.orderBy(
         Query.desc(Post.fields.createdAt),
       ),
@@ -1823,7 +2047,23 @@ const RecentPosts = Query.define(
 )
 ~~~
 
-Execution:
+Multiple consumer reads over the same logical query:
+
+~~~ts
+Data.query(RecentPosts, {}, {
+  select: PostCard,
+  first: 10,
+})
+
+Data.query(RecentPosts, {}, {
+  select: PostAdminRow,
+  first: 50,
+})
+~~~
+
+They share logical QueryDefinition/QueryRef semantics but have distinct read requirements.
+
+And the same query semantics can execute through:
 
 ~~~text
 RecentPosts
@@ -1833,75 +2073,73 @@ RecentPosts
    └── LiveStore      -> local SQLite query
 ~~~
 
-Application use remains approximately:
-
-~~~ts
-Data.query(RecentPosts, {}, {
-  select: PostRow,
-  first: 25,
-})
-~~~
-
-The feature should not care how the query executes unless it deliberately uses backend-specific semantics.
+The application feature should not care which interpreter runs it unless it deliberately uses a backend-specific escape hatch.
 
 ---
 
-## 31. Non-goals
+## 33. Non-goals
 
 This design does not aim to:
 
 - replace Model / Message / update;
 - replace foldkit-remote;
 - replace foldkit-sync;
+- add a second normalized cache;
 - reproduce gen2's whole application compiler;
+- reproduce tanstackstart-db's whole route/component framework;
 - reproduce data-forge's whole proposed data model;
-- recreate SQL as TypeScript;
+- recreate SQL in TypeScript;
 - reproduce all of TanStack DB;
 - reproduce all of LiveStore;
-- add a second mutable Collection store;
+- merge Query and Selection;
+- put required/live/defer semantics into relational Query;
 - make every query portable;
-- force every interpreter to support every operation;
-- merge Selection and Query prematurely;
-- move Remote EntityStore/Connection machinery prematurely;
+- force every interpreter to support every operator;
+- extract Remote EntityStore/Connection machinery prematurely;
 - bypass server authorization;
-- make Query responsible for UI pagination/navigation state;
-- build cross-store planning before a real use case requires it.
+- create a second public "Collection" concept beside Bundle collections;
+- build cross-store planning before a concrete need exists.
 
 ---
 
-## 32. External and internal references checked
+## 34. References
 
-Internal prior art:
+Internal prior art inspected:
 
-- doeixd/gen2 README and implementation:
-  - typed Expr AST
-  - Predicate
-  - QueryExpression
-  - QueryFunction
-  - query requirements/runtime checking
-  - reactive keys and dependency analysis
-  - cross-store query planning
-- doeixd/data-forge README:
-  - composable filters
-  - lens/projection separation
-  - operation properties
-  - location-independent execution concept
+- `doeixd/gen2`
+  - Expr / Predicate representation
+  - QueryExpression vs QueryFunction
+  - dependency extraction
+  - runtime requirements/capability checking
+  - cross-store planning ideas
+- `doeixd/data-forge`
+  - reusable filters
+  - projection/lens separation
+  - location-independent execution ideas
+- `doeixd/tanstackstart-db`
+  - schema-generated query helpers
+  - DbQuerySpec
+  - late-bound Views via `.as(view)`
+  - logical query key vs resource/cache key
+  - query bundles / staged reads
+  - action affects metadata
+  - adapter-first TanStack DB architecture
 
 External prior art:
 
 - TanStack DB overview: https://tanstack.com/db/latest/docs/overview
 - TanStack DB live queries: https://tanstack.com/db/latest/docs/guides/live-queries
-- TanStack DB query collection: https://tanstack.com/db/latest/docs/collections/query-collection
+- TanStack DB query collections: https://tanstack.com/db/latest/docs/collections/query-collection
 - LiveStore Store API 0.4: https://docs.livestore.dev/api/livestore/classes/store/
-- LiveStore changelog 0.4: https://docs.livestore.dev/changelog/
+- LiveStore changelog: https://docs.livestore.dev/changelog/
 
 These are prior art, not architectural dependencies.
 
 ---
 
-## 33. Final thesis
+## 35. Final thesis
 
-Foldkit Plus already has the important runtime pieces:
+Foldkit Plus already owns the important semantic/runtime pieces:
 
 ~~~text
 Entity
@@ -1914,9 +2152,9 @@ Surface
 Sync / Durable
 ~~~
 
-The missing layer should not be another store.
+The missing addition is not another store.
 
-It should be a **small composable semantic language for reads**:
+It is a small composable semantic language for **what data means to read**, with an explicit distinction between the logical query and a particular consumer's read contract:
 
 ~~~text
 Field
@@ -1927,43 +2165,27 @@ Predicate
   ↓
 anonymous Query
   ↓
-named QueryDefinition
+QueryDefinition
   ↓
-Data / Surface
+QueryRef
+  ↓
+ReadContract
+  ↓
+Projection
+  ↓
+Surface
   ↓
 interpreter
 ~~~
 
-That produces a coherent Foldkit vocabulary:
+The resulting design has four important boundaries:
 
-~~~text
-Entity
-  semantic noun
+> **Query composes population semantics.**
 
-Selection
-  semantic entity shape
+> **QueryDefinition names a reusable parameterized capability.**
 
-Expr
-  semantic scalar computation
+> **QueryRef identifies one concrete logical population.**
 
-Query
-  semantic relational computation
+> **ReadContract adds the Selection/window/result requirements of one consumer without changing that logical population's identity.**
 
-QueryDefinition
-  semantic named read capability
-
-Message
-  semantic transition
-
-Surface
-  semantic observation/capability boundary
-
-Wiring
-  semantic installation boundary
-~~~
-
-The most important rule is:
-
-> **Compose first. Name and register second. Interpret last.**
-
-That gives Foldkit Plus the useful parts of gen2, data-forge, TanStack DB, and LiveStore while preserving what Foldkit already does better: explicit state ownership, semantic Messages, pure update, declarative observation, server-side authorization, and replaceable interpreters.
+This synthesizes the strongest ideas from Foldkit Plus, gen2, data-forge, tanstackstart-db, TanStack DB, and LiveStore while preserving Foldkit's strongest properties: explicit transition ownership, semantic Messages, pure update, late-bound observation, normalized Remote state, server-authoritative authorization, and replaceable interpreters.
