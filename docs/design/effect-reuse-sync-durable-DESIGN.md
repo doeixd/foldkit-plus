@@ -5,6 +5,37 @@
 **Target packages:** \`foldkit-sync\`, \`foldkit-durable\`  
 **Effect areas reviewed:** \`effect/unstable/eventlog\`, \`effect/unstable/persistence\`, \`effect/unstable/rpc\`, \`effect/unstable/socket\`, \`effect/unstable/workflow\`, Effect SQL
 
+> **Status: the decision is landed; the prototypes and the PRs are not, and
+> they are gated on different things.** Audited against the code.
+>
+> **§1's decision holds and is visible.** No `EventLog` or `EventJournal`
+> appears anywhere in `packages/`. `foldkit-durable` sits directly on Effect SQL
+> (`@effect/sql-sqlite-node`, `SqlClient` in `journal.ts`), which is §6.1's
+> recommended boundary. `foldkit-sync` owns its protocol and depends on nothing
+> but `foldkit-surface`. So the executive decision is not a plan — it is a
+> description of the repository.
+>
+> **§6.3, §10, §11 and §14's prototypes are unbuilt.** Sync has its own socket
+> transport (`transport.ts`) rather than Effect RPC, and its own IndexedDB
+> storage (`indexedDb.ts`) rather than Effect's `KeyValueStore`. Both work.
+> §14's acceptance criteria are already written, so the gate here is effort and
+> priority rather than missing evidence — which makes this the one part of the
+> document that is genuinely waiting on someone to do it.
+>
+> **§7's four PRs are gated on a queue this repository does not control.** They
+> are proposals with rationale, not submitted work, and nothing here can move
+> them.
+>
+> One of them is better evidenced than the document claims, and it is worth
+> saying where the evidence is. **PR 3** proposes overriding `modify` in the
+> IndexedDB-backed `KeyValueStore` so a read-compare-write happens inside one
+> IndexedDB transaction rather than three. `packages/sync/src/indexedDb.ts`
+> already does exactly that — `get`, compare the revision, `put`, in a single
+> `readwrite` transaction with `durability: 'strict'` — because Sync needed
+> compare-and-swap and the generic implementation could not give it. That is a
+> working reference implementation of the proposal, written for an independent
+> reason, which is the strongest case any of the four has.
+
 ## 1. Executive decision
 
 \`foldkit-sync\` and \`foldkit-durable\` should remain Foldkit-owned semantic abstractions.

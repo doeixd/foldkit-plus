@@ -7,6 +7,35 @@
 
 ---
 
+> **Status: not started here, and it cannot start here.** Checked against both
+> sides.
+>
+> Nothing in this repository implements any of it: there is no
+> `packages/reactivity` and no `packages/reactivity-html`.
+>
+> That is the design working as written rather than an oversight. §2 says core
+> Foldkit must not learn Surface, Projection or FieldRef, and that core should
+> instead expose three generally useful primitives — *observe committed Model
+> transitions*, a *persistent render boundary*, and a *managed renderer leaf* —
+> which `foldkit-plus` then interprets. **None of the three exists yet.** Core's
+> `render` and `mount` expose `define`, `defineStream`, `ViewState`,
+> `liveViewStateChanges` and `mapMessage`, and nothing resembling a persistent
+> boundary or a renderer leaf (checked against `foldkit` 0.158.2).
+>
+> So the dependency runs the wrong way for this repository to start: the Plus
+> packages are defined as interpreters of primitives that have to land in
+> `foldkit/foldkit` first. Building them here before those primitives exist
+> would mean either reaching around core's rendering — which is the coupling §2
+> exists to prevent — or inventing the primitives locally and then discovering
+> upstream chose a different shape.
+>
+> Worth being honest about the second gate too: the two Plus packages are
+> sketched as *potential responsibilities* rather than designed. Even with the
+> core primitives in hand, this document is not yet something to build from.
+>
+> **This is the one item in the deferred-work plan that belongs to a different
+> repository**, and it should be tracked there rather than here.
+
 # 1. Purpose
 
 The goal of this work is to investigate and implement a path toward **fine-grained rendering and change propagation for Foldkit** while preserving Foldkit's core programming model:

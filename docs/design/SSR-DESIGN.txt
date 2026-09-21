@@ -4,6 +4,32 @@
 **Package:** `foldkit-ssr`
 **Status:** experimental / design proposal
 
+> **Status: not started, and — unusually for this repository — nothing is
+> stopping it.**
+>
+> There is no `packages/ssr`. That matters to record because most unbuilt work
+> in these design documents is *gated*: Phase 13 waits on a query that wants a
+> join, §21's containment waits on an application paying for it, the reactivity
+> packages wait on primitives that have to land in `foldkit/foldkit` first. A
+> reader who has learned that pattern will assume this is gated too.
+>
+> It is not. This is eight phases of ordinary unstarted work with a written
+> plan, and the only thing between here and Phase 0 is someone doing it.
+>
+> Phase 0's premise checks out: Foldkit core already has the SSR behaviour to
+> clone — `renderToString`, `toResponse`, flags encoding and hydration-root
+> validation in `foldkit/experimental/server` (verified against `foldkit`
+> 0.158.2). So the first phase is a port with a known target rather than a
+> design question.
+>
+> **It deserves its own plan and its own run.** At 3,000 lines and eight phases
+> it is the largest single piece of work left anywhere here, and it shares
+> almost nothing with the query and interpreter work that surrounds it — §18 is
+> a `foldkit-remote` integration and §14 is Surface-oriented, but neither
+> reuses the machinery. Appending it to a pass whose purpose was to settle
+> deferred items would misrepresent both: this is not a deferred item, it is an
+> unstarted project.
+
 ## Goal
 
 Start by reproducing Foldkit's existing SSR behavior behind a standalone `foldkit-ssr` package, then progressively improve it so that:
