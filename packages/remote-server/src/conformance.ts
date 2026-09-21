@@ -223,10 +223,9 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     input: {},
     expected: ['e', 'c', 'd', 'a', 'b'],
   },
-  {
-    what: 'orders by text, which is by code point and so is case-sensitive',
-    body: from.pipe(Query.orderBy(Order.asc(Subject.fields.label), Order.asc(Subject.fields.id))),
-    input: {},
-    expected: ['d', 'a', 'c', 'b', 'e'],
-  },
+  // Ordering by text is deliberately not here. How text compares is the
+  // backend's — SQLite by code point, TanStack by locale, Postgres by whatever
+  // the database was created with — and §6.0.1 puts it outside the conformant
+  // subset rather than pretending one of them is the rule. A case asserting an
+  // order would only pin whichever engine was written first.
 ]

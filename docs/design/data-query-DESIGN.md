@@ -20,7 +20,7 @@ found one at a time:
 | [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) | **The placeholder rule made the repository's hardest query unwriteable**, and writing it anyway was silently wrong rather than a type error. A branch on an input is usually a comparison not yet written. |
 | [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
 | [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
-| [§32, Phase 9](#phase-9--tanstack-db-spike) | **A third interpreter found what two written here had agreed on by accident.** Text ordering had no stated collation: TanStack sorts by locale, SQLite by code point. It is also the first interpreter to refuse an operator it cannot answer faithfully. |
+| [§32, Phase 9](#phase-9--tanstack-db-spike) | **A third interpreter found what two written here had agreed on by accident**, and the first fix for it was wrong too: text collation is the backend's, not code point. It is also the first interpreter to refuse an operator it cannot answer faithfully. |
 | [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
 | [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking is not built, and §15's derivation is narrower than sketched. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
@@ -685,7 +685,7 @@ because SQL is what the compiling interpreter runs.
 | `eq(a, b)` | the two values are the same | either side is null, *including both* | `null = null` is unknown, not true. JavaScript would disagree. |
 | `isNull(x)` / `isNotNull(x)` | whether a value is absent | never | The one comparison that always has an answer. One node, with the answer absence gives flipped, so nothing has to negate a predicate. |
 | `contains(x, s)` | `x` holds `s` anywhere within it | either side is null | **Case-insensitive, ASCII folding.** Containing the empty string is everything, so an empty search box is the same query as a full one — but over a nullable column that is not the same as no filter, since a null contains nothing. |
-| `asc(f)` / `desc(f)` | read in this order | — | A field only. **Ordering by a column that is null in some row is refused**, not guessed. **Text orders by code point**, so `Other` precedes `intro`; an engine that sorts by locale must be told otherwise. |
+| `asc(f)` / `desc(f)` | read in this order | — | A field only. **Ordering by a column that is null in some row is refused**, not guessed, and **how text compares is the backend's** — see below. |
 
 Two consequences worth stating plainly, because both surprised the
 implementation:
@@ -693,20 +693,33 @@ implementation:
 - **`contains` is ASCII-folded, not Unicode-folded**, because that is what
   `lower` does in SQLite without ICU. A design that promised Unicode folding
   would be promising something one of its interpreters cannot deliver.
-- **Ordering text is by code point, not by locale.** This was missing until a
-  third interpreter was written: TanStack DB sorts strings by locale by
-  default, so it put `intro to sql` before `Other` where SQLite and the
-  reference interpreter put it after. Both answers are defensible and only one
-  can be the semantics. An engine that defaults to locale is told to sort
-  lexically; an engine that cannot would have to refuse the ordering, the same
-  way it refuses an operator it does not run.
+- **How text compares when ordering is the backend's, and is outside the
+  conformant subset** — the same status as where nulls sort, and for the same
+  reason: there is no answer all three engines can be held to.
 
-  **One interpreter does not yet enforce this.** SQLite orders text by code
-  point by default, so `foldkit-remote-drizzle` conforms there by accident of
-  the backend rather than by asking. Postgres orders by the database's collation,
-  which for a typical `en_US.UTF-8` is not code point — a body ordered by text
-  would mean one thing on SQLite and another on Postgres, through the same
-  compiler. Making it ask would mean emitting `COLLATE "C"`, and is not done.
+  This was missing entirely until a third interpreter was written. TanStack DB
+  sorts strings by locale, so it put `intro to sql` before `Other`; SQLite and
+  the reference interpreter put it after. The first instinct was to pick code
+  point and make every engine say so — and that was wrong, for three reasons
+  that only appear once you try:
+
+  - **SQLite without ICU cannot sort by locale at all**, so locale is not
+    available as the rule.
+  - **Postgres's default is the database's collation**, so code point means
+    emitting `COLLATE "C"` on both the ordering *and* the keyset comparison that
+    pages it — and a `COLLATE "C"` ordering cannot use an index built in the
+    database's own collation.
+  - **Code point is usually not what anyone wants.** It puts every capital
+    before every lowercase, so a list of names reads as broken.
+
+  Worse, the reason code point was reached for is the accident this whole
+  section exists to prevent: two interpreters written here agreed, and their
+  agreement was mistaken for a rule.
+
+  So a body that orders by text means *ordered by that text*, not a specific
+  order. An application that needs one exactly — a list paged across a cluster
+  of mixed backends, say — orders by a column it has normalised itself, which
+  is a thing it can say and the IR cannot.
 - **A predicate may stand where a boolean is wanted.** `eq(isNotNull(x), flag)`
   is the branchless form §6.2 requires, so `eq` takes a predicate on either
   side. This was not in the first draft and forced a typing change; see §6.2.1.
@@ -2812,9 +2825,14 @@ This specifically tests the QueryRef vs ReadContract distinction.
 > by default, so it ordered `intro to sql` before `Other` where SQLite and the
 > reference interpreter order it after. [§6.0.1](#601-the-semantics-of-what-exists)
 > had a rule for null ordering and nothing at all about collation — two engines
-> written here had simply agreed by accident. Text orders by code point now, and
-> this interpreter asks for `stringSort: 'lexical'` rather than taking what it
-> is given.
+> written here had agreed, and the agreement had been mistaken for a rule.
+>
+> The first answer was to pick code point and make every engine say so. That
+> was wrong, and §6.0.1 records why: SQLite without ICU cannot sort by locale,
+> Postgres would need `COLLATE "C"` on both the ordering and the keyset
+> comparison that pages it, and code point reads as broken in any list of names.
+> Collation is the backend's, and outside the conformant subset — where nulls
+> sort already lives there, for the same reason.
 >
 > **It is also the first interpreter to refuse an operator.** TanStack's
 > `like`/`ilike` have no `ESCAPE`, so a search containing `%` or `_` would match

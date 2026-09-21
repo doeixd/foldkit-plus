@@ -125,15 +125,12 @@ export const run = (
       throw new TanstackCompileError('this interpreter orders by fields only')
     }
     const key = term.expr.key
-    // `stringSort: 'lexical'` is asked for rather than taken: this engine sorts
-    // text by locale by default, which puts `intro` before `Other` where a
-    // database ordering by code point puts it after. Found by running the
-    // conformance suite — the semantics said nothing about collation, and three
-    // engines gave two answers.
-    built = built.orderBy(({ row }: { row: any }) => row[key], {
-      direction: term.direction,
-      stringSort: 'lexical',
-    })
+    // This engine's own collation is used, not overridden. Running the
+    // conformance suite here is what found that text ordering had no stated
+    // collation at all; §6.0.1 now puts it outside the conformant subset,
+    // because no rule exists that SQLite, Postgres and this engine can all be
+    // held to. So this sorts by locale, as it would for anyone using it.
+    built = built.orderBy(({ row }: { row: any }) => row[key], term.direction)
   }
   return built
 }

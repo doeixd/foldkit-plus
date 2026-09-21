@@ -7,6 +7,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **How text compares when ordering is the backend's, and outside the
+  conformant subset.** A third interpreter (TanStack DB, in `examples/tanstack`)
+  sorts strings by locale where SQLite sorts by code point, and the semantics
+  had said nothing at all about collation — two interpreters written here had
+  agreed, and the agreement had been mistaken for a rule. Picking code point and
+  enforcing it was the first answer and the wrong one: SQLite without ICU cannot
+  sort by locale, Postgres would need `COLLATE "C"` on both the ordering and the
+  keyset comparison that pages it (losing the index built in its own collation),
+  and code point puts every capital before every lowercase. No interpreter
+  changed behaviour; the conformance suite exported by `foldkit-remote-server`
+  drops its text-ordering case, because it pinned whichever engine was written
+  first rather than anything promised.
+
 - **`foldkit-entity`: `Query.unsupported(query, supported)` and the `Operation`
   vocabulary.** The operations a query needs that an interpreter does not run,
   so it can refuse rather than skip one — skipping answers a different question
