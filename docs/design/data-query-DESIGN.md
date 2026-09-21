@@ -1,11 +1,30 @@
 # Foldkit Plus: Composable Data, Query, Read Contracts, Routing, and Local-First Architecture
 
-**Status:** design proposal; no implementation implied by this document  
+**Status:** partly built. §32's Phases 0–8 and 12 shipped; the reasoning below
+is unchanged except where a `>` note says building it found otherwise, and those
+notes win.  
 **Date:** September 2026  
 **Target:** doeixd/foldkit-plus  
 **Primary packages:** foldkit-entity, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-surface, foldkit-sync, foldkit-durable  
 **Internal prior art:** doeixd/gen2, doeixd/data-forge, doeixd/tanstackstart-db, doeixd/combi-router, Foldkit Router  
 **External prior art:** TanStack DB, LiveStore 0.4
+
+## 0. What building it changed
+
+Five notes are scattered below where they belong. Collected, so they are not
+found one at a time:
+
+| Where | What building it found |
+| --- | --- |
+| [§6.0](#60-an-operator-without-stated-semantics-is-not-portable) | **An operator with no stated semantics is not portable.** The operator list said nothing about meaning; `contains` shipped meaning three different things across SQLite, Postgres and JavaScript. Semantics are now stated before an operator is built. |
+| [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) | **The placeholder rule made the repository's hardest query unwriteable**, and writing it anyway was silently wrong rather than a type error. A branch on an input is usually a comparison not yet written. |
+| [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
+| [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
+| [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
+
+Two of §11's four read-contract pieces were also never built, because nothing
+needed them: *expectation* has no consumer, and *observation* belongs to the
+subscription that runs a read rather than to the read.
 
 ## 1. Decision
 
@@ -618,6 +637,77 @@ Do not model arbitrary JavaScript.
 
 Do not recreate SQL.
 
+### 6.0 An operator without stated semantics is not portable
+
+**This was the largest gap in the first draft of this document, found by
+building it.** The list above names operators and says nothing about what any of
+them *means*. That is not a small omission: it is the difference between a
+source-neutral IR and a source-*shaped* one.
+
+Two cases found in practice, neither exotic:
+
+| Operator | SQLite | Postgres | JavaScript |
+| --- | --- | --- | --- |
+| `contains` (via `like`) | ignores case | respects case | `includes` respects case |
+| ordering by a null | nulls first | nulls last (`asc`) | no convention at all |
+
+A body using `contains` therefore matched different rows in all three places,
+and `contains` had shipped into `foldkit-cms` before a differential test with a
+mixed-case fixture caught it. The backends of one product disagreed about what
+its own search box did.
+
+**The rule this establishes:**
+
+> Every operator states its semantics here before it is built, in terms an
+> interpreter can be held to, and every interpreter is bound to that statement
+> rather than to whatever its backend happens to do.
+
+Where backends disagree, the design picks one and the interpreters *make* their
+backend do it — `contains` compiles to `lower(x) like lower(?)` rather than
+leaving `like` to mean what it locally means. Where there is no defensible pick,
+the operator refuses rather than guesses: ordering by a null throws in the
+reference interpreter, because SQLite and Postgres disagree with each other and
+choosing one would make the IR wrong against the other.
+
+### 6.0.1 The semantics of what exists
+
+The four operators built, stated as an interpreter must implement them.
+
+**Three-valued logic throughout.** A predicate answers true, false, or unknown,
+and a row is kept only on true. This follows SQL rather than JavaScript,
+because SQL is what the compiling interpreter runs.
+
+| Operator | Meaning | Unknown when | Notes |
+| --- | --- | --- | --- |
+| `eq(a, b)` | the two values are the same | either side is null, *including both* | `null = null` is unknown, not true. JavaScript would disagree. |
+| `isNull(x)` / `isNotNull(x)` | whether a value is absent | never | The one comparison that always has an answer. One node, with the answer absence gives flipped, so nothing has to negate a predicate. |
+| `contains(x, s)` | `x` holds `s` anywhere within it | either side is null | **Case-insensitive, ASCII folding.** Containing the empty string is everything, so an empty search box is the same query as a full one — but over a nullable column that is not the same as no filter, since a null contains nothing. |
+| `asc(f)` / `desc(f)` | read in this order | — | A field only. **Ordering by a column that is null in some row is refused**, not guessed. |
+
+Two consequences worth stating plainly, because both surprised the
+implementation:
+
+- **`contains` is ASCII-folded, not Unicode-folded**, because that is what
+  `lower` does in SQLite without ICU. A design that promised Unicode folding
+  would be promising something one of its interpreters cannot deliver.
+- **A predicate may stand where a boolean is wanted.** `eq(isNotNull(x), flag)`
+  is the branchless form §6.2 requires, so `eq` takes a predicate on either
+  side. This was not in the first draft and forced a typing change; see §6.2.1.
+
+### 6.0.2 How a new operator is added
+
+1. State its semantics in §6.0.1, including what makes it unknown.
+2. Name the real query that needs it. §28 is not optional here — the operator
+   set is small because every member had a caller before it had an
+   implementation.
+3. Implement it in the reference interpreter **first**, then in the compiling
+   one. See the note on phase ordering in §32.
+4. Add differential cases covering the disagreement the table in §6.0 would
+   predict — case, null, empty, and whatever the operator's own edges are. A
+   fixture that cannot distinguish the backends does not test the operator; the
+   `contains` bug lived behind eight passing differential cases whose values
+   were all lowercase.
+
 ### 6.1 Prefer a functional core
 
 Canonical:
@@ -654,6 +744,59 @@ Query.define(
 Inside the builder, `input.ownerId` is an InputExpr, not the runtime value.
 
 The callback executes while constructing the static declaration.
+
+### 6.2.1 What that rule costs, and how to pay it
+
+This rule is right and it is also the sharpest edge in the design. It was
+stated here without checking it against the hardest query in the repository it
+was written for — which turned out to be unwriteable under it.
+
+`foldkit-cms`'s worklist branched on its inputs twice:
+
+~~~ts
+where: input =>
+  and(
+    eq(entries.type, input.type),
+    input.archived ? isNotNull(entries.archivedAt) : isNull(entries.archivedAt),
+    input.search === '' ? undefined : sql`${entries.label} like …`,
+  )
+~~~
+
+Under this rule neither ternary can be written — and, worse, **writing one
+anyway is silently wrong rather than a type error**: an `InputExpr` is an
+object, so `input.archived ? a : b` is always truthy and decides itself once,
+at declaration, forever.
+
+**Neither branch was relational semantics.** Both were an encoding choice, and
+both dissolve into one static question:
+
+| Written as a branch | Asked as a question |
+| --- | --- |
+| `archived ? isNotNull(x) : isNull(x)` | `eq(isNotNull(x), input.archived)` — *is-archived equals what you asked for* |
+| `search === '' ? skip : like(…)` | `contains(label, input.search)` — everything contains the empty string |
+
+This is the general move, and it is worth naming because it is not obvious:
+
+> **A branch on an input is usually a comparison that has not been written yet.**
+> Ask the question the branch was deciding between, and compare its answer to
+> the input.
+
+Two things follow that the first draft did not anticipate:
+
+- **`eq` must accept a predicate where a boolean is wanted**, since
+  `isNotNull(x)` is one. An IR that keeps predicates and scalars in separate
+  types cannot express this; the implementation made that separation and had to
+  undo it.
+- **A boolean should not reach the database as a parameter.** `(x is not null) =
+  ?` is refused outright by SQLite and means different things across dialects.
+  The compiling interpreter runs *per request* and has the input in hand, so it
+  settles such a comparison into the predicate or its negation — emitting
+  exactly the SQL the ternary would have, with no parameter. The body stays
+  static; the SQL stays conventional.
+
+**The escape hatch remains** for a query that genuinely needs native SQL. It was
+not needed for this one, and reaching for it here would have left the hardest
+real query outside the IR — which is the query most worth having inside it.
 
 ### 6.3 Dependencies are derivable
 
@@ -2454,6 +2597,17 @@ This preserves one semantic home for every concern.
 
 ## 32. Recommended implementation sequence
 
+> **Corrected after building it: the reference interpreter belongs before the
+> compiler, not after.** The sequence below puts compiling through
+> remote-drizzle at Phase 6 and the in-memory interpreter at Phase 7. That is
+> backwards. The reference interpreter is the thing that *finds* semantic
+> divergence, and building it second meant `contains` shipped into a real
+> product meaning three different things before a differential test caught it.
+>
+> Swap them, and make differential agreement a gate on adding an operator
+> rather than a later phase: an operator is done when both interpreters agree
+> over cases chosen to make them disagree. The rest of the ordering held up.
+
 ### Phase 0 — terminology and tests
 
 Document/test current invariants:
@@ -2546,6 +2700,8 @@ Migrate a current CMS/Remote query so common where/order semantics are no longer
 Keep native callbacks as escape hatches.
 
 ### Phase 7 — in-memory reference interpreter
+
+> **Do this before Phase 6.** See the note at the head of this section.
 
 Execute the same QueryDefinition over in-memory rows.
 
@@ -2750,6 +2906,46 @@ Data interpreter work active
 Navigating away should make the Surface inactive and remove its read/live/retain requirements without a router-owned loader cache.
 
 ---
+
+## 33.1 What the built shape does not extend to
+
+Written after building §32's Phases 0–8 and 12, so the next person inherits the
+walls rather than finding them.
+
+**A `Query` reads one Entity, by construction.** `Query.from(E)` returns
+`Query<E>`, and `where`/`orderBy` refuse a field of any other Entity — by
+identity, so two Entities of the same name still differ. That check is worth
+having: nothing else catches a predicate naming a table the query was never
+told to read. But it means **Phase 13's joins are not an increment**. They
+change the shape of `Query<E>` itself, and the honest expectation is a new
+constructor rather than another combinator.
+
+**A predicate is bound to its Entity too**, so there is no cross-entity
+fragment. `Query.where(published)` is reusable across queries over one Entity
+and nothing wider. Fine today; a wall when two Entities want one rule.
+
+**Ordering is field-only.** Both interpreters refuse an ordering term that is
+not a `FieldExpr`. Ordering by an expression — `lower(name)`, a computed rank —
+is unimplemented in both, and the keyset cursor logic assumes a column it can
+compare and select.
+
+**`Expr<T>` has no scalar operations at all.** Every operator built is
+boolean-valued. The first scalar one — arithmetic, a user-facing `lower`, a
+date part — forces the Expr/Predicate typing to be revisited. It has already
+been revisited once: the implementation split them (a predicate as its own
+type, not a phantom `Expr<boolean>`), which was right while `eq` was the only
+operation and nothing nested, and wrong the moment `isNotNull` had to sit
+inside `eq`. **Expect a third shape**, and treat the current split as
+provisional rather than settled.
+
+**There is no `and` and no `or`.** A `Query` holds a list of predicates and the
+list *is* the conjunction, which is why no `and` was ever needed — including by
+the worklist, which the plan expected to force one. `or` has no caller yet. It
+would be an ordinary node when one appears; the conjunction-as-list stays.
+
+**Two interpreters is not portability.** Both were written here, against the
+same reading of the semantics in §6.0.1. A third written by someone else is the
+first real test of whether that section says enough.
 
 ## 34. Non-goals
 
