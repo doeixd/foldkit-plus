@@ -125,11 +125,14 @@ export interface EditorForm<FormModel, FormMessage, Value> {
   readonly Message: {
     readonly Submitted: () => FormMessage
     readonly Refused: (payload: { readonly key: never; readonly error: string }) => FormMessage
+    readonly About: (payload: { readonly subject: Readonly<Record<string, string>> }) => FormMessage
   }
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
   readonly partial: (model: FormModel) => Partial<Value>
   readonly settled: (model: FormModel) => FormModel
+  /** What the form is editing; `{}` while it creates. See `Form.FormModel.subject`. */
+  readonly subject: (model: FormModel) => Readonly<Record<string, string>>
   readonly field: (
     model: FormModel,
     key: never,
@@ -721,8 +724,25 @@ export const makeEditor =
           })
         }
 
+        /**
+         * Tells the form which row it is editing, so a check that asks the server
+         * about a key can pass over what this row already holds: an address is not
+         * taken by the post that owns it. A form that creates something is about
+         * nothing, which is the subject it starts with.
+         */
+        const about = (root: Root): Root => {
+          const editor = slice.get(root)
+          const target = held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId
+          const subject = target === null || target === undefined ? {} : { id: target }
+          if (form.subject(editor.form).id === subject.id) return root
+          return slice.set(root, {
+            ...editor,
+            form: form.bundle.update(editor.form, form.Message.About({ subject }), undefined).model,
+          })
+        }
+
         const sync: Step = given => {
-          let root = refused(previewed(fill(given)))
+          let root = refused(previewed(about(fill(given))))
           const commands: Array<Command<RemoteMessage, never, RemoteClient>> = []
           const run = (step: Step) => {
             const next = step(root)

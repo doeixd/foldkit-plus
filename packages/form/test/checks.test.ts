@@ -19,17 +19,25 @@ const PostInput = Schema.Struct({
 
 // What the outside world knows, and what it was asked.
 const taken = new Map([['hello', 'p1']])
-const asked: Array<{ readonly slug: string; readonly values: object }> = []
+const asked: Array<{
+  readonly slug: string
+  readonly values: object
+  readonly subject: object
+}> = []
 
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   debounce: 0,
   checks: {
     // Taken by another post; the one being edited keeps its own slug.
-    slug: (slug, { values }) =>
+    // The row being edited keeps its own slug, whether it says which row it is in
+    // its values or in its subject.
+    slug: (slug, { values, subject }) =>
       Effect.sync(() => {
-        asked.push({ slug, values })
+        asked.push({ slug, values, subject })
         const owner = taken.get(slug)
-        return owner !== undefined && owner !== values.id ? `"${slug}" is taken` : undefined
+        return owner !== undefined && owner !== values.id && owner !== subject.id
+          ? `"${slug}" is taken`
+          : undefined
       }),
     rank: rank => Effect.succeed(rank > 100 ? 'Too high' : undefined),
   },
@@ -88,7 +96,12 @@ describe('Form checks', () => {
     const withId = (await settle(PostForm.initial, change('id', 'p1'))).model
     // p1 keeps its own slug: the check sees the id beside it.
     expect((await settle(withId, change('slug', 'hello'))).model.fields.slug._tag).toBe('Valid')
-    expect(asked.at(-1)).toEqual({ slug: 'hello', values: { id: 'p1', slug: 'hello' } })
+    expect(asked.at(-1)).toEqual({
+      slug: 'hello',
+      values: { id: 'p1', slug: 'hello' },
+      // Nothing told this form which row it is about; the id came from the values.
+      subject: {},
+    })
 
     // A number arrives parsed, not as the text that was typed.
     expect((await settle(PostForm.initial, change('rank', '250'))).model.fields.rank).toEqual({
@@ -184,5 +197,37 @@ describe('a Model that was stored', () => {
     expect(settled.submitPending).toBe(false)
     // What was decided stays decided.
     expect(settled.fields.rank).toEqual(asking.model.fields.rank)
+  })
+})
+
+describe('what the form is editing', () => {
+  it('starts about nothing, which is what creating something means', () => {
+    expect(PostForm.subject(PostForm.initial)).toEqual({})
+  })
+
+  it('gives the check the subject, so a row passes over its own value', async () => {
+    // 'hello' belongs to p1. Told it is editing p1, the check lets it stand.
+    const own = step(PostForm.initial, Message.About({ subject: { id: 'p1' } })).model
+    expect(PostForm.subject(own)).toEqual({ id: 'p1' })
+    expect((await settle(own, change('slug', 'hello'))).model.fields.slug._tag).toBe('Valid')
+    expect(asked.at(-1)?.subject).toEqual({ id: 'p1' })
+
+    // Told it is editing another row, the same value is taken.
+    const other = step(PostForm.initial, Message.About({ subject: { id: 'p2' } })).model
+    expect((await settle(other, change('slug', 'hello'))).model.fields.slug._tag).toBe('Invalid')
+  })
+
+  it('is not a draft: it changes no field and answers no submit', () => {
+    const typed = step(PostForm.initial, change('rank', '5')).model
+    const told = step(typed, Message.About({ subject: { id: 'p1' } }))
+    expect(told.commands ?? []).toEqual([])
+    expect(told.model.fields).toEqual(typed.fields)
+    expect(told.model.submitPending).toBe(typed.submitPending)
+  })
+
+  it('survives being filled and reset: which row it is stays that row', () => {
+    const told = step(PostForm.initial, Message.About({ subject: { id: 'p1' } })).model
+    expect(PostForm.subject(PostForm.fill(told, { slug: 'anything' }).model)).toEqual({ id: 'p1' })
+    expect(PostForm.subject(step(told, Message.Reset()).model)).toEqual({ id: 'p1' })
   })
 })

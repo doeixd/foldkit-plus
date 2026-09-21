@@ -85,7 +85,10 @@ const RenameForm = Page.at(Slot, {
   and gets the decoded value; the key reads `Validating` meanwhile; a stale answer
   is dropped; `debounce` (default 300ms) rests a key before asking. A submit during
   a check sets `submitPending` and goes out when the last check passes. The check's
-  requirements become the Bundle's.
+  requirements become the Bundle's. `{ values }` is what else decodes; `{ subject }`
+  is what the form edits but its values do not carry (a post's row id), set once with
+  `Message.About({ subject: { id } })` and read with `form.subject(model)` — `{}` while
+  the form creates. It survives `fill` and `Reset`.
 - **A relation with too many targets to list:** `inputs: { authorId: Input.search() }`.
   The form holds the typed text (`Message.Searched({ key, text })`,
   `form.search(model, key)`); read it as the input of the query that lists the

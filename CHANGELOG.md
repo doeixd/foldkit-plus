@@ -7,6 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-form`: a form can say what it is editing.** A check is given the
+  key's value and whatever else in the form decodes, which is not enough to ask
+  "is this address taken?": a post's input carries a title and an address, not
+  the row's id, so the check cannot tell a post's own address from someone
+  else's. `FormModel` gains `subject`, a plain record set with
+  `Message.About({ subject })` and read with `form.subject(model)`, and a check's
+  context gains it. It changes no draft, answers no submit, and survives `fill`
+  and `Reset`. `Cms.editor` sends it the row's id as it opens, so a content
+  type's slug check works without the application wiring anything. This is the
+  seam the CMS design doc recorded as missing.
 - **`foldkit-cms`: `Cms.editor`, the authoring editor's state.** A Bundle around
   the content type's form: autosave after a rest, valid or not; publish by
   submitting the form, saving first; a draft resumed by its saved Model, then its

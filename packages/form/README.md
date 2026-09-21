@@ -270,6 +270,14 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   checked on submit the same way.
 - `context.values` holds the other keys that currently decode, which is how an
   edit form lets a post keep its own slug.
+- `context.subject` is what the form is editing, for what its values do not say.
+  A post's input carries a title and an address, not the row's id, so "is this
+  address taken?" cannot tell the post's own address from someone else's. Send
+  `Message.About({ subject: { id } })` once when the form opens on a row, and the
+  check has it; `form.subject(model)` reads it back. A form that creates
+  something is about nothing, which is the `{}` it starts with. It changes no
+  draft, answers no submit, and survives `fill` and `Reset`: which row the form
+  is about does not change because its contents did.
 
 ### Messages
 

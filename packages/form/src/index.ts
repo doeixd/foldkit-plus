@@ -84,6 +84,13 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}> {
   readonly errors: ReadonlyArray<string>
   /** A submit is waiting for checks still running; it goes out when the last one passes. */
   readonly submitPending: boolean
+  /**
+   * What the form is editing, which its values do not say: a post's own row id,
+   * so a check that asks whether an address is taken can tell the post's own
+   * address from someone else's. Empty until `Message.About` says otherwise,
+   * which is what a form that creates something means.
+   */
+  readonly subject: Readonly<Record<string, string>>
 }
 
 /**
@@ -94,7 +101,11 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}> {
  */
 export type FormCheck<A, Values, R = never> = (
   value: A,
-  context: { readonly values: Values },
+  context: {
+    readonly values: Values
+    /** What the form is editing: `{}` while it creates. See `FormModel.subject`. */
+    readonly subject: Readonly<Record<string, string>>
+  },
 ) => Effect.Effect<string | undefined, never, R>
 
 /** The form's out Message: every key is valid and the input decoded. */
@@ -600,6 +611,7 @@ const Core = {
       touched: Schema.Record(Schema.String, Schema.Boolean),
       errors: Schema.Array(Schema.String),
       submitPending: Schema.Boolean,
+      subject: Schema.Record(Schema.String, Schema.String),
     }) as unknown as Schema.Codec<Model, unknown>
 
     // A form of nested keys only has no key to change, and `Literals` needs one.
@@ -624,6 +636,13 @@ const Core = {
        * the form asked, so it lands whatever state the key is in.
        */
       Refused: { key: KeySchema, error: Schema.String },
+      /**
+       * What the form is editing, for the checks that need to know: a post's own
+       * row id, so "is this address taken?" can pass over the post's own address.
+       * It changes no draft and validates nothing; a form that creates something
+       * never sends it. See `FormModel.subject`.
+       */
+      About: { subject: Schema.Record(Schema.String, Schema.String) },
       /** What was typed to find a choice for a relation key. It changes no draft and validates nothing. */
       Searched: { key: KeySchema, text: Schema.String },
       /** A Message of the nested form in one row of a nested key. One that row does not take is dropped. */
@@ -668,6 +687,7 @@ const Core = {
         touched: {},
         errors: [],
         submitPending: false,
+        subject: {},
       },
     )
     const drafts = (model: Model): Readonly<Record<Key, FieldValidation.Field<Draft>>> =>
@@ -739,7 +759,7 @@ const Core = {
             name: `${name}.check`,
             args: { key },
             effect: Effect.sleep(debounce).pipe(
-              Effect.andThen(check(value, { values: decoded(asking) })),
+              Effect.andThen(check(value, { values: decoded(asking), subject: model.subject })),
               Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
             ),
           } as Command<Message, never, R>,
@@ -980,6 +1000,8 @@ const Core = {
               },
             }
           }
+          case 'About':
+            return { model: { ...model, subject: message.subject } }
           case 'Checked': {
             const state = drafts(model)[message.key]
             // An answer for a draft the key no longer holds is dropped.
@@ -1048,7 +1070,8 @@ const Core = {
             }
           }
           case 'Reset':
-            return { model: initial }
+            // Emptying the form does not change which row it is about.
+            return { model: { ...initial, subject: model.subject } }
           case 'Submitted':
             return submitted(model)
         }
@@ -1099,6 +1122,8 @@ const Core = {
         drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`),
       /** What was typed to find a choice for a relation key that searches; `''` until something is. */
       search: (model: Model, key: Key): string => model.searches[key] ?? '',
+      /** What the form is editing; `{}` while it creates. See `FormModel.subject`. */
+      subject: (model: Model): Readonly<Record<string, string>> => model.subject,
       /**
        * The form of each nested key, typed when it was given under `nested`: its
        * `controls`, its `field`, its Messages.
