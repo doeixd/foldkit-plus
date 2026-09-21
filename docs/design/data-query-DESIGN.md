@@ -24,11 +24,16 @@ found one at a time:
 | [§32, Phase 9](#phase-9--tanstack-db-spike) | **A third interpreter found what two written here had agreed on by accident**, and the first fix for it was wrong too: text collation is the backend's, not code point. It is also the first interpreter to refuse an operator it cannot answer faithfully. |
 | [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
 | [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking is not built, and §15's derivation is narrower than sketched. |
+| [§29.1](#291-devtools) | **Building the explanation deleted a concept instead of adding one.** §11's *expectation* had no consumer, and the explanation — the likeliest one there would ever be — turned out not to want it. The *executor* is a Layer and cannot be reached from a pure read, which is the price of being replayable and worth it. |
+| [§21](#21-query-driven-loading-becomes-richer-with-readcontract) | **The block was reasoning, not plumbing.** A body does reach the client planner, through the bound domain's registry. And the cheap containment check is *correct on its examples* and silently wrong elsewhere, which is why it is refused rather than written. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
 
-Two of §11's four read-contract pieces were also never built, because nothing
-needed them: *expectation* has no consumer, and *observation* belongs to the
-subscription that runs a read rather than to the read.
+Two of §11's four read-contract pieces were also never built. *Observation*
+belongs to the subscription that runs a read rather than to the read.
+*Expectation* was deferred for want of a consumer and has since been **removed
+rather than built**: §29.1's explanation was that consumer, and it did not want
+one — a query's result is a connection, so the shape is decided by the
+definition rather than by the read.
 
 ## 1. Decision
 
@@ -1989,6 +1994,33 @@ Connections
 
 Let the abstraction emerge from implementations.
 
+> **Not suspended, for Phase 13 or anything else.** The plan for the deferred
+> work asked this directly, because a rule that bends whenever it is
+> inconvenient is not a rule and this one has deleted four exports on its own
+> authority.
+>
+> The answer is that the rule has since been run four more times and behaved
+> correctly each time, including twice when it was inconvenient:
+>
+> - **Phase 10** met its gate by ordinary work — a fourth interpreter — and
+>   found two real problems, one of them the limit of §16's declaration.
+> - **Phase 11** was declined rather than fed: the second caller could only be
+>   manufactured by damaging the example that exists to show the opposite.
+> - **§11's expectation** was settled by building its would-be consumer, which
+>   then did not want it. That is the third honest move — build the consumer —
+>   and it produced a deletion from the roadmap rather than an addition to it.
+> - **§21's containment** was refused, with the cheap version written out in a
+>   test so the refusal can be read rather than taken on trust.
+>
+> None of those needed the rule relaxed. Three of them are only defensible
+> *because* of it: without §28 each would have become a plausible feature with
+> one contrived caller, which is the failure mode this section exists to
+> prevent.
+>
+> So **Phase 13 is governed by §28 like everything else**, and today every one
+> of its members fails the same test. See §33.1 for what each one is waiting
+> for, stated as the query that would open it rather than as a wish.
+
 ---
 
 ## 29. DevTools, agents, and CMS
@@ -3137,6 +3169,18 @@ Follow dependency direction and real reuse, not naming aesthetics.
 
 ### Phase 13 — advanced relational semantics
 
+> **Not started, and every member fails the same test.** This repository has two
+> real query bodies — the CMS worklist and its by-slug read — and neither wants
+> any of the below. §28 is not suspended for this phase (see the note there), so
+> the gate stands.
+>
+> What each member is waiting for is written out in
+> [§33.1's gate table](#what-would-open-each-of-phase-13s-members) as *the query
+> that would open it*, so the next reader can tell a gate from an oversight. The short
+> version: `or` is nearest — a search over two fields — and is the only member
+> that is an ordinary node rather than a change of shape; joins are furthest,
+> because what would want one is usually answered better by a relation.
+
 Only as required:
 
 ~~~text
@@ -3305,6 +3349,35 @@ provisional rather than settled.
 list *is* the conjunction, which is why no `and` was ever needed — including by
 the worklist, which the plan expected to force one. `or` has no caller yet. It
 would be an ordinary node when one appears; the conjunction-as-list stays.
+
+### What would open each of Phase 13's members
+
+Phase 13 says "only as required", and §28 is not suspended for it. So each
+member is recorded here as **the query that would open it**, rather than as a
+wish — because the difference between a gate and an oversight is whether anyone
+can tell what would meet it.
+
+The evidence available is small and worth stating plainly: this repository
+contains exactly **two** real query bodies, the CMS worklist and its by-slug
+read. Everything below is measured against those, and against the applications
+built on them.
+
+| Member | The query that would open it | Nearest thing today |
+| --- | --- | --- |
+| `or` | A search box filtering over two fields at once — label *or* body contains the text. | The worklist searches one field, so its conjunction-as-list still suffices. |
+| `distinct` | A read whose rows repeat, which needs a join or a to-many traversal first. | Nothing produces duplicate rows: a connection is over one Entity, keyed by id. |
+| `groupBy` / aggregates | A count the server must compute — "3 drafts" beside a type — where fetching the rows to count them is the wrong shape. | Counts are not shown anywhere; a page's `hasNext` answers the only "is there more" asked. |
+| joins | A query whose *predicate* names another Entity — entries whose author is active. The CMS's nested reads are not this: they traverse relations in a Selection, which is the designed answer and needs no join. | `Relation` plus `Selection`, which reaches through and is what every nested read uses. |
+| subqueries / general projection | A result that is not rows of one Entity. §9 already notes this makes general relational projection necessary. | Every result is a connection over one Entity. |
+| cross-source planning | One read whose answer spans two sources. | Four interpreters, each answering whole queries. |
+
+Two of these are worth flagging as *likely* rather than merely possible. **`or`
+is the nearest**: a second searchable field is an ordinary product request and
+would need it immediately, and it is the one member that is an ordinary node
+rather than a change of shape. **Joins are the furthest**, and not because they
+are hard — because the thing that would want one is usually answered better by
+a relation, so the requirement has to survive being asked "why is this not a
+Selection?" before it counts.
 
 **Two interpreters is not portability.** Both were written here, against the
 same reading of the semantics in §6.0.1. A third written by someone else is the
