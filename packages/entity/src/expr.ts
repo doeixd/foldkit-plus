@@ -161,6 +161,13 @@ const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
   return operand
 }
 
+/**
+ * Every operation the kernel has. An interpreter declares which of them it
+ * runs, and a body needing one it does not is refused rather than answered
+ * wrongly — see `Query.unsupported`.
+ */
+export type Operation = 'eq' | 'isNull' | 'isNotNull' | 'contains'
+
 /** Which fields and inputs an expression reads, and which operations it uses. */
 export interface Dependencies {
   /** One entry per distinct field, as `Entity.key`. */
@@ -168,7 +175,7 @@ export interface Dependencies {
   /** One entry per distinct input key. */
   readonly inputs: ReadonlyArray<string>
   /** One entry per distinct operation, so an interpreter can refuse what it cannot run. */
-  readonly operations: ReadonlyArray<string>
+  readonly operations: ReadonlyArray<Operation>
 }
 
 export const Expr = {
@@ -274,7 +281,7 @@ const walk = (
   node: AnyExpr | Predicate,
   fields: Map<string, { readonly entity: string; readonly key: string }>,
   inputs: Set<string>,
-  operations: Set<string>,
+  operations: Set<Operation>,
 ): void => {
   switch (node._tag) {
     case 'Literal':
@@ -312,7 +319,7 @@ export const dependenciesOf = (
 ): Dependencies => {
   const fields = new Map<string, { readonly entity: string; readonly key: string }>()
   const inputs = new Set<string>()
-  const operations = new Set<string>()
+  const operations = new Set<Operation>()
   for (const node of nodes) {
     walk('direction' in node ? node.expr : node, fields, inputs, operations)
   }
@@ -453,4 +460,26 @@ export const Query = {
    * every ordering term, and the operations it uses.
    */
   dependencies: (self: AnyQuery): Dependencies => dependenciesOf(...self.where, ...self.orderBy),
+
+  /**
+   * The operations this query needs that `supported` does not list, in the
+   * order the query uses them. Empty means an interpreter declaring
+   * `supported` can answer it.
+   *
+   * An interpreter declares what it runs and refuses the rest, rather than
+   * ignoring an operation it does not implement — which would answer a
+   * different question and say nothing. The refusal is the interpreter's to
+   * raise: this only says what is missing, because what to do about it differs
+   * between one that compiles at registration and one that runs a body
+   * directly.
+   *
+   * ```ts
+   * const missing = Query.unsupported(body, ['eq', 'isNull', 'isNotNull'])
+   * if (missing.length > 0) throw new Error(`cannot run ${missing.join(', ')}`)
+   * ```
+   */
+  unsupported: (self: AnyQuery, supported: ReadonlyArray<Operation>): ReadonlyArray<Operation> => {
+    const runs = new Set(supported)
+    return Query.dependencies(self).operations.filter(operation => !runs.has(operation))
+  },
 }

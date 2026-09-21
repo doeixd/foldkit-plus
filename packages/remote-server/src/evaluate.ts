@@ -14,8 +14,8 @@
  * `null = null` is unknown in SQL and a row is not matched by it, where
  * JavaScript would happily call the two equal.
  */
-import { isPredicate } from 'foldkit-entity'
-import type { AnyExpr, AnyQuery, Operandish, OrderTerm, Predicate } from 'foldkit-entity'
+import { Query, isPredicate } from 'foldkit-entity'
+import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from 'foldkit-entity'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -128,6 +128,28 @@ const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, quer
 }
 
 /**
+ * The operations this interpreter runs. It is the reference, so this is the
+ * whole kernel — but it is declared rather than assumed, because an
+ * interpreter that gains an operator and forgets to say so is exactly what
+ * `Query.unsupported` exists to catch.
+ */
+export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains']
+
+/**
+ * Refuses a body needing an operation this interpreter does not run, rather
+ * than skipping it and answering a different question. Called by `evaluate`;
+ * call it directly to check a body once instead of on every run.
+ */
+export const assertSupported = (body: AnyQuery): void => {
+  const missing = Query.unsupported(body, supported)
+  if (missing.length > 0) {
+    throw new QueryEvaluateError(
+      `this interpreter does not run ${missing.join(', ')}, which query "${body.entity.name}" needs`,
+    )
+  }
+}
+
+/**
  * The rows the body matches, in the order it asks for. Pure: it reads the rows
  * it is given and nothing else.
  *
@@ -139,9 +161,11 @@ export const evaluate = (
   body: AnyQuery,
   input: Row,
   rows: ReadonlyArray<Row>,
-): ReadonlyArray<Row> =>
-  ordered(
+): ReadonlyArray<Row> => {
+  assertSupported(body)
+  return ordered(
     rows.filter(row => matches(body, row, input)),
     body.orderBy,
     body.entity.name,
   )
+}

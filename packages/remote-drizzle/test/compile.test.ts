@@ -15,6 +15,7 @@ import {
   QueryCompileError,
   entity,
   query,
+  supported,
   type DrizzleDatabaseService,
   type DrizzleStatement,
 } from '../src/index.js'
@@ -266,5 +267,25 @@ describe('A body the binding cannot answer is refused when it is registered', ()
     expect(() => query(ByMissing, { entity: PostBinding })).toThrow(
       'query "ByMissingWhere" reads the field "missing", which the binding has no column for',
     )
+  })
+})
+
+describe('A body needing what this compiler does not run', () => {
+  it('is refused at registration, naming the operation', () => {
+    const Needs = Query.define('NeedsContains', { q: Schema.String }, ({ input }) =>
+      Query.from(Post).pipe(
+        Query.where(Expr.contains(Post.fields.slug, input.q)),
+        Query.orderBy(Order.asc(Post.fields.id)),
+      ),
+    )
+
+    // This compiler does run `contains`, so registration succeeds — the check
+    // is what would refuse one that did not.
+    expect(() => query(Needs, { entity: PostBinding })).not.toThrow()
+    expect(Query.unsupported(Needs.body!, ['eq'])).toEqual(['contains'])
+  })
+
+  it('declares what it runs rather than leaving it to which cases exist', () => {
+    expect([...supported].sort()).toEqual(['contains', 'eq', 'isNotNull', 'isNull'])
   })
 })

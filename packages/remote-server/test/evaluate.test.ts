@@ -12,7 +12,7 @@ import { Entity, Expr, Order, Query, isPredicate } from 'foldkit-entity'
 import type { Operandish, Predicate } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { QueryEvaluateError, evaluate, type Row } from '../src/index.js'
+import { QueryEvaluateError, assertSupported, evaluate, supported, type Row } from '../src/index.js'
 
 const Post = Entity.define(
   'Post',
@@ -282,5 +282,29 @@ describe('What the reference interpreter will not answer for', () => {
     evaluate(body, {}, rows)
 
     expect(rows.map(row => row.id)).toEqual(before)
+  })
+})
+
+describe('An interpreter refuses what it does not run', () => {
+  it('declares the operations it runs rather than leaving them implied', () => {
+    expect([...supported].sort()).toEqual(['contains', 'eq', 'isNotNull', 'isNull'])
+  })
+
+  it('refuses a body needing an operation it does not run, naming it', () => {
+    const body = Query.from(Post).pipe(Query.where(Expr.contains(Post.fields.slug, 'x')))
+    // What a narrower interpreter — a REST source that only compares — would see.
+    const missing = Query.unsupported(body, ['eq'])
+
+    expect(missing).toEqual(['contains'])
+  })
+
+  it('does not silently skip an operation it cannot run', () => {
+    // The failure this guards against: dropping `contains` and answering the
+    // rows `eq` alone matches, which is a different question answered in full
+    // confidence. `assertSupported` is what makes that impossible.
+    const body = Query.from(Post).pipe(Query.where(Expr.contains(Post.fields.slug, 'intro')))
+
+    expect(() => assertSupported(body)).not.toThrow()
+    expect(Query.unsupported(body, ['eq', 'isNull', 'isNotNull'])).toEqual(['contains'])
   })
 })

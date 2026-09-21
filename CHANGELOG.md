@@ -7,6 +7,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-entity`: `Query.unsupported(query, supported)` and the `Operation`
+  vocabulary.** The operations a query needs that an interpreter does not run,
+  so it can refuse rather than skip one — skipping answers a different question
+  and still passes every case it does support. The refusal belongs to the
+  interpreter, since one that compiles at registration and one that runs a body
+  directly fail at different moments.
+- **Both interpreters declare what they run.** `foldkit-remote-drizzle` checks
+  at registration, beside its column check, so a server that starts is one whose
+  queries it can answer; `foldkit-remote-server` exports `supported` and
+  `assertSupported`, and `evaluate` calls it. Both currently run the whole
+  kernel, so there is nothing to refuse yet; it exists for the interpreter that
+  does not.
+
 ## 0.8.0
 
 `foldkit-entity` 0.2.0; `foldkit-remote`,

@@ -1394,6 +1394,21 @@ Binding/compilation should fail explicitly for unsupported semantics.
 
 Do not silently change meaning.
 
+> Done. `Query.unsupported(query, supported)` in `foldkit-entity` names the
+> operations a body needs that an interpreter does not run; the refusal is the
+> interpreter's, because one that compiles at registration and one that runs a
+> body directly fail at different moments. `foldkit-remote-drizzle` declares its
+> set and checks in `checkFields`, so a server that starts is one whose queries
+> it can answer; `foldkit-remote-server` declares its own and checks in
+> `evaluate`.
+>
+> Both currently run the whole kernel, so there is nothing to refuse yet. It is
+> built now rather than later because the [conformance
+> suite](#18-add-an-in-memory-reference-interpreter-second) makes the gap
+> dangerous: a third interpreter that skipped an operator it had not implemented
+> would pass every case it happened to support, and the suite would report that
+> it conforms.
+
 Backend-native escape hatches remain first-class and explicitly non-portable.
 
 ---
@@ -2996,7 +3011,7 @@ prior art or futures with nothing to satisfy.
 | [13](#13-selection-remains-late-bound-and-interpreter-neutral) | Selection stays late-bound and interpreter-neutral | **Holds.** Selection never entered `Query`; which rows and which fields are still separate, and each interpreter satisfies a Selection its own way. |
 | [14](#14-generated-helpers-should-lower-to-the-core-algebra) | Generated helpers lower to the core algebra | **Demonstrated, by the CMS rather than by a general helper.** `Cms.bySlug` generates one query per content type and lowers to `Query.define` over `Expr`. No `byId`/`byField` was extracted: one caller is not evidence (§28). |
 | [15](#15-query-dependencies-and-capabilities-are-derived) | `Query.dependencies` derives entities, fields, inputs, operations | **Partly.** Fields, inputs and operations are derived. There is no top-level `entities`, because a `Query` reads exactly one and it is `query.entity`; and `order` is not listed as an operation, since ordering contributes fields rather than an operator. `Query.requirements` does not exist. |
-| [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Not built.** `dependencies().operations` exists for exactly this and nothing consumes it. Both interpreters happen to support every operator, so there is no failure to catch *yet* — which is precisely why this should land before a third arrives, alongside the conformance suite. The nearest thing today is `checkFields`, which checks columns and not operations. |
+| [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Done**, after this audit found it missing. `Query.unsupported` names what a body needs and an interpreter lacks; each interpreter declares its set and raises its own refusal. |
 | [17](#17-remote-drizzle-is-the-first-compiler) | remote-drizzle compiles first | **Done** (Phase 6). |
 | [21](#21-query-driven-loading-becomes-richer-with-readcontract) | Loading gets richer once ReadContract is explicit | **No.** ReadContract was made explicit and stayed internal; no loading behaviour changed, and none needed to. |
 | [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **Materials only.** `Data.inspect` and `Query.dependencies` hold what an explanation needs; nothing assembles one. |

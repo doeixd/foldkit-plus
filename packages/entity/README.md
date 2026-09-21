@@ -430,6 +430,23 @@ one is refused where it is piped: an interpreter would otherwise be asked for a
 column of a table it was never told to read. Entities are compared by identity,
 so two declared with the same name are two Entities here as everywhere else.
 
+### Saying what an interpreter can run
+
+An `Expr` is only portable if the thing running it says what it runs.
+`Query.unsupported(query, supported)` names the operations a query needs that
+an interpreter does not have:
+
+```ts
+const missing = Query.unsupported(body, ['eq', 'isNull', 'isNotNull'])
+if (missing.length > 0) throw new Error(`cannot run ${missing.join(', ')}`)
+```
+
+The refusal belongs to the interpreter, not here: one that compiles at
+registration and one that runs a body directly fail at different moments. What
+matters is that it refuses rather than skipping the operation — an interpreter
+that quietly drops a `contains` it cannot compile answers a different question
+in full confidence, and every test it does support still passes.
+
 A `Query` says which rows. It does not say which fields — that is a Selection —
 and it does not say how many, whether absence is an error, or whether to watch
 for changes: those belong to the consumer doing the reading, not to the
@@ -468,6 +485,7 @@ from queries, not from what a database could express.
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
 | `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
 | `Query.dependencies(query)` | What the whole query reads: every predicate and ordering term. |
+| `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
 
 ## Limits
 

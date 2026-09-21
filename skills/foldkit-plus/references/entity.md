@@ -255,6 +255,11 @@ Query.dependencies(recent)     // every predicate and ordering term at once
   absence is an error, and whether to watch for changes belong to the consumer.
 - A predicate or ordering term over a **different Entity** than `Query.from` is
   refused where it is piped (by identity, so same-named Entities still differ).
+- `Query.unsupported(query, supported)` names the operations an interpreter does
+  not run, so it can **refuse** rather than skip one — skipping answers a
+  different question and still passes every case it does support. Both shipped
+  interpreters declare a `supported` list and check it: `foldkit-remote-drizzle`
+  at registration, `foldkit-remote-server` on `evaluate`.
 - **An application using Remote imports `Query` from `foldkit-remote`**, not
   from here: that one is this namespace plus `define`, `make` and the window
   steps. `Query` from `foldkit-entity` has `from`/`where`/`orderBy` and no

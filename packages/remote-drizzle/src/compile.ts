@@ -20,6 +20,7 @@ import type {
   EqPredicate,
   OrderTerm as ExprOrderTerm,
   Operandish,
+  Operation,
   Predicate,
 } from 'foldkit-entity'
 import type { OrderTerm } from './cursor.js'
@@ -156,13 +157,26 @@ const predicate = (
 }
 
 /**
- * Every field the body reads has a column here. Checked once, when the source
- * is registered, so a server that starts is a server whose queries can be
- * answered — rather than one that fails on whichever request first runs this
- * query. Ordering is checked by compiling it, which happens at registration for
- * the same reason.
+ * The operations this compiler turns into SQL. Declared rather than implied by
+ * which cases `predicate` happens to handle, so a body needing something else
+ * is refused with a name instead of falling through.
+ */
+export const supported: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains']
+
+/**
+ * Every field the body reads has a column here, and every operation it needs is
+ * one this compiler runs. Checked once, when the source is registered, so a
+ * server that starts is a server whose queries can be answered — rather than
+ * one that fails on whichever request first runs this query. Ordering is
+ * checked by compiling it, which happens at registration for the same reason.
  */
 export const checkFields = (body: AnyQuery, target: CompileTarget, query: string): void => {
+  const missing = Query.unsupported(body, supported)
+  if (missing.length > 0) {
+    throw new QueryCompileError(
+      `query "${query}" needs ${missing.join(', ')}, which this compiler does not run`,
+    )
+  }
   for (const field of Query.dependencies(body).fields) columnFor(target, field.key, query)
 }
 

@@ -1,6 +1,14 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Entity, Expr, Order, Query, dependenciesOf, type Predicate } from '../src/index.js'
+import {
+  Entity,
+  Expr,
+  Order,
+  Query,
+  dependenciesOf,
+  type Operation,
+  type Predicate,
+} from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post } = Blog
@@ -255,5 +263,44 @@ describe('The operations the CMS worklist needs', () => {
     expect(() =>
       Query.from(Post).pipe(Query.where(Expr.eq(Expr.isNotNull(Blog.Comment.fields.body), true))),
     ).toThrow('reads Comment.body, but the query is from Post')
+  })
+})
+
+describe('An interpreter can tell what it cannot run', () => {
+  const everything: ReadonlyArray<Operation> = ['eq', 'isNull', 'isNotNull', 'contains']
+
+  it('says nothing is missing when the interpreter runs it all', () => {
+    const q = Query.from(Post).pipe(
+      Query.where(Expr.eq(Post.fields.published, true), Expr.contains(Post.fields.title, 'a')),
+    )
+
+    expect(Query.unsupported(q, everything)).toEqual([])
+  })
+
+  it('names the operations the interpreter does not run', () => {
+    const q = Query.from(Post).pipe(
+      Query.where(Expr.eq(Post.fields.published, true), Expr.contains(Post.fields.title, 'a')),
+    )
+
+    expect(Query.unsupported(q, ['eq'])).toEqual(['contains'])
+    expect(Query.unsupported(q, [])).toEqual(['eq', 'contains'])
+  })
+
+  it('sees an operation nested inside a comparison', () => {
+    // `eq(isNotNull(x), flag)` needs both, and the outer one does not hide the inner.
+    const q = Query.from(Post).pipe(Query.where(Expr.eq(Expr.isNotNull(Post.fields.title), true)))
+
+    expect(Query.unsupported(q, ['eq'])).toEqual(['isNotNull'])
+  })
+
+  it('tells isNull and isNotNull apart, since an interpreter may have one', () => {
+    const nulls = Query.from(Post).pipe(Query.where(Expr.isNull(Post.fields.title)))
+
+    expect(Query.unsupported(nulls, ['isNotNull'])).toEqual(['isNull'])
+    expect(Query.unsupported(nulls, ['isNull'])).toEqual([])
+  })
+
+  it('asks nothing of an interpreter for a query with no predicates', () => {
+    expect(Query.unsupported(Query.from(Post), [])).toEqual([])
   })
 })
