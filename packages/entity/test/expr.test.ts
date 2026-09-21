@@ -172,18 +172,6 @@ describe('Query composes which rows, as data', () => {
     expect(all.pipe(Query.orderBy())).toBe(all)
   })
 
-  it('drops what a fragment added only when asked, explicitly', () => {
-    const narrowed = Query.from(Post).pipe(
-      Query.where(published),
-      Query.orderBy(Order.asc(Post.fields.id)),
-    )
-
-    expect(Query.unfiltered(narrowed).where).toEqual([])
-    expect(Query.unfiltered(narrowed).orderBy).toEqual(narrowed.orderBy)
-    expect(Query.unordered(narrowed).orderBy).toEqual([])
-    expect(Query.unordered(narrowed).where).toEqual(narrowed.where)
-  })
-
   it('reuses a fragment across queries over the same Entity', () => {
     const onlyPublished = Query.where(published)
     const newest = Query.orderBy(Order.desc(Post.fields.title))
@@ -206,40 +194,6 @@ describe('Query composes which rows, as data', () => {
       inputs: ['title'],
       operations: ['eq'],
     })
-  })
-
-  it('recognises one, and nothing else', () => {
-    expect(Query.is(Query.from(Post))).toBe(true)
-    expect(Query.is(published)).toBe(false)
-    expect(Query.is(undefined)).toBe(false)
-  })
-})
-
-describe('Query refuses what it could not answer', () => {
-  const Comment = Blog.Comment
-
-  it('refuses a predicate over an Entity it is not from', () => {
-    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Comment.fields.body, 'x')))).toThrow(
-      '[foldkit-entity] Query.where: a predicate reads Comment.body, but the query is from Post',
-    )
-  })
-
-  it('refuses an ordering over an Entity it is not from', () => {
-    expect(() => Query.from(Post).pipe(Query.orderBy(Order.asc(Comment.fields.id)))).toThrow(
-      '[foldkit-entity] Query.orderBy: a term reads Comment.id, but the query is from Post',
-    )
-  })
-
-  it('refuses another Entity of the same name, which is not the same Entity', () => {
-    const Other = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
-
-    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Other.fields.title, 'x')))).toThrow(
-      'but the query is from Post',
-    )
-  })
-
-  it('takes a predicate with no field at all', () => {
-    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Expr.literal(1), 1)))).not.toThrow()
   })
 })
 

@@ -157,9 +157,7 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   const newestFirst = Query.orderBy(Order.desc(Blog.Post.fields.title))
 
   const recent = Query.from(Blog.Post).pipe(onlyPublished, newestFirst)
-  const oneOf = Query.from(Blog.Post).pipe(onlyPublished, Query.where(byTitle))
 
   expectTypeOf(recent).toEqualTypeOf<Query<typeof Blog.Post>>()
-  expectTypeOf(Query.unfiltered(oneOf)).toEqualTypeOf<Query<typeof Blog.Post>>()
   expectTypeOf(Query.dependencies(recent)).toEqualTypeOf<Dependencies>()
 }

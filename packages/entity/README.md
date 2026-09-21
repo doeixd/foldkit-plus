@@ -418,9 +418,7 @@ opened, nothing read.
 **Two `where`s conjoin and two `orderBy`s append.** Neither replaces what came
 before, so piping a fragment can only ever narrow a query, never silently undo
 part of it. An earlier ordering term stays the more significant one, which is
-what makes a later `Query.orderBy(Order.asc(id))` a tie-breaker. To drop what a
-fragment added, say so: `Query.unfiltered` and `Query.unordered` are the only
-ways back.
+what makes a later `Query.orderBy(Order.asc(id))` a tie-breaker. Neither ever replaces what a fragment added.
 
 The list of predicates **is** the conjunction — which is why no `Expr.and`
 exists. A query wanting three conditions writes three `where`s. An `and`
@@ -469,9 +467,7 @@ from queries, not from what a database could express.
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
 | `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
-| `Query.unfiltered(query)` / `Query.unordered(query)` | The query with its predicates, or its ordering, dropped. |
 | `Query.dependencies(query)` | What the whole query reads: every predicate and ordering term. |
-| `Query.is(value)` | Whether a value is a `Query`. |
 
 ## Limits
 

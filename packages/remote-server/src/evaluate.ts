@@ -139,12 +139,9 @@ export const evaluate = (
   body: AnyQuery,
   input: Row,
   rows: ReadonlyArray<Row>,
-  options: { readonly name?: string } = {},
-): ReadonlyArray<Row> => {
-  const name = options.name ?? body.entity.name
-  return ordered(
+): ReadonlyArray<Row> =>
+  ordered(
     rows.filter(row => matches(body, row, input)),
     body.orderBy,
-    name,
+    body.entity.name,
   )
-}

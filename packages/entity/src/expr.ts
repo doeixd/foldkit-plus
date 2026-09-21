@@ -120,6 +120,8 @@ const tagOf = (value: unknown): unknown =>
  * idempotent on its own output. Nothing needs to tell them apart, which is
  * better than telling them apart by which extra member happens to be present.
  */
+const literal = <T>(value: T): LiteralExpr<T> => ({ _tag: 'Literal', value })
+
 const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): FieldExpr<unknown> => ({
   _tag: 'Field',
   owner: field.owner,
@@ -145,7 +147,7 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   if (tag === 'Literal' || tag === 'Input' || predicateTags.has(tag as string)) {
     return value as Operandish
   }
-  return { _tag: 'Literal', value }
+  return literal(value)
 }
 
 /** As `toOperand`, where only a scalar makes sense: `is null` of a predicate is not a question. */
@@ -171,7 +173,7 @@ export interface Dependencies {
 
 export const Expr = {
   /** A constant. Comparisons coerce a plain value, so this is rarely written. */
-  literal: <T>(value: T): LiteralExpr<T> => ({ _tag: 'Literal', value }),
+  literal,
 
   /**
    * A value the query is given when it runs. A definition builds these from its
@@ -445,23 +447,6 @@ export const Query = {
       checkOwnership('orderBy', 'a term', self.entity, terms)
       return query(self.entity, self.where, [...self.orderBy, ...terms])
     },
-
-  /**
-   * The query with no predicates, keeping its order. The explicit way to drop
-   * what a fragment added, since `where` deliberately has no way to replace.
-   */
-  unfiltered: <E extends AnyEntity>(self: Query<E>): Query<E> =>
-    self.where.length === 0 ? self : query(self.entity, [], self.orderBy),
-
-  /**
-   * The query with no ordering, keeping its predicates. The explicit way to
-   * drop what a fragment added, since `orderBy` deliberately only appends.
-   */
-  unordered: <E extends AnyEntity>(self: Query<E>): Query<E> =>
-    self.orderBy.length === 0 ? self : query(self.entity, self.where, []),
-
-  /** Whether a value is a `Query`. */
-  is: (value: unknown): value is AnyQuery => tagOf(value) === 'Query',
 
   /**
    * What the whole query reads: the fields and inputs of every predicate and

@@ -246,8 +246,7 @@ Query.dependencies(recent)     // every predicate and ordering term at once
 ```
 
 - **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a
-  fragment only ever narrows. `Query.unfiltered` / `Query.unordered` are the only
-  ways back.
+  fragment only ever narrows.Neither ever replaces what a fragment added.
 - The list of predicates **is** the conjunction, which is why there is no
   `Expr.and`: three conditions are three `where`s. An `and` is only needed for a
   conjunction nested inside something else.
