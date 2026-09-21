@@ -74,11 +74,30 @@ export interface RemoteModel {
    */
   readonly loading: ReadonlySet<string>
   /**
-   * `Remote.refresh` generations. The read entries restart when `requested`
-   * moves, so a read sent before a refresh cannot land after it; `started` is
-   * the latest generation a read began under.
+   * `Remote.refresh` generations, held per field rather than for the store as a
+   * whole. A read entry restarts when the generation over the fields it plans
+   * moves, so a read sent before a refresh of its own fields cannot land after
+   * it, and a refresh of one field leaves every other entry's read alone.
    */
-  readonly refresh: { readonly requested: number; readonly started: number }
+  readonly refresh: RefreshState
+}
+
+/**
+ * `Remote.refresh` generations, per field mark. `generation` is the last one
+ * handed out; `requested` is when each field was last refreshed, and `started`
+ * is the generation each field's read last began under. Holding them per field
+ * is what keeps one Projection's refresh from restarting every read entry.
+ */
+export interface RefreshState {
+  readonly generation: number
+  readonly requested: ReadonlyMap<string, number>
+  readonly started: ReadonlyMap<string, number>
+}
+
+export const emptyRefresh: RefreshState = {
+  generation: 0,
+  requested: new Map(),
+  started: new Map(),
 }
 
 export const initialRemoteModel: RemoteModel = {
@@ -89,7 +108,7 @@ export const initialRemoteModel: RemoteModel = {
   mutations: emptyMutationState,
   gaps: new Set(),
   loading: new Set(),
-  refresh: { requested: 0, started: 0 },
+  refresh: emptyRefresh,
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -105,7 +124,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     mutations: runtimeSchema,
     gaps: runtimeSchema,
     loading: runtimeSchema,
-    refresh: Schema.Struct({ requested: Schema.Number, started: Schema.Number }),
+    refresh: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -275,15 +294,18 @@ const marksOf = (
   requests.map(request => [entityKey(request.entity, request.id), request.fields] as const)
 
 /**
- * One mark per requested field. A read is identified by what it asks for, not by
- * a request id: two reads asking for one field share its mark, so the first
- * answer clears it. Over-clearing shows `Initial` rather than a spinner, which
- * is the safer way to be wrong.
+ * One mark per requested field, `entity\0id\0field`. A read is identified by
+ * what it asks for, not by a request id: two reads asking for one field share
+ * its mark, so the first answer clears it. Over-clearing shows `Initial` rather
+ * than a spinner, which is the safer way to be wrong. The refresh generations
+ * below key off the same marks, so "what a read asks for" means one thing.
  */
-const loadingMarks = function* (requests: ReadonlyArray<Requirement>): Generator<string> {
+const fieldMark = (entity: string, id: string, field: string): string =>
+  `${entityKey(entity, id)}\u0000${field}`
+
+const fieldMarks = function* (requests: ReadonlyArray<Requirement>): Generator<string> {
   for (const request of requests) {
-    const key = entityKey(request.entity, request.id)
-    for (const field of request.fields) yield `${key}\u0000${field}`
+    for (const field of request.fields) yield fieldMark(request.entity, request.id, field)
   }
 }
 
@@ -292,7 +314,7 @@ const withLoading = (
   requests: ReadonlyArray<Requirement>,
 ): ReadonlySet<string> => {
   const next = new Set(loading)
-  for (const mark of loadingMarks(requests)) next.add(mark)
+  for (const mark of fieldMarks(requests)) next.add(mark)
   return next
 }
 
@@ -302,8 +324,83 @@ const withoutLoading = (
 ): ReadonlySet<string> => {
   if (loading.size === 0) return loading
   const next = new Set(loading)
-  for (const mark of loadingMarks(requests)) next.delete(mark)
+  for (const mark of fieldMarks(requests)) next.delete(mark)
   return next
+}
+
+/**
+ * A connection's mark. The leading separator keeps it out of the field marks'
+ * space, whatever a connection identity happens to spell.
+ */
+const connectionMark = (identity: string): string => `\u0000connection\u0000${identity}`
+
+/**
+ * The generation a read is planned under: the highest any of the fields it
+ * reads or connections it runs was refreshed at. A read entry carries this as a
+ * dependency, so it restarts when what it observes is refreshed and not when
+ * anything else is.
+ */
+export const refreshedAt = (
+  refresh: RefreshState,
+  requests: ReadonlyArray<Requirement>,
+  connections: ReadonlyArray<string> = [],
+): number => {
+  let at = 0
+  for (const mark of fieldMarks(requests)) at = Math.max(at, refresh.requested.get(mark) ?? 0)
+  for (const identity of connections) {
+    at = Math.max(at, refresh.requested.get(connectionMark(identity)) ?? 0)
+  }
+  return at
+}
+
+/**
+ * Marks every field of `requests` and every connection in `connections`
+ * refreshed at the next generation.
+ */
+export const withRefreshRequested = (
+  refresh: RefreshState,
+  requests: ReadonlyArray<Requirement>,
+  connections: ReadonlyArray<string> = [],
+): RefreshState => {
+  const generation = refresh.generation + 1
+  const requested = new Map(refresh.requested)
+  for (const mark of fieldMarks(requests)) requested.set(mark, generation)
+  for (const identity of connections) requested.set(connectionMark(identity), generation)
+  return { ...refresh, generation, requested }
+}
+
+/**
+ * Records that a read of `requests` began under `generation`. A read that
+ * carries no generation began under none, and leaves the marks as they are.
+ */
+const withRefreshStarted = (
+  refresh: RefreshState,
+  requests: ReadonlyArray<Requirement>,
+  generation: number | undefined,
+): RefreshState => {
+  if (generation === undefined || generation === 0) return refresh
+  let started: Map<string, number> | undefined
+  for (const mark of fieldMarks(requests)) {
+    if ((refresh.started.get(mark) ?? 0) >= generation) continue
+    started ??= new Map(refresh.started)
+    started.set(mark, generation)
+  }
+  return started === undefined ? refresh : { ...refresh, started }
+}
+
+/**
+ * Whether one field's read already began under the generation that field was
+ * last refreshed at. Such a read is in flight and would otherwise outlive the
+ * refresh, so the refresh takes a new generation to restart it even though the
+ * field is already stale.
+ */
+export const refreshIsInFlight = (
+  refresh: RefreshState,
+  request: Requirement,
+  field: string,
+): boolean => {
+  const mark = fieldMark(request.entity, request.id, field)
+  return (refresh.started.get(mark) ?? 0) === (refresh.requested.get(mark) ?? 0)
 }
 
 /**
@@ -318,8 +415,7 @@ export const isLoading = (
   fields: ReadonlyArray<string>,
 ): boolean => {
   if (model.loading.size === 0) return false
-  const key = entityKey(entity, id)
-  return fields.some(field => model.loading.has(`${key}\u0000${field}`))
+  return fields.some(field => model.loading.has(fieldMark(entity, id, field)))
 }
 
 const setConnectionStale = (
@@ -380,14 +476,12 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       const entities = setStale(asked, marksOf(message.requests), true)
       return entities === model.entities ? model : { ...model, entities }
     }
-    case 'ReadStarted': {
-      const started = Math.max(model.refresh.started, message.refresh ?? 0)
+    case 'ReadStarted':
       return {
         ...model,
         loading: withLoading(model.loading, message.requests),
-        refresh: started === model.refresh.started ? model.refresh : { ...model.refresh, started },
+        refresh: withRefreshStarted(model.refresh, message.requests, message.refresh),
       }
-    }
     case 'MutationStarted':
       return {
         ...model,

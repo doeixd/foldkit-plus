@@ -37,11 +37,14 @@ import {
   initialRemoteModel,
   isLoading,
   isRemoteMessage,
+  refreshIsInFlight,
+  refreshedAt,
   remoteMessageCases,
   remoteMessageSchema,
   remoteModelSchema,
   retentionRootsSchema,
   updateRemote,
+  withRefreshRequested,
   writeRead,
   type RemoteMessage,
   type RemoteMessageInput,
@@ -778,7 +781,11 @@ const PlannedQuery = Schema.Struct({
 export interface ReadDependencies {
   readonly requirements: ReadonlyArray<Requirement>
   readonly queries: ReadonlyArray<Schema.Schema.Type<typeof PlannedQuery>>
-  /** The Model's requested refresh generation: a refresh restarts the entry. */
+  /**
+   * The highest generation the fields this entry reads were refreshed at: a
+   * refresh of any of them restarts the entry, and a refresh of anything else
+   * leaves it running.
+   */
   readonly refresh: number
 }
 
@@ -812,7 +819,11 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const remote = bound.store.get(model)
       const planned = planAsked(remote, askedOf(model), RemotePolicy.toPlan(policy, now()))
       return {
-        refresh: remote.refresh.requested,
+        refresh: refreshedAt(
+          remote.refresh,
+          planned.requirements,
+          planned.queries.map(query => query.identity),
+        ),
         requirements: planned.requirements,
         queries: planned.queries.map(({ identity, window, select }) => ({
           identity,
@@ -1151,18 +1162,20 @@ export const Remote = {
     // Fields already stale may be in a read that began before this refresh (a
     // refreshing policy marks what it refetches); unless no read has begun since
     // the last refresh, that read is restarted too.
-    const inFlight =
-      remote.refresh.started === remote.refresh.requested &&
-      requirements.some(requirement =>
-        requirement.fields.some(
-          field =>
-            remote.entities[entityKey(requirement.entity, requirement.id)]?.stale.has(field) ===
-            true,
-        ),
-      )
+    const inFlight = requirements.some(requirement =>
+      requirement.fields.some(
+        field =>
+          remote.entities[entityKey(requirement.entity, requirement.id)]?.stale.has(field) ===
+            true && refreshIsInFlight(remote.refresh, requirement, field),
+      ),
+    )
     // Marking what is already marked changes nothing, so the Model keeps its identity.
     if (marked === remote && !inFlight) return model
-    const refresh = { ...marked.refresh, requested: marked.refresh.requested + 1 }
+    const refresh = withRefreshRequested(
+      marked.refresh,
+      requirements,
+      connections.map(connection => connection.identity),
+    )
     return bound.store.set(model, { ...marked, refresh } as Store)
   },
 

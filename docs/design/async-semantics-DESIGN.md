@@ -115,9 +115,13 @@ Known issues at ship time:
   the next exchange. Deferring the install starved remote changes and was
   reverted; the fix submits one edit at a time and replays the edits the replica
   does not hold yet on top of one replica snapshot.
-- **Refresh restarts every read entry.** The refresh generation lives in the
-  Remote store, so every read entry restarts, not only the one observing the
-  refreshed Projection.
+- **Refresh restarted every read entry (since fixed).** The refresh generation
+  was one counter on the Remote store, so every read entry's dependencies
+  changed and every read in flight was cancelled, not only the one observing the
+  refreshed Projection. Generations are now held per field mark and per
+  connection identity, and a read entry takes the highest over what it actually
+  plans, so a refresh restarts the entries that observe what was refreshed and
+  leaves the rest running.
 
 ## Why Solid 2 is relevant
 

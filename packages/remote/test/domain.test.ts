@@ -25,6 +25,7 @@ import {
   emptyStore,
   entityKey,
   readField,
+  refreshedAt,
   requirementsOf,
   writeEntity,
   type Boundary,
@@ -888,17 +889,42 @@ describe('Data.query reads a connection as a page of selected items', () => {
       expect(Data.refresh(stale, projects)).toBe(stale)
     })
 
+    it('restarts only the read entries that observe what was refreshed', () => {
+      const p1 = Data.get(summary, 'p1')
+      const p2 = Data.get(summary, 'p2')
+      const entryFor = (projection: Projection<Model, unknown>) =>
+        Remote.observe(
+          Data,
+          App.surface('Scoped', { model: () => ({ value: projection }) }),
+          undefined,
+        )
+      const loaded = read(initial, ['p1', 'p2'])
+
+      const refreshed = Data.refresh(loaded, p1)
+
+      // The entry that observes p1 sees a new generation, so its stream restarts.
+      expect(entryFor(p1).modelToDependencies(refreshed)).not.toEqual(
+        entryFor(p1).modelToDependencies(loaded),
+      )
+      // The entry that observes only p2 was not refreshed, so it must not restart:
+      // a read of p2 in flight is not cancelled by a refresh of p1.
+      expect(entryFor(p2).modelToDependencies(refreshed)).toEqual(
+        entryFor(p2).modelToDependencies(loaded),
+      )
+    })
+
     it('asks again once a read has begun since the last refresh', () => {
       const project = Data.get(summary, 'p1')
       const once = Data.refresh(read(initial, ['p1']), project)
+      const requests = [{ entity: 'Project', id: 'p1', fields: ['name'] }]
       const reading = Data.reduce(once, {
         _tag: 'ReadStarted',
-        requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-        refresh: once.remote.refresh.requested,
+        requests,
+        refresh: refreshedAt(once.remote.refresh, requests),
       })
 
-      expect(Data.refresh(reading, project).remote.refresh.requested).toBe(
-        once.remote.refresh.requested + 1,
+      expect(refreshedAt(Data.refresh(reading, project).remote.refresh, requests)).toBe(
+        refreshedAt(once.remote.refresh, requests) + 1,
       )
     })
 
