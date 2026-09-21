@@ -171,6 +171,9 @@ PostEditor.pageId(model) // the row's id, or the entry's until there is a row: w
 - **A second author's save is a `Conflict`**, with the text still in the form.
   `ReloadAsked` shows the server's copy; `OverwriteAsked` saves over it, based on
   it. Merging is not attempted.
+- **A taken address lands on the address.** A publish refused with
+  `CmsSlugTaken` marks the slug's own field invalid, keeping what was typed, and
+  clears when the author edits it. Nothing to wire: the editor does it.
 - **Restoring** a revision replaces what is in the form with that value, as a
   draft. It publishes nothing.
 - **Preview is the application's own views.** Give the content type `preview`,
@@ -267,10 +270,9 @@ with its transcript pinned by a test.
   is an audience, and is [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
   and the status and buttons yourself.
-- A taken slug arrives as the editor's `error`;
-  `Cms.slugTaken.key(PostEditor.error(model)?.message ?? '')` is the key to show it
-  on. There is no is-it-free check while typing yet: a check sees the form's
-  values and not the row being edited, so it would call a post's own slug taken.
+- There is no is-it-free check while typing: a form check sees the form's values
+  and not the row being edited, so it would call a post's own address taken. The
+  server refuses a taken one at publish, and the editor lands it on the key.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
   [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).

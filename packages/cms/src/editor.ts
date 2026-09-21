@@ -30,6 +30,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import type { State } from './lifecycle.js'
+import { slugTaken } from './slug.js'
 
 /** How the form came to hold what it holds. */
 export type Resumed =
@@ -121,12 +122,18 @@ export interface EditorForm<FormModel, FormMessage, Value> {
       args: void,
     ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, any>
   }
-  readonly Message: { readonly Submitted: () => FormMessage }
+  readonly Message: {
+    readonly Submitted: () => FormMessage
+    readonly Refused: (payload: { readonly key: never; readonly error: string }) => FormMessage
+  }
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
   readonly partial: (model: FormModel) => Partial<Value>
   readonly settled: (model: FormModel) => FormModel
-  readonly field: (model: FormModel, key: never) => { readonly value: unknown }
+  readonly field: (
+    model: FormModel,
+    key: never,
+  ) => { readonly _tag: string; readonly value: unknown; readonly errors?: ReadonlyArray<string> }
 }
 
 /** The parts of a bound Remote domain the editor uses. */
@@ -153,7 +160,10 @@ export interface EditorContent<FormModel, FormMessage, Value> {
   readonly name: string
   readonly entity: AnyEntity
   readonly form: EditorForm<FormModel, FormMessage, Value>
-  readonly roles: { readonly label: { readonly key: string } | undefined }
+  readonly roles: {
+    readonly label: { readonly key: string } | undefined
+    readonly slug: { readonly key: string } | undefined
+  }
   readonly preview?:
     ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>) | undefined
 }
@@ -687,8 +697,32 @@ export const makeEditor =
           return slice.set(shown, { ...slice.get(shown), previewedAs: as })
         }
 
+        /**
+         * A server's word about one key, on that key. A publish refused for a taken
+         * address is about the address, and belongs beside it rather than in a
+         * status line. Saying it again while it already stands would be noise.
+         */
+        const refused = (root: Root): Root => {
+          const editor = slice.get(root)
+          const failure = statusOf(root, editor.publishId)
+          if (failure._tag !== 'Failed') return root
+          const key = slugTaken.key(failure.error.message)
+          if (key === undefined || content.roles.slug?.key !== key) return root
+          const reason = slugTaken.reason(failure.error.message)
+          const field = form.field(editor.form, key as never)
+          if (field._tag === 'Invalid' && (field.errors ?? []).includes(reason)) return root
+          return slice.set(root, {
+            ...editor,
+            form: form.bundle.update(
+              editor.form,
+              form.Message.Refused({ key: key as never, error: reason }),
+              undefined,
+            ).model,
+          })
+        }
+
         const sync: Step = given => {
-          let root = previewed(fill(given))
+          let root = refused(previewed(fill(given)))
           const commands: Array<Command<RemoteMessage, never, RemoteClient>> = []
           const run = (step: Step) => {
             const next = step(root)

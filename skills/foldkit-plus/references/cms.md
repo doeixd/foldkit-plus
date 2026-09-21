@@ -157,6 +157,8 @@ RemoteServer.make({
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
   queue: the package owns no timer). A failed one stays scheduled with its error
   (state reads overdue) and is not retried until the draft changes.
+- A publish refused for a taken slug lands on the slug's field (`Form.Refused`);
+  no wiring. There is no while-typing check: a check cannot know which row it edits.
 - `CmsRestore { entry, revision }` makes that revision's value the draft (replacing
   it, clearing its schedule) and publishes nothing.
 - A scheduled draft is published as its scheduler, so saving, restoring or

@@ -617,6 +617,13 @@ const Core = {
       Reset: {},
       /** The answer of a check for the draft it was asked about; one for an older draft is dropped. */
       Checked: { key: KeySchema, draft: DraftSchema, error: Schema.NullOr(Schema.String) },
+      /**
+       * The outside world refused this key's value: a unique index, a rule only a
+       * server knows. The key reads invalid with that reason, keeping what was
+       * typed, until it is edited again. Unlike `Checked`, it answers no question
+       * the form asked, so it lands whatever state the key is in.
+       */
+      Refused: { key: KeySchema, error: Schema.String },
       /** What was typed to find a choice for a relation key. It changes no draft and validates nothing. */
       Searched: { key: KeySchema, text: Schema.String },
       /** A Message of the nested form in one row of a nested key. One that row does not take is dropped. */
@@ -958,6 +965,20 @@ const Core = {
             return state._tag === 'NotValidated'
               ? validateKey(model, message.key, state.value)
               : { model }
+          }
+          case 'Refused': {
+            const state = drafts(model)[message.key]
+            return {
+              model: {
+                // A refusal settles a submit that was waiting: it cannot go through.
+                ...withField(
+                  model,
+                  message.key,
+                  FieldValidation.Invalid({ value: state.value, errors: [message.error] }),
+                ),
+                submitPending: false,
+              },
+            }
           }
           case 'Checked': {
             const state = drafts(model)[message.key]

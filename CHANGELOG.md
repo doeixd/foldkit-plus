@@ -36,6 +36,11 @@ version changed; `pnpm` skips versions already in the registry.
     a stored Model with nothing in flight (`form.settled`, new in `foldkit-form`);
     follows a previewed post to the row publishing gives it; and gains `flush`,
     for an author who leaves within the rest of their last edit.
+- **A server's word about one key, on that key.** `foldkit-form` gains
+  `Message.Refused({ key, error })`: the key reads invalid with that reason,
+  keeps what was typed, and clears on the next edit. `Checked` could not serve,
+  since it only answers a check the form itself started. `Cms.editor` uses it, so
+  a publish refused for a taken address marks the address, with nothing to wire.
 - **`foldkit-cms`: `Opened`, beside `Editing`.** `Editing` meant both "open and
   idle" and "edited since the last save", so no application could word its status
   truthfully. `Editing` now means there are unsaved edits, `Opened` means the form

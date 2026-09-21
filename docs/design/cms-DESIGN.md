@@ -268,8 +268,11 @@ RemoteServer.make({
   `publish` runs the right one inside a transaction that also appends the
   revision and deletes the draft, so a publish either happened entirely or did
   not. What publishing a post *does* stays the application's code.
-- **Slugs.** A content type with a `slug` role gets a `bySlug` query, and its
-  form gets a check that the slug is free. The check is advice; the unique index
+- **Slugs.** *Built but for the check: a form check is given the form's values,
+  which for a post do not include the row's id, so it cannot tell a post's own
+  address from someone else's. The refusal lands on the key instead. A check that
+  could would need the form to carry what the editor knows.* A content type with a
+  `slug` role gets a `bySlug` query, and its form gets a check that the slug is free. The check is advice; the unique index
   is the rule, and a publish that loses the race fails with the slug named, in
   the form, as any mutation error arrives.
 - **Conflicts.** `SaveDraft` carries the `updatedAt` it was based on; a newer one

@@ -21,6 +21,7 @@ import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { editorView, makeEditor } from './editor.js'
+import { slugTaken } from './slug.js'
 import { Display } from 'foldkit-crud'
 import { Kinds } from './kinds.js'
 
@@ -360,10 +361,7 @@ export const Cms = {
    * How a server says a slug is taken, as a mutation's error: `CmsSlugTaken: <key>: ...`.
    * `slugTaken.key(message)` is the form key it names, or `undefined` for another error.
    */
-  slugTaken: {
-    message: (key: string, slug: string) => `CmsSlugTaken: ${key}: "${slug}" is already used`,
-    key: (message: string): string | undefined => /CmsSlugTaken: ([^:]+): /.exec(message)?.[1],
-  },
+  slugTaken,
 
   /**
    * The kinds a CMS adds, and a renderer for each: `Cms.slug('title')` and

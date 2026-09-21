@@ -120,6 +120,10 @@ const RenameForm = Page.at(Slot, {
   load `Data.get(Entity.selectFor(Rename.input), id)`, then
   `fill(Entity.valuesFor(Rename.input, loaded))`.
 - **Enable the button:** `Rename.canSubmit(model.rename)`.
+- **Put a server's error on a key** (a unique index, a rule only a server knows):
+  `Message.Refused({ key, error })`. The key reads invalid with that reason, keeps
+  what was typed, and clears on the next edit. `Checked` will not do: it only
+  answers a check the form itself started.
 - **Show a stored Model again:** `form.settled(model)`; a check that was running
   when it was stored never answers, so its key reads `NotValidated`.
 - **Save unfinished work:** `form.partial(model)` is the value less every key that

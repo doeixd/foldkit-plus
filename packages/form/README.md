@@ -172,6 +172,7 @@ const PostForm = Form.make('PostForm', input, {
 PostForm.isFollowing(model, 'slug') // false once the author has written it
 PostForm.partial(model) // what decodes as it stands, by key: for saving unfinished work
 PostForm.settled(model) // a stored Model, shown again with no check or submit in flight
+PostForm.Message.Refused({ key: 'slug', error: 'That address is taken' }) // a server's word, on its key
 ```
 
 - While the author has not written the key, each edit of the key it follows
