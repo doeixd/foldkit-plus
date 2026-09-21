@@ -619,6 +619,10 @@ server rejects. The agent learns nothing about cursors or operations.
 `mounted.committed` is a source (`{ get, subscribe }`), not a Projection: it reads
 the replica, not the Model, and tells subscribers after every exchange.
 
+Remote draws the same line over its own cache, with the same words and a
+different mechanism: see [what a reader sees while a change is in
+flight](../../docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
+
 ## Fragments: compose one document from features
 
 Large applications do not need one giant Sync declaration. Declare feature

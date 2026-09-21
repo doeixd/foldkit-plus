@@ -15,6 +15,13 @@ export interface RemoteInspection {
   readonly connections: ReadonlyArray<string>
   readonly live: ReadonlyArray<string>
   readonly gaps: ReadonlyArray<string>
+  /**
+   * The `entity\0id\0field` marks of reads in flight. This is what "Remote is
+   * working" means here, and it is read from the Model rather than from the
+   * fibers doing the work: a tool that shows it shows something the Model can
+   * be replayed to, and nothing that needs the runtime to be asked.
+   */
+  readonly loading: ReadonlyArray<string>
   readonly mutations: {
     readonly pending: ReadonlyArray<string>
     readonly failed: ReadonlyArray<string>
@@ -37,6 +44,7 @@ export const inspectRemote = (model: RemoteModel): RemoteInspection => ({
   connections: Object.keys(model.connections),
   live: Object.keys(model.live),
   gaps: [...model.gaps],
+  loading: [...model.loading],
   mutations: {
     pending: [...model.mutations.pending],
     failed: [...model.mutations.failed],

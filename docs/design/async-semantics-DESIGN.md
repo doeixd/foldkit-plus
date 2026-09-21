@@ -122,8 +122,26 @@ nobody can act on. The metadata is one `Freshness` tag (`Fresh` / `Refreshing`
 / `Stale`, the last carrying its error) rather than the sketch's two booleans,
 since a value cannot be both at once.
 
-Not built: runtime activity introspection (phase 5), and the shared `visible` /
-`pending` / `settled` vocabulary beyond Sync's `committed`.
+Phase 0's vocabulary is stated once, in [who changes application
+state](../state-model.md#what-a-reader-sees-while-a-change-is-in-flight), with
+Remote's and Sync's names for each term side by side and both READMEs pointing
+at it — rather than repeated in three packages, where the three copies would
+drift. The same page carries the other two Phase 0 items: why semantic
+`RemoteData` state is not runtime work, and why Solid's `action()` has no
+counterpart here (`update` applies the optimistic change and returns the
+Command, the Command works, its Message reconciles — the same three phases,
+already in the architecture).
+
+Phase 5 is answered without exposing runtime execution at all. What a tool
+actually wants is "what is Remote doing right now", and the Model already knows:
+`Data.inspect(model).loading` reports the reads in flight beside
+`mutations.pending` for the writes. Both are read from the Model, so a tool
+shows something a recorded Model can be replayed to. Scoped fiber metadata is
+not built, and should not be until something needs a fact the Model cannot
+answer.
+
+Not built: nothing further from this document. The remaining rejected APIs in
+[Rejected first-wave APIs](#rejected-first-wave-apis) stay rejected.
 
 Known issues at ship time:
 
@@ -1811,6 +1829,9 @@ notifies subscribers; it must not require a browser scheduler or reactive graph.
 
 No runtime changes.
 
+> Done, in one place rather than three: [who changes application
+> state](../state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
+
 - Standardize `visible`, `confirmed` / `committed`, `pending`, and `settled` in
   Remote / Sync / Agent docs where applicable.
 - Document the difference between semantic async state (`AsyncData`) and runtime
@@ -1875,6 +1896,10 @@ This is ergonomic sugar over explicit Model state, not a suspension mechanism.
 If devtools or adapters need it, expose scoped runtime execution metadata.
 
 Do not use it as a default second input to application views.
+
+> Answered from the Model instead: `Data.inspect(model).loading` and
+> `mutations.pending`. No runtime execution metadata is exposed; see
+> [Implementation status](#implementation-status).
 
 ## Rejected first-wave APIs
 

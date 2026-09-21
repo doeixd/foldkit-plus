@@ -759,6 +759,10 @@ Agent.when({
 There is deliberately no `Data.visible`: a projection already is the visible
 read, and a second name for it would be a wrapper that only forwards.
 
+Sync draws the same line over its replica, with the same words and a different
+mechanism: see [what a reader sees while a change is in
+flight](../../docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
+
 ### Remote mutation vs Sync operation
 
 Do not use Remote mutation as a durable offline-write mechanism:
@@ -923,6 +927,15 @@ These are pure and useful in tests, tooling, and debugging. A particularly
 useful question is: **"Why is this Projection still Initial?"** `Data.plan`
 shows whether Remote believes anything is actually missing; active Surface
 wiring determines whether that plan is being executed.
+
+`Data.inspect(model).loading` answers the other one — **"what is Remote doing
+right now?"** — with the `entity\0id\0field` marks of the reads in flight,
+beside `mutations.pending` for the writes. Both are read from the Model, not
+from the fibers doing the work: a tool that shows them shows something a
+recorded Model can be replayed to, and nothing that needs the runtime to be
+asked. That is deliberate. Runtime activity is not a second source of truth
+here, and a view that rendered from it would stop being reproducible from the
+Model.
 
 ## Advanced: the kernel
 

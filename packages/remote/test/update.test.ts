@@ -261,6 +261,23 @@ describe('Remote.update', () => {
     expect(Remote.inspectEntity(model, 'Missing:1')).toBeUndefined()
   })
 
+  it('reports the reads in flight, and drops each when its answer lands', () => {
+    const requests = [{ entity: 'User', id: 'u1', fields: ['name', 'email'] }]
+    const reading = updateRemote(initialRemoteModel, { _tag: 'ReadStarted', requests })
+
+    expect(Remote.inspect(reading).loading).toEqual(['User:u1\u0000name', 'User:u1\u0000email'])
+    expect(Remote.inspect(initialRemoteModel).loading).toEqual([])
+
+    const landed = updateRemote(reading, {
+      _tag: 'ReadReceived',
+      requests,
+      result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'ada', email: 'a@b' } }] },
+      now: 0,
+    })
+
+    expect(Remote.inspect(landed).loading).toEqual([])
+  })
+
   it('inspects connections, live streams, gaps, and the mutation ledger', () => {
     let model = updateRemote(initialRemoteModel, {
       _tag: 'ConnectionMerged',

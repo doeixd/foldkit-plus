@@ -59,6 +59,64 @@ ref's own `set`, so container-aware `.at`/`.index` insertion keeps working.
 | Agent action | application | Agent → Message → update |
 | UI behavior | application | Behavior → Message → update |
 
+## What a reader sees while a change is in flight
+
+Remote and Sync both let a change show before its authority has agreed to it,
+and they do it by different mechanisms — optimistic layers over a cache, and
+durable operations replayed over a replica. The shape underneath is the same,
+so they use the same four words:
+
+```text
+confirmed / committed        the authority's own last word
+        +
+pending                      the changes asked for and not yet answered
+        =
+visible                      what a view draws
+```
+
+| Word | Remote | Sync |
+| --- | --- | --- |
+| The authority's last word | `Data.confirmed(projection)` | `mounted.committed` |
+| Asked for, not yet answered | optimistic layers and connection overlays | durable operations not yet exchanged |
+| What a view draws | the projection itself | the replica's shared slice |
+| Answered, either way | `settled` — the mutation applied or failed | the exchange rebased the operation |
+
+Two rules follow, and they are the reason the words are worth keeping straight:
+
+**A view wants the visible read.** That is why it is the plain one in both
+packages: a projection is already visible, and the replica's slice is already
+optimistic. Neither makes you ask for what you almost always want.
+
+**A reporter wants the confirmed one.** Something that tells the world a change
+happened must not believe it before the authority does. In practice that is an
+Agent capability completing on state, which is why `Agent.when` takes either:
+
+```ts
+Agent.when({ projection: Data.confirmed(ProjectName), predicate })   // Remote
+Agent.when({ source: mounted.committed, predicate })                 // Sync
+```
+
+Neither package generalises the other. There is deliberately no shared overlay
+primitive: the algebra is shared, the mechanisms are not, and one implementation
+forced over both would hide which authority a reader is actually waiting on.
+
+## Semantic state is not runtime work
+
+`RemoteData` says what the Model knows — `Initial`, `Loading`, `Ready`,
+`Refreshing`, `Failed`, `NotFound`. It is application state: it is in the Model,
+it replays, and a view renders from it.
+
+Whether a fiber happens to be running is not. Runtime activity is real, and
+devtools may want it, but it is not a second input to a view: a render that
+depends on it is no longer reproducible from the Model, which is the property
+every other rule here exists to protect.
+
+This is also why there is no `action()` here. Foldkit already scopes an
+optimistic write, its effect, and its reconciliation: `update` applies the
+optimistic change and returns the Command, the Command does the work, and the
+Message it returns reconciles. That is the same three phases, written in the
+architecture that was already there.
+
 ## The rule
 
 A setter is not unsafe — it is intentionally powerful infrastructure. What
