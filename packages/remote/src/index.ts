@@ -1204,17 +1204,20 @@ export const Remote = {
       { force: true },
     )
 
+    // A connection the Model never loaded is already a query to run: there is
+    // nothing to invalidate and nothing to restart, so it takes no generation
+    // either.
+    const invalidated = connections
+      .filter(connection => remote.connections[connection.identity] !== undefined)
+      .map(connection => connection.identity)
     const marks: RemoteMessage[] = [
       ...(requirements.length === 0
         ? []
         : [{ _tag: 'RefreshStarted' as const, requests: requirements }]),
-      // A connection the Model never loaded is already a query to run.
-      ...connections
-        .filter(connection => remote.connections[connection.identity] !== undefined)
-        .map(connection => ({
-          _tag: 'ConnectionInvalidated' as const,
-          connection: connection.identity,
-        })),
+      ...invalidated.map(connection => ({
+        _tag: 'ConnectionInvalidated' as const,
+        connection,
+      })),
     ]
     const marked = marks.reduce(updateRemote, remote)
     // Fields already stale may be in a read that began before this refresh (a
@@ -1229,11 +1232,7 @@ export const Remote = {
     )
     // Marking what is already marked changes nothing, so the Model keeps its identity.
     if (marked === remote && !inFlight) return model
-    const refresh = withRefreshRequested(
-      marked.refresh,
-      requirements,
-      connections.map(connection => connection.identity),
-    )
+    const refresh = withRefreshRequested(marked.refresh, requirements, invalidated)
     return bound.store.set(model, { ...marked, refresh } as Store)
   },
 

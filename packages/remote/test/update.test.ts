@@ -16,6 +16,7 @@ import {
   terminal,
   updateRemote,
   visibleStore,
+  withRefreshRequested,
   type LiveEvent,
   type RemoteModel,
   type RemoteMessage,
@@ -259,6 +260,38 @@ describe('Remote.update', () => {
     ])
     expect(Remote.inspectEntity(model, 'User:u1')?.present).toEqual(['name'])
     expect(Remote.inspectEntity(model, 'Missing:1')).toBeUndefined()
+  })
+
+  it('collects the refresh marks of entities it collected, so they stay bounded', () => {
+    const requests = [
+      { entity: 'User', id: 'u1', fields: ['name'] },
+      { entity: 'User', id: 'u2', fields: ['name'] },
+    ]
+    const known = updateRemote(initialRemoteModel, {
+      _tag: 'ReadReceived',
+      requests,
+      result: {
+        entities: [
+          { entity: 'User', id: 'u1', values: { name: 'ada' } },
+          { entity: 'User', id: 'u2', values: { name: 'grace' } },
+        ],
+      },
+      now: 0,
+    })
+    const refreshed = { ...known, refresh: withRefreshRequested(known.refresh, requests) }
+    expect(refreshed.refresh.requested.size).toBe(2)
+
+    // u1 stays reachable; u2 is collected, and its mark goes with it.
+    const collected = updateRemote(refreshed, {
+      _tag: 'RetentionChanged',
+      roots: { requirements: [{ entity: 'User', id: 'u1', fields: ['name'] }], connections: [] },
+    })
+
+    expect(Object.keys(collected.entities)).toEqual(['User:u1'])
+    expect([...collected.refresh.requested.keys()]).toEqual(['User:u1\u0000name'])
+    // The generation counter itself never rewinds: a mark that comes back
+    // starts from nothing, which is what a never-refreshed field already reads.
+    expect(collected.refresh.generation).toBe(refreshed.refresh.generation)
   })
 
   it('reports the reads in flight, and drops each when its answer lands', () => {

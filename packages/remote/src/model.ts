@@ -43,7 +43,7 @@ import {
 } from './store.js'
 import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
-import { gc, type RetentionRoots } from './retain.js'
+import { gc, type Retained, type RetentionRoots } from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
 import { NormalizedEntity, ReadBatchResult, ReadRequest, RelationRequest } from './wire.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
@@ -332,7 +332,33 @@ const withoutLoading = (
  * A connection's mark. The leading separator keeps it out of the field marks'
  * space, whatever a connection identity happens to spell.
  */
-const connectionMark = (identity: string): string => `\u0000connection\u0000${identity}`
+const connectionPrefix = '\u0000connection\u0000'
+const connectionMark = (identity: string): string => `${connectionPrefix}${identity}`
+
+/**
+ * Drops the refresh marks of entities and connections that were collected.
+ * Nothing observes a collected entity — the retention roots are the active
+ * Surfaces — so no read entry's generation can fall back when its mark goes.
+ * Without this the generations would be bounded by how many things the
+ * application has ever refreshed rather than by what it currently holds, which
+ * for a list refreshed on a timer is the same as not bounded at all.
+ */
+const prunedRefresh = (refresh: RefreshState, retained: Retained): RefreshState => {
+  const live = (mark: string): boolean =>
+    mark.startsWith(connectionPrefix)
+      ? retained.connections[mark.slice(connectionPrefix.length)] !== undefined
+      : retained.entities[mark.slice(0, mark.indexOf('\u0000'))] !== undefined
+  const keep = (marks: ReadonlyMap<string, number>): ReadonlyMap<string, number> => {
+    const next = new Map<string, number>()
+    for (const [mark, generation] of marks) if (live(mark)) next.set(mark, generation)
+    return next.size === marks.size ? marks : next
+  }
+  const requested = keep(refresh.requested)
+  const started = keep(refresh.started)
+  return requested === refresh.requested && started === refresh.started
+    ? refresh
+    : { ...refresh, requested, started }
+}
 
 /**
  * The generation a read is planned under: the highest any of the fields it
@@ -456,8 +482,10 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         entities: setStale(model.entities, marksOf(message.requests), false),
         loading: withoutLoading(model.loading, message.requests),
       }
-    case 'RetentionChanged':
-      return { ...model, ...gc(model, message.roots) }
+    case 'RetentionChanged': {
+      const retained = gc(model, message.roots)
+      return { ...model, ...retained, refresh: prunedRefresh(model.refresh, retained) }
+    }
     case 'Hydrated':
       return {
         ...model,

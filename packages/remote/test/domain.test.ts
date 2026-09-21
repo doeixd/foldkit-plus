@@ -394,18 +394,15 @@ describe('Data.confirmed reads past what is only pending', () => {
 
   it('leaves an optimistically inserted edge out of a connection', () => {
     const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
-    const loaded = Data.reduce(
-      Data.reduce(known, {
-        _tag: 'ConnectionMerged',
-        connection: projects.ref.identity,
-        page: {
-          edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
-          start: { _tag: 'Terminal' },
-          end: { _tag: 'Terminal' },
-        },
-      }),
-      { _tag: 'GapCleared', stream: 'unused' },
-    )
+    const loaded = Data.reduce(known, {
+      _tag: 'ConnectionMerged',
+      connection: projects.ref.identity,
+      page: {
+        edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
+        start: { _tag: 'Terminal' },
+        end: { _tag: 'Terminal' },
+      },
+    })
     const shown = Data.overlay(loaded, 'preview', [
       Project.patch('p2', { name: 'Draft' }),
       ConnectionChange.prepend(projects.ref, Project.ref('p2')),
@@ -991,6 +988,25 @@ describe('Data.query reads a connection as a page of selected items', () => {
       })
 
       expect(Data.refresh(stale, projects)).toBe(stale)
+    })
+
+    it('leaves an entry observing a connection nothing has loaded alone', () => {
+      const List = App.surface('RefreshUnloaded', { model: () => ({ projects }) })
+      const entry = Data.subscriptions({ list: List }, { policy: RemotePolicy.networkOnly })[
+        'list.read'
+      ]
+      // The refreshed projection names both: p1, which is loaded and really is
+      // refreshed, and the connection, which was never loaded. There is nothing
+      // to invalidate about the connection and no reason to restart the entry
+      // that would run its query.
+      const loaded = read(initial, ['p1'])
+      const both = Projection.struct({ project: Data.get(summary, 'p1'), projects })
+      const refreshed = Data.refresh(loaded, both)
+
+      expect(refreshed).not.toBe(loaded)
+      expect(entry.modelToDependencies(refreshed).refresh).toBe(
+        entry.modelToDependencies(loaded).refresh,
+      )
     })
 
     it('restarts only the read entries that observe what was refreshed', () => {
