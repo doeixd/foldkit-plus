@@ -2611,6 +2611,33 @@ a small foldkit-query package
 
 Follow dependency direction and real reuse, not naming aesthetics.
 
+> **Decided: `foldkit-entity` keeps them, and no `foldkit-query` is made.**
+> Two interpreters now exist — `foldkit-remote-drizzle` compiles a body to SQL
+> and `foldkit-remote-server` evaluates one over rows — so the gate this phase
+> waited on is met.
+>
+> **It fits what the package says it owns.** `foldkit-entity` describes and
+> interprets nothing: an `Expr` says which rows, and fetches none of them. The
+> interpreters live where interpretation already lives, which is the same
+> boundary that kept `evaluate` out of this package.
+>
+> **It costs the packages that do not want it nothing.** Measured, rather than
+> assumed: an entry importing only `Entity` bundles to 242,288 bytes and
+> contains none of `isPredicate`, `orderBy`, `unfiltered` or `dependenciesOf`;
+> adding `Query` and `Expr` costs 2,455 bytes. `Expr` and `Query` are ordinary
+> top-level consts in a `sideEffects: false` package, so a bundler drops them.
+> `foldkit-form` never pays even that — its entity imports are all `import
+> type`, so nothing of this package reaches its runtime at all.
+>
+> **The common path is already one import.** `foldkit-remote` spreads the
+> relational half into its own `Query`, so `Query.define` and `Query.from` are
+> written together without importing two packages.
+>
+> A `foldkit-query` would add a publish target, a version to keep in step and a
+> third place to look, to solve a problem that does not appear in the bundle.
+> Worth revisiting only if an interpreter arrives that should not depend on
+> `foldkit-entity` at all.
+
 ### Phase 13 — advanced relational semantics
 
 Only as required:

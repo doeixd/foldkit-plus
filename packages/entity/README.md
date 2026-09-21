@@ -328,6 +328,15 @@ Annotating again combines with what is there, using the key's own `merge`.
 An Entity says what a domain has. An `Expr` says something about one row of it,
 as a value:
 
+> **Why query semantics live in this package.** They describe and interpret
+> nothing, which is the line this package already draws: an `Expr` says which
+> rows and fetches none of them, and the interpreters that run one live
+> elsewhere — `foldkit-remote-drizzle` compiles a body to SQL,
+> `foldkit-remote-server` evaluates one over rows. Nothing that imports only
+> `Entity` pays for them: they are ordinary consts in a `sideEffects: false`
+> package, so a bundler drops them, and a package like `foldkit-form` imports
+> only types from here in any case.
+
 ```ts
 import { Expr, Order } from 'foldkit-entity'
 
