@@ -1069,6 +1069,32 @@ Important:
 
 That is the same useful distinction tanstackstart-db discovered with query key vs resource/cache key, but adapted to Foldkit's stronger normalized Remote model.
 
+### 12.3 What planning actually keys on, and why it is not this
+
+> **Built differently, deliberately.** Phase 4 made the read contract explicit
+> inside `Data.query` (`ReadContract` in `foldkit-remote`, an internal shaping
+> step rather than a public type). Writing it down showed that the read identity
+> above is not what the planner keys on, and should not be.
+>
+> `Requirement.mergeConnections` keys on **connection identity + window**, and
+> *unions* the Selections. Two consumers asking one connection and window for
+> different shapes merge into one requirement whose fields are the union, so one
+> read serves both. An identity that included the Selection — as §12.2 proposes
+> — would split them and fetch the same page twice, which is worse for exactly
+> the case the distinction was introduced to handle.
+>
+> The useful distinction survives, one layer lower: the *logical* identity
+> (§12.1) excludes the window, so pages share a connection; the *planning* key
+> includes it, so pages are fetched separately; and the shape is merged rather
+> than keyed, so shape never causes a second fetch. Pinned by
+> `requirement.test.ts` ("mergeConnections unions what one connection and window
+> select, and keeps windows apart") and `domain.test.ts` ("two projections of one
+> connection plan one query and select the union of their fields").
+>
+> Two of §11's four pieces are also simply absent, and carrying them would be
+> ceremony: *expectation* (required/optional) has no consumer, and *observation*
+> is a policy of the subscription that runs the read rather than of the read.
+
 ---
 
 ## 13. Selection remains late-bound and interpreter-neutral
@@ -2477,6 +2503,9 @@ Preserve current QueryRef and Connection behavior.
 Avoid a broad Remote rewrite.
 
 ### Phase 4 — make ReadContract explicit internally
+
+> Done: `ReadContract` in `foldkit-remote`, internal. What it found about the
+> read identity is in [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this).
 
 Refactor `Data.query` planning so it is conceptually clear which pieces are:
 

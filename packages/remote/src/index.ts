@@ -458,6 +458,50 @@ export type QueryEntity<Q> =
   Q extends QueryDescriptor<any, any, ConnectionSpec<infer Entity>> ? Entity : string
 
 /**
+ * What one consumer asks of one connection, as the pieces it is actually made
+ * of — data-query-DESIGN §11's read contract, with only the parts that exist
+ * here:
+ *
+ * - **source** — the `QueryRef`: the query and its input, whose `identity`
+ *   names the connection and deliberately excludes the window.
+ * - **window** — how much of it this consumer wants.
+ * - **shape** — the Selection, as the relation slice a read asks the server for.
+ *
+ * The design's other two are absent on purpose. *Expectation* (required versus
+ * optional) has no consumer yet, so there is nothing to carry. *Observation* is
+ * a policy of the subscription that runs the read, not of the read itself: one
+ * policy covers every connection an active Surface asks for.
+ *
+ * This is a shaping step, not a public type. The design asked for the
+ * separation, not for a new API to compose it with.
+ *
+ * Note what is *not* here: a read identity keyed on the shape. Two consumers
+ * asking one connection and window for different Selections merge into one
+ * requirement whose fields are the union, so one read serves both — see
+ * `Requirement.mergeConnections`. An identity that included the Selection would
+ * split them and fetch twice.
+ */
+interface ReadContract<Name extends string, Input> {
+  readonly ref: QueryRef<Name, Input>
+  readonly relation: RelationRequirement
+  readonly requirement: QueryRequirement
+}
+
+const readContract = <Name extends string, Input, Value, Entity extends string>(
+  source: QueryRef<Name, Input>,
+  shape: Selection<Value, Entity>,
+  window: QueryWindowOptions,
+): ReadContract<Name, Input> => {
+  const ref: QueryRef<Name, Input> = { ...source, window: pickWindow(window) }
+  const relation = relationOf(shape)
+  return {
+    ref,
+    relation,
+    requirement: { identity: ref.identity, window: ref.window, select: relation, ref },
+  }
+}
+
+/**
  * The store a read or plan sees: the base with every pending optimistic layer
  * applied, so a request's patches show until it settles and a temporary id is
  * not planned as a fetch.
