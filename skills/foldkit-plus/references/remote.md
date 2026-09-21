@@ -165,6 +165,13 @@ case 'ClickedRefresh': {
   where `projects` is the `Data.query(...)` Projection above.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
+- `Data.confirmed(projection)` is the same projection read over the
+  server-derived store alone, with pending layers and connection overlays left
+  off; it plans exactly what the projection plans. For a reader that must not
+  believe a change until the server agrees — typically
+  `Agent.when({ projection: Data.confirmed(...), predicate })`. A view wants the
+  projection itself, which is already the visible read; there is no
+  `Data.visible`.
 - `Data.refresh(model, target)` accepts a Projection or a Surface **without
   params**. It only works if something observes that Projection (an active
   read entry). For unobserved data use `Data.prefetch` with `RemotePolicy.networkOnly`.

@@ -104,9 +104,18 @@ section.
 | Agent state completion | `Agent.when({ projection \| source, predicate, timeout? })` in [`foldkit-agent`](../../packages/agent/README.md). Subscribes before reading. | Takes a `timeout` option; the runtime owns one deadline and the abort signal around both the host dispatch and the wait. A wait-only Effect could not bound a host dispatch that never returns. |
 | Sync confirmation | `Replica.committed` and `mounted.committed` in [`foldkit-sync`](../../packages/sync/README.md). | A `{ get, subscribe }` source (`Agent.when({ source: mounted.committed, … })`), not a Projection such as `TodoSync.committed.select(...)`: committed state lives in the replica, not the Model. |
 
-Not built: `Render.async` (phase 4), `Remote.visible` / `Remote.confirmed`, runtime
-activity introspection (phase 5), and the shared `visible` / `pending` /
-`settled` vocabulary beyond Sync's `committed`.
+`Remote.confirmed` shipped later, as `Data.confirmed(projection)` in
+[`foldkit-remote`](../../packages/remote/README.md), once the optimistic
+mutation layers this section gates it on existed — they were built for
+`foldkit-cms`'s preview, not for this. It is a projection read over the
+server-derived store alone, planning exactly what the projection plans, so
+observing it fetches the same and only what it *shows* differs. There is no
+`Remote.visible`: a projection already is the visible read, and a second name
+for it would be a wrapper that only forwards.
+
+Not built: `Render.async` (phase 4), runtime activity introspection (phase 5),
+and the shared `visible` / `pending` / `settled` vocabulary beyond Sync's
+`committed`.
 
 Known issues at ship time:
 
@@ -1356,7 +1365,8 @@ Remote.visible(ProjectName)
 Remote.confirmed(ProjectName)
 ```
 
-> Not built; see [Implementation status](#implementation-status).
+> Shipped as `Data.confirmed(projection)`, with no `visible` beside it; see
+> [Implementation status](#implementation-status).
 
 The exact API is open, but the semantic rule is important: Remote owns this
 distinction because Remote understands its own optimistic and server-derived
@@ -1543,7 +1553,7 @@ Remote interprets the requirements already carried by the Projection:
 Remote.refresh(ProjectPage.model)
 ```
 
-> `Remote.confirmed` is not built and refresh is mark-only; see
+> `Remote.confirmed` shipped as `Data.confirmed` and refresh is mark-only; see
 > [Implementation status](#implementation-status).
 
 Conceptually:

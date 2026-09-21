@@ -4,6 +4,7 @@
  * for what an application supplies.
  */
 import { Schema } from 'effect'
+import { expectTypeOf } from 'vitest'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -143,3 +144,15 @@ const wiring = Page.assemble(
 const wiredUpdate = wiring.update(update)
 
 void wiredUpdate
+
+// 8. Reading past what is only pending: the same projection over the
+// server-derived store alone, for a reader that must not believe a change
+// until the server has agreed to it.
+declare const projectId: string
+const project = Data.get(ProjectSummary, projectId)
+const confirmedProject = Data.confirmed(project)
+const confirmedProjects = Data.confirmed(projects)
+
+expectTypeOf(confirmedProject.read).toEqualTypeOf<typeof project.read>()
+// A query projection keeps the ref its pagination is asked for by.
+expectTypeOf(confirmedProjects.ref).toEqualTypeOf<typeof projects.ref>()

@@ -330,6 +330,110 @@ describe('Data.overlay shows a change nobody has made', () => {
   })
 })
 
+describe('Data.confirmed reads past what is only pending', () => {
+  const summary = Project.select({ name: true })
+  const project = Data.get(summary, 'p1')
+  const known = Data.reduce(initial, {
+    _tag: 'ReadReceived',
+    requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+    result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Saved' } }] },
+    now: 0,
+  })
+
+  it('shows what the server said while the projection itself shows the layer', () => {
+    const shown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+
+    expect(project.read(shown)).toEqual({ _tag: 'Ready', value: { name: 'Previewed' } })
+    expect(Data.confirmed(project).read(shown)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'Saved' },
+    })
+  })
+
+  it('follows the layer once the server agrees to it', () => {
+    const started = Data.mutate(
+      known,
+      Rename,
+      { id: 'p1', name: 'Renamed' },
+      { optimistic: [Project.patch('p1', { name: 'Renamed' })] },
+    )
+    const confirmed = Data.confirmed(project)
+
+    // While it is in flight the two disagree: that is the whole point of asking.
+    expect(project.read(started.model)).toEqual({ _tag: 'Ready', value: { name: 'Renamed' } })
+    expect(confirmed.read(started.model)).toEqual({ _tag: 'Ready', value: { name: 'Saved' } })
+
+    const settled = Data.reduce(started.model, {
+      _tag: 'MutationSucceeded',
+      requestId: started.requestId,
+      entities: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
+    })
+
+    expect(confirmed.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'Renamed' } })
+  })
+
+  it('keeps a failed mutation out of both reads, since the layer is gone', () => {
+    const started = Data.mutate(
+      known,
+      Rename,
+      { id: 'p1', name: 'Renamed' },
+      { optimistic: [Project.patch('p1', { name: 'Renamed' })] },
+    )
+    const failed = Data.reduce(started.model, {
+      _tag: 'MutationFailed',
+      requestId: started.requestId,
+      error: { _tag: 'RemoteMutationError', message: 'no' },
+    })
+
+    expect(project.read(failed)).toEqual({ _tag: 'Ready', value: { name: 'Saved' } })
+    expect(Data.confirmed(project).read(failed)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'Saved' },
+    })
+  })
+
+  it('leaves an optimistically inserted edge out of a connection', () => {
+    const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
+    const loaded = Data.reduce(
+      Data.reduce(known, {
+        _tag: 'ConnectionMerged',
+        connection: projects.ref.identity,
+        page: {
+          edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Terminal' },
+        },
+      }),
+      { _tag: 'GapCleared', stream: 'unused' },
+    )
+    const shown = Data.overlay(loaded, 'preview', [
+      Project.patch('p2', { name: 'Draft' }),
+      ConnectionChange.prepend(projects.ref, Project.ref('p2')),
+    ])
+
+    const visible = projects.read(shown)
+    const confirmed = Data.confirmed(projects).read(shown)
+
+    expect(visible).toMatchObject({ value: { items: [{ name: 'Draft' }, { name: 'Saved' }] } })
+    expect(confirmed).toMatchObject({ value: { items: [{ name: 'Saved' }] } })
+  })
+
+  it('plans exactly what the projection plans, so observing it reads the same', () => {
+    expect(Data.plan(known, Data.confirmed(project))).toEqual(Data.plan(known, project))
+    expect(requirementsOf(Data.confirmed(project))).toEqual(requirementsOf(project))
+  })
+
+  it('is the same read when nothing is pending', () => {
+    expect(Data.confirmed(project).read(known)).toEqual(project.read(known))
+  })
+
+  it('keeps what a query projection carries beside its read', () => {
+    const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
+
+    expect(Data.confirmed(projects).ref).toBe(projects.ref)
+  })
+})
+
 describe('Data.live and Data.subscriptions', () => {
   const summary = Project.select({ name: true })
   const Page = App.surface('Page', {

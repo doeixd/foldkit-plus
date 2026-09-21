@@ -53,6 +53,7 @@ import {
 import { mutationStatus, type MutationDescriptor, type MutationStatus } from './mutation.js'
 import {
   connectionIdentity,
+  emptyOptimistic,
   visibleItems,
   visibleStore,
   type ConnectionIdentity,
@@ -346,6 +347,30 @@ export interface RemoteDomain<
   /** `Remote.storeOf`: the visible store, base under the pending optimistic layers. */
   storeOf(model: AppModel): EntityStore
   /**
+   * `Remote.confirmed`: the same projection read against the server-derived
+   * store alone, with every pending optimistic layer and connection overlay
+   * left off. What it plans is unchanged — the requirements are the
+   * projection's own — so observing it reads exactly what observing the
+   * projection reads; only what it *shows* differs.
+   *
+   * A view usually wants the projection itself, which is the visible read:
+   * the optimistic layers are there so a change shows before the server has
+   * agreed to it. This is for the reader that must not believe a change until
+   * the server has confirmed it, which in practice is an Agent capability
+   * reporting that what it was asked to do is done:
+   *
+   * ```ts
+   * Agent.when({
+   *   projection: Data.confirmed(ProjectPage.model.project),
+   *   predicate: (project, request) => project.name === request.name,
+   * })
+   * ```
+   *
+   * There is deliberately no `visible`: a projection is already the visible
+   * read, and a wrapper that only forwards would be a second name for it.
+   */
+  confirmed<P extends Projection<AppModel, any>>(projection: P): P
+  /**
    * The plan run through `RemoteClient` and reduced into the Model: the
    * projection's pending queries first, then the fields it lacks (the pages'
    * items included). For SSR, route or hover prefetch, and tests.
@@ -444,6 +469,29 @@ const storeOf = <AppModel, Store extends RemoteModel, Names extends string>(
   const remote = bound.store.get(model)
   return visibleStoreOf(remote.entities, remote.optimistic)
 }
+
+/**
+ * The Model as it would be with nothing optimistic pending. Every read reaches
+ * the layers through the Model it is given, so dropping them here is what makes
+ * a read confirmed — no read has to know it is being read confirmed.
+ */
+const withoutOptimistic = <AppModel, Store extends RemoteModel, Names extends string>(
+  bound: BoundRemote<AppModel, Store, Names>,
+  model: AppModel,
+): AppModel => {
+  const remote = bound.store.get(model)
+  return remote.optimistic.layers.length === 0 && remote.optimistic.overlays.length === 0
+    ? model
+    : bound.store.set(model, { ...remote, optimistic: emptyOptimistic } as Store)
+}
+
+const confirmed = <AppModel, Store extends RemoteModel, P extends Projection<AppModel, any>>(
+  bound: BoundRemote<AppModel, Store>,
+  projection: P,
+): P => ({
+  ...projection,
+  read: (root: AppModel) => projection.read(withoutOptimistic(bound, root)),
+})
 
 // The visible store is recomputed only when the base store or the layers
 // change, so reads and plans across renders of one Model share it.
@@ -1073,6 +1121,16 @@ export const Remote = {
   ): EntityStore => storeOf(bound, model),
 
   /**
+   * The projection read against the server-derived store alone: the same
+   * requirements, planned the same way, with the pending optimistic layers and
+   * connection overlays left off. See the bound `Remote.confirmed`.
+   */
+  confirmed: <AppModel, Store extends RemoteModel, P extends Projection<AppModel, any>>(
+    bound: BoundRemote<AppModel, Store>,
+    projection: P,
+  ): P => confirmed(bound, projection),
+
+  /**
    * Executes the plan against the `RemoteClient` and returns a new store. Used
    * for SSR route prefetch, hover prefetch, and tests. Never called during render.
    * `policy` decides what a present field means (default cache-first); `now`
@@ -1471,6 +1529,7 @@ const bindDomain = <
     },
     plan: (model, projection, options) => Remote.plan(bound, model, projection, options),
     storeOf: model => storeOf(bound, model),
+    confirmed: projection => confirmed(bound, projection),
     prefetch: (model, projection, options = {}) =>
       Effect.gen(function* () {
         const { policy = RemotePolicy.cacheFirst, now = Date.now } = options

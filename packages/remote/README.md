@@ -689,6 +689,37 @@ const { model: started, command } = Data.mutate(model, AddComment, input, {
 A successful server result can replace the request's temporary connection
 overlays with confirmed ones in place.
 
+### Reading past what is only pending
+
+Every projection reads the **visible** cache: the server-derived store under
+the layers still pending, which is why an optimistic change shows at once. A
+reader that must not believe a change until the server has agreed to it asks
+for the confirmed read instead:
+
+```ts
+Data.confirmed(Data.get(ProjectSummary, projectId))
+```
+
+It is the same projection — the same requirements, planned the same way, so
+observing it fetches exactly what observing the original fetches — reading the
+server-derived store alone, with the pending layers and connection overlays
+left off. An optimistically inserted edge is not in its page; an
+optimistically patched field reads as the server last said.
+
+A view almost always wants the projection itself. This is for the reader that
+reports on the world rather than drawing it, which in practice is an Agent
+capability that must not claim success before the server reflects it:
+
+```ts
+Agent.when({
+  projection: Data.confirmed(Data.get(ProjectSummary, projectId)),
+  predicate: (project, request) => project.name === request.name,
+})
+```
+
+There is deliberately no `Data.visible`: a projection already is the visible
+read, and a second name for it would be a wrapper that only forwards.
+
 ### Remote mutation vs Sync operation
 
 Do not use Remote mutation as a durable offline-write mechanism:
