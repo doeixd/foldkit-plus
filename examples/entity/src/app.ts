@@ -6,6 +6,7 @@
  */
 import { Schema } from 'effect'
 import { Crud } from 'foldkit-crud'
+import { evo } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
@@ -155,9 +156,9 @@ export const update = PostEditor.after(
       }
       // Nothing is fetched here: the list's input changed, so Remote requires another connection.
       case 'SearchedPosts':
-        return { model: { ...model, postSearch: message.text } }
+        return { model: evo(model, { postSearch: () => message.text }) }
       case 'SortedPosts':
-        return { model: { ...model, postSort: message.sort } }
+        return { model: evo(model, { postSort: () => message.sort }) }
       default:
         return { model }
     }

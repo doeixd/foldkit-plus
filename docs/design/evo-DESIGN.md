@@ -1,3 +1,39 @@
+> **Status: done, bar one item that needs a decision rather than work.**
+>
+> This was a coherence pass rather than a feature, so "done" means the
+> distinction it argues for is visible everywhere a reader would look. Audited
+> item by item:
+>
+> | # | Item | State |
+> | --- | --- | --- |
+> | 1 | Codify the semantic-vs-structural rule | Done — `AGENTS.md` and the root `README.md` both state it |
+> | 2 | Normalize examples around `evo` | Done — the last four application transitions still written as spreads (`examples/cms`, `examples/entity`) are converted; array spreads *inside* an `evo`, and store construction in demo helpers, are left alone as the item says |
+> | 3 | `ModelRef.modify` | Done — `packages/surface/src`, delegating through the ref's own `set` |
+> | 4 | No `Surface.evo` / `Projection.evo` / `Entity.evo` | Held — none exists |
+> | 5 | Surface docs around the separate concepts | Done — the five-line table is in `packages/surface/README.md` |
+> | 6 | "How state changes" per stateful package | Done — Remote, Sync and Mirror each carry one |
+> | 7 | Agent and Mixins one-way toward Messages | Done |
+> | 8 | Shared conceptual guide | Done — `docs/state-model.md`, with the matrix |
+> | 9 | Root README diagram showing both write paths | Done |
+> | 10 | Typechecked architecture examples | Done — `examples/todo-app/test/state-seams.test.ts` |
+> | 11 | Tests for `ModelRef.modify` | Done — `packages/surface/test` |
+> | 12 | A `prefer-evo-model-update` lint rule | **Not done, and it is not a small item.** |
+>
+> Item 12 reads as "consider a lint rule", and its own text says to consider it
+> only once the convention is taught. The convention now is. But this repository
+> has **no ESLint at all** — no config, no dependency, no `lint` script — so the
+> item is not "add a rule" but "stand up linting for a 28-package monorepo and
+> then add one rule to it". That is a different decision, with its own cost, and
+> it should be made as one rather than arrived at sideways.
+>
+> Worth noting against it: the rule's own description is conservative to the
+> point of being hard to write. Object spreading is correct for arbitrary value
+> construction, Remote store internals and normalized records; the target is
+> narrowly "rebuild the Foldkit Model merely to replace one or more fields". The
+> audit above found **four** violations in the whole repository, all in two
+> files. A linter earns its keep where a convention is violated often enough
+> that review misses it, and the evidence here is that this one is not.
+
 Yes. Based on the current code and docs, I’d make this a **coherence pass across Foldkit Plus**, not an “add `evo` everywhere” change.
 
 The goal should be to make one distinction explicit throughout the ecosystem:
