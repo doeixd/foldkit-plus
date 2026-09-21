@@ -49,6 +49,8 @@ export type EditorStatus =
   | 'Loading'
   | 'NotFound'
   | 'LoadFailed'
+  /** Open, with nothing entered since it was opened and nothing pending. */
+  | 'Opened'
   /** Edited since the last save. */
   | 'Editing'
   | 'Saving'
@@ -889,7 +891,10 @@ export const makeEditor =
             if (save._tag === 'Failed') return 'SaveFailed'
             if (publish._tag === 'Failed') return later ? 'ScheduleFailed' : 'PublishFailed'
             if (publish._tag === 'Applied') return later ? 'Scheduled' : 'Published'
-            return save._tag === 'Applied' ? 'Saved' : 'Editing'
+            if (save._tag === 'Applied') return 'Saved'
+            // Nothing pending and nothing entered: the form is as it was found. A draft
+            // it was filled from is on the server already; anything else is not a draft.
+            return editor.resumed === 'Model' || editor.resumed === 'Values' ? 'Saved' : 'Opened'
           },
         }
       },

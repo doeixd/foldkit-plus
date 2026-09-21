@@ -36,6 +36,10 @@ version changed; `pnpm` skips versions already in the registry.
     a stored Model with nothing in flight (`form.settled`, new in `foldkit-form`);
     follows a previewed post to the row publishing gives it; and gains `flush`,
     for an author who leaves within the rest of their last edit.
+- **`foldkit-cms`: `Opened`, beside `Editing`.** `Editing` meant both "open and
+  idle" and "edited since the last save", so no application could word its status
+  truthfully. `Editing` now means there are unsaved edits, `Opened` means the form
+  is as it was found, and a draft the form was filled from reads `Saved`.
 - **`examples/cms`**: a post from its first keystroke to being taken off show, from
   three chairs, over SQLite, with its transcript pinned, and the same application
   in a browser (`pnpm dev`) where the chair is in the address. `foldkit-cms` gains

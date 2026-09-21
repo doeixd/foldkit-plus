@@ -83,7 +83,7 @@ Placed.helpers.open(entryId)
 Placed.helpers.create(Cms.newEntryId()) // make the id in a Command or handler, not in update
 Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked, RestoreAsked({ revision }), UnpublishAsked,
 // ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
-PostEditor.status(model) // Closed Loading NotFound LoadFailed Editing Saving Saved Conflict SaveFailed
+PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Saving Saved Conflict SaveFailed
 // Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
 PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
 PostEditor.pageId(model) // row id, else the entry's: what the app's own pages and a preview use
@@ -91,6 +91,7 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
 ```
 
 - The editor's Messages are the form's plus its own, so a form view works as is.
+- `Opened` is the form as it was found; `Editing` means edits that are not saved.
 - Autosave: an edit rests (`rest`, 1s), then the form is saved, valid or not.
   Publish submits the form; invalid publishes nothing. A publish saves first.
 - Opening resumes the draft: saved Model (same form name and `version`), else

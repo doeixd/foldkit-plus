@@ -137,7 +137,7 @@ Placed.helpers.create(Cms.newEntryId()) // something new; its first save makes t
 Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, DiscardAsked,
 // RestoreAsked({ revision }), UnpublishAsked, ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 
-PostEditor.status(model) // Loading | Editing | Saving | Saved | Conflict | Publishing | Published | ...
+PostEditor.status(model) // Opened | Editing | Saving | Saved | Conflict | Publishing | Published | ...
 PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
 PostEditor.pageId(model) // the row's id, or the entry's until there is a row: what a preview shows under
 ```
@@ -146,6 +146,9 @@ PostEditor.pageId(model) // the row's id, or the entry's until there is a row: w
   one second by default), and the edit that is still the last one when its rest
   ends saves the form as it stands, valid or not. There is no Save button to
   forget, and a validation error never costs an author their work.
+- **`Editing` means there are edits that are not saved yet**, and `Opened` means
+  the form is as it was found. A draft the editor filled the form from is on the
+  server already, so it reads `Saved`.
 - A draft is listed by what its author called it, valid or not, and `untitled`
   until they have. Publish pressed twice asks once.
 - **Publishing submits the form**, so its rules and checks decide, and an invalid

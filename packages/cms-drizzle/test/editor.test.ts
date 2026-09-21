@@ -275,7 +275,8 @@ describe('something new', () => {
     const { author, rows, reads } = world()
     const ada = author('ada')
     await ada.send(Message.Created({ entry: 'new1' }))
-    expect(ada.status()).toBe('Editing')
+    // Nothing entered yet, so there is nothing to save.
+    expect(ada.status()).toBe('Opened')
     expect(ada.resumed()).toBe('Blank')
     // Nothing of it is on the server yet, so nothing is asked of the server.
     await ada.load()
@@ -475,6 +476,22 @@ describe('opening an entry', () => {
     expect(sent).toEqual([])
   })
 
+  it('says a draft it found on the server is saved, and an empty form is neither', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    await ada.open('e1')
+    // Nothing entered, and nothing that needs saving: what is published is shown.
+    expect(ada.status()).toBe('Opened')
+    await ada.send(ada.type('body', 'Something'))
+    expect(ada.status()).toBe('Saved')
+
+    const later = author('ada')
+    await later.open('e1')
+    // A draft it was filled from is on the server already.
+    expect(later.resumed()).toBe('Model')
+    expect(later.status()).toBe('Saved')
+  })
+
   it('resumes the draft exactly as it was left, errors and all', async () => {
     const { author } = world()
     const ada = author('ada')
@@ -523,7 +540,7 @@ describe('opening an entry', () => {
     const ada = author('ada')
     await ada.open('e1')
     expect(ada.resumed()).toBe('Lost')
-    expect(ada.status()).toBe('Editing')
+    expect(ada.status()).toBe('Opened')
     expect(ada.field('title').value).toBe('Live')
     // The stored draft is kept until the author saves over it.
     expect(rows(`select "values" from cms_drafts where id = 'e1'`)).toEqual([
@@ -588,7 +605,8 @@ describe('two authors on one entry', () => {
     await bo.load()
     expect(bo.field('body').value).toBe('Ada was here')
     expect(bo.resumed()).toBe('Model')
-    expect(bo.status()).toBe('Editing')
+    // What Bo now holds is Ada's draft, which the server has.
+    expect(bo.status()).toBe('Saved')
   })
 
   it('waits, on a reload, for the copy the server holds now and not the one it held before', async () => {
