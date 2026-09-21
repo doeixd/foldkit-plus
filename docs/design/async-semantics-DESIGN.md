@@ -1841,6 +1841,10 @@ No runtime changes.
 
 ### Phase 1 — Projection metadata audit
 
+> Done: shipped as `Metadata.key` in `foldkit-surface`, with Remote owning
+> `RemoteRequirements` / `RemoteConnections`. See [Implementation
+> status](#implementation-status) for how it differs from the sketch.
+
 Before adding APIs, audit the current Surface requirement model.
 
 Questions:
@@ -1857,6 +1861,8 @@ Questions:
 This should be prototyped in type tests before implementation.
 
 ### Phase 2 — Agent state completion
+
+> Done: shipped as `Agent.when({ projection | source, predicate, timeout? })`.
 
 Add one concrete capability where the benefit is clear.
 
@@ -1876,6 +1882,11 @@ necessary host seams.
 
 ### Phase 3 — Remote Projection refresh
 
+> Done: shipped as `Data.refresh(model, projection | Surface)`, mark-only. Its
+> generations are held per field and per connection, so a refresh restarts the
+> read entries observing what was refreshed and leaves the rest running — the
+> first version restarted every entry, which is recorded under known issues.
+
 Only if useful in real examples:
 
 - allow Remote to revalidate requirements contributed by a Projection / Surface
@@ -1885,6 +1896,10 @@ Only if useful in real examples:
   existing requirement planning
 
 ### Phase 4 — AsyncData view ergonomics
+
+> Done: shipped as `RemoteData.render`, with a fourth `notFound` branch and one
+> `Freshness` tag in place of the sketch's two booleans. See [Implementation
+> status](#implementation-status).
 
 If repeated view code justifies it, add a small rendering interpreter over
 `AsyncData` that keeps stale/refreshing data visible by default.

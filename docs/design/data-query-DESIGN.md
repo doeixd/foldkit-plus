@@ -1,8 +1,10 @@
 # Foldkit Plus: Composable Data, Query, Read Contracts, Routing, and Local-First Architecture
 
-**Status:** partly built. §32's Phases 0–8 and 12 shipped; the reasoning below
-is unchanged except where a `>` note says building it found otherwise, and those
-notes win.  
+**Status:** partly built. §32's Phases 0–4, 6–8 and 12 shipped. **Phase 5 was
+skipped** — the route-to-Surface half is proven, the Router half is not, and
+nothing here uses Foldkit Router at all; see its note. Phases 9–13 are deferred
+on conditions that do not exist yet. The reasoning below is unchanged except
+where a `>` note says building it found otherwise, and those notes win.  
 **Date:** September 2026  
 **Target:** doeixd/foldkit-plus  
 **Primary packages:** foldkit-entity, foldkit-remote, foldkit-remote-server, foldkit-remote-drizzle, foldkit-surface, foldkit-sync, foldkit-durable  
@@ -20,6 +22,7 @@ found one at a time:
 | [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) | **The placeholder rule made the repository's hardest query unwriteable**, and writing it anyway was silently wrong rather than a type error. A branch on an input is usually a comparison not yet written. |
 | [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
 | [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
+| [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it. Half of it was already proven; the other half needs a Router this repository does not use anywhere. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
 
 Two of §11's four read-contract pieces were also never built, because nothing
@@ -2610,6 +2613,12 @@ This preserves one semantic home for every concern.
 
 ### Phase 0 — terminology and tests
 
+> Done, as a read rather than a build: every invariant below was already
+> pinned. `remote/test/query.test.ts` covers connection identity excluding the
+> window and input canonicalisation; `requirement.test.ts` and `plan.test.ts`
+> cover Selection and requirement merging; `remote-drizzle/test/visible.test.ts`
+> covers row visibility.
+
 Document/test current invariants:
 
 ~~~text
@@ -2621,6 +2630,10 @@ Remote visibility/authorization
 ~~~
 
 ### Phase 1 — tiny Expr kernel
+
+> Done: `Expr` in `foldkit-entity`, sized to the CMS's `bySlug` — `eq` and an
+> ordering, and nothing else until a query asked. `isNull`/`isNotNull` and
+> `contains` arrived with Phase 8. Semantics are in [§6.0.1](#601-the-semantics-of-what-exists).
 
 Implement only what one real existing query needs:
 
@@ -2638,6 +2651,11 @@ Use ordinary immutable discriminated unions.
 
 ### Phase 2 — anonymous Query + pipeable transformations
 
+> Done: `Query.from` / `where` / `orderBy`, pipeable and immutable. Two
+> `where`s conjoin and two `orderBy`s append, so a fragment can only narrow. The
+> list of predicates *is* the conjunction, which is why no `Expr.and` exists —
+> not even the worklist needed one.
+
 Implement:
 
 ~~~text
@@ -2649,6 +2667,10 @@ Query.orderBy
 Specify composition laws.
 
 ### Phase 3 — Query.define bridge to current Remote
+
+> Done: `Query.define` returns an ordinary `QueryDescriptor` carrying a `body`.
+> Descriptors from `Query.make` have none and keep working. A body needs a
+> `foldkit-entity` entity, since that is what has addressable fields.
 
 Make the new QueryDefinition adapt to current Remote registration/QueryDescriptor requirements.
 
@@ -2676,6 +2698,21 @@ The goal is separation, not a new public API.
 
 ### Phase 5 — prove route -> Surface -> ReadContract integration
 
+> **Not done, and not attempted.** The implementation sequence skipped straight
+> from Phase 3 to Phase 6, which went unremarked until the phases were audited
+> afterwards.
+>
+> Half of what it asks for is already proven. `Surface.at` deriving params or
+> inactivity, `Data.subscriptions` following activation, and navigating away
+> releasing read, live and retain work are covered in
+> `remote/test/domain.test.ts`. A `QueryDefinition`'s input coming from Surface
+> params is what `Data.query(descriptor, params, …)` does.
+>
+> The half that is missing is the Router: **nothing in this repository uses
+> Foldkit Router at all** — no example, no package. So "URL parses to AppRoute"
+> and "AppRoute lives in Model" are untested here, and proving them means
+> introducing Router usage rather than wiring together what exists.
+
 Use one current Foldkit Router path whose typed route payload activates a parameterized Surface.
 
 Verify:
@@ -2695,6 +2732,11 @@ Only after that should an inspectable activation helper such as `Surface.when` b
 
 ### Phase 6 — compile one real query through remote-drizzle
 
+> Done: `foldkit-cms`'s `bySlug` compiles from its body, byte-identical to the
+> hand-written `where` it replaced. Native callbacks remain, and are conjoined
+> with a body rather than replaced by it. **Do this after Phase 7**, per the
+> note at the head of this section.
+
 Migrate a current CMS/Remote query so common where/order semantics are no longer duplicated in the Drizzle binding.
 
 Keep native callbacks as escape hatches.
@@ -2708,6 +2750,12 @@ Execute the same QueryDefinition over in-memory rows.
 Add differential tests against real Drizzle.
 
 ### Phase 8 — migrate several real query shapes
+
+> Done: the CMS worklist, which is the shape this was sized against —
+> [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) works through why its
+> two branches on an input are comparisons rather than branches.
+> `ProjectsByOwner` was not migrated: three `eq` bodies already compile and a
+> fourth showed nothing new.
 
 Use examples that exercise:
 
@@ -2723,6 +2771,11 @@ multiple windows over one Connection
 This specifically tests the QueryRef vs ReadContract distinction.
 
 ### Phase 9 — TanStack DB spike
+
+> Phases 9 to 13 are **deferred, not skipped**. Each is gated on something that
+> does not exist yet: another execution engine, a real need for joins or
+> aggregates, or a query shape no operator covers. Phase 12 is the exception and
+> was decided — see its note.
 
 Compile Query IR to TanStack DB.
 
