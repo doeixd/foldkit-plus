@@ -220,6 +220,27 @@ either side; a field compared to the wrong type is an error where it is written.
 Only `eq` and the two `Order` directions exist so far. The operator set grows
 from real queries, not from what SQL can express.
 
+### Which rows: `Query`
+
+```ts
+const onlyPublished = Query.where(published)          // a reusable fragment
+const newest = Query.orderBy(Order.desc(Blog.Post.fields.title))
+
+const recent = Query.from(Blog.Post).pipe(onlyPublished, newest)
+Query.dependencies(recent)     // every predicate and ordering term at once
+```
+
+- **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a
+  fragment only ever narrows. `Query.unfiltered` / `Query.unordered` are the only
+  ways back.
+- The list of predicates **is** the conjunction, which is why there is no
+  `Expr.and`: three conditions are three `where`s. An `and` is only needed for a
+  conjunction nested inside something else.
+- A `Query` says which rows. Which fields is a Selection; how many, whether
+  absence is an error, and whether to watch for changes belong to the consumer.
+- `foldkit-remote` re-exports these on its own `Query`, so `Query.make` and
+  `Query.from` come from one import.
+
 ## Gotchas
 
 - Relations are **not** in `entity.schema`. Do not put `author` in the Struct.

@@ -5,7 +5,15 @@
  */
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Expr, Order, dependenciesOf, type EqPredicate, type InputExpr } from '../src/index.js'
+import {
+  Expr,
+  Order,
+  Query,
+  dependenciesOf,
+  type EqPredicate,
+  type InputExpr,
+  type Predicate,
+} from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post } = Blog
@@ -44,3 +52,23 @@ Order.desc(Post.relations.author)
 expectTypeOf(dependenciesOf(Expr.eq(Post.fields.id, 'p1')).inputs).toEqualTypeOf<
   ReadonlyArray<string>
 >()
+
+// A Query keeps the Entity it is over, so a fragment cannot be piped into a
+// query over a different one.
+const posts = Query.from(Post)
+expectTypeOf(posts).toEqualTypeOf<Query<typeof Post>>()
+expectTypeOf(posts.pipe(Query.where(Expr.eq(Post.fields.published, true)))).toEqualTypeOf<
+  Query<typeof Post>
+>()
+
+expectTypeOf(posts.entity).toEqualTypeOf<typeof Post>()
+expectTypeOf(posts.where).toEqualTypeOf<ReadonlyArray<Predicate>>()
+
+// @ts-expect-error a predicate is not an ordering term
+Query.from(Post).pipe(Query.orderBy(Expr.eq(Post.fields.published, true)))
+
+// @ts-expect-error an ordering term is not a predicate
+Query.from(Post).pipe(Query.where(Order.asc(Post.fields.id)))
+
+// @ts-expect-error `from` takes an Entity, not one of its fields
+Query.from(Post.fields.title)

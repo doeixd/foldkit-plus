@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Order, dependenciesOf, type Predicate } from '../src/index.js'
+import { Expr, Order, Query, dependenciesOf, type Predicate } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post } = Blog
@@ -113,5 +113,104 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: ['slug'],
       operations: ['eq'],
     })
+  })
+})
+
+describe('Query composes which rows, as data', () => {
+  const published = Expr.eq(Post.fields.published, true)
+  const byTitle = Expr.eq(Post.fields.title, Expr.input('title', Schema.String))
+
+  it('starts as every row of an Entity, with nothing said about them', () => {
+    const all = Query.from(Post)
+
+    expect(all.entity).toBe(Post)
+    expect(all.where).toEqual([])
+    expect(all.orderBy).toEqual([])
+  })
+
+  it('conjoins two wheres: the second narrows, it does not replace', () => {
+    const both = Query.from(Post).pipe(Query.where(published), Query.where(byTitle))
+
+    expect(both.where).toEqual([published, byTitle])
+  })
+
+  it('appends two orderings, so the earlier term stays the more significant', () => {
+    const ordered = Query.from(Post).pipe(
+      Query.orderBy(Order.desc(Post.fields.title)),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    )
+
+    expect(ordered.orderBy).toEqual([Order.desc(Post.fields.title), Order.asc(Post.fields.id)])
+  })
+
+  it('takes several predicates or terms at once, the same as several calls', () => {
+    const together = Query.from(Post).pipe(Query.where(published, byTitle))
+    const apart = Query.from(Post).pipe(Query.where(published), Query.where(byTitle))
+
+    expect(together.where).toEqual(apart.where)
+  })
+
+  it('leaves the query it was given alone: each step is a new value', () => {
+    const all = Query.from(Post)
+    const narrowed = all.pipe(Query.where(published))
+
+    expect(all.where).toEqual([])
+    expect(narrowed).not.toBe(all)
+  })
+
+  it('is frozen, so a step cannot be undone by writing to one', () => {
+    const all = Query.from(Post)
+
+    expect(Object.isFrozen(all)).toBe(true)
+    expect(Object.isFrozen(all.where)).toBe(true)
+  })
+
+  it('returns the same query when a step says nothing', () => {
+    const all = Query.from(Post)
+
+    expect(all.pipe(Query.where())).toBe(all)
+    expect(all.pipe(Query.orderBy())).toBe(all)
+  })
+
+  it('drops what a fragment added only when asked, explicitly', () => {
+    const narrowed = Query.from(Post).pipe(
+      Query.where(published),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    )
+
+    expect(Query.unfiltered(narrowed).where).toEqual([])
+    expect(Query.unfiltered(narrowed).orderBy).toEqual(narrowed.orderBy)
+    expect(Query.unordered(narrowed).orderBy).toEqual([])
+    expect(Query.unordered(narrowed).where).toEqual(narrowed.where)
+  })
+
+  it('reuses a fragment across queries over the same Entity', () => {
+    const onlyPublished = Query.where(published)
+    const newest = Query.orderBy(Order.desc(Post.fields.title))
+
+    const list = Query.from(Post).pipe(onlyPublished, newest)
+    const one = Query.from(Post).pipe(onlyPublished, Query.where(byTitle))
+
+    expect(list.where).toEqual([published])
+    expect(one.where).toEqual([published, byTitle])
+  })
+
+  it('says what the whole query reads, predicates and ordering together', () => {
+    const q = Query.from(Post).pipe(Query.where(byTitle), Query.orderBy(Order.asc(Post.fields.id)))
+
+    expect(Query.dependencies(q)).toEqual({
+      fields: [
+        { entity: 'Post', key: 'title' },
+        { entity: 'Post', key: 'id' },
+      ],
+      inputs: ['title'],
+      operations: ['eq'],
+    })
+  })
+
+  it('recognises one, and nothing else', () => {
+    expect(Query.is(Query.from(Post))).toBe(true)
+    expect(Query.is(published)).toBe(false)
+    expect(Query.is(undefined)).toBe(false)
   })
 })

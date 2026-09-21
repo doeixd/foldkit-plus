@@ -7,6 +7,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-entity`: `Query`, which rows a query is about.** An Entity to
+  read, the predicates every row must hold, and the order to read them in,
+  composed with `pipe`: `Query.from(Post).pipe(published, newest)`. Each step is
+  a new frozen value and performs no work. **Two `where`s conjoin and two
+  `orderBy`s append** — neither replaces, so piping a fragment can only narrow a
+  query, and `Query.unfiltered` / `Query.unordered` are the only ways back. The
+  list of predicates *is* the conjunction, which is why there is still no
+  `Expr.and`: three conditions are three `where`s. `foldkit-remote` spreads
+  these into its own `Query`, so `Query.make` and `Query.from` come from one
+  import instead of two namespaces of the same name.
+
 - **`foldkit-entity`: `Expr`, a query's scalar computations as values.** An
   Entity says what a domain has; an `Expr` says something about one row of it.
   `Expr.eq` compares two scalars, coercing a field or a plain value on either

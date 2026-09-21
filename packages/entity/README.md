@@ -358,6 +358,40 @@ placeholder instead of a branch around it.
 operations it uses, so a planner knows what it needs and an interpreter can
 refuse a query it cannot run.
 
+### Which rows: `Query`
+
+A `Query` is an Entity to read, the predicates every row must hold, and the
+order to read them in — composed with `pipe`, one immutable value per step:
+
+```ts
+const published = Query.where(Expr.eq(Blog.Post.fields.published, true))
+const newest = Query.orderBy(Order.desc(Blog.Post.fields.title))
+
+const recent = Query.from(Blog.Post).pipe(published, newest)
+const oneOf = Query.from(Blog.Post).pipe(published, Query.where(byTitle))
+```
+
+`published` and `newest` are fragments: written once, piped into any query over
+the same Entity. Composing performs no work — no table is named, no connection
+opened, nothing read.
+
+**Two `where`s conjoin and two `orderBy`s append.** Neither replaces what came
+before, so piping a fragment can only ever narrow a query, never silently undo
+part of it. An earlier ordering term stays the more significant one, which is
+what makes a later `Query.orderBy(Order.asc(id))` a tie-breaker. To drop what a
+fragment added, say so: `Query.unfiltered` and `Query.unordered` are the only
+ways back.
+
+The list of predicates **is** the conjunction — which is why no `Expr.and`
+exists. A query wanting three conditions writes three `where`s. An `and`
+operator is only needed for a conjunction nested inside something else, and no
+query here has one yet.
+
+A `Query` says which rows. It does not say which fields — that is a Selection —
+and it does not say how many, whether absence is an error, or whether to watch
+for changes: those belong to the consumer doing the reading, not to the
+relation.
+
 Only the operations a real query in this repository needs exist. The set grows
 from queries, not from what a database could express.
 
@@ -385,6 +419,12 @@ from queries, not from what a database could express.
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
 | `Order.asc(expr)` / `Order.desc(expr)` | One term of an ordering, over a field or a scalar. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
+| `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
+| `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
+| `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
+| `Query.unfiltered(query)` / `Query.unordered(query)` | The query with its predicates, or its ordering, dropped. |
+| `Query.dependencies(query)` | What the whole query reads: every predicate and ordering term. |
+| `Query.is(value)` | Whether a value is a `Query`. |
 
 ## Limits
 

@@ -11,8 +11,8 @@
  * operation here is one a real query in this repository needs; the set grows
  * from queries, not from what a database could express.
  */
-import { Schema } from 'effect'
-import type { EntityField, EntityIdentity } from './index.js'
+import { Pipeable, Schema } from 'effect'
+import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
 /** A constant the query was written with. */
 export interface LiteralExpr<T> {
@@ -208,4 +208,107 @@ export const dependenciesOf = (
     walk('direction' in node ? node.expr : node, fields, inputs, operations)
   }
   return { fields: [...fields.values()], inputs: [...inputs], operations: [...operations] }
+}
+
+/**
+ * Which rows a query is about, as a value: an Entity to read, the predicates
+ * every row must satisfy, and the order to read them in. It says nothing about
+ * which fields to return — that is a Selection — and nothing about pagination,
+ * liveness, or whether absence is an error, which belong to the consumer's read
+ * rather than to the relation.
+ *
+ * Composing one performs no work. `Query.from(Post)` names no table and opens
+ * no connection; an interpreter turns the value into a query when something
+ * asks it to.
+ */
+export interface Query<E extends AnyEntity> extends Pipeable.Pipeable {
+  readonly _tag: 'Query'
+  readonly entity: E
+  /**
+   * Every predicate holds: the list *is* the conjunction. Keeping it a list
+   * rather than folding it into one `and` is what makes each `where` a reusable
+   * fragment, and it means no `Expr.and` exists until a query needs a
+   * conjunction nested inside something else.
+   */
+  readonly where: ReadonlyArray<Predicate>
+  /** In order of significance; a later `orderBy` appends less significant terms. */
+  readonly orderBy: ReadonlyArray<OrderTerm>
+}
+
+/** A `Query` over any Entity, for the places that hold one without caring which. */
+export type AnyQuery = Query<AnyEntity>
+
+const QueryProto = {
+  _tag: 'Query' as const,
+  pipe() {
+    return Pipeable.pipeArguments(this, arguments)
+  },
+}
+
+const query = <E extends AnyEntity>(
+  entity: E,
+  where: ReadonlyArray<Predicate>,
+  orderBy: ReadonlyArray<OrderTerm>,
+): Query<E> =>
+  Object.freeze(
+    Object.assign(Object.create(QueryProto), {
+      entity,
+      where: Object.freeze(where),
+      orderBy: Object.freeze(orderBy),
+    }),
+  ) as Query<E>
+
+export const Query = {
+  /** Every row of an Entity: the query each transformation narrows. */
+  from: <E extends AnyEntity>(entity: E): Query<E> => query(entity, [], []),
+
+  /**
+   * Narrows to the rows the predicate holds for. Two `where`s conjoin — the
+   * second never replaces the first — so a fragment can be written once and
+   * piped into any query over the same Entity:
+   *
+   * ```ts
+   * const published = Query.where(Expr.eq(Post.fields.published, true))
+   * Query.from(Post).pipe(published, Query.where(byTitle))
+   * ```
+   */
+  where:
+    (...predicates: ReadonlyArray<Predicate>) =>
+    <E extends AnyEntity>(self: Query<E>): Query<E> =>
+      predicates.length === 0
+        ? self
+        : query(self.entity, [...self.where, ...predicates], self.orderBy),
+
+  /**
+   * Reads the rows in this order. Two `orderBy`s append, so an earlier term
+   * stays the more significant one and a later call adds a tie-breaker rather
+   * than silently winning.
+   */
+  orderBy:
+    (...terms: ReadonlyArray<OrderTerm>) =>
+    <E extends AnyEntity>(self: Query<E>): Query<E> =>
+      terms.length === 0 ? self : query(self.entity, self.where, [...self.orderBy, ...terms]),
+
+  /**
+   * The query with no predicates, keeping its order. The explicit way to drop
+   * what a fragment added, since `where` deliberately has no way to replace.
+   */
+  unfiltered: <E extends AnyEntity>(self: Query<E>): Query<E> =>
+    self.where.length === 0 ? self : query(self.entity, [], self.orderBy),
+
+  /**
+   * The query with no ordering, keeping its predicates. The explicit way to
+   * drop what a fragment added, since `orderBy` deliberately only appends.
+   */
+  unordered: <E extends AnyEntity>(self: Query<E>): Query<E> =>
+    self.orderBy.length === 0 ? self : query(self.entity, self.where, []),
+
+  /** Whether a value is a `Query`. */
+  is: (value: unknown): value is AnyQuery => tagOf(value) === 'Query',
+
+  /**
+   * What the whole query reads: the fields and inputs of every predicate and
+   * every ordering term, and the operations it uses.
+   */
+  dependencies: (self: AnyQuery): Dependencies => dependenciesOf(...self.where, ...self.orderBy),
 }

@@ -4,6 +4,7 @@
  * `first(25)` and `after(cursor).first(25)` address the same logical connection.
  */
 import { Schema } from 'effect'
+import { Query as RelationalQuery } from 'foldkit-entity'
 import type { Cursor } from './connection.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './mutation.js'
 
@@ -71,7 +72,16 @@ const isEntityName = (result: unknown): result is { readonly name: string } =>
   result !== null &&
   typeof (result as { readonly name?: unknown }).name === 'string'
 
+/**
+ * The relational half comes from `foldkit-entity`, so one `Query` namespace
+ * holds both what a query means (`from`, `where`, `orderBy`) and how this
+ * client addresses it (`make`, `connection`, the window steps). They are one
+ * vocabulary in use — a definition's body is composed and then named — and two
+ * namespaces of the same name in one file would be a trap.
+ */
 export const Query = {
+  ...RelationalQuery,
+
   /** Declares the entity and options a query's result is a connection over. */
   connection: <Entity extends string>(
     entity: { readonly name: Entity },
