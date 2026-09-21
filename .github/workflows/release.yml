@@ -1,8 +1,10 @@
 name: Release
 
-# Publishes every non-private package under `packages/*` to npm. Push a version
-# tag (`v0.1.0`) or run the workflow manually. Publishing needs the `NPM_TOKEN`
-# repository secret; without it the checks run and the publish step is skipped.
+# Publishes every non-private package under `packages/*` to npm, and turns a
+# version tag into a GitHub release. Push a version tag (`v0.1.0`) or run the
+# workflow manually. Publishing needs the `NPM_TOKEN` repository secret; without
+# it the checks run and the publish step is skipped. A manual run publishes but
+# makes no release: there is no tag to make one for.
 on:
   push:
     tags:
@@ -10,7 +12,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # `write` so the tag can be turned into a GitHub release; the publish step
+  # itself needs nothing beyond the npm token.
+  contents: write
   # Required for npm provenance, which the publish step opts into via
   # `NPM_CONFIG_PROVENANCE`.
   id-token: write
@@ -51,3 +55,32 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
+
+      # A tag is what marks a release, so the notes come from the changelog
+      # section that matches it: `v0.8.0` takes `## 0.8.0`. This runs whether or
+      # not the publish above did — the tag exists either way, and the notes
+      # describe the change rather than claiming what the registry now serves.
+      #
+      # A missing section fails the job on purpose. A release whose notes are
+      # empty is worse than one that did not happen, and this is exactly the
+      # mistake a version bump makes: the changelog heading and the tag drifting
+      # apart.
+      - name: GitHub release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## $version" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ] || ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "CHANGELOG.md has no '## $version' section for tag $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md

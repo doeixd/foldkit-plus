@@ -7,9 +7,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
-## 0.7.0 — 2026-09-21
+## 0.8.0
 
-Released as `v0.7.0`. `foldkit-entity` 0.2.0; `foldkit-remote`,
+`foldkit-entity` 0.2.0; `foldkit-remote`,
 `foldkit-remote-drizzle` and `foldkit-remote-server` 0.5.0; `foldkit-cms`,
 `foldkit-cms-drizzle` and `foldkit-mixins-crud` published for the first time at
 0.1.0. `foldkit-crud`, `foldkit-form` and `foldkit-mixins-form` are republished

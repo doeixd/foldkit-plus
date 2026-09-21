@@ -57,6 +57,12 @@ No package is `private`. A package that still needs to stay off npm sets
   a manual dispatch, re-runs `format:check`, `typecheck`, and `test`, and
   publishes with provenance only when the `NPM_TOKEN` secret is set. Without the
   secret it runs the checks and skips the publish step.
+- On a tag it then creates the **GitHub release**, with the notes taken from the
+  `CHANGELOG.md` section whose heading matches: `v0.8.0` takes `## 0.8.0`. **A
+  tag with no matching heading fails the job** — the version bump and the
+  changelog heading drifting apart is the mistake this catches, and empty
+  release notes are worse than a job that stopped. A manual dispatch publishes
+  but makes no release, since there is no tag to make one for.
 - Check the registry (`npm view <name> version`) before relying on what is live;
   the version column is the tree's declaration, not a release guarantee.
 
