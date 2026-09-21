@@ -18,6 +18,7 @@ tables with `bind`.
 | How a relation is stored, how a derived value is computed | the interpreter (none shipped yet) |
 | Create / update / delete | not implied; an Entity has no operations |
 | An interpreter's own facts about an entity or member | that interpreter, under its `foldkit-metadata` key |
+| What a query says about one row (`Expr`, `Order`) | `foldkit-entity` declares it; an interpreter compiles it |
 
 ## Mental model
 
@@ -198,6 +199,27 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 })
 ```
 
+## Saying something about a row: `Expr`
+
+```ts
+import { Expr, Order, dependenciesOf } from 'foldkit-entity'
+
+const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
+const published = Expr.eq(Blog.Post.fields.published, true)   // literal coerced
+const newest = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
+
+dependenciesOf(byTitle, ...newest)
+// { fields: [{entity:'Post',key:'title'}, {entity:'Post',key:'id'}], inputs: ['title'], operations: ['eq'] }
+```
+
+Immutable data: building one reads nothing, names no database, runs no query.
+An interpreter compiles it (`foldkit-remote-drizzle` to SQL, an in-memory
+evaluator to a row predicate). `Expr.eq` coerces a field or a plain value on
+either side; a field compared to the wrong type is an error where it is written.
+
+Only `eq` and the two `Order` directions exist so far. The operator set grows
+from real queries, not from what SQL can express.
+
 ## Gotchas
 
 - Relations are **not** in `entity.schema`. Do not put `author` in the Struct.
@@ -214,6 +236,10 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 - There is no "one-to-many" vocabulary: `Relation.one` on one side and
   `Relation.many` on the other is that relationship.
 - IDs are untyped and no field is marked as the identifier yet.
+- An `Expr.input(...)` is a **placeholder**, not the value. A query body is
+  built once, so `input.archived ? a : b` over one is always truthy and decides
+  itself forever. Ask with a comparison over the placeholder, never a branch
+  around it.
 
 ## See also
 

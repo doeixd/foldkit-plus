@@ -7,6 +7,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-entity`: `Expr`, a query's scalar computations as values.** An
+  Entity says what a domain has; an `Expr` says something about one row of it.
+  `Expr.eq` compares two scalars, coercing a field or a plain value on either
+  side; `Expr.input(key, schema)` stands for a value the query is given when it
+  runs; `Order.asc`/`Order.desc` is one term of an ordering;
+  `dependenciesOf(...)` says which fields and inputs an expression reads and
+  which operations it uses. Building one performs no work — an interpreter
+  compiles it, which is what will let one query mean the same thing in more than
+  one place. Comparing a field to the wrong kind of value is an error where it is
+  written. Only `eq` exists: the operator set grows from real queries in this
+  repository, not from what a database could express. First step of
+  [data-query-DESIGN](docs/design/data-query-DESIGN.md) §32, sized to the CMS's
+  `bySlug`.
+
 - **`foldkit-remote`: `Data.confirmed(projection)`.** The same projection read
   over the server-derived store alone, with the pending optimistic layers and
   connection overlays left off. It plans exactly what the projection plans, so

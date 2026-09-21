@@ -323,6 +323,44 @@ Entity.same(CmsPost, Blog.Post) // true: the metadata changed, the entity did no
 
 Annotating again combines with what is there, using the key's own `merge`.
 
+## Saying something about a row: `Expr`
+
+An Entity says what a domain has. An `Expr` says something about one row of it,
+as a value:
+
+```ts
+import { Expr, Order } from 'foldkit-entity'
+
+const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
+const published = Expr.eq(Blog.Post.fields.published, true)
+const newest = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
+```
+
+Building one performs no work: it reads nothing, names no database, and runs no
+query. An interpreter compiles it — `foldkit-remote-drizzle` to SQL, an
+in-memory evaluator to a predicate over rows — which is what lets one query mean
+the same thing in more than one place.
+
+A comparison coerces what it is given, so the common forms read as they mean: a
+field becomes a reference, a plain value becomes a literal, and an `Expr` is
+already one. What it will not do is compare a field to the wrong kind of value —
+`Expr.eq(Blog.Post.fields.title, 42)` is an error where it is written, rather
+than a row that never matches.
+
+**An input is a placeholder, not a value.** A query's body is built once, so
+`Expr.input('title', …)` stands for whatever the query is given when it runs —
+there is nothing there yet to branch on. An `InputExpr` is an object, so a
+`condition ? a : b` over one is always truthy and decides itself once, forever.
+A query that depends on what it was passed says so with a comparison over the
+placeholder instead of a branch around it.
+
+`dependenciesOf(...)` says which fields and inputs an expression reads and which
+operations it uses, so a planner knows what it needs and an interpreter can
+refuse a query it cannot run.
+
+Only the operations a real query in this repository needs exist. The set grows
+from queries, not from what a database could express.
+
 ## API
 
 | Call | Meaning |
@@ -341,6 +379,12 @@ Annotating again combines with what is there, using the key's own `merge`.
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
 | `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
+| `Expr.eq(left, right)` | Two scalars are the same value; a field or a plain value on either side is coerced. |
+| `Expr.field(field)` | One field of one Entity, as a scalar. |
+| `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
+| `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
+| `Order.asc(expr)` / `Order.desc(expr)` | One term of an ordering, over a field or a scalar. |
+| `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
 
 ## Limits
 

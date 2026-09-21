@@ -977,3 +977,5 @@ export const Relation = {
 export const Derived = {
   make: <S extends Schema.Constraint>(schema: S): DerivedSpec<S> => ({ schema }),
 }
+
+export * from './expr.js'

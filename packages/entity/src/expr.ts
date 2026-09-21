@@ -1,0 +1,211 @@
+/**
+ * `Expr` — a query's scalar computations as typed values.
+ *
+ * An Entity says what a domain has; an `Expr` says something about one row of
+ * it. A field reference, an input placeholder, a literal, and comparisons of
+ * those are all immutable data: building one performs no work, reads nothing,
+ * and names no database. An interpreter compiles it — `foldkit-remote-drizzle`
+ * to SQL, an in-memory evaluator to a predicate over rows.
+ *
+ * This is deliberately not SQL and deliberately not arbitrary JavaScript. Every
+ * operation here is one a real query in this repository needs; the set grows
+ * from queries, not from what a database could express.
+ */
+import { Schema } from 'effect'
+import type { EntityField, EntityIdentity } from './index.js'
+
+/** A constant the query was written with. */
+export interface LiteralExpr<T> {
+  readonly _tag: 'Literal'
+  readonly value: T
+}
+
+/**
+ * One field of one Entity. `owner` is the Entity's identity rather than its
+ * name, so two Entities defined with the same name are not one column.
+ */
+export interface FieldExpr<T> {
+  readonly _tag: 'Field'
+  readonly owner: EntityIdentity<string>
+  readonly key: string
+  readonly schema: Schema.Codec<T, unknown>
+}
+
+/**
+ * A value the query is given when it runs. A definition's body is built once,
+ * so inside it an input is this placeholder and never the value: there is
+ * nothing yet to branch on, and a query that wants to depend on what was passed
+ * says so with an operation over the placeholder.
+ */
+export interface InputExpr<T> {
+  readonly _tag: 'Input'
+  readonly key: string
+  readonly schema: Schema.Codec<T, unknown>
+}
+
+/** A typed scalar: what a comparison compares. */
+export type Expr<T> = LiteralExpr<T> | FieldExpr<T> | InputExpr<T>
+
+/** Any scalar, for the places that hold operands without caring what they are. */
+export type AnyExpr = Expr<unknown>
+
+/**
+ * `Expr<boolean>`, in the shape the operations that exist can actually take.
+ * The design's kernel is all boolean-valued (`eq`, `and`, `isNull`,
+ * `contains`, …), so a predicate is its own type rather than a phantom
+ * parameter on a general operation node: `Predicate` and `Expr<string>` cannot
+ * then be confused, which a structural phantom would allow. A scalar-valued
+ * operation, if one is ever needed, joins `Expr` instead.
+ */
+export type Predicate = EqPredicate
+
+/** Two scalars are the same value. */
+export interface EqPredicate {
+  readonly _tag: 'Eq'
+  readonly left: AnyExpr
+  readonly right: AnyExpr
+}
+
+/** A field, or a scalar already built from one. */
+type Operand<T> = EntityField<string, string, Schema.Constraint> | Expr<T>
+
+/** What a field or scalar is worth, so a comparison's other side is checked against it. */
+export type ValueOf<E> =
+  E extends EntityField<string, string, infer S>
+    ? Schema.Schema.Type<S>
+    : E extends Expr<infer T>
+      ? T
+      : never
+
+const tagOf = (value: unknown): unknown =>
+  typeof value === 'object' && value !== null
+    ? (value as { readonly _tag?: unknown })._tag
+    : undefined
+
+/**
+ * An Entity's field and a `FieldExpr` are the same three members under the same
+ * tag — the Entity's carries `metadata` besides — so this reads either and is
+ * idempotent on its own output. Nothing needs to tell them apart, which is
+ * better than telling them apart by which extra member happens to be present.
+ */
+const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): FieldExpr<unknown> => ({
+  _tag: 'Field',
+  owner: field.owner,
+  key: field.key,
+  schema: field.schema as unknown as Schema.Codec<unknown, unknown>,
+})
+
+/**
+ * A field of either kind becomes a `FieldExpr`, a scalar is itself, and
+ * anything else is the constant it is.
+ */
+const toExpr = <T>(value: Operand<T> | T): Expr<T> => {
+  const tag = tagOf(value)
+  if (tag === 'Field') {
+    return fieldExpr(value as EntityField<string, string, Schema.Constraint>) as Expr<T>
+  }
+  if (tag === 'Literal' || tag === 'Input') return value as Expr<T>
+  return { _tag: 'Literal', value: value as T }
+}
+
+/** Which fields and inputs an expression reads, and which operations it uses. */
+export interface Dependencies {
+  /** One entry per distinct field, as `Entity.key`. */
+  readonly fields: ReadonlyArray<{ readonly entity: string; readonly key: string }>
+  /** One entry per distinct input key. */
+  readonly inputs: ReadonlyArray<string>
+  /** One entry per distinct operation, so an interpreter can refuse what it cannot run. */
+  readonly operations: ReadonlyArray<string>
+}
+
+export const Expr = {
+  /** A constant. Comparisons coerce a plain value, so this is rarely written. */
+  literal: <T>(value: T): LiteralExpr<T> => ({ _tag: 'Literal', value }),
+
+  /**
+   * A value the query is given when it runs. A definition builds these from its
+   * `Input` schema; written by hand only when constructing a body directly.
+   */
+  input: <T>(key: string, schema: Schema.Codec<T, unknown>): InputExpr<T> => ({
+    _tag: 'Input',
+    key,
+    schema,
+  }),
+
+  /** One field of one Entity, as a scalar. */
+  field: <Name extends string, Key extends string, S extends Schema.Constraint>(
+    field: EntityField<Name, Key, S>,
+  ): FieldExpr<Schema.Schema.Type<S>> => fieldExpr(field) as FieldExpr<Schema.Schema.Type<S>>,
+
+  /**
+   * Two scalars are the same value. A field or a plain value on either side is
+   * coerced, so the common form reads as it means:
+   *
+   * ```ts
+   * Expr.eq(Post.fields.slug, input.slug)
+   * Expr.eq(Post.fields.status, 'active')
+   * ```
+   */
+  eq: <L extends Operand<any>>(left: L, right: ValueOf<L> | Expr<ValueOf<L>>): EqPredicate => ({
+    _tag: 'Eq',
+    left: toExpr(left) as AnyExpr,
+    right: toExpr(right as never) as AnyExpr,
+  }),
+}
+
+/** One term of an ordering: a scalar and the direction to read it in. */
+export interface OrderTerm {
+  readonly direction: 'asc' | 'desc'
+  readonly expr: AnyExpr
+}
+
+export const Order = {
+  asc: <E extends Operand<any>>(expr: E): OrderTerm => ({
+    direction: 'asc',
+    expr: toExpr(expr as never) as AnyExpr,
+  }),
+  desc: <E extends Operand<any>>(expr: E): OrderTerm => ({
+    direction: 'desc',
+    expr: toExpr(expr as never) as AnyExpr,
+  }),
+}
+
+const walk = (
+  node: AnyExpr | Predicate,
+  fields: Map<string, { readonly entity: string; readonly key: string }>,
+  inputs: Set<string>,
+  operations: Set<string>,
+): void => {
+  switch (node._tag) {
+    case 'Literal':
+      return
+    case 'Field':
+      fields.set(`${node.owner.name}.${node.key}`, { entity: node.owner.name, key: node.key })
+      return
+    case 'Input':
+      inputs.add(node.key)
+      return
+    case 'Eq':
+      operations.add('eq')
+      walk(node.left, fields, inputs, operations)
+      walk(node.right, fields, inputs, operations)
+      return
+  }
+}
+
+/**
+ * What an expression reads and uses, for the planner and for an interpreter
+ * deciding whether it can run this query at all. Distinct entries only, in the
+ * order first seen, so the answer is stable enough to assert on.
+ */
+export const dependenciesOf = (
+  ...nodes: ReadonlyArray<AnyExpr | Predicate | OrderTerm>
+): Dependencies => {
+  const fields = new Map<string, { readonly entity: string; readonly key: string }>()
+  const inputs = new Set<string>()
+  const operations = new Set<string>()
+  for (const node of nodes) {
+    walk('direction' in node ? node.expr : node, fields, inputs, operations)
+  }
+  return { fields: [...fields.values()], inputs: [...inputs], operations: [...operations] }
+}

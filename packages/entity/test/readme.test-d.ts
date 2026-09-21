@@ -2,7 +2,17 @@
 import { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
-import { Derived, Entity, Relation, type EntityRef, type IdOf } from '../src/index.js'
+import {
+  Derived,
+  Entity,
+  Expr,
+  Order,
+  Relation,
+  dependenciesOf,
+  type Dependencies,
+  type EntityRef,
+  type IdOf,
+} from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Comment = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
@@ -128,4 +138,16 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   expectTypeOf<typeof ByLine.schema.Type>().toEqualTypeOf<{
     readonly author: EntityRef<'Author', typeof AuthorId.Type>
   }>()
+}
+
+// Saying something about a row: `Expr`
+{
+  const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
+  const published = Expr.eq(Blog.Post.fields.published, true)
+  const newest = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
+
+  // @ts-expect-error a title is a string, not a number
+  Expr.eq(Blog.Post.fields.title, 42)
+
+  expectTypeOf(dependenciesOf(byTitle, published, ...newest)).toEqualTypeOf<Dependencies>()
 }
