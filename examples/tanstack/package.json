@@ -1,0 +1,22 @@
+{
+  "name": "foldkit-example-tanstack",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/main.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@tanstack/db": "0.9.2",
+    "foldkit-entity": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.112",
+    "foldkit": "0.158.2",
+    "typescript": "5.9.3"
+  }
+}

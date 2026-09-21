@@ -37,6 +37,7 @@
     { "path": "./examples/remote" },
     { "path": "./examples/entity" },
     { "path": "./examples/cms" },
+    { "path": "./examples/tanstack" },
     { "path": "./examples/kitchen-sink" },
     { "path": "./examples/todo-app" }
   ]

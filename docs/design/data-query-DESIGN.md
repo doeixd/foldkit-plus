@@ -20,6 +20,7 @@ found one at a time:
 | [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) | **The placeholder rule made the repository's hardest query unwriteable**, and writing it anyway was silently wrong rather than a type error. A branch on an input is usually a comparison not yet written. |
 | [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
 | [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
+| [§32, Phase 9](#phase-9--tanstack-db-spike) | **A third interpreter found what two written here had agreed on by accident.** Text ordering had no stated collation: TanStack sorts by locale, SQLite by code point. It is also the first interpreter to refuse an operator it cannot answer faithfully. |
 | [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
 | [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking is not built, and §15's derivation is narrower than sketched. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
@@ -684,7 +685,7 @@ because SQL is what the compiling interpreter runs.
 | `eq(a, b)` | the two values are the same | either side is null, *including both* | `null = null` is unknown, not true. JavaScript would disagree. |
 | `isNull(x)` / `isNotNull(x)` | whether a value is absent | never | The one comparison that always has an answer. One node, with the answer absence gives flipped, so nothing has to negate a predicate. |
 | `contains(x, s)` | `x` holds `s` anywhere within it | either side is null | **Case-insensitive, ASCII folding.** Containing the empty string is everything, so an empty search box is the same query as a full one — but over a nullable column that is not the same as no filter, since a null contains nothing. |
-| `asc(f)` / `desc(f)` | read in this order | — | A field only. **Ordering by a column that is null in some row is refused**, not guessed. |
+| `asc(f)` / `desc(f)` | read in this order | — | A field only. **Ordering by a column that is null in some row is refused**, not guessed. **Text orders by code point**, so `Other` precedes `intro`; an engine that sorts by locale must be told otherwise. |
 
 Two consequences worth stating plainly, because both surprised the
 implementation:
@@ -692,6 +693,20 @@ implementation:
 - **`contains` is ASCII-folded, not Unicode-folded**, because that is what
   `lower` does in SQLite without ICU. A design that promised Unicode folding
   would be promising something one of its interpreters cannot deliver.
+- **Ordering text is by code point, not by locale.** This was missing until a
+  third interpreter was written: TanStack DB sorts strings by locale by
+  default, so it put `intro to sql` before `Other` where SQLite and the
+  reference interpreter put it after. Both answers are defensible and only one
+  can be the semantics. An engine that defaults to locale is told to sort
+  lexically; an engine that cannot would have to refuse the ordering, the same
+  way it refuses an operator it does not run.
+
+  **One interpreter does not yet enforce this.** SQLite orders text by code
+  point by default, so `foldkit-remote-drizzle` conforms there by accident of
+  the backend rather than by asking. Postgres orders by the database's collation,
+  which for a typical `en_US.UTF-8` is not code point — a body ordered by text
+  would mean one thing on SQLite and another on Postgres, through the same
+  compiler. Making it ask would mean emitting `COLLATE "C"`, and is not done.
 - **A predicate may stand where a boolean is wanted.** `eq(isNotNull(x), flag)`
   is the branchless form §6.2 requires, so `eq` takes a predicate on either
   side. This was not in the first draft and forced a typing change; see §6.2.1.
@@ -2787,7 +2802,29 @@ This specifically tests the QueryRef vs ReadContract distinction.
 
 ### Phase 9 — TanStack DB spike
 
-> Phases 9 to 13 are **deferred, not skipped**. Each is gated on something that
+> **Done as a spike, in `examples/tanstack`, and it earned its keep twice.**
+> The same query bodies run through TanStack DB's query builder over a local
+> collection, checked against the shared conformance suite. It is an example
+> rather than a package: §19 says this engine should be an execution engine and
+> §34 lists reproducing it as a non-goal.
+>
+> **It found what the semantics did not say.** TanStack sorts text by *locale*
+> by default, so it ordered `intro to sql` before `Other` where SQLite and the
+> reference interpreter order it after. [§6.0.1](#601-the-semantics-of-what-exists)
+> had a rule for null ordering and nothing at all about collation — two engines
+> written here had simply agreed by accident. Text orders by code point now, and
+> this interpreter asks for `stringSort: 'lexical'` rather than taking what it
+> is given.
+>
+> **It is also the first interpreter to refuse an operator.** TanStack's
+> `like`/`ilike` have no `ESCAPE`, so a search containing `%` or `_` would match
+> as a wildcard — which is not what `Expr.contains` means. It declares
+> `contains` unsupported and refuses those cases rather than answering a
+> different question, which is [§16](#16-interpreter-capability-checking) doing
+> the job it was built for. Every conformance case whose search is ordinary text
+> would have passed.
+>
+> Phases 10 to 13 remain **deferred, not skipped**. Each is gated on something that
 > does not exist yet: another execution engine, a real need for joins or
 > aggregates, or a query shape no operator covers. Phase 12 is the exception and
 > was decided — see its note.
