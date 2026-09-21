@@ -246,7 +246,8 @@ Query.dependencies(recent)     // every predicate and ordering term at once
 ```
 
 - **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a
-  fragment only ever narrows.Neither ever replaces what a fragment added.
+  fragment only ever narrows a query. There is no reset combinator: nothing has
+  needed one.
 - The list of predicates **is** the conjunction, which is why there is no
   `Expr.and`: three conditions are three `where`s. An `and` is only needed for a
   conjunction nested inside something else.
@@ -254,8 +255,10 @@ Query.dependencies(recent)     // every predicate and ordering term at once
   absence is an error, and whether to watch for changes belong to the consumer.
 - A predicate or ordering term over a **different Entity** than `Query.from` is
   refused where it is piped (by identity, so same-named Entities still differ).
-- `foldkit-remote` re-exports these on its own `Query`, so `Query.make` and
-  `Query.from` come from one import.
+- **An application using Remote imports `Query` from `foldkit-remote`**, not
+  from here: that one is this namespace plus `define`, `make` and the window
+  steps. `Query` from `foldkit-entity` has `from`/`where`/`orderBy` and no
+  `define`, which is only what a package composing queries without Remote needs.
 
 ## Gotchas
 
