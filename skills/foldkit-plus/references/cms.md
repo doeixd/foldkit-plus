@@ -170,7 +170,10 @@ RemoteServer.make({
 - A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to
   `cms.queries`; a visitor finds only published rows. A taken slug fails a publish
   as `CmsSlugTaken: <key>: ...`; `Cms.slugTaken.key(message)` is the key. Put a
-  unique index on the column: the check alone loses a race.
+  unique index on the column: the check alone loses a race. To say so while the
+  author types, add `Cms.addressFree('posts')` to the form's slug key with the
+  `Form.checks` step; it asks that query and excepts the row the editor says the
+  form is about.
 - `allow(principal, transition, entry)` decides which author may; `now` is the clock.
 
 ## Gotchas

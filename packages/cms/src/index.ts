@@ -21,7 +21,7 @@ import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
 import { offers, state, type Facts, type State, type Transition } from './lifecycle.js'
 import { editorView, makeEditor } from './editor.js'
-import { slugTaken } from './slug.js'
+import { addressFree, slugTaken } from './slug.js'
 import { Display } from 'foldkit-crud'
 import { Kinds } from './kinds.js'
 
@@ -362,6 +362,14 @@ export const Cms = {
    * `slugTaken.key(message)` is the form key it names, or `undefined` for another error.
    */
   slugTaken,
+  /**
+   * A form check that asks, while the author types, whether an address is already
+   * used: `checks: { slug: Cms.addressFree('posts') }`. Named by the content type,
+   * so a form can be made with it before the content type exists. It needs that
+   * type's `bySlug` query registered, which `CmsServer` does for a content type
+   * with a slug role.
+   */
+  addressFree,
 
   /**
    * The kinds a CMS adds, and a renderer for each: `Cms.slug('title')` and

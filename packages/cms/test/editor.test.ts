@@ -114,3 +114,15 @@ describe('a server’s word about one key', () => {
     expect(PostForm.field(edited.form, 'slug')._tag).not.toBe('Invalid')
   })
 })
+
+describe('telling the form which row it is editing', () => {
+  it('gives it the row id, so a check can pass over the row’s own address', () => {
+    const { root } = world(undefined)
+    expect(PostForm.subject(root.editor.form)).toEqual({ id: 'p1' })
+  })
+
+  it('says it once: settling again changes nothing', () => {
+    const { placed, root } = world(undefined)
+    expect(placed.sync(root).model.editor.form).toBe(root.editor.form)
+  })
+})

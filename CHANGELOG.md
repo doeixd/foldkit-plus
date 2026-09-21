@@ -15,8 +15,23 @@ version changed; `pnpm` skips versions already in the registry.
   `Message.About({ subject })` and read with `form.subject(model)`, and a check's
   context gains it. It changes no draft, answers no submit, and survives `fill`
   and `Reset`. `Cms.editor` sends it the row's id as it opens, so a content
-  type's slug check works without the application wiring anything. This is the
-  seam the CMS design doc recorded as missing.
+  type's slug check knows which row to pass over. This is the seam the CMS design
+  doc recorded as missing.
+- **`foldkit-form`: a check that needs something can now be added at all.**
+  `Form.make` and the `Form.checks` step both read a check's requirement (`R`)
+  as `never`, because Effect's `R` is not an inference site a mapped type wins —
+  so a check needing `RemoteClient` was refused by the shape meant to accept it,
+  and the documented "the check's requirements become the Bundle's" was
+  unreachable. `Form.checks` now reads the requirement off the functions it is
+  given, and a type test pins it. `Form.make`'s options still cannot infer it;
+  the README and the skill say to use the step.
+- **`foldkit-cms`: `Cms.addressFree(type)`.** A form check that says while the
+  author types what a publish would refuse. It asks the content type's `bySlug`
+  query — which an author reads through the same binding as everyone else, so it
+  sees unpublished rows too — and excepts the row the editor says the form is
+  about. It needs no new server surface. It is advice, deliberately not the rule:
+  two authors can both be told an address is free, and the server refuses the
+  second on the same key. A check that cannot reach the server says nothing.
 - **`foldkit-cms`: `Cms.editor`, the authoring editor's state.** A Bundle around
   the content type's form: autosave after a rest, valid or not; publish by
   submitting the form, saving first; a draft resumed by its saved Model, then its

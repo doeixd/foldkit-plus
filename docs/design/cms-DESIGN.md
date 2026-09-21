@@ -268,10 +268,12 @@ RemoteServer.make({
   `publish` runs the right one inside a transaction that also appends the
   revision and deletes the draft, so a publish either happened entirely or did
   not. What publishing a post *does* stays the application's code.
-- **Slugs.** *Built but for the check: a form check is given the form's values,
-  which for a post do not include the row's id, so it cannot tell a post's own
-  address from someone else's. The refusal lands on the key instead. A check that
-  could would need the form to carry what the editor knows.* A content type with a
+- **Slugs.** *Built. The check needed the form to carry what the editor knows —
+  which row is being edited — because a form check is given the form's values,
+  which for a post do not include the row's id. That is `FormModel.subject`, set
+  by `Form.Message.About` and sent by `Cms.editor`; `Cms.addressFree(type)` is the
+  check. The refusal still lands on the key, for the race the check cannot win.*
+  A content type with a
   `slug` role gets a `bySlug` query, and its form gets a check that the slug is free. The check is advice; the unique index
   is the rule, and a publish that loses the race fails with the slug named, in
   the form, as any mutation error arrives.

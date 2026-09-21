@@ -37,7 +37,12 @@ export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   // The address follows the title until the author writes it themselves.
   inputs: { slug: Cms.slug('title', { prefix: '/blog/' }) },
   debounce: 0,
-})
+}).pipe(
+  // And says while it is typed what a publish would refuse. The post keeps its
+  // own address because `Cms.editor` tells the form which row it is editing.
+  // Asking needs `RemoteClient`; the step adds that to what the form needs.
+  Form.checks({ slug: Cms.addressFree('posts') }),
+)
 
 export const CreatePost = Mutation.make('CreatePost', {
   Input: PostInput,

@@ -262,6 +262,16 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   this. `Valid` on a checked key means the check passed.
 - The form does not know what answers. The check's requirements (`R`) become the
   Bundle's, so a check that needs `RemoteClient` makes the placement need it.
+  **Add such a check with the `Form.checks` step, not in `Form.make`'s options:**
+  Effect's `R` is not an inference site a mapped type can win, so `Form.make`
+  reads it as `never` and refuses the check ("`RemoteClient` is not assignable to
+  `never`"). The step reads the requirement off the functions it is given.
+
+  ```ts
+  const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
+    debounce: 0,
+  }).pipe(Form.checks({ slug: isAddressFree }))
+  ```
 - Each edit asks again after `debounce`, and an answer for a draft the key no
   longer holds is dropped.
 - **A submit waits.** Submitted while a check runs, the form sets `submitPending`

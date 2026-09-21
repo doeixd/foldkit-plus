@@ -312,6 +312,26 @@ interface NestedPlan extends FormControl {
   readonly nothing: null | undefined
 }
 
+/**
+ * The checks a form may be given by key, with what they need left open. Effect's
+ * `R` is not an inference site a mapped type can win: asked to infer it, TypeScript
+ * answers `never`, and a check that needs anything is refused by the shape meant to
+ * accept it. So the shape admits any requirement and `RequirementOf` reads back what
+ * was actually passed.
+ */
+export type ChecksFor<F extends Remakeable> = {
+  readonly [K in Exclude<keyof F['types']['Fields'], NestedKey<F['types']['Members']>>]?: FormCheck<
+    Schema.Schema.Type<F['types']['Fields'][K]>,
+    Partial<Schema.Struct.Type<F['types']['Fields']>>,
+    any
+  >
+}
+
+/** What a set of checks needs between them, read off the functions that were given. */
+export type RequirementOf<C> = {
+  [K in keyof C]: C[K] extends (...args: never) => Effect.Effect<any, any, infer R> ? R : never
+}[keyof C]
+
 /** An edit, however deep: it answers the last submit. An answered check or a blur does not. */
 const isEdit = (message: { readonly _tag: string; readonly message?: unknown }): boolean =>
   message._tag === 'Nested'
@@ -1313,15 +1333,7 @@ const steps = {
    * added to what the form needs.
    */
   checks:
-    <F extends Remakeable, R2 = never>(checks: {
-      readonly [
-        K in Exclude<keyof F['types']['Fields'], NestedKey<F['types']['Members']>>
-      ]?: FormCheck<
-        Schema.Schema.Type<F['types']['Fields'][K]>,
-        Partial<Schema.Struct.Type<F['types']['Fields']>>,
-        R2
-      >
-    }) =>
+    <F extends Remakeable, const C extends ChecksFor<F>>(checks: C) =>
     (
       form: F,
     ): Made<{
@@ -1329,7 +1341,7 @@ const steps = {
       readonly E: F['types']['E']
       readonly Fields: F['types']['Fields']
       readonly Members: F['types']['Members']
-      readonly R: F['types']['R'] | R2
+      readonly R: F['types']['R'] | RequirementOf<C>
       readonly Nest: F['types']['Nest']
     }> =>
       remake(form, options => ({ checks: { ...options.checks, ...checks } })),

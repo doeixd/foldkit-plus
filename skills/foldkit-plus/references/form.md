@@ -85,7 +85,10 @@ const RenameForm = Page.at(Slot, {
   and gets the decoded value; the key reads `Validating` meanwhile; a stale answer
   is dropped; `debounce` (default 300ms) rests a key before asking. A submit during
   a check sets `submitPending` and goes out when the last check passes. The check's
-  requirements become the Bundle's. `{ values }` is what else decodes; `{ subject }`
+  requirements become the Bundle's — but a check that needs something must be added
+  with the `Form.checks` step (`form.pipe(Form.checks({ slug: ask }))`), not in
+  `Form.make`'s options, where `R` infers as `never` and the check is refused.
+  `{ values }` is what else decodes; `{ subject }`
   is what the form edits but its values do not carry (a post's row id), set once with
   `Message.About({ subject: { id } })` and read with `form.subject(model)` — `{}` while
   the form creates. It survives `fill` and `Reset`.

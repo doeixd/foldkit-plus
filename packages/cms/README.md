@@ -270,9 +270,10 @@ with its transcript pinned by a test.
   is an audience, and is [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).
 - The editor has no view of its own: render the form with `foldkit-mixins-form`,
   and the status and buttons yourself.
-- There is no is-it-free check while typing: a form check sees the form's values
-  and not the row being edited, so it would call a post's own address taken. The
-  server refuses a taken one at publish, and the editor lands it on the key.
+- An address is checked while typing by `Cms.addressFree('posts')`, added with
+  the `Form.checks` step. It is advice, not the rule: two authors can both be
+  told an address is free and both publish, and the server refuses the second on
+  the same key. Put a unique index on the column.
 - One working draft per entry, not one per author.
 - Media, rich text, localization, and review states beyond "who may publish" are
   [later](../../docs/design/cms-DESIGN.md#14-later-and-how-each-would-attach).
