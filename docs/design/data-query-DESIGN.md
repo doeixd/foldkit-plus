@@ -20,6 +20,7 @@ found one at a time:
 | [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) | **The placeholder rule made the repository's hardest query unwriteable**, and writing it anyway was silently wrong rather than a type error. A branch on an input is usually a comparison not yet written. |
 | [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
 | [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
+| [§32, Phase 10](#phase-10--livestore-spike) | **A capability declaration is necessary and not sufficient.** An engine can refuse a *shape* rather than an operator — a predicate as an operand, an equality against null — and §16 cannot see either. Also: LiveStore rewrites `= null` into `IS NULL`, which the suite caught. |
 | [§32, Phase 9](#phase-9--tanstack-db-spike) | **A third interpreter found what two written here had agreed on by accident**, and the first fix for it was wrong too: text collation is the backend's, not code point. It is also the first interpreter to refuse an operator it cannot answer faithfully. |
 | [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
 | [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking is not built, and §15's derivation is narrower than sketched. |
@@ -2919,6 +2920,37 @@ incremental updates
 
 ### Phase 10 — LiveStore spike
 
+> **Done as a spike, in `examples/livestore`, and it is the one that tested
+> §16 in earnest.** The three interpreters before it run the whole kernel;
+> TanStack declined one operator on an escaping technicality. LiveStore's
+> `where` takes a column, an operator from a fixed list, and a value — and that
+> list has **no null predicate at all**. It runs `eq`, and refuses three
+> quarters of the kernel.
+>
+> It compiles through LiveStore's own query builder to SQL and stops there
+> rather than standing up a store: an event-sourced store with its schema,
+> materializers and adapter is a great deal of machinery to run one operator
+> through, and none of it is what the suite asks about.
+>
+> **Two findings, and the second is about this design rather than that engine.**
+>
+> First, LiveStore rewrites `where(col, '=', null)` into `col IS NULL` —
+> turning an equality that must match *nothing* into one that matches exactly
+> the null rows. The suite caught an engine quietly changing what a query means,
+> which is the thing it exists for. The interpreter refuses that comparison
+> rather than letting it answer.
+>
+> Second, and larger: **an operator list is not the whole of what an interpreter
+> can run.** Two cases use no operator beyond `eq` and still cannot be
+> compiled — an `eq` whose operand is another predicate, because `where` has
+> nowhere to put one, and an `eq` against null. Neither is an *operation*, so
+> [§16](#16-interpreter-capability-checking)'s declaration says both are
+> supported and both fail. The declaration is necessary and **not sufficient**:
+> it catches an engine that would skip an operator, and it cannot catch one that
+> cannot express a shape. Only running the suite finds the rest, which is an
+> argument for keeping the two mechanisms rather than folding either into the
+> other.
+
 Execute the same read semantics through LiveStore/SQLite.
 
 Keep durable ownership explicit.
@@ -3098,7 +3130,7 @@ prior art or futures with nothing to satisfy.
 | [13](#13-selection-remains-late-bound-and-interpreter-neutral) | Selection stays late-bound and interpreter-neutral | **Holds.** Selection never entered `Query`; which rows and which fields are still separate, and each interpreter satisfies a Selection its own way. |
 | [14](#14-generated-helpers-should-lower-to-the-core-algebra) | Generated helpers lower to the core algebra | **Demonstrated, by the CMS rather than by a general helper.** `Cms.bySlug` generates one query per content type and lowers to `Query.define` over `Expr`. No `byId`/`byField` was extracted: one caller is not evidence (§28). |
 | [15](#15-query-dependencies-and-capabilities-are-derived) | `Query.dependencies` derives entities, fields, inputs, operations | **Partly.** Fields, inputs and operations are derived. There is no top-level `entities`, because a `Query` reads exactly one and it is `query.entity`; and `order` is not listed as an operation, since ordering contributes fields rather than an operator. `Query.requirements` does not exist. |
-| [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Done**, after this audit found it missing. `Query.unsupported` names what a body needs and an interpreter lacks; each interpreter declares its set and raises its own refusal. |
+| [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Done**, after this audit found it missing, and **known to be insufficient** after Phase 10 exercised it. `Query.unsupported` names what a body needs and an interpreter lacks, and each interpreter declares its set — but a declaration is about *operations*, and an engine can also fail on a *shape* it has no way to express (a predicate as an operand, an equality against null). Necessary, not sufficient; the conformance suite is what finds the rest. |
 | [17](#17-remote-drizzle-is-the-first-compiler) | remote-drizzle compiles first | **Done** (Phase 6). |
 | [21](#21-query-driven-loading-becomes-richer-with-readcontract) | Loading gets richer once ReadContract is explicit | **No, and it is further off than "unimplemented".** A body never reaches the client planner: a read entry plans on `identity`, `window` and `select`, and the body travels descriptor → server source → compiler. The client asks for a *named* connection and the server knows what the name means, which is defensible architecture and not an oversight. The interesting case this section describes — knowing one predicate's rows are a subset of a cached connection's — also needs predicate containment reasoning, which nothing has. |
 | [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **One of three done.** §29.3's CMS migration is finished — the worklist and `bySlug` both carry bodies, and its constraint held: no CMS-specific query infrastructure was added. §29.1's DevTools explanation has most of its materials (`descriptor.body`, `ref.identity`, `Query.dependencies`, `Data.inspect`) and two it does not: *expectation* is §11's unbuilt piece and *executor* is not modelled. §29.2 is **done**: a query Projection is given to an agent as an `Agent.resource`, with no new API in either package — the application picks the question and the agent gets a name, a description and a shape. |

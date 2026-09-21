@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    { "path": "../../packages/entity/tsconfig.build.json" },
+    { "path": "../../packages/metadata/tsconfig.build.json" },
+    { "path": "../../packages/remote-server/tsconfig.build.json" },
+    { "path": "../../packages/surface/tsconfig.build.json" }
+  ]
+}
