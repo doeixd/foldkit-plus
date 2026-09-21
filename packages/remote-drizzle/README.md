@@ -250,6 +250,15 @@ relation, or a nullable singular foreign key not marked `nullable`.
 declared with [`foldkit-entity`](../entity/README.md), the Entity already says
 what each relation is, and `bind` says only how the database stores it:
 
+**Which to reach for.** `entity` is the smaller of the two and exists so a field
+is not declared twice — once in the table and once in the domain. Reach for it
+when the database is the whole truth about a domain. Reach for `bind` when the
+domain is its own thing: relations and derived members it declares rather than
+infers, metadata other packages attach, and **a query body**. Only a
+`foldkit-entity` Entity has the addressable fields an `Expr` is built from, so
+`Query.define` cannot be written over an `entity(…)` binding — the same boundary
+`foldkit-remote`'s own `Entity.make` has, for the same reason.
+
 ```ts
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import { bind, source } from 'foldkit-remote-drizzle'

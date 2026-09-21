@@ -2957,6 +2957,33 @@ Keep durable ownership explicit.
 
 ### Phase 11 — derived helpers
 
+> **Considered and not built**, which §28 makes the answer rather than a
+> shrug.
+>
+> `byField` has one caller: `Cms.bySlug`, which generates a by-field query per
+> content type and is already a derived helper, written for one domain. The
+> obvious second is `ProjectsByOwner` in `examples/kitchen-sink` —
+> `eq(ownerId, input.ownerId)` ordered by id, the same shape exactly.
+>
+> It cannot be written as a body, and the reason is worth recording rather
+> than routing around. That example declares its domain with
+> `remote-drizzle`'s `entity(name, table, …)`, whose whole purpose is that a
+> field is not declared twice. Its binding has no addressable fields, so
+> `Query.from` cannot take it. Migrating it would mean declaring every field a
+> second time in an example that exists to demonstrate not doing that — paying
+> a real cost to manufacture the evidence a rule asks for, which is worse than
+> having no helper.
+>
+> So: one caller, no helper. What would change it is a *second domain* that
+> already declares itself with `foldkit-entity` and wants a by-field query —
+> at which point the helper is obvious and this note can be deleted. Making
+> `entity(…)` carry addressable fields would also do it, and is the better end
+> state, but nobody has asked and it is a change to a published package.
+>
+> `byId` is a separate question and the answer is probably no in any case:
+> `Data.get(selection, id)` already reads one row by id without a query, so a
+> `byId` helper would be a second way to say one thing.
+
 Only after the core works, experiment with generated:
 
 ~~~text
