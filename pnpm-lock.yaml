@@ -1100,6 +1100,9 @@ importers:
 
   packages/remote-server:
     dependencies:
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote

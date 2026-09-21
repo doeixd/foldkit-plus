@@ -289,6 +289,40 @@ Query input is decoded through the Query's own Schema before your callback runs.
 The callback receives the decoded input, the requested `QueryWindow`, and the
 principal.
 
+### Running a query body over rows you already hold
+
+A descriptor declared with
+[`Query.define`](../remote#queries-and-pagination) carries its meaning as a
+value, and `evaluate` runs that value directly:
+
+```ts
+import { evaluate } from 'foldkit-remote-server'
+
+evaluate(PostsBySlug.body!, { slug: 'intro' }, rows)
+// the matching rows, in the order the body asks for
+```
+
+It is pure — it reads the rows it is given and nothing else — and it is the
+reference the compiled interpreters are checked against. `foldkit-remote-drizzle`
+turns the same body into SQL; the test suite runs both over the same rows in a
+real SQLite and requires the same ids in the same order. That is what makes a
+body source-neutral in fact rather than in principle.
+
+**It follows SQL, not JavaScript.** The case that matters is null: `null = null`
+is *unknown* in SQL and matches no row, where JavaScript would call the two
+equal. A comparison keeps a row only when it is true, so a null on either side
+drops it.
+
+Two things it refuses rather than guesses:
+
+- **Ordering by a column that is null in some row.** SQLite sorts nulls first,
+  Postgres sorts them last for `asc`: the databases disagree with each other, so
+  there is no answer to be conformant to and picking one would make this wrong
+  against the other.
+- **Comparing values it has no order for**, such as a number against a string.
+
+Both throw where the query runs, naming the query and the field.
+
 ## Mutations
 
 A Mutation Source changes server-owned state. It returns the protocol output

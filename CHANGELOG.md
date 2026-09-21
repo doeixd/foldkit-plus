@@ -7,6 +7,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-remote-server`: `evaluate`, the reference interpreter.** Runs a
+  query body over rows already in memory — pure, reading the rows it is given and
+  nothing else. It is what makes a body source-neutral in fact rather than in
+  principle: the tests run the same body through it and through
+  `foldkit-remote-drizzle` against a real SQLite, and require the same ids in the
+  same order. **It follows SQL, not JavaScript** — `null = null` is unknown and
+  matches no row, where JavaScript would call the two equal. It refuses rather
+  than guesses in two places: ordering by a column that is null in some row
+  (SQLite sorts nulls first, Postgres last, so there is no answer to be
+  conformant to), and comparing values it has no order for.
+
 - **`foldkit-remote-drizzle`: a query body compiles to SQL.** A descriptor
   declared with `Query.define` needs only `query(descriptor, { entity: binding })`
   — the columns and the order come from its body, through the binding that knows

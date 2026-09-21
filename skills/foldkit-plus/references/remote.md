@@ -193,6 +193,13 @@ case 'ClickedRefresh': {
   `where` and the binding's `visible`, so a body never widens what a principal may
   see; an `orderBy` given there replaces the body's, since a connection pages on
   one order.
+- `foldkit-remote-server`: `evaluate(body, input, rows)` runs a query body over
+  rows in memory — pure, the reference the compiled interpreters are checked
+  against (differential tests run the same body through it and through real
+  SQLite). It follows **SQL, not JavaScript**: `null = null` is unknown and
+  matches nothing. It throws rather than guess when ordering by a column that is
+  null in some row (SQLite sorts nulls first, Postgres last) or comparing values
+  it has no order for.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
 - `Data.confirmed(projection)` is the same projection read over the
