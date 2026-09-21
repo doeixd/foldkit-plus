@@ -206,6 +206,12 @@ case 'ClickedRefresh': {
   matches nothing. It throws rather than guess when ordering by a column that is
   null in some row (SQLite sorts nulls first, Postgres last) or comparing values
   it has no order for.
+- `foldkit-remote-server` exports the **conformance suite** (`cases`, `rows`,
+  `Subject`): what each operator means, as cases to run a new interpreter
+  against. Both shipped interpreters run it — in memory, and compiled to SQL
+  against a real SQLite. Cases are chosen to make interpreters disagree (case,
+  nulls, `%`/`_` as literal text, empty search), because a fixture that cannot
+  tell them apart tests nothing.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
 - `Data.confirmed(projection)` is the same projection read over the

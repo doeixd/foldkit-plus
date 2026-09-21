@@ -323,6 +323,30 @@ Two things it refuses rather than guesses:
 
 Both throw where the query runs, naming the query and the field.
 
+### Checking an interpreter against the semantics
+
+`evaluate` is the reference, and `cases` is what it is a reference *to*: the
+conformance suite, exported so an interpreter written elsewhere can be held to
+the same semantics.
+
+```ts
+import { Subject, cases, rows } from 'foldkit-remote-server'
+
+for (const { what, body, input, expected } of cases) {
+  expect(yourInterpreter(body, input, rows).map(row => row.id)).toEqual(expected)
+}
+```
+
+Every case is chosen to make interpreters **disagree**, which is the only kind
+that tests anything: mixed case, nulls on both sides of a comparison, `%` and
+`_` as literal text, the empty search, a predicate compared to a boolean either
+way round. That is not caution for its own sake — `contains` reached a released
+package meaning three different things because every value in the original
+fixture happened to be lowercase.
+
+Both interpreters here run it: this package over rows in memory, and
+`foldkit-remote-drizzle` compiled to SQL against a real SQLite.
+
 ## Mutations
 
 A Mutation Source changes server-owned state. It returns the protocol output

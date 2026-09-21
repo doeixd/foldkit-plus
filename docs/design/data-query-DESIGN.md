@@ -2775,6 +2775,25 @@ This specifically tests the QueryRef vs ReadContract distinction.
 > does not exist yet: another execution engine, a real need for joins or
 > aggregates, or a query shape no operator covers. Phase 12 is the exception and
 > was decided — see its note.
+>
+> **What was built instead of starting them: the conformance suite** they all
+> depend on. §18 names portable-kernel conformance as what the reference
+> interpreter is for, and until now each interpreter had its own tests that
+> happened to agree. `foldkit-remote-server` exports one set of twenty
+> cases, run against both — over rows in memory, and compiled to SQL against a
+> real SQLite.
+>
+> Its cases are chosen to make interpreters *disagree*: mixed case, nulls on
+> both sides of a comparison, `%` and `_` as literal text, the empty search, a
+> predicate compared to a boolean either way round. That is not hypothetical
+> rigour — `contains` reached a released package meaning three different things
+> because every value in the differential fixture was lowercase.
+>
+> A third interpreter is what [§33.1](#331-what-the-built-shape-does-not-extend-to)
+> says would be the first real test of whether
+> [§6.0.1](#601-the-semantics-of-what-exists) says enough. Phases 9 and 10 are
+> that test; the suite is what makes taking one cheap, and what makes its result
+> mean something.
 
 Compile Query IR to TanStack DB.
 
