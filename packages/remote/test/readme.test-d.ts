@@ -15,6 +15,7 @@ import {
   Mutation,
   Query,
   Remote,
+  RemoteData,
   RemoteClient,
   RemotePolicy,
   type RemoteRpcClient,
@@ -156,3 +157,24 @@ const confirmedProjects = Data.confirmed(projects)
 expectTypeOf(confirmedProject.read).toEqualTypeOf<typeof project.read>()
 // A query projection keeps the ref its pagination is asked for by.
 expectTypeOf(confirmedProjects.ref).toEqualTypeOf<typeof projects.ref>()
+
+// 9. Drawing a RemoteData: the three-way fold that keeps useful data on
+// screen, with `notFound` as its own branch.
+declare const ProjectSkeleton: () => string
+declare const NoSuchProject: () => string
+declare const ErrorView: (error: { readonly message: string }) => string
+declare const ProjectView: (props: {
+  readonly project: { readonly name: string }
+  readonly dimmed: boolean
+}) => string
+
+declare const currentModel: Model
+
+const drawnProject = RemoteData.render(project.read(currentModel), {
+  loading: () => ProjectSkeleton(),
+  notFound: () => NoSuchProject(),
+  failed: error => ErrorView(error),
+  data: (value, freshness) => ProjectView({ project: value, dimmed: freshness._tag !== 'Fresh' }),
+})
+
+expectTypeOf(drawnProject).toEqualTypeOf<string>()

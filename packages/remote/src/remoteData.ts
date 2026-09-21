@@ -14,6 +14,21 @@ export type RemoteData<A> =
   | { readonly _tag: 'Failed'; readonly error: RemoteError; readonly previous?: A }
   | { readonly _tag: 'NotFound' }
 
+/**
+ * What `RemoteData.render` tells the `data` branch about the value it is
+ * given: whether a newer answer is on its way, and whether this one is what
+ * was last known good before a read failed. It is one tag rather than two
+ * booleans because a value cannot be both at once, and a type that can say so
+ * invites a view to handle a state that never arrives.
+ */
+export type Freshness =
+  | { readonly _tag: 'Fresh' }
+  | { readonly _tag: 'Refreshing' }
+  | { readonly _tag: 'Stale'; readonly error: RemoteError }
+
+const fresh: Freshness = { _tag: 'Fresh' }
+const refreshing: Freshness = { _tag: 'Refreshing' }
+
 export const remoteErrorSchema = Schema.Struct({ _tag: Schema.String, message: Schema.String })
 
 /** A `RemoteData` schema, so a projection that reads remote state is typed. */
@@ -78,6 +93,56 @@ export const RemoteData = {
         )
       case 'NotFound':
         return cases.NotFound()
+    }
+  },
+
+  /**
+   * The view-oriented fold: the six states as the three things a view actually
+   * draws, under the policy that useful data stays on screen. A value that is
+   * being refetched, or that a later read failed to replace, still reaches
+   * `data` — with `freshness` saying which — instead of being replaced by a
+   * spinner or an error the reader cannot act on.
+   *
+   * ```ts
+   * RemoteData.render(model.user, {
+   *   loading: () => UserSkeleton(),
+   *   notFound: () => NoSuchUser(),
+   *   failed: error => ErrorView(error),
+   *   data: (user, freshness) => UserView({ user, dimmed: freshness._tag !== 'Fresh' }),
+   * })
+   * ```
+   *
+   * `notFound` is its own branch and not optional: a row the server answered
+   * for and does not have is neither loading nor a failure, and drawing it as
+   * either is a spinner that never ends or an error nobody can fix.
+   *
+   * This does not replace `match`, which is the exhaustive fold over the states
+   * themselves. Reach for `match` when the six states really do draw
+   * differently, and for this when they draw the usual three ways.
+   */
+  render: <A, R>(
+    data: RemoteData<A>,
+    cases: {
+      readonly loading: () => R
+      readonly notFound: () => R
+      readonly failed: (error: RemoteError) => R
+      readonly data: (value: A, freshness: Freshness) => R
+    },
+  ): R => {
+    switch (data._tag) {
+      case 'Initial':
+      case 'Loading':
+        return cases.loading()
+      case 'NotFound':
+        return cases.notFound()
+      case 'Ready':
+        return cases.data(data.value, fresh)
+      case 'Refreshing':
+        return cases.data(data.value, refreshing)
+      case 'Failed':
+        return data.previous === undefined
+          ? cases.failed(data.error)
+          : cases.data(data.previous, { _tag: 'Stale', error: data.error })
     }
   },
 

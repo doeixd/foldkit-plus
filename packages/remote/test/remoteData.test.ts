@@ -58,3 +58,64 @@ describe('RemoteData', () => {
     })
   })
 })
+
+describe('RemoteData.render keeps useful data on screen', () => {
+  const error = { _tag: 'RemoteReadError', message: 'down' }
+  const drawn = (data: RemoteData<number>): string =>
+    RemoteData.render(data, {
+      loading: () => 'skeleton',
+      notFound: () => 'no such row',
+      failed: failure => `error:${failure._tag}`,
+      data: (value, freshness) =>
+        freshness._tag === 'Stale'
+          ? `${value} (stale: ${freshness.error.message})`
+          : freshness._tag === 'Refreshing'
+            ? `${value} (refreshing)`
+            : `${value}`,
+    })
+
+  it.each([
+    { state: 'Initial', data: { _tag: 'Initial' } as const, drawn: 'skeleton' },
+    { state: 'Loading', data: { _tag: 'Loading' } as const, drawn: 'skeleton' },
+    { state: 'NotFound', data: { _tag: 'NotFound' } as const, drawn: 'no such row' },
+    { state: 'Ready', data: { _tag: 'Ready', value: 7 } as const, drawn: '7' },
+    {
+      state: 'Refreshing',
+      data: { _tag: 'Refreshing', value: 7 } as const,
+      drawn: '7 (refreshing)',
+    },
+    {
+      state: 'Failed with nothing to show',
+      data: { _tag: 'Failed', error } as const,
+      drawn: 'error:RemoteReadError',
+    },
+    {
+      state: 'Failed over a value it had',
+      data: { _tag: 'Failed', error, previous: 7 } as const,
+      drawn: '7 (stale: down)',
+    },
+  ])('draws $state as $drawn', ({ data, drawn: expected }) => {
+    expect(drawn(data)).toBe(expected)
+  })
+
+  it('tells a stale value apart from a fresh one carrying the same number', () => {
+    expect(drawn({ _tag: 'Ready', value: 7 })).not.toBe(
+      drawn({ _tag: 'Failed', error, previous: 7 }),
+    )
+  })
+
+  it('reaches the failed branch only when there is nothing left to draw', () => {
+    const branches: string[] = []
+    RemoteData.render(
+      { _tag: 'Failed', error, previous: 7 },
+      {
+        loading: () => branches.push('loading'),
+        notFound: () => branches.push('notFound'),
+        failed: () => branches.push('failed'),
+        data: () => branches.push('data'),
+      },
+    )
+
+    expect(branches).toEqual(['data'])
+  })
+})

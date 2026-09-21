@@ -113,9 +113,17 @@ observing it fetches the same and only what it *shows* differs. There is no
 `Remote.visible`: a projection already is the visible read, and a second name
 for it would be a wrapper that only forwards.
 
-Not built: `Render.async` (phase 4), runtime activity introspection (phase 5),
-and the shared `visible` / `pending` / `settled` vocabulary beyond Sync's
-`committed`.
+`Render.async` shipped as `RemoteData.render(data, cases)`, in the namespace
+the fold it belongs beside already lives in rather than a new `Render` one. It
+takes four branches, not three: `notFound` is its own, because this repo's
+`RemoteData` has a `NotFound` the generic sketch did not, and drawing an absent
+row as either loading or failure is a spinner that never ends or an error
+nobody can act on. The metadata is one `Freshness` tag (`Fresh` / `Refreshing`
+/ `Stale`, the last carrying its error) rather than the sketch's two booleans,
+since a value cannot be both at once.
+
+Not built: runtime activity introspection (phase 5), and the shared `visible` /
+`pending` / `settled` vocabulary beyond Sync's `committed`.
 
 Known issues at ship time:
 
@@ -671,6 +679,10 @@ Stale(data, error)
 
 This does not replace `AsyncData.match`; it would be a view-oriented interpreter
 for the common "keep useful data visible" policy.
+
+> Shipped as `RemoteData.render`, with a fourth `notFound` branch and one
+> `Freshness` tag in place of the two booleans; see
+> [Implementation status](#implementation-status).
 
 The important property is that rendering still consumes only Model.
 

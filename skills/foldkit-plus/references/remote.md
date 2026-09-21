@@ -92,6 +92,17 @@ const label = (data: RemoteData<{ readonly name: string }>) =>
     Failed: () => 'bad data', NotFound: () => 'gone',
   })
 
+// For a view, the three-way fold that keeps useful data on screen:
+// Initial/Loading -> loading; Ready/Refreshing -> data; Failed carrying a
+// previous value -> data (freshness `Stale`, with the error); only a Failed
+// with nothing to show -> failed. `freshness` is `Fresh | Refreshing | Stale`.
+const drawn = (data: RemoteData<{ readonly name: string }>) =>
+  RemoteData.render(data, {
+    loading: () => 'skeleton', notFound: () => 'gone',
+    failed: e => `error: ${e.message}`,
+    data: (p, freshness) => (freshness._tag === 'Fresh' ? p.name : `${p.name}…`),
+  })
+
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   Data.subscriptions({
     // `undefined` params = Surface inactive = no reads.

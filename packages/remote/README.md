@@ -371,6 +371,45 @@ state that actually means "wait for this request."
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time.
 
+### Drawing one: `RemoteData.render`
+
+Most views draw these six states three ways, under one policy: useful data
+stays on screen. `RemoteData.render` is that fold.
+
+```ts
+RemoteData.render(project, {
+  loading: () => ProjectSkeleton(),
+  notFound: () => NoSuchProject(),
+  failed: error => ErrorView(error),
+  data: (value, freshness) =>
+    ProjectView({ project: value, dimmed: freshness._tag !== 'Fresh' }),
+})
+```
+
+`Initial` and `Loading` reach `loading`; `Ready` and `Refreshing` reach `data`;
+a `Failed` that still carries the value it had reaches `data` too, so a read
+that failed does not throw away what the reader was already looking at. Only a
+`Failed` with nothing to show reaches `failed`.
+
+The `data` branch is told which it got:
+
+| `freshness` | What it means |
+| --- | --- |
+| `Fresh` | This is the current answer. |
+| `Refreshing` | A newer answer is on its way; this one is still good. |
+| `Stale` | A read failed; this is what was last known good, with its `error`. |
+
+It is one tag rather than a pair of booleans because a value cannot be both
+refreshing and stale, and a type that can say so invites a view to handle a
+state that never arrives.
+
+`notFound` is its own branch and not optional. A row the server answered for
+and does not have is neither loading nor a failure; drawing it as either is a
+spinner that never ends or an error nobody can act on.
+
+Reach for `match` instead when the six states really do draw differently — it
+stays the exhaustive fold, and `render` does not replace it.
+
 ## Normalized entities and selections
 
 Remote stores an entity once by identity, regardless of how many Surfaces read
