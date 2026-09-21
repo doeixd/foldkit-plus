@@ -1963,6 +1963,38 @@ The application controls which named definitions and selections an agent may use
 
 Server authorization remains authoritative.
 
+> Done, in `examples/kitchen-sink`, and it needed **no new API in either
+> package**. `foldkit-agent` already had `Agent.resource` — a named read with a
+> description, a schema and a pure read of the Model — and a Remote query
+> Projection is already a schema and a pure read. The two met without a bridge:
+>
+> ```ts
+> resources: [
+>   Agent.resource('projects', {
+>     description: "The owner's projects, as the board has them",
+>     schema: projects.Model,
+>     read: projects.read,
+>   }),
+> ]
+> ```
+>
+> Both halves of the claim hold, and are tested. **The application controls the
+> question**: what reaches the agent is a name, a description and a shape — not
+> an `Expr`, not the definition, not the input. The owner, the Selection and the
+> page size were all decided on this side, so the only thing an agent can do
+> with it is read it.
+>
+> **Server authorization stays authoritative** for a reason better than policy:
+> the resource reads the *Model*. A value is there because an active Surface
+> fetched it and the server authorized that fetch, so being asked cannot cause a
+> read the principal was not entitled to. Before anything is loaded it answers
+> `Initial`, which is honest rather than an error.
+>
+> One consequence worth stating: the agent sees what the application has, not
+> what exists. A Selection reaching through a relation is not `Ready` until that
+> relation is loaded either — the ordinary rule, applying to an agent's read
+> exactly as it applies to a view's.
+
 ### 29.3 CMS
 
 CMS already has concrete queries such as worklists and by-slug reads.
@@ -3069,7 +3101,7 @@ prior art or futures with nothing to satisfy.
 | [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Done**, after this audit found it missing. `Query.unsupported` names what a body needs and an interpreter lacks; each interpreter declares its set and raises its own refusal. |
 | [17](#17-remote-drizzle-is-the-first-compiler) | remote-drizzle compiles first | **Done** (Phase 6). |
 | [21](#21-query-driven-loading-becomes-richer-with-readcontract) | Loading gets richer once ReadContract is explicit | **No, and it is further off than "unimplemented".** A body never reaches the client planner: a read entry plans on `identity`, `window` and `select`, and the body travels descriptor → server source → compiler. The client asks for a *named* connection and the server knows what the name means, which is defensible architecture and not an oversight. The interesting case this section describes — knowing one predicate's rows are a subset of a cached connection's — also needs predicate containment reasoning, which nothing has. |
-| [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **One of three done.** §29.3's CMS migration is finished — the worklist and `bySlug` both carry bodies, and its constraint held: no CMS-specific query infrastructure was added. §29.1's DevTools explanation has most of its materials (`descriptor.body`, `ref.identity`, `Query.dependencies`, `Data.inspect`) and two it does not: *expectation* is §11's unbuilt piece and *executor* is not modelled. §29.2 is untouched, and is the most interesting idea here left standing: a named definition as a read capability an agent may be given, instead of a database. |
+| [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **One of three done.** §29.3's CMS migration is finished — the worklist and `bySlug` both carry bodies, and its constraint held: no CMS-specific query infrastructure was added. §29.1's DevTools explanation has most of its materials (`descriptor.body`, `ref.identity`, `Query.dependencies`, `Data.inspect`) and two it does not: *expectation* is §11's unbuilt piece and *executor* is not modelled. §29.2 is **done**: a query Projection is given to an agent as an `Agent.resource`, with no new API in either package — the application picks the question and the agent gets a name, a description and a shape. |
 | [30](#30-proposed-api-sketch) | The illustrative API | **Compiles verbatim**, including the case never otherwise exercised: an anonymous query composed outside a definition and piped in inside. One name differs — the sketch's `Query.desc`/`Query.asc` are `Order.desc`/`Order.asc`, since an ordering term is over an `Expr` rather than over a `Query`. |
 | [31](#31-routing-surfaces-and-page-contracts) | Routing, Surfaces and page contracts | **Its core is proven** by Phase 5. Page contracts and an activation helper such as `Surface.when` are untouched, and the section says to reach for them only after Router and Surface composition proves insufficient. It has not. |
 
