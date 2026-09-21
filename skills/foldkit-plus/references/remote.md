@@ -59,6 +59,9 @@ import type * as Update from 'foldkit/update'
 import { Entity, Remote, RemoteClient, RemoteData, type RemoteRpcClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
+// Declare the domain with `foldkit-entity`: Remote accepts its own
+// `Entity.make` too, but only a `foldkit-entity` entity has addressable
+// `fields`, so only it can carry relations, derived members, or a query body.
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Entity.make('Project', Schema.Struct({
   id: Schema.String, name: Schema.String, owner: Entity.ref(User), // refs, not nested copies

@@ -145,9 +145,9 @@ Start with one server entity and one selection:
 
 ```ts
 import { Schema } from 'effect'
-import { Entity } from 'foldkit-remote'
+import { Entity } from 'foldkit-entity'
 
-const Project = Entity.make(
+const Project = Entity.define(
   'Project',
   Schema.Struct({
     id: Schema.String,
@@ -157,11 +157,19 @@ const Project = Entity.make(
 )
 
 // A Selection is the exact server-owned shape this consumer needs.
-const ProjectSummary = Project.select({
+const ProjectSummary = Entity.select(Project, {
   id: true,
   name: true,
 })
 ```
+
+The entity comes from [`foldkit-entity`](../entity), which declares a domain
+without Remote in it. Remote also has an `Entity.make` of its own, and accepts
+either — but only a `foldkit-entity` entity has addressable `fields`, so only
+that one can be given [relations](#entities-declared-with-foldkit-entity),
+derived members, or a [query body](#queries-and-pagination). Reach for
+`Entity.make` when a domain is small enough that Remote is all it will ever
+need; reach for `Entity.define` otherwise, which is most of the time.
 
 Embed Remote's Submodel in the application and bind the domain to that field:
 

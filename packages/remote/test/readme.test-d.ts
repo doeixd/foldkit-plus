@@ -196,3 +196,18 @@ const TasksByOwner = Query.define('TasksByOwner', { ownerId: Schema.String }, ({
 
 expectTypeOf(TasksByOwner.name).toEqualTypeOf<'TasksByOwner'>()
 expectTypeOf(TasksByOwner.body).toEqualTypeOf<AnyQuery | undefined>()
+
+// 11. The sixty-second example as the README now writes it: the domain
+// declared with `foldkit-entity`, which is what can also carry a query body.
+const Ticket = DomainEntity.define(
+  'Ticket',
+  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
+)
+const TicketSummary = DomainEntity.select(Ticket, { id: true, name: true })
+
+const TicketModel = Schema.Struct({ remote: Remote.Model })
+const TicketApp = Surface.application({ Model: TicketModel, Message })
+const Tickets = Remote.make({ model: TicketApp.model.remote, entities: [Ticket] })
+
+const ticket = Tickets.get(TicketSummary, 't1')
+expectTypeOf(ticket.read).parameter(0).toEqualTypeOf<typeof TicketModel.Type>()
