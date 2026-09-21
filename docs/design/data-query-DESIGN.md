@@ -21,6 +21,7 @@ found one at a time:
 | [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
 | [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
 | [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
+| [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking is not built, and §15's derivation is narrower than sketched. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
 
 Two of §11's four read-contract pieces were also never built, because nothing
@@ -2779,7 +2780,7 @@ This specifically tests the QueryRef vs ReadContract distinction.
 > **What was built instead of starting them: the conformance suite** they all
 > depend on. §18 names portable-kernel conformance as what the reference
 > interpreter is for, and until now each interpreter had its own tests that
-> happened to agree. `foldkit-remote-server` exports one set of twenty
+> happened to agree. `foldkit-remote-server` exports one shared set of
 > cases, run against both — over rows in memory, and compiled to SQL against a
 > real SQLite.
 >
@@ -2788,6 +2789,12 @@ This specifically tests the QueryRef vs ReadContract distinction.
 > predicate compared to a boolean either way round. That is not hypothetical
 > rigour — `contains` reached a released package meaning three different things
 > because every value in the differential fixture was lowercase.
+>
+> Extending the suite to a null search found another disagreement: the SQL
+> compiler threw while the reference evaluator returned unknown. The compiler
+> now emits SQL null, preserving unknown even when compared to false. The suite
+> also checks equality's unknown result against both booleans and a boolean
+> input on either side of a predicate.
 >
 > A third interpreter is what [§33.1](#331-what-the-built-shape-does-not-extend-to)
 > says would be the first real test of whether
@@ -2977,6 +2984,28 @@ Data interpreter work active
 Navigating away should make the Surface inactive and remove its read/live/retain requirements without a router-owned loader cache.
 
 ---
+
+## 32.1 Every other section, against what was built
+
+§32's phases are not the whole document, and working from them alone left the
+rest unchecked. This is that check. Sections not listed here state principles,
+prior art or futures with nothing to satisfy.
+
+| § | What it asks | Where it stands |
+| --- | --- | --- |
+| [13](#13-selection-remains-late-bound-and-interpreter-neutral) | Selection stays late-bound and interpreter-neutral | **Holds.** Selection never entered `Query`; which rows and which fields are still separate, and each interpreter satisfies a Selection its own way. |
+| [14](#14-generated-helpers-should-lower-to-the-core-algebra) | Generated helpers lower to the core algebra | **Demonstrated, by the CMS rather than by a general helper.** `Cms.bySlug` generates one query per content type and lowers to `Query.define` over `Expr`. No `byId`/`byField` was extracted: one caller is not evidence (§28). |
+| [15](#15-query-dependencies-and-capabilities-are-derived) | `Query.dependencies` derives entities, fields, inputs, operations | **Partly.** Fields, inputs and operations are derived. There is no top-level `entities`, because a `Query` reads exactly one and it is `query.entity`; and `order` is not listed as an operation, since ordering contributes fields rather than an operator. `Query.requirements` does not exist. |
+| [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Not built.** `dependencies().operations` exists for exactly this and nothing consumes it. Both interpreters happen to support every operator, so there is no failure to catch *yet* — which is precisely why this should land before a third arrives, alongside the conformance suite. The nearest thing today is `checkFields`, which checks columns and not operations. |
+| [17](#17-remote-drizzle-is-the-first-compiler) | remote-drizzle compiles first | **Done** (Phase 6). |
+| [21](#21-query-driven-loading-becomes-richer-with-readcontract) | Loading gets richer once ReadContract is explicit | **No.** ReadContract was made explicit and stayed internal; no loading behaviour changed, and none needed to. |
+| [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **Materials only.** `Data.inspect` and `Query.dependencies` hold what an explanation needs; nothing assembles one. |
+| [30](#30-proposed-api-sketch) | The illustrative API | **Compiles verbatim**, including the case never otherwise exercised: an anonymous query composed outside a definition and piped in inside. One name differs — the sketch's `Query.desc`/`Query.asc` are `Order.desc`/`Order.asc`, since an ordering term is over an `Expr` rather than over a `Query`. |
+| [31](#31-routing-surfaces-and-page-contracts) | Routing, Surfaces and page contracts | **Its core is proven** by Phase 5. Page contracts and an activation helper such as `Surface.when` are untouched, and the section says to reach for them only after Router and Surface composition proves insufficient. It has not. |
+
+The one actionable gap is **§16**. It is small, and the conformance suite is
+what makes it worth having: a third interpreter that silently ignores an
+operator it does not implement would pass every case it happens to support.
 
 ## 33.1 What the built shape does not extend to
 
