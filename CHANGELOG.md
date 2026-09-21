@@ -7,6 +7,40 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-remote`: `Data.confirmed(projection)`.** The same projection read
+  over the server-derived store alone, with the pending optimistic layers and
+  connection overlays left off. It plans exactly what the projection plans, so
+  observing it fetches what observing the projection fetches and only what it
+  shows differs. For a reader that must not believe a change until the server
+  has agreed — in practice `Agent.when({ projection: Data.confirmed(...) })`.
+  There is deliberately no `Data.visible`: a projection already is the visible
+  read. async-semantics-DESIGN gated this on Remote having optimistic mutation
+  layers; the CMS's preview built them, and nothing had gone back to notice.
+- **`foldkit-remote`: `RemoteData.render(data, cases)`.** The view-oriented
+  fold: the six states as the three a view draws, keeping useful data on screen.
+  `Initial`/`Loading` reach `loading`, `Ready`/`Refreshing` reach `data`, and a
+  `Failed` still carrying the value it had reaches `data` too, so a failed read
+  does not throw away what the reader was looking at. `notFound` is its own
+  branch and not optional. The `data` branch is told which it got through one
+  `Freshness` tag (`Fresh` / `Refreshing` / `Stale` with its error), not a pair
+  of booleans that could claim both. `match` is unchanged and still the
+  exhaustive fold.
+- **`foldkit-remote`: a refresh restarts only what it refreshed.** The refresh
+  generation was one counter on the Remote store, which every read entry carried
+  as a dependency, so refreshing one Projection restarted every read stream and
+  cancelled every read in flight. Generations are now per field mark and per
+  connection identity, and an entry takes the highest over what it plans. A
+  connection needs its own mark: a `networkOnly` entry observing an invalidated
+  connection plans the same query either way. `refresh` moves from a Struct to a
+  runtime field in the Model schema, beside `loading` and `gaps`.
+- **`foldkit-remote`: `Data.inspect(model).loading`.** The reads in flight,
+  beside `mutations.pending` for the writes, so a tool can answer "what is
+  Remote doing now" from the Model rather than from the fibers doing the work.
+- **The optimistic vocabulary is stated once.** Remote and Sync mean the same
+  four words by different mechanisms — confirmed or committed, plus pending, is
+  visible; settled is answered either way. `docs/state-model.md` says it with
+  both packages' names side by side, and both READMEs point there.
+
 - **`foldkit-form`: a form can say what it is editing.** A check is given the
   key's value and whatever else in the form decodes, which is not enough to ask
   "is this address taken?": a post's input carries a title and an address, not
