@@ -143,7 +143,12 @@ const predicate = (
       if (typeof search !== 'string') {
         throw new QueryCompileError(`query "${query}" searches for something that is not text`)
       }
-      return sql`${column} like ${`%${escapeLike(search)}%`} escape '\\'`
+      // Folded on both sides rather than left to `like`, which is
+      // case-insensitive in SQLite and case-sensitive in Postgres: a query body
+      // that means two things by dialect is the thing this package exists to
+      // stop. `lower` is ASCII-only in SQLite without ICU, which is the limit
+      // `Expr.contains` documents.
+      return sql`lower(${column}) like lower(${`%${escapeLike(search)}%`}) escape '\\'`
     }
   }
 }

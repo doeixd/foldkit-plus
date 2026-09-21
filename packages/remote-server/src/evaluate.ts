@@ -78,7 +78,11 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       if (typeof value !== 'string' || typeof search !== 'string') {
         throw new QueryEvaluateError('a containment test was given something that is not text')
       }
-      return value.includes(search)
+      // Case-insensitive, because that is what `Expr.contains` means and what
+      // the compiled SQL folds both sides to. Plain `includes` would be
+      // case-sensitive here and case-insensitive under SQLite's `like`, which
+      // is a body meaning two things.
+      return value.toLowerCase().includes(search.toLowerCase())
     }
   }
 }

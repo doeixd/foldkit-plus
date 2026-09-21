@@ -229,6 +229,12 @@ export const Expr = {
    * empty string is everything, so a search box with nothing typed in it is the
    * same query as one with something — no branch, and no second query.
    *
+   * **Case-insensitive**, which is what a search means, and which has to be
+   * said rather than left to the interpreter: SQLite's `like` ignores case and
+   * Postgres's does not, so a body that left it open would mean two things.
+   * Folding is ASCII-only, because that is what `lower` does in SQLite without
+   * ICU.
+   *
    * **Over a column that can be null this is not the same as no filter.** A
    * null contains nothing, not even the empty string, so its rows drop out. A
    * nullable column that should match everything on an empty search says so:

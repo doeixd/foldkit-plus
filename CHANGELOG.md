@@ -15,7 +15,11 @@ version changed; `pnpm` skips versions already in the registry.
   input without branching on it — a body is built once, so there is nothing to
   branch on. `contains` treats the empty string as everything, which makes an
   empty search box the same query as a full one; over a **nullable** column that
-  is not the same as no filter, because a null contains nothing.
+  is not the same as no filter, because a null contains nothing. It is
+  **case-insensitive** (ASCII folding), which is stated rather than left to the
+  backend: SQLite's `like` ignores case and Postgres's does not, so a body that
+  left it open would mean two things. On Postgres this makes the CMS search
+  case-insensitive where it was not.
 - **`foldkit-cms`: the worklist is declared by what it means.** `CmsEntries`
   carries all three of its questions and its order, so `foldkit-cms-drizzle`
   registers it as `query(descriptor, { entity })` and the `and(eq, ternary,

@@ -27,7 +27,7 @@ const Post = Entity.define(
 const rows: ReadonlyArray<Row> = [
   { id: 'a', slug: 'intro', rank: 2, archivedAt: null },
   { id: 'b', slug: 'intro', rank: 1, archivedAt: '2026-01-01' },
-  { id: 'c', slug: 'other', rank: 3, archivedAt: null },
+  { id: 'c', slug: 'Other', rank: 3, archivedAt: null },
   { id: 'd', slug: 'other', rank: 3, archivedAt: null },
 ]
 
@@ -78,7 +78,7 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
         if (search._tag !== 'Input' && search._tag !== 'Literal') throw new Error('unsupported')
         const text = search._tag === 'Input' ? input[search.key] : search.value
         params.push(`%${escapeLike(text as string)}%`)
-        return `${side(node.value)} like ? escape '\\'`
+        return `lower(${side(node.value)}) like lower(?) escape '\\'`
       }
     }
   }
@@ -190,6 +190,8 @@ describe('One body, two interpreters, the same rows', () => {
 
   it.each([
     { search: 'intr', ids: ['a', 'b'] },
+    { search: 'OTHER', ids: ['c', 'd'] },
+    { search: 'oTh', ids: ['c', 'd'] },
     { search: '', ids: ['a', 'b', 'c', 'd'] },
     { search: 'nothing', ids: [] },
     { search: '%', ids: [] },

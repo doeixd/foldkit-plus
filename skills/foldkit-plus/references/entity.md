@@ -230,8 +230,10 @@ Expr.eq(Expr.isNotNull(Entry.fields.archivedAt), input.archived)  // archived ? 
 Expr.contains(Entry.fields.label, input.search)                   // search === '' ? … : …
 ```
 
-`contains` over a **nullable** column is not the same as no filter: a null
-contains nothing, not even the empty string, so its rows drop out.
+`contains` is **case-insensitive** (ASCII folding) — stated rather than left to
+the backend, since SQLite's `like` ignores case and Postgres's does not. Over a
+**nullable** column it is not the same as no filter: a null contains nothing,
+not even the empty string, so its rows drop out.
 
 ### Which rows: `Query`
 

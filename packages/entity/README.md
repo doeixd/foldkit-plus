@@ -379,10 +379,15 @@ exactly what `archived ? … : …` and `search === '' ? … : …` asked.
 `isNull` and `isNotNull` are the same node with the answer absence gives
 flipped, so nothing has to negate a predicate to get the other.
 
-**`contains` over a column that can be null is not the same as no filter.** A
-null contains nothing, not even the empty string, so its rows drop out. The
-column the CMS searches is declared not-null, which is what makes an empty
-search exactly everything there.
+**`contains` is case-insensitive**, which is what a search means — and which
+has to be said, not left to the interpreter: SQLite's `like` ignores case and
+Postgres's does not, so a body that left it open would mean two things. Folding
+is ASCII-only, since that is what `lower` does in SQLite without ICU.
+
+**Over a column that can be null it is not the same as no filter.** A null
+contains nothing, not even the empty string, so its rows drop out. The column
+the CMS searches is declared not-null, which is what makes an empty search
+exactly everything there.
 
 ### Which rows: `Query`
 
