@@ -18,6 +18,11 @@ optimistic shared state = committed snapshot + pending local operations
 visible = pending.reduce(replay, committed)      replay = app update on the shared slice
 ```
 
+Remote means the same four words over its cache by a different mechanism:
+`Data.confirmed(projection)` is its committed, optimistic layers are its
+pending, and the projection itself is its visible. See
+`docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight`.
+
 Committed `A B C` + pending `D E` shows `replay(A,B,C,D,E)`. If another device
 commits `X` first, the next exchange shows `replay(A,B,C,X,D,E)`. A rejected op
 is dropped and the rest replay on top. Pending ops replay many times, so a

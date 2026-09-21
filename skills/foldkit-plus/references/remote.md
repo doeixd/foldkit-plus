@@ -257,7 +257,9 @@ later write. The unexpanded target of a returned ref is asked for by id next, an
 only then can it become `NotFound`.
 
 Debugging: `Data.plan(model, projection)` shows what is missing;
-`Data.inspect(model)` is a serializable cache summary.
+`Data.inspect(model)` is a serializable cache summary, whose `loading` lists
+the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
+the writes — both read from the Model, never from the fibers doing the work.
 
 ## Server: `foldkit-remote-server`
 
