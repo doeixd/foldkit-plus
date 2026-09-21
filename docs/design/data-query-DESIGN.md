@@ -1,9 +1,7 @@
 # Foldkit Plus: Composable Data, Query, Read Contracts, Routing, and Local-First Architecture
 
-**Status:** partly built. §32's Phases 0–4, 6–8 and 12 shipped. **Phase 5 was
-skipped** — the route-to-Surface half is proven, the Router half is not, and
-nothing here uses Foldkit Router at all; see its note. Phases 9–13 are deferred
-on conditions that do not exist yet. The reasoning below is unchanged except
+**Status:** partly built. §32's Phases 0–8 and 12 shipped; Phases 9–13 are
+deferred on conditions that do not exist yet. The reasoning below is unchanged except
 where a `>` note says building it found otherwise, and those notes win.  
 **Date:** September 2026  
 **Target:** doeixd/foldkit-plus  
@@ -22,7 +20,7 @@ found one at a time:
 | [§6.2.1](#621-what-that-rule-costs-and-how-to-pay-it) | **The placeholder rule made the repository's hardest query unwriteable**, and writing it anyway was silently wrong rather than a type error. A branch on an input is usually a comparison not yet written. |
 | [§12.3](#123-what-planning-actually-keys-on-and-why-it-is-not-this) | **§12's consumer read identity is wrong and was not built.** Keying a read on its Selection would fetch one page twice where merging serves both consumers with one read. |
 | [§32](#32-recommended-implementation-sequence) | **The reference interpreter belongs before the compiler.** It is what finds divergence; building it second let a wrong operator reach a product. |
-| [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it. Half of it was already proven; the other half needs a Router this repository does not use anywhere. |
+| [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
 
 Two of §11's four read-contract pieces were also never built, because nothing
@@ -2698,20 +2696,21 @@ The goal is separation, not a new public API.
 
 ### Phase 5 — prove route -> Surface -> ReadContract integration
 
-> **Not done, and not attempted.** The implementation sequence skipped straight
-> from Phase 3 to Phase 6, which went unremarked until the phases were audited
+> Done, in `remote/test/route.test.ts`, and late: the sequence skipped from
+> Phase 3 to Phase 6 and nothing remarked on it until the phases were audited
 > afterwards.
 >
-> Half of what it asks for is already proven. `Surface.at` deriving params or
-> inactivity, `Data.subscriptions` following activation, and navigating away
-> releasing read, live and retain work are covered in
-> `remote/test/domain.test.ts`. A `QueryDefinition`'s input coming from Surface
-> params is what `Data.query(descriptor, params, …)` does.
+> It needed no new API, which is the result worth having. A `defineRouteUnion`
+> of `Home | Owner | NotFound`, the URL parsed by `parseUrlWithFallback`, the
+> route held in `Model.route`, and a `Surface.at` that reads it for an owner's
+> id or for `undefined`. Remote follows from there: on `/owners/u1` the read
+> entry plans exactly the connection `ProjectsByOwner.ref({ ownerId: 'u1' })`
+> names, on `/owners/u2` a different one, on `/` nothing at all, and the
+> retention root the connection had is dropped with it.
 >
-> The half that is missing is the Router: **nothing in this repository uses
-> Foldkit Router at all** — no example, no package. So "URL parses to AppRoute"
-> and "AppRoute lives in Model" are untested here, and proving them means
-> introducing Router usage rather than wiring together what exists.
+> This was the first use of Foldkit Router anywhere in the repository — no
+> example or package had one — so the claim that routing describes URL state
+> and owns no data loading had never actually been run.
 
 Use one current Foldkit Router path whose typed route payload activates a parameterized Surface.
 
