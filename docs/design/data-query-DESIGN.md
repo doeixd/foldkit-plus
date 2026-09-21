@@ -1678,6 +1678,57 @@ hybrid future
 
 This is the most direct place where Query semantics and existing Remote planning reinforce each other.
 
+> **Mostly already true, and the remainder is refused on purpose.** Pinned as
+> behaviour in `packages/remote/test/containment.test.ts` rather than left as
+> prose, so whoever builds the rest has a red test saying what changes.
+>
+> Three of the four execution rows exist. Remote/Drizzle pushes predicate,
+> order, window and selection to the server — the body travels descriptor →
+> server source → compiler and is compiled there. TanStack executes locally over
+> a synced collection and LiveStore in local SQLite, as Phases 9 and 10. Those
+> were never planner features: they are interpreters over the same body, which
+> is what made them cheap.
+>
+> What is left is one line of the reasoning list: **current cache coverage**,
+> meaning that a narrower query need not run when a wider loaded connection
+> already contains its rows. That is predicate containment, and it is not built.
+>
+> **The reason is not the one this was deferred for.** It looked like plumbing —
+> that a body never reaches the client planner. It does: a bound domain holds
+> the registry, every planner entry point takes a bound domain, and
+> `Data.explain` reaches a body through exactly that route. What is missing is
+> the reasoning, not the data.
+>
+> Two things make the reasoning a poor trade here.
+>
+> The first is that the cheap version **looks right**. For two bodies that are
+> conjunctions of equalities over one Entity, "every predicate of the wider one
+> appears in the narrower one" is a correct containment answer, and it is three
+> lines. It is also one syntactic case of containment rather than containment,
+> sound only because of properties that hold in the example and are not checked:
+> no inputs in the shared predicate, no `contains`, no null comparison, no two
+> predicates that differ in spelling and agree in meaning. A checker that is
+> right on its examples and quietly wrong elsewhere serves stale rows, which is
+> the failure this whole document is organised against.
+>
+> The second is that **containment would not finish the job**. A connection is
+> an ordered, windowed answer with cursors at its ends. Knowing the rows are a
+> subset still leaves which page of them, in what order, and what its cursors
+> are — and the orders have to agree for any of that to be derivable at all.
+> Containment is the first of several steps, not the step.
+>
+> So §21 stops where it is: exact-match by connection identity, which is
+> already how the planner behaves, and which answers "is this the same
+> question" rather than "is this a narrower one".
+>
+> **What would change it** is a real application paying for this — a view whose
+> narrower query is visibly slow while the rows are on screen in a wider one.
+> Then the honest build is not a general containment checker but a narrow,
+> declared one: a rule that says which shapes it decides and refuses every
+> other, the way an interpreter declares its operators (§16) and refuses what it
+> cannot run. That precedent already exists in this document and is the shape to
+> follow.
+
 ---
 
 ## 22. Query bundles: useful prior art, not a new Foldkit subsystem
