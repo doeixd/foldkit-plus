@@ -188,8 +188,10 @@ case 'ClickedRefresh': {
   handing the body an empty object.
 - `foldkit-remote-drizzle`: a descriptor with a body needs only
   `query(descriptor, { entity: binding })` — the address column and the order come
-  from the body through the binding. A field the binding has no column for throws
-  at registration. The compiled predicates are **conjoined** with the server's own
+  from the body through the binding. Every field the body reads, in a predicate or
+  an ordering, is checked at registration — not on the first request. A body order
+  that does not end on the id gets it appended, so keyset paging stays stable; a
+  literal `orderBy` given here is left exactly as written. The compiled predicates are **conjoined** with the server's own
   `where` and the binding's `visible`, so a body never widens what a principal may
   see; an `orderBy` given there replaces the body's, since a connection pages on
   one order.

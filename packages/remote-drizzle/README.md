@@ -605,9 +605,15 @@ const PostsBySlugSource = query(PostsBySlug, { entity: PostBinding })
 ```
 
 The binding is what knows which column holds which field, so nothing in the
-body names a table and the same body could be compiled by something else. A
-field the binding has no column for is refused when the source is registered,
-not when a request arrives.
+body names a table and the same body could be compiled by something else. Every
+field the body reads — in a predicate or in its ordering — is checked when the
+source is registered, so a server that starts is a server whose queries can be
+answered, rather than one that fails on whichever request first runs this query.
+
+**The body's order is tie-broken by the id.** A body says what the rows mean,
+not how a cursor walks them, so an order that does not already end on the id
+gets it appended, exactly as a computed `orderBy` does. A literal `orderBy`
+written here is this binding's own and stays as given.
 
 Three things are worth being exact about:
 

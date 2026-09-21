@@ -22,7 +22,12 @@ version changed; `pnpm` skips versions already in the registry.
   declared with `Query.define` needs only `query(descriptor, { entity: binding })`
   — the columns and the order come from its body, through the binding that knows
   which column holds which field. A field the binding has no column for is refused
-  when the source is registered, not when a request arrives. The compiled
+  when the source is registered, not when a request arrives — a predicate's
+  fields as well as an ordering's, so a server that starts is a server whose
+  queries can be answered. A body order that does not already end on the id gets
+  it appended, exactly as a computed `orderBy` does, since a body says what the
+  rows mean and not how a cursor walks them; a literal `orderBy` given at
+  registration is left as written. The compiled
   predicates are **conjoined** with the server's own `where` and the binding's
   `visible` rule, so a body is the application's question and never widens what a
   principal may see; an `orderBy` given at registration replaces the body's, since

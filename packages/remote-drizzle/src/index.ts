@@ -23,7 +23,7 @@ import {
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { idColumn, projectsAny } from './columns.js'
-import { compileOrderBy, compileWhere } from './compile.js'
+import { checkFields, compileOrderBy, compileWhere } from './compile.js'
 import { cursorSelection, keysetWhere, orderByTerms, type OrderTerm } from './cursor.js'
 import { DrizzleDatabase, type DrizzleDatabaseService } from './database.js'
 import { toQueryPage } from './page.js'
@@ -571,6 +571,7 @@ export const query = <P = unknown, Input = unknown>(
   }
   // A body's ordering is fixed, so it is compiled once here rather than per
   // request; what it reads is checked against the binding at registration.
+  if (body !== undefined) checkFields(body, options.entity, descriptor.name)
   const compiledOrder =
     body === undefined ? undefined : compileOrderBy(body, options.entity, descriptor.name)
   if (compiledOrder !== undefined && compiledOrder.length === 0 && options.orderBy === undefined) {
@@ -603,9 +604,13 @@ export const query = <P = unknown, Input = unknown>(
           typeof options.orderBy === 'function'
             ? options.orderBy(input as Input, principal)
             : (options.orderBy ?? compiledOrder ?? [])
-        // What the input asks for may not be unique; the id makes any order stable.
+        // What the input asks for may not be unique, and neither is what a body
+        // asks for: both say what the rows mean rather than how a cursor walks
+        // them, so the id makes either stable. A literal order written here is
+        // this binding's own, and stays exactly as it was given.
+        const tieBreak = typeof options.orderBy === 'function' || options.orderBy === undefined
         const orderBy: readonly OrderTerm[] =
-          typeof options.orderBy !== 'function' || computed.some(term => term.column === id)
+          !tieBreak || computed.some(term => term.column === id)
             ? computed
             : [...computed, { column: id, direction: 'asc' }]
         // The body's question, this server's own extra question, and the

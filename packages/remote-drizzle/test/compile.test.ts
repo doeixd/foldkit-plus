@@ -147,6 +147,33 @@ describe('A compiled body is the query the binding used to spell out', () => {
     expect(where).toContain('"archived_at" is not null')
   })
 
+  it('tie-breaks a body order that does not end on the id, so paging is stable', async () => {
+    // A body says what the rows mean, not how a cursor walks them. Ordering by
+    // slug alone is ambiguous between two rows of the same slug, and keyset
+    // paging over an ambiguous order can repeat or skip one.
+    const BySlugOnly = Query.define('BySlugOnly', {}, () =>
+      Query.from(Post).pipe(Query.orderBy(Order.desc(Post.fields.slug))),
+    )
+    const defined = query(BySlugOnly, { entity: PostBinding })
+    const { database, calls } = fakeDatabase()
+
+    await run(defined, database)
+
+    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual([
+      '"posts"."slug" desc',
+      '"posts"."id" asc',
+    ])
+  })
+
+  it('leaves a body order that already ends on the id alone', async () => {
+    const defined = query(DefinedBySlug, { entity: PostBinding })
+    const { database, calls } = fakeDatabase()
+
+    await run(defined, database)
+
+    expect(calls[0]!.orderBy!.map(term => rendered(term).sql)).toEqual(['"posts"."id" asc'])
+  })
+
   it('refuses at registration a body ordering by a field the binding has no column for', () => {
     const Ghost = DomainEntity.define(
       'Post',
@@ -217,5 +244,27 @@ describe('A compiled body is the query the binding used to spell out', () => {
     await run(defined, database, 'another')
 
     expect(rendered(calls[0]!.where).params).toEqual(['another'])
+  })
+})
+
+describe('A body the binding cannot answer is refused when it is registered', () => {
+  const Ghost = DomainEntity.define(
+    'Post',
+    Schema.Struct({ id: Schema.String, missing: Schema.String }),
+  )
+
+  it('refuses a predicate over a field the binding has no column for', () => {
+    const ByMissing = Query.define('ByMissingWhere', { v: Schema.String }, ({ input }) =>
+      Query.from(Ghost).pipe(
+        Query.where(Expr.eq(Ghost.fields.missing, input.v)),
+        Query.orderBy(Order.asc(Ghost.fields.id)),
+      ),
+    )
+
+    // Not on the first request that happens to run it: a server that starts is
+    // a server whose queries can be answered.
+    expect(() => query(ByMissing, { entity: PostBinding })).toThrow(
+      'query "ByMissingWhere" reads the field "missing", which the binding has no column for',
+    )
   })
 })

@@ -13,6 +13,7 @@
  * authorization.
  */
 import { eq, type AnyColumn, type SQL } from 'drizzle-orm'
+import { Query } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, OrderTerm as ExprOrderTerm, Predicate } from 'foldkit-entity'
 import type { OrderTerm } from './cursor.js'
 
@@ -76,6 +77,17 @@ const predicate = (
         : eq(right as AnyColumn, left)
     }
   }
+}
+
+/**
+ * Every field the body reads has a column here. Checked once, when the source
+ * is registered, so a server that starts is a server whose queries can be
+ * answered — rather than one that fails on whichever request first runs this
+ * query. Ordering is checked by compiling it, which happens at registration for
+ * the same reason.
+ */
+export const checkFields = (body: AnyQuery, target: CompileTarget, query: string): void => {
+  for (const field of Query.dependencies(body).fields) columnFor(target, field.key, query)
 }
 
 /**
