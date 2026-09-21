@@ -16,6 +16,8 @@ import {
   type AnyEntity,
   type EntityField,
   type EntityInput,
+  Expr,
+  Order,
 } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { Mutation, Query, type MutationDescriptor, type OptimisticOperation } from 'foldkit-remote'
@@ -350,12 +352,23 @@ export const Cms = {
    * a capability is declared, never implied.
    */
   bySlug: <Name extends string, E extends AnyEntity>(content: Content<Name, E, any, any, any>) => {
-    if (content.roles.slug === undefined)
-      fail(`content "${content.name}" has no slug role, so nothing is found by slug`)
-    return Query.make(`${content.name}BySlug` as `${Name}BySlug`, {
-      Input: { slug: Schema.String },
-      Result: Query.connection(content.entity as E & { readonly name: E['name'] }),
-    })
+    const address = content.roles.slug
+    if (address === undefined) {
+      return fail(`content "${content.name}" has no slug role, so nothing is found by slug`)
+    }
+    const entity = content.entity as AnyEntity
+    // Declared by what it means, so a server compiles the body instead of being
+    // told the same `where` again in its own dialect. Ordered by id: one row is
+    // expected, and a connection still pages on something stable.
+    return Query.define(
+      `${content.name}BySlug` as `${Name}BySlug`,
+      { slug: Schema.String },
+      ({ input }) =>
+        Query.from(entity).pipe(
+          Query.where(Expr.eq(address, input.slug)),
+          Query.orderBy(Order.asc(entity.fields.id!)),
+        ),
+    ) as ReturnType<typeof Query.make<`${Name}BySlug`, { slug: typeof Schema.String }, E>>
   },
   /**
    * How a server says a slug is taken, as a mutation's error: `CmsSlugTaken: <key>: ...`.

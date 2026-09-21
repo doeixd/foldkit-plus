@@ -7,6 +7,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-remote-drizzle`: a query body compiles to SQL.** A descriptor
+  declared with `Query.define` needs only `query(descriptor, { entity: binding })`
+  — the columns and the order come from its body, through the binding that knows
+  which column holds which field. A field the binding has no column for is refused
+  when the source is registered, not when a request arrives. The compiled
+  predicates are **conjoined** with the server's own `where` and the binding's
+  `visible` rule, so a body is the application's question and never widens what a
+  principal may see; an `orderBy` given at registration replaces the body's, since
+  a connection pages on exactly one order. `Query.make` is unchanged and still
+  requires an `orderBy`.
+- **`foldkit-cms`: `Cms.bySlug` is declared by what it means.** Its body is
+  `eq(the slug field, input.slug)` ordered by id, so `foldkit-cms-drizzle`
+  registers the source without restating the `where` or the order in Drizzle's
+  dialect. The audience boundary is unchanged: a visitor still finds only
+  published rows, because visibility is conjoined with the body rather than
+  expressed by it.
+
 - **`foldkit-remote`: `Query.define`, a query declared by what it means.**
   `Query.define(name, Input, ({ input }) => body)` returns an ordinary
   `QueryDescriptor` — the same name, `Input`, `ref` and connection identity

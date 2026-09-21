@@ -168,7 +168,11 @@ RemoteServer.make({
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`
   brings it back unpublished.
 - A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to
-  `cms.queries`; a visitor finds only published rows. A taken slug fails a publish
+  `cms.queries`; a visitor finds only published rows. It is declared with
+  `Query.define`, so it carries its body (`eq(slug field, input.slug)`, ordered by
+  id) and `foldkit-cms-drizzle` registers it as `query(descriptor, { entity })`
+  with no `where` or `orderBy` of its own; the audience boundary is conjoined as
+  ever. A taken slug fails a publish
   as `CmsSlugTaken: <key>: ...`; `Cms.slugTaken.key(message)` is the key. Put a
   unique index on the column: the check alone loses a race. To say so while the
   author types, add `Cms.addressFree('posts')` to the form's slug key with the

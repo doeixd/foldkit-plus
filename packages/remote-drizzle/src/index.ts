@@ -23,6 +23,7 @@ import {
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { idColumn, projectsAny } from './columns.js'
+import { compileOrderBy, compileWhere } from './compile.js'
 import { cursorSelection, keysetWhere, orderByTerms, type OrderTerm } from './cursor.js'
 import { DrizzleDatabase, type DrizzleDatabaseService } from './database.js'
 import { toQueryPage } from './page.js'
@@ -30,6 +31,7 @@ import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
 
 export * from './bind.js'
+export * from './compile.js'
 export * from './binding.js'
 export * from './columns.js'
 export * from './cursor.js'
@@ -540,16 +542,40 @@ export const query = <P = unknown, Input = unknown>(
      * query's input, which is how a list sorts by what the user chose: the input is
      * part of the connection's identity, so each order pages on its own cursors. A
      * computed order that leaves the id out is tie-broken by it.
+     *
+     * Omitted when the descriptor carries a body (`Query.define`), whose own
+     * ordering is compiled instead.
      */
-    readonly orderBy: readonly OrderTerm[] | ((input: Input, principal: P) => readonly OrderTerm[])
+    readonly orderBy?:
+      readonly OrderTerm[] | ((input: Input, principal: P) => readonly OrderTerm[]) | undefined
+    /**
+     * Extra SQL this server adds, in its own dialect. With a body it is
+     * conjoined with what the body compiled to rather than replacing it, so a
+     * binding can narrow a query it did not write.
+     */
     readonly where?: ((input: Input, principal: P) => SQL | undefined) | undefined
     readonly defaultPageSize?: number | undefined
     readonly maxPageSize?: number | undefined
   },
 ): QuerySource<P, DrizzleDatabase> => {
-  if (typeof options.orderBy !== 'function' && options.orderBy.length === 0) {
+  const body = descriptor.body
+  if (options.orderBy === undefined && body === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] query "${descriptor.name}" needs an orderBy, or a descriptor declared with Query.define whose body has one`,
+    )
+  }
+  if (typeof options.orderBy !== 'function' && options.orderBy?.length === 0) {
     throw new Error(
       `[foldkit-remote-drizzle] query "${descriptor.name}" needs a non-empty, stable orderBy; add a unique tie-breaker column`,
+    )
+  }
+  // A body's ordering is fixed, so it is compiled once here rather than per
+  // request; what it reads is checked against the binding at registration.
+  const compiledOrder =
+    body === undefined ? undefined : compileOrderBy(body, options.entity, descriptor.name)
+  if (compiledOrder !== undefined && compiledOrder.length === 0 && options.orderBy === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] query "${descriptor.name}" has a body with no ordering; a connection pages on a stable order, so give it one`,
     )
   }
   return {
@@ -576,16 +602,27 @@ export const query = <P = unknown, Input = unknown>(
         const computed =
           typeof options.orderBy === 'function'
             ? options.orderBy(input as Input, principal)
-            : options.orderBy
+            : (options.orderBy ?? compiledOrder ?? [])
         // What the input asks for may not be unique; the id makes any order stable.
         const orderBy: readonly OrderTerm[] =
           typeof options.orderBy !== 'function' || computed.some(term => term.column === id)
             ? computed
             : [...computed, { column: id, direction: 'asc' }]
+        // The body's question, this server's own extra question, and the
+        // binding's visibility rule are conjoined: a body can narrow what a
+        // principal may see and never widen it.
+        const compiled =
+          body === undefined
+            ? []
+            : compileWhere(
+                body,
+                binding,
+                input as Readonly<Record<string, unknown>>,
+                descriptor.name,
+              )
         const asked = options.where?.(input as Input, principal)
         const visible = binding.visible?.(principal)
-        const baseWhere =
-          asked === undefined || visible === undefined ? (asked ?? visible) : and(asked, visible)
+        const baseWhere = and(...compiled, asked, visible)
         let where = baseWhere
 
         if (shape.cursor !== undefined) {

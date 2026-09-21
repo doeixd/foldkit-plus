@@ -186,6 +186,13 @@ case 'ClickedRefresh': {
   placeholder, so never `input.x ? a : b`. `Input` must be fields or a plain
   `Schema.Struct` — a codec exposing no keys throws at declaration rather than
   handing the body an empty object.
+- `foldkit-remote-drizzle`: a descriptor with a body needs only
+  `query(descriptor, { entity: binding })` — the address column and the order come
+  from the body through the binding. A field the binding has no column for throws
+  at registration. The compiled predicates are **conjoined** with the server's own
+  `where` and the binding's `visible`, so a body never widens what a principal may
+  see; an `orderBy` given there replaces the body's, since a connection pages on
+  one order.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
 - `Data.confirmed(projection)` is the same projection read over the

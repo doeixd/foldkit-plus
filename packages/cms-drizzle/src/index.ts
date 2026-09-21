@@ -1081,18 +1081,18 @@ export const CmsServer = {
 
     // A content type with an address is found by it, behind the same boundary as
     // every other read of its table.
-    const bySlug = config.content.flatMap(({ type, binding }) => {
-      const address = type.roles.slug
-      if (address === undefined) return []
-      const column = binding.columns[address.key]!
-      return [
-        query<P, { readonly slug: string }>(Cms.bySlug(type), {
-          entity: binding,
-          where: input => eq(column, input.slug),
-          orderBy: [{ column: binding.columns.id!, direction: 'asc' }],
-        }) as QuerySource<P, DrizzleDatabase>,
-      ]
-    })
+    // The descriptor carries what the query means, so this registers the source
+    // and says no more: the address column and the order come from the body,
+    // through the binding that knows which column holds which field.
+    const bySlug = config.content.flatMap(({ type, binding }) =>
+      type.roles.slug === undefined
+        ? []
+        : [
+            query<P, { readonly slug: string }>(Cms.bySlug(type), {
+              entity: binding,
+            }) as QuerySource<P, DrizzleDatabase>,
+          ],
+    )
 
     return {
       /**

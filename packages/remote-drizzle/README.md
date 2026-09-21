@@ -585,6 +585,44 @@ const ProjectsByOwnerSource = query(ProjectsByOwner, {
 })
 ```
 
+### A query that carries its own meaning
+
+When the descriptor was declared with
+[`Query.define`](../remote#queries-and-pagination), its body already says which
+rows and in what order. Register the source and say no more:
+
+```ts
+import { Expr, Order, Query } from 'foldkit-entity'
+
+const PostsBySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
+  Query.from(Post).pipe(
+    Query.where(Expr.eq(Post.fields.slug, input.slug)),
+    Query.orderBy(Order.asc(Post.fields.id)),
+  ),
+)
+
+const PostsBySlugSource = query(PostsBySlug, { entity: PostBinding })
+```
+
+The binding is what knows which column holds which field, so nothing in the
+body names a table and the same body could be compiled by something else. A
+field the binding has no column for is refused when the source is registered,
+not when a request arrives.
+
+Three things are worth being exact about:
+
+- **A body never widens what a principal may see.** The compiled predicates,
+  this server's own `where`, and the binding's `visible` rule are conjoined. A
+  body is the application's question; authorization stays where it was.
+- **A `where` given here is added to the body, not put in its place.** A binding
+  can narrow a query it did not write.
+- **An `orderBy` given here does replace the body's**, because ordering is one
+  decision and a connection pages on exactly one of them.
+
+`Query.make` is unchanged and still the right declaration when the meaning of a
+query lives on this side; such a descriptor has no body, and `orderBy` is then
+required as before.
+
 Think of the pieces as:
 
 ```text
