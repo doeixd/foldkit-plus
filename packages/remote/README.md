@@ -620,6 +620,47 @@ const Data = Remote.make({
 })
 ```
 
+`Query.make` names a query and says what it returns. Where it *means*
+something the client should be able to state, declare it with a body instead:
+
+```ts
+import { Entity, Expr, Order, Query } from 'foldkit-entity'
+
+const Task = Entity.define(
+  'Task',
+  Schema.Struct({ id: Schema.String, ownerId: Schema.String, updatedAt: Schema.Number }),
+)
+
+const TasksByOwner = Query.define(
+  'TasksByOwner',
+  { ownerId: Schema.String },
+  ({ input }) =>
+    Query.from(Task).pipe(
+      Query.where(Expr.eq(Task.fields.ownerId, input.ownerId)),
+      Query.orderBy(Order.desc(Task.fields.updatedAt), Order.asc(Task.fields.id)),
+    ),
+)
+```
+
+A body is written over a [`foldkit-entity`](../entity) Entity, because that is
+what has addressable fields: `Task.fields.ownerId` is a reference an `Expr` can
+be built from, where this package's own `Entity.make` describes a field as the
+schema of its value and has nothing to point at. An entity declared either way
+still reads, selects and normalizes the same; only a query body needs the
+richer declaration.
+
+What comes back is an ordinary descriptor — the same name, `Input`, `ref` and
+connection identity — carrying its `body` besides, and the result is a
+connection over the Entity the body reads, so it is not named twice. A server
+can compile that body rather than be told the same thing again in its own
+dialect; one that would rather answer the query its own way still can, and a
+descriptor from `Query.make` has no body at all.
+
+The body is built **once**, when the query is declared. Inside it `input.ownerId`
+is a placeholder for the value the query will be given, not the value — there is
+nothing there yet to branch on. A condition that depends on what was passed is a
+comparison over the placeholder, never a `?:` around it.
+
 Then a query is still just a Projection:
 
 ```ts

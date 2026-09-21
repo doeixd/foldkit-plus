@@ -4,7 +4,13 @@
  * `first(25)` and `after(cursor).first(25)` address the same logical connection.
  */
 import { Schema } from 'effect'
-import { Query as RelationalQuery } from 'foldkit-entity'
+import {
+  Expr,
+  Query as RelationalQuery,
+  type AnyEntity,
+  type AnyQuery,
+  type InputExpr,
+} from 'foldkit-entity'
 import type { Cursor } from './connection.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './mutation.js'
 
@@ -43,6 +49,22 @@ export interface QueryDescriptor<Name extends string, Input, Result> {
   readonly Input: Schema.Codec<Input>
   readonly Result: Result
   readonly ref: (input: Input) => QueryRef<Name, Input>
+  /**
+   * What the query means, when it was declared with `Query.define`: the rows it
+   * is about, as a value an interpreter can compile. A descriptor from
+   * `Query.make` has none — its meaning lives in whatever the server registered
+   * to answer it — and a source is free to answer either.
+   */
+  readonly body?: AnyQuery | undefined
+}
+
+/**
+ * The inputs of a definition's body: one placeholder per key of `Input`, typed
+ * as that key's value. A body is built once, so these stand for what the query
+ * will be given rather than being it.
+ */
+export type QueryInputs<Input> = {
+  readonly [K in keyof Input & string]: InputExpr<Input[K]>
 }
 
 /** Stable stringify: object keys sorted, undefined-valued keys dropped, so equal inputs encode equally. */
@@ -79,6 +101,24 @@ const isEntityName = (result: unknown): result is { readonly name: string } =>
  * vocabulary in use — a definition's body is composed and then named — and two
  * namespaces of the same name in one file would be a trap.
  */
+/**
+ * One placeholder per key of the input's schema, each carrying that key's own
+ * codec so a comparison against it is checked. A codec that is not a Struct has
+ * no keys to stand for, and a body over it reads no inputs.
+ */
+const inputsOf = (schema: Schema.Codec<unknown>): Record<string, InputExpr<unknown>> => {
+  const fields = (schema as { readonly fields?: Schema.Struct.Fields }).fields
+  if (fields === undefined) return {}
+  const inputs: Record<string, InputExpr<unknown>> = {}
+  for (const key of Object.keys(fields)) {
+    inputs[key] = Expr.input(key, fields[key] as unknown as Schema.Codec<unknown, unknown>)
+  }
+  return Object.freeze(inputs)
+}
+
+/** A relational `Query` over one Entity, as `Query.define`'s body returns. */
+type RelationalQueryOf<E extends AnyEntity> = ReturnType<typeof RelationalQuery.from<E>>
+
 export const Query = {
   ...RelationalQuery,
 
@@ -117,6 +157,45 @@ export const Query = {
         identity: `${name}\u0000${stableStringify(encode(input))}`,
       }),
     }
+  },
+
+  /**
+   * Declares a query by what it means. The body is built once, here, and the
+   * `input` it is given holds placeholders rather than values — there is
+   * nothing yet to branch on, so a condition that depends on what was passed is
+   * a comparison over the placeholder:
+   *
+   * ```ts
+   * const PostsBySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
+   *   Query.from(Post).pipe(
+   *     Query.where(Expr.eq(Post.fields.slug, input.slug)),
+   *     Query.orderBy(Order.asc(Post.fields.id)),
+   *   ),
+   * )
+   * ```
+   *
+   * What comes back is an ordinary `QueryDescriptor` — the same name, `Input`,
+   * `ref` and connection identity `Query.make` gives — carrying its `body`
+   * besides. A server can compile that body instead of being told the same
+   * thing again in its own dialect, and one that would rather answer the query
+   * its own way still can.
+   *
+   * The result is a connection over the Entity the body reads, so it is not
+   * named twice.
+   */
+  define: <const Name extends string, Input extends SchemaOrFields, E extends AnyEntity>(
+    name: Name,
+    Input: Input,
+    body: (context: { readonly input: QueryInputs<TypeOf<Input>> }) => RelationalQueryOf<E>,
+    options?: { readonly edgeKey?: Schema.Schema<unknown>; readonly live?: LivePolicy },
+  ): QueryDescriptor<Name, TypeOf<Input>, ConnectionSpec<E['name']>> => {
+    const schema = schemaOf(Input)
+    const built = body({ input: inputsOf(schema) as QueryInputs<TypeOf<Input>> })
+    const descriptor = Query.make(name, {
+      Input,
+      Result: Query.connection(built.entity, options) as ConnectionSpec<E['name']>,
+    })
+    return { ...descriptor, body: built }
   },
 
   first:

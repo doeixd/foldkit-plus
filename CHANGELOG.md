@@ -7,6 +7,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-remote`: `Query.define`, a query declared by what it means.**
+  `Query.define(name, Input, ({ input }) => body)` returns an ordinary
+  `QueryDescriptor` — the same name, `Input`, `ref` and connection identity
+  `Query.make` gives — carrying its `body` besides, with the result a connection
+  over the Entity the body reads so it is not named twice. A server can compile
+  that body instead of being told the same thing again in its own dialect; one
+  that would rather answer the query its own way still can, and a descriptor
+  from `Query.make` has no body at all. The body is built **once**: `input.slug`
+  is a placeholder typed from `Input`, never the value, so a condition that
+  depends on what was passed is a comparison over the placeholder. A body needs
+  a `foldkit-entity` Entity (`Entity.define`), which is what has addressable
+  `fields`; this package's own `Entity.make` describes a field as the schema of
+  its value and has nothing to point at.
+
 - **`foldkit-entity`: `Query`, which rows a query is about.** An Entity to
   read, the predicates every row must hold, and the order to read them in,
   composed with `pipe`: `Query.from(Post).pipe(published, newest)`. Each step is

@@ -5,6 +5,7 @@
  */
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
+import { Entity as DomainEntity, Expr, Order, type AnyQuery } from 'foldkit-entity'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -178,3 +179,20 @@ const drawnProject = RemoteData.render(project.read(currentModel), {
 })
 
 expectTypeOf(drawnProject).toEqualTypeOf<string>()
+
+// 10. A query declared by what it means. The body is over a foldkit-entity
+// Entity, which is what has addressable fields.
+const Task = DomainEntity.define(
+  'Task',
+  Schema.Struct({ id: Schema.String, ownerId: Schema.String, updatedAt: Schema.Number }),
+)
+
+const TasksByOwner = Query.define('TasksByOwner', { ownerId: Schema.String }, ({ input }) =>
+  Query.from(Task).pipe(
+    Query.where(Expr.eq(Task.fields.ownerId, input.ownerId)),
+    Query.orderBy(Order.desc(Task.fields.updatedAt), Order.asc(Task.fields.id)),
+  ),
+)
+
+expectTypeOf(TasksByOwner.name).toEqualTypeOf<'TasksByOwner'>()
+expectTypeOf(TasksByOwner.body).toEqualTypeOf<AnyQuery | undefined>()

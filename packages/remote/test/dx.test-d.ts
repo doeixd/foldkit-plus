@@ -4,6 +4,7 @@
  * (1–12) is the real export; this file is the compile-time contract they keep.
  */
 import type { Effect } from 'effect'
+import { expectTypeOf } from 'vitest'
 import { Schema } from 'effect'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
@@ -21,6 +22,7 @@ import {
   type Page,
   type QueryDescriptor,
   type QueryRef,
+  type ConnectionSpec,
   type RemoteClient,
   type RemoteData,
   type RemoteEntry,
@@ -29,6 +31,7 @@ import {
   type SelectsEntity,
 } from '../src/index.js'
 import type { Invalid } from 'foldkit-surface'
+import { Entity as DomainEntity, Expr, type InputExpr } from 'foldkit-entity'
 import { RemotePersistence } from '../src/persistence.js'
 import type { EntityStore } from '../src/store.js'
 
@@ -326,3 +329,30 @@ const _received: typeof Message.Type = Message.ReadReceived({
 // `ProjectPage` is a plain `Surface`, so `SurfaceView.define(ProjectPage, …)` and
 // `Agent` consume it unchanged; nothing in this issue touches those seams.
 const _plainSurface: Surface<AppModel, any, any, any> = ProjectPage
+
+// `Query.define`: the body's `input` is placeholders typed from `Input`.
+{
+  const Post = DomainEntity.define(
+    'Post',
+    Schema.Struct({ id: Schema.String, slug: Schema.String, published: Schema.Boolean }),
+  )
+
+  const BySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) => {
+    expectTypeOf(input).toEqualTypeOf<{ readonly slug: InputExpr<string> }>()
+    return Query.from(Post).pipe(Query.where(Expr.eq(Post.fields.slug, input.slug)))
+  })
+
+  // A defined query is a descriptor: its ref and input type are the same.
+  expectTypeOf(BySlug.ref).toEqualTypeOf<
+    (input: { readonly slug: string }) => QueryRef<'PostsBySlug', { readonly slug: string }>
+  >()
+  expectTypeOf(BySlug.Result).toEqualTypeOf<ConnectionSpec<'Post'>>()
+
+  Query.define('Bad', { slug: Schema.String }, ({ input }) =>
+    // @ts-expect-error a published flag is a boolean; the slug input is a string
+    Query.from(Post).pipe(Query.where(Expr.eq(Post.fields.published, input.slug))),
+  )
+
+  // @ts-expect-error the body must be a relational Query, not a predicate
+  Query.define('AlsoBad', {}, () => Expr.eq(Post.fields.published, true))
+}

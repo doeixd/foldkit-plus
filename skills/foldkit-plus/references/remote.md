@@ -174,6 +174,16 @@ case 'ClickedRefresh': {
   pending layers), released on settle by `requestId`; settlement is idempotent.
   Optimistic list edits: `optimistic: ({ tempId }) => [Project.patch(tempId, {...}), ConnectionChange.prepend(projects.ref, Project.ref(tempId))]`,
   where `projects` is the `Data.query(...)` Projection above.
+- `Query.define(name, Input, ({ input }) => body, options?)` declares a query by
+  what it *means*: `Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.ownerId,
+  input.ownerId)), Query.orderBy(Order.asc(Task.fields.id)))`. Returns an ordinary
+  descriptor — same name, `Input`, `ref`, connection identity — carrying `body`
+  besides, with the result a connection over the Entity the body reads. The body
+  needs a **`foldkit-entity`** Entity (`Entity.define`), since that is what has
+  addressable `fields`; this package's `Entity.make` has none to point at.
+  `Query.make` stays for queries whose meaning lives on the server, and such a
+  descriptor has no `body`. The body is built **once**: `input.x` is a
+  placeholder, so never `input.x ? a : b`.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
 - `Data.confirmed(projection)` is the same projection read over the

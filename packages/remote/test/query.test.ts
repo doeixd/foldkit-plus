@@ -1,4 +1,5 @@
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import {
   Entity,
@@ -154,5 +155,99 @@ describe('Remote.query', () => {
     // The page merges into the connection keyed by the ref's identity.
     const model = updateRemote(initialRemoteModel, Remote.queryMessage(ref, result))
     expect(items(model.connections[ref.identity]!).map(value => value.key)).toEqual(['Project:p1'])
+  })
+})
+
+describe('Query.define declares a query by what it means', () => {
+  const Post = DomainEntity.define(
+    'Post',
+    Schema.Struct({ id: Schema.String, slug: Schema.String, published: Schema.Boolean }),
+  )
+
+  const PostsBySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
+    Query.from(Post).pipe(
+      Query.where(Expr.eq(Post.fields.slug, input.slug)),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    ),
+  )
+
+  it('is a descriptor like any other: same name, input, ref and identity', () => {
+    const made = Query.make('PostsBySlug', {
+      Input: { slug: Schema.String },
+      Result: Query.connection(Post),
+    })
+
+    expect(PostsBySlug.name).toBe(made.name)
+    expect(PostsBySlug.ref({ slug: 'hello' }).identity).toBe(made.ref({ slug: 'hello' }).identity)
+    expect(PostsBySlug.Result).toEqual(made.Result)
+  })
+
+  it('excludes the window from identity, as every connection does', () => {
+    const base = PostsBySlug.ref({ slug: 'hello' })
+
+    expect(Query.first(10)(base).identity).toBe(base.identity)
+    expect(Query.after('c1')(Query.first(10)(base)).identity).toBe(base.identity)
+  })
+
+  it('carries the body, over the Entity it reads', () => {
+    expect(PostsBySlug.body?.entity).toBe(Post)
+    expect(PostsBySlug.body?.orderBy).toEqual([Order.asc(Post.fields.id)])
+  })
+
+  it('builds the body once, with placeholders and not values', () => {
+    const [predicate] = PostsBySlug.body!.where
+
+    expect(predicate).toEqual({
+      _tag: 'Eq',
+      left: Expr.field(Post.fields.slug),
+      right: { _tag: 'Input', key: 'slug', schema: Schema.String },
+    })
+  })
+
+  it('says what it reads, which is the whole point of carrying the body', () => {
+    expect(Query.dependencies(PostsBySlug.body!)).toEqual({
+      fields: [
+        { entity: 'Post', key: 'slug' },
+        { entity: 'Post', key: 'id' },
+      ],
+      inputs: ['slug'],
+      operations: ['eq'],
+    })
+  })
+
+  it('leaves a descriptor made the old way without a body', () => {
+    const made = Query.make('Posts', { Input: {}, Result: Query.connection(Post) })
+
+    expect(made.body).toBeUndefined()
+  })
+
+  it('names the result connection after the Entity the body reads', () => {
+    expect(PostsBySlug.Result).toEqual({ entity: 'Post' })
+    const live = Query.define('LivePosts', {}, () => Query.from(Post), {
+      live: { prepend: 'visible' },
+    })
+    expect(live.Result).toEqual({ entity: 'Post', live: { prepend: 'visible' } })
+  })
+
+  it('gives a body with no inputs nothing to stand for', () => {
+    const All = Query.define('AllPosts', {}, ({ input }) => {
+      expect(input).toEqual({})
+      return Query.from(Post)
+    })
+
+    expect(Query.dependencies(All.body!).inputs).toEqual([])
+  })
+
+  it('reaches a fragment composed outside the definition', () => {
+    const published = Query.where(Expr.eq(Post.fields.published, true))
+    const Published = Query.define('PublishedPosts', { slug: Schema.String }, ({ input }) =>
+      Query.from(Post).pipe(published, Query.where(Expr.eq(Post.fields.slug, input.slug))),
+    )
+
+    expect(Published.body!.where).toHaveLength(2)
+    expect(Query.dependencies(Published.body!).fields).toEqual([
+      { entity: 'Post', key: 'published' },
+      { entity: 'Post', key: 'slug' },
+    ])
   })
 })
