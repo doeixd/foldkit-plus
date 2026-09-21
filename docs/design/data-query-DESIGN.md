@@ -23,7 +23,7 @@ found one at a time:
 | [§32, Phase 10](#phase-10--livestore-spike) | **A capability declaration is necessary and not sufficient.** An engine can refuse a *shape* rather than an operator — a predicate as an operand, an equality against null — and §16 cannot see either. Also: LiveStore rewrites `= null` into `IS NULL`, which the suite caught. |
 | [§32, Phase 9](#phase-9--tanstack-db-spike) | **A third interpreter found what two written here had agreed on by accident**, and the first fix for it was wrong too: text collation is the backend's, not code point. It is also the first interpreter to refuse an operator it cannot answer faithfully. |
 | [§32, Phase 5](#phase-5--prove-route---surface---readcontract-integration) | **A phase was skipped without anyone noticing**, including the person doing it, and was done afterwards. It needed no new API — and it was the first use of Foldkit Router anywhere in this repository, so the claim that routing owns no data loading had never been run. |
-| [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking is not built, and §15's derivation is narrower than sketched. |
+| [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking was not built (it is now), and §15's derivation is narrower than sketched. |
 | [§29.1](#291-devtools) | **Building the explanation deleted a concept instead of adding one.** §11's *expectation* had no consumer, and the explanation — the likeliest one there would ever be — turned out not to want it. The *executor* is a Layer and cannot be reached from a pure read, which is the price of being replayable and worth it. |
 | [§21](#21-query-driven-loading-becomes-richer-with-readcontract) | **The block was reasoning, not plumbing.** A body does reach the client planner, through the bound domain's registry. And the cheap containment check is *correct on its examples* and silently wrong elsewhere, which is why it is refused rather than written. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
@@ -1288,8 +1288,11 @@ That is the same useful distinction tanstackstart-db discovered with query key v
 > connection plan one query and select the union of their fields").
 >
 > Two of §11's four pieces are also simply absent, and carrying them would be
-> ceremony: *expectation* (required/optional) has no consumer, and *observation*
-> is a policy of the subscription that runs the read rather than of the read.
+> ceremony: *observation* is a policy of the subscription that runs the read
+> rather than of the read, and *expectation* (required/optional) had no
+> consumer. Its would-be consumer has since been built — §29.1's explanation —
+> and did not want one either, so expectation is now removed rather than
+> pending. See the note at §11.
 
 ---
 
@@ -3009,10 +3012,13 @@ This specifically tests the QueryRef vs ReadContract distinction.
 > the job it was built for. Every conformance case whose search is ordinary text
 > would have passed.
 >
-> Phases 10 to 13 remain **deferred, not skipped**. Each is gated on something that
-> does not exist yet: another execution engine, a real need for joins or
-> aggregates, or a query shape no operator covers. Phase 12 is the exception and
-> was decided — see its note.
+> Phases 10 to 13 were **deferred, not skipped**, each gated on something that
+> did not exist yet. Since then: Phase 10 met its gate (LiveStore, the fourth
+> interpreter), Phase 11 was considered and declined, Phase 12 was decided, and
+> **Phase 13 alone remains gated** — on a real need for a join or an aggregate,
+> with the query that would open each member written out in
+> [§33.1](#what-would-open-each-of-phase-13s-members). Each carries its own
+> note.
 >
 > **What was built instead of starting them: the conformance suite** they all
 > depend on. §18 names portable-kernel conformance as what the reference
@@ -3306,7 +3312,7 @@ prior art or futures with nothing to satisfy.
 | [16](#16-interpreter-capability-checking) | Interpreters declare supported operators; compilation fails explicitly for the rest | **Done**, after this audit found it missing, and **known to be insufficient** after Phase 10 exercised it. `Query.unsupported` names what a body needs and an interpreter lacks, and each interpreter declares its set — but a declaration is about *operations*, and an engine can also fail on a *shape* it has no way to express (a predicate as an operand, an equality against null). Necessary, not sufficient; the conformance suite is what finds the rest. |
 | [17](#17-remote-drizzle-is-the-first-compiler) | remote-drizzle compiles first | **Done** (Phase 6). |
 | [21](#21-query-driven-loading-becomes-richer-with-readcontract) | Loading gets richer once ReadContract is explicit | **No, and it is further off than "unimplemented".** A body never reaches the client planner: a read entry plans on `identity`, `window` and `select`, and the body travels descriptor → server source → compiler. The client asks for a *named* connection and the server knows what the name means, which is defensible architecture and not an oversight. The interesting case this section describes — knowing one predicate's rows are a subset of a cached connection's — also needs predicate containment reasoning, which nothing has. |
-| [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **One of three done.** §29.3's CMS migration is finished — the worklist and `bySlug` both carry bodies, and its constraint held: no CMS-specific query infrastructure was added. §29.1's DevTools explanation has most of its materials (`descriptor.body`, `ref.identity`, `Query.dependencies`, `Data.inspect`) and two it does not: *expectation* is §11's unbuilt piece and *executor* is not modelled. §29.2 is **done**: a query Projection is given to an agent as an `Agent.resource`, with no new API in either package — the application picks the question and the agent gets a name, a description and a shape. |
+| [29](#29-devtools-agents-and-cms) | A read explains itself to DevTools, agents and a CMS | **All three done.** §29.3's CMS migration is finished — the worklist and `bySlug` both carry bodies, and its constraint held: no CMS-specific query infrastructure was added. §29.1's DevTools explanation is **done**, as `Data.explain(model, projection)`, built mostly by gathering materials that already existed; it needed one new thing, `Query.show`. It has neither *expectation* — which it turned out not to want, settling §11 — nor *executor*, which is a Layer and unreachable from a pure read. §29.2 is **done**: a query Projection is given to an agent as an `Agent.resource`, with no new API in either package — the application picks the question and the agent gets a name, a description and a shape. |
 | [30](#30-proposed-api-sketch) | The illustrative API | **Compiles verbatim**, including the case never otherwise exercised: an anonymous query composed outside a definition and piped in inside. One name differs — the sketch's `Query.desc`/`Query.asc` are `Order.desc`/`Order.asc`, since an ordering term is over an `Expr` rather than over a `Query`. |
 | [31](#31-routing-surfaces-and-page-contracts) | Routing, Surfaces and page contracts | **Its core is proven** by Phase 5. Page contracts and an activation helper such as `Surface.when` are untouched, and the section says to reach for them only after Router and Surface composition proves insufficient. It has not. |
 
