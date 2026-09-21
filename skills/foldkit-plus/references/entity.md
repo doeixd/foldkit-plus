@@ -260,6 +260,11 @@ Query.dependencies(recent)     // every predicate and ordering term at once
   different question and still passes every case it does support. Both shipped
   interpreters declare a `supported` list and check it: `foldkit-remote-drizzle`
   at registration, `foldkit-remote-server` on `evaluate`.
+- `Query.show(query)` and `Expr.show(node)` render a body as readable text
+  (`FROM Post` / `WHERE Post.slug = $slug` / `ORDER BY ...`), for a person and
+  never for an interpreter: an input is `$slug` rather than a bound parameter,
+  `contains` is named rather than rendered as somebody's `like`, and no
+  dialect's escaping or collation is implied.
 - **An application using Remote imports `Query` from `foldkit-remote`**, not
   from here: that one is this namespace plus `define`, `make` and the window
   steps. `Query` from `foldkit-entity` has `from`/`where`/`orderBy` and no

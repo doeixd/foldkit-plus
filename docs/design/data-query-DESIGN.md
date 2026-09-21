@@ -1116,6 +1116,23 @@ ReadContract
 
 `ReadContract` is a conceptual name. It does not need to become a public package/type.
 
+> **Built as `readContract` (shaping) and, now, `Data.explain` (the reader).**
+> Three of the five were always there — source, shape, window — and
+> *observation* is a policy of the subscription rather than of the read.
+>
+> **Expectation is answered, and the answer is that nothing wants it.** It was
+> deferred for want of a consumer, and the DevTools explanation of §29.1 was the
+> likeliest consumer there was ever going to be. Building it settled the
+> question: a query's result is a connection, so the shape is a `Page`, decided
+> by the definition rather than by the read — and nothing in an explanation has
+> an opinion about whether an empty one is an error, because nothing has to have
+> one. `RemoteData` already distinguishes absent from failed for the cases that
+> do care.
+>
+> So required-versus-optional is not waiting on evidence any more. It is a
+> concept this architecture turned out not to need, and it should be taken off
+> the list rather than left on it.
+
 ### 11.1 Current Data.query already approximates this layer
 
 Today:
@@ -1955,6 +1972,40 @@ Dependencies:
   Project.ownerId
   Project.updatedAt
 ~~~
+
+> **Done, as `Data.explain(model, projection)`** — a pure, serializable value
+> holding the domain, the definition and input, the connection identity, the
+> window, the Selection, the body as readable text with its dependencies, and
+> the state the read answers from this Model.
+>
+> It needed one genuinely new thing, in `foldkit-entity`: `Query.show` and
+> `Expr.show`, a rendering of a body for a person. It is pointedly **not** SQL —
+> an input shows as `$ownerId` rather than a bound parameter and `contains` is
+> named rather than rendered as somebody's `like` — because the sketch above
+> reads like SQL and a panel showing SQL-shaped text would be read as the SQL
+> that ran. What ran is whatever that backend compiled, and the four
+> interpreters compile it four ways.
+>
+> Everything else was gathered rather than built, which is the finding: the read
+> was always this many pieces and nothing had ever been asked to put them in one
+> place. `state` is taken from the projection's own read rather than recomputed,
+> so an explanation and the view cannot disagree about whether the data is there.
+>
+> **Two lines of the sketch are absent, for different reasons.**
+>
+> *Surface* is not a property of a read. A Projection does not know which
+> Surfaces read it, and several may; `Data.subscriptions` is where that relation
+> lives, and a panel rendering the heading has the Surface in hand already.
+>
+> *Executor* cannot be reached from here at all. What answers a query is a
+> `RemoteClient` Layer in the runtime, not a value in the Model — and that is
+> the same boundary that makes the explanation pure and replayable from a
+> recorded Model. Naming the executor would cost that, which is worth more than
+> the line of text. If a panel wants it, it belongs to whatever assembles the
+> runtime, beside the Layer it chose.
+>
+> *Expectation* is a third kind of absence: see §11 above. Not deferred, not
+> unreachable — not wanted.
 
 ### 29.2 Agents
 

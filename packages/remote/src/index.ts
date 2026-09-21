@@ -6,7 +6,7 @@
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
 import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
-import { Entity as DomainEntity, SelectionTypeId } from 'foldkit-entity'
+import { Entity as DomainEntity, Query as Relational, SelectionTypeId } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
 import type { Command } from 'foldkit/command'
@@ -31,7 +31,12 @@ import {
 } from './client.js'
 import { emptyConnection, hasNext, hasPrevious, type Edge } from './connection.js'
 import { Entity, type EntityDescriptor } from './entity.js'
-import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
+import {
+  inspectEntity,
+  inspectRemote,
+  type QueryExplanation,
+  type RemoteInspection,
+} from './inspect.js'
 import type { LiveCursor } from './live.js'
 import {
   initialRemoteModel,
@@ -306,6 +311,20 @@ export interface RemoteDomain<
     model: AppModel,
     projection: QueryProjection<AppModel, any, Name, Input>,
   ): QueryRef<Name, Input> | undefined
+  /**
+   * What a query read is and what it currently is, as one serializable value —
+   * data-query-DESIGN §29.1: the domain, the definition and its input, the
+   * connection identity, the window, the Selection, the body as readable text
+   * with what it depends on, and what the read answers from this Model.
+   *
+   * Pure, so a DevTools panel showing it shows something the Model can be
+   * replayed to. See `QueryExplanation` for the two members of the design's
+   * sketch that are deliberately absent.
+   */
+  explain<Name extends string, Input>(
+    model: AppModel,
+    projection: QueryProjection<AppModel, any, Name, Input>,
+  ): QueryExplanation
   /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
   fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
   /**
@@ -1708,6 +1727,26 @@ const bindDomain = <
             window: { ...pageSize(projection.ref.window, 'last'), before: start.cursor },
           }
         : undefined
+    },
+    explain: (model, projection) => {
+      const { ref } = projection
+      // The body lives on the descriptor, and a projection keeps only its
+      // `QueryRef` — so the explanation looks the definition back up by name.
+      // Which it can, because `Data` is bound to the domain that registered it.
+      const body = definition.registry.queries.get(ref.query)?.body
+      const [connection] = RemoteConnections.get(projection.metadata)
+      return {
+        domain: bound.contract.name,
+        query: ref.query,
+        input: Schema.encodeSync(ref.Input)(ref.input),
+        identity: ref.identity,
+        window: ref.window,
+        select: connection!.select,
+        ...(body === undefined
+          ? {}
+          : { body: Relational.show(body), dependencies: Relational.dependencies(body) }),
+        state: projection.read(model)._tag,
+      }
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),
     overlay: (model, id, optimistic) =>

@@ -304,3 +304,60 @@ describe('An interpreter can tell what it cannot run', () => {
     expect(Query.unsupported(Query.from(Post), [])).toEqual([])
   })
 })
+
+describe('show renders a query for a person to read', () => {
+  it('names a field by its Entity, and an input as a placeholder', () => {
+    expect(Expr.show(Expr.eq(Post.fields.title, Expr.input('q', Schema.String)))).toBe(
+      'Post.title = $q',
+    )
+  })
+
+  it('renders a literal as the value it is, including null', () => {
+    expect(Expr.show(Expr.eq(Post.fields.published, true))).toBe('Post.published = true')
+    expect(Expr.show(Expr.eq(Post.fields.title, 'a b'))).toBe('Post.title = "a b"')
+    expect(Expr.show(Expr.eq(Post.fields.title, null as never))).toBe('Post.title = null')
+  })
+
+  it('says which way a null test runs, since one node covers both', () => {
+    expect(Expr.show(Expr.isNull(Post.fields.title))).toBe('Post.title is null')
+    expect(Expr.show(Expr.isNotNull(Post.fields.title))).toBe('Post.title is not null')
+  })
+
+  it('names contains rather than borrowing a dialect that would mean something else', () => {
+    // `like` would be a lie: this is case-insensitive with no wildcards, which
+    // no backend's `like` is by default.
+    expect(Expr.show(Expr.contains(Post.fields.title, 'ab'))).toBe('contains(Post.title, "ab")')
+  })
+
+  it('parenthesises a predicate standing where a value is wanted', () => {
+    // Without them `Post.title is not null = $flag` reads as three operands and
+    // is two.
+    const nested = Expr.eq(Expr.isNotNull(Post.fields.title), Expr.input('flag', Schema.Boolean))
+
+    expect(Expr.show(nested)).toBe('(Post.title is not null) = $flag')
+  })
+
+  it('renders a whole query clause by clause', () => {
+    const q = Query.from(Post).pipe(
+      Query.where(Expr.eq(Post.fields.published, true)),
+      Query.where(Expr.contains(Post.fields.title, Expr.input('q', Schema.String))),
+      Query.orderBy(Order.desc(Post.fields.title), Order.asc(Post.fields.id)),
+    )
+
+    expect(Query.show(q)).toBe(
+      [
+        'FROM Post',
+        'WHERE Post.published = true',
+        '  AND contains(Post.title, $q)',
+        'ORDER BY Post.title DESC, Post.id ASC',
+      ].join('\n'),
+    )
+  })
+
+  it('omits the clauses the query does not have, rather than printing empty ones', () => {
+    expect(Query.show(Query.from(Post))).toBe('FROM Post')
+    expect(Query.show(Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.id))))).toBe(
+      'FROM Post\nORDER BY Post.id ASC',
+    )
+  })
+})

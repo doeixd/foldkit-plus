@@ -447,6 +447,26 @@ matters is that it refuses rather than skipping the operation — an interpreter
 that quietly drops a `contains` it cannot compile answers a different question
 in full confidence, and every test it does support still passes.
 
+### Reading one back
+
+`Query.show(query)` renders a body as text, one clause per line:
+
+```ts
+Query.show(body)
+// FROM Post
+// WHERE Post.slug = $slug
+//   AND Post.published = true
+// ORDER BY Post.updatedAt DESC
+```
+
+For a person — an explanation, a diagnostic, a test asserting on a whole
+predicate at once — and never for an interpreter. It is close enough to SQL to
+read at a glance and unlike it everywhere that matters: an input is `$slug`
+rather than a bound parameter, `contains` is named rather than rendered as
+somebody's `like`, and no dialect's escaping or collation is implied. What
+actually ran is whatever that backend compiled, which is not this.
+`Expr.show(node)` does the same for one expression.
+
 A `Query` says which rows. It does not say which fields — that is a Selection —
 and it does not say how many, whether absence is an error, or whether to watch
 for changes: those belong to the consumer doing the reading, not to the
@@ -486,6 +506,7 @@ from queries, not from what a database could express.
 | `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
 | `Query.dependencies(query)` | What the whole query reads: every predicate and ordering term. |
 | `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
+| `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |
 
 ## Limits
 

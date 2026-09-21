@@ -258,6 +258,9 @@ export const Expr = {
     value: toExpr(value, 'contains'),
     search: toOperand(search as never),
   }),
+
+  /** An expression as readable text; see `showExpr` for what it is and is not. */
+  show: (node: Operandish): string => showExpr(node),
 }
 
 /** One term of an ordering: a scalar and the direction to read it in. */
@@ -482,4 +485,68 @@ export const Query = {
     const runs = new Set(supported)
     return Query.dependencies(self).operations.filter(operation => !runs.has(operation))
   },
+
+  /**
+   * The whole query as readable text, one clause per line:
+   *
+   * ```text
+   * FROM Post
+   * WHERE Post.slug = $slug
+   *   AND Post.published = true
+   * ORDER BY Post.updatedAt DESC
+   * ```
+   *
+   * For an explanation or a diagnostic, never for an interpreter — see
+   * `Expr.show`. A query with no `where` or no `orderBy` omits that line rather
+   * than printing an empty one, so what is shown is what was written.
+   */
+  show: (self: AnyQuery): string =>
+    [
+      `FROM ${self.entity.name}`,
+      ...self.where.map(
+        (predicate, index) => `${index === 0 ? 'WHERE' : '  AND'} ${Expr.show(predicate)}`,
+      ),
+      ...(self.orderBy.length === 0
+        ? []
+        : [
+            `ORDER BY ${self.orderBy
+              .map(term => `${Expr.show(term.expr)} ${term.direction.toUpperCase()}`)
+              .join(', ')}`,
+          ]),
+    ].join('\n'),
 }
+
+/**
+ * An expression as readable text, in the IR's own terms.
+ *
+ * This is for a human — an explanation, a diagnostic, a test that wants to
+ * assert on a whole predicate at once — and deliberately **not** for an
+ * interpreter. It is close enough to SQL to read at a glance and unlike it
+ * everywhere that matters: an input is `$slug` rather than a bound parameter,
+ * `contains` is named rather than rendered as somebody's `like`, and no
+ * dialect's escaping or collation is implied. What actually ran is whatever
+ * that backend compiled, which is not this.
+ *
+ * A predicate standing where a value is wanted is parenthesised, because
+ * `x is not null = $archived` reads as three operands and is two. A predicate
+ * that *is* the whole expression is not: nothing encloses it.
+ */
+const showExpr = (node: AnyExpr | Predicate): string => {
+  switch (node._tag) {
+    case 'Literal':
+      return JSON.stringify(node.value) ?? String(node.value)
+    case 'Field':
+      return `${node.owner.name}.${node.key}`
+    case 'Input':
+      return `$${node.key}`
+    case 'Eq':
+      return `${showOperand(node.left)} = ${showOperand(node.right)}`
+    case 'Null':
+      return `${showOperand(node.operand)} is ${node.present ? 'not null' : 'null'}`
+    case 'Contains':
+      return `contains(${showOperand(node.value)}, ${showOperand(node.search)})`
+  }
+}
+
+const showOperand = (node: Operandish): string =>
+  isPredicate(node) ? `(${showExpr(node)})` : showExpr(node)

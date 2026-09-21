@@ -974,6 +974,7 @@ into private state:
 ```ts
 Data.inspect(model)            // serializable cache/domain summary
 Data.plan(model, projection)   // the entity plan a read would execute
+Data.explain(model, query)     // what one query read is, and currently is
 Remote.planQueries(...)        // missing/stale query work
 Remote.inspectEntity(...)      // one normalized entity
 ```
@@ -991,6 +992,44 @@ recorded Model can be replayed to, and nothing that needs the runtime to be
 asked. That is deliberate. Runtime activity is not a second source of truth
 here, and a view that rendered from it would stop being reproducible from the
 Model.
+
+### Explaining one query read
+
+A query read is assembled from more pieces than it looks like: a definition, an
+input, a connection identity that excludes the window, a window that does not,
+and a Selection that is a slice asked of the server. `Data.explain` puts them in
+one serializable value, beside what the read answers from this Model right now:
+
+```ts
+Data.explain(model, projects)
+// {
+//   domain: 'remote',
+//   query: 'ProjectsByOwner',
+//   input: { ownerId: 'u1' },
+//   identity: 'ProjectsByOwner\u0000{"ownerId":"u1"}',
+//   window: { first: 25 },
+//   select: { entity: 'Project', fields: ['id', 'name'] },
+//   body: 'FROM Project\nWHERE Project.ownerId = $ownerId\nORDER BY Project.name DESC',
+//   dependencies: { fields: [...], inputs: ['ownerId'], operations: ['eq'] },
+//   state: 'Ready',
+// }
+```
+
+`body` is the query's meaning as readable text, and it is neither SQL nor
+whatever the backend compiled — an input shows as `$ownerId` rather than a bound
+parameter, and `contains` is named rather than rendered as somebody's `like`. A
+definition made with `Query.make` has no `body`, because its meaning lives on
+the server that answers it.
+
+`state` comes from the projection's own read, so an explanation and the view
+cannot disagree about whether the data is there.
+
+Two things a panel might expect are deliberately absent. There is no **Surface**,
+because a Projection does not know which Surfaces read it and several may;
+`Data.subscriptions` is where that relation lives. There is no **executor**,
+because what answers a query is a `RemoteClient` Layer in the runtime rather
+than a value in the Model — the same purity that lets this be replayed from a
+recorded Model is what keeps it out of reach.
 
 ## Advanced: the kernel
 

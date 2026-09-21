@@ -299,6 +299,14 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
+`Data.explain(model, queryProjection)` explains one query read as a single
+serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
+the `body` as readable text with its `dependencies` (absent for a `Query.make`
+descriptor, whose meaning lives on the server), and `state` — taken from the
+projection's own read, so an explanation and the view cannot disagree. It names
+no Surface (a projection is read by however many read it) and no executor (what
+answers a query is a `RemoteClient` Layer, not a value in the Model).
+
 ## Server: `foldkit-remote-server`
 
 ```ts
