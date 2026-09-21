@@ -26,6 +26,7 @@ found one at a time:
 | [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking was not built (it is now), and §15's derivation is narrower than sketched. |
 | [§29.1](#291-devtools) | **Building the explanation deleted a concept instead of adding one.** §11's *expectation* had no consumer, and the explanation — the likeliest one there would ever be — turned out not to want it. The *executor* is a Layer and cannot be reached from a pure read, which is the price of being replayable and worth it. |
 | [§21](#21-query-driven-loading-becomes-richer-with-readcontract) | **The block was reasoning, not plumbing.** A body does reach the client planner, through the bound domain's registry. And the cheap containment check is *correct on its examples* and silently wrong elsewhere, which is why it is refused rather than written. |
+| [local-execution](./local-execution-DESIGN.md) | **The client-side query engine already exists, in the server package.** `evaluate` imports nothing but `foldkit-entity`, runs the whole kernel, and is the widest of the four interpreters. The largest capability gap in the TanStack/LiveStore comparison closes by moving a file. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
 
 Two of §11's four read-contract pieces were also never built. *Observation*
@@ -531,6 +532,11 @@ optimistic transactions
 
 Treat these as execution capabilities, not reasons to replace Foldkit Model/Message/update.
 
+> **Assessed in [local-execution-DESIGN.md](./local-execution-DESIGN.md).** Of these
+> seven, incremental view maintenance is the only one genuinely missing and
+> mostly reduces to a memo key; joins, aggregates and derived collections are
+> Phase 13, gated; optimistic transactions and query-driven loading exist.
+
 ### 4.11 LiveStore: materialization and durable local SQL
 
 LiveStore contributes:
@@ -548,7 +554,16 @@ Its event log can be the durable authority for a domain, or Foldkit Sync/Durable
 
 Not both for the same fact.
 
+> **Assessed in [local-execution-DESIGN.md](./local-execution-DESIGN.md).** Four of these
+> six are already built under other names — durable events are
+> `foldkit-durable`, materializers are the application's own `update`, and both
+> persistence rows are Sync's replica. What is missing is a durable *queryable*
+> local read model, and it is reachable through §20's mode B without adopting
+> the event log.
+
 ---
+
+## 5. Semantic layers---
 
 ## 5. Semantic layers
 
@@ -1594,6 +1609,14 @@ Do not replace Foldkit Messages with TanStack record mutation as the semantic ap
 
 ---
 
+> **Mode B is the recommendation** — see
+> [local-execution-DESIGN.md](./local-execution-DESIGN.md). Mode A trades away
+> `foldkit-durable`'s guarantees (stable semantic operation identity,
+> server-assigned canonical order, explicit rejection, snapshot + cursor) for
+> capabilities mode B provides anyway. A cheaper first step than either is a
+> retained connection subset, which gets much of the offline feel with no second
+> authority.
+
 ## 20. LiveStore should be an interpreter with explicit ownership
 
 Read path:
@@ -1645,6 +1668,13 @@ queryable local read model
 Never use both logs as co-authorities for the same fact.
 
 ---
+
+> **The cheap half is available, and it is not containment.** See
+> [local-execution-DESIGN.md](./local-execution-DESIGN.md): "does this row satisfy
+> this body" is decidable by *evaluation* and exact; "are these rows a subset of
+> those rows" is the research problem this section keeps running into. The
+> first was always the one worth having, and the evaluator for it already
+> exists.
 
 ## 21. Query-driven loading becomes richer with ReadContract
 
@@ -2617,6 +2647,11 @@ page action contract
 Therefore a new `Page` or `RouteContract` primitive is not justified yet.
 
 First improve composition between Router and Surface.
+
+> **Now evidenced, and scheduled.** `Data.explain` cannot report §29.1's first
+> line — the Surface — because a Projection does not know which Surfaces read
+> it. This helper is what supplies it; see
+> [local-execution-DESIGN.md](./local-execution-DESIGN.md), Phase 5.
 
 ### 31.10 Route activation could become more inspectable
 
