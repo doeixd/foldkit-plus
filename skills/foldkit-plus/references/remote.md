@@ -98,7 +98,8 @@ const label = (data: RemoteData<{ readonly name: string }>) =>
 // For a view, the three-way fold that keeps useful data on screen:
 // Initial/Loading -> loading; Ready/Refreshing -> data; Failed carrying a
 // previous value -> data (freshness `Stale`, with the error); only a Failed
-// with nothing to show -> failed. `freshness` is `Fresh | Refreshing | Stale`.
+// with nothing to show -> failed. `freshness` is a `Freshness` (exported):
+// `Fresh | Refreshing | Stale`, the last carrying the error that left it behind.
 const drawn = (data: RemoteData<{ readonly name: string }>) =>
   RemoteData.render(data, {
     loading: () => 'skeleton', notFound: () => 'gone',

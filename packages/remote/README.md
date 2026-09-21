@@ -399,9 +399,10 @@ a `Failed` that still carries the value it had reaches `data` too, so a read
 that failed does not throw away what the reader was already looking at. Only a
 `Failed` with nothing to show reaches `failed`.
 
-The `data` branch is told which it got:
+The `data` branch is told which it got, as a `Freshness` — exported, so a view
+helper that takes one can name it:
 
-| `freshness` | What it means |
+| `Freshness` | What it means |
 | --- | --- |
 | `Fresh` | This is the current answer. |
 | `Refreshing` | A newer answer is on its way; this one is still good. |
