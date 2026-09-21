@@ -251,3 +251,27 @@ describe('Query.define declares a query by what it means', () => {
     ])
   })
 })
+
+describe('Query.define refuses an input it cannot stand for', () => {
+  const Post = DomainEntity.define(
+    'Post',
+    Schema.Struct({ id: Schema.String, slug: Schema.String }),
+  )
+
+  it('throws when the Input schema has no fields to make placeholders from', () => {
+    const Branded = Schema.Struct({ slug: Schema.String }).pipe(Schema.brand('In'))
+
+    expect(() => Query.define('Branded', Branded as never, () => Query.from(Post))).toThrow(
+      '[foldkit-remote] Query.define: the Input of "Branded" is not a Schema.Struct, so its body has no inputs to read',
+    )
+  })
+
+  it('takes an Input with no fields, which stands for nothing and says so', () => {
+    const All = Query.define('AllPosts', {}, ({ input }) => {
+      expect(input).toEqual({})
+      return Query.from(Post)
+    })
+
+    expect(All.body).toBeDefined()
+  })
+})

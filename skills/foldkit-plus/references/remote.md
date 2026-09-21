@@ -183,7 +183,9 @@ case 'ClickedRefresh': {
   addressable `fields`; this package's `Entity.make` has none to point at.
   `Query.make` stays for queries whose meaning lives on the server, and such a
   descriptor has no `body`. The body is built **once**: `input.x` is a
-  placeholder, so never `input.x ? a : b`.
+  placeholder, so never `input.x ? a : b`. `Input` must be fields or a plain
+  `Schema.Struct` — a codec exposing no keys throws at declaration rather than
+  handing the body an empty object.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
 - `Data.confirmed(projection)` is the same projection read over the

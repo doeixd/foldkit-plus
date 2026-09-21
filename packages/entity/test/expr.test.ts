@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Expr, Order, Query, dependenciesOf, type Predicate } from '../src/index.js'
+import { Entity, Expr, Order, Query, dependenciesOf, type Predicate } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post } = Blog
@@ -212,5 +212,33 @@ describe('Query composes which rows, as data', () => {
     expect(Query.is(Query.from(Post))).toBe(true)
     expect(Query.is(published)).toBe(false)
     expect(Query.is(undefined)).toBe(false)
+  })
+})
+
+describe('Query refuses what it could not answer', () => {
+  const Comment = Blog.Comment
+
+  it('refuses a predicate over an Entity it is not from', () => {
+    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Comment.fields.body, 'x')))).toThrow(
+      '[foldkit-entity] Query.where: a predicate reads Comment.body, but the query is from Post',
+    )
+  })
+
+  it('refuses an ordering over an Entity it is not from', () => {
+    expect(() => Query.from(Post).pipe(Query.orderBy(Order.asc(Comment.fields.id)))).toThrow(
+      '[foldkit-entity] Query.orderBy: a term reads Comment.id, but the query is from Post',
+    )
+  })
+
+  it('refuses another Entity of the same name, which is not the same Entity', () => {
+    const Other = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+
+    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Other.fields.title, 'x')))).toThrow(
+      'but the query is from Post',
+    )
+  })
+
+  it('takes a predicate with no field at all', () => {
+    expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Expr.literal(1), 1)))).not.toThrow()
   })
 })

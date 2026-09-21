@@ -19,14 +19,19 @@ version changed; `pnpm` skips versions already in the registry.
   depends on what was passed is a comparison over the placeholder. A body needs
   a `foldkit-entity` Entity (`Entity.define`), which is what has addressable
   `fields`; this package's own `Entity.make` describes a field as the schema of
-  its value and has nothing to point at.
+  its value and has nothing to point at. `Input` must be fields or a plain
+  `Schema.Struct`: a codec exposing no keys is refused at declaration rather
+  than handing the body an empty object, which would compare a column to
+  nothing while every type agreed.
 
 - **`foldkit-entity`: `Query`, which rows a query is about.** An Entity to
   read, the predicates every row must hold, and the order to read them in,
   composed with `pipe`: `Query.from(Post).pipe(published, newest)`. Each step is
   a new frozen value and performs no work. **Two `where`s conjoin and two
   `orderBy`s append** — neither replaces, so piping a fragment can only narrow a
-  query, and `Query.unfiltered` / `Query.unordered` are the only ways back. The
+  query, and `Query.unfiltered` / `Query.unordered` are the only ways back. A
+  predicate or ordering term over a different Entity than `Query.from` is
+  refused where it is piped, by identity rather than by name. The
   list of predicates *is* the conjunction, which is why there is still no
   `Expr.and`: three conditions are three `where`s. `foldkit-remote` spreads
   these into its own `Query`, so `Query.make` and `Query.from` come from one

@@ -238,6 +238,45 @@ export interface Query<E extends AnyEntity> extends Pipeable.Pipeable {
 /** A `Query` over any Entity, for the places that hold one without caring which. */
 export type AnyQuery = Query<AnyEntity>
 
+/** Every field an expression reads, as the nodes themselves. */
+const fieldsIn = function* (node: AnyExpr | Predicate): Generator<FieldExpr<unknown>> {
+  switch (node._tag) {
+    case 'Field':
+      yield node
+      return
+    case 'Literal':
+    case 'Input':
+      return
+    case 'Eq':
+      yield* fieldsIn(node.left)
+      yield* fieldsIn(node.right)
+      return
+  }
+}
+
+/**
+ * A query reads one Entity, so a predicate or ordering term naming a different
+ * one cannot be answered — an interpreter would be asked for a column of a
+ * table it was never told to read. Compared by identity, not by name, because
+ * two Entities defined with the same name are two Entities.
+ */
+const checkOwnership = (
+  step: string,
+  what: string,
+  entity: AnyEntity,
+  nodes: ReadonlyArray<AnyExpr | Predicate | OrderTerm>,
+): void => {
+  for (const node of nodes) {
+    for (const field of fieldsIn('direction' in node ? node.expr : node)) {
+      if (field.owner.token !== entity.identity.token) {
+        throw new Error(
+          `[foldkit-entity] Query.${step}: ${what} reads ${field.owner.name}.${field.key}, but the query is from ${entity.name}`,
+        )
+      }
+    }
+  }
+}
+
 const QueryProto = {
   _tag: 'Query' as const,
   pipe() {
@@ -274,10 +313,11 @@ export const Query = {
    */
   where:
     (...predicates: ReadonlyArray<Predicate>) =>
-    <E extends AnyEntity>(self: Query<E>): Query<E> =>
-      predicates.length === 0
-        ? self
-        : query(self.entity, [...self.where, ...predicates], self.orderBy),
+    <E extends AnyEntity>(self: Query<E>): Query<E> => {
+      if (predicates.length === 0) return self
+      checkOwnership('where', 'a predicate', self.entity, predicates)
+      return query(self.entity, [...self.where, ...predicates], self.orderBy)
+    },
 
   /**
    * Reads the rows in this order. Two `orderBy`s append, so an earlier term
@@ -286,8 +326,11 @@ export const Query = {
    */
   orderBy:
     (...terms: ReadonlyArray<OrderTerm>) =>
-    <E extends AnyEntity>(self: Query<E>): Query<E> =>
-      terms.length === 0 ? self : query(self.entity, self.where, [...self.orderBy, ...terms]),
+    <E extends AnyEntity>(self: Query<E>): Query<E> => {
+      if (terms.length === 0) return self
+      checkOwnership('orderBy', 'a term', self.entity, terms)
+      return query(self.entity, self.where, [...self.orderBy, ...terms])
+    },
 
   /**
    * The query with no predicates, keeping its order. The explicit way to drop

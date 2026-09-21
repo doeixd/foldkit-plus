@@ -103,12 +103,24 @@ const isEntityName = (result: unknown): result is { readonly name: string } =>
  */
 /**
  * One placeholder per key of the input's schema, each carrying that key's own
- * codec so a comparison against it is checked. A codec that is not a Struct has
- * no keys to stand for, and a body over it reads no inputs.
+ * codec so a comparison against it is checked.
+ *
+ * A codec that is not a `Schema.Struct` exposes no keys to stand for, while its
+ * *type* may well have them — so the body would be handed an empty object,
+ * `input.slug` would be `undefined`, and the comparison would silently be
+ * against nothing while the types all agreed. That is a wrong query rather than
+ * a missing one, so it is refused where the query is declared.
  */
-const inputsOf = (schema: Schema.Codec<unknown>): Record<string, InputExpr<unknown>> => {
+const inputsOf = (
+  name: string,
+  schema: Schema.Codec<unknown>,
+): Record<string, InputExpr<unknown>> => {
   const fields = (schema as { readonly fields?: Schema.Struct.Fields }).fields
-  if (fields === undefined) return {}
+  if (fields === undefined) {
+    throw new Error(
+      `[foldkit-remote] Query.define: the Input of "${name}" is not a Schema.Struct, so its body has no inputs to read. Declare it as fields (\`{ slug: Schema.String }\`) or a plain \`Schema.Struct\`.`,
+    )
+  }
   const inputs: Record<string, InputExpr<unknown>> = {}
   for (const key of Object.keys(fields)) {
     inputs[key] = Expr.input(key, fields[key] as unknown as Schema.Codec<unknown, unknown>)
@@ -190,7 +202,7 @@ export const Query = {
     options?: { readonly edgeKey?: Schema.Schema<unknown>; readonly live?: LivePolicy },
   ): QueryDescriptor<Name, TypeOf<Input>, ConnectionSpec<E['name']>> => {
     const schema = schemaOf(Input)
-    const built = body({ input: inputsOf(schema) as QueryInputs<TypeOf<Input>> })
+    const built = body({ input: inputsOf(name, schema) as QueryInputs<TypeOf<Input>> })
     const descriptor = Query.make(name, {
       Input,
       Result: Query.connection(built.entity, options) as ConnectionSpec<E['name']>,

@@ -661,6 +661,11 @@ is a placeholder for the value the query will be given, not the value — there 
 nothing there yet to branch on. A condition that depends on what was passed is a
 comparison over the placeholder, never a `?:` around it.
 
+`Input` must be fields or a plain `Schema.Struct`, because that is what the
+placeholders are made from. A codec that exposes no keys is refused where the
+query is declared rather than handing the body an empty object, which would
+compare a column to nothing while every type agreed.
+
 Then a query is still just a Projection:
 
 ```ts

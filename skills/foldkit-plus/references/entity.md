@@ -238,6 +238,8 @@ Query.dependencies(recent)     // every predicate and ordering term at once
   conjunction nested inside something else.
 - A `Query` says which rows. Which fields is a Selection; how many, whether
   absence is an error, and whether to watch for changes belong to the consumer.
+- A predicate or ordering term over a **different Entity** than `Query.from` is
+  refused where it is piped (by identity, so same-named Entities still differ).
 - `foldkit-remote` re-exports these on its own `Query`, so `Query.make` and
   `Query.from` come from one import.
 

@@ -387,6 +387,11 @@ exists. A query wanting three conditions writes three `where`s. An `and`
 operator is only needed for a conjunction nested inside something else, and no
 query here has one yet.
 
+A query reads one Entity, so a predicate or ordering term naming a different
+one is refused where it is piped: an interpreter would otherwise be asked for a
+column of a table it was never told to read. Entities are compared by identity,
+so two declared with the same name are two Entities here as everywhere else.
+
 A `Query` says which rows. It does not say which fields — that is a Selection —
 and it does not say how many, whether absence is an error, or whether to watch
 for changes: those belong to the consumer doing the reading, not to the
