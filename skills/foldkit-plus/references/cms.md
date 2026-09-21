@@ -167,6 +167,13 @@ RemoteServer.make({
   on the connection. Wrap your own writes on that connection in it too.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`
   brings it back unpublished.
+- The worklist (`CmsEntries`, input `{ type, search, archived }`) is declared
+  with `Query.define` too, so its three questions and its order live on the
+  descriptor and `foldkit-cms-drizzle` registers it as
+  `query(descriptor, { entity })`. Archived-or-not is asked as
+  `eq(isNotNull(archivedAt), input.archived)` and the search as
+  `contains(label, input.search)` — no branch on an input, since a body is built
+  once. An empty search is everything because `label` is not nullable.
 - A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to
   `cms.queries`; a visitor finds only published rows. It is declared with
   `Query.define`, so it carries its body (`eq(slug field, input.slug)`, ordered by

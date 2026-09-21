@@ -14,7 +14,8 @@
  * `null = null` is unknown in SQL and a row is not matched by it, where
  * JavaScript would happily call the two equal.
  */
-import type { AnyExpr, AnyQuery, OrderTerm, Predicate } from 'foldkit-entity'
+import { isPredicate } from 'foldkit-entity'
+import type { AnyExpr, AnyQuery, Operandish, OrderTerm, Predicate } from 'foldkit-entity'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -42,17 +43,42 @@ type Truth = boolean | 'unknown'
 
 const isNull = (value: unknown): boolean => value === null || value === undefined
 
+/** A predicate used as a value is its own truth; anything else is its value. */
+const sideOf = (node: Operandish, row: Row, input: Row): unknown =>
+  isPredicate(node) ? truthValue(holds(node, row, input)) : valueOf(node, row, input)
+
+/**
+ * A predicate compared as a value. SQL's unknown is null there too, so an
+ * unknown compared to anything stays unknown rather than becoming false.
+ */
+const truthValue = (truth: Truth): unknown => (truth === 'unknown' ? null : truth)
+
 const holds = (node: Predicate, row: Row, input: Row): Truth => {
   switch (node._tag) {
     case 'Eq': {
-      const left = valueOf(node.left, row, input)
-      const right = valueOf(node.right, row, input)
+      const left = sideOf(node.left, row, input)
+      const right = sideOf(node.right, row, input)
       // `null = anything` is unknown in SQL, including `null = null`. A row is
       // kept only when a comparison is true, so an unknown drops it either way;
       // saying so explicitly is what keeps this honest about three-valued logic
       // rather than accidentally right about it.
       if (isNull(left) || isNull(right)) return 'unknown'
       return left === right
+    }
+    case 'Null':
+      // The one comparison that is never unknown: asking whether a value is
+      // absent always has an answer.
+      return isNull(valueOf(node.operand, row, input)) !== node.present
+    case 'Contains': {
+      const value = valueOf(node.value, row, input)
+      const search = sideOf(node.search, row, input)
+      // `null like anything` is unknown, which is why an empty search is not
+      // the same as no filter over a column that can be null.
+      if (isNull(value) || isNull(search)) return 'unknown'
+      if (typeof value !== 'string' || typeof search !== 'string') {
+        throw new QueryEvaluateError('a containment test was given something that is not text')
+      }
+      return value.includes(search)
     }
   }
 }

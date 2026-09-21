@@ -217,8 +217,21 @@ An interpreter compiles it (`foldkit-remote-drizzle` to SQL, an in-memory
 evaluator to a row predicate). `Expr.eq` coerces a field or a plain value on
 either side; a field compared to the wrong type is an error where it is written.
 
-Only `eq` and the two `Order` directions exist so far. The operator set grows
-from real queries, not from what SQL can express.
+`Expr.isNull` / `Expr.isNotNull` (one node, the answer to absence flipped) and
+`Expr.contains` exist too. The operator set grows from real queries, not from
+what SQL can express — there is still no `and` (a `Query` holds a list of
+predicates, which *is* the conjunction) and no `or`.
+
+**Asking about an input without branching on it.** An input is a placeholder, so
+a query cannot pick a shape from a value. It does not need to:
+
+```ts
+Expr.eq(Expr.isNotNull(Entry.fields.archivedAt), input.archived)  // archived ? … : …
+Expr.contains(Entry.fields.label, input.search)                   // search === '' ? … : …
+```
+
+`contains` over a **nullable** column is not the same as no filter: a null
+contains nothing, not even the empty string, so its rows drop out.
 
 ### Which rows: `Query`
 

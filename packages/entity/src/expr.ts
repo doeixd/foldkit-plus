@@ -57,25 +57,57 @@ export type AnyExpr = Expr<unknown>
  * then be confused, which a structural phantom would allow. A scalar-valued
  * operation, if one is ever needed, joins `Expr` instead.
  */
-export type Predicate = EqPredicate
+export type Predicate = EqPredicate | NullPredicate | ContainsPredicate
 
-/** Two scalars are the same value. */
+/** Two values are the same. */
 export interface EqPredicate {
   readonly _tag: 'Eq'
-  readonly left: AnyExpr
-  readonly right: AnyExpr
+  readonly left: Operandish
+  readonly right: Operandish
 }
 
-/** A field, or a scalar already built from one. */
-type Operand<T> = EntityField<string, string, Schema.Constraint> | Expr<T>
+/**
+ * Whether a value is absent. `present` says which answer absence gives, so one
+ * node covers `is null` and `is not null` rather than two that differ by a
+ * negation nothing else can express.
+ */
+export interface NullPredicate {
+  readonly _tag: 'Null'
+  readonly operand: AnyExpr
+  readonly present: boolean
+}
 
-/** What a field or scalar is worth, so a comparison's other side is checked against it. */
+/**
+ * Whether a text value contains another. Containing the empty string is
+ * everything, which is what lets a search box with nothing typed in it be the
+ * same query as one with something — see `Expr.contains`.
+ */
+export interface ContainsPredicate {
+  readonly _tag: 'Contains'
+  readonly value: AnyExpr
+  readonly search: Operandish
+}
+
+/**
+ * Anything an operation can be given: a scalar, or a predicate where a boolean
+ * is wanted. `Expr.eq(Expr.isNotNull(archivedAt), input.archived)` is the
+ * second case, and it is how a query depends on an input without branching on
+ * it.
+ */
+export type Operandish = AnyExpr | Predicate
+
+/** A field, a scalar already built from one, or a predicate used as a boolean. */
+type Operand<T> = EntityField<string, string, Schema.Constraint> | Expr<T> | Predicate
+
+/** What an operand is worth, so a comparison's other side is checked against it. */
 export type ValueOf<E> =
   E extends EntityField<string, string, infer S>
     ? Schema.Schema.Type<S>
-    : E extends Expr<infer T>
-      ? T
-      : never
+    : E extends Predicate
+      ? boolean
+      : E extends Expr<infer T>
+        ? T
+        : never
 
 const tagOf = (value: unknown): unknown =>
   typeof value === 'object' && value !== null
@@ -95,17 +127,36 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
   schema: field.schema as unknown as Schema.Codec<unknown, unknown>,
 })
 
+const predicateTags = new Set(['Eq', 'Null', 'Contains'])
+
+/** Whether a value is a predicate, and so usable where a boolean is wanted. */
+export const isPredicate = (value: unknown): value is Predicate =>
+  predicateTags.has(tagOf(value) as string)
+
 /**
- * A field of either kind becomes a `FieldExpr`, a scalar is itself, and
- * anything else is the constant it is.
+ * A field of either kind becomes a `FieldExpr`, a scalar or a predicate is
+ * itself, and anything else is the constant it is.
  */
-const toExpr = <T>(value: Operand<T> | T): Expr<T> => {
+const toOperand = <T>(value: Operand<T> | T): Operandish => {
   const tag = tagOf(value)
   if (tag === 'Field') {
-    return fieldExpr(value as EntityField<string, string, Schema.Constraint>) as Expr<T>
+    return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
   }
-  if (tag === 'Literal' || tag === 'Input') return value as Expr<T>
-  return { _tag: 'Literal', value: value as T }
+  if (tag === 'Literal' || tag === 'Input' || predicateTags.has(tag as string)) {
+    return value as Operandish
+  }
+  return { _tag: 'Literal', value }
+}
+
+/** As `toOperand`, where only a scalar makes sense: `is null` of a predicate is not a question. */
+const toExpr = <T>(value: Operand<T> | T, step: string): AnyExpr => {
+  const operand = toOperand(value)
+  if (isPredicate(operand)) {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: a predicate is already an answer, so asking this of one is not a question`,
+    )
+  }
+  return operand
 }
 
 /** Which fields and inputs an expression reads, and which operations it uses. */
@@ -146,10 +197,51 @@ export const Expr = {
    * Expr.eq(Post.fields.status, 'active')
    * ```
    */
-  eq: <L extends Operand<any>>(left: L, right: ValueOf<L> | Expr<ValueOf<L>>): EqPredicate => ({
+  eq: <L extends Operand<any>>(
+    left: L,
+    right: ValueOf<L> | Expr<ValueOf<L>> | (boolean extends ValueOf<L> ? Predicate : never),
+  ): EqPredicate => ({
     _tag: 'Eq',
-    left: toExpr(left) as AnyExpr,
-    right: toExpr(right as never) as AnyExpr,
+    left: toOperand(left),
+    right: toOperand(right as never),
+  }),
+
+  /**
+   * Whether a field holds no value. Its opposite is `isNotNull`; both are the
+   * one node, because a query asks which of the two it means and nothing here
+   * can negate a predicate.
+   */
+  isNull: <L extends Operand<any>>(operand: L): NullPredicate => ({
+    _tag: 'Null',
+    operand: toExpr(operand, 'isNull'),
+    present: false,
+  }),
+
+  /** Whether a field holds a value. */
+  isNotNull: <L extends Operand<any>>(operand: L): NullPredicate => ({
+    _tag: 'Null',
+    operand: toExpr(operand, 'isNotNull'),
+    present: true,
+  }),
+
+  /**
+   * Whether a text value contains `search`, anywhere in it. Containing the
+   * empty string is everything, so a search box with nothing typed in it is the
+   * same query as one with something — no branch, and no second query.
+   *
+   * **Over a column that can be null this is not the same as no filter.** A
+   * null contains nothing, not even the empty string, so its rows drop out. A
+   * nullable column that should match everything on an empty search says so:
+   * `Expr.or` does not exist yet, so for now such a column needs its own
+   * predicate or a native escape hatch.
+   */
+  contains: <L extends Operand<any>>(
+    value: L,
+    search: string | Expr<string>,
+  ): ContainsPredicate => ({
+    _tag: 'Contains',
+    value: toExpr(value, 'contains'),
+    search: toOperand(search as never),
   }),
 }
 
@@ -162,11 +254,11 @@ export interface OrderTerm {
 export const Order = {
   asc: <E extends Operand<any>>(expr: E): OrderTerm => ({
     direction: 'asc',
-    expr: toExpr(expr as never) as AnyExpr,
+    expr: toExpr(expr as never, 'asc'),
   }),
   desc: <E extends Operand<any>>(expr: E): OrderTerm => ({
     direction: 'desc',
-    expr: toExpr(expr as never) as AnyExpr,
+    expr: toExpr(expr as never, 'desc'),
   }),
 }
 
@@ -189,6 +281,15 @@ const walk = (
       operations.add('eq')
       walk(node.left, fields, inputs, operations)
       walk(node.right, fields, inputs, operations)
+      return
+    case 'Null':
+      operations.add(node.present ? 'isNotNull' : 'isNull')
+      walk(node.operand, fields, inputs, operations)
+      return
+    case 'Contains':
+      operations.add('contains')
+      walk(node.value, fields, inputs, operations)
+      walk(node.search, fields, inputs, operations)
       return
   }
 }
@@ -250,6 +351,13 @@ const fieldsIn = function* (node: AnyExpr | Predicate): Generator<FieldExpr<unkn
     case 'Eq':
       yield* fieldsIn(node.left)
       yield* fieldsIn(node.right)
+      return
+    case 'Null':
+      yield* fieldsIn(node.operand)
+      return
+    case 'Contains':
+      yield* fieldsIn(node.value)
+      yield* fieldsIn(node.search)
       return
   }
 }

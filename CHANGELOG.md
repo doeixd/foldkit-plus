@@ -7,6 +7,27 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+- **`foldkit-entity`: `Expr.isNull` / `Expr.isNotNull` / `Expr.contains`, and a
+  predicate may stand where a boolean is wanted.** The three operations the CMS
+  worklist needs, and no more. `isNull` and `isNotNull` are one node with the
+  answer absence gives flipped, so nothing has to negate a predicate.
+  `Expr.eq(Expr.isNotNull(field), input.flag)` is how a query depends on an
+  input without branching on it — a body is built once, so there is nothing to
+  branch on. `contains` treats the empty string as everything, which makes an
+  empty search box the same query as a full one; over a **nullable** column that
+  is not the same as no filter, because a null contains nothing.
+- **`foldkit-cms`: the worklist is declared by what it means.** `CmsEntries`
+  carries all three of its questions and its order, so `foldkit-cms-drizzle`
+  registers it as `query(descriptor, { entity })` and the `and(eq, ternary,
+  ternary)` written in Drizzle's dialect is gone. Same rows, same escaping of
+  `%` and `_`, same audience boundary — the boundary is conjoined with the body
+  by `visible`, as for every other source.
+- **`foldkit-remote-drizzle`: a predicate compared to a boolean is resolved at
+  request time**, into that predicate or its negation, rather than sent to the
+  database as a boolean parameter — which dialects disagree about, and which
+  SQLite refuses outright. The SQL is then exactly what a hand-written
+  `archived ? isNotNull : isNull` produced.
+
 - **`foldkit-remote-server`: `evaluate`, the reference interpreter.** Runs a
   query body over rows already in memory — pure, reading the rows it is given and
   nothing else. It is what makes a body source-neutral in fact rather than in

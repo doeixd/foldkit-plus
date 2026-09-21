@@ -8,7 +8,8 @@
  * these say which.
  */
 import { Schema } from 'effect'
-import { Entity, Expr, Order, Query } from 'foldkit-entity'
+import { Entity, Expr, Order, Query, isPredicate } from 'foldkit-entity'
+import type { Operandish, Predicate } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import { QueryEvaluateError, evaluate, type Row } from '../src/index.js'
@@ -56,18 +57,32 @@ const column: Readonly<Record<string, string>> = {
 /** The body as SQL, written the way `foldkit-remote-drizzle` compiles one. */
 const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
   const params: unknown[] = []
-  const where = body.where.map(node => {
-    if (node._tag !== 'Eq') throw new Error('unsupported')
-    const side = (operand: (typeof node)['left']): string => {
-      if (operand._tag === 'Field') return `"${column[operand.key]}"`
-      params.push(operand._tag === 'Input' ? input[operand.key] : operand.value)
-      return '?'
+  const escapeLike = (value: string) => value.replace(/[\\%_]/g, found => `\\${found}`)
+  const side = (operand: Operandish): string => {
+    if (isPredicate(operand)) return `(${predicate(operand)})`
+    if (operand._tag === 'Field') return `"${column[operand.key]}"`
+    params.push(operand._tag === 'Input' ? input[operand.key] : operand.value)
+    return '?'
+  }
+  const predicate = (node: Predicate): string => {
+    switch (node._tag) {
+      case 'Eq':
+        // Column first, as the compiler normalises it.
+        return isPredicate(node.left) || node.left._tag === 'Field'
+          ? `${side(node.left)} = ${side(node.right)}`
+          : `${side(node.right)} = ${side(node.left)}`
+      case 'Null':
+        return `${side(node.operand)} is ${node.present ? 'not null' : 'null'}`
+      case 'Contains': {
+        const search = node.search
+        if (search._tag !== 'Input' && search._tag !== 'Literal') throw new Error('unsupported')
+        const text = search._tag === 'Input' ? input[search.key] : search.value
+        params.push(`%${escapeLike(text as string)}%`)
+        return `${side(node.value)} like ? escape '\\'`
+      }
     }
-    // Column first, as the compiler normalises it.
-    return node.left._tag === 'Field'
-      ? `${side(node.left)} = ${side(node.right)}`
-      : `${side(node.right)} = ${side(node.left)}`
-  })
+  }
+  const where = body.where.map(predicate)
   const order = body.orderBy.map(term => {
     if (term.expr._tag !== 'Field') throw new Error('unsupported')
     return `"${column[term.expr.key]}" ${term.direction}`
@@ -86,7 +101,7 @@ const bothWays = (body: ReturnType<typeof Query.from>, input: Row = {}) => {
   const db = database()
   const inSql = db
     .prepare(sql)
-    .all(...(params as never[]))
+    .all(...(params.map(p => (typeof p === 'boolean' ? Number(p) : p)) as never[]))
     .map(row => (row as Row).id)
   return { inMemory, inSql, sql }
 }
@@ -154,6 +169,63 @@ describe('One body, two interpreters, the same rows', () => {
     const { inMemory, inSql } = bothWays(body(), input)
 
     expect(inMemory).toEqual(inSql)
+  })
+
+  it.each([
+    { what: 'is not null', present: true },
+    { what: 'is null', present: false },
+  ])('agrees on $what', ({ present }) => {
+    const body = Query.from(Post).pipe(
+      Query.where(
+        present ? Expr.isNotNull(Post.fields.archivedAt) : Expr.isNull(Post.fields.archivedAt),
+      ),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    )
+
+    const { inMemory, inSql } = bothWays(body)
+
+    expect(inMemory).toEqual(inSql)
+    expect(inSql).toEqual(present ? ['b'] : ['a', 'c', 'd'])
+  })
+
+  it.each([
+    { search: 'intr', ids: ['a', 'b'] },
+    { search: '', ids: ['a', 'b', 'c', 'd'] },
+    { search: 'nothing', ids: [] },
+    { search: '%', ids: [] },
+    { search: '_', ids: [] },
+  ])('agrees on containing $search', ({ search, ids }) => {
+    const body = Query.from(Post).pipe(
+      Query.where(Expr.contains(Post.fields.slug, Expr.input('q', Schema.String))),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    )
+
+    const { inMemory, inSql } = bothWays(body, { q: search })
+
+    expect(inMemory).toEqual(inSql)
+    // An empty search is everything; `%` and `_` are searched for literally,
+    // not as the wildcards SQL would otherwise read them as.
+    expect(inSql).toEqual(ids)
+  })
+
+  it('agrees on the CMS worklist, asked without a branch', () => {
+    // `archived ? isNotNull : isNull` and `search === '' ? skip : like`, as one
+    // static body: is-archived equals what you asked, and the slug contains
+    // what you asked.
+    const body = Query.from(Post).pipe(
+      Query.where(
+        Expr.eq(Expr.isNotNull(Post.fields.archivedAt), Expr.input('archived', Schema.Boolean)),
+        Expr.contains(Post.fields.slug, Expr.input('search', Schema.String)),
+      ),
+      Query.orderBy(Order.asc(Post.fields.id)),
+    )
+
+    for (const archived of [true, false]) {
+      for (const search of ['', 'intro', 'zzz']) {
+        const { inMemory, inSql } = bothWays(body, { archived, search })
+        expect({ archived, search, rows: inMemory }).toEqual({ archived, search, rows: inSql })
+      }
+    }
   })
 
   it('agrees that a null never equals anything, including another null', () => {

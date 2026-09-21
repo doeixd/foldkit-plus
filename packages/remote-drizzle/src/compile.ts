@@ -12,9 +12,16 @@
  * a hand-written one is: a query body is the application's question, never its
  * authorization.
  */
-import { eq, type AnyColumn, type SQL } from 'drizzle-orm'
-import { Query } from 'foldkit-entity'
-import type { AnyExpr, AnyQuery, OrderTerm as ExprOrderTerm, Predicate } from 'foldkit-entity'
+import { eq, isNotNull, isNull, not, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import { Query, isPredicate } from 'foldkit-entity'
+import type {
+  AnyExpr,
+  AnyQuery,
+  EqPredicate,
+  OrderTerm as ExprOrderTerm,
+  Operandish,
+  Predicate,
+} from 'foldkit-entity'
 import type { OrderTerm } from './cursor.js'
 
 /** What a binding has to offer to be compiled against: a column per field key. */
@@ -60,6 +67,47 @@ const operand = (
   }
 }
 
+/** A predicate used as a value: `(archived_at is not null) = ?` compares one. */
+const side = (
+  node: Operandish,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): AnyColumn | SQL | unknown =>
+  isPredicate(node) ? predicate(node, target, input, query) : operand(node, target, input, query)
+
+/** `%` and `_` are wildcards, so text searched for has to say it means them literally. */
+const escapeLike = (value: string): string => value.replace(/[\\%_]/g, found => `\\${found}`)
+
+/**
+ * `eq(somePredicate, aBoolean)` asked directly: the predicate when the boolean
+ * is true, and its negation when false. `undefined` when this comparison is not
+ * of that shape, which leaves it to ordinary equality.
+ *
+ * A `Null` negates by flipping which answer absence gives, so the SQL stays
+ * `is null` / `is not null` rather than `not (… is not null)`.
+ */
+const truthComparison = (
+  node: EqPredicate,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL | undefined => {
+  const [asked, against] = isPredicate(node.left)
+    ? [node.left, node.right]
+    : isPredicate(node.right)
+      ? [node.right, node.left]
+      : [undefined, undefined]
+  if (asked === undefined || against === undefined || isPredicate(against)) return undefined
+  const value = operand(against, target, input, query)
+  if (typeof value !== 'boolean') return undefined
+  if (value) return predicate(asked, target, input, query)
+  if (asked._tag === 'Null') {
+    return predicate({ ...asked, present: !asked.present }, target, input, query)
+  }
+  return not(predicate(asked, target, input, query))
+}
+
 const predicate = (
   node: Predicate,
   target: CompileTarget,
@@ -68,13 +116,34 @@ const predicate = (
 ): SQL => {
   switch (node._tag) {
     case 'Eq': {
-      const left = operand(node.left, target, input, query)
-      const right = operand(node.right, target, input, query)
-      // Drizzle's `eq` wants the column on the left; a body may compare either
-      // way round, and equality does not care.
-      return node.left._tag === 'Field'
+      // A predicate compared to a boolean is that predicate, or its negation.
+      // The value is known here — this runs per request, with the input in
+      // hand — so it is settled now rather than sent to the database as a
+      // boolean parameter, which dialects disagree about even having. The SQL
+      // is then exactly what a hand-written `archived ? isNotNull : isNull`
+      // produced, which is the point.
+      const asked = truthComparison(node, target, input, query)
+      if (asked !== undefined) return asked
+      const left = side(node.left, target, input, query)
+      const right = side(node.right, target, input, query)
+      // Drizzle's `eq` wants a column or expression on the left; a body may
+      // compare either way round, and equality does not care. Normalising keeps
+      // the generated SQL the shape a binding would have been written in.
+      return isPredicate(node.left) || node.left._tag === 'Field'
         ? eq(left as AnyColumn, right)
         : eq(right as AnyColumn, left)
+    }
+    case 'Null': {
+      const column = operand(node.operand, target, input, query) as AnyColumn
+      return node.present ? isNotNull(column) : isNull(column)
+    }
+    case 'Contains': {
+      const column = operand(node.value, target, input, query) as AnyColumn
+      const search = side(node.search, target, input, query)
+      if (typeof search !== 'string') {
+        throw new QueryCompileError(`query "${query}" searches for something that is not text`)
+      }
+      return sql`${column} like ${`%${escapeLike(search)}%`} escape '\\'`
     }
   }
 }

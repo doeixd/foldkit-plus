@@ -242,3 +242,64 @@ describe('Query refuses what it could not answer', () => {
     expect(() => Query.from(Post).pipe(Query.where(Expr.eq(Expr.literal(1), 1)))).not.toThrow()
   })
 })
+
+describe('The operations the CMS worklist needs', () => {
+  it('asks whether a value is absent, either way round, as one node', () => {
+    expect(Expr.isNull(Post.fields.title)).toEqual({
+      _tag: 'Null',
+      operand: Expr.field(Post.fields.title),
+      present: false,
+    })
+    expect(Expr.isNotNull(Post.fields.title).present).toBe(true)
+  })
+
+  it('takes a predicate where a boolean is wanted, which is the branchless form', () => {
+    // `archived ? isNotNull(x) : isNull(x)` asked as one static question:
+    // "is-archived equals what you asked for".
+    const archived = Expr.input('archived', Schema.Boolean)
+    const predicate = Expr.eq(Expr.isNotNull(Post.fields.title), archived)
+
+    expect(predicate.left).toEqual(Expr.isNotNull(Post.fields.title))
+    expect(predicate.right).toBe(archived)
+  })
+
+  it('asks whether text contains text', () => {
+    expect(Expr.contains(Post.fields.title, Expr.input('q', Schema.String))).toEqual({
+      _tag: 'Contains',
+      value: Expr.field(Post.fields.title),
+      search: { _tag: 'Input', key: 'q', schema: Schema.String },
+    })
+  })
+
+  it('refuses to ask whether an answer is absent', () => {
+    expect(() => Expr.isNull(Expr.eq(Post.fields.title, 'x'))).toThrow(
+      'a predicate is already an answer',
+    )
+    expect(() => Expr.contains(Expr.eq(Post.fields.title, 'x'), 'y')).toThrow(
+      'a predicate is already an answer',
+    )
+  })
+
+  it('reads the fields and inputs of a nested predicate', () => {
+    const worklist = [
+      Expr.eq(Post.fields.title, Expr.input('type', Schema.String)),
+      Expr.eq(Expr.isNotNull(Post.fields.published), Expr.input('archived', Schema.Boolean)),
+      Expr.contains(Post.fields.title, Expr.input('search', Schema.String)),
+    ]
+
+    expect(dependenciesOf(...worklist)).toEqual({
+      fields: [
+        { entity: 'Post', key: 'title' },
+        { entity: 'Post', key: 'published' },
+      ],
+      inputs: ['type', 'archived', 'search'],
+      operations: ['eq', 'isNotNull', 'contains'],
+    })
+  })
+
+  it('checks a nested predicate against the Entity the query is from', () => {
+    expect(() =>
+      Query.from(Post).pipe(Query.where(Expr.eq(Expr.isNotNull(Blog.Comment.fields.body), true))),
+    ).toThrow('reads Comment.body, but the query is from Post')
+  })
+})

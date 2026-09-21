@@ -223,10 +223,31 @@ const Operations = {
  * they are called. `archived` chooses the put-away ones or the rest. It lists
  * entries, not content rows, so something never published is here too.
  */
-const Entries = Query.make('CmsEntries', {
-  Input: { type: Schema.String, search: Schema.String, archived: Schema.Boolean },
-  Result: Query.connection(Entities.Entry),
-})
+/**
+ * The worklist: a content type's entries, archived or not, narrowed by a
+ * search. Declared by what it means, so the server compiles it rather than
+ * being told the same three questions again in SQL.
+ *
+ * Both of the conditions an author changes are asked without a branch, because
+ * a body is built once and its inputs are placeholders. "Archived or not" is
+ * *is-archived equals what you asked for*; "search or everything" is *the label
+ * contains what you asked for*, and containing the empty string is everything.
+ * `label` is not nullable, which is what makes the second of those exactly no
+ * filter when the box is empty.
+ */
+const Entries = Query.define(
+  'CmsEntries',
+  { type: Schema.String, search: Schema.String, archived: Schema.Boolean },
+  ({ input }) =>
+    Query.from(Entities.Entry).pipe(
+      Query.where(
+        Expr.eq(Entities.Entry.fields.type, input.type),
+        Expr.eq(Expr.isNotNull(Entities.Entry.fields.archivedAt), input.archived),
+        Expr.contains(Entities.Entry.fields.label, input.search),
+      ),
+      Query.orderBy(Order.desc(Entities.Entry.fields.createdAt)),
+    ),
+)
 
 /** A form as a content type needs it: what it was made from, and what it edits. */
 interface ContentForm<E extends AnyEntity, Value> {

@@ -358,6 +358,32 @@ placeholder instead of a branch around it.
 operations it uses, so a planner knows what it needs and an interpreter can
 refuse a query it cannot run.
 
+### Asking a question that depends on an input, without branching on it
+
+Since an input is a placeholder, a query cannot choose between two shapes based
+on what it was given. It does not need to: a question that looks like a branch
+is usually a comparison waiting to be written.
+
+```ts
+// A list that shows archived entries or unarchived ones, as the reader asks:
+Expr.eq(Expr.isNotNull(Entry.fields.archivedAt), input.archived)
+
+// A search box that filters when something is typed and not when nothing is:
+Expr.contains(Entry.fields.label, input.search)
+```
+
+The first is "is-archived equals what you asked for". The second relies on
+everything containing the empty string. Both are one static body, and both ask
+exactly what `archived ? … : …` and `search === '' ? … : …` asked.
+
+`isNull` and `isNotNull` are the same node with the answer absence gives
+flipped, so nothing has to negate a predicate to get the other.
+
+**`contains` over a column that can be null is not the same as no filter.** A
+null contains nothing, not even the empty string, so its rows drop out. The
+column the CMS searches is declared not-null, which is what makes an empty
+search exactly everything there.
+
 ### Which rows: `Query`
 
 A `Query` is an Entity to read, the predicates every row must hold, and the
@@ -418,7 +444,9 @@ from queries, not from what a database could express.
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
 | `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
-| `Expr.eq(left, right)` | Two scalars are the same value; a field or a plain value on either side is coerced. |
+| `Expr.eq(left, right)` | Two values are the same; a field or a plain value on either side is coerced, and a predicate may stand where a boolean is wanted. |
+| `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
+| `Expr.contains(field, search)` | Whether text contains text. Containing the empty string is everything, but a null contains nothing. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |

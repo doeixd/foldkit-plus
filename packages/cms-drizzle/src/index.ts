@@ -421,22 +421,12 @@ export const CmsServer = {
         }),
     }
 
+    // The descriptor carries all three questions and the order; this says only
+    // which table answers them. The audience boundary is unchanged: `visible`
+    // on the binding is conjoined with the body, as for every source here.
     const worklist: QuerySource<P, DrizzleDatabase> = query<P, typeof Cms.Entries.Input.Type>(
       Cms.Entries,
-      {
-        entity: Db.Entry,
-        where: input =>
-          and(
-            eq(tables.entries.type, input.type),
-            input.archived
-              ? isNotNull(tables.entries.archivedAt)
-              : isNull(tables.entries.archivedAt),
-            input.search === ''
-              ? undefined
-              : sql`${tables.entries.label} like ${`%${input.search.replace(/[\\%_]/g, found => `\\${found}`)}%`} escape '\\'`,
-          ),
-        orderBy: [{ column: tables.entries.createdAt, direction: 'desc' }],
-      },
+      { entity: Db.Entry },
     )
 
     /** A mutation of this server: its principal and its database are fixed, its input is the descriptor's. */
