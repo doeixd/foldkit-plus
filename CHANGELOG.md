@@ -7,6 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.7.0 — 2026-09-21
+
+Released as `v0.7.0`. `foldkit-entity` 0.2.0; `foldkit-remote`,
+`foldkit-remote-drizzle` and `foldkit-remote-server` 0.5.0; `foldkit-cms`,
+`foldkit-cms-drizzle` and `foldkit-mixins-crud` published for the first time at
+0.1.0. `foldkit-crud`, `foldkit-form` and `foldkit-mixins-form` are republished
+at 0.1.1 only so their pinned `foldkit-entity` is the current one — every
+package pins its workspace dependencies exactly, so a dependent left behind
+would install a second copy of it.
+
 - **`foldkit-entity`: `Expr.isNull` / `Expr.isNotNull` / `Expr.contains`, and a
   predicate may stand where a boolean is wanted.** The three operations the CMS
   worklist needs, and no more. `isNull` and `isNotNull` are one node with the

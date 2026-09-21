@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-form",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A foldkit-form form drawn through foldkit-mixins slots: styleable, extensible, and accessible by contract.",
   "keywords": [
     "foldkit",
