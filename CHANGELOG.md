@@ -32,7 +32,9 @@ version changed; `pnpm` skips versions already in the registry.
   connection identity, and an entry takes the highest over what it plans. A
   connection needs its own mark: a `networkOnly` entry observing an invalidated
   connection plans the same query either way. `refresh` moves from a Struct to a
-  runtime field in the Model schema, beside `loading` and `gaps`.
+  runtime field in the Model schema, beside `loading` and `gaps`. The marks are
+  collected with the entities and connections they belong to, so they stay
+  bounded by what the Model holds rather than by how often it has refreshed.
 - **`foldkit-remote`: `Data.inspect(model).loading`.** The reads in flight,
   beside `mutations.pending` for the writes, so a tool can answer "what is
   Remote doing now" from the Model rather than from the fibers doing the work.
