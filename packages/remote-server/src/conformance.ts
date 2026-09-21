@@ -130,6 +130,18 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     input: { present: false },
     expected: ['a', 'c'],
   },
+  ...[true, false].map(value => ({
+    what: `a ${value} input compared to a predicate works in reverse order`,
+    body: from.pipe(Query.where(Expr.eq(present, Expr.isNotNull(Subject.fields.tag))), byId),
+    input: { present: value },
+    expected: value ? ['b', 'd', 'e'] : ['a', 'c'],
+  })),
+  ...[true, false].map(value => ({
+    what: `an unknown equality compared to ${value} stays unknown`,
+    body: from.pipe(Query.where(Expr.eq(Expr.eq(Subject.fields.tag, tag), present)), byId),
+    input: { tag: null, present: value },
+    expected: [],
+  })),
 
   // ---- contains ------------------------------------------------------------
   {
@@ -167,6 +179,18 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     body: from.pipe(Query.where(Expr.contains(Subject.fields.tag, label)), byId),
     input: { label: '' },
     expected: ['b', 'd', 'e'],
+  },
+  {
+    what: 'contains with a null search is unknown for every row',
+    body: from.pipe(Query.where(Expr.contains(Subject.fields.label, label)), byId),
+    input: { label: null },
+    expected: [],
+  },
+  {
+    what: 'an unknown containment compared to false stays unknown',
+    body: from.pipe(Query.where(Expr.eq(Expr.contains(Subject.fields.label, label), false)), byId),
+    input: { label: null },
+    expected: [],
   },
 
   // ---- conjunction, which is the list rather than an operator ---------------

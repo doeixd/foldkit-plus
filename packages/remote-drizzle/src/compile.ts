@@ -140,6 +140,8 @@ const predicate = (
     case 'Contains': {
       const column = operand(node.value, target, input, query) as AnyColumn
       const search = side(node.search, target, input, query)
+      // Preserve unknown under a surrounding boolean comparison or negation.
+      if (search === null) return sql`null`
       if (typeof search !== 'string') {
         throw new QueryCompileError(`query "${query}" searches for something that is not text`)
       }
