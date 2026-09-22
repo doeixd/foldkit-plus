@@ -2,7 +2,7 @@
 import type { Dependencies } from 'foldkit-entity'
 import type { RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'
-import type { RemoteData } from './remoteData.js'
+import type { RemoteData, RemoteError } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
 import type { EntityEntry } from './store.js'
 
@@ -26,6 +26,8 @@ export interface RemoteInspection {
    * be replayed to, and nothing that needs the runtime to be asked.
    */
   readonly loading: ReadonlyArray<string>
+  /** The last error of each connection whose query failed and is not yet settled. */
+  readonly failures: Readonly<Record<string, RemoteError>>
   readonly mutations: {
     readonly pending: ReadonlyArray<string>
     readonly failed: ReadonlyArray<string>
@@ -49,6 +51,7 @@ export const inspectRemote = (model: RemoteModel): RemoteInspection => ({
   live: Object.keys(model.live),
   gaps: [...model.gaps],
   loading: [...model.loading],
+  failures: model.failures,
   mutations: {
     pending: [...model.mutations.pending],
     failed: [...model.mutations.failed],

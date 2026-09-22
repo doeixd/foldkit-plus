@@ -311,6 +311,7 @@ missing ------------------------------------------------> Loading
 
 server says entity is absent ---------------------------> NotFound
 stored value fails Selection decoding -----------------> Failed
+a list's query fails ----------------------------------> Failed (with its rows, if it had any)
 ```
 
 The states are:
@@ -319,7 +320,8 @@ The states are:
 - **`Loading`** — required data is absent and a read is in flight.
 - **`Ready`** — every selected field is present and decodes.
 - **`Refreshing`** — the current value remains visible while it is being refetched.
-- **`Failed`** — stored server data does not decode against the Selection.
+- **`Failed`** — stored server data does not decode against the Selection, or a
+  list's query failed. A list that had rows keeps them as `previous`.
 - **`NotFound`** — the entity is represented by a tombstone: a live event
   deleted it, or the server was asked for it by id and answered without it. That
   id is then known absent, whether it never existed, is gone, or is not this
@@ -784,11 +786,28 @@ page.
 A window with neither `first` nor `last` bounds nothing: `after`/`before` says
 where to start, not how much to take.
 
-Note what a failed query does **not** do, here or anywhere: it does not make a
-read `Failed`. A `QueryFailed` for a connection the Model never held is a no-op,
-so the read stays `Initial` — nothing is known, which is honest — and the
-subscription retries. The error is carried by the Message, for whoever reduces
-it to log or surface.
+### When a list's query fails
+
+A failed query is kept on the Model until something settles it, and the list's
+read says so. A list that never loaded reads `Failed` with the error. One that
+had rows (a failed refresh, or a failed "load more") reads `Failed` with those
+rows as `previous`, which `RemoteData.render` draws as data with a `Stale`
+freshness, so the rows stay on screen.
+
+**It is not retried on its own.** A persistent error would otherwise be asked
+again every time some unrelated read restarted the entry. The rows a failed
+list already holds are still fetched; only its query is not run again. What
+asks again:
+
+- `Data.refresh(model, projection)` — the retry button. It works on a list that
+  never loaded, too.
+- A page arriving for it, from `Data.fetch` or anywhere else.
+- The server invalidating it over a live stream.
+- Retention dropping it: a list nothing reads any more forgets its failure, so
+  coming back to it later asks the server again.
+
+`Remote.inspect(model.remote).failures` lists the failed connections and their
+errors.
 
 ## Mutations and optimistic state
 

@@ -29,7 +29,14 @@ import {
   remoteError,
   type RemoteRpcClient,
 } from './client.js'
-import { emptyConnection, hasNext, hasPrevious, isGapped, type Edge } from './connection.js'
+import {
+  emptyConnection,
+  hasNext,
+  hasPrevious,
+  isGapped,
+  type Connection,
+  type Edge,
+} from './connection.js'
 import { Entity, type EntityDescriptor } from './entity.js'
 import { belongsEncoded, matching, type Matched } from './matching.js'
 import {
@@ -770,6 +777,10 @@ interface Planned {
  * fresh contributes its visible items' selected fields to the entity plan; one
  * it does not hold, or holds stale, is a query to run (its items are planned
  * once the page arrives).
+ *
+ * A connection whose query failed is not run again here, short of `force`: the
+ * failure is what its read shows, and retrying is `Remote.refresh`'s to ask
+ * for. The rows it already holds are still planned, since they are on screen.
  */
 const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Planned => {
   const queries: QueryRequirement[] = []
@@ -779,10 +790,12 @@ const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Pla
   ) as ReadonlyArray<QueryRequirement>
   for (const connection of connections) {
     const known = remote.connections[connection.identity]
-    if (known === undefined || known.stale || options.force === true) {
+    const failed = options.force !== true && connection.identity in remote.failures
+    if (!failed && (known === undefined || known.stale || options.force === true)) {
       queries.push(connection)
       continue
     }
+    if (known === undefined) continue
     const edges = visibleItems(
       known,
       connection.identity,
@@ -872,9 +885,8 @@ const pageMessage = (
   refreshes = false,
   window: QueryWindow = {},
 ): RemoteMessage => {
-  // Failed the same way a version mismatch fails: the read reads `Failed` with
-  // a named protocol error, rather than the page being silently accepted or an
-  // exception escaping a subscription.
+  // Failed the way any query fails, with a named protocol error, rather than
+  // the page being silently accepted or an exception escaping a subscription.
   const over = overrun(window, result.edges)
   if (over !== undefined) {
     return {
@@ -1306,6 +1318,9 @@ export const Remote = {
    * again with `next`/`previous`. The read entries restart, so a read or query
    * sent before the refresh is not applied after it.
    *
+   * It is also how a failed query is retried: a connection whose query failed
+   * is not run again on its own, so its read stays `Failed` until this asks.
+   *
    * The projection must be observed, which it is while it is on screen. Live
    * subscriptions are left as they are. For data nothing observes (SSR, tests),
    * use `Remote.prefetch` with `RemotePolicy.networkOnly`. Refreshing what is
@@ -1346,9 +1361,13 @@ export const Remote = {
 
     // A connection the Model never loaded is already a query to run: there is
     // nothing to invalidate and nothing to restart, so it takes no generation
-    // either.
+    // either — unless its query failed, which is exactly what a refresh retries.
     const invalidated = connections
-      .filter(connection => remote.connections[connection.identity] !== undefined)
+      .filter(
+        connection =>
+          remote.connections[connection.identity] !== undefined ||
+          connection.identity in remote.failures,
+      )
       .map(connection => connection.identity)
     const marks: RemoteMessage[] = [
       ...(requirements.length === 0
@@ -1787,6 +1806,39 @@ const bindDomain = <
       }
       const relation = relationOf(select)
       const relationKey = stableStringify(relation)
+      // The page as the rows held make it, before any failure is laid over it.
+      const readPage = (remote: RemoteModel, connection: Connection): RemoteData<Page<Value>> => {
+        const visible = visibleStoreOf(remote.entities, remote.optimistic)
+        return memoRead(visible, connection, `${ref.identity}\u0000${relationKey}`, () => {
+          const items: Value[] = []
+          let refreshing = connection.stale
+          const edges = visibleItems(
+            connection,
+            ref.identity,
+            remote.optimistic.overlays,
+            remote.entities,
+          )
+          for (const edge of edges) {
+            const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
+            if (assembled === undefined) return { _tag: 'Initial' }
+            const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
+            if (Result.isFailure(decoded)) {
+              return {
+                _tag: 'Failed',
+                error: { _tag: 'DecodeError', message: decoded.failure.message },
+              }
+            }
+            refreshing ||= assembled.refreshing
+            items.push(decoded.success)
+          }
+          const page = {
+            items,
+            hasNext: hasNext(connection),
+            hasPrevious: hasPrevious(connection),
+          }
+          return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
+        })
+      }
       const requirement: QueryRequirement = {
         identity: ref.identity,
         window: ref.window,
@@ -1805,41 +1857,25 @@ const bindDomain = <
         read: (root: AppModel): RemoteData<Page<Value>> => {
           const remote = store.get(root)
           const connection = remote.connections[ref.identity]
+          const failure = remote.failures[ref.identity]
           // Invalidating a connection the Model never loaded records it stale with no
           // segments: still nothing to show. (A loaded empty page is not stale.)
           if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
-            return { _tag: 'Initial' }
+            return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
           }
-          const visible = visibleStoreOf(remote.entities, remote.optimistic)
-          return memoRead(visible, connection, `${ref.identity}\u0000${relationKey}`, () => {
-            const items: Value[] = []
-            let refreshing = connection.stale
-            const edges = visibleItems(
-              connection,
-              ref.identity,
-              remote.optimistic.overlays,
-              remote.entities,
-            )
-            for (const edge of edges) {
-              const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
-              if (assembled === undefined) return { _tag: 'Initial' }
-              const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
-              if (Result.isFailure(decoded)) {
-                return {
-                  _tag: 'Failed',
-                  error: { _tag: 'DecodeError', message: decoded.failure.message },
-                }
-              }
-              refreshing ||= assembled.refreshing
-              items.push(decoded.success)
-            }
-            const page = {
-              items,
-              hasNext: hasNext(connection),
-              hasPrevious: hasPrevious(connection),
-            }
-            return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
-          })
+          const read = readPage(remote, connection)
+          if (failure === undefined) return read
+          // The rows held before the failure are still the best there is, so they
+          // go with it as `previous`, which `RemoteData.render` shows as stale.
+          switch (read._tag) {
+            case 'Ready':
+            case 'Refreshing':
+              return { _tag: 'Failed', error: failure, previous: read.value }
+            case 'Failed':
+              return read
+            default:
+              return { _tag: 'Failed', error: failure }
+          }
         },
       }
     },

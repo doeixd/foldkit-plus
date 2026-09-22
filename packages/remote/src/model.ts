@@ -87,6 +87,19 @@ export interface RemoteModel {
    * it, and a refresh of one field leaves every other entry's read alone.
    */
   readonly refresh: RefreshState
+  /**
+   * The last error of each connection whose query failed, by identity, until
+   * something settles it: a page arriving, an invalidation, or retention
+   * dropping the connection.
+   *
+   * Kept so a read can say `Failed` rather than `Initial`. Without it a query
+   * that failed before anything loaded read exactly like one nobody had asked
+   * for, and nothing asked again: a read entry restarts only when what it plans
+   * changes, and a failure changed nothing. A failed connection is not planned
+   * again on its own, so a persistent error is not retried every time an
+   * unrelated read restarts the entry; `Remote.refresh` is how a view retries.
+   */
+  readonly failures: Readonly<Record<string, RemoteError>>
 }
 
 /**
@@ -116,6 +129,7 @@ export const initialRemoteModel: RemoteModel = {
   gaps: new Set(),
   loading: new Set(),
   refresh: emptyRefresh,
+  failures: {},
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -132,6 +146,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     gaps: runtimeSchema,
     loading: runtimeSchema,
     refresh: runtimeSchema,
+    failures: Schema.Record(Schema.String, remoteErrorSchema),
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -216,7 +231,11 @@ export type RemoteMessage =
     }
   | { readonly _tag: 'ConnectionInvalidated'; readonly connection: string }
   | { readonly _tag: 'ConnectionRefreshed'; readonly connection: string }
-  /** A query for the connection failed; it reads as it did before the request. */
+  /**
+   * A query for the connection failed. Its pages stay as they were, and it
+   * reads `Failed` — with them as `previous`, when it has any — until a page
+   * arrives, it is invalidated, or retention drops it.
+   */
   | { readonly _tag: 'QueryFailed'; readonly connection: string; readonly error: RemoteError }
 
 export const retentionRootsSchema = Schema.Struct({
@@ -504,7 +523,12 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       }
     case 'RetentionChanged': {
       const retained = gc(model, message.roots)
-      return { ...model, ...retained, refresh: prunedRefresh(model.refresh, retained) }
+      return {
+        ...model,
+        ...retained,
+        refresh: prunedRefresh(model.refresh, retained),
+        failures: prunedFailures(model.failures, message.roots),
+      }
     }
     case 'Hydrated': {
       // A restored connection is evidence about its rows and about nothing
@@ -639,6 +663,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return clearGap(model, message.stream)
     case 'ConnectionMerged': {
       const current = model.connections[message.connection] ?? emptyConnection
+      const failures = withoutFailure(model.failures, message.connection)
       // The page answering an invalidation is the server's list as it now is, so it
       // replaces the pages: removed and reordered items go, and later pages are paged
       // again. A re-run of a connection that was not invalidated still merges.
@@ -656,29 +681,59 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
           new Set(message.page.edges.map(edge => edge.key)),
           model.mutations.pending,
         ),
+        failures,
       }
     }
     case 'ConnectionInvalidated':
+      // Asking again is also how a failed query is retried, so the failure goes
+      // with the mark: a connection is never both due and failed.
       if (model.connections[message.connection]?.stale === true) return model
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),
+        failures: withoutFailure(model.failures, message.connection),
       }
     case 'QueryFailed':
-      // The refresh is over; the connection reads as it did before it started,
-      // and one the Model never held stays absent.
-      return message.connection in model.connections
-        ? {
-            ...model,
-            connections: setConnectionStale(model.connections, message.connection, false),
-          }
-        : model
+      // The refresh is over and the pages stay as they were. One the Model never
+      // held stays absent from `connections`; the failure is what it now knows.
+      return {
+        ...model,
+        connections:
+          message.connection in model.connections
+            ? setConnectionStale(model.connections, message.connection, false)
+            : model.connections,
+        failures: { ...model.failures, [message.connection]: message.error },
+      }
     case 'ConnectionRefreshed':
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, false),
       }
   }
+}
+
+/** The failures without one connection's, keeping identity when it had none. */
+const withoutFailure = (
+  failures: RemoteModel['failures'],
+  connection: string,
+): RemoteModel['failures'] => {
+  if (!(connection in failures)) return failures
+  const { [connection]: _settled, ...rest } = failures
+  return rest
+}
+
+/**
+ * The failures of the connections the roots still name. A released connection's
+ * failure goes with it, so asking for it again later asks the server again
+ * rather than repeating an error that may no longer hold.
+ */
+const prunedFailures = (
+  failures: RemoteModel['failures'],
+  roots: RetentionRoots,
+): RemoteModel['failures'] => {
+  const named = new Set(roots.connections.map(root => root.identity))
+  const kept = Object.entries(failures).filter(([identity]) => named.has(identity))
+  return kept.length === Object.keys(failures).length ? failures : Object.fromEntries(kept)
 }
 
 /** Appends (after) or prepends (before) an incoming page onto the stored one. */

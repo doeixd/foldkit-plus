@@ -924,7 +924,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       expect(Remote.refresh(Data, loaded, Home)).toEqual(refreshed)
     })
 
-    it('settles a failed refetch back to the value it had', async () => {
+    it('settles a failed refetch: an entity back to its value, a list to Failed with its rows', async () => {
       const project = Data.get(summary, 'p1')
       const loaded = read(merged(initial, ['p1']), ['p1'])
       const unreachable = Layer.succeed(RemoteClient, {
@@ -939,7 +939,13 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
       expect(project.read(entity)).toEqual({ _tag: 'Ready', value: { name: 'name of p1' } })
       expect(page.remote.connections[identity]?.stale).toBe(false)
-      expect(projects.read(page)._tag).toBe('Ready')
+      const before = projects.read(loaded)
+      expect(before._tag).toBe('Ready')
+      expect(projects.read(page)).toEqual({
+        _tag: 'Failed',
+        error: { _tag: 'RemoteQueryError', message: 'down' },
+        previous: (before as { readonly value: unknown }).value,
+      })
     })
 
     it('leaves live subscriptions as they are', () => {
@@ -1444,7 +1450,13 @@ describe('Data.query reads a connection as a page of selected items', () => {
       },
     ])
     const settled = messages.reduce(Data.reduce, stale)
-    expect(projects.read(settled)).toMatchObject({ _tag: 'Ready' })
+    const before = projects.read(read(merged(initial, ['p1', 'p2']), ['p1', 'p2']))
+    expect(before._tag).toBe('Ready')
+    expect(projects.read(settled)).toEqual({
+      _tag: 'Failed',
+      error: { _tag: 'RemoteQueryError', message: 'boom' },
+      previous: (before as { readonly value: unknown }).value,
+    })
     expect(entry.modelToDependencies(settled).queries).toEqual([])
   })
 

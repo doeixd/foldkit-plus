@@ -24,6 +24,18 @@ version changed; `pnpm` skips versions already in the registry.
   connections that no read or plan consulted, so an invalidation written
   through them had no effect (see Fixed below). A connection's staleness is
   its own `stale` flag. To invalidate one, reduce `ConnectionInvalidated`.
+- **`foldkit-remote`: a list whose query failed reads `Failed`.** Before, a
+  list that failed before loading read `Initial` and was never asked for again,
+  because nothing it planned had changed. A list that failed to refresh read
+  `Ready` as if nothing had happened. Now the failure is kept per connection in
+  `RemoteModel.failures`. A list with no rows reads `Failed { error }`, and one
+  with rows reads `Failed { error, previous }`, which `RemoteData.render` draws
+  as data with `Stale` freshness. A failed query is not run again on its own;
+  `Data.refresh` retries it, including for a list that never loaded. A page
+  arriving, a live invalidation, or retention dropping the connection also
+  clears it. `Remote.inspect` reports `failures`. A view that matched on
+  `Failed` for decode errors only will now also see query failures, and code
+  that builds a `RemoteModel` by hand needs `failures: {}`.
 
 ### Added
 

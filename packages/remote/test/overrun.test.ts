@@ -11,14 +11,9 @@
  * It fails the way any query fails: a `QueryFailed` Message carrying a named
  * protocol error, rather than an exception escaping a subscription.
  *
- * **What that does and does not buy.** The edges are rejected, which is the
- * point — they never reach the store or the connection. But a `QueryFailed` for
- * a connection the Model never held is a deliberate no-op ("one the Model never
- * held stays absent"), so a view reading it still sees `Initial` rather than
- * `Failed`. That is pre-existing and applies to every query failure equally, not
- * something this check introduces; whether a failed query should be visible to a
- * read at all is a separate question, recorded in the design doc rather than
- * changed here.
+ * The edges are rejected, which is the point — they never reach the store or
+ * the connection. What does reach the Model is the failure, so a view reading
+ * the connection sees `Failed` with the protocol error rather than `Initial`.
  */
 import { Effect, Layer, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -111,7 +106,13 @@ describe('A page that overruns its window', () => {
 
     expect(Remote.inspect(model.remote).connections).toEqual([])
     expect(Remote.inspect(model.remote).entities).toEqual([])
-    expect(projection.read(model)._tag).toBe('Initial')
+    expect(projection.read(model)).toEqual({
+      _tag: 'Failed',
+      error: {
+        _tag: 'RemoteProtocolError',
+        message: 'the server returned 5 edges for a window of 2',
+      },
+    })
   })
 
   it('leaves a connection it already held exactly as it was', async () => {
@@ -123,7 +124,8 @@ describe('A page that overruns its window', () => {
     expect(Remote.inspect(after.remote).connections).toEqual(
       Remote.inspect(loaded.remote).connections,
     )
-    expect(projection.read(after)._tag).toBe(projection.read(loaded)._tag)
+    // The rows stay; what changes is that a read now says the refresh failed.
+    expect(projection.read(after)._tag).toBe('Failed')
   })
 
   it('bounds a backward window by `last`, not only a forward one by `first`', async () => {

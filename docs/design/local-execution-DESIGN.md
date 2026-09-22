@@ -1041,6 +1041,18 @@ hard to notice in exactly the situation it exists for. Recorded here rather
 than changed, because it affects every query failure and deserves deciding on
 its own terms.
 
+**Decided, built.** "The subscription will retry" was wrong. A read entry
+restarts only when what it plans changes, and a failure changed nothing, so a
+list that failed before it loaded read `Initial` for good. It was not an honest
+"nothing known". It stalled with no sign of it. The failure is now kept per
+connection (`RemoteModel.failures`), and a read shows it: `Failed`, with the
+rows as `previous` when there were any, which `RemoteData.render` had always
+been able to draw as `Stale`. It is not retried on its own, since a persistent
+error would be retried on every unrelated restart. `Remote.refresh` retries it,
+and a page arriving, a live invalidation, or retention dropping the connection
+clears it. Pinned in `packages/remote/test/queryFailure.test.ts`, each part
+mutation-checked.
+
 ### 17.2 Local evaluation applies no authorization, and must say so
 
 Repeated here because it belongs in this list. On the server a compiled `where`
