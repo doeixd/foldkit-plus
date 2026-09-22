@@ -24,6 +24,19 @@
 | **`Expr.contains` compiled over a numeric field** and reached the database as `lower(rank) like …`. Fixed — and the obvious fix *failed open*: a check intersected onto the parameter lets inference fall back to the constraint, so every operand passed. | [§18](#18-inference-and-dx) |
 | **The conformance suite can become a guarantee** — that the optimistic local answer equals the eventual server answer — but only after it gains the cases that make encoding and collation observable. Today its fixtures cannot see either. | [§10](#10-the-conformance-suite-becomes-a-guarantee) |
 
+Four subagent reviews were run over the finished work. What they found, kept
+here because the pattern is the useful part:
+
+| Review | Found |
+| --- | --- |
+| Correctness | **Six wrong answers**, three of them a false `complete` — a gapped connection, an edge named but not held, a filter over another Entity. Plus a numeric id silently clobbered into a string, a stale value able to suppress a live insert, and a snapshot flattening a connection's segments. |
+| Tests | **Three vacuous tests**, each proved by running the mutation. One survived replacing the decode with `Schema.Unknown`. One asserted that a pure function had not modified its input — after I had already "strengthened" it once. |
+| Docs | **Ten stale claims**, including one falsehood (below) and a status banner contradicting the section it headed. |
+| API surface | `belongs` had **zero callers** — I built the decoded entry point, then wrote `belongsEncoded` for the real caller and never went back. |
+
+The through-line: every one of these is something the author could not see by
+rereading, and every one was found by checking a claim against the code.
+
 Two things the **first draft of this plan got wrong**, recorded because they are
 the instructive part:
 
