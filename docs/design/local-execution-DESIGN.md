@@ -442,6 +442,79 @@ why `LiveInsertion` has a `'boundary'` case: somebody already knew.
 
 ---
 
+## 9.5 What a local answer *is* — the phase 0 decision
+
+Decided before anything produces one, because it is phase 3's return type and
+not a footnote. Recorded here; the type lands with its first producer rather
+than ahead of it.
+
+### The decision
+
+**A local answer is not a `Page`, and not a `RemoteData<Page<A>>`.** It is its
+own type, produced only by a distinctly named function, carrying whether it is
+complete.
+
+~~~ts
+/**
+ * The rows the client already holds that satisfy a body, and whether that is
+ * all of them. Not an answer to the query — an answer over what is held.
+ */
+interface Matched<A> {
+  readonly items: ReadonlyArray<A>
+  /** Whether every row the query could match was among those judged. */
+  readonly complete: boolean
+}
+~~~
+
+### Why not reuse `Page`
+
+`Page<Item>` is `{ items, hasNext, hasPrevious }`, and **two of its three fields
+are server facts**: `hasNext` and `hasPrevious` are derived from a connection's
+boundaries, which are what the server said about rows beyond the ones delivered.
+A local evaluation over rows the client holds has no such facts and cannot
+invent them.
+
+So reusing `Page` would be a lie in two thirds of its shape. That is a stronger
+reason than type hygiene, and it is why this is a distinct type rather than a
+brand on an existing one.
+
+### Why not follow `Data.confirmed`, which does the opposite
+
+Remote already expresses an authority difference without changing a type:
+`Data.confirmed(projection)` returns the *same* `P`, reading the same query
+against the server-derived store alone. That precedent argues for leaving the
+type alone, and it does not apply.
+
+`confirmed` answers **the same question** from a different store — "what is true
+here, as far as we know" — and both answers are honest `RemoteData<Page<A>>`.
+Local evaluation answers a **different question**: *which of the rows I hold
+match* is not *which rows match*. Different question, different type.
+
+### Why `complete` rather than a provenance tag
+
+The tempting shape is a brand saying where the answer came from — `Local<A>`
+versus the real thing. But provenance is not what a consumer needs to decide
+anything. What it needs is whether the answer is missing rows, and that is
+**decidable**: a connection whose start and end boundaries are both `Terminal`
+is wholly held, so a body evaluated over it can answer completely.
+
+That makes `complete` sometimes true rather than a permanent disclaimer, and it
+gives a view something to render — "3 results" against "3 so far" — and phase 7
+something to branch on: an incomplete answer is when to ask the server.
+
+### What this does not carry
+
+**No authorization.** On the server a compiled `where` is conjoined with the
+binding's `visible` rule. Locally there is no `visible` at all. It is safe only
+because the client holds only rows the server already released to it, and it
+stops being safe the moment anything treats a local filter as an access
+decision. The type's own documentation has to say so, because "filtered
+locally" reads like a guarantee and is not one. (§17.2.)
+
+**No count of what was considered.** Tempting, and nothing wants it yet.
+
+---
+
 ## 10. The conformance suite becomes a guarantee
 
 Today the 25 cases say *four interpreters agree about what a body means*. That
