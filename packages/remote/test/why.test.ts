@@ -8,7 +8,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Order } from 'foldkit-entity'
+import { Entity, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote } from '../src/index.js'
@@ -93,6 +93,70 @@ describe('Data.why for a read that is Initial', () => {
       reason: 'NotFetching',
       surfaces: ['ProjectList'],
     })
+  })
+})
+
+describe('Data.why counts only a Surface that asks for all of the read', () => {
+  const UserBase = Entity.define(
+    'User',
+    Schema.Struct({ id: Schema.String, name: Schema.String, email: Schema.String }),
+  )
+  const TaskBase = Entity.define('Task', Schema.Struct({ id: Schema.String, title: Schema.String }))
+  const { User, Task } = Entity.relate(
+    { User: UserBase, Task: TaskBase },
+    { Task: { owner: Relation.one(UserBase) } },
+  )
+  const Tasks = Query.define('Tasks', {}, () =>
+    Query.from(Task).pipe(Query.orderBy(Order.asc(Task.fields.id))),
+  )
+  const Work = Remote.make({ model: App.model.remote, entities: [User, Task], queries: [Tasks] })
+
+  const ownerWith = (fields: { readonly name: true; readonly email?: true }) =>
+    Entity.select(Task, { owner: Entity.select(User, fields) })
+  const full = Work.get(ownerWith({ name: true, email: true }), 't1')
+
+  it('not one reading fewer fields of a related entity', () => {
+    const Names = App.surface('OwnerName', {
+      model: () => ({ task: Work.get(ownerWith({ name: true }), 't1') }),
+    })
+
+    expect(Work.why(open, full, { surfaces: { one: Surface.at(Names, undefined) } }).reason).toBe(
+      'NotObserved',
+    )
+  })
+
+  it('but one asking for the same read in two pieces', () => {
+    const Both = App.surface('OwnerBoth', {
+      model: () => ({
+        name: Work.get(ownerWith({ name: true }), 't1'),
+        email: Work.get(Entity.select(Task, { owner: Entity.select(User, { email: true }) }), 't1'),
+      }),
+    })
+
+    expect(Work.why(open, full, { surfaces: { one: Surface.at(Both, undefined) } }).reason).toBe(
+      'NotFetching',
+    )
+  })
+
+  it('not one reading a list for fewer fields of its rows', () => {
+    const wide = Work.query(
+      Tasks,
+      {},
+      { select: Entity.select(Task, { id: true, title: true }), first: 5 },
+    )
+    const Narrow = App.surface('TaskIds', {
+      model: () => ({
+        list: Work.query(Tasks, {}, { select: Entity.select(Task, { id: true }), first: 5 }),
+      }),
+    })
+    const Same = App.surface('TaskTitles', { model: () => ({ list: wide }) })
+
+    expect(Work.why(open, wide, { surfaces: { one: Surface.at(Narrow, undefined) } }).reason).toBe(
+      'NotObserved',
+    )
+    expect(Work.why(open, wide, { surfaces: { one: Surface.at(Same, undefined) } }).reason).toBe(
+      'NotFetching',
+    )
   })
 })
 

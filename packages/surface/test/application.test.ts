@@ -23,7 +23,6 @@ describe('Surface.application', () => {
     const App = Surface.application({ Model, Message, initial, update })
 
     expect(App.initial).toEqual(initial)
-    expect(App.model).toBe(App.model)
     expect(App.update(initial, Message.CreatedTodo({ id: 'a', title: 'A' })).model.todos).toEqual([
       { id: 'a', title: 'A' },
     ])

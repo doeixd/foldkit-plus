@@ -806,25 +806,43 @@ const askedOf = (projection: Projection<any, unknown> | undefined): Asked =>
     : { requirements: requirementsOf(projection), connections: connectionsOf(projection) }
 
 /**
- * Whether what `outer` asks includes everything `inner` asks: each connection,
- * and each field of each entity. A Surface that shows a read is one whose
- * projection asks for all of it.
+ * Whether `outer` asks for everything `inner` does of one entity: each field,
+ * each relation's own slice of its target, and each page window alike.
+ */
+const sliceCovers = (outer: RelationRequirement, inner: RelationRequirement): boolean =>
+  outer.entity === inner.entity &&
+  inner.fields.every(field => outer.fields.includes(field)) &&
+  Object.entries(inner.relations ?? {}).every(([field, relation]) => {
+    const wider = outer.relations?.[field]
+    return wider !== undefined && sliceCovers(wider, relation)
+  }) &&
+  Object.entries(inner.windows ?? {}).every(
+    ([field, window]) =>
+      outer.windows?.[field] !== undefined &&
+      stableStringify(outer.windows[field]) === stableStringify(window),
+  )
+
+/**
+ * Whether what `outer` asks includes everything `inner` asks: each list with
+ * the slice it selects of its rows, and each entity with the slice it reads,
+ * relations included. A Surface that shows a read is one whose projection
+ * asks for all of it; one that reads part of it cannot be why it is fetched.
+ * A Surface that asks for one entity in several pieces is already one
+ * requirement here: projection metadata unions them per entity and id.
  */
 const covers = (outer: Asked, inner: Asked): boolean => {
-  const connections = new Set(outer.connections.map(connection => connection.identity))
-  const fields = new Set(
-    outer.requirements.flatMap(requirement =>
-      requirement.fields.map(
-        field => `${entityKey(requirement.entity, requirement.id)}\u0000${field}`,
-      ),
-    ),
-  )
+  const { connections, requirements } = outer
   return (
-    inner.connections.every(connection => connections.has(connection.identity)) &&
-    inner.requirements.every(requirement =>
-      requirement.fields.every(field =>
-        fields.has(`${entityKey(requirement.entity, requirement.id)}\u0000${field}`),
+    inner.connections.every(connection =>
+      connections.some(
+        wider =>
+          wider.identity === connection.identity &&
+          (connection.select === undefined ||
+            (wider.select !== undefined && sliceCovers(wider.select, connection.select))),
       ),
+    ) &&
+    inner.requirements.every(requirement =>
+      requirements.some(wider => wider.id === requirement.id && sliceCovers(wider, requirement)),
     )
   )
 }
