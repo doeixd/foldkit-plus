@@ -19,10 +19,10 @@
 | **Local evaluation is only sound if it refuses four things**: rows missing the fields the body reads, values it cannot compare in the store's encoding, orderings whose collation the backend defines, and placements outside a loaded boundary. Each is a silent wrong answer, not an error. | [§9](#9-what-local-evaluation-must-refuse) |
 | **Four of LiveStore's six contributions are already built under other names.** What is missing is a durable *queryable* local read model — reachable through §20's mode B without adopting an event log. | [§5](#5-blocker-3--nothing-durable-and-queryable-locally) |
 | **Five of tanstackstart-db's seven route ideas are present, and the sixth is ahead of the original.** Dependent reads are solved at the data level by the planner rather than as route-loader stages. | [§6](#6-blocker-4--the-page-contract-is-opaque-at-its-edges) |
-| **The hot path is not the one §3 guessed.** `Data.query` re-encodes its input through Schema and re-serializes its Selection on **every Model change**, to produce two strings that almost never differ. That is paid per frame; the decode cost is paid only on writes. | [§16.1](#161-the-read-path-is-not-where-the-evidence-points) |
+| **The hot path is the one §3 guessed, not the one §16.1 proposed instead.** `Data.query` looked expensive — it re-encodes its input and re-serializes its Selection on every Model change — and measured at 6–10µs, flat in page size. Re-assembly after an unrelated write is the real cost, about 3µs per row. `packages/remote/bench/read.bench.ts`. | [§16.1](#161-the-read-path-is-not-where-the-evidence-points) |
 | **A search box already in the repository was fetching per keystroke.** Fixed in `examples/entity` with `debounce` from `foldkit-primitives/time`, plus the guidance that was missing. | [§16.2](#162-a-high-frequency-input-mints-a-connection-per-change) |
 | **`Expr.contains` compiled over a numeric field** and reached the database as `lower(rank) like …`. Fixed — and the obvious fix *failed open*: a check intersected onto the parameter lets inference fall back to the constraint, so every operand passed. | [§18](#18-inference-and-dx) |
-| **The conformance suite can become a guarantee** — that the optimistic local answer equals the eventual server answer — but only after it gains the cases that make encoding and collation observable. Today its fixtures cannot see either. | [§10](#10-the-conformance-suite-becomes-a-guarantee) |
+| **The conformance suite can become a guarantee** — that the optimistic local answer equals the eventual server answer. It can now see encoding (phase 2 added a column whose encoded and decoded forms differ). It still cannot see collation, which waits on queries being able to declare one. | [§10](#10-the-conformance-suite-becomes-a-guarantee) |
 
 Four subagent reviews were run over the finished work. What they found, kept
 here because the pattern is the useful part:
@@ -43,7 +43,7 @@ the instructive part:
 | Mistake | Correction |
 | --- | --- |
 | "Memoize the read on the `EntityEntry`; untouched entries keep identity." | True about identity, **wrong about the memo**. `assemble` recurses through `assembleRelation` into *other* entities, so a row's value depends on entries its own key does not name. A change to `User:u1` changes `Project:p1`'s value while `Project:p1`'s entry is untouched — a stale read, silently. The memo has to be keyed on the *set of entries the assembly visited*. See [§3](#3-blocker-1--reads-recompute-from-scratch). |
-| "Phase 1 is the cheap obvious win, do it first." | It is an optimization with **no evidenced caller**. There is no benchmark in the repository and every page size in it is between 1 and 25. That is the §28 failure this project criticises elsewhere, committed in its own plan. Measurement comes first, and the phase is demoted. |
+| "Phase 1 is the cheap obvious win, do it first." | It is an optimization with **no evidenced caller**: every page size in the repository is between 1 and 25. (This row first said "there is no benchmark in the repository", which was false — see §3.1.) That is the §28 failure this project criticises elsewhere, committed in its own plan. Measurement comes first, and the phase is demoted. |
 
 ---
 
@@ -915,6 +915,9 @@ decode count because it is paid on *every* change rather than on writes, and
 because the fix is bounded: memoize identity on the input object and
 `relationKey` on the Selection object, both by reference, both `WeakMap`.
 
+That was the hypothesis, and the next section refutes it. It is kept because
+the reasoning is plausible and only the measurement settled it.
+
 ### 16.1.1 Measured, and the hypothesis was wrong
 
 `packages/remote/bench/read.bench.ts`, run with `pnpm bench`. One connection, a
@@ -1091,11 +1094,12 @@ Do first, because they are cheap and currently wrong:
   which already had the un-debounced search box.
 - **17.1** — reject a page that overruns its window. **Done.**
 
-Do next, with a benchmark first:
+Measured, and closed:
 
-- **16.1** — measure `Data.query`'s per-change cost, then memoize identity on
-  the input object and the relation key on the Selection. This replaces §3's
-  decode count as the first thing to measure.
+- **16.1** — `Data.query`'s per-change cost is 6–10µs and flat in page size, so
+  it is **not** memoized. The same benchmark found the real cost is §3's
+  re-assembly, which is phase M: evidenced, not urgent, and waiting on a bounded
+  cache design (§16.1.1).
 
 Do alongside phase 0, since it is the same decision:
 
