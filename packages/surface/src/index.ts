@@ -765,9 +765,10 @@ export interface Application<
   Cases extends Record<string, Schema.Struct.Fields>,
 > extends AppScope<Root, F, Cases> {
   /**
-   * @deprecated Use `App.model`, the same references under the name every
-   * other part of the API uses: `App.surface` hands a Surface `{ model }`, and
-   * a Bundle placement takes `model`. Removed in a later minor.
+   * @deprecated Use `App.model`, the same references under the name the rest
+   * of the API uses: `App.surface` hands a Surface `{ model }`, and
+   * `Remote.make` and `Editor.at` take `model: App.model.…`. Removed in a
+   * later minor.
    */
   readonly fields: RefTree<Root, F>
   /**

@@ -100,7 +100,8 @@ returns an `OptionalRef` — a `ModelRef` with an `Option` value. Those are dyna
 selections, so `Projection.pick` (which needs a static field name) rejects them;
 they are useful inside a `Projection`.
 
-`App.model` is the same tree under its older name; prefer `App.model`.
+`App.fields` is the same tree under a second name, kept only so older code
+compiles. It is deprecated; use `App.model`.
 
 `Projection.pick` turns references into a writable projection — a `Schema.Struct`,
 `get`, and `set`:
@@ -163,8 +164,8 @@ Surface never interprets them; `Surface.inspect` and `Module` show them through
 ## Applications
 
 `Surface.application({ Model, Message })` returns an `Application`: the schemas
-(`App.Model`, `App.Message`), the reference tree (`App.model`, `App.model`), the
-identity token (`App.owner`), and `App.surface`. No transition, so a consumer
+(`App.Model`, `App.Message`), the reference tree (`App.model`, with `App.fields`
+a deprecated alias), the identity token (`App.owner`), and `App.surface`. No transition, so a consumer
 that only inspects the Model needs nothing more.
 
 `Surface.application({ Model, Message, initial, update })` adds `App.initial` and

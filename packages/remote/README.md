@@ -383,7 +383,7 @@ record, or its params are `undefined` for this Model. `NotFetching` means one
 does, and nothing started a request, which almost always means Remote's
 Subscriptions are not installed in the runtime. Without `surfaces` it can only
 say `Unknown`. For every other state it says what the state means in words,
-and a failure's message says that nothing retries it on its own.
+and a failed request's message says that nothing retries it on its own.
 
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time.

@@ -29,7 +29,7 @@ each of those.
 | **Projection** | A pure, named read of the Model with a schema, built from field references. It never fetches or dispatches. [Projections](../packages/surface/README.md#projections) |
 | **Message subset** | `MessageSet.make(App, [...])`: the Messages a consumer is allowed to send. [Message subsets](../packages/surface/README.md#message-subsets) |
 | **Surface** | A named boundary: a Projection of what a feature reads, plus the Messages it may send. [Surfaces](../packages/surface/README.md#surfaces) |
-| **Active Surface** | A Surface placed with params from the Model (`Surface.at`, `Surface.when`); active while those params exist. What Remote fetches for. |
+| **Active Surface** | A Surface placed with params from the Model (`Surface.at`, `Surface.when`); active while those params exist, and always, if it takes none. What Remote fetches for. |
 | **Module** | An application's contracts collected as data, so `Module.validate` can find a Model path with two owners. [Modules](../packages/surface/README.md#modules) |
 
 ## `foldkit-bundle`: placing child machines

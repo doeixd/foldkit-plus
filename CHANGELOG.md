@@ -33,11 +33,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`foldkit-surface`: `App.fields` is deprecated; use `App.model`.** They
   were the same references under two names, and the docs used one while the
-  tests used the other, so a reader could reasonably think they differed.
-  `model` is the name the rest of the API already uses: `App.surface` hands a
-  Surface `{ model }`, and a Bundle placement takes `model`. `App.fields` still
-  works, is the same object, and is marked `@deprecated` so an editor points at
-  the new name. It will be removed in a later minor.
+  tests used the other, so a reader could reasonably think they differed. This
+  reverses the Surface README's earlier advice to prefer `fields`, which was
+  written before the APIs that settled on `model`: `App.surface` hands a
+  Surface `{ model }`, and `Remote.make` and `Editor.at` take
+  `model: App.model.…`. `App.fields` still works, is the same object, and is
+  marked `@deprecated` so an editor points at the new name. It will be removed
+  in a later minor.
 
 ## 0.9.0
 
