@@ -6,8 +6,8 @@
  * read entry's plan had not changed. A value on screen whose refresh failed
  * read `Ready`, as if the refresh had never been asked for.
  *
- * A failure is kept per field until the field is written again, a read of it
- * starts, or retention drops the entity. It is not retried on its own, for the
+ * A failure is kept per field until the field is written again, a refresh
+ * asks for it, or retention drops the entity. It is not retried on its own, for the
  * same reason as a query: a persistent error would be retried on every
  * unrelated restart of the entry. `Remote.refresh` retries it.
  */
@@ -130,6 +130,15 @@ describe('A read that failed before the value arrived', () => {
     ])
   })
 
+  it('reads Loading, not the failure, while a read of it is in flight', () => {
+    const started = Data.reduce(failedRead(initial), {
+      _tag: 'ReadStarted',
+      requests: [nameOf('p1')],
+    })
+
+    expect(named.read(started)._tag).toBe('Loading')
+  })
+
   it('shows in the inspection a DevTools panel reads', () => {
     expect(Object.values(Remote.inspect(failedRead(initial).remote).failures.fields)).toEqual([
       down,
@@ -209,15 +218,6 @@ describe('What settles a failed field', () => {
 
     expect(named.read(recovered)).toEqual({ _tag: 'Ready', value: { name: 'One' } })
     expect(recovered.remote.failures.fields).toEqual({})
-  })
-
-  it('a read of it starting', () => {
-    const started = Data.reduce(failedRead(initial), {
-      _tag: 'ReadStarted',
-      requests: [nameOf('p1')],
-    })
-
-    expect(named.read(started)._tag).toBe('Loading')
   })
 
   it('Remote.refresh, which asks again even for a value that never arrived', () => {

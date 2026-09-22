@@ -108,8 +108,9 @@ export interface RemoteModel {
  * `connections` is by connection identity, and is settled by a page arriving,
  * an invalidation, or retention dropping the connection. `fields` is by field
  * mark (`entity\0id\0field`, the marks `loading` uses), and is settled by the
- * field being written again, a read of it starting, or retention dropping the
- * entity.
+ * field being written again, a refresh asking for it, or retention dropping the
+ * entity. A read of it in flight reads `Loading` over the failure without
+ * settling it: if that read fails too, the failure is simply recorded again.
  */
 export interface Failures {
   readonly connections: Readonly<Record<string, RemoteError>>
