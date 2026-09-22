@@ -41,6 +41,20 @@ A historical status line is not a statement about today's package availability.
 | [local-execution-DESIGN.md](./local-execution-DESIGN.md) | Which TanStack DB and LiveStore capabilities this project already has, which it does not, and a phased plan for the gap. The keystone finding: the client-side query engine already exists in the server package. |
 | [async-semantics-DESIGN.md](./async-semantics-DESIGN.md) | What Foldkit should learn from Solid 2's async model: keep semantic async state in Model, keep Effect as the execution substrate, make Projection metadata more extensible, add state-based completion where it has a concrete owner, and show the before/after capabilities this enables across Agent, Remote, Sync, AsyncData, Module, and third-party interpreters. |
 
+## Proposed, not built
+
+Each carries a status note at its head saying what it is waiting for, so a
+reader can tell a gate from an oversight.
+
+| Doc | What it covers |
+| --- | --- |
+| [SSR-DESIGN.txt](./SSR-DESIGN.txt) | An unbuilt `packages/ssr` in eight phases: a versioned resume plan, hydration that does not rerun `init`, static boundaries, and eventually binding-level resumability. Unusually, it is gated on nothing — it is unstarted work rather than blocked work, and its note says so. |
+| [pagebuilder-DESIGN.md](./pagebuilder-DESIGN.md) | `foldkit-composition` and `foldkit-builder`: a typed, inspectable composition system able to power Builder.io-style visual authoring without adding a second state system, component framework or action runtime. |
+| [richtext-DESIGN.md](./richtext-DESIGN.md) | `foldkit-richtext`: a Lexical-class editor whose document model, operations, collaboration and CMS integration fit Model/Message/update rather than bringing a second runtime. Prior art from Lexical, Peritext, Loro and Yjs. |
+| [reactivity-DESIGN.md](./reactivity-DESIGN.md) | Fine-grained propagation without mutable signals. Mostly `foldkit/foldkit`: the Plus packages are defined as interpreters of three core primitives that do not exist yet, so this one cannot start here. |
+| [effect-reuse-sync-durable-DESIGN.md](./effect-reuse-sync-durable-DESIGN.md) | Why Sync and Durable keep their own protocol semantics while reusing Effect's persistence, SQL, RPC and socket layers — plus four upstream PRs, which wait on Effect's review queue. |
+| [evo-DESIGN.md](./evo-DESIGN.md) | The semantic-vs-structural write rule (`Message → update → evo` against `ModelRef.set`) carried across every package. Done, bar a lint rule that would mean standing up ESLint for the monorepo. |
+
 ## Provenance and earlier exploration
 
 These documents are useful history, but they are not the current API contract:
