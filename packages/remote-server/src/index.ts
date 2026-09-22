@@ -576,28 +576,49 @@ export interface MemoryBackend extends MemoryStore {
   readonly layer: Layer.Layer<RemoteClient>
 }
 
-/** A page of `total` ordered items for a window, with offset cursors. */
-const windowOf = (
-  total: number,
+/**
+ * One page of ordered items for a window, as a real server pages them. A
+ * cursor is an item's id: a forward page starts at the `after` it was asked
+ * for and ends at its last item while more follow, a backward page the
+ * mirror, so a page fetched from another's end cursor joins it.
+ */
+const pageOf = <Item>(
+  items: ReadonlyArray<Item>,
   window: QueryWindow,
-): { readonly from: number; readonly to: number } => {
-  const after = window.after === undefined ? -1 : Number(window.after)
-  const before = window.before === undefined ? total : Number(window.before)
-  let from = Math.max(0, after + 1)
-  let to = Math.min(total, before)
-  if (window.first !== undefined) to = Math.min(to, from + window.first)
-  else if (window.last !== undefined) from = Math.max(from, to - window.last)
-  return { from, to: Math.max(from, to) }
+  idOf: (item: Item) => string,
+): { readonly items: ReadonlyArray<Item>; readonly start: Boundary; readonly end: Boundary } => {
+  if (
+    (window.after !== undefined && window.before !== undefined) ||
+    (window.first !== undefined && window.last !== undefined)
+  ) {
+    throw new Error('A query window cannot combine after with before, or first with last')
+  }
+  const at = (cursor: string): number => {
+    const index = items.findIndex(item => idOf(item) === cursor)
+    if (index < 0) throw new Error(`Cursor "${cursor}" names nothing in these results`)
+    return index
+  }
+  const cursor = (id: string): Boundary => ({ _tag: 'Cursor', cursor: id })
+  const terminal: Boundary = { _tag: 'Terminal' }
+  if (window.last !== undefined || window.before !== undefined) {
+    const to = window.before === undefined ? items.length : at(window.before)
+    const from = window.last === undefined ? 0 : Math.max(0, to - window.last)
+    const page = items.slice(from, to)
+    return {
+      items: page,
+      start: from > 0 && page.length > 0 ? cursor(idOf(page[0]!)) : terminal,
+      end: window.before === undefined ? terminal : cursor(window.before),
+    }
+  }
+  const from = window.after === undefined ? 0 : at(window.after) + 1
+  const to = window.first === undefined ? items.length : Math.min(items.length, from + window.first)
+  const page = items.slice(from, to)
+  return {
+    items: page,
+    start: window.after === undefined ? terminal : cursor(window.after),
+    end: to < items.length && page.length > 0 ? cursor(idOf(page.at(-1)!)) : terminal,
+  }
 }
-
-const boundaries = (
-  total: number,
-  from: number,
-  to: number,
-): { readonly start: Boundary; readonly end: Boundary } => ({
-  start: from > 0 && to > from ? { _tag: 'Cursor', cursor: String(from) } : { _tag: 'Terminal' },
-  end: to < total && to > from ? { _tag: 'Cursor', cursor: String(to - 1) } : { _tag: 'Terminal' },
-})
 
 /**
  * A backend held in memory: the rows you give it, served through the same
@@ -642,17 +663,25 @@ const memory = (config: {
     },
   }
 
-  // A relation page is the refs in a window of the stored list, with no
-  // cursors of its own: `after` and `before` name refs already shown.
+  // A relation page is the refs in a window of the stored list. Its cursor is a
+  // ref key, or a bare id, as a real server accepts either.
   const valueFor = (value: unknown, window: QueryWindow | undefined): unknown => {
     if (window === undefined || !Array.isArray(value)) return value
     const refs = value as ReadonlyArray<string>
-    let from = window.after === undefined ? 0 : refs.indexOf(window.after) + 1
-    const before = window.before === undefined ? -1 : refs.indexOf(window.before)
-    let to = before < 0 ? refs.length : before
-    if (window.first !== undefined) to = Math.min(to, from + window.first)
-    else if (window.last !== undefined) from = Math.max(from, to - window.last)
-    return { refs: refs.slice(from, to), hasNext: to < refs.length, hasPrevious: from > 0 }
+    const idOf = (ref: string) => ref.slice(ref.indexOf(':') + 1)
+    const named = (cursor: string | undefined) =>
+      cursor === undefined ? undefined : cursor.includes(':') ? idOf(cursor) : cursor
+    const page = pageOf(
+      refs,
+      { ...window, after: named(window.after), before: named(window.before) },
+      idOf,
+    )
+    // A cursor at either end is exactly "more lie that way".
+    return {
+      refs: page.items,
+      hasNext: page.end._tag === 'Cursor',
+      hasPrevious: page.start._tag === 'Cursor',
+    }
   }
 
   const entities = [...config.domain.registry.entities.keys()].map(name =>
@@ -660,18 +689,23 @@ const memory = (config: {
       { name },
       {
         read: ({ ids, fields, windows }) =>
-          Effect.succeed(
-            ids.flatMap(id => {
-              const row = table(name).get(id)
-              if (row === undefined) return []
-              const values = Object.fromEntries(
-                fields.flatMap(field =>
-                  field in row ? [[field, valueFor(row[field], windows?.[field])] as const] : [],
-                ),
-              )
-              return [{ id, values }]
-            }),
-          ),
+          Effect.try({
+            try: () =>
+              ids.flatMap(id => {
+                const row = table(name).get(id)
+                if (row === undefined) return []
+                const values = Object.fromEntries(
+                  fields.flatMap(field =>
+                    field in row ? [[field, valueFor(row[field], windows?.[field])] as const] : [],
+                  ),
+                )
+                return [{ id, values }]
+              }),
+            catch: error =>
+              new RemoteServerError({
+                message: error instanceof Error ? error.message : String(error),
+              }),
+          }),
       },
     ),
   )
@@ -699,13 +733,14 @@ const memory = (config: {
               >
               const entity = body.entity.name
               const matched = evaluate(body, encoded, store.rows(entity) as ReadonlyArray<Row>)
-              const { from, to } = windowOf(matched.length, window)
+              const page = pageOf(matched, window, row => String(row.id))
               return {
-                edges: matched.slice(from, to).map(row => {
+                edges: page.items.map(row => {
                   const id = String(row.id)
                   return { entity, id, key: entityKey(entity, id) }
                 }),
-                ...boundaries(matched.length, from, to),
+                start: page.start,
+                end: page.end,
               }
             },
             catch: error =>

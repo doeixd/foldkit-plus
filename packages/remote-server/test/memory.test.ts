@@ -9,7 +9,7 @@
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
-import { Mutation, Query, Remote } from 'foldkit-remote'
+import { Mutation, Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer, type MemoryBackend } from '../src/index.js'
@@ -111,6 +111,65 @@ describe('RemoteServer.memory', () => {
       _tag: 'Ready',
       value: { items: [{ name: 'Apollo' }, { name: 'Borealis' }], hasNext: false },
     })
+  })
+
+  it('pages forward into one joined list, and backward the same', async () => {
+    const many = {
+      ...rows,
+      Project: ['a', 'b', 'c', 'd', 'e'].map(id => ({
+        id,
+        name: id,
+        status: 'active',
+        owner: 'User:u1',
+      })),
+    }
+    const backend = RemoteServer.memory({ domain: Data, rows: many })
+    const fetch = async (model: Model, ref: Parameters<typeof Data.fetch>[0]) =>
+      Data.reduce(
+        model,
+        await Effect.runPromise(Data.fetch(ref).effect.pipe(Effect.provide(backend.layer))),
+      )
+    const walk = async (
+      projection: typeof forward,
+      step: (model: Model) => Parameters<typeof Data.fetch>[0] | undefined,
+    ) => {
+      let model = await load(backend, projection)
+      for (let ref = step(model); ref !== undefined; ref = step(model)) {
+        model = await load(backend, projection, await fetch(model, ref))
+      }
+      return model
+    }
+    const forward = Data.query(ByStatus, { status: 'active' }, { select: summary, first: 2 })
+    const backward = Data.query(ByStatus, { status: 'active' }, { select: summary, last: 2 })
+
+    const ahead = await walk(forward, model => Data.next(model, forward))
+    const behind = await walk(backward, model => Data.previous(model, backward))
+
+    for (const [model, projection] of [
+      [ahead, forward],
+      [behind, backward],
+    ] as const) {
+      // One segment, terminal at both ends: the pages joined, with no gap.
+      const connection = model.remote.connections[projection.ref.identity]!
+      expect(connection.segments).toHaveLength(1)
+      expect(connection.segments[0]!.start._tag).toBe('Terminal')
+      expect(connection.segments[0]!.end._tag).toBe('Terminal')
+      expect(projection.read(model)).toMatchObject({
+        _tag: 'Ready',
+        value: { items: ['a', 'b', 'c', 'd', 'e'].map(name => ({ name })) },
+      })
+    }
+  })
+
+  it('refuses a window that asks for both directions', async () => {
+    const backend = RemoteServer.memory({ domain: Data, rows })
+    const both = Query.first(1)(Query.last(1)(ByStatus.ref({ status: 'active' })))
+
+    const message = await Effect.runPromise(
+      Data.fetch(both).effect.pipe(Effect.provide(backend.layer)),
+    )
+
+    expect(message).toMatchObject({ _tag: 'QueryFailed' })
   })
 
   it('shows a mutation’s write on the next read', async () => {
@@ -229,6 +288,51 @@ describe('RemoteServer.memory', () => {
         },
       },
     })
+
+    // Each relation window the server can be asked for, straight through the
+    // client's transport: a ref-key cursor, a bare id, backward, and a cursor
+    // that names nothing.
+    const read = (window: Record<string, unknown>) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const client = yield* RemoteClient
+          return yield* client.read({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [
+              {
+                entity: 'Post',
+                id: 'a',
+                fields: ['comments@w'],
+                windows: { 'comments@w': window },
+              },
+            ],
+          })
+        }).pipe(Effect.provide(backend.layer)),
+      )
+    const page = async (window: Record<string, unknown>) =>
+      (await read(window)).entities[0]!.values['comments@w']
+
+    expect(await page({ first: 1, after: 'Comment:c1' })).toEqual({
+      refs: ['Comment:c2'],
+      hasNext: true,
+      hasPrevious: true,
+    })
+    expect(await page({ first: 1, after: 'c1' })).toEqual({
+      refs: ['Comment:c2'],
+      hasNext: true,
+      hasPrevious: true,
+    })
+    expect(await page({ last: 2 })).toEqual({
+      refs: ['Comment:c2', 'Comment:c3'],
+      hasNext: false,
+      hasPrevious: true,
+    })
+    expect(await page({ last: 1, before: 'c3' })).toEqual({
+      refs: ['Comment:c2'],
+      hasNext: true,
+      hasPrevious: true,
+    })
+    await expect(read({ first: 1, after: 'Comment:gone' })).rejects.toThrow('names nothing')
   })
 
   it('refuses, when made, a query it has no body to run', () => {
