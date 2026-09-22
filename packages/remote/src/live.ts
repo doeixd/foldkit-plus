@@ -48,13 +48,11 @@ export interface BoundaryCounts {
 export interface LiveState {
   /** Last applied cursor for this stream. */
   readonly cursor: LiveCursor
-  /** Connections marked stale by an invalidating event. */
-  readonly stale: ReadonlySet<string>
   /** Edges recorded outside the loaded boundary, not visible in `items`. */
   readonly boundary: Readonly<Record<string, BoundaryCounts>>
 }
 
-export const emptyLiveState: LiveState = { cursor: 0, stale: new Set(), boundary: {} }
+export const emptyLiveState: LiveState = { cursor: 0, boundary: {} }
 
 export type LiveOutcome = 'applied' | 'duplicate' | 'gap'
 
@@ -85,11 +83,6 @@ const recordBoundary = (
       : { ...current, after: current.after + 1 }
   return { ...state, boundary: { ...state.boundary, [connection]: next } }
 }
-
-export const invalidateConnection = (state: LiveState, connection: string): LiveState => ({
-  ...state,
-  stale: new Set([...state.stale, connection]),
-})
 
 /**
  * A subscriber is woken only if the event changed a field it selects. A
@@ -126,6 +119,13 @@ export interface ConnectionApplied {
   readonly state: LiveState
   readonly optimistic: OptimisticState
   readonly outcome: LiveOutcome
+  /**
+   * A connection the event says to refetch. Reported rather than recorded here,
+   * because staleness lives on the connection in the Model — which is what the
+   * planner and every read consult. It used to be written into a set on this
+   * live state that nothing read, so an invalidating event did nothing at all.
+   */
+  readonly invalidated?: string | undefined
 }
 
 const removeEdgeOverlays = (
@@ -177,9 +177,10 @@ export const applyConnectionEvent = (
           }
         case 'invalidate':
           return {
-            state: invalidateConnection(advance(state, event.cursor), event.connection),
+            state: advance(state, event.cursor),
             optimistic,
             outcome,
+            invalidated: event.connection,
           }
         case 'ignore':
           return { state: advance(state, event.cursor), optimistic, outcome }
@@ -200,26 +201,12 @@ export const applyConnectionEvent = (
       }
     case 'ConnectionInvalidate':
       return {
-        state: invalidateConnection(advance(state, event.cursor), event.connection),
+        state: advance(state, event.cursor),
+        invalidated: event.connection,
         optimistic,
         outcome,
       }
   }
-}
-
-export const isStale = (state: LiveState, connection: string): boolean =>
-  state.stale.has(connection)
-
-/**
- * Clears a connection's stale mark once a fresh page has been adopted. An
- * invalidating event only records that a refetch is due; whoever merges the
- * refetched page calls this so `isStale` stops reporting.
- */
-export const refreshConnection = (state: LiveState, connection: string): LiveState => {
-  if (!state.stale.has(connection)) return state
-  const stale = new Set(state.stale)
-  stale.delete(connection)
-  return { ...state, stale }
 }
 
 /** `hasPrevious` accounting for edges recorded outside the loaded boundary. */

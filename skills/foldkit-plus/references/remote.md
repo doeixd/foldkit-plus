@@ -407,6 +407,15 @@ and, inside a mutation's Effect, `yield* hub.changed(Project.ref(id), ['name'])`
 from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
 `maxIdsPerEntity` (default 1000), `maxDepth` (default 8).
 
+On the client, a live row inserted into a connection is decided in this order:
+if the query has a body and the row is held with fresh values for every field
+the body reads, **membership decides** (a row that does not match is ignored);
+otherwise the connection's declared `live` policy decides (`visible`,
+`boundary`, `invalidate`, `ignore`; default `visible`). `invalidate` — and a
+server's `ConnectionInvalidate` event — mark the *connection in the Model*
+stale, exactly as the `ConnectionInvalidated` Message does, so the planner
+refetches it and a read of it is `Refreshing`.
+
 ## Drizzle: `foldkit-remote-drizzle`
 
 `foldkit-remote-drizzle` pins `drizzle-orm` `1.0.0-rc.4` as a dependency; the

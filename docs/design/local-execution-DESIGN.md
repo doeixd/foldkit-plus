@@ -697,12 +697,16 @@ refuse the rest.
 > pure reducer stays testable without one, and a caller that supplies a policy
 > keeps it.
 >
-> `LiveInsertion: 'invalidate'` **records a mark nothing reads.** It puts the
-> connection in the live state's `stale` set, and `isStale` has no caller
-> outside its own module; what a read consults is the connection's own `stale`
-> flag. Not fixed here — it is a different dead path, in the planner rather than
-> in this decision — but recorded, because a test written against it would pin
-> nothing.
+> `LiveInsertion: 'invalidate'` **recorded a mark nothing read** — and so did
+> the server's explicit `ConnectionInvalidate` event, which is worse: a server
+> saying "refetch this" did nothing at all. Both wrote into a `stale` set on the
+> live state that only `isStale` read, and `isStale` had no caller. The unit
+> tests asserted on that set, so they passed throughout. **Fixed afterwards:**
+> the event now reports what it invalidated and the reducer applies it through
+> the same reduction as the `ConnectionInvalidated` Message; the dead set,
+> `isStale`, `refreshConnection` and `invalidateConnection` are removed; and the
+> tests that replace them go through the reducer to the planner, and fail on
+> the old code.
 >
 > The finding behind the finding: `LiveInsertion` was cited in §0 as "the caller
 > that already shipped", and it shipped without being wired. A declared option

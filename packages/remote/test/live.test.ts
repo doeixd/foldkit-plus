@@ -16,11 +16,8 @@ import {
   applyEntityEvent,
   classifyLive,
   emptyLiveState,
-  invalidateConnection,
-  isStale,
   liveHasNext,
   liveHasPrevious,
-  refreshConnection,
   shouldWake,
 } from '../src/live.js'
 import { addOverlay, emptyOptimistic, visibleItems } from '../src/optimistic.js'
@@ -112,13 +109,15 @@ describe('Live data', () => {
     const invalidate = applyConnectionEvent(emptyLiveState, emptyOptimistic, insert('prepend', 1), {
       prepend: 'invalidate',
     })
-    expect(isStale(invalidate.state, 'Feed')).toBe(true)
+    // Reported, so the reducer can mark the connection itself — which is what a
+    // read and the planner consult. See the end-to-end test in liveBelongs.
+    expect(invalidate.invalidated).toBe('Feed')
 
     const ignore = applyConnectionEvent(emptyLiveState, emptyOptimistic, insert('prepend', 1), {
       prepend: 'ignore',
     })
     expect(ignore.optimistic.overlays).toEqual([])
-    expect(isStale(ignore.state, 'Feed')).toBe(false)
+    expect(ignore.invalidated).toBeUndefined()
   })
 
   it('a remove event removes an optimistically inserted edge', () => {
@@ -214,15 +213,7 @@ describe('Live data', () => {
       connection: 'Feed',
       cursor: 1,
     })
-    expect(isStale(result.state, 'Feed')).toBe(true)
+    expect(result.invalidated).toBe('Feed')
     expect(result.outcome).toBe('applied')
-  })
-
-  it('refreshConnection clears only the refreshed connection', () => {
-    const stale = invalidateConnection(invalidateConnection(emptyLiveState, 'Feed'), 'Inbox')
-    const refreshed = refreshConnection(stale, 'Feed')
-
-    expect(isStale(refreshed, 'Feed')).toBe(false)
-    expect(isStale(refreshed, 'Inbox')).toBe(true)
   })
 })

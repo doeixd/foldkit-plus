@@ -2268,6 +2268,14 @@ Fixed in `e3b5309`: `refreshConnection` clears a connection's stale mark, so
 `live.invalidateConnection` is no longer a one-way flag. The refetching caller
 invokes it when it adopts the fresh page.
 
+> **Later: this was never wired, and is gone.** No refetching caller ever
+> invoked `refreshConnection`, and nothing read the mark `invalidateConnection`
+> set — so an invalidating live event did nothing observable, while the unit
+> tests of the two functions passed. Both are removed. An invalidating event now
+> goes through the same reduction as the `ConnectionInvalidated` Message, which
+> marks the connection itself stale; that flag is what the planner and every
+> read consult. See `local-execution-DESIGN.md` phase 4.
+
 Still open (all lower severity):
 
 - **remote-drizzle does not check that the table-derived Schema agrees with the

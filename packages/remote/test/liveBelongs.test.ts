@@ -35,17 +35,14 @@ const activeOnly = () =>
 /** Active projects, showing whatever a live insert brings: the default. */
 const ActiveProjects = Query.define('ActiveProjects', {}, activeOnly)
 
-/**
- * The same population, declaring that a prepend must not be shown.
- *
- * `'ignore'` rather than `'invalidate'`: an invalidating event records a stale
- * mark in the live state that **nothing reads** — `isStale` has no caller
- * outside its own module, and a connection's own `stale` flag is what a read
- * consults. That is a separate dead path from the one this phase fixes, and
- * pinning behaviour on it would be pinning nothing.
- */
+/** The same population, declaring that a prepend must not be shown. */
 const QuietProjects = Query.define('QuietProjects', {}, activeOnly, {
   live: { prepend: 'ignore' },
+})
+
+/** The same population, declaring that a prepend means "refetch me". */
+const RefetchedProjects = Query.define('RefetchedProjects', {}, activeOnly, {
+  live: { prepend: 'invalidate' },
 })
 
 const Model = Schema.Struct({ remote: Remote.Model })
@@ -54,7 +51,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
-  queries: [ActiveProjects, QuietProjects],
+  queries: [ActiveProjects, QuietProjects, RefetchedProjects],
 })
 
 /** Either connection, so the helpers are not pinned to one query's name. */
@@ -62,6 +59,7 @@ type Projection = QueryProjection<Model, { readonly id: string; readonly name: s
 
 const projects: Projection = Data.query(ActiveProjects, {}, { select: Summary, first: 25 })
 const quiet: Projection = Data.query(QuietProjects, {}, { select: Summary, first: 25 })
+const refetched: Projection = Data.query(RefetchedProjects, {}, { select: Summary, first: 25 })
 const key = (id: string) => entityKey('Project', id)
 
 /** A loaded connection holding `p1`, plus whatever else is written. */
@@ -225,5 +223,51 @@ describe('The declared policy reaches the decision at all', () => {
     })
 
     expect(edges(model, quiet)).toEqual(['p9', 'p1'])
+  })
+})
+
+describe('An invalidating live event actually invalidates', () => {
+  // Both paths used to write into a set on the live state that nothing read, so
+  // a server saying "refetch this connection" did nothing at all — and the unit
+  // tests passed, because they asserted on that set. These go through the
+  // reducer to the two things that matter: the connection's own `stale` flag,
+  // and the planner.
+
+  it('marks the connection stale when the server says so', () => {
+    const model = Data.reduce(loaded(), {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: { _tag: 'ConnectionInvalidate', cursor: 1, connection: projects.ref.identity },
+      now: 0,
+    })
+
+    expect(model.remote.connections[projects.ref.identity]!.stale).toBe(true)
+    expect(projects.read(model)._tag).toBe('Refreshing')
+    expect(Remote.planQueries(Data, model, projects).map(ref => ref.identity)).toEqual([
+      projects.ref.identity,
+    ])
+  })
+
+  it('marks it stale when a declared `invalidate` policy meets an insert', () => {
+    // `p9` is unknown, so membership cannot decide and the declaration does.
+    const model = insert(loaded([], refetched), 'p9', refetched)
+
+    expect(model.remote.connections[refetched.ref.identity]!.stale).toBe(true)
+    expect(Remote.planQueries(Data, model, refetched).map(ref => ref.identity)).toEqual([
+      refetched.ref.identity,
+    ])
+    // Invalidating is instead of showing, not as well as.
+    expect(edges(model, refetched)).toEqual(['p1'])
+  })
+
+  it('leaves every other connection alone', () => {
+    const model = Data.reduce(loaded(), {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: { _tag: 'ConnectionInvalidate', cursor: 1, connection: quiet.ref.identity },
+      now: 0,
+    })
+
+    expect(model.remote.connections[projects.ref.identity]!.stale).toBe(false)
   })
 })

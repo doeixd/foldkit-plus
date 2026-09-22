@@ -620,16 +620,20 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
             )
       }
       const applied = applyConnectionEvent(state, model.optimistic, message.event, message.policy)
-      return applied.outcome === 'gap'
-        ? markGap(model, message.stream)
-        : clearGap(
-            {
-              ...model,
-              optimistic: applied.optimistic,
-              live: { ...model.live, [message.stream]: applied.state },
-            },
-            message.stream,
-          )
+      if (applied.outcome === 'gap') return markGap(model, message.stream)
+      const next = clearGap(
+        {
+          ...model,
+          optimistic: applied.optimistic,
+          live: { ...model.live, [message.stream]: applied.state },
+        },
+        message.stream,
+      )
+      // An invalidating event means exactly what `ConnectionInvalidated` means,
+      // so it goes through the same reduction rather than a parallel one.
+      return applied.invalidated === undefined
+        ? next
+        : updateRemote(next, { _tag: 'ConnectionInvalidated', connection: applied.invalidated })
     }
     case 'GapCleared':
       return clearGap(model, message.stream)
