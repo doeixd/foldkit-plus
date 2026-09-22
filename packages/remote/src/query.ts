@@ -67,6 +67,17 @@ export type QueryInputs<Input> = {
   readonly [K in keyof Input & string]: InputExpr<Input[K]>
 }
 
+/**
+ * What separates a query's name from its canonical encoded input in a
+ * connection identity.
+ *
+ * NUL, because `JSON.stringify` escapes it inside a string (`\u0000`) and a
+ * query name is a TypeScript identifier — so the first occurrence is always the
+ * boundary, and a name or an input value cannot forge one. Anything recovering
+ * the query from an identity splits here.
+ */
+export const IDENTITY_SEPARATOR = '\u0000'
+
 /** Stable stringify: object keys sorted, undefined-valued keys dropped, so equal inputs encode equally. */
 export const stableStringify = (value: unknown): string => {
   if (value === undefined) return 'null'
@@ -166,7 +177,7 @@ export const Query = {
         input,
         Input,
         window: {},
-        identity: `${name}\u0000${stableStringify(encode(input))}`,
+        identity: `${name}${IDENTITY_SEPARATOR}${stableStringify(encode(input))}`,
       }),
     }
   },

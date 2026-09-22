@@ -87,6 +87,27 @@ export const matching = <Name extends string, Input>(
   descriptor: QueryDescriptor<Name, Input, unknown>,
   input: Input,
   options: MatchingOptions = {},
+): Judged =>
+  matchingEncoded(
+    store,
+    descriptor,
+    Schema.encodeSync(descriptor.Input)(input) as Readonly<Record<string, unknown>>,
+    options,
+  )
+
+/**
+ * As `matching`, for a caller that already holds the input **encoded**.
+ *
+ * A connection identity is the query's name and its canonical *encoded* input,
+ * so anything working from one has the encoded form already; making it decode
+ * only for this to encode it again would be a round trip that can fail. Every
+ * other caller should use `matching`, which cannot be given the wrong space.
+ */
+export const matchingEncoded = <Name extends string, Input>(
+  store: EntityStore,
+  descriptor: QueryDescriptor<Name, Input, unknown>,
+  encoded: Readonly<Record<string, unknown>>,
+  options: MatchingOptions = {},
 ): Judged => {
   const body = descriptor.body
   if (body === undefined) {
@@ -117,10 +138,62 @@ export const matching = <Name extends string, Input>(
     rows.push({ ...entry.values, id: key.slice(prefix.length), __key: key })
   }
 
-  const encoded = Schema.encodeSync(descriptor.Input)(input) as Readonly<Record<string, unknown>>
   const matched = evaluate(body, encoded, rows).map(
     row => (row as { readonly __key: EntityKey }).__key,
   )
 
   return { matched, skipped }
+}
+
+/**
+ * Whether one row belongs to a query, as far as the client can tell.
+ *
+ * Three answers, and the third is the one that makes this usable. `'unknown'`
+ * is a row the store never fetched, or holds without a field the body reads —
+ * a caller that collapses it into `'no'` has turned "I could not tell" into an
+ * answer, which is the mistake this whole module is shaped against.
+ *
+ * **Membership is decidable where position is not.** Whether a row satisfies
+ * `eq`, `isNull` or `contains` needs no collation: equality on text is exact
+ * and `contains` folds ASCII, both stated in §6.0.1. *Where* a row sorts needs
+ * text collation, which is the backend's and deliberately outside the
+ * conformant subset — so this answers the half that is always answerable, and
+ * ordering stays the server's until a query can declare its collation.
+ */
+export type Belongs = 'yes' | 'no' | 'unknown'
+
+export const belongs = <Name extends string, Input>(
+  store: EntityStore,
+  descriptor: QueryDescriptor<Name, Input, unknown>,
+  input: Input,
+  key: EntityKey,
+): Belongs =>
+  belongsEncoded(
+    store,
+    descriptor,
+    Schema.encodeSync(descriptor.Input)(input) as Readonly<Record<string, unknown>>,
+    key,
+  )
+
+/** As `belongs`, for a caller holding the input encoded — see `matchingEncoded`. */
+export const belongsEncoded = <Name extends string, Input>(
+  store: EntityStore,
+  descriptor: QueryDescriptor<Name, Input, unknown>,
+  encoded: Readonly<Record<string, unknown>>,
+  key: EntityKey,
+): Belongs => {
+  const entry = store[key]
+  // Never fetched: nothing to judge, and silence is the honest answer.
+  if (entry === undefined) return 'unknown'
+  // Known absent. Not "does not match" — but it definitely does not belong in
+  // a list, which is what a caller is asking.
+  if (entry.tombstone) return 'no'
+
+  const judged = matchingEncoded(store, descriptor, encoded, { among: [key] })
+  if (judged.matched.includes(key)) return 'yes'
+  // Held, but missing a field the body reads.
+  if (judged.skipped.includes(key)) return 'unknown'
+  // Judged and did not match — or is a row of another Entity entirely, which
+  // cannot belong to a connection over this one.
+  return 'no'
 }

@@ -637,7 +637,7 @@ store, and refuses — rather than answering — every case in §9.
 reads, or §9.2's encoding cannot be applied without a schema the store does not
 carry, stop here and record why. Phases 4 and 6 depend on this being *exact*.
 
-### 4 — Placement through the body
+### 4 — Placement through the body — **membership done, position gated**
 
 Replace the guess in **both** places it exists: optimistic inserts, and
 `LivePolicy`'s insertion decision for rows the client can judge. The declared
@@ -654,6 +654,38 @@ boundary does not appear at all — each against a connection whose order is
 Ordering by text is approximate until §9.3's declared collation exists; until
 then this phase should ship for bodies whose order the client can reproduce and
 refuse the rest.
+
+> **Split, because membership and position are not equally decidable.**
+>
+> Whether a row satisfies a body needs **no collation**: equality on text is
+> exact and `contains` folds ASCII, both stated in §6.0.1. *Where* it sorts
+> needs collation, which is the backend's. So `Remote.belongs` answers the half
+> that is always answerable, and the position a live event carries still stands.
+> Ordered placement waits on declared collation, as §9.3 said it would.
+>
+> **Two dead paths turned up doing it**, both around the API this phase was
+> supposed to be improving.
+>
+> `LivePolicy` **never reached the decision.** `Query.connection(E, { live })`
+> was typed, documented, carried on the descriptor and present in the Message
+> schema — and nothing in the production path ever set `LiveReceived.policy`,
+> so every live insert took the default whatever an application declared. Fixed
+> here: the bound `reduce` resolves it, because that is the only place with both
+> the Model and the registry. `updateRemote` on its own is unchanged, so the
+> pure reducer stays testable without one, and a caller that supplies a policy
+> keeps it.
+>
+> `LiveInsertion: 'invalidate'` **records a mark nothing reads.** It puts the
+> connection in the live state's `stale` set, and `isStale` has no caller
+> outside its own module; what a read consults is the connection's own `stale`
+> flag. Not fixed here — it is a different dead path, in the planner rather than
+> in this decision — but recorded, because a test written against it would pin
+> nothing.
+>
+> The finding behind the finding: `LiveInsertion` was cited in §0 as "the caller
+> that already shipped", and it shipped without being wired. A declared option
+> nothing reads is worse evidence of demand than no option at all, and it is
+> worth being slower to count one next time.
 
 ### 5 — `Surface.when`, and the manifest that makes it useful
 

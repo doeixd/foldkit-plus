@@ -31,13 +31,14 @@ import {
 } from './client.js'
 import { emptyConnection, hasNext, hasPrevious, type Edge } from './connection.js'
 import { Entity, type EntityDescriptor } from './entity.js'
+import { belongsEncoded } from './matching.js'
 import {
   inspectEntity,
   inspectRemote,
   type QueryExplanation,
   type RemoteInspection,
 } from './inspect.js'
-import type { LiveCursor } from './live.js'
+import type { LiveCursor, LiveEvent } from './live.js'
 import {
   initialRemoteModel,
   isLoading,
@@ -67,8 +68,8 @@ import {
 } from './optimistic.js'
 import { plan, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
-import { stableStringify } from './query.js'
-import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
+import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
+import type { ConnectionSpec, LivePolicy, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
 import { Selection, assemble, pageSchema, relationOf, type Page } from './selection.js'
@@ -1572,9 +1573,61 @@ const bindDomain = <
   store: ModelRef<AppModel, Store>,
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const bound = bindRemote(definition, store)
+  /**
+   * What to do with a row a live event says was inserted into a connection.
+   *
+   * Resolved here rather than in the pure reducer because this is the only
+   * place with both the Model and the registry, and two separate things needed
+   * one or the other.
+   *
+   * **The declared policy reaches the decision.** `Query.connection(E, { live })`
+   * has always been typed, documented, carried on the descriptor and encoded in
+   * the Message schema — and nothing ever put it on a Message, so every live
+   * insert took the default whatever an application asked for. It does now.
+   *
+   * **A row the client can judge does not need a policy.** The policy exists
+   * because nothing could tell whether an inserted row belonged to the query.
+   * Where the body says it does not, `ignore` is not a guess. Where the body
+   * says it does, or the client cannot tell — a row it never fetched, or holds
+   * without a field the body reads — the declared policy is the answer, exactly
+   * as it was meant to be.
+   *
+   * Only membership is decided here. *Where* a row sorts needs text collation,
+   * which is the backend's, so the position the event carries stands.
+   */
+  const livePolicyFor = (model: AppModel, event: LiveEvent): LivePolicy | undefined => {
+    if (event._tag !== 'ConnectionInsert') return undefined
+    const identity = event.connection
+    const separator = identity.indexOf(IDENTITY_SEPARATOR)
+    const descriptor = definition.registry.queries.get(
+      separator === -1 ? identity : identity.slice(0, separator),
+    )
+    const declared = (descriptor?.Result as Partial<ConnectionSpec> | undefined)?.live
+    if (descriptor?.body === undefined || separator === -1) return declared
+    const encoded = JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>
+    const decided = belongsEncoded(
+      storeOf(bound, model),
+      descriptor,
+      encoded,
+      entityKey(event.edge.ref.entity, event.edge.ref.id),
+    )
+    return decided === 'no' ? { prepend: 'ignore', append: 'ignore' } : declared
+  }
+
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
-  const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel =>
-    store.set(model, updateRemote(store.get(model), message as RemoteMessage) as Store)
+  const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel => {
+    const live =
+      (message as RemoteMessage)._tag === 'LiveReceived'
+        ? (message as Extract<RemoteMessage, { _tag: 'LiveReceived' }>)
+        : undefined
+    // A caller that said what it wanted keeps it; `updateRemote` on its own is
+    // unchanged, so the pure reducer stays testable without a registry.
+    const resolved =
+      live === undefined || live.policy !== undefined
+        ? message
+        : { ...live, policy: livePolicyFor(model, live.event) }
+    return store.set(model, updateRemote(store.get(model), resolved as RemoteMessage) as Store)
+  }
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
     ...bound,
