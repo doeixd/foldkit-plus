@@ -365,9 +365,11 @@ neither bounds nothing. Note that a failed query never makes a read `Failed` —
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
 the `body` as readable text with its `dependencies` (absent for a `Query.make`
 descriptor, whose meaning lives on the server), and `state` — taken from the
-projection's own read, so an explanation and the view cannot disagree. It names
-no Surface (a projection is read by however many read it) and no executor (what
-answers a query is a `RemoteClient` Layer, not a value in the Model).
+projection's own read, so an explanation and the view cannot disagree. Given
+`{ surfaces }` — the same active record `subscriptions` takes — it also reports
+every active Surface reading the connection and, for those placed with
+`Surface.when`, why each is active. It names no executor: what answers a query
+is a `RemoteClient` Layer, not a value in the Model.
 
 ## Server: `foldkit-remote-server`
 

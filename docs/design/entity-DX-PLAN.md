@@ -1,6 +1,6 @@
 # Entity, Form, and Crud: DX plan
 
-Status: items 1–9 resolved; items 10–13 open, found by probing the query IR's
+Status: items 1–9 and 11 resolved; items 10, 12 and 13 open, found by probing the query IR's
 inference rather than by building with it. Friction found while building `foldkit-entity`, `foldkit-form`,
 `foldkit-mixins-form`, `foldkit-crud`, and `foldkit-mixins-crud` and wiring them
 into [`examples/entity`](../../examples/entity). Each item names what prompted

@@ -1,6 +1,7 @@
 # Benchmarks
 
-`pnpm bench` runs the Vitest benchmarks in `packages/sync/bench` and prints
+`pnpm bench` runs the Vitest benchmarks in `packages/sync/bench` and
+`packages/remote/bench` and prints
 hz/mean/p99 per scenario; `pnpm bench:storage` appends a fixed number of
 operations to a file-backed durable journal and prints a bytes-per-operation
 reading. A weekly [Bench workflow](../.github/workflows/bench.yml) runs both and

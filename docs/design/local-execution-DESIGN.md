@@ -20,8 +20,8 @@
 | **Four of LiveStore's six contributions are already built under other names.** What is missing is a durable *queryable* local read model — reachable through §20's mode B without adopting an event log. | [§5](#5-blocker-3--nothing-durable-and-queryable-locally) |
 | **Five of tanstackstart-db's seven route ideas are present, and the sixth is ahead of the original.** Dependent reads are solved at the data level by the planner rather than as route-loader stages. | [§6](#6-blocker-4--the-page-contract-is-opaque-at-its-edges) |
 | **The hot path is not the one §3 guessed.** `Data.query` re-encodes its input through Schema and re-serializes its Selection on **every Model change**, to produce two strings that almost never differ. That is paid per frame; the decode cost is paid only on writes. | [§16.1](#161-the-read-path-is-not-where-the-evidence-points) |
-| **The one query designed for a search box mints a connection per keystroke**, and nothing in Remote mentions the `debounce` that `foldkit/primitives` already ships. | [§16.2](#162-a-high-frequency-input-mints-a-connection-per-change) |
-| **`Expr.contains` compiles over a numeric field** and reaches the database as `lower(rank) like …`. The one operator whose semantics needed a whole section is the one with no constraint on its operand. | [§18](#18-inference-and-dx) |
+| **A search box already in the repository was fetching per keystroke.** Fixed in `examples/entity` with `debounce` from `foldkit-primitives/time`, plus the guidance that was missing. | [§16.2](#162-a-high-frequency-input-mints-a-connection-per-change) |
+| **`Expr.contains` compiled over a numeric field** and reached the database as `lower(rank) like …`. Fixed — and the obvious fix *failed open*: a check intersected onto the parameter lets inference fall back to the constraint, so every operand passed. | [§18](#18-inference-and-dx) |
 | **The conformance suite can become a guarantee** — that the optimistic local answer equals the eventual server answer — but only after it gains the cases that make encoding and collation observable. Today its fixtures cannot see either. | [§10](#10-the-conformance-suite-becomes-a-guarantee) |
 
 Two things the **first draft of this plan got wrong**, recorded because they are
@@ -97,9 +97,18 @@ That is what "no incremental view maintenance" means concretely.
 
 ### 3.1 It is not obviously a problem
 
-There is **no benchmark anywhere in this repository**, and every `first:` in it
-is 1, 10 or 25. Nobody has reported a slow list, because nothing here draws a
-list long enough to be slow.
+Every `first:` in this repository is 1, 10 or 25. Nobody has reported a slow
+list, because nothing here draws a list long enough to be slow.
+
+> **An earlier draft of this section said "there is no benchmark anywhere in
+> this repository", and that was false.** There is a `pnpm bench` script, a
+> weekly [Bench workflow](../../.github/workflows/bench.yml),
+> [`docs/benchmarks.md`](../benchmarks.md), and benchmarks under
+> `packages/sync`, `packages/remote-drizzle` and `packages/durable`. The claim
+> came from listing one directory — `packages/remote/test` — and generalising
+> to the repository: the exact move §28 exists to stop, made in the paragraph
+> that invokes §28. The measurement now lives in
+> `packages/remote/bench/read.bench.ts` and runs with the others.
 
 So this section is an observation, not yet a justification. Optimizing it now
 would be generalising from no evidence, which is the rule this project applies
@@ -322,7 +331,7 @@ IR**, and the moment it wants a Remote concept it has moved to the wrong place
 and should leave.
 
 **Packaging consequence the first draft missed:** `foldkit-entity` currently
-exports only `"."`. The conformance suite is test fixture data — 25 cases, rows,
+exports only `"."`. The conformance suite is test fixture data — 26 cases, rows,
 an Entity — and must not ship in the main bundle of a package that every form
 and admin screen imports. It needs its own subpath export.
 
@@ -517,7 +526,7 @@ locally" reads like a guarantee and is not one. (§17.2.)
 
 ## 10. The conformance suite becomes a guarantee
 
-Today the 25 cases say *four interpreters agree about what a body means*. That
+Today the 26 cases say *four interpreters agree about what a body means*. That
 was worth building and it found real bugs.
 
 If the client evaluates bodies and the server compiles them, the same suite says
@@ -580,10 +589,10 @@ creates real callers** — not to argue the rule should bend.
 
 ## 13. Sequence
 
-> **Status lives here**, not in a scratch plan file: phases 0, 1 and 2 are
-> built, M is measured, and 3 onwards are not started. What each of the
-> finished ones actually changed — including the three places the plan was
-> wrong — is in the sections they point at.
+> **Status lives here**, not in a scratch plan file: **phases 0 through 7 are
+> built** — phase 4 in its decidable half — and M is measured and deliberately
+> not built. What each one actually changed, including every place the plan
+> turned out to be wrong, is in the sections they point at.
 
 Phases are numbered by dependency, not by priority. **A → B** means B cannot
 start until A lands.
@@ -623,7 +632,7 @@ it phase 3 has no way to fail.
 
 **Done when** a deliberately mis-encoded comparison turns the suite red.
 
-### 3 — Evaluate a body against the store — *next*
+### 3 — Evaluate a body against the store — **done**
 
 A pure function from the visible store, a body and an input to the entity keys
 satisfying it — reusing phase 1's evaluator over rows assembled from the store,
@@ -895,30 +904,30 @@ because the fix is bounded: memoize identity on the input object and
 
 ### 16.1.1 Measured, and the hypothesis was wrong
 
-Benchmarked: one connection, a Selection reaching through a relation (as every
-real one here does), microseconds per operation, three page sizes.
+`packages/remote/bench/read.bench.ts`, run with `pnpm bench`. One connection, a
+Selection reaching through a relation (as every real one here does), mean
+microseconds per operation:
 
 | | 25 rows | 100 rows | 400 rows |
 | --- | --- | --- | --- |
-| `Data.query` (build a projection) | 21.5 | 12.7 | 6.6 |
-| `projection.read`, same Model (memo hit) | 1.2 | 1.2 | 0.5 |
-| **read after a write to one unrelated entity** | **183.7** | **379.0** | **1549.7** |
-| — of which the reduce alone | 27.2 | 51.8 | 231.6 |
-| `Remote.plan` | 130.4 | 161.9 | 822.2 |
+| `Data.query` — build a projection | 6.4 | 6.5 | 10.0 |
+| read, same Model — the memo hit | 0.1 | 0.6 | 0.9 |
+| **read, after a write to one unrelated entity** | **72.5** | **416** | **1794** |
+| the same write, without the read | 14.2 | 67.7 | 332 |
+| `Remote.plan` | 42.3 | 274 | 994 |
 
-**`Data.query` is the cheapest thing on the list and does not scale with the
-page** — it is roughly 10µs flat, and the variation across sizes is warm-up
-noise rather than signal. At sixty Model changes a second with three queries on
-screen that is under 2ms per second. **Close it: not worth memoizing.**
+**`Data.query` is the cheapest thing on the list and barely moves with the
+page** — 6 to 10µs. At sixty Model changes a second with three queries on screen
+that is under 2ms per second. **Close it: not worth memoizing.**
 
 So §16.1 was wrong, and §3 — which it was written to correct — was right.
 
 **Re-assembly after an unrelated write is the cost, and it is linear.**
-Subtracting the reduce, it is 156µs, 327µs and 1318µs: about **3.3µs per row per
-write**, paid by every connection on screen whenever anything in the store
-changes, however unrelated. Against a memo hit of around 1µs, the recompute is
-**three orders of magnitude** more expensive. That is the shape of a fix worth
-having.
+Subtracting the write itself, it is 58µs, 348µs and 1462µs: about **3µs per row
+per write**, paid by every connection on screen whenever anything in the store
+changes, however unrelated. Against a memo hit under a microsecond the
+recompute is three orders of magnitude more expensive, which is the shape of a
+fix worth having.
 
 `Remote.plan` is the second cost and also scales — 130µs to 822µs — and it runs
 per Model change per active Surface. Not investigated further here; recorded so
@@ -1063,11 +1072,11 @@ None of Part II blocks Part I, and Part I does not block most of Part II.
 
 Do first, because they are cheap and currently wrong:
 
-- **18/item 11** — constrain `Expr.contains`. One line, stops nonsense reaching
-  a database.
-- **16.2** — debounce guidance and an example, before anyone wires the search
-  box the CMS worklist was designed for.
-- **17.1** — reject a page that overruns its window.
+- **18/item 11** — constrain `Expr.contains`. **Done**, and not one line: the
+  obvious version failed open.
+- **16.2** — debounce guidance and an example. **Done**, in `examples/entity`,
+  which already had the un-debounced search box.
+- **17.1** — reject a page that overruns its window. **Done.**
 
 Do next, with a benchmark first:
 

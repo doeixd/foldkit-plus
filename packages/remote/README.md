@@ -1009,27 +1009,34 @@ and refetch; Sync recovery must preserve unsent client intent.**
 
 ## Persistence and hydration
 
-Persist only the disposable entity cache, not session machinery such as live
-cursors, optimistic layers, mutation bookkeeping, gaps, or retention roots.
+A snapshot is `{ entities, connections }`. The entity cache is disposable and
+always goes; a connection goes only if named, and keeps its edges alone — never
+a cursor, which may name server state that is gone. Session machinery (live
+cursors, optimistic layers, mutation bookkeeping, gaps, retention roots) is
+never in one.
 
 ```ts
-import { emptyStore, RemotePersistence } from 'foldkit-remote'
+import { RemotePersistence } from 'foldkit-remote'
 
 // SSR: prefetch on the server, embed, then hydrate on the client.
-const snapshot = RemotePersistence.dehydrate(
-  Data.storeOf(loaded),
+// `snapshotOf` names the connections that survive; none, here.
+const text = RemotePersistence.dehydrate(
+  RemotePersistence.snapshotOf(loaded.remote),
   { scope: userId },
 )
 
+const restored =
+  RemotePersistence.hydrate(text, { scope: userId }) ?? RemotePersistence.emptySnapshot
+
 Data.reduce(model, {
   _tag: 'Hydrated',
-  entities:
-    RemotePersistence.hydrate(snapshot, { scope: userId }) ?? emptyStore,
+  entities: restored.entities,
+  connections: restored.connections,
   merge: 'preserve-existing',
 })
 
 // Or persist through Effect's KeyValueStore.
-RemotePersistence.save(store, {
+RemotePersistence.save(RemotePersistence.snapshotOf(model.remote), {
   key: 'remote-cache',
   scope: userId,
   maxBytes: 512_000,
@@ -1151,12 +1158,21 @@ the server that answers it.
 `state` comes from the projection's own read, so an explanation and the view
 cannot disagree about whether the data is there.
 
-Two things a panel might expect are deliberately absent. There is no **Surface**,
-because a Projection does not know which Surfaces read it and several may;
-`Data.subscriptions` is where that relation lives. There is no **executor**,
-because what answers a query is a `RemoteClient` Layer in the runtime rather
-than a value in the Model — the same purity that lets this be replayed from a
-recorded Model is what keeps it out of reach.
+A Projection cannot say which Surfaces read it — several may — so pass the
+active record `subscriptions` takes and `explain` reports all of them, plus why
+each is active where that is a readable fact (`Surface.when`) rather than a
+callback (`Surface.at`):
+
+```ts
+Data.explain(model, projects, { surfaces: actives })
+// surfaces:   ['ProjectPage']
+// activation: [{ surface: 'ProjectPage', path: ['route'], tag: 'Project' }]
+```
+
+There is still no **executor**, because what answers a query is a
+`RemoteClient` Layer in the runtime rather than a value in the Model — the same
+purity that lets this be replayed from a recorded Model is what keeps it out of
+reach.
 
 ## Advanced: the kernel
 
