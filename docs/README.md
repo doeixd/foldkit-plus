@@ -1,6 +1,7 @@
 # Documentation map
 
-The package READMEs are references. These guides explain the architecture: why a
+The package READMEs teach the normal path and document each API. These guides
+explain the architecture in more depth: why a
 package exists, what owns the state involved, how it composes with the rest of
 Foldkit Plus, and when another package is the better choice.
 
@@ -8,24 +9,22 @@ If you are new to the repository, do not read the design notes first.
 
 ## Recommended reading order
 
-1. Read the [root README](../README.md) through **How they fit together**. The
-   important idea is one Foldkit application — Model, Message, `update` — with
-   extensions around it rather than parallel state systems.
-2. Read or run [`examples/todo-app`](../examples/todo-app). It is the best
-   application-level example: Surface, Sync/Durable, Agent, Mirror, and Mixins in
-   one browser application, with the files listed in the order to read them.
-3. Pick the guide for the problem you are solving below. Each guide explains the
-   ownership boundary before the API.
-4. Use the package README as the reference once you know which abstraction you
-   need. Use [`examples/README.md`](../examples/README.md) to choose a focused
-   runnable trace.
+1. Read the [root README](../README.md) for the ownership model and the small
+   Surface example. You should be able to distinguish a declaration from a
+   runtime transition before adding an integration.
+2. Choose **one problem** in the table below. Read its package README through
+   the first example and failure semantics; run its focused example from the
+   [examples index](../examples/README.md).
+3. Read the conceptual guide when you need the reasons behind those choices.
+   Trace one Message from intent to update to result in the source.
+4. Continue with [the todo app](../examples/todo-app/README.md) for composition,
+   or [the kitchen sink](../examples/kitchen-sink/README.md) for the data,
+   replication, agent, and view integrations together.
 
-If you want to see almost everything wired together before reading any API, use
-[`examples/kitchen-sink`](../examples/kitchen-sink). It covers fourteen
-packages in one deterministic in-process trace; `foldkit-mirror` lives in the
-todo app because it needs a URL/browser store. The packages added since
-(Bundle, Primitives, React, and Entity, Form, and Crud) have focused examples of
-their own, listed in [`examples/README.md`](../examples/README.md).
+You do not need every package. A local counter needs neither a cache nor a
+journal; server-owned facts need Remote; client-authored operations that must
+survive offline need Sync. Start at that ownership decision rather than at the
+size of an example.
 
 ## Release posts
 
@@ -57,6 +56,9 @@ vocabulary should refine them, not replace them.
 
 | You are trying to… | Guide | Packages |
 | --- | --- | --- |
+| Track drafts, revisions, publication, and audience over an existing domain | [CMS](../packages/cms/README.md) | `foldkit-cms`, `foldkit-cms-drizzle` |
+| Use a browser primitive or element observer | [Primitives](../packages/primitives/README.md) | `foldkit-primitives` |
+| Cross between React and Foldkit | [React bridge](../packages/react/README.md) | `foldkit-react`; codegen for source translation |
 | Let an LLM or another agent use the application through real application transitions | [Agents](./agents.md) | `foldkit-agent` + WebMCP/MCP/A2A/Agent Native adapters |
 | Put server-owned entities in the Model without per-view fetch/cache logic | [Server-derived state](./remote.md) | `foldkit-remote`, `foldkit-remote-server`, optional `foldkit-remote-drizzle` |
 | Work offline and reconcile several devices/tabs against a server order | [Replicated state](./replication.md) | `foldkit-sync` + `foldkit-durable` |
@@ -90,7 +92,7 @@ view customization                     -> Mixins (never state)
 
 ## Package references
 
-The full API reference for each package is its README under [`packages/`](../packages):
+The onboarding guide and API reference for each package is its README under [`packages/`](../packages):
 
 ```text
 Foundation       foldkit-surface + foldkit-metadata
@@ -116,8 +118,8 @@ architecture where appropriate.
 ## Runnable examples
 
 See the [examples index](../examples/README.md) for the recommended order and
-what each trace proves. Every example prints a deterministic transcript whose
-test pins the important lines, so the documentation examples double as
+what each trace proves. The application examples listed there print transcripts whose
+tests pin the important lines, so the documentation examples double as
 executable claims.
 
 ## Reference and maintenance docs

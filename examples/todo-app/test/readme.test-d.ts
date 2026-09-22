@@ -1,9 +1,4 @@
-/**
- * The "Sixty seconds of code" sample in the repository README, type-checked so
- * the project's front page cannot drift from the API. The Model, Message union,
- * and `update` stand in for the ones the README says are the application's own;
- * everything below them is the sample verbatim.
- */
+/** Composition fixture for Surface, Agent, Sync, Mirror, and Mixins. */
 import { Schema } from 'effect'
 import { evo } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
