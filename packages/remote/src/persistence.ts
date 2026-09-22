@@ -13,11 +13,55 @@
  */
 import { Effect } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
+import { items, type Connection, type Edge } from './connection.js'
+import { connectionIdentity, type ConnectionIdentity } from './optimistic.js'
 import { stableStringify } from './query.js'
 import { emptyStore, type EntityEntry, type EntityStore } from './store.js'
 
 /** Bump when the serialized shape changes; a mismatch discards the cache. */
-export const REMOTE_CACHE_VERSION = 3
+export const REMOTE_CACHE_VERSION = 4
+
+/**
+ * What survives a reload: the entity cache, and the connections an application
+ * **declared** should come back.
+ *
+ * Connections are session state by default and stay that way — `snapshotOf`
+ * takes none unless asked. What a declared one keeps is its **edges and
+ * nothing else**, which is not a simplification but the rule: a connection's
+ * boundaries are cursors the server minted, and a cursor may name server state
+ * that no longer exists. Restoring one would be claiming to know where the
+ * page ends. The shape has nowhere to put a cursor, so that cannot be got
+ * wrong later.
+ */
+export interface Snapshot {
+  readonly entities: EntityStore
+  /** By connection identity: the edges it held, in order. No boundaries. */
+  readonly connections: Readonly<Record<string, ReadonlyArray<Edge>>>
+}
+
+/**
+ * A snapshot of a Model, keeping the entity cache and only the connections
+ * named.
+ *
+ * Naming none — the default — is exactly what Remote did before connections
+ * could be kept at all: a disposable, server-derived cache.
+ */
+const snapshotOf = (
+  model: {
+    readonly entities: EntityStore
+    readonly connections: Readonly<Record<string, Connection>>
+  },
+  options: { readonly connections?: ReadonlyArray<ConnectionIdentity> | undefined } = {},
+): Snapshot => ({
+  entities: model.entities,
+  connections: Object.fromEntries(
+    (options.connections ?? []).flatMap(connection => {
+      const identity = connectionIdentity(connection)
+      const held = model.connections[identity]
+      return held === undefined ? [] : [[identity, items(held)] as const]
+    }),
+  ),
+})
 
 export interface SnapshotOptions {
   /**
@@ -46,6 +90,7 @@ interface SerializedStore {
   readonly version: number
   readonly scope: string | null
   readonly entities: Readonly<Record<string, SerializedEntry>>
+  readonly connections: Readonly<Record<string, ReadonlyArray<Edge>>>
 }
 
 const sorted = <T>(values: Iterable<T>): T[] => [...values].sort()
@@ -55,11 +100,12 @@ const sorted = <T>(values: Iterable<T>): T[] => [...values].sort()
  * field sets are sorted here, so equal stores give byte-equal snapshots
  * whatever order they were built in.
  */
-const serializeStore = (store: EntityStore, scope?: string): SerializedStore => ({
+const serializeStore = (snapshot: Snapshot, scope?: string): SerializedStore => ({
   version: REMOTE_CACHE_VERSION,
   scope: scope ?? null,
+  connections: snapshot.connections,
   entities: Object.fromEntries(
-    Object.entries(store).map(([key, entry]) => [
+    Object.entries(snapshot.entities).map(([key, entry]) => [
       key,
       {
         values: entry.values,
@@ -104,22 +150,42 @@ const parseEntry = (value: unknown): EntityEntry => {
   }
 }
 
-const deserializeStore = (serialized: SerializedStore): EntityStore =>
-  Object.fromEntries(
+/** Throws on a malformed edge so the whole snapshot is discarded. */
+const parseEdges = (value: unknown): ReadonlyArray<Edge> => {
+  if (!Array.isArray(value)) throw new Error('connection is not an array of edges')
+  return value.map(edge => {
+    const candidate = edge as { key?: unknown; ref?: { entity?: unknown; id?: unknown } }
+    if (
+      typeof candidate.key !== 'string' ||
+      typeof candidate.ref?.entity !== 'string' ||
+      typeof candidate.ref?.id !== 'string'
+    ) {
+      throw new Error('edge is not { key, ref: { entity, id } }')
+    }
+    return { key: candidate.key, ref: { entity: candidate.ref.entity, id: candidate.ref.id } }
+  })
+}
+
+const deserializeStore = (serialized: SerializedStore): Snapshot => ({
+  entities: Object.fromEntries(
     Object.entries(serialized.entities).map(([key, entry]) => [key, parseEntry(entry)]),
-  )
+  ),
+  connections: Object.fromEntries(
+    Object.entries(serialized.connections ?? {}).map(([key, edges]) => [key, parseEdges(edges)]),
+  ),
+})
 
 /**
  * The snapshot text, or `undefined` when it would exceed `maxBytes`. Only the
  * entity store goes in; pass `model.entities`, never the whole `RemoteModel`.
  */
 function dehydrate(
-  store: EntityStore,
+  snapshot: Snapshot,
   options?: SnapshotOptions & { readonly maxBytes?: undefined },
 ): string
-function dehydrate(store: EntityStore, options?: SnapshotOptions): string | undefined
-function dehydrate(store: EntityStore, options: SnapshotOptions = {}): string | undefined {
-  const text = stableStringify(serializeStore(store, options.scope))
+function dehydrate(snapshot: Snapshot, options?: SnapshotOptions): string | undefined
+function dehydrate(snapshot: Snapshot, options: SnapshotOptions = {}): string | undefined {
+  const text = stableStringify(serializeStore(snapshot, options.scope))
   return exceeds(text, options.maxBytes) ? undefined : text
 }
 
@@ -143,7 +209,7 @@ const exceeds = (text: string, maxBytes: number | undefined): boolean => {
 const hydrate = (
   raw: string | undefined | null,
   options: SnapshotOptions = {},
-): EntityStore | undefined => {
+): Snapshot | undefined => {
   if (raw === undefined || raw === null) return undefined
   if (exceeds(raw, options.maxBytes)) return undefined
   let parsed: unknown
@@ -181,12 +247,20 @@ const mergeStores = (
   policy: MergePolicy,
 ): EntityStore => (policy === 'replace' ? { ...current, ...snapshot } : { ...snapshot, ...current })
 
+/** An empty snapshot: the cache as a fresh session has it. */
+export const emptySnapshot: Snapshot = { entities: emptyStore, connections: {} }
+
 export const RemotePersistence = {
   /** The snapshot text, or `undefined` when it would exceed `maxBytes`. */
   dehydrate,
-  /** The store a snapshot text holds, or `undefined` when it is refused. */
+  /** What a snapshot text holds, or `undefined` when it is refused. */
   hydrate,
-  /** A snapshot brought into a store by policy. */
+  /**
+   * What to keep of a Model, naming the connections that should survive a
+   * reload. Naming none is the default and is what Remote always did.
+   */
+  snapshotOf,
+  /** A snapshot's entities brought into a store by policy. */
   mergeStores,
 
   /**
@@ -194,28 +268,28 @@ export const RemotePersistence = {
    * exceed `maxBytes`, so a stale smaller snapshot cannot outlive a larger
    * store it no longer describes.
    */
-  save: (store: EntityStore, options: { readonly key: string } & SnapshotOptions) =>
+  save: (snapshot: Snapshot, options: { readonly key: string } & SnapshotOptions) =>
     Effect.gen(function* () {
       const kv = yield* KeyValueStore.KeyValueStore
-      const text = dehydrate(store, options)
+      const text = dehydrate(snapshot, options)
       if (text === undefined) yield* kv.remove(options.key)
       else yield* kv.set(options.key, text)
     }),
 
   /**
-   * Reads the cache. A missing key yields `emptyStore`; anything `hydrate`
-   * refuses yields `emptyStore` and removes the key, so the next `restore` is
-   * clean and the planner refetches.
+   * Reads the cache. A missing key yields `emptySnapshot`; anything `hydrate`
+   * refuses yields `emptySnapshot` and removes the key, so the next `restore`
+   * is clean and the planner refetches.
    */
   restore: (options: { readonly key: string } & SnapshotOptions) =>
     Effect.gen(function* () {
       const kv = yield* KeyValueStore.KeyValueStore
       const raw = yield* kv.get(options.key)
-      if (raw === undefined) return emptyStore
+      if (raw === undefined) return emptySnapshot
       const restored = hydrate(raw, options)
       if (restored === undefined) {
         yield* kv.remove(options.key)
-        return emptyStore
+        return emptySnapshot
       }
       return restored
     }),

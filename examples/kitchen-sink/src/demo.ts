@@ -215,10 +215,17 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`retained with the page: ${await Effect.runPromise(retentionOf([projects]))}`)
   say(`retained by the Board alone: ${await Effect.runPromise(retentionOf([]))}`)
 
-  // Hydration: the store dehydrates to deterministic text (SSR would embed it)
-  // and hydrates into a fresh Model with nothing left to fetch.
-  const snapshot = RemotePersistence.dehydrate(remote.entities, { scope: 'u1' })
-  const fresh = withStore(App.initial, RemotePersistence.hydrate(snapshot, { scope: 'u1' })!)
+  // Hydration: the cache dehydrates to deterministic text (SSR would embed it)
+  // and hydrates into a fresh Model with nothing left to fetch. Connections are
+  // session state unless named, and this names none — the entities are the
+  // cache, and the plan is empty because they are all it needed.
+  const snapshot = RemotePersistence.dehydrate(RemotePersistence.snapshotOf(remote), {
+    scope: 'u1',
+  })
+  const fresh = withStore(
+    App.initial,
+    RemotePersistence.hydrate(snapshot, { scope: 'u1' })!.entities,
+  )
   say(
     `hydrated: ${describeData(projection.read(fresh))}, plan ${
       Data.plan(fresh, projection).length === 0 ? 'empty' : 'pending'

@@ -236,21 +236,37 @@ const ssr = Effect.gen(function* () {
   const loaded = yield* Data.prefetch(App.initial, ProjectPage.projection({ projectId: 'p1' }), {
     policy: RemotePolicy.networkOnly,
   })
-  const snapshot = RemotePersistence.dehydrate(Data.storeOf(loaded), { scope: 'user-1' }) // string
+  // A snapshot is `{ entities, connections }`. Connections are session state
+  // unless named, so this keeps the cache and nothing else.
+  const text = RemotePersistence.dehydrate(RemotePersistence.snapshotOf(loaded.remote), {
+    scope: 'user-1',
+  }) // string
   // client side:
+  const restored = RemotePersistence.hydrate(text, { scope: 'user-1' }) ?? emptySnapshot
   return Data.reduce(App.initial, {
     _tag: 'Hydrated',
-    entities: RemotePersistence.hydrate(snapshot, { scope: 'user-1' }) ?? emptyStore,
+    entities: restored.entities,
+    connections: restored.connections,
     merge: 'preserve-existing', // or 'replace'
   })
 }).pipe(Effect.provide(clientLayer))
 ```
 
-`RemotePersistence.save(store, { key, scope, maxBytes })` / `restore({ key, scope, maxBytes })`
-use Effect's `KeyValueStore`. Snapshots hold only the entity store (never cursors,
-optimistic layers, gaps). Wrong version/scope, oversized, or malformed snapshots
-yield `undefined` from `hydrate` (`restore` yields `emptyStore` and removes the key). An oversized
+`RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
+`restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
+version/scope, oversized, or malformed snapshots yield `undefined` from
+`hydrate` (`restore` yields `emptySnapshot` and removes the key). An oversized
 `save` removes the key instead of writing.
+
+**A connection can be declared to survive a reload**:
+`snapshotOf(model, { connections: [ref.identity] })`. Nothing survives that is
+not named — the default is the disposable, server-derived cache Remote always
+had. A declared one keeps its **edges only**: the snapshot has nowhere to put a
+cursor, because a cursor names server state that may be gone. It comes back with
+`Unknown` boundaries and stale, so the rows show at once and the connection is
+refetched — and it claims completeness in neither direction, since `Unknown` is
+not `Terminal`. Optimistic layers, live cursors, gaps and the mutation ledger
+are still session state and are never in a snapshot.
 
 **Entities declared with `foldkit-entity`.** `Remote.make` registers them and
 `Data.get` / `Data.live` / a query's `select` take their Selections as they are;

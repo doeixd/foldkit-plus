@@ -21,7 +21,14 @@ import {
   type EntityStore,
   type RemoteModel,
 } from '../src/index.js'
-import { RemotePersistence } from '../src/persistence.js'
+import { RemotePersistence, emptySnapshot } from '../src/persistence.js'
+
+/**
+ * A snapshot of entities alone — which is what a snapshot was, before a
+ * connection could be declared to survive one. Most of these tests are about
+ * the entity half and say so by construction.
+ */
+const only = (entities: EntityStore) => ({ entities, connections: {} })
 
 const run = <A, E>(effect: Effect.Effect<A, E, KeyValueStore.KeyValueStore>) =>
   Effect.runPromise(Effect.provide(effect, KeyValueStore.layerMemory))
@@ -35,13 +42,13 @@ describe('RemotePersistence', () => {
 
     const restored = await run(
       Effect.gen(function* () {
-        yield* RemotePersistence.save(store, { key: 'cache' })
+        yield* RemotePersistence.save(only(store), { key: 'cache' })
         return yield* RemotePersistence.restore({ key: 'cache' })
       }),
     )
 
-    expect(restored).toEqual(store)
-    expect(readField(restored, user, 'name')).toEqual(readField(store, user, 'name'))
+    expect(restored.entities).toEqual(store)
+    expect(readField(restored.entities, user, 'name')).toEqual(readField(store, user, 'name'))
   })
 
   it('clears and returns an empty store on a version mismatch', async () => {
@@ -70,7 +77,7 @@ describe('RemotePersistence', () => {
       }),
     )
 
-    expect(result.restored).toEqual(emptyStore)
+    expect(result.restored).toEqual(emptySnapshot)
     expect(result.after).toBeUndefined()
   })
 
@@ -85,7 +92,7 @@ describe('RemotePersistence', () => {
       }),
     )
 
-    expect(result.restored).toEqual(emptyStore)
+    expect(result.restored).toEqual(emptySnapshot)
     expect(result.after).toBeUndefined()
   })
 
@@ -103,7 +110,7 @@ describe('RemotePersistence', () => {
           return yield* RemotePersistence.restore({ key: 'cache' })
         }),
       )
-      expect(result).toEqual(emptyStore)
+      expect(result).toEqual(emptySnapshot)
     }
   })
 
@@ -133,39 +140,39 @@ describe('RemotePersistence', () => {
           return { restored, after }
         }),
       )
-      expect(result.restored).toEqual(emptyStore)
+      expect(result.restored).toEqual(emptySnapshot)
       expect(result.after).toBeUndefined()
     }
   })
 
   it('restores an empty store for a missing key', async () => {
     const restored = await run(RemotePersistence.restore({ key: 'absent' }))
-    expect(restored).toEqual(emptyStore)
+    expect(restored).toEqual(emptySnapshot)
   })
 
   it('round-trips a tombstone', async () => {
     const store = tombstone(emptyStore, user)
     const restored = await run(
       Effect.gen(function* () {
-        yield* RemotePersistence.save(store, { key: 'cache' })
+        yield* RemotePersistence.save(only(store), { key: 'cache' })
         return yield* RemotePersistence.restore({ key: 'cache' })
       }),
     )
 
-    expect(restored).toEqual(store)
-    expect(isTombstone(restored, user)).toBe(true)
+    expect(restored.entities).toEqual(store)
+    expect(isTombstone(restored.entities, user)).toBe(true)
   })
 
   it('round-trips a field window', async () => {
     const store = writeEntity(emptyStore, user, { comments: [] }, 0, { comments: 'W' })
     const restored = await run(
       Effect.gen(function* () {
-        yield* RemotePersistence.save(store, { key: 'cache' })
+        yield* RemotePersistence.save(only(store), { key: 'cache' })
         return yield* RemotePersistence.restore({ key: 'cache' })
       }),
     )
 
-    expect(restored).toEqual(store)
+    expect(restored.entities).toEqual(store)
   })
 })
 
@@ -184,69 +191,76 @@ describe('snapshot hardening', () => {
       { id: 'u2', name: 'grace' },
       2,
     )
-    expect(RemotePersistence.dehydrate(store)).toBe(RemotePersistence.dehydrate(reversed))
-    expect(JSON.parse(RemotePersistence.dehydrate(store))).toEqual({
+    expect(RemotePersistence.dehydrate(only(store))).toBe(
+      RemotePersistence.dehydrate(only(reversed)),
+    )
+    expect(JSON.parse(RemotePersistence.dehydrate(only(store)))).toEqual({
       version: REMOTE_CACHE_VERSION,
       scope: null,
+      connections: {},
       entities: expect.any(Object),
     })
   })
 
   it('hydrating the same text twice gives equal stores', () => {
-    const text = RemotePersistence.dehydrate(store)
+    const text = RemotePersistence.dehydrate(only(store))
     expect(RemotePersistence.hydrate(text)).toEqual(RemotePersistence.hydrate(text))
-    expect(RemotePersistence.hydrate(text)).toEqual(store)
+    expect(RemotePersistence.hydrate(text)?.entities).toEqual(store)
   })
 
   it('a snapshot for another scope is discarded, and the key removed', async () => {
     expect(
-      RemotePersistence.hydrate(RemotePersistence.dehydrate(store, { scope: 'u1' }), {
+      RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' }), {
         scope: 'u1',
-      }),
+      })?.entities,
     ).toEqual(store)
     expect(
-      RemotePersistence.hydrate(RemotePersistence.dehydrate(store, { scope: 'u1' }), {
+      RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' }), {
         scope: 'u2',
       }),
     ).toBeUndefined()
     expect(
-      RemotePersistence.hydrate(RemotePersistence.dehydrate(store, { scope: 'u1' })),
+      RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' })),
     ).toBeUndefined()
     expect(
-      RemotePersistence.hydrate(RemotePersistence.dehydrate(store), { scope: 'u1' }),
+      RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store)), { scope: 'u1' }),
     ).toBeUndefined()
 
     const result = await run(
       Effect.gen(function* () {
         const kv = yield* KeyValueStore.KeyValueStore
-        yield* RemotePersistence.save(store, { key: 'cache', scope: 'u1' })
+        yield* RemotePersistence.save(only(store), { key: 'cache', scope: 'u1' })
         const restored = yield* RemotePersistence.restore({ key: 'cache', scope: 'u2' })
         return { restored, after: yield* kv.get('cache') }
       }),
     )
-    expect(result).toEqual({ restored: emptyStore, after: undefined })
+    expect(result).toEqual({ restored: emptySnapshot, after: undefined })
   })
 
   it('an oversized snapshot is neither written nor read', async () => {
-    const size = new TextEncoder().encode(RemotePersistence.dehydrate(store)).length
-    expect(RemotePersistence.dehydrate(store, { maxBytes: size })).toBeDefined()
-    expect(RemotePersistence.dehydrate(store, { maxBytes: size - 1 })).toBeUndefined()
+    const size = new TextEncoder().encode(RemotePersistence.dehydrate(only(store))).length
+    expect(RemotePersistence.dehydrate(only(store), { maxBytes: size })).toBeDefined()
+    expect(RemotePersistence.dehydrate(only(store), { maxBytes: size - 1 })).toBeUndefined()
     expect(
-      RemotePersistence.hydrate(RemotePersistence.dehydrate(store), { maxBytes: size - 1 }),
+      RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store)), { maxBytes: size - 1 }),
     ).toBeUndefined()
 
     const result = await run(
       Effect.gen(function* () {
         const kv = yield* KeyValueStore.KeyValueStore
         yield* kv.set('cache', 'stale')
-        yield* RemotePersistence.save(store, { key: 'cache', maxBytes: size - 1 })
+        yield* RemotePersistence.save(only(store), { key: 'cache', maxBytes: size - 1 })
         const afterSave = yield* kv.get('cache')
-        yield* RemotePersistence.save(store, { key: 'cache' })
+        yield* RemotePersistence.save(only(store), { key: 'cache' })
         const restored = yield* RemotePersistence.restore({ key: 'cache', maxBytes: size - 1 })
         return { afterSave, restored, afterRestore: yield* kv.get('cache') }
       }),
     )
-    expect(result).toEqual({ afterSave: undefined, restored: emptyStore, afterRestore: undefined })
+    expect(result).toEqual({
+      afterSave: undefined,
+      restored: emptySnapshot,
+      afterRestore: undefined,
+    })
   })
 
   it('merges by policy: replace takes the snapshot, preserve-existing keeps the current', () => {
@@ -326,12 +340,12 @@ describe('snapshot hardening', () => {
         Effect.provide(Client),
       ),
     )
-    const html = RemotePersistence.dehydrate(serverStore, { scope: 'u1' })
+    const html = RemotePersistence.dehydrate(only(serverStore), { scope: 'u1' })
 
     // Client: hydrate into a fresh model; the plan is empty and the read is Ready.
     const client = updateRemote(initialRemoteModel, {
       _tag: 'Hydrated',
-      entities: RemotePersistence.hydrate(html, { scope: 'u1' })!,
+      entities: RemotePersistence.hydrate(html, { scope: 'u1' })!.entities,
       merge: 'replace',
     })
     expect(Remote.plan(AppRemote, { remote: client }, projection)).toEqual([])

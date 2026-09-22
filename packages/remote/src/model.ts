@@ -5,7 +5,14 @@
  */
 import { Schema } from 'effect'
 import type { Requirement } from './requirement.js'
-import { emptyConnection, merge, type Connection, type Segment } from './connection.js'
+import {
+  emptyConnection,
+  merge,
+  unknown as unknownBoundary,
+  type Connection,
+  type Edge,
+  type Segment,
+} from './connection.js'
 import {
   beginOptimistic,
   emptyOptimistic,
@@ -152,7 +159,18 @@ export type RemoteMessage =
   /** The active Surfaces' roots changed; everything they do not reach is collected. */
   | { readonly _tag: 'RetentionChanged'; readonly roots: RetentionRoots }
   /** A restored snapshot meets the store; runtime state is untouched. */
-  | { readonly _tag: 'Hydrated'; readonly entities: EntityStore; readonly merge: MergePolicy }
+  | {
+      readonly _tag: 'Hydrated'
+      readonly entities: EntityStore
+      /**
+       * The connections a snapshot declared should survive, as their edges.
+       * Restored with **unknown** boundaries and marked stale: the rows show
+       * at once and the connection is refetched, because a persisted cursor
+       * may name server state that is gone.
+       */
+      readonly connections?: Readonly<Record<string, ReadonlyArray<Edge>>> | undefined
+      readonly merge: MergePolicy
+    }
   /** A mutation began; its optimistic operations show until it settles. */
   | {
       readonly _tag: 'MutationStarted'
@@ -222,6 +240,7 @@ export const remoteMessageCases = {
   ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
   RetentionChanged: { roots: retentionRootsSchema },
   Hydrated: {
+    connections: Schema.optional(Schema.Unknown),
     entities: runtimeSchema,
     merge: Schema.Union([Schema.Literal('replace'), Schema.Literal('preserve-existing')]),
   },
@@ -486,11 +505,31 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       const retained = gc(model, message.roots)
       return { ...model, ...retained, refresh: prunedRefresh(model.refresh, retained) }
     }
-    case 'Hydrated':
+    case 'Hydrated': {
+      // A restored connection is evidence about its rows and about nothing
+      // else. Its boundaries are `Unknown` — not `Terminal`, which would claim
+      // there is no more, and not the cursors it had, which the server may no
+      // longer honour — and it is stale, so the planner refetches it while the
+      // rows it held are already on screen.
+      const restored = Object.entries(message.connections ?? {}).map(
+        ([identity, edges]) =>
+          [
+            identity,
+            {
+              segments: [{ edges: [...edges], start: unknownBoundary, end: unknownBoundary }],
+              stale: true,
+            },
+          ] as const,
+      )
       return {
         ...model,
         entities: RemotePersistence.mergeStores(model.entities, message.entities, message.merge),
+        connections:
+          message.merge === 'replace'
+            ? { ...model.connections, ...Object.fromEntries(restored) }
+            : { ...Object.fromEntries(restored), ...model.connections },
       }
+    }
     case 'RefreshStarted': {
       // An entity known to be absent has no field to mark, and nothing plans a
       // read of it again. Asked about again, it is forgotten, so it is.

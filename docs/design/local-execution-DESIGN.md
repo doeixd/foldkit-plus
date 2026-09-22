@@ -726,7 +726,7 @@ helper is not router-specific.
 
 Independent of everything else. Smallest user-visible win here.
 
-### 6 — A retained connection subset
+### 6 — A retained connection subset — **done**
 
 Declared connections whose last good page survives reload, restored as edges
 with `Unknown` boundaries (§5.1), served stale-then-refreshed.
@@ -734,6 +734,32 @@ with `Unknown` boundaries (§5.1), served stale-then-refreshed.
 **Done when** a reload shows the previous page immediately and refreshes it, an
 incompatible or corrupt snapshot still degrades to a refetch, and
 `REMOTE_CACHE_VERSION` is bumped.
+
+> **Done, and the shape carries the rule rather than a comment.**
+>
+> A snapshot is now `{ entities, connections }`, and a declared connection keeps
+> its **edges and nothing else**. That is not a simplification: the snapshot has
+> nowhere to put a cursor, so "never trust a persisted cursor" cannot be got
+> wrong by a later change. A restored connection comes back with `Unknown`
+> boundaries and `stale: true`, which through machinery that already existed
+> gives stale-then-refreshed for free — the planner refetches a stale
+> connection, and a read of one with segments is `Refreshing`.
+>
+> Nothing survives that was not named, so the default is exactly the disposable
+> cache Remote always had. `snapshotOf(model)` with no connections is the old
+> behaviour spelled out.
+>
+> One consequence worth stating because a test now pins it: a restored
+> connection claims completeness in **neither** direction. `hasNext` and
+> `hasPrevious` are derived from boundaries, and `Unknown` is not `Terminal`, so
+> both are true even where the session knew it was at the start. That is a real
+> loss of information, and the honest one — the alternative is claiming a
+> boundary the server never confirmed.
+>
+> The breaking change (`dehydrate`/`hydrate`/`save`/`restore` take and return a
+> `Snapshot`) cost one real call site, in `examples/kitchen-sink`, which now
+> reads `snapshotOf(remote)` and names no connections. The version bump means no
+> stored snapshot survives anyway.
 
 Depends on phase 3 only if restored membership is to be *verified* locally;
 shippable without that.

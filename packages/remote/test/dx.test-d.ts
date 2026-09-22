@@ -32,7 +32,7 @@ import {
 } from '../src/index.js'
 import type { Invalid } from 'foldkit-surface'
 import { Entity as DomainEntity, Expr, type InputExpr } from 'foldkit-entity'
-import { RemotePersistence } from '../src/persistence.js'
+import { RemotePersistence, type Snapshot } from '../src/persistence.js'
 import type { EntityStore } from '../src/store.js'
 
 type Equals<A, B> =
@@ -296,9 +296,14 @@ void subscriptions['other.read']
 
 // A snapshot is dropped only for exceeding `maxBytes`, so without it there is always text.
 declare const entityStore: EntityStore
-const _snapshot: string = RemotePersistence.dehydrate(entityStore, { scope: 'u1' })
+declare const snapshot: Snapshot
+const _snapshot: string = RemotePersistence.dehydrate(snapshot, { scope: 'u1' })
 // @ts-expect-error with `maxBytes` the snapshot may be dropped
-const _bounded: string = RemotePersistence.dehydrate(entityStore, { maxBytes: 10 })
+const _bounded: string = RemotePersistence.dehydrate(snapshot, { maxBytes: 10 })
+// @ts-expect-error a snapshot is not a bare entity store: connections are declared, not assumed
+RemotePersistence.dehydrate(entityStore)
+// Which connections survive is the application's to say, and none is the default.
+const _declared: Snapshot = RemotePersistence.snapshotOf(Remote.initial)
 
 // The submodel schema decodes: its decoded side is `RemoteModel`, from any encoded input.
 const _decoded: typeof Remote.initial = Schema.decodeUnknownSync(Remote.Model)(Remote.initial)
