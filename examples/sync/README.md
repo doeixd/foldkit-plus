@@ -79,6 +79,19 @@ outbox                               authoritative order
 optimistic state                     snapshot + cursor
 ```
 
+## Follow one operation first
+
+Read the `CreatedTodo` case in [app.ts](src/app.ts), its durable declaration in
+[sync.ts](src/sync.ts), and the first offline submission in [demo.ts](src/demo.ts).
+Track the same operation through three milestones: visible optimistically,
+saved locally, and acknowledged by the journal. A value on screen alone does
+not prove the other two happened.
+
+Then follow a rejected operation in the recovery tests. Rejection removes it
+from pending replay, so the optimistic view changes even though the user made
+no new edit. Keep local persistence failures and server refusals separate in
+your UI; they require different recovery actions.
+
 ## Run it
 
 From the repository root:

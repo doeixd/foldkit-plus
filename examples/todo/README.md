@@ -46,6 +46,18 @@ bound value = AgentRuntime
 The important invariant is that **a capability is an existing application
 Message**, not a second implementation of the feature.
 
+## Trace the smallest call
+
+Follow one immediate capability from [agent.ts](src/agent.ts) into
+[app.ts](src/app.ts): input is decoded, the bound principal is checked, and the
+existing Message reaches `update`. Read the projected context again to observe
+the change. Declaring the capability alone executes none of these steps.
+
+Then compare the asynchronous add capability. Dispatch is only the start: its
+completion waits for the correlated application result. This is why a host
+must report Messages as well as expose the current Model. The WebMCP adapter
+uses this same bound runtime rather than implementing a second todo service.
+
 ## Run it
 
 From the repository root:

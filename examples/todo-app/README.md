@@ -5,6 +5,18 @@ fit together, and why. One application definition drives everything: the view
 a human uses, the tools an agent calls, the document replicas share, and the
 policy the server enforces.
 
+## Follow one user action
+
+Start with adding a todo. The view emits `RequestedTodo`; `update` returns a
+Command that supplies an id and timestamp; its `SubmittedTodo` result is the
+durable fact. Sync persists and exchanges that fact, and the agent's `add_todo`
+capability enters through the same intent.
+
+Before adding another feature, classify its state: shared intent belongs in
+the Sync projection, disposable URL/preferences belong in Mirror, and transient
+editing state stays local. Compare your choice with the ownership manifest
+printed by `demo`; a Surface may read across all three without owning them.
+
 ## Run it
 
 The example imports the packages by their published entry points, so build the

@@ -8,7 +8,19 @@ trying to use Foldkit Plus, start with the [documentation map](../README.md), a
 Come here when you are changing an abstraction, reviewing a trade-off, or need
 to know why the public API has the shape it does.
 
-## Current decision documents
+## How to read a design note
+
+Start with the package README to learn the shipped vocabulary. In the design
+note, check its status and date, then read the decision and rejected alternatives.
+Before copying a signature, follow it into the package source or a typechecked
+example: a design can retain sketches after an implementation ships.
+
+For example, the CMS design still describes an unbuilt proposal; the current
+[CMS guide](../../packages/cms/README.md) and
+[server adapter](../../packages/cms-drizzle/README.md) document the implementation.
+A historical status line is not a statement about today's package availability.
+
+## Decision documents and implementation plans
 
 | Doc | What it covers |
 | --- | --- |
@@ -24,7 +36,7 @@ to know why the public API has the shape it does.
 | [bundle-DX-PLAN.md](./bundle-DX-PLAN.md) | The `foldkit-bundle` DX plan, built through W7; its Outcome section records where the build departed. It covers `make(name, spec)`, a parent scope that infers from Schema values, assembly sugar, args as a Schema, pipeable bundles and links, typed collection keys. |
 | [entity-DESIGN.md](./entity-DESIGN.md) | Entity / form / admin architecture: a domain declaration (`foldkit-entity`, on `foldkit-metadata`) that Remote, Drizzle, forms, and admin interpret. PRs 1–5, a headless `foldkit-form` (PR 7), its Mixins view, and the editor of `foldkit-crud` (PR 8) are built; §52–57 record where the build departed, including why relations are declared in one `Entity.relate` step. |
 | [entity-DX-PLAN.md](./entity-DX-PLAN.md) | Friction found building and using Entity, Form, and Crud, each with what prompted it and what resolves it; items are marked as they land. |
-| [cms-DESIGN.md](./cms-DESIGN.md) | `foldkit-cms`: audience, time, and address over an Entity. A draft is an unsent form kept beside the row; publishing is the application's own mutation; state is derived, not stored. Design only, with a build order. |
+| [cms-DESIGN.md](./cms-DESIGN.md) | `foldkit-cms`: audience, time, and address over an Entity. A draft is an unsent form kept beside the row; publishing is the application's own mutation; state is derived, not stored. Original proposal and build order; consult the CMS package READMEs for the shipped API. |
 | [data-query-DESIGN.md](./data-query-DESIGN.md) | A query's meaning as a value: the `Expr`/`Query` IR `foldkit-entity` owns, `Query.define` carrying a body a server compiles, interpreter capability checking, and the conformance suite four engines are run against. §0 records what building it changed; §33.1 records the walls it does not extend past. |
 | [local-execution-DESIGN.md](./local-execution-DESIGN.md) | Which TanStack DB and LiveStore capabilities this project already has, which it does not, and a phased plan for the gap. The keystone finding: the client-side query engine already exists in the server package. |
 | [async-semantics-DESIGN.md](./async-semantics-DESIGN.md) | What Foldkit should learn from Solid 2's async model: keep semantic async state in Model, keep Effect as the execution substrate, make Projection metadata more extensible, add state-based completion where it has a concrete owner, and show the before/after capabilities this enables across Agent, Remote, Sync, AsyncData, Module, and third-party interpreters. |

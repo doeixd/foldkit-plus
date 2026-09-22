@@ -28,6 +28,18 @@ keys, or controls. The client learns that relations arrive as refs and that
 `author_id` column and `title` is stored as `headline`. Neither repeats what the
 domain already said, so neither can disagree with it.
 
+## A first pass through the code
+
+Begin with one scalar: follow the Post title in [domain.ts](src/domain.ts),
+its `headline` column mapping in [server.ts](src/server.ts), and its selection
+in the client. A domain field name does not have to match a SQL column name.
+Only after that path is clear, follow `author` and then `comments`.
+
+In the browser, change a title and save. The form owns the unsaved draft;
+the server owns the row; Remote installs returned patches into its cache.
+Canceling an edit should not require undoing a database write. Use this
+ownership split when adapting the example to another domain.
+
 ## Run it
 
 ```bash

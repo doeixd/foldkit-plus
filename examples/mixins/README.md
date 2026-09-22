@@ -4,6 +4,22 @@ A worked trace of the `foldkit-surface` → `foldkit-mixins` bridge. It defines 
 `ProjectCard` Surface that projects only the fields it needs and exposes only two
 of the application's Messages, then styles and decorates it with a `SlotView`.
 
+## Follow one customization
+
+Read [src/demo.ts](src/demo.ts) in this order: `ProjectCard`, its slot
+contract, `ProjectCardStyle`, then `ArchiveBehavior`. The Surface restricts
+input and Messages; slots name extension points; the resolver combines the
+attributes at those points.
+
+Try changing the projected project's `archived` value. Predict the status
+class and archive button's `aria-disabled` before rerunning the trace. Then
+remove a required slot from the accessibility check: the diagnostic is about
+the declared structure, not a browser audit of the rendered page.
+
+This demo resolves attributes and prints CSS; a browser application must also
+install the stylesheet. See the [Mixins guide](../../packages/mixins/README.md)
+for the full rendering path.
+
 ```bash
 pnpm install && pnpm build                  # from the repository root
 pnpm --filter foldkit-example-mixins demo

@@ -1,10 +1,24 @@
 # Kitchen sink
 
-Fourteen packages, wired into one application. It runs entirely
+The data, replication, agent, and view packages wired into one application. It runs entirely
 in-process — an in-memory SQLite database and a durable journal, no server and
 no browser — so the transcript is deterministic and needs nothing running.
-(`foldkit-mirror` is the one package not here; it needs a URL and a browser
-store, so it lives in [`examples/todo-app`](../todo-app).)
+For URL and browser-storage mirroring, see
+[`examples/todo-app`](../todo-app).
+
+## Read it in three passes
+
+1. Follow `Project` from its SQL binding in [stack.ts](src/stack.ts) to the
+   `Ready Apollo` read in [demo.ts](src/demo.ts). This is server-owned data;
+   the client's Remote cache can be rebuilt.
+2. Follow `notes` through the Sync contract and journal. These are
+   client-authored operations; losing a pending outbox entry loses intent.
+3. Follow one agent capability back to the same application Message. The
+   protocol adapters change how it is called, not who owns the transition.
+
+Start with [Remote](../remote/README.md) or [Sync](../sync/README.md) if the
+first two paths are unfamiliar. The kitchen sink is a composition example,
+not a minimal template that every application needs to copy.
 
 ## Run it
 

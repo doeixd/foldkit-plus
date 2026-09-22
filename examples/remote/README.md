@@ -30,6 +30,18 @@ point is to make the client requirements/cache lifecycle visible. For the server
 interpreter, use [`foldkit-remote-server`](../../packages/remote-server) or the
 [kitchen sink](../kitchen-sink).
 
+## A first experiment
+
+In [src/demo.ts](src/demo.ts), find the first read of `ProjectPage`, the
+prefetch, and the second read. Predict the tags: `Initial` before the Command
+is run, `Ready` after its result has been reduced into the Model. Evaluating
+the Projection again cannot replace either of those steps.
+
+Next inspect the second plan: cached fields should no longer need a read.
+This is the difference between describing a requirement, executing I/O, and
+observing its result. Keep those three operations separate when copying the
+example into a Subscription-driven application.
+
 ## Run it
 
 From the repository root:

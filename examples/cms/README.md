@@ -25,6 +25,18 @@ has entered and not sent is a draft, kept beside it, which a visitor's read
 cannot reach because it never touches drafts. Read the last line of the run: the
 row was never a draft's to spoil.
 
+## Follow one save before publishing
+
+Read [domain.ts](src/domain.ts), then the editor placement in
+[app.ts](src/app.ts), then `CmsServer.make` in [server.ts](src/server.ts).
+A saved draft and a published row are different records. Autosave can retain
+invalid text; publish must validate and pass the server's authorization rule.
+
+Try saving an unfinished title as the writer, then read the public site as a
+visitor. Saving the draft must not make it public. Switch to the editor and
+publish a valid form; only then should the public row change. A successful
+save is not evidence of a successful publish.
+
 ## Run it
 
 ```bash
