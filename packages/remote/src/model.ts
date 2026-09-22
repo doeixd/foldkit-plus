@@ -197,6 +197,12 @@ export type RemoteMessage =
       /** The refresh generation the read was planned under. */
       readonly refresh?: number | undefined
     }
+  /**
+   * Queries for these connections were sent. One with nothing to show reads
+   * `Loading` until its page or its failure arrives, which is what separates
+   * "being fetched" from `Initial`, "nothing is fetching this".
+   */
+  | { readonly _tag: 'QueryStarted'; readonly connections: readonly string[] }
   /** The active Surfaces' roots changed; everything they do not reach is collected. */
   | { readonly _tag: 'RetentionChanged'; readonly roots: RetentionRoots }
   /** A restored snapshot meets the store; runtime state is untouched. */
@@ -288,6 +294,7 @@ export const remoteMessageCases = {
   },
   RefreshStarted: { requests: Schema.Array(ReadRequest) },
   ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
+  QueryStarted: { connections: Schema.Array(Schema.String) },
   RetentionChanged: { roots: retentionRootsSchema },
   Hydrated: {
     connections: Schema.optional(Schema.Unknown),
@@ -403,6 +410,32 @@ const withoutLoading = (
  */
 const connectionPrefix = '\u0000connection\u0000'
 const connectionMark = (identity: string): string => `${connectionPrefix}${identity}`
+
+/** Whether a query for this connection is in flight. */
+export const isQueryLoading = (model: RemoteModel, identity: string): boolean =>
+  model.loading.size !== 0 && model.loading.has(connectionMark(identity))
+
+const withoutQueryLoading = (loading: ReadonlySet<string>, identity: string) => {
+  if (!loading.has(connectionMark(identity))) return loading
+  const next = new Set(loading)
+  next.delete(connectionMark(identity))
+  return next
+}
+
+/**
+ * The in-flight marks of connections the roots still name. A query the entry
+ * stopped waiting for — it was restarted or deactivated before an answer came —
+ * leaves its mark behind, and a connection released with that mark would read
+ * `Loading` forever the next time something asked for it before sending.
+ */
+const prunedQueryLoading = (
+  loading: ReadonlySet<string>,
+  roots: RetentionRoots,
+): ReadonlySet<string> => {
+  const named = new Set(roots.connections.map(root => connectionMark(root.identity)))
+  const kept = [...loading].filter(mark => !mark.startsWith(connectionPrefix) || named.has(mark))
+  return kept.length === loading.size ? loading : new Set(kept)
+}
 
 /**
  * Drops the refresh marks of entities and connections that were collected.
@@ -564,6 +597,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         ...retained,
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, retained.entities),
+        loading: prunedQueryLoading(model.loading, message.roots),
       }
     }
     case 'Hydrated': {
@@ -615,6 +649,11 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       return entities === model.entities && failures === model.failures
         ? model
         : { ...model, entities, failures }
+    }
+    case 'QueryStarted': {
+      const loading = new Set(model.loading)
+      for (const identity of message.connections) loading.add(connectionMark(identity))
+      return loading.size === model.loading.size ? model : { ...model, loading }
     }
     case 'ReadStarted':
       return {
@@ -719,6 +758,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
     case 'ConnectionMerged': {
       const current = model.connections[message.connection] ?? emptyConnection
       const failures = withoutConnectionFailure(model.failures, message.connection)
+      const loading = withoutQueryLoading(model.loading, message.connection)
       // The page answering an invalidation is the server's list as it now is, so it
       // replaces the pages: removed and reordered items go, and later pages are paged
       // again. A re-run of a connection that was not invalidated still merges.
@@ -737,6 +777,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
           model.mutations.pending,
         ),
         failures,
+        loading,
       }
     }
     case 'ConnectionInvalidated':
@@ -761,6 +802,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
           ...model.failures,
           connections: { ...model.failures.connections, [message.connection]: message.error },
         },
+        loading: withoutQueryLoading(model.loading, message.connection),
       }
     case 'ConnectionRefreshed':
       return {

@@ -317,7 +317,8 @@ a read or a list's query fails ------------------------> Failed (with the old va
 The states are:
 
 - **`Initial`** — required data is absent and **nothing is currently fetching it**.
-- **`Loading`** — required data is absent and a read is in flight.
+- **`Loading`** — required data is absent and a read, or a list's query, is in
+  flight.
 - **`Ready`** — every selected field is present and decodes.
 - **`Refreshing`** — the current value remains visible while it is being refetched.
 - **`Failed`** — stored server data does not decode against the Selection, or

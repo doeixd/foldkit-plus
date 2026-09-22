@@ -20,7 +20,8 @@ export interface RemoteInspection {
   readonly live: ReadonlyArray<string>
   readonly gaps: ReadonlyArray<string>
   /**
-   * The `entity\0id\0field` marks of reads in flight. This is what "Remote is
+   * The `entity\0id\0field` marks of reads in flight, and a
+   * `\0connection\0identity` mark for each query in flight. This is what "Remote is
    * working" means here, and it is read from the Model rather than from the
    * fibers doing the work: a tool that shows it shows something the Model can
    * be replayed to, and nothing that needs the runtime to be asked.

@@ -102,6 +102,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: a list waiting on its first page reads `Loading`.** It
+  read `Initial`, which is documented as "nothing is fetching this", so a view
+  could not tell a slow network from a Surface that was never activated. The
+  read entry now sends a new `QueryStarted` Message before it runs queries,
+  and the page or the failure ends it. Retention dropping the list forgets it,
+  so a query the entry stopped waiting for cannot leave a list `Loading` for
+  good. An application whose own code switches exhaustively over Remote's
+  Messages has one more case.
 - **`foldkit-remote`: a declared `LivePolicy` is honoured.**
   `Query.connection(E, { live })` was typed, carried on the descriptor and
   documented, but nothing set the policy on a `LiveReceived` Message, so every

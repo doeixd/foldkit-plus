@@ -25,7 +25,7 @@ describe('foldkit-remote example', () => {
       'refresh: Refreshing {"id":"p1","name":"Apollo","status":"active"}; list Refreshing p1; again unchanged: true',
     )
     expect(lines).toContain(
-      'after refresh: ReadStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {"id":"p1","name":"Artemis","status":"active"}; list Ready p2 Borealis',
+      'after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {"id":"p1","name":"Artemis","status":"active"}; list Ready p2 Borealis',
     )
   })
 })

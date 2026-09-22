@@ -51,6 +51,7 @@ import {
   initialRemoteModel,
   isFieldFailed,
   isLoading,
+  isQueryLoading,
   isRemoteMessage,
   refreshIsInFlight,
   refreshedAt,
@@ -1074,16 +1075,27 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     },
     dependenciesToStream: ({ requirements, queries, refresh }) =>
       Stream.concat(
-        requirements.length === 0
-          ? Stream.empty
-          : Stream.fromIterable([
-              // Absent fields read as `Loading` until the read lands.
-              toMessage({ _tag: 'ReadStarted', requests: requirements, refresh }),
-              // A refreshing policy also marks the present ones stale.
-              ...(RemotePolicy.refreshes(policy)
-                ? [toMessage({ _tag: 'RefreshStarted', requests: requirements })]
-                : []),
-            ]),
+        Stream.fromIterable([
+          ...(requirements.length === 0
+            ? []
+            : [
+                // Absent fields read as `Loading` until the read lands.
+                toMessage({ _tag: 'ReadStarted', requests: requirements, refresh }),
+                // A refreshing policy also marks the present ones stale.
+                ...(RemotePolicy.refreshes(policy)
+                  ? [toMessage({ _tag: 'RefreshStarted', requests: requirements })]
+                  : []),
+              ]),
+          // A list with nothing to show reads `Loading` until its page lands.
+          ...(queries.length === 0
+            ? []
+            : [
+                toMessage({
+                  _tag: 'QueryStarted',
+                  connections: queries.map(query => query.identity),
+                }),
+              ]),
+        ]),
         Stream.mergeAll(
           [
             ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
@@ -1943,6 +1955,7 @@ const bindDomain = <
           // Invalidating a connection the Model never loaded records it stale with no
           // segments: still nothing to show. (A loaded empty page is not stale.)
           if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
+            if (isQueryLoading(remote, ref.identity)) return { _tag: 'Loading' }
             return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
           }
           // A query that answered is not the whole of a list: its rows' fields

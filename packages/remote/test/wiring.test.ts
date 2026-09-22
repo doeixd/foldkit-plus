@@ -40,6 +40,7 @@ const allTags: ReadonlyArray<RemoteMessageTag> = [
   'ReadFailed',
   'RefreshStarted',
   'ReadStarted',
+  'QueryStarted',
   'RetentionChanged',
   'Hydrated',
   'MutationStarted',

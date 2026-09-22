@@ -109,7 +109,7 @@ after mutation: Ready {"id":"p1","name":"Apollo II","status":"active"}
 retained: Project:p1; 1 entity and 1 connection collected
 corrupt store: Failed DecodeError
 refresh: Refreshing {"id":"p1","name":"Apollo",...}; list Refreshing p1; again unchanged: true
-after refresh: ReadStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...,"name":"Artemis",...}; list Ready p2 Borealis
+after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...,"name":"Artemis",...}; list Ready p2 Borealis
 ```
 
 Read those lines in this order:
@@ -261,7 +261,7 @@ the requested value.
 
 ```text
 refresh: Refreshing {...Apollo...}; list Refreshing p1; again unchanged: true
-after refresh: ReadStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...Artemis...}; list Ready p2 Borealis
+after refresh: ReadStarted, QueryStarted, ReadReceived, ConnectionMerged, ReadStarted, ReadReceived; Ready {...Artemis...}; list Ready p2 Borealis
 ```
 
 The server renames `p1` and its owner's list becomes `p2` alone. A refresh

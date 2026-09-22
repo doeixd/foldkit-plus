@@ -1323,6 +1323,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
     // One Message per page: the merge and the refresh together, so a stream restart
     // between two Messages cannot leave the connection stale and re-querying.
     expect(messages).toEqual([
+      { _tag: 'QueryStarted', connections: [identity] },
       {
         _tag: 'ConnectionMerged',
         connection: identity,
@@ -1383,7 +1384,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(paging(['p1']).layer),
       ),
     )
-    expect(messages.map(message => message._tag)).toEqual(['ConnectionMerged'])
+    expect(messages.map(message => message._tag)).toEqual(['QueryStarted', 'ConnectionMerged'])
     // With the page known and its items aged out, the refetch is announced.
     const loaded = read(messages.reduce(Data.reduce, initial), ['p1'])
     clock = 10_000
@@ -1422,6 +1423,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ),
     )
     expect(messages).toEqual([
+      { _tag: 'QueryStarted', connections: ['Feed'] },
       {
         _tag: 'QueryFailed',
         connection: 'Feed',
@@ -1447,6 +1449,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ),
     )
     expect(messages).toEqual([
+      { _tag: 'QueryStarted', connections: [identity] },
       {
         _tag: 'QueryFailed',
         connection: identity,
@@ -1473,7 +1476,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         Effect.provide(client.layer),
       ),
     )
-    expect(messages.map(message => message._tag)).toEqual(['ConnectionMerged'])
+    expect(messages.map(message => message._tag)).toEqual(['QueryStarted', 'ConnectionMerged'])
     const empty = messages.reduce(Data.reduce, initial)
     expect(projects.read(empty)).toEqual({
       _tag: 'Ready',

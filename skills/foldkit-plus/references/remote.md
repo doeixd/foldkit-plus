@@ -42,7 +42,7 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 (`RemoteData.match` is exhaustive):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
-- `Loading`: absent, a read is in flight.
+- `Loading`: absent, a read or a list's query is in flight (`QueryStarted`).
 - `Ready`: all selected fields present and decode.
 - `Refreshing`: old value still visible while refetching.
 - `Failed`: stored data does not decode against the Selection, or the read or
