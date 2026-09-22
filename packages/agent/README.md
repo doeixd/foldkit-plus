@@ -82,7 +82,7 @@ const TodoAgent = Agent.forApplication(App)
 
 const AppAgent = TodoAgent.make({
   // This projection is the context returned to the agent.
-  context: Projection.pick(App.fields.todos, App.fields.selectedTodoId),
+  context: Projection.pick(App.model.todos, App.model.selectedTodoId),
 
   messages: TodoAgent.expose(Message, {
     // A variant that needs nothing but a description can be written as one.
@@ -161,8 +161,8 @@ Read current state before deciding whether to retry an effectful operation.
 
 | Function | Purpose |
 | --- | --- |
-| `Surface.application({ Model, Message, initial, update })` | Captures the application once; `App.fields` are typed field references. `initial`/`update` are optional (a runnable application is needed only for sync). |
-| `Projection.pick(App.fields.todos, ...)` | The information boundary: what an agent may see. |
+| `Surface.application({ Model, Message, initial, update })` | Captures the application once; `App.model` are typed field references. `initial`/`update` are optional (a runnable application is needed only for sync). |
+| `Projection.pick(App.model.todos, ...)` | The information boundary: what an agent may see. |
 | `Projection.compose(...)` | Compose disjoint picks into one context. |
 | `MessageSet.make(App, [constructors])` / `MessageSet.union(...)` | A typed Message subset, and the union of several disjoint subsets. |
 | `Agent.expose(Message, variants)` | The capability boundary: what an agent may do. |
@@ -530,7 +530,7 @@ by hand. If Foldkit later grows the option, it can construct the same seam.
 **Why `forApplication` and `forModel`, rather than plain `make`.** TypeScript
 cannot infer `Model` from an `available` callback alone, so `available: model =>
 …` would leave `model` as `any`. `Agent.forApplication(App)` infers it from a
-`Surface.application`, with `App.fields` typed; `Agent.forModel<Model>()` fixes
+`Surface.application`, with `App.model` typed; `Agent.forModel<Model>()` fixes
 it when there is no application. `Agent.make` is still there when the Model does
 not matter.
 

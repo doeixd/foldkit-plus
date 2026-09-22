@@ -23,17 +23,19 @@ describe('Surface.application', () => {
     const App = Surface.application({ Model, Message, initial, update })
 
     expect(App.initial).toEqual(initial)
-    expect(App.fields).toBe(App.model)
+    expect(App.model).toBe(App.model)
     expect(App.update(initial, Message.CreatedTodo({ id: 'a', title: 'A' })).model.todos).toEqual([
       { id: 'a', title: 'A' },
     ])
   })
 
-  it('selects through App.fields the same way as App.model', () => {
+  it('keeps App.fields, deprecated, as the very references App.model holds', () => {
     const App = Surface.application({ Model, Message, initial, update })
-    const Pick = Projection.pick(App.fields.todos, App.fields.selectedTodoId)
+    const Pick = Projection.pick(App.model.todos, App.model.selectedTodoId)
 
     expect(Pick.dependencies).toEqual([['todos'], ['selectedTodoId']])
     expect(Pick.get(initial)).toEqual({ todos: [], selectedTodoId: null })
+    // Not a copy: code written against the old name selects the same fields.
+    expect(App.fields).toBe(App.model)
   })
 })

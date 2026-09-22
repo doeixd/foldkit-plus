@@ -39,7 +39,7 @@ const _todoList: Surface<
   void
 > = TodoList
 
-const Shared = Projection.pick(App.fields.todos, App.fields.selectedTodoId)
+const Shared = Projection.pick(App.model.todos, App.model.selectedTodoId)
 void Shared
 
 // Surfaces

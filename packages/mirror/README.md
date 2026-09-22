@@ -177,8 +177,8 @@ Declare which local fields the URL represents:
 const Filters = Mirror.url(App, {
   name: 'filters',
   fields: [
-    App.fields.filter,
-    App.fields.page,
+    App.model.filter,
+    App.model.page,
   ],
 })
 ```
@@ -260,8 +260,8 @@ import { Projection } from 'foldkit-surface'
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
   fields: Projection.pick(
-    App.fields.sidebar,
-    App.fields.draft,
+    App.model.sidebar,
+    App.model.draft,
   ),
 })
 ```
@@ -351,8 +351,8 @@ A mirror accepts either field refs directly:
 
 ```ts
 fields: [
-  App.fields.filter,
-  App.fields.page,
+  App.model.filter,
+  App.model.page,
 ]
 ```
 
@@ -360,8 +360,8 @@ or a writable Projection:
 
 ```ts
 fields: Projection.pick(
-  App.fields.sidebar,
-  App.fields.draft,
+  App.model.sidebar,
+  App.model.draft,
 )
 ```
 
@@ -458,9 +458,9 @@ replace the current entry instead:
 const Filters = Mirror.url(App, {
   name: 'filters',
   fields: [
-    App.fields.filter,
-    App.fields.page,
-    App.fields.q,
+    App.model.filter,
+    App.model.page,
+    App.model.q,
   ],
   keys: {
     q: { history: 'replace' },

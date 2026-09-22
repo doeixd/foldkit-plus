@@ -24,12 +24,12 @@ const App = Surface.application({ Model, Message, initial, update: model => ({ m
 // One mirror per placement, each field under a key prefixed with the placement's path.
 const SearchUrl = Mirror.url(App, {
   name: 'search',
-  fields: [App.fields.search.query],
+  fields: [App.model.search.query],
   keys: { query: { key: 'search.q' } },
 })
 const FilterUrl = Mirror.url(App, {
   name: 'filter',
-  fields: [App.fields.filter.query],
+  fields: [App.model.filter.query],
   keys: { query: { key: 'filter.q' } },
 })
 

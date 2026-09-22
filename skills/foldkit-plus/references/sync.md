@@ -65,7 +65,7 @@ const App = Surface.application({ Model, Message, initial, update })
 
 export const TodoSync = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),                   // replicated slice
+  shared: Projection.pick(App.model.todos),                   // replicated slice
   durable: MessageSet.make(App, [Message.CreatedTodo]),        // SelectedTodo stays local
 })
 
@@ -186,7 +186,7 @@ const Authorized = Sync.forApplication(App).withPrincipal<Principal>()
 
 const Board = Authorized.make({
   documentId: DocumentId.make('board'),
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo]),
   authorize: {
     // `message` is narrowed to this variant; `shared` is the authoritative snapshot

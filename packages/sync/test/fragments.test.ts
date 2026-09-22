@@ -37,11 +37,11 @@ type Principal = { readonly role: 'admin' | 'guest' }
 const Sync = forApplication(App).withPrincipal<Principal>()
 
 const Todos = Sync.fragment({
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 const Members = Sync.fragment({
-  shared: Projection.pick(App.fields.members),
+  shared: Projection.pick(App.model.members),
   durable: MessageSet.make(App, [Message.Invited]),
 })
 
@@ -82,7 +82,7 @@ describe('Sync fragments', () => {
 
   it('deduplicates an identical field and rejects a conflicting one', () => {
     const TodosAgain = Sync.fragment({
-      shared: Projection.pick(App.fields.todos),
+      shared: Projection.pick(App.model.todos),
       durable: MessageSet.make(App, [Message.RenamedTodo]),
     })
     // The same field reference twice is one field; the duplicate tag is what fails.
@@ -97,7 +97,7 @@ describe('Sync fragments', () => {
       update: (model: { readonly todos: ReadonlyArray<string> }) => ({ model }),
     })
     const Conflicting = {
-      shared: Projection.pick(Other.fields.todos),
+      shared: Projection.pick(Other.model.todos),
       durable: MessageSet.make(App, [Message.Invited]),
     }
     expect(() => Sync.compose(Todos, Conflicting as never)).toThrow(
@@ -108,13 +108,13 @@ describe('Sync fragments', () => {
   it('refuses a fragment from another application', () => {
     const Other = Surface.application({ Model: ModelSchema, Message, initial, update })
     const Foreign = forApplication(Other).fragment({
-      shared: Projection.pick(Other.fields.members),
+      shared: Projection.pick(Other.model.members),
       durable: MessageSet.make(Other, [Message.Invited]),
     })
     expect(() => Sync.compose(Todos, Foreign as never)).toThrow('different application')
     expect(() =>
       Sync.fragment({
-        shared: Projection.pick(App.fields.members),
+        shared: Projection.pick(App.model.members),
         durable: MessageSet.make(Other, [Message.Invited]) as never,
       }),
     ).toThrow('different application')

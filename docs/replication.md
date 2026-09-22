@@ -227,7 +227,7 @@ it:
 ```ts
 const TodoSync = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [
     Message.CreatedTodo,
     Message.RenamedTodo,
@@ -238,7 +238,7 @@ const TodoSync = Sync.forApplication(App).make({
 Read that declaration as:
 
 ```text
-Projection.pick(App.fields.todos)
+Projection.pick(App.model.todos)
     = what state is replicated
 
 MessageSet.make(...)
@@ -553,7 +553,7 @@ const App = Surface.application({ Model, Message, initial, update })
 
 const TodoSync = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [
     Message.CreatedTodo,
     Message.RenamedTodo,

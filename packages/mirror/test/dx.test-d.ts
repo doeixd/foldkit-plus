@@ -31,15 +31,15 @@ type Message = typeof Message.Type
 const initial: Model = { filter: 'all', page: 1, q: '', sidebar: 'open', draft: '' }
 const App = Surface.application({ Model, Message, initial, update })
 
-// The slice is field refs straight from `App.fields`, or a writable projection over them.
+// The slice is field refs straight from `App.model`, or a writable projection over them.
 const Filters = Mirror.url(App, {
   name: 'filters',
-  fields: [App.fields.filter, App.fields.page, App.fields.q],
+  fields: [App.model.filter, App.model.page, App.model.q],
   keys: { q: { history: 'replace' } },
 })
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
-  fields: Projection.pick(App.fields.sidebar, App.fields.draft),
+  fields: Projection.pick(App.model.sidebar, App.model.draft),
 })
 
 // Hover: the slice's value type, the store, and the name; nothing else.
@@ -71,12 +71,12 @@ Filters.href(initial, { sidebar: 'closed' })
 // @ts-expect-error a value of the wrong type
 Filters.href(initial, { page: '2' })
 Mirror.url(App, {
-  fields: [App.fields.filter],
+  fields: [App.model.filter],
   // @ts-expect-error an option for a field the slice does not have
   keys: { page: { history: 'push' } },
 })
 Mirror.url(App, {
-  fields: [App.fields.page],
+  fields: [App.model.page],
   // @ts-expect-error a codec must decode from text to the field's type
   keys: { page: { codec: Schema.String } },
 })

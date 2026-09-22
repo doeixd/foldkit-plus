@@ -50,10 +50,10 @@ Declared from the application:
 
 ```ts
 const Filters = Mirror.url(App, {
-  fields: [App.fields.filter, App.fields.page, App.fields.q],
+  fields: [App.model.filter, App.model.page, App.model.q],
   keys: { q: { history: 'replace' } },
 })
-const Prefs = Mirror.kv(App, { key: 'todo/prefs', scope: userId, fields: [App.fields.sidebar, App.fields.draft] })
+const Prefs = Mirror.kv(App, { key: 'todo/prefs', scope: userId, fields: [App.model.sidebar, App.model.draft] })
 ```
 
 Wired into `update`, the URL hook the runtime already has, and one

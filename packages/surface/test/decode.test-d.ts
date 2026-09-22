@@ -11,7 +11,7 @@ const Message = defineMessageUnion({ Ping: {} })
 const App = Surface.application({ Model, Message })
 
 // A Projection's Model decodes without a cast.
-const count = Projection.struct({ count: App.fields.count })
+const count = Projection.struct({ count: App.model.count })
 const _count: { readonly count: number } = Schema.decodeUnknownSync(count.Model)({ count: 1 })
 
 // A Surface declared with params has them present, and they decode.

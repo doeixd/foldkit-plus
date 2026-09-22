@@ -17,9 +17,9 @@ const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url 
 const initial: Model = { filter: 'all', draft: '' }
 const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
 
-const Filters = Mirror.url(App, { name: 'filters', fields: [App.fields.filter] })
-const Prefs = Mirror.kv(App, { key: 'prefs', fields: [App.fields.draft] })
-const Other = Mirror.kv(App, { key: 'other', fields: [App.fields.draft] })
+const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter] })
+const Prefs = Mirror.kv(App, { key: 'prefs', fields: [App.model.draft] })
+const Other = Mirror.kv(App, { key: 'other', fields: [App.model.draft] })
 
 const urlOf = (href: string) => Option.getOrThrow(fromString(href))
 

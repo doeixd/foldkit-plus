@@ -162,7 +162,7 @@ const buildAgent = <Model, Principal>(
  * const TodoAgent = Agent.forApplication(App) // no principal
  * const AdminAgent = Agent.forApplication(App).withPrincipal<Principal>()
  * const AppAgent = TodoAgent.make({
- *   context: Projection.pick(App.fields.todos),
+ *   context: Projection.pick(App.model.todos),
  *   messages: TodoAgent.expose(Message, { RequestedDeleteTodo: 'Delete a todo' }),
  * })
  * ```

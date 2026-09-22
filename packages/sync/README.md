@@ -171,7 +171,7 @@ const TodoSync = Sync.forApplication(App).make({
   // This slice of Model is replicated.
   // The writable Projection lets Sync install checkpoints/reconciled state back
   // into the application Model without owning a second copy of the schema.
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
 
   // Only these existing Messages become durable operations.
   durable: MessageSet.make(App, [
@@ -625,7 +625,7 @@ fragments and compose them into one document:
 const AppSync = Sync.forApplication(App)
 
 const Todos = AppSync.fragment({
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [
     Message.CreatedTodo,
     Message.RenamedTodo,
@@ -633,7 +633,7 @@ const Todos = AppSync.fragment({
 })
 
 const Members = AppSync.fragment({
-  shared: Projection.pick(App.fields.members),
+  shared: Projection.pick(App.model.members),
   durable: MessageSet.make(App, [Message.Invited]),
 })
 

@@ -15,12 +15,12 @@ const App = Surface.application({
 })
 
 const _initial: { readonly count: number } = App.initial
-const _field = App.fields.count
-const _value: number = Projection.pick(App.fields.count).get({ count: 1 }).count
+const _field = App.model.count
+const _value: number = Projection.pick(App.model.count).get({ count: 1 }).count
 
 // References only: an agent-only application needs no `initial` or `update`.
 const RefsOnly = Surface.application({ Model, Message })
-const _refsOnlyKey: 'count' = RefsOnly.fields.count.key
+const _refsOnlyKey: 'count' = RefsOnly.model.count.key
 
 // An update whose Commands need a resource is accepted.
 declare const serviceEffect: Effect.Effect<Schema.Schema.Type<typeof Message>, never, 'Service'>
@@ -35,7 +35,7 @@ const _runnable = Surface.application({
 })
 
 // @ts-expect-error `missing` is not a Model field
-App.fields.missing
+App.model.missing
 
 // @ts-expect-error the initial Model must match the Model schema
 Surface.application({

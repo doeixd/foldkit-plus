@@ -757,14 +757,18 @@ export type MergeFields<Ps extends readonly WritableProjection<any, any>[]> = Ps
  * An application definition: the Model and Message schemas and the generated
  * field references. It is data, not a running instance, so it can be inspected
  * without mounting anything. Context, replication, and validation all read the
- * same `App.fields` references.
+ * same `App.model` references.
  */
 export interface Application<
   Root,
   F extends Schema.Struct.Fields,
   Cases extends Record<string, Schema.Struct.Fields>,
 > extends AppScope<Root, F, Cases> {
-  /** Reference-based field selection: `App.fields.todos`. */
+  /**
+   * @deprecated Use `App.model`, the same references under the name every
+   * other part of the API uses: `App.surface` hands a Surface `{ model }`, and
+   * a Bundle placement takes `model`. Removed in a later minor.
+   */
   readonly fields: RefTree<Root, F>
   /**
    * `Surface.make` with the mechanical wrappers lifted: `params` are the
@@ -1070,7 +1074,7 @@ export const Surface = {
    * A Surface active while a tagged value at a known place has a given tag.
    *
    * ```ts
-   * Surface.when(ProjectPage, App.fields.route, AppRoute.Project, route => ({
+   * Surface.when(ProjectPage, App.model.route, AppRoute.Project, route => ({
    *   projectId: route.projectId,
    * }))
    * ```

@@ -41,7 +41,7 @@ const projects = Data.query(
 
 export const AppAgent = BoardAgent.make({
   // What an agent may see: the replicated notes and the current selection.
-  context: Projection.pick(App.fields.notes, App.fields.selectedNoteId),
+  context: Projection.pick(App.model.notes, App.model.selectedNoteId),
 
   messages: BoardAgent.expose(Message, {
     RequestedCreateNote: 'Create a note',

@@ -25,7 +25,7 @@ const TodoAgent = Agent.forApplication(App).withPrincipal<Principal>()
  */
 export const AppAgent = TodoAgent.make({
   // What an agent may see. `lastError` is deliberately not projected.
-  context: Projection.pick(App.fields.todos, App.fields.selectedTodoId),
+  context: Projection.pick(App.model.todos, App.model.selectedTodoId),
 
   messages: TodoAgent.expose(Message, {
     // Most capabilities need nothing but a description.

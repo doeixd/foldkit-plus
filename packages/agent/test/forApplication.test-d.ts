@@ -11,7 +11,7 @@ const App = Surface.application({ Model, Message: MessageUnion, initial: emptyMo
 
 const TodoAgent = Agent.forApplication(App)
 const definition = TodoAgent.make({
-  context: Projection.pick(App.fields.todos),
+  context: Projection.pick(App.model.todos),
   messages: TodoAgent.expose(MessageUnion, { RequestedDeleteTodo: 'Delete' }),
 })
 
@@ -42,7 +42,7 @@ Agent.exposeSubset(Changes, { RequestedDeleteTodo: 'Delete' })
 // `withPrincipal` fixes the principal `authorize` sees; the Model stays inferred.
 const AdminAgent = Agent.forApplication(App).withPrincipal<{ readonly role: 'admin' | 'user' }>()
 AdminAgent.make({
-  context: Projection.pick(App.fields.todos),
+  context: Projection.pick(App.model.todos),
   messages: AdminAgent.expose(MessageUnion, {
     RequestedDeleteTodo: {
       description: 'Delete',

@@ -35,7 +35,7 @@ const App = Surface.application({ Model, Message })
 const TodoAgent = Agent.forApplication(App)
 
 const AppAgent = TodoAgent.make({
-  context: Projection.pick(App.fields.todos, App.fields.selectedTodoId),
+  context: Projection.pick(App.model.todos, App.model.selectedTodoId),
 
   messages: TodoAgent.expose(Message, {
     RequestedCreateTodo: 'Create a new todo',

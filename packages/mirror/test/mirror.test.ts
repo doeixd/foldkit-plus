@@ -22,29 +22,29 @@ const Message = defineMessageUnion({ ...Mirror.messages, Ping: {} })
 const initial: Model = { filter: 'all', page: 1, q: '', open: false, tags: [], editingId: null }
 const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
 
-const Filters = Projection.pick(App.fields.filter, App.fields.page, App.fields.q)
+const Filters = Projection.pick(App.model.filter, App.model.page, App.model.q)
 const mirror = (store = MirrorStore.memory()) =>
   Mirror.make(App, store, { name: 'filters', fields: Filters, keys: { q: { history: 'replace' } } })
 /** The same slice in the URL; `reduce` and `href` are pure, so no DOM is needed. */
 const inUrl = (config: { readonly location?: 'search' | 'hash'; readonly name?: string } = {}) =>
   Mirror.url(App, {
     name: config.name ?? `filters-${config.location ?? 'search'}`,
-    fields: [App.fields.filter, App.fields.page, App.fields.q],
+    fields: [App.model.filter, App.model.page, App.model.q],
     keys: { q: { history: 'replace' } },
     ...(config.location === undefined ? {} : { location: config.location }),
   })
 
 describe('encode and decode', () => {
   it('derives each key’s codec from the field and elides the initial value', () => {
-    // Field refs straight from `App.fields`, or a writable projection over them.
+    // Field refs straight from `App.model`, or a writable projection over them.
     const m = Mirror.make(App, MirrorStore.memory(), {
       fields: [
-        App.fields.filter,
-        App.fields.page,
-        App.fields.q,
-        App.fields.open,
-        App.fields.tags,
-        App.fields.editingId,
+        App.model.filter,
+        App.model.page,
+        App.model.q,
+        App.model.open,
+        App.model.tags,
+        App.model.editingId,
       ],
     })
     expect(m.encode(initial)).toEqual({})
@@ -84,11 +84,11 @@ describe('encode and decode', () => {
         { key: 'page', message: '"abc" is not a number' },
       ],
     })
-    const b = Mirror.make(App, MirrorStore.memory(), { fields: Projection.pick(App.fields.open) })
+    const b = Mirror.make(App, MirrorStore.memory(), { fields: Projection.pick(App.model.open) })
     expect(b.decode({ open: 'yes' }).issues).toEqual([
       { key: 'open', message: '"yes" is not "true" or "false"' },
     ])
-    const t = Mirror.make(App, MirrorStore.memory(), { fields: Projection.pick(App.fields.tags) })
+    const t = Mirror.make(App, MirrorStore.memory(), { fields: Projection.pick(App.model.tags) })
     expect(t.decode({ tags: '[oops' }).issues).toEqual([
       { key: 'tags', message: '"[oops" is not JSON' },
     ])
@@ -100,7 +100,7 @@ describe('encode and decode', () => {
 
   it('takes another key name, a codec, and keeps a default when asked', () => {
     const m = Mirror.make(App, MirrorStore.memory(), {
-      fields: Projection.pick(App.fields.tags, App.fields.page),
+      fields: Projection.pick(App.model.tags, App.model.page),
       keys: {
         tags: {
           key: 't',
@@ -124,18 +124,18 @@ describe('encode and decode', () => {
 
   it('reads defaults from the initial Model: the application’s, or the config’s for a bare one', () => {
     const Bare = Surface.application({ Model, Message })
-    expect(() => Mirror.make(Bare, MirrorStore.memory(), { fields: [Bare.fields.page] })).toThrow(
+    expect(() => Mirror.make(Bare, MirrorStore.memory(), { fields: [Bare.model.page] })).toThrow(
       'Mirror.memory: defaults are read from the initial Model, so build the application with `initial` or pass `initial` in the config',
     )
     const m = Mirror.make(Bare, MirrorStore.memory(), {
-      fields: [Bare.fields.page],
+      fields: [Bare.model.page],
       initial: { ...initial, page: 7 },
     })
     expect(m.encode({ ...initial, page: 7 })).toEqual({})
     expect(m.encode({ ...initial, page: 1 })).toEqual({ page: '1' })
     // Given both, the config's initial is the explicit one and wins.
     const explicit = Mirror.make(App, MirrorStore.memory(), {
-      fields: [App.fields.page],
+      fields: [App.model.page],
       initial: { ...initial, page: 7 },
     })
     expect(explicit.encode({ ...initial, page: 7 })).toEqual({})
@@ -144,7 +144,7 @@ describe('encode and decode', () => {
   it('two fields on one key is an error naming both', () => {
     expect(() =>
       Mirror.make(App, MirrorStore.memory(), {
-        fields: Projection.pick(App.fields.page, App.fields.q),
+        fields: Projection.pick(App.model.page, App.model.q),
         keys: { q: { key: 'page' } },
       }),
     ).toThrow('Mirror: fields "page" and "q" both use the key "page"; give one another key')
@@ -344,9 +344,9 @@ describe('the contract', () => {
   })
 
   it('a kv mirror names MirrorRestored, so Module reports a union that did not spread it', () => {
-    const Prefs = Mirror.kv(App, { key: 'prefs', fields: [App.fields.open] })
+    const Prefs = Mirror.kv(App, { key: 'prefs', fields: [App.model.open] })
     expect(Prefs.name).toBe('prefs')
-    expect(Mirror.kv(App, { key: 'prefs', name: 'settings', fields: [App.fields.open] }).name).toBe(
+    expect(Mirror.kv(App, { key: 'prefs', name: 'settings', fields: [App.model.open] }).name).toBe(
       'settings',
     )
     expect(Prefs.kind).toBe('kv')
@@ -357,7 +357,7 @@ describe('the contract', () => {
       initial,
       update: model => ({ model }),
     })
-    const Unspread = Mirror.kv(Bare, { key: 'prefs', fields: Projection.pick(Bare.fields.open) })
+    const Unspread = Mirror.kv(Bare, { key: 'prefs', fields: Projection.pick(Bare.model.open) })
     expect(Module.validate(Module.make(Bare, [Unspread.contract])).map(f => f.rule)).toEqual([
       'unknown-message',
     ])
@@ -365,17 +365,17 @@ describe('the contract', () => {
 
   it('a URL key belongs to one mirror per application', () => {
     const A = Surface.application({ Model, Message, initial, update: model => ({ model }) })
-    const first = Mirror.url(A, { name: 'first', fields: [A.fields.page] })
+    const first = Mirror.url(A, { name: 'first', fields: [A.model.page] })
     expect(first.name).toBe('first')
-    expect(Mirror.url(A, { fields: [A.fields.q] }).name).toBe('url(q)')
+    expect(Mirror.url(A, { fields: [A.model.q] }).name).toBe('url(q)')
     // The same mirror declared again is fine; another taking the key is not.
-    Mirror.url(A, { name: 'first', fields: [A.fields.page] })
-    expect(() => Mirror.url(A, { name: 'second', fields: Projection.pick(A.fields.page) })).toThrow(
+    Mirror.url(A, { name: 'first', fields: [A.model.page] })
+    expect(() => Mirror.url(A, { name: 'second', fields: Projection.pick(A.model.page) })).toThrow(
       'Mirror.url: key "page" in the search is already mirrored by "first"; "second" cannot mirror it too',
     )
     // Another location, or another application, is another namespace.
-    Mirror.url(A, { name: 'hashed', fields: Projection.pick(A.fields.page), location: 'hash' })
+    Mirror.url(A, { name: 'hashed', fields: Projection.pick(A.model.page), location: 'hash' })
     const B = Surface.application({ Model, Message, initial, update: model => ({ model }) })
-    Mirror.url(B, { name: 'second', fields: Projection.pick(B.fields.page) })
+    Mirror.url(B, { name: 'second', fields: Projection.pick(B.model.page) })
   })
 })

@@ -2,7 +2,7 @@
  * Feature Surfaces: what each part of the UI observes and what it may cause.
  *
  * `Surface.application` turns the Model Schema into a reference tree
- * (`App.fields.todos`), and every projection below is a selection over it. A
+ * (`App.model.todos`), and every projection below is a selection over it. A
  * Surface is a pure contract, not a component: the view renders it, the agent
  * reads it, `Module` inspects it, and the tests check it, from one declaration.
  *
@@ -35,9 +35,9 @@ export const App = Surface.application({
 // --- the mirrors: local state the URL shows and a store remembers ------------
 
 /** The filter is linkable: `?filter=active`. Reduced from the URL on load and on navigation. */
-export const Filters = Mirror.url(App, { name: 'filters', fields: [App.fields.filter] })
+export const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter] })
 /** The composer's draft survives a reload; restored only while the draft is still empty. */
-export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.fields.draft] })
+export const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draft] })
 
 const Page = Bundle.parent({ Model, Message })
 
@@ -64,9 +64,9 @@ export const update: (
 // --- the writable projections the sync contract replicates (see sync.ts) ------
 
 /** The list itself. */
-export const Todos = Projection.pick(App.fields.todos)
+export const Todos = Projection.pick(App.model.todos)
 /** The list's own metadata; a second feature that shares the same document. */
-export const ListMeta = Projection.pick(App.fields.listTitle)
+export const ListMeta = Projection.pick(App.model.listTitle)
 
 // --- the read-only Surfaces the view renders -----------------------------------
 // `App.surface` lifts an object of field refs to `Projection.struct`; the

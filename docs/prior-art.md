@@ -352,7 +352,7 @@ lost and reconstructed from Model state; reading a representation back produces
 a normal application transition. There is no replicated log and no attempt to
 make two writers converge.
 
-Because Mirror is built from `App.fields`, it can also derive more than a generic
+Because Mirror is built from `App.model`, it can also derive more than a generic
 URL helper can: the field Schema supplies the value contract, the initial Model
 supplies defaults, and field identity supplies the default key. The same mirror
 kernel can therefore target a URL or an Effect `KeyValueStore` while preserving

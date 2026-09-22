@@ -42,7 +42,7 @@ const TransformingApp = Surface.application({
   initial: { count: 0 },
   update: (model: { readonly count: number }) => ({ model }),
 })
-const Count = Projection.pick(TransformingApp.fields.count)
+const Count = Projection.pick(TransformingApp.model.count)
 // The encoded side is exactly the field's encoded type, not `unknown` or `any`.
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

@@ -26,8 +26,8 @@ const notesSync: Contract = {
   kind: 'sync',
   name: 'notes',
   owner: App.owner,
-  owns: Projection.pick(App.fields.notes).dependencies,
-  observes: Projection.pick(App.fields.notes).dependencies,
+  owns: Projection.pick(App.model.notes).dependencies,
+  observes: Projection.pick(App.model.notes).dependencies,
   messages: [...MessageSet.make(App, [Message.CreatedNote]).tags],
   metadata: [],
 }

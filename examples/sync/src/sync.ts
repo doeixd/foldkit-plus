@@ -12,7 +12,7 @@ import { Message, Model, initialModel, update, type Shared } from './app.js'
 
 const App = Surface.application({ Model, Message, initial: initialModel, update })
 
-const Todos = Projection.pick(App.fields.todos)
+const Todos = Projection.pick(App.model.todos)
 const TodoChanges = MessageSet.make(App, [
   Message.CreatedTodo,
   Message.RenamedTodo,

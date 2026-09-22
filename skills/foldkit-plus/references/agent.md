@@ -55,7 +55,7 @@ const App = Surface.application({ Model, Message })
 const TodoAgent = Agent.forApplication(App)
 
 const AppAgent = TodoAgent.make({
-  context: Projection.pick(App.fields.todos, App.fields.selectedTodoId), // lastError hidden
+  context: Projection.pick(App.model.todos, App.model.selectedTodoId), // lastError hidden
   messages: TodoAgent.expose(Message, {
     RequestedCreateTodo: 'Create a new todo', // name defaults to requested_create_todo
     RequestedDeleteTodo: {

@@ -273,7 +273,7 @@ export const BoardSurface = App.surface('Board', {
 // The client-owned replica (durable + sync)
 // ---------------------------------------------------------------------------
 
-export const Notes = Projection.pick(App.fields.notes)
+export const Notes = Projection.pick(App.model.notes)
 export const NoteChanges = MessageSet.make(App, [
   Message.RequestedCreateNote,
   Message.RequestedRenameNote,

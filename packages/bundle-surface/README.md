@@ -82,7 +82,7 @@ its path.
 
 A placement's state is part of the parent Model, so its fields are already in
 the application's ref tree. Observing one needs no bundle API:
-`App.fields.search.query`, `App.fields.search.select(projection)`.
+`App.model.search.query`, `App.model.search.select(projection)`.
 
 For an application with `search` and `filter` placements, the following
 integration fragment gives each mirror its own keys. Import `Mirror` from
@@ -91,12 +91,12 @@ integration fragment gives each mirror its own keys. Import `Mirror` from
 ```ts
 const SearchUrl = Mirror.url(App, {
   name: 'search',
-  fields: [App.fields.search.query],
+  fields: [App.model.search.query],
   keys: { query: { key: 'search.q' } },
 })
 const FilterUrl = Mirror.url(App, {
   name: 'filter',
-  fields: [App.fields.filter.query],
+  fields: [App.model.filter.query],
   keys: { query: { key: 'filter.q' } },
 })
 ```

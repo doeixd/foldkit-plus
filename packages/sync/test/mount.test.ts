@@ -60,7 +60,7 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
 const App = Surface.application({ Model: ModelSchema, Message, initial, update })
 const TodoSync = forApplication(App).make({
   documentId: documentId('todos'),
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 type Shared = { readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }> }

@@ -304,7 +304,7 @@ const codecFor = (
 type TypeOf<S> = S extends { readonly Type: infer T } ? T : never
 
 /**
- * The slice a mirror keeps: field refs straight from `App.fields`, or a
+ * The slice a mirror keeps: field refs straight from `App.model`, or a
  * writable projection over them (`Projection.pick`, `Projection.compose`),
  * the same object `foldkit-sync` replicates.
  */
@@ -351,7 +351,7 @@ export interface KeyOptions<Value> {
 export interface MirrorConfig<S extends Slice, Name extends string = string> {
   /** Names the mirror in its contract and its Messages; default from the kind and keys. */
   readonly name?: Name | undefined
-  /** The slice: field refs (`[App.fields.filter, App.fields.q]`) or a writable projection over them. */
+  /** The slice: field refs (`[App.model.filter, App.model.q]`) or a writable projection over them. */
   readonly fields: S
   readonly keys?:
     { readonly [K in keyof SliceFields<S>]?: KeyOptions<TypeOf<SliceFields<S>[K]>> } | undefined
@@ -723,7 +723,7 @@ export const Mirror = {
     Object.hasOwn(mirrorMessageCases, message._tag),
 
   /**
-   * A slice kept in the URL: `Projection.pick(App.fields.filter, App.fields.q)`
+   * A slice kept in the URL: `Projection.pick(App.model.filter, App.model.q)`
    * as `?filter=…&q=…`, defaults elided, written when it changes (one history
    * write per Model change) and read back with `reduce(model, url)` on
    * `onUrlChange` and on cold load.

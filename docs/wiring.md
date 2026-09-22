@@ -113,8 +113,8 @@ declarations.)
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
 
-const Filters = Mirror.url(App, { name: 'filters', fields: [App.fields.filter] })
-const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.fields.draft] })
+const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter] })
+const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draft] })
 
 const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())

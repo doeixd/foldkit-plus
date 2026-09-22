@@ -17,7 +17,7 @@ const App = Surface.application({
 })
 const Filters = Mirror.url(App, {
   name: 'filters',
-  fields: Projection.pick(App.fields.filter, App.fields.q),
+  fields: Projection.pick(App.model.filter, App.model.q),
   keys: { q: { history: 'replace' } },
   throttle: 0,
 })

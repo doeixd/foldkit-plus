@@ -168,7 +168,7 @@ const App = Surface.application({
 })
 
 const Data = Remote.make({
-  model: App.fields.remote,
+  model: App.model.remote,
   entities: [Project],
 })
 ```
@@ -584,7 +584,7 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', {
 })
 
 const Data = Remote.make({
-  model: App.fields.remote,
+  model: App.model.remote,
   entities: [User, Project],
   queries: [ProjectsByOwner],
 })

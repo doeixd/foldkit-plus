@@ -47,7 +47,7 @@ const App = Surface.application({ Model, Message, initial, update })
 
 const TodoSync = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos), // the codec, read, and write
+  shared: Projection.pick(App.model.todos), // the codec, read, and write
   durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
 })
 
@@ -114,11 +114,11 @@ const WideApp = Surface.application({
 
 const AppSync = Sync.forApplication(WideApp)
 const Todos = AppSync.fragment({
-  shared: Projection.pick(WideApp.fields.todos),
+  shared: Projection.pick(WideApp.model.todos),
   durable: MessageSet.make(WideApp, [WideMessage.CreatedTodo, WideMessage.RenamedTodo]),
 })
 const Members = AppSync.fragment({
-  shared: Projection.pick(WideApp.fields.members),
+  shared: Projection.pick(WideApp.model.members),
   durable: MessageSet.make(WideApp, [WideMessage.Invited]),
 })
 const Board = AppSync.make({

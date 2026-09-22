@@ -74,7 +74,7 @@ Surface.read(TodoList, model)
 fields, as `Projection.struct` lifts them) and the Messages it may send. It
 reads purely (`Surface.read(TodoList, model)`), binds a renderer
 (`Surface.view`), and is what `foldkit-remote`, `foldkit-sync`, and
-`foldkit-agent` derive their work from. `Projection.pick(App.fields.todos)` is
+`foldkit-agent` derive their work from. `Projection.pick(App.model.todos)` is
 a writable projection of the same field for a replicator. The extra
 `todosById` field illustrates dynamic record lookups later; this read neither
 uses it nor synchronizes it with `todos`. Choose one authoritative collection
@@ -88,10 +88,10 @@ field name as a literal type, so a selection can infer its own output keys
 without a parallel field registry.
 
 ```ts
-App.fields.todos                 // FieldRef<Model, Todo[], 'todos'>
-App.fields.selectedTodoId        // FieldRef<Model, string | null, 'selectedTodoId'>
-App.fields.todosById.at('t1')    // OptionalRef<Model, Option<Todo>> (dynamic key)
-App.fields.todos.index(0)        // OptionalRef<Model, Option<Todo>> (dynamic index)
+App.model.todos                 // FieldRef<Model, Todo[], 'todos'>
+App.model.selectedTodoId        // FieldRef<Model, string | null, 'selectedTodoId'>
+App.model.todosById.at('t1')    // OptionalRef<Model, Option<Todo>> (dynamic key)
+App.model.todos.index(0)        // OptionalRef<Model, Option<Todo>> (dynamic index)
 ```
 
 A Model field that is itself a `Schema.Struct` recurses, so each of its fields is
@@ -100,13 +100,13 @@ returns an `OptionalRef` — a `ModelRef` with an `Option` value. Those are dyna
 selections, so `Projection.pick` (which needs a static field name) rejects them;
 they are useful inside a `Projection`.
 
-`App.model` is the same tree under its older name; prefer `App.fields`.
+`App.model` is the same tree under its older name; prefer `App.model`.
 
 `Projection.pick` turns references into a writable projection — a `Schema.Struct`,
 `get`, and `set`:
 
 ```ts
-const Shared = Projection.pick(App.fields.todos, App.fields.selectedTodoId)
+const Shared = Projection.pick(App.model.todos, App.model.selectedTodoId)
 // { schema, dependencies, get, set }
 ```
 
@@ -163,7 +163,7 @@ Surface never interprets them; `Surface.inspect` and `Module` show them through
 ## Applications
 
 `Surface.application({ Model, Message })` returns an `Application`: the schemas
-(`App.Model`, `App.Message`), the reference tree (`App.fields`, `App.model`), the
+(`App.Model`, `App.Message`), the reference tree (`App.model`, `App.model`), the
 identity token (`App.owner`), and `App.surface`. No transition, so a consumer
 that only inspects the Model needs nothing more.
 
@@ -297,10 +297,10 @@ application with a `filter` field and an already-decoded `restoredFilter`:
 evo(model, { filter: () => 'active' })
 
 // structural addressing
-App.fields.filter.get(model)
+App.model.filter.get(model)
 
 // infrastructure installation
-App.fields.filter.set(model, restoredFilter)
+App.model.filter.set(model, restoredFilter)
 ```
 
 ### Surface builds on Optics rather than replacing them
@@ -326,7 +326,7 @@ Effect Optic
    + allowed Messages
 ```
 
-For example, `App.fields.todos` is not an alternative to an optic. It is an
+For example, `App.model.todos` is not an alternative to an optic. It is an
 optic-backed reference that also knows that the value is the `todos` field of
 *this* application, how it is encoded, and that a consumer depending on it
 depends on the `todos` Model path. `ModelRef.fromOptic` is the escape hatch when
@@ -454,7 +454,7 @@ that may observe across those runtime boundaries without creating another one.
 
 ## What it owns
 
-- Reference-based Model selection (`App.fields`, `Projection.pick`,
+- Reference-based Model selection (`App.model`, `Projection.pick`,
   `Projection.compose`).
 - Pure `Projection` values with their codec, reader, dependencies, and opaque
   interpreter metadata (`Metadata.key`).

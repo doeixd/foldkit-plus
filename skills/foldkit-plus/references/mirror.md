@@ -61,14 +61,14 @@ const App = Surface.application({ Model, Message, initial, update })
 // ?filter=active&page=2 ; keys default to field names, defaults are omitted
 const Filters = Mirror.url(App, {
   name: 'filters',
-  fields: [App.fields.filter, App.fields.page, App.fields.q],
+  fields: [App.model.filter, App.model.page, App.model.q],
   keys: { q: { history: 'replace' } },          // others default to 'push'
 })
 
 // one versioned JSON document under 'todo/prefs'
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
-  fields: Projection.pick(App.fields.draft),     // field refs or a writable Projection
+  fields: Projection.pick(App.model.draft),     // field refs or a writable Projection
 })
 
 function update(model: Model, message: Message): Return {

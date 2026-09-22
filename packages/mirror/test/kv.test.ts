@@ -18,7 +18,7 @@ const App = Surface.application({
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
   scope: 'u1',
-  fields: Projection.pick(App.fields.sidebar, App.fields.draft),
+  fields: Projection.pick(App.model.sidebar, App.model.draft),
   throttle: 0,
 })
 const entry = Prefs.subscriptions['todo/prefs.mirror']!

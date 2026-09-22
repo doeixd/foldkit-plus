@@ -8,8 +8,8 @@ const update = (model: Model, _message: Message) => ({ model })
 
 const App = Surface.application({ Model, Message: MessageUnion, initial: emptyModel, update })
 const Context = Projection.compose(
-  Projection.pick(App.fields.todos),
-  Projection.pick(App.fields.selectedTodoId),
+  Projection.pick(App.model.todos),
+  Projection.pick(App.model.selectedTodoId),
 )
 
 const TodoAgent = Agent.forApplication(App)

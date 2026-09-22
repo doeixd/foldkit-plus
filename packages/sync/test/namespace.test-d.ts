@@ -19,7 +19,7 @@ const App = Surface.application({
 // The namespace carries the exported functions, so inference is unchanged by it.
 const TodoSync = Sync.forApplication(App).make({
   documentId: DocumentId.make('todos'),
-  shared: Projection.pick(App.fields.todos),
+  shared: Projection.pick(App.model.todos),
   durable: MessageSet.make(App, [Message.CreatedTodo]),
 })
 

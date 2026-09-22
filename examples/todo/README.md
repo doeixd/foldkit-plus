@@ -97,7 +97,7 @@ The concrete contract is:
 
 ```ts
 export const AppAgent = TodoAgent.make({
-  context: Projection.pick(App.fields.todos, App.fields.selectedTodoId),
+  context: Projection.pick(App.model.todos, App.model.selectedTodoId),
   messages: TodoAgent.expose(Message, {
     // selected application Messages only
   }),

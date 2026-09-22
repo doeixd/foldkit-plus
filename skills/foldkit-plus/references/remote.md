@@ -82,7 +82,7 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
 
 const App = Surface.application({ Model, Message, initial: { projectId: null, remote: Remote.initial }, update })
 
-const Data = Remote.make({ model: App.model.remote, entities: [User, Project] }) // App.fields.remote also works
+const Data = Remote.make({ model: App.model.remote, entities: [User, Project] }) // App.model.remote also works
 
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },

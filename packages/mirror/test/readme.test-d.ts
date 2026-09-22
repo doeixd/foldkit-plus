@@ -31,14 +31,14 @@ const App = Surface.application({ Model, Message, initial, update })
 // The URL shows the filters, as ?filter=…&page=…&q=…; keys default to the field names.
 const Filters = Mirror.url(App, {
   name: 'filters',
-  fields: [App.fields.filter, App.fields.page, App.fields.q],
+  fields: [App.model.filter, App.model.page, App.model.q],
   keys: { q: { history: 'replace' } }, // the rest push a history entry
 })
 
 // A key-value store keeps the preference and the draft across sessions.
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
-  fields: Projection.pick(App.fields.sidebar, App.fields.draft),
+  fields: Projection.pick(App.model.sidebar, App.model.draft),
 })
 
 type Return = Update.Return<Model, Message, KeyValueStore.KeyValueStore>

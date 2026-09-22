@@ -31,7 +31,7 @@ const update = (model: Model, message: Message): Update.Return<Model, Message> =
 })
 
 const App = Surface.application({ Model: ModelSchema, Message, initial, update })
-const Todos = Projection.pick(App.fields.todos)
+const Todos = Projection.pick(App.model.todos)
 const Changes = MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo])
 const TodoSync = forApplication(App).make({
   documentId: documentId('todos'),
@@ -116,7 +116,7 @@ describe('Sync.forApplication', () => {
     })
     const sync = forApplication(Faulty).make({
       documentId: documentId('todos'),
-      shared: Projection.pick(Faulty.fields.todos),
+      shared: Projection.pick(Faulty.model.todos),
       durable: MessageSet.make(Faulty, [Message.CreatedTodo, Message.RenamedTodo]),
     })
     return Effect.runPromise(sync.openReplica(replicaId('a'), memoryStorage()))

@@ -133,7 +133,7 @@ const TodoSync = Sync.forApplication(App)
   .withPrincipal<Principal>()
   .make({
     documentId: DocumentId.make('todos'),
-    shared: Projection.pick(App.fields.todos),
+    shared: Projection.pick(App.model.todos),
     durable: MessageSet.make(App, [
       Message.SubmittedTodo,
       Message.ToggledTodo,
@@ -187,11 +187,11 @@ const AssistantAgent = AgentBuilder.make({
 // 6. Mirrors do not own state. They are secondary representations of Model fields.
 const Filters = Mirror.url(App, {
   name: 'filters',
-  fields: [App.fields.filter], // linkable: ?filter=active
+  fields: [App.model.filter], // linkable: ?filter=active
 })
 const Prefs = Mirror.kv(App, {
   key: 'todo/prefs',
-  fields: [App.fields.draft], // remembered on this device
+  fields: [App.model.draft], // remembered on this device
 })
 
 // 7. The architecture itself is data. Validate ownership/capability relationships,

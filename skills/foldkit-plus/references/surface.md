@@ -7,7 +7,7 @@ Model it reads and which application Messages it may send**. That value comes
 from the Model's own Schema, so it cannot name a field that does not exist. A
 tool can inspect it without running anything.
 
-- **Owns:** field references (`App.fields`) and pure `Projection`s (codec, reader,
+- **Owns:** field references (`App.model`) and pure `Projection`s (codec, reader,
   dependency paths, opaque metadata; `Metadata` is re-exported from
   `foldkit-metadata`). Also application identity
   (`Surface.application`), typed Message subsets (`MessageSet`), named Surfaces
@@ -43,7 +43,7 @@ Schema field -> ModelRef/FieldRef (optic + codec + path + app owner + get/set)
 ```
 
 - `Surface.application({ Model, Message })` builds a tree of field references.
-  Use `App.fields` for it. `App.model` is the older name for the same tree, and
+  Use `App.model` for it. `App.model` is the older name for the same tree, and
   it is also what `model` means inside `App.surface`. Add `initial` + `update` to
   get a `RunnableApplication`. Sync needs one to compute the initial value and
   replay Messages.
@@ -86,7 +86,7 @@ Surface.read(TodoList, model)          // { todos, selectedTodoId }, pure
 TodoList.projection().read(model)      // same thing, via the projection
 
 // A writable slice (schema, dependencies, get, set) for a replicator.
-const Shared = Projection.pick(App.fields.todos, App.fields.selectedTodoId)
+const Shared = Projection.pick(App.model.todos, App.model.selectedTodoId)
 Shared.set(model, { todos: [], selectedTodoId: null })
 ```
 
@@ -120,9 +120,9 @@ Active.projectionOf(model)   // Projection | undefined (Remote's Data.subscripti
 
 ```ts
 const TodoTitle = Projection.of(Todo)({ id: true, title: true })        // subset of a Struct schema
-const Titles = App.fields.todos.select(Projection.array(TodoTitle))     // ref.select(projection)
-const Selected = App.fields.todosById.at('t1').select(TodoTitle)        // Projection<Model, Option<...>>
-const Board = Projection.struct({ titles: Titles, selectedTodoId: App.fields.selectedTodoId })
+const Titles = App.model.todos.select(Projection.array(TodoTitle))     // ref.select(projection)
+const Selected = App.model.todosById.at('t1').select(TodoTitle)        // Projection<Model, Option<...>>
+const Board = Projection.struct({ titles: Titles, selectedTodoId: App.model.selectedTodoId })
 const Count = Projection.fromReader(Schema.Number, (m: Model) => m.todos.length, {
   dependencies: [['todos']],   // escape hatch; without this option there are no dependencies
 })
@@ -171,7 +171,7 @@ const Flags = Metadata.key<string>('my-package/flags', {
   summarize: flag => flag,
 })
 const beta = Projection.fromReader(Schema.Boolean, (_: Model) => true, { metadata: Flags.of('beta') })
-Flags.get(Projection.struct({ beta, todos: App.fields.todos }).metadata)   // ['beta']
+Flags.get(Projection.struct({ beta, todos: App.model.todos }).metadata)   // ['beta']
 ```
 
 `Metadata` lives in `foldkit-metadata`, which Surface re-exports. Import that
@@ -207,7 +207,7 @@ rejects copies and hand-built values.
   hand-written `{ Model, dependencies, read, metadata: {} }` is not recognized;
   use `Projection.fromReader`. A spread or cloned Metadata value also loses all
   of its entries.
-- **`Projection.pick` needs static `FieldRef`s** (`App.fields.x`, or fields of a
+- **`Projection.pick` needs static `FieldRef`s** (`App.model.x`, or fields of a
   nested Struct). It rejects refs from `.at()` or `.index()`, which belong inside
   projections instead. Refs from two applications throw
   (`references from different applications`), and so does a repeated key with a

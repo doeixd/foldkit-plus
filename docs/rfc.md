@@ -417,17 +417,17 @@ interface Projection<Root, Value> {
 Generated field references make projection construction type-safe:
 
 ```ts
-App.fields.todos
-App.fields.filter
-App.fields.session.user
+App.model.todos
+App.model.filter
+App.model.session.user
 ```
 
 and:
 
 ```ts
 const TodoOverview = Projection.struct({
-  todos: App.fields.todos,
-  filter: App.fields.filter,
+  todos: App.model.todos,
+  filter: App.model.filter,
 })
 ```
 
@@ -557,7 +557,7 @@ They have different semantics and should remain distinguishable if all three eve
 User code should declare relationships through typed values:
 
 ```ts
-App.fields.todos
+App.model.todos
 Data.get(Project, projectId)
 Message.RequestedRenameProject
 ```
@@ -636,8 +636,8 @@ For example:
 ```ts
 const TodoList = App.surface('TodoList', {
   model: {
-    todos: App.fields.todos,
-    filter: App.fields.filter,
+    todos: App.model.todos,
+    filter: App.model.filter,
   },
 
   messages: [
@@ -1078,7 +1078,7 @@ With open interpreter metadata:
 
 ```ts
 const BillingPage = Projection.all({
-  account: App.fields.account,
+  account: App.model.account,
   redesignEnabled: Flags.get('billing-redesign'),
 })
 ```
@@ -2192,8 +2192,8 @@ export const App = Application.define({
 
 ```ts
 const TodoOverview = Projection.struct({
-  todos: App.fields.todos,
-  filter: App.fields.filter,
+  todos: App.model.todos,
+  filter: App.model.filter,
 })
 ```
 
@@ -2229,8 +2229,8 @@ or application sugar:
 ```ts
 const TodoList = App.surface('TodoList', {
   model: {
-    todos: App.fields.todos,
-    filter: App.fields.filter,
+    todos: App.model.todos,
+    filter: App.model.filter,
   },
   messages: [
     Message.RequestedTodo,
@@ -2303,8 +2303,8 @@ Core Projection does not know what an Entity, Selection, QueryWindow, or connect
 const Preferences = Mirror.keyValue({
   key: 'preferences',
   model: Projection.struct({
-    theme: App.fields.theme,
-    density: App.fields.density,
+    theme: App.model.theme,
+    density: App.model.density,
   }),
   restored: values =>
     Message.RestoredPreferences(values),

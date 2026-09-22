@@ -19,7 +19,7 @@ const initial = { todos: [], selectedTodoId: null }
 const update = (model: typeof Model.Type, _message: typeof Message.Type) => ({ model })
 
 const App = Surface.application({ Model, Message, initial, update })
-const Todos = Projection.pick(App.fields.todos)
+const Todos = Projection.pick(App.model.todos)
 const Changes = MessageSet.make(App, [Message.CreatedTodo])
 const TodoSync = forApplication(App).make({
   documentId: documentId('todos'),
@@ -85,11 +85,11 @@ const Wide = Surface.application({
 })
 const WideSync = forApplication(Wide).withPrincipal<{ readonly role: 'admin' | 'guest' }>()
 const TodosFragment = WideSync.fragment({
-  shared: Projection.pick(Wide.fields.todos),
+  shared: Projection.pick(Wide.model.todos),
   durable: MessageSet.make(Wide, [WideMessage.CreatedTodo]),
 })
 const MembersFragment = WideSync.fragment({
-  shared: Projection.pick(Wide.fields.members),
+  shared: Projection.pick(Wide.model.members),
   durable: MessageSet.make(Wide, [WideMessage.Invited]),
 })
 
