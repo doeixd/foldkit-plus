@@ -45,7 +45,53 @@ pnpm add foldkit-bundle effect foldkit
 
 `effect` and `foldkit` are peer dependencies.
 
-## Sixty seconds: one media query, placed twice
+## Sixty seconds: one counter
+
+```ts
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+
+const CountModel = Schema.Struct({ count: Schema.Number })
+const CountMessage = defineMessageUnion({ Incremented: {} })
+const Count = Bundle.make('Count', {
+  Model: CountModel,
+  Message: CountMessage,
+  init: () => ({ model: { count: 0 } }),
+  update: model => ({ model: { count: model.count + 1 } }),
+})
+
+const Clicks = Bundle.declare(Count, 'clicks')
+const Model = Schema.Struct({ ...Clicks.fields })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Clicks.cases })
+type Message = typeof Message.Type
+const Page = Bundle.parent({ Model, Message })
+const placements = Page.assemble(Page.at(Clicks))
+
+const config = placements.complete({
+  init: () => placements.initial({}),
+  update: placements.update(model => ({ model })),
+  subscriptions: placements.subscriptions(),
+  view: (model: Model, h: HtmlBuilder<Message>) =>
+    h.button(
+      [h.OnClick(Message.GotClicksMessage({ message: CountMessage.Incremented() }))],
+      [String(model.clicks.count)],
+    ),
+})
+```
+
+`Count` describes a child machine. `Clicks` contributes its Model field and
+wrapper Message to the parent. The assembly routes `GotClicksMessage` to the
+child and writes its next value back into `model.clicks`. A click changes 0 to 1
+through the parent's update; no additional store is created.
+
+`config` supplies `init`, `update`, and `view` to your Foldkit runtime. These
+declarations do not mount anything. For a runnable assembly, see
+[the settings example](../../examples/bundle/README.md).
+
+## Adding subscriptions: one media query, placed twice
 
 **Define it once.** It is the Model, Message, init, update, and Subscriptions a
 Submodel would have, collected into one value. `args` is a Schema, so `init`,

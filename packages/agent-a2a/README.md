@@ -41,17 +41,11 @@ pnpm add foldkit-agent foldkit-agent-a2a
 
 ## Sixty seconds: card + task handler
 
-Assume the application already declared a contract and bound it to a live host:
+Start with the [Agent contract and host guide](../agent/README.md#usage).
+The integration below assumes `AssistantAgent` is your declared contract and
+`AgentBuilder` is its application-specialized builder. `agentRuntime` is the
+result of binding that contract to your live host and verified principal.
 
-```ts
-const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
-const AssistantAgent = AgentBuilder.make({ ... })
-
-const agentRuntime = AgentBuilder.bind({
-  definition: AssistantAgent,
-  host,
-})
-```
 
 Generate the static Agent Card from the contract:
 
@@ -70,6 +64,8 @@ const card = AgentA2a.agentCard(AssistantAgent, {
 ```
 
 Serve it from `AgentA2a.AGENT_CARD_PATH` (`/.well-known/agent-card.json`).
+Generating the card starts no HTTP server. Its security declaration describes
+your endpoint; your HTTP layer must authenticate requests and bind the principal.
 
 Then serve task calls through the bound runtime:
 
@@ -98,6 +94,10 @@ await served.handle({
   },
 })
 ```
+
+Call `served.close()` when the host shuts down. The handler keeps tasks in
+memory; it is not a durable workflow store or a replacement for the application
+journal.
 
 One A2A skill maps to one exposed capability. The request still goes through the
 same runtime checks as WebMCP, MCP, Agent Native, or an in-process caller.

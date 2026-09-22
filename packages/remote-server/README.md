@@ -80,7 +80,7 @@ Drizzle-backed entities and queries.
 Start with the same Entity the client selects:
 
 ```ts
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { Entity, Remote, RemoteRpc } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 
@@ -100,15 +100,23 @@ Give that Entity one Source:
 // Your authentication's principal type; without it `principal` is `unknown`.
 type Principal = { readonly isAdmin: boolean }
 
+const rows = new Map([
+  ['p1', { id: 'p1', name: 'Apollo', privateNotes: 'Internal' }],
+])
+
 const ProjectSource = RemoteServer.entity<Principal>(Project, {
   // Authentication already resolved `principal` before RemoteServer sees it.
   // Return only fields this caller may read.
   authorize: (principal, fields) =>
     fields.filter(field => field !== 'privateNotes' || principal.isAdmin),
 
-  // Your application owns this function. Read exactly the ids/fields requested.
-  read: ({ ids, fields, principal }) =>
-    loadProjects({ ids, fields, principal }),
+  read: ({ ids, fields }) => Effect.succeed(ids.flatMap(id => {
+    const row = rows.get(id)
+    return row === undefined ? [] : [{
+      id,
+      values: Object.fromEntries(Object.entries(row).filter(([field]) => fields.includes(field))),
+    }]
+  })),
 })
 
 const Server = RemoteServer.make({
@@ -120,11 +128,17 @@ Compile that definition into the Remote RPC handlers for one authenticated
 principal:
 
 ```ts
+const principal: Principal = { isAdmin: false }
 const handlers = RemoteServer.handlers(Server, principal)
 const layer = RemoteRpc.toLayer(handlers)
 ```
 
-That is the core package. A client requirement such as:
+`RemoteServer.entity` and `make` only describe the server. `handlers` binds
+a principal; `RemoteRpc.toLayer` provides handlers to Effect RPC. Neither starts
+an HTTP listener. In this example the source returns an Effect over local rows;
+replace its body with your database or API reader when connecting real data.
+
+A client requirement such as:
 
 ```text
 Project:p1 [id, name, privateNotes]

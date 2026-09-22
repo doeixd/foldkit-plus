@@ -126,7 +126,7 @@ const ProjectSource = source(Project)
 A client requirement for:
 
 ```text
-Project:p1 [id,name]
+Project:00000000-0000-4000-8000-000000000001 [id,name]
 ```
 
 causes that Source to select only the needed columns, plus whatever identity is
@@ -135,24 +135,30 @@ required for normalization:
 ```text
 SELECT id, name
 FROM projects
-WHERE id IN ('p1')
+WHERE id IN ('00000000-0000-4000-8000-000000000001')
 ```
 
-and return the Remote wire shape:
+and return a record with this Remote wire shape:
 
-```ts
+```json
 {
-  id: 'p1',
-  values: {
-    id: 'p1',
-    name: 'Apollo',
-  },
+  "id": "00000000-0000-4000-8000-000000000001",
+  "values": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "name": "Apollo"
+  }
 }
 ```
 
 There is no per-screen SQL mapping. The Selection declares the semantic shape;
 `RemoteServer` hands the Source the authorized fields; the Drizzle Source turns
 those fields into columns.
+
+`pgTable`, `entity`, `select`, and `source` above are declarations. They do not
+create the table, open a database connection, or execute a query. Apply your
+migrations, register the Source with RemoteServer, and provide the
+[database service](#database-service) when running its handlers. The SQL above
+illustrates the selected columns; actual execution uses bound parameters.
 
 ## Put the Source behind `RemoteServer`
 
@@ -831,6 +837,19 @@ SQLite.
 ```bash
 pnpm exec tsx packages/remote-drizzle/example/nested.ts
 ```
+
+## Diagnose the first read
+
+| Symptom | Check |
+| --- | --- |
+| Missing service at execution | Provide `DrizzleDatabase` using your application's database layer. |
+| A row is absent for one caller | Inspect the binding's `visible` rule with that principal. |
+| A field is absent from a returned row | Check the Selection, `authorize`, and column/member mapping. |
+| A relation works by itself but not nested | Check that the target binding's Source is registered too. |
+| A query cannot compile | Check the interpreter's supported query capabilities before changing the client. |
+
+Start with one id and one scalar before adding relations or pagination. The
+[Entity example](../../examples/entity/README.md) provides a runnable baseline.
 
 ## Dialect and limits
 

@@ -57,8 +57,11 @@ pnpm add effect foldkit foldkit-crud foldkit-bundle foldkit-entity foldkit-form 
 
 `EditPostForm` is a `Form.make` result and `EditPostMutation` a Remote mutation
 over the same input struct, as in [`examples/entity`](../../examples/entity).
+`Blog` is that application's Entity domain. The example below is the page
+integration, not a definition of those domain values.
 
 ```ts
+import { Schema } from 'effect'
 import { Crud } from 'foldkit-crud'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -111,6 +114,20 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
     `target(model)`, the id being edited (`null` for a new one or when closed).
 - The save is a Command that needs `RemoteClient`, so the parent scope names it
   with `withServices<RemoteClient>()`.
+
+### What starts the work?
+
+| Call | What happens |
+| --- | --- |
+| `Crud.editor(...)` / `Editor.at(...)` | Build the editor and its parent integration; no request runs. |
+| `Placed.helpers.open(id)` | Return an Update.Step. Apply it inside your parent update to select a row. |
+| `Data.subscriptions({ editor: PostEditor.active })` | Describe the loader; the runtime must install it and provide `RemoteClient`. |
+| `PostEditor.after(update)` | Fill the form after loading and reconcile save status after Messages. |
+| Valid form submission through `onOut` | Return the mutation Command; its result comes back through Remote. |
+
+Include the placement's own subscriptions as well if your form uses them.
+Do not interpret `Submitted` as `Saved`: only the returned mutation outcome
+settles the save. The status section below describes what the view should show.
 
 ### Drawing it
 

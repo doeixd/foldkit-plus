@@ -57,14 +57,14 @@ accident — one state machine leaves nowhere for a second one to live.
 ```text
 browser / clock / server ──facts as Messages──▶ update ──▶ Model slice
                                                     ▲
-Note the direction: init is pure, so SSR renders the default; the stream corrects it live.
+The parent Model owns the recorded fact; subscriptions report environment changes.
 ```
 
-Every primitive follows one lifecycle: `init` returns a safe default without
-touching the environment (SSR-safe by construction). Streams report live
-facts — MediaQuery reads the current match first, then changes; Timer ticks
-while running. A primitive that cannot observe (no `window`, no API) yields
-an empty stream instead of throwing, so the slice keeps its default.
+Initialization creates the Model slice; subscriptions observe ongoing facts and
+report Messages; `update` stores them. Defaults differ by primitive:
+MediaQuery starts at `false`, while Online, Visibility, and Locale read an
+available platform value during initialization. Missing browser APIs have
+primitive-specific fallbacks; do not infer readiness from an SSR default.
 
 ## Install
 
@@ -99,6 +99,7 @@ Message variant, by Foldkit's `Got<Field>Message` convention:
 
 ```ts
 import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { MediaQuery } from 'foldkit-primitives/media'
@@ -121,7 +122,8 @@ const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-
 const config = placements.complete({
   init: () => placements.initial({ theme: 'light' }),
   update: placements.update(model => ({ model })),
-  view,
+  view: (model: Model, h: HtmlBuilder<Message>) =>
+    h.div([], [model.dark.matches ? 'Dark mode' : 'Light mode']),
   subscriptions: placements.subscriptions(),
 })
 ```
@@ -305,8 +307,7 @@ skipped. `Bounds()` re-measures `Measured { x, y, width, height }` on
 observer, scroll, and resize, starting with the current rect; without a
 ResizeObserver the window events still measure. Without the observer API
 (SSR, old browser) they emit nothing instead of throwing; teardown
-disconnects. They keep observing across time-travel pause — replay traffic
-is same-valued and harmless.
+disconnects. Treat repeated measurements as observations, not proof that a user action occurred.
 
 ## Device: `foldkit-primitives/device`
 
@@ -401,7 +402,7 @@ const Doc = Bundle.declare(EditHistory, 'doc')
 startup with the configured `default` as fallback; `SetLocale` switches it.
 `SelectionSet` keeps string ids in first-selection order: `Select` (keeps
 position), `Deselect`, `Toggle` (re-appends), `ReplaceAll` (deduped), and
-`Clear`. `isSelected` reads membership. Both are pure logic, no streams.
+`Clear`. `isSelected` reads membership. Neither subscribes to changes; Locale reads the initial browser language when available.
 Keyed children — lists with stable identity — place through the bundle
 mechanism's `each`.
 `range(start, end, step?)` counts half-open numbers — the pagination page
@@ -502,7 +503,7 @@ application uses.
 | A Command without its platform API | failure Message (`CopyFailed`, `ShareFailed`, `BroadcastFailed`), never a throw |
 | Listener removed (unmount, gate closed) | finalizer disconnects; resubscribing re-reads the current value |
 | A Message for an unplaced child | never routes: wrappers only match placed variants |
-| A failing device (denied camera, unknown permission) | parks at `denied`/`idle` with requirements cleared: no acquire loop |
+| MediaStream acquisition fails | parks at `denied`/`idle` with requirements cleared; `Started` retries |
 
 ## Limits
 

@@ -20,7 +20,8 @@ type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
 const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }))
 
-declare const view: (model: Model, h: HtmlBuilder<Message>) => Html
+const view = (model: Model, h: HtmlBuilder<Message>): Html =>
+  h.div([], [model.dark.matches ? 'Dark mode' : 'Light mode'])
 
 const config = placements.complete({
   init: () => placements.initial({ theme: 'light' }),

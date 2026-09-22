@@ -161,3 +161,17 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   expectTypeOf(recent).toEqualTypeOf<Query<typeof Blog.Post>>()
   expectTypeOf(Query.dependencies(recent)).toEqualTypeOf<Dependencies>()
 }
+
+{
+  const Task = Entity.define(
+    'Task',
+    Schema.Struct({
+      id: Schema.String,
+      title: Schema.String,
+      done: Schema.Boolean,
+    }),
+  )
+  const TaskTitle = Entity.select(Task, { id: true, title: true })
+  type TaskTitle = typeof TaskTitle.schema.Type
+  const value: TaskTitle = { id: 't1', title: 'Read the guide' }
+}

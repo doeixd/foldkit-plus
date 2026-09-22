@@ -224,6 +224,11 @@ const subscriptions = Subscription.make<Model, Message>()(() => ({
 }))
 ```
 
+At runtime, also reduce the initial URL before the first render and map later
+navigation into `Message.UrlChanged`. The Subscription writes outward; it does
+not replace those inbound steps. The assembly-based version below wires them
+through `Filters.wiring('UrlChanged')` and `placements.url(...)`.
+
 That is the entire URL loop:
 
 ```text
@@ -234,7 +239,20 @@ URL -> UrlChanged -> reduce -> Model
 ## Add remembered local state with `Mirror.kv`
 
 For state that should survive reload but does not belong in the URL, use an
-Effect `KeyValueStore`:
+Effect `KeyValueStore`. This extends the earlier Model with `sidebar` and
+`draft`, and its initial value with `'open'` and `''`, respectively. The snippets
+in this section replace the earlier Message and update definitions:
+
+```ts
+const Model = Schema.Struct({
+  filter: Schema.Literals(['all', 'active', 'done']),
+  page: Schema.Number,
+  sidebar: Schema.Literals(['open', 'closed']),
+  draft: Schema.String,
+})
+```
+
+Rebuild `App` from that Model before selecting the added fields:
 
 ```ts
 import { Projection } from 'foldkit-surface'

@@ -6,12 +6,9 @@ unpublished work in three tables beside your own, and it is where the **audience
 boundary** is enforced: who is not an author is refused entries, drafts and
 revisions outright, and sees of your content only what is published.
 
-> **Status: every operation.** Saving and discarding a draft, publishing and
-> unpublishing, scheduling, archiving, restoring a revision, the worklist, an
-> entry's derived state, and the boundary. In-app preview and an example are what
-> is left of [the design](../../docs/design/cms-DESIGN.md#13-build-order).
-> Not on npm. SQLite and Postgres; MySQL has no `returning`, which the conflict
-> rule needs.
+Supports SQLite and Postgres. The conflict check requires `returning`, so this
+adapter does not support MySQL. The [CMS example](../../examples/cms/README.md)
+includes the server, in-app preview, and a browser mode over an in-memory database.
 
 ## What it owns
 
@@ -47,7 +44,13 @@ pnpm add effect drizzle-orm foldkit-cms foldkit-cms-drizzle foldkit-remote-drizz
 
 ## Example
 
-```ts
+The following is **wiring pseudocode**: `Blog`, `Posts`, `posts`, `isAuthor`,
+and the insert/update handlers belong to your application. Use
+[the runnable server](../../examples/cms/src/server.ts) for complete handlers,
+a database layer, and transaction setup. `sqliteTables()` describes tables;
+include them in your migrations before running the server.
+
+```text
 import { CmsServer, Transaction, published, sqliteTables } from 'foldkit-cms-drizzle'
 
 const cmsTables = sqliteTables() // or pgTables(); add them to your schema and migrations
@@ -87,6 +90,19 @@ RemoteServer.make({
 - A content type with no `published` role has nothing to hide, and needs none.
 - **`create` and `update` go to the CMS, not to `RemoteServer.make`.** Registered
   there too, they are a way to publish with no draft, no revision and no `allow`.
+
+## Verify the audience boundary
+
+Before connecting the editor, exercise the same content read as an author and
+as a visitor. An author may see working content; a visitor must see only rows
+allowed by the binding's `visible` rule. Repeat through a relation and a query,
+not just a direct id read. CMS state and allowed actions are separate from the
+identity established by your HTTP or RPC authentication.
+
+For the first write, save a draft and read the public row again: it must be
+unchanged. Publishing should then update the row, append a revision, and remove
+the draft within the supplied transaction. A scheduled time alone executes
+nothing; your host must call `cms.due` as described below.
 
 ## Saving a draft
 

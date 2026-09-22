@@ -86,8 +86,8 @@ const RenameForm = Page.at(Slot, {
 ```
 
 - `Form.make` takes the name and an `Entity.input`. It resolves a control per
-  key and throws if it cannot, so a form that is made is a form that can be
-  drawn.
+  key and throws if it cannot. A view must also supply a renderer for each
+  control kind, including custom kinds.
 - `Rename.bundle` is an ordinary Bundle. `onOut` is required, so a submit is
   never dropped by omission.
 - `Rename.Message` builds the form's Messages for your view to dispatch:
@@ -97,6 +97,30 @@ const RenameForm = Page.at(Slot, {
 - `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for
   a view that walks `controls`; `model.rename.fields.title` is the same value
   typed to its key.
+
+### Run one edit through the parent
+
+Continuing the example above, an assembly initializes the slice and routes its
+wrapped Messages. This reducer-level example needs no renderer:
+
+```ts
+const placements = Page.assemble(RenameForm)
+const update = placements.update(model => ({ model }))
+let model = placements.initial({ saved: [] }).model
+model = update(model, Message.GotRenameMessage({
+  message: Rename.Message.Changed({ key: 'title', value: 'Hello' }),
+})).model
+model = update(model, Message.GotRenameMessage({
+  message: Rename.Message.Submitted(),
+})).model
+// model.saved contains the decoded input, with title "Hello" and id "".
+```
+
+Here a plain `Schema.String` allows the empty id. For editing a real row, fill
+the form with that row's id first; add an input-schema constraint if an empty
+id is invalid for your operation. `onOut` stores the value locally in this
+example. It does not save to a server. Forms with asynchronous checks also need
+the runtime to execute their returned Commands.
 
 ## Controls
 

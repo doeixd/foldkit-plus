@@ -2,7 +2,7 @@
  * The usage example from this package's README, type-checked so the
  * documentation cannot drift from the API.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface, type Wiring } from 'foldkit-surface'
 import { Agent } from '../src/index.js'
@@ -30,15 +30,7 @@ const Message = defineMessageUnion({
 
 type Message = typeof Message.Type
 
-const initial: Model = { todos: [], selectedTodoId: Option.none() }
-declare const appUpdate: (model: Model, message: Message) => Model
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial,
-  update: (model, message) => ({ model: appUpdate(model, message) }),
-})
+const App = Surface.application({ Model, Message })
 
 const TodoAgent = Agent.forApplication(App)
 
@@ -73,3 +65,8 @@ export const agentRuntime = TodoAgent.bind({
 const agentWiring: Wiring<Model, never> = AppAgent.wiring()
 
 void agentWiring
+
+const result = await Effect.runPromise(
+  agentRuntime.messages.dispatch(Message.RequestedCreateTodo, { title: 'Read the guide' }),
+)
+void result

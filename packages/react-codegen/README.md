@@ -34,6 +34,17 @@ pnpm add -D foldkit-react-codegen typescript
 
 ## Sixty seconds
 
+Start with two files so the generated view's relative import resolves:
+
+```ts
+// src/message.ts
+import { defineMessageUnion } from 'foldkit/message'
+
+export type Model = { readonly saving: boolean }
+export const Message = defineMessageUnion({ Saved: {} })
+export type Message = typeof Message.Type
+```
+
 ```ts
 // src/SaveButton.ts
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -55,7 +66,12 @@ import { Message, type Model } from './message';
 export const view = (model: Model, dispatch: (message: Message) => void): ReactNode => (<button className={'save'} disabled={model.saving} onClick={() => dispatch(Message.Saved())}>Save</button>);
 ```
 
-Use it from React:
+The compiler also copies `src/message.ts` under `generated/src`, preserving
+the relative import. The output needs React and its type declarations in the
+consuming project, and a TypeScript configuration with JSX enabled.
+
+Use it inside a React component (integration fragment): import the generated
+`view` and React's `useState`, and supply your `initialModel` and transition:
 
 ```tsx
 const [model, setModel] = useState(initialModel)
@@ -76,6 +92,17 @@ What the compiler did:
 
 The output is not formatted. Run your formatter over the out dir if you commit
 it.
+
+## Check the handoff
+
+After generation, run the consuming React project's typecheck and render the
+button there. With `saving: true` it should be disabled; otherwise a click
+should call `dispatch` with `Saved`. Code generation does not implement the
+save or execute Foldkit Commands returned by an application update.
+
+Keep generated files separate from their source. A diagnostic stops the current
+write, and watch mode retains the last good output. Check diagnostics before
+testing output that may belong to an earlier successful build.
 
 ## What compiles
 
@@ -173,7 +200,12 @@ foldkit-react-codegen <file-or-directory>... --out-dir <directory> [--root-dir <
 ```ts
 import { formatDiagnostic, generate, transformSourceFile, watch } from 'foldkit-react-codegen'
 
-const result = transformSourceFile('src/SaveButton.ts', sourceText, { sourceMap: true })
+const sourceText = `
+import type { Html, HtmlBuilder } from 'foldkit/html'
+export const view = (model: { title: string }, h: HtmlBuilder<never>): Html =>
+  h.h1([], [model.title])
+`
+const result = transformSourceFile('src/Title.ts', sourceText, { sourceMap: true })
 if (result.ok) {
   console.log(result.code, result.map)
 } else {

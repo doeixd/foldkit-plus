@@ -60,6 +60,21 @@ Metadata.summarize(combined) // [{ name: 'flags', entries: ['beta', 'gamma'] }]
 registered globally. `merge` runs inside `of` and inside `combine`, so `get`
 always returns normalized entries.
 
+## Writing a merge rule
+
+A carrier can combine already-combined parts. Write `merge` so regrouping those
+parts preserves the meaning you intend. The example uses a set union: combining
+the same flag twice does not duplicate it. A concatenating merge instead retains
+duplicates and order. Choose that behavior explicitly.
+
+`Flags.get(Metadata.empty)` returns an empty array. Another key named `flags`
+also reads an empty array from `combined`: names label summaries; key identity
+controls lookup. A key is an integration token, not an authorization boundary
+against code that already has access to that key.
+
+`merge` and `summarize` are your callbacks. If they throw, the exception reaches
+the caller; this package supplies no retry or validation layer.
+
 ## API
 
 | Call | Meaning |
@@ -74,7 +89,8 @@ always returns normalized entries.
 
 - **Opaque and frozen.** Only `of` and `combine` make a `Metadata`. A spread,
   a `structuredClone`, or a hand-built object with the brand has no entries:
-  it reads as empty and combines as empty. Entry arrays are frozen.
+  it reads as empty and combines as empty. Entry arrays are frozen; objects stored inside them are not deep-frozen.
+  Treat entry values as immutable too.
 - **Key identity is per module instance.** Two copies of an interpreter (a
   duplicated install, a reloaded module) declare two keys and do not see each
   other's entries. Declare a key once, at module level.

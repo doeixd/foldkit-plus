@@ -44,28 +44,34 @@ directions, plus codegen, as a pinned transcript.
 ## React inside Foldkit
 
 ```ts
+import { Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
 import { ReactComponent } from 'foldkit-react'
-import { DatePicker } from 'some-react-library'
+import { createElement } from 'react'
 
-// Name the props that are events. Any other function prop (renderDay,
-// getOptionLabel, …) stays an ordinary prop.
-const ReactDatePicker = ReactComponent.define(DatePicker, { events: ['onChange'] })
+const Button = (props: { readonly label: string; readonly onPress?: () => void }) =>
+  createElement('button', { onClick: props.onPress }, props.label)
+const ReactButton = ReactComponent.define(Button, { events: ['onPress'] })
+const Model = Schema.Struct({ count: Schema.Number })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ Incremented: {} })
+type Message = typeof Message.Type
 
+const update = (model: Model, _message: Message) => ({
+  model: { count: model.count + 1 },
+})
 const view = (model: Model, h: HtmlBuilder<Message>): Html =>
-  h.div(
-    [],
-    [
-      h.h2([], ['Due date']),
-      ReactDatePicker.view(
-        {
-          props: { value: model.dueDate },
-          messages: { onChange: date => ChangedDueDate({ date }) },
-        },
-        h,
-      ),
-    ],
-  )
+  ReactButton.view({
+    props: { label: `Count: ${model.count}` },
+    messages: { onPress: () => Message.Incremented() },
+  }, h)
 ```
+
+Use this `view` and `update` in a Foldkit program initialized with `{ count: 0 }`.
+The button is a real React component; its callback becomes `Incremented`, and
+the next Model supplies its next label. Replace `Button` with a library widget
+using the same event mapping. Non-event function props remain ordinary props.
 
 What happens:
 
@@ -87,6 +93,9 @@ What happens:
 Each island is its own React root, so it has its own Suspense boundary: `lazy`,
 `use(promise)`, and libraries that suspend all work, showing
 `suspenseFallback` (default: nothing) meanwhile.
+
+The following integration fragment assumes your `Editor`, `Spinner`, and
+`EditorCrashed` Message; define `ReactEditor` with `ReactComponent.define(Editor)`.
 
 ```ts
 ReactEditor.view(

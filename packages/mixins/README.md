@@ -161,6 +161,23 @@ const Field = SlotView.forMessages<Message>()
 Base attributes, event Messages and any `ChildAttribute` survive. The caller did not copy the
 markup or add a `validationBehavior` prop to the component.
 
+### Render it and interpret the result
+
+`Field` is a view function. From a parent view with a compatible builder, call
+`Field({ value: model.value, invalid: model.invalid }, h)`. The input's value
+comes from the parent; typing emits `ChangedValue`; the parent update must
+store that value before the next render. Mixins owns none of that state.
+
+In this example, `FieldStyle` supplies classes and a grid layout, while
+`Validation` supplies `aria-invalid`. The input's `OnInput` remains owned by
+the base view. Adding another `OnInput` attachment is a conflict, not a way to
+chain a second application update. Compose the action in the existing Message
+handler instead.
+
+For `Style.pseudo`, `Style.media`, or other compiled rules, also install the
+text returned by `Style.stylesheet(style)` in the page. Calling a SlotView
+returns HTML; it does not inject a stylesheet for you.
+
 ## What the resolver guarantees
 
 Attachments are not concatenated and left to renderer order. The resolver applies explicit rules:

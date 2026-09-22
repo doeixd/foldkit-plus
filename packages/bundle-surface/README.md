@@ -24,26 +24,33 @@ pnpm add foldkit-bundle-surface foldkit-bundle foldkit-surface effect foldkit
 ## Sixty seconds
 
 ```ts
-// Search and Row are bundles, Todo a Schema, and TodoSync the application's Sync contract.
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { BundleSurface } from 'foldkit-bundle-surface'
 import { Module, Surface } from 'foldkit-surface'
 
+const Search = Bundle.make('Search', {
+  Model: Schema.Struct({ query: Schema.String }),
+  Message: defineMessageUnion({ Typed: { query: Schema.String } }),
+  init: () => ({ model: { query: '' } }),
+  update: (_model, message) => ({ model: { query: message.query } }),
+})
 const Searchbox = Bundle.declare(Search, 'search')
-const Rows = Bundle.declareEach(Row, 'rows')
-
-const Model = Schema.Struct({ ...Searchbox.fields, ...Rows.fields, todos: Schema.Array(Todo) })
-const Message = defineMessageUnion({ ...Searchbox.cases, ...Rows.cases })
+const Model = Schema.Struct({ ...Searchbox.fields })
+const Message = defineMessageUnion({ ...Searchbox.cases })
 const App = Surface.application({ Model, Message })
-
 const Page = BundleSurface.parent(App)
-const placements = Page.assemble(Page.at(Searchbox), Page.each(Rows))
+const placements = Page.assemble(Page.at(Searchbox))
 
-const AppModule = Page.module(placements, [TodoSync])
+const AppModule = Page.module(placements, [])
 Module.validate(AppModule) // []
 ```
+
+The Module now records one owner for `search`. Nothing has mounted or run:
+validation inspects declarations. Pass other contracts as the second argument
+to `Page.module`, then check the findings before starting the application.
+Rendering a Surface over `search` only observes that owner.
 
 - **`BundleSurface.parent(app)`** is `Bundle.parent` built from the application's
   own Model and Message, with `module` bound to that application.
@@ -77,7 +84,9 @@ A placement's state is part of the parent Model, so its fields are already in
 the application's ref tree. Observing one needs no bundle API:
 `App.fields.search.query`, `App.fields.search.select(projection)`.
 
-To mirror two placements of one bundle, give each mirror its own keys:
+For an application with `search` and `filter` placements, the following
+integration fragment gives each mirror its own keys. Import `Mirror` from
+`foldkit-mirror`; the first example above defines only `search`:
 
 ```ts
 const SearchUrl = Mirror.url(App, {

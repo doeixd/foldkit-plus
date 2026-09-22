@@ -42,6 +42,11 @@ pnpm add effect foldkit foldkit-crud foldkit-mixins foldkit-mixins-crud foldkit-
 
 ## Example
 
+This is a view integration fragment. Define `PostList` and bind `Posts` with
+[Crud's list API](../crud/README.md#lists) first; the parent Model and Message
+union must include its loading and `OpenedPost` paths. Import `Html` and
+`HtmlBuilder` from `foldkit/html` for the view signature.
+
 ```ts
 import { ListView } from 'foldkit-mixins-crud'
 
@@ -67,6 +72,17 @@ rows, and the first cell of each row a button that sends `OpenedPost`.
 - A column whose `Display` is `Hidden` is read and not drawn. Hide the id with
   `Entity.annotateMembers({ id: Display.of(Display.hidden()) })` and `row.id` is
   still there for `onOpen`.
+
+## Follow a row click
+
+The table reads the `page` value you pass it. `onOpen` constructs `OpenedPost`;
+it does not open an editor by itself. Handle that Message in the parent update,
+for example by applying the placed editor's `open(id)` Step. Loading and saves
+then follow the editor's Remote integration.
+
+Similarly, `onMore` and a sort header only send your Messages. Your update must
+change the query window or ordering. Rendering the table alone never starts a
+query. This lets the same view render a test page or a live Remote page.
 
 ## Sorting, more, and special cells
 

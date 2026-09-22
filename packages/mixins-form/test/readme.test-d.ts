@@ -45,3 +45,8 @@ void inputs
 // @ts-expect-error options are keyed by the form's keys
 const wrong: FormViewInputs<Key> = { options: { author: [] } }
 void wrong
+
+{
+  const Drawn = Edit.bundle.pipe(Bundle.withView(FormView.submodel(Edit, FormView.define(Edit))))
+  void Drawn
+}

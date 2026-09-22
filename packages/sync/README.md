@@ -88,36 +88,17 @@ new visible state = replay(A, B, C, X, D, E)
 The local edit never needed to wait for that exchange to appear. Reconciliation
 changes the base underneath it and replays the still-pending operations on top.
 
-The full lifecycle of one durable Message is:
+The lifecycle is:
 
 ```text
-user dispatches durable Message
-            |
-            v
-replay through application update immediately
-            |
-            v
-persist operation in local outbox
-            |
-            v
-optimistic state is visible now
-            |
-       network later
-            v
-server assigns authoritative order
-            |
-            v
-replica adopts committed operations / checkpoint
-            |
-            v
-drop acknowledged or rejected pending operations
-            |
-            v
-replay remaining pending operations on the new base
+local durable Message → optimistic update + local persistence
+                     → exchange → authoritative commit or refusal
+                     → new base + replay of remaining pending operations
 ```
 
-That is the core of `foldkit-sync`. Transport, browser mounting, presence, and
-LWW fields are layers around this mechanism.
+These are separate milestones. Showing an optimistic value is not an
+acknowledgment from either local storage or the server. Watch persistence and
+replica status when deciding what the UI may call saved.
 
 ## Install
 
@@ -218,6 +199,18 @@ Messages
 replay function, operation codecs, and server journal contract from the same
 application declaration. There is no parallel sync-specific version of
 `update` to keep aligned.
+
+### Declaration is not a running replica
+
+The example above defines codecs and replay rules. It has not opened storage,
+created an outbox, connected to a server, or mounted a view. For the application
+path, continue with [mounting](#mounting-the-full-foldkit-application). Use
+[the replica API](#running-a-replica) when you need to control that lifecycle.
+
+`SelectedTodo` stays local because it is outside the durable MessageSet.
+Adding a Message to that set is a semantic decision: its update must be safe
+to replay and confined to the shared projection. An intent that starts a
+Command should instead produce a deterministic fact, as described next.
 
 ## Wiring: the contract joins an assembly
 

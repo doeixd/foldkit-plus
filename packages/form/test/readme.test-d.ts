@@ -147,3 +147,22 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
 
   PostForm.isFollowing(PostForm.initial, 'slug') // false once the author has written it
 }
+
+{
+  const placements = Page.assemble(RenameForm)
+  const update = placements.update(model => ({ model }))
+  let model = placements.initial({ saved: [] }).model
+  model = update(
+    model,
+    Message.GotRenameMessage({
+      message: Rename.Message.Changed({ key: 'title', value: 'Hello' }),
+    }),
+  ).model
+  model = update(
+    model,
+    Message.GotRenameMessage({
+      message: Rename.Message.Submitted(),
+    }),
+  ).model
+  // model.saved contains the decoded input, with title "Hello" and id "".
+}

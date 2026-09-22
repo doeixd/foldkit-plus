@@ -42,12 +42,11 @@ dependencies.
 
 ## Sixty seconds: generate actions
 
-Assume the application already declared a protocol-neutral contract:
+Start with the [Agent contract and host guide](../agent/README.md#usage).
+The integration below assumes `AssistantAgent` is your declared contract and
+`AgentBuilder` is its application-specialized builder. The host-specific
+`runtimeFor(context)` below resolves the caller to that live application.
 
-```ts
-const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
-const AssistantAgent = AgentBuilder.make({ ... })
-```
 
 Agent Native needs a static action registry, but the live Model and principal
 belong to the caller. Register the contract once and resolve the bound runtime
@@ -101,6 +100,18 @@ availability -> authorization -> Message -> update
 
 The registry describes capabilities. The bound runtime decides whether a
 particular caller may use one **right now**.
+
+## Verify one action before adding the registry
+
+Start with one capability and a runtime bound to a known caller. Invoke the
+generated action with valid input, then with a value its schema rejects.
+The first must reach your existing Message handler; the second must leave the
+Model unchanged. Next switch to a principal your contract refuses. Registration
+is static, so an action's presence never implies that this caller may execute it.
+
+`actions` builds descriptors. `registerPackageActions` installs them in the host.
+`resolveRuntime` runs for an invocation, so resolve the verified caller there
+rather than capturing one user's runtime in a process-wide registry.
 
 ## What a capability becomes
 

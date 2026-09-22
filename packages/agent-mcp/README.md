@@ -42,25 +42,23 @@ pnpm add foldkit-agent foldkit-agent-mcp
 
 ## Sixty seconds: serve a bound runtime
 
-Assume the application already declared and bound a contract:
+Start with the [Agent contract and host guide](../agent/README.md#usage).
+The integration below assumes `AssistantAgent` is your declared contract and
+`AgentBuilder` is its application-specialized builder. `agentRuntime` is the
+result of binding that contract to your live host and verified principal.
 
-```ts
-const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
-const AssistantAgent = AgentBuilder.make({ ... })
-
-const agentRuntime = AgentBuilder.bind({
-  definition: AssistantAgent,
-  host,
-})
-```
 
 The smallest MCP server is stdio:
 
 ```ts
 import { AgentMcp } from 'foldkit-agent-mcp'
 
-AgentMcp.stdio({ agent: agentRuntime })
+const server = AgentMcp.stdio({ agent: agentRuntime })
 ```
+
+`stdio` attaches to the process streams immediately. Retain the returned
+handle and call `server.close()` on application shutdown. Keep application
+logs on stderr so stdout remains the MCP protocol stream.
 
 That gives an MCP client the capabilities/resources derived from the same
 contract used by every other adapter.

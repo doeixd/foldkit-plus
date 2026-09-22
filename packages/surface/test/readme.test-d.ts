@@ -19,40 +19,19 @@ const Message = defineMessageUnion({
   SelectedTodo: { id: Schema.String },
 })
 
-const update = (model: typeof Model.Type, message: typeof Message.Type) => {
-  switch (message._tag) {
-    case 'CreatedTodo':
-      return {
-        model: {
-          ...model,
-          todos: [...model.todos, { id: message.id, title: message.title, done: false }],
-        },
-      }
-    case 'ToggledTodo':
-      return {
-        model: {
-          ...model,
-          todos: model.todos.map(todo =>
-            todo.id === message.id ? { ...todo, done: !todo.done } : todo,
-          ),
-        },
-      }
-    case 'SelectedTodo':
-      return { model: { ...model, selectedTodoId: message.id } }
-  }
-}
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { todos: [], todosById: {}, selectedTodoId: null },
-  update,
-})
+const App = Surface.application({ Model, Message })
 
 const TodoList = App.surface('TodoList', {
   model: ({ model }) => ({ todos: model.todos, selectedTodoId: model.selectedTodoId }),
   messages: [Message.ToggledTodo, Message.SelectedTodo],
 })
+const model: typeof Model.Type = {
+  todos: [{ id: 't1', title: 'Read the guide', done: false }],
+  todosById: {},
+  selectedTodoId: 't1',
+}
+Surface.read(TodoList, model)
+
 const _todoList: Surface<
   typeof Model.Type,
   { readonly todos: ReadonlyArray<typeof Todo.Type>; readonly selectedTodoId: string | null },

@@ -51,7 +51,32 @@ not when `a === b`.
 pnpm add effect foldkit-entity
 ```
 
-## Example
+## Sixty seconds: describe one read
+
+```ts
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+
+const Task = Entity.define('Task', Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  done: Schema.Boolean,
+}))
+const TaskTitle = Entity.select(Task, { id: true, title: true })
+type TaskTitle = typeof TaskTitle.schema.Type
+const value: TaskTitle = { id: 't1', title: 'Read the guide' }
+```
+
+`Task` describes the domain. `TaskTitle` describes one consumer's result shape;
+it does not query a database or allocate a cache. Its schema validates that
+shape when an interpreter produces data. A selection does not include `done`
+unless you select it.
+
+Next, hand the Entity to Remote for client reads or bind it to Drizzle tables
+on the server. Declare operation input separately when adding a form: selecting
+readable fields does not grant permission to write them.
+
+## Relations and derived values
 
 ```ts
 import { Schema } from 'effect'
@@ -123,7 +148,7 @@ const Writer = Entity.define('Author', Schema.Struct({ id: AuthorId, name: Schem
 const Article = Entity.define('Post', Schema.Struct({ id: PostId, title: Schema.String }))
 const Press = Entity.relate({ Writer, Article }, { Article: { author: Relation.one(Writer) } })
 
-type WriterId = IdOf<typeof Press.Writer> // AuthorId
+type WriterId = import('foldkit-entity').IdOf<typeof Press.Writer> // AuthorId
 
 const ByLine = Entity.select(Press.Article, { author: true })
 // { author: EntityRef<'Author', AuthorId> }

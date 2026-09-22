@@ -7,13 +7,10 @@ What a CMS adds to a domain that is already declared. The domain is a
 are: **audience** (a visitor sees what is published, an author sees everything),
 **time** (drafts, revisions, a schedule), and **address** (a slug).
 
-> **Status: built, unpublished.** Roles, content types, the three Entities, the
-> operations, the lifecycle, the kinds, and the authoring editor's state. Its
-> server is [`foldkit-cms-drizzle`](../cms-drizzle/README.md), which runs every
-> operation and enforces the audience boundary, and
-> [`examples/cms`](../../examples/cms) runs the two together. What
-> [the design](../../docs/design/cms-DESIGN.md#13-build-order) set out is built
-> but for a browser mode of the example. Neither package is on npm.
+The client contract and editor live here. The
+[server adapter](../cms-drizzle/README.md) persists drafts and enforces the
+audience boundary. [The CMS example](../../examples/cms/README.md) runs both
+as a transcript or in a browser.
 
 ## What it owns
 
@@ -47,6 +44,12 @@ does not validate can be saved, which a row with a `not null` title cannot hold.
 An **Entry** is a piece of content from its first keystroke to its archive. It
 exists before the row does, and after the row is hidden.
 
+## Run the local example
+
+From a checkout, run `pnpm install`, `pnpm build`, then
+`pnpm --filter foldkit-example-cms demo`. This is the reproducible path for the
+workspace version; use the package install below for a published version.
+
 ## Install
 
 ```sh
@@ -54,6 +57,12 @@ pnpm add effect foldkit foldkit-entity foldkit-form foldkit-crud foldkit-remote 
 ```
 
 ## Example
+
+This integration extends an existing Entity, form, and pair of Remote mutations.
+`Blog.Post`, `PostForm`, `CreatePostMutation`, and `UpdatePostMutation` come from
+your domain module; [the example domain](../../examples/cms/src/domain.ts) shows
+those definitions together. Start with [Form](../form/README.md) if you have not
+yet defined the operation's input.
 
 ```ts
 import { Cms } from 'foldkit-cms'
@@ -257,7 +266,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Throws with no `slug` role. |
 | `Cms.slugTaken.key(message)` | The form key a server's `CmsSlugTaken: ...` error names, or `undefined`. |
 
-## Example
+## End-to-end example
 
 [`examples/cms`](../../examples/cms) takes a post from its first keystroke to being
 taken off show, from a writer's, an editor's and a visitor's chair, over SQLite,

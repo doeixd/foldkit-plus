@@ -152,6 +152,19 @@ resolved slot arrays
 The caller never copies Button's internal behavior and never has to know how to
 merge its handlers/ARIA/structural attributes safely.
 
+## Follow the click
+
+`UiButton.view` supplies the component's base attributes, including the click
+Message. `Button.resolve` merges the style into those attributes; `h.button`
+puts the result on the actual element. Clicking emits `Saved` to the parent
+update. The name `Saved` is just the example's Message name—it does not mean
+this adapter wrote anything to storage.
+
+Start by adding a class. Then add a non-conflicting attribute if needed.
+Do not install another `OnClick` to intercept the component: the resolver
+rejects competing event owners. Keep the original component's attributes in
+the call to `resolve`, including its child attributes and accessibility state.
+
 ## What `resolve` does
 
 `resolve(attributes, mixins, { input, h })` receives the shaped value the

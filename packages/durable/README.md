@@ -211,6 +211,19 @@ await Effect.runPromise(program)
 `Journal.make` is scoped; the SQLite connection closes with the Effect scope.
 `file` may be a literal path or a `Config.Config<string>`.
 
+## Read the result as three separate guarantees
+
+| Observation | What it proves | What it does not prove |
+| --- | --- | --- |
+| `append` commits | This journal accepted the operation and advanced its state atomically. | Every client has seen it. |
+| `load` returns a snapshot and cursor | The snapshot represents that committed prefix. | Pending client edits are included. |
+| An external-effect result is recorded | The journal can reuse that recorded outcome. | The provider could not have acted before a crash left no record. |
+
+`Journal.make` returns an Effect that opens storage when run. Keep its scope
+alive for the server's lifetime; the quick-start program closes it when the
+scoped Effect finishes. Reuse the same operation id for a retry, and preserve
+identity retention for as long as old retries may arrive.
+
 ## What happens when an operation is appended
 
 Think of `append` as the authoritative commit boundary.

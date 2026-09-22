@@ -74,20 +74,14 @@ Bind the constructors to your application, then declare the contract:
 ```ts
 import { Agent } from 'foldkit-agent'
 import { Projection, Surface } from 'foldkit-surface'
-import { Option, Schema } from 'effect'
+import { Effect, Option } from 'effect'
 
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { todos: [], selectedTodoId: Option.none() },
-  update: (model, message) => ({ model: update(model, message) }), // your update
-})
+const App = Surface.application({ Model, Message })
 
 const TodoAgent = Agent.forApplication(App)
 
 const AppAgent = TodoAgent.make({
-  // What an agent may see: a Surface projection, so sync and the agent can share
-  // the same value. `lastError` is deliberately not selected.
+  // This projection is the context returned to the agent.
   context: Projection.pick(App.fields.todos, App.fields.selectedTodoId),
 
   messages: TodoAgent.expose(Message, {
@@ -106,7 +100,11 @@ const AppAgent = TodoAgent.make({
 `ReceivedTodos` and `FailedToLoadTodos` are never reachable by an agent.
 Exposure is opt-in, and there is deliberately no `exposeAll()`.
 
-Bind the contract to a live Runtime:
+The contract is a declaration: it does not run `update` or register tools.
+Bind it to your existing runtime using three host functions: `currentModel`
+reads the current immutable Model, `sendToRuntime` dispatches a Message, and
+`onModelChange` subscribes a callback and returns an unsubscribe function.
+[The todo host](../../examples/todo/src/store.ts) implements that seam.
 
 ```ts
 const agentRuntime = TodoAgent.bind({
@@ -118,6 +116,19 @@ const agentRuntime = TodoAgent.bind({
   },
 })
 ```
+
+Once bound, an in-process invocation uses the same path as a protocol adapter:
+
+```ts
+const result = await Effect.runPromise(
+  agentRuntime.messages.dispatch(Message.RequestedCreateTodo, { title: 'Read the guide' }),
+)
+```
+
+`dispatch` returns an Effect; constructing it performs no dispatch. Running it
+decodes the input, checks policy, and sends the Message. This example has no
+completion contract, so success means dispatch finished, not that a remote
+save completed. Add completion when the application's later result matters.
 
 The host must accept every Message the contract can construct -- a wider union
 is fine, a narrower one is a type error -- and a contract whose hooks read a
@@ -134,6 +145,17 @@ const wiring = AppAgent.wiring()
 
 It routes nothing and subscribes to nothing -- an agent adds no state -- and
 `wiring.contract` is the same contract above.
+
+## Choosing the completion boundary
+
+| Capability does | Meaning of a successful call | Required host seam |
+| --- | --- | --- |
+| Immediate transition, no completion declared | Validated dispatch finished | `model`, `dispatch` |
+| Work that later emits a result Message | A matching result was observed | Add `observe`; correlate overlapping calls |
+| Work whose result is a condition on state | The declared condition holds | Add `subscribe` (or a subscribable source) |
+
+A timeout or cancellation after dispatch does not roll back the application.
+Read current state before deciding whether to retry an effectful operation.
 
 ## API
 

@@ -55,67 +55,17 @@ ownership.
 
 ## The mental model
 
-The client side is a Foldkit Submodel:
-
 ```text
-                         pure
-                    Projection read
-                         |
-                         v
-+-------------+     +---------+      +------+
-| Foldkit     |---->| Surface |----->| View |
-| Model       |     +---------+      +------+
-|             |
-| Remote.Model|
-| normalized  |
-| cache       |
-+------+------+ 
-       ^
-       | Remote Message
-       |
-+------+-------+
-| Data.reduce |
-+------+-------+
-       ^
-       |
-       | read/query/mutate/live
-       |
-+------+--------+
-| RemoteClient |
-+------+--------+
-       |
-       v
-     server
+Surface Projection → requirements → active Subscription → RemoteClient I/O
+        ↑                                                    |
+        └──────── read Model ← Data.reduce ← Remote Message ──┘
 ```
 
-The other half of the model is the **requirement planner**:
-
-```text
-Surface says:
-  "I need Project p1: id, name, owner.name"
-
-                    |
-                    v
-Remote compares that requirement
-with the normalized cache in Model
-
-                    |
-                    v
-missing:
-  Project:p1.name
-  User:u7.name
-
-                    |
-                    v
-active subscription performs one read
-
-                    |
-                    v
-result -> Remote Message -> Data.reduce -> Model
-```
-
-That separation is why reading stays pure. Rendering a Surface never starts a
-request.
+A Projection reads the current cache and carries requirements such as
+`Project:p1.name` and `User:u7.name`. An active Subscription compares those
+requirements with the cache, then requests missing or stale fields. The
+result returns as a Message; only reducing it changes what the next read sees.
+Rendering the same Projection twice starts no work by itself.
 
 ## Four pieces to remember
 
@@ -133,7 +83,7 @@ Everything else builds on those four pieces.
 ## Install
 
 ```bash
-pnpm add foldkit-remote
+pnpm add foldkit-remote foldkit-entity
 ```
 
 `foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the
@@ -291,7 +241,14 @@ Remote.Model
 ProjectPage now reads Ready(...)
 ```
 
-Finally, provide the client implementation to the runtime:
+The first example starts on the `home` route, so no project read runs yet.
+Your route update must activate `{ _tag: 'project', projectId: 'p1' }`, and the
+runtime must install `subscriptions`. Expect `Initial` until work starts,
+`Loading` during the first request, and `Ready` once its result is reduced.
+
+Finally, provide the client implementation to the runtime. Here `rpcClient`
+is your configured Effect RPC client, not a value created by the declarations
+above; the [server guide](../remote-server/README.md) supplies the other side:
 
 ```ts
 const clientLayer = Remote.clientLayer(rpcClient)
@@ -1099,6 +1056,22 @@ execution are layer choices rather than Remote semantics.
 See [`foldkit-remote-server`](../remote-server) for Source and authorization
 rules, and [`examples/kitchen-sink`](../../examples/kitchen-sink) for the real
 server packages together.
+
+## Finding the next API
+
+| Task | Start here |
+| --- | --- |
+| Explain `Initial`, `Loading`, or a stale value | [`RemoteData`](#remotedata-what-does-the-model-know-right-now) |
+| Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
+| Load an ordered list | [Queries and pagination](#queries-and-pagination) |
+| Save and show an optimistic result | [Mutations](#mutations-and-optimistic-state) |
+| Release data no active feature needs | [Retention](#retention-and-garbage-collection) |
+| Seed a cache after reload or SSR | [Hydration](#persistence-and-hydration) |
+
+A successful mutation and an optimistic overlay have different guarantees:
+the overlay is only a temporary view of server-owned data. Use Sync when the
+operation itself must survive offline, rather than persisting an optimistic
+Remote cache and treating it as an outbox.
 
 ## Introspection
 

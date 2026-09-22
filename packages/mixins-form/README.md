@@ -44,6 +44,27 @@ a Style can depend on `input.invalid` or `input.control`.
 pnpm add effect foldkit foldkit-bundle foldkit-form foldkit-mixins foldkit-mixins-form
 ```
 
+## Start without customization
+
+Given `Edit`, a `Form.make` result from the
+[Form example](../form/README.md#example), the default rendering path is:
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+import { FormView } from 'foldkit-mixins-form'
+
+const Drawn = Edit.bundle.pipe(
+  Bundle.withView(FormView.submodel(Edit, FormView.define(Edit))),
+)
+```
+
+Declare and place `Drawn` using the normal Bundle API, with the form's `onOut`
+handler. Rendering that placement shows the controls; typing routes the form's
+Messages to its reducer; submitting a valid form sends its decoded value to
+`onOut`. No request is made unless that handler returns one.
+
+The next example replaces this unstyled `Drawn` with field and form styles.
+
 ## Example
 
 `Edit` is a `Form.make` result, as in the
@@ -71,7 +92,9 @@ const View = FormView.define(Edit, { field: Field }).pipe(
 const Drawn = Edit.bundle.pipe(Bundle.withView(FormView.submodel(Edit, View)))
 ```
 
-Then, where the parent draws the placement:
+In the following integration fragment, `EditForm` is the placement of `Drawn`,
+`model` and `h` are the parent view arguments, and `authors` is the loaded picker
+data. Where the parent draws the placement:
 
 ```ts
 EditForm.view(model, h, {
@@ -98,7 +121,6 @@ EditForm.view(model, h, {
 | `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select` |
 | `RelationOne` | `select` of `options[key]`, with a blank | `select` |
 | `RelationMany` | a `role="group"` of checkboxes over `options[key]` | `choices`, `choice` |
-
 | `Nested` | a `fieldset` with a `legend`, a `div` per row holding the nested form's fields, and `button type="button"`s to add and remove a row | `group`, `legend`, `row`, `add`, `remove` |
 
 A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an

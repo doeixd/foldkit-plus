@@ -96,15 +96,23 @@ const TodoBehavior = Behavior.forSlots(TodoSlots)<
 })
 
 const TodoListView = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) =>
-  h.ul(
-    slots.root.attrs(),
-    model.todos.map(todo => h.li([], [todo.title])),
-  ),
+  h.section(slots.root.attrs(), [
+    h.ul([], model.todos.map(todo => h.li([], [todo.title]))),
+    h.button(
+      slots.archive.attrs([h.Disabled(model.selectedId === null)]),
+      ['Archive selected'],
+    ),
+  ]),
 ).pipe(Style.attach(TodoStyle), Behavior.attach(TodoBehavior))
 
 // `toRenderer` adapts a SlotView to what `Surface.view`/`Surface.rootView` take.
 const renderer = Surface.view(TodoList, SurfaceView.toRenderer(TodoListView))
 ```
+
+`slots.archive.attrs(...)` is where the attached click behavior reaches a
+real element. Declaring a slot or attaching a Behavior alone renders nothing.
+With no selection the button is disabled; with a selection its click emits
+`ArchivedTodo`, and the application's reducer performs the transition.
 
 The useful part is what the render callback does **not** repeat: no type
 annotation on `model` or `h`, no second Message union, and no root-Model input

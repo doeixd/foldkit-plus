@@ -31,9 +31,9 @@ The authority boundary stays in `foldkit-agent`: the contract decides what the
 agent may observe and which Messages it may cause. WebMCP only makes those
 capabilities available to a browser-resident agent.
 
-[WebMCP](https://github.com/webmachinelearning/webmcp) is an experimental web
-platform proposal. No stable browser ships it today, so feature detection is
-part of the normal integration path.
+The adapter uses the WebMCP producer API when the host exposes it. Feature
+detect `document.modelContext` at runtime; tool registration is optional
+for browsers that do not provide it.
 
 ## Install
 
@@ -45,12 +45,12 @@ pnpm add foldkit-agent foldkit-agent-webmcp
 
 ## Sixty seconds: publish a bound runtime
 
-Assume the application already declared a protocol-neutral contract:
+Start with the [Agent contract and host guide](../agent/README.md#usage).
+The integration below assumes `AssistantAgent` is your declared contract and
+`AgentBuilder` is its application-specialized builder. `mounted` below
+is an application host (for example, the value returned by `Sync.mount`),
+not an arbitrary Foldkit runtime handle.
 
-```ts
-const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
-const AssistantAgent = AgentBuilder.make({ ... })
-```
 
 Bind that contract to the running application, then register its currently
 available capabilities with WebMCP:
@@ -64,7 +64,8 @@ const agentRuntime = AgentBuilder.bind({
     model: mounted.model,
     dispatch: message => mounted.dispatch(message),
     subscribe: mounted.subscribe,
-    observe: mounted.observe, // required only by capabilities with completion contracts
+    observe: mounted.observe, // Message-based completion
+    principal: () => currentPrincipal, // your authenticated application principal
   },
 })
 
@@ -76,9 +77,14 @@ if (modelContext !== undefined) {
     modelContext,
   })
 
+  await registration.refresh()
   window.addEventListener('beforeunload', () => registration.unregister())
 }
 ```
+
+Also call `registration.unregister()` when the owning component or runtime
+is disposed; a page unload listener alone does not handle in-page teardown.
+`currentPrincipal` above comes from your application, not tool arguments.
 
 That is the whole architecture: the contract remains protocol-neutral, the
 runtime remains the one authority for availability/authorization/dispatch, and
