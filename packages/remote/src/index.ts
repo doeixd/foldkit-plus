@@ -49,6 +49,7 @@ import {
   inspectEntity,
   inspectRemote,
   type QueryExplanation,
+  type ReadDiagnosis,
   type RemoteInspection,
 } from './inspect.js'
 import type { LiveCursor, LiveEvent } from './live.js'
@@ -364,6 +365,22 @@ export interface RemoteDomain<
       readonly surfaces?: Readonly<Record<string, ActiveSurface<AppModel>>> | undefined
     },
   ): QueryExplanation
+  /**
+   * Why a read shows what it shows, in words. Any Remote read: `Data.get`,
+   * `Data.live` or `Data.query`.
+   *
+   * Its point is `Initial`, which means nothing is fetching the read and is
+   * almost always a wiring mistake. Given `surfaces`, the same active record
+   * `subscriptions` takes, it says which: no active Surface reads it, or one
+   * does and Remote's Subscriptions are not running. Pure, like `explain`.
+   */
+  why(
+    model: AppModel,
+    projection: Projection<AppModel, RemoteData<unknown>>,
+    options?: {
+      readonly surfaces?: Readonly<Record<string, ActiveSurface<AppModel>>> | undefined
+    },
+  ): ReadDiagnosis
   /**
    * The rows of a loaded list that a body matches, decoded as the list decodes
    * them — a filter that asks the server nothing.
@@ -787,6 +804,30 @@ const askedOf = (projection: Projection<any, unknown> | undefined): Asked =>
   projection === undefined
     ? nothingAsked
     : { requirements: requirementsOf(projection), connections: connectionsOf(projection) }
+
+/**
+ * Whether what `outer` asks includes everything `inner` asks: each connection,
+ * and each field of each entity. A Surface that shows a read is one whose
+ * projection asks for all of it.
+ */
+const covers = (outer: Asked, inner: Asked): boolean => {
+  const connections = new Set(outer.connections.map(connection => connection.identity))
+  const fields = new Set(
+    outer.requirements.flatMap(requirement =>
+      requirement.fields.map(
+        field => `${entityKey(requirement.entity, requirement.id)}\u0000${field}`,
+      ),
+    ),
+  )
+  return (
+    inner.connections.every(connection => connections.has(connection.identity)) &&
+    inner.requirements.every(requirement =>
+      requirement.fields.every(field =>
+        fields.has(`${entityKey(requirement.entity, requirement.id)}\u0000${field}`),
+      ),
+    )
+  )
+}
 
 /** The plan for what a projection asks: the entity fields to read, and the queries to run. */
 interface Planned {
@@ -2105,6 +2146,71 @@ const bindDomain = <
                   : [{ surface: active.name, ...active.activation }],
               ),
             }),
+      }
+    },
+    why: (model, projection, options) => {
+      const state = projection.read(model)
+      const asked = askedOf(projection)
+      const reading =
+        options?.surfaces === undefined
+          ? undefined
+          : Object.values(options.surfaces)
+              .filter(active => {
+                const shown = active.projectionOf(model)
+                return shown !== undefined && covers(askedOf(shown), asked)
+              })
+              .map(active => active.name)
+      const withSurfaces = reading === undefined ? {} : { surfaces: reading }
+      switch (state._tag) {
+        case 'Ready':
+          return { state: state._tag, message: 'Everything it selects is here.', ...withSurfaces }
+        case 'Refreshing':
+          return {
+            state: state._tag,
+            message: 'It is shown while a newer value is fetched.',
+            ...withSurfaces,
+          }
+        case 'Loading':
+          return { state: state._tag, message: 'A request for it is in flight.', ...withSurfaces }
+        case 'NotFound':
+          return {
+            state: state._tag,
+            message:
+              'The server answered without it: it does not exist, or this principal may not see it.',
+            ...withSurfaces,
+          }
+        case 'Failed':
+          return {
+            state: state._tag,
+            message:
+              state.error._tag === 'DecodeError'
+                ? `What the server sent does not decode against the Selection: ${state.error.message}`
+                : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
+            ...withSurfaces,
+          }
+        case 'Initial':
+          if (reading === undefined) {
+            return {
+              state: state._tag,
+              reason: 'Unknown',
+              message:
+                'Nothing is fetching it. Pass the active record you give Data.subscriptions as `surfaces` to tell whether an active Surface reads it.',
+            }
+          }
+          return reading.length === 0
+            ? {
+                state: state._tag,
+                reason: 'NotObserved',
+                message:
+                  'No active Surface reads it, so nothing fetches it. Include it in a Surface that is active for this Model, in the record given to Data.subscriptions.',
+                surfaces: reading,
+              }
+            : {
+                state: state._tag,
+                reason: 'NotFetching',
+                message: `${reading.join(', ')} ${reading.length === 1 ? 'reads it and is' : 'read it and are'} active, yet nothing is fetching it. Remote's Subscriptions are most likely not installed: give the runtime Data.subscriptions (or Data.wiring) and a RemoteClient.`,
+                surfaces: reading,
+              }
       }
     },
     filtered: (model, over, by, input) => {

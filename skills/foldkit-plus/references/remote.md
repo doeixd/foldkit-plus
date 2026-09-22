@@ -42,6 +42,8 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 (`RemoteData.match` is exhaustive):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
+  `Data.why(model, projection, { surfaces })` says which: `NotObserved` (no active
+  Surface reads it) or `NotFetching` (one does; Subscriptions not installed).
 - `Loading`: absent, a read or a list's query is in flight (`QueryStarted`).
 - `Ready`: all selected fields present and decode.
 - `Refreshing`: old value still visible while refetching.

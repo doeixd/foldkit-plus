@@ -350,6 +350,21 @@ no active Surface may remain `Initial` forever. Rendering a spinner for
 `Initial` can therefore hide an activation/wiring mistake; `Loading` is the
 state that actually means "wait for this request."
 
+When a read sits at `Initial` and you expected data, ask the Model why:
+
+```ts
+Data.why(model, projection, { surfaces }) // the record you give Data.subscriptions
+// { state: 'Initial', reason: 'NotFetching', surfaces: ['ProjectPage'],
+//   message: 'ProjectPage reads it and is active, yet nothing is fetching it. …' }
+```
+
+`NotObserved` means no active Surface reads it: the Surface is not in the
+record, or its params are `undefined` for this Model. `NotFetching` means one
+does, and nothing started a request, which almost always means Remote's
+Subscriptions are not installed in the runtime. Without `surfaces` it can only
+say `Unknown`. For every other state it says what the state means in words,
+and a failure's message says that nothing retries it on its own.
+
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time.
 

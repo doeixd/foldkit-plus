@@ -101,6 +101,30 @@ export const inspectEntity = (
  * definition rather than by the read. Nothing here has an opinion about whether
  * an empty one is an error, because nothing here has to have one.
  */
+/**
+ * Why a read shows what it shows, in words, and for `Initial`, which of the
+ * usual mistakes it is.
+ *
+ * `Initial` means nothing is fetching the read, and that is almost always
+ * wiring rather than the network: no active Surface reads it, or one does and
+ * Remote's Subscriptions are not running. The Model can tell those apart when
+ * it is given the active record, so this says which, and what to do.
+ */
+export interface ReadDiagnosis {
+  readonly state: RemoteData<unknown>['_tag']
+  /**
+   * For `Initial` only. `NotObserved`: no active Surface reads it.
+   * `NotFetching`: one does, and nothing is fetching it, so Remote's
+   * Subscriptions are most likely not installed. `Unknown`: no active record
+   * was given to tell.
+   */
+  readonly reason?: 'NotObserved' | 'NotFetching' | 'Unknown' | undefined
+  /** One or two sentences a developer can act on. */
+  readonly message: string
+  /** The active Surfaces reading it, when the active record was given. */
+  readonly surfaces?: ReadonlyArray<string> | undefined
+}
+
 export interface QueryExplanation {
   /** The bound Remote domain that answers it. */
   readonly domain: string

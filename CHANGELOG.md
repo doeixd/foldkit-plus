@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote`: `Data.why(model, projection, { surfaces })`.** `Initial`
+  means nothing is fetching a read, and in practice it is almost always
+  wiring. `Data.why` tells the two usual mistakes apart: `NotObserved`, when no
+  active Surface reads it, and `NotFetching`, when one does and Remote's
+  Subscriptions are not running. It names the Surfaces involved and says what
+  to do. For every other state it says in words what the state means.
 - **`foldkit-remote-server`: `RemoteServer.memory`, a backend held in memory.**
   Give it the domain and some rows, and its `layer` is a `RemoteClient`, so a
   first run, a test or a demo needs no database and no network. Reads go
