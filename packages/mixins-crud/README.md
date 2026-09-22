@@ -84,6 +84,24 @@ Similarly, `onMore` and a sort header only send your Messages. Your update must
 change the query window or ordering. Rendering the table alone never starts a
 query. This lets the same view render a test page or a live Remote page.
 
+## When the read fails
+
+A failed read is said in a `role="alert"` paragraph. If the list already had
+rows (a refresh that failed), they stay on screen below it, because they are
+still the best answer there is. Remote does not retry a failed read on its own,
+so give `onRetry` a Message and the view adds a button that sends it:
+
+```ts
+PostTable({ page: Posts.page(model), onRetry: Message.RetriedPosts() }, h)
+
+// in update
+case 'RetriedPosts':
+  return { model: Posts.refresh(model) }
+```
+
+`DetailView` does the same with its value: the alert and the button above the
+description list, which stays the view's root element.
+
 ## Sorting, more, and special cells
 
 ```ts
@@ -101,7 +119,7 @@ PostTable(
     cells: {
       published: (row, h) => h.span([h.Class(row.published ? 'live' : 'draft')], ['●']),
     },
-    words: { yes: 'Live', no: 'Draft', empty: 'No posts yet.', more: 'Load more' },
+    words: { yes: 'Live', no: 'Draft', empty: 'No posts yet.', more: 'Load more', retry: 'Reload' },
   },
   h,
 )
@@ -144,6 +162,7 @@ A `dl` with a `dt` per shown field and its value in a `dd`. It takes `cells` and
 | --- | --- | --- |
 | The list | `div` with the list's name as its `id` | `root` |
 | Loading, failed, or empty | `p role="status"`, or `role="alert"` for a failure | `status` |
+| Asking again after a failure | `button type="button"`, when `onRetry` is given | `retry` |
 | The rows | `table`, `aria-busy` while refreshing | `table` |
 | A column header | `th scope="col"`, with `aria-sort` when it sorts | `headCell` |
 | A header that sorts | `button type="button"` | `sort` |

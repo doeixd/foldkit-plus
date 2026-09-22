@@ -173,7 +173,16 @@ no fetch. This runs in the printed trace; the browser page does not draw it.
 
 The post table is `foldkit-mixins-crud`'s `ListView` over `PostList`: its
 columns, labels and cell text come from the list and its Displays, and the page
-passes in what opening a row, sorting, and "more" mean as Messages.
+passes in what opening a row, sorting, "more" and "try again" mean as Messages.
+
+### When the list cannot be read
+
+If the query fails, the table says so in a `role="alert"` line, with a **Try
+again** button. Remote does not retry a failed read on its own, so the button
+is the retry: `onRetry` sends `RetriedPosts`, and `update` returns
+`Posts.refresh(model)`. A refresh that fails with rows already shown keeps them
+below the error. `test/page.test.ts` drives this against a server that is
+unreachable and then comes back.
 
 ### Searching and sorting
 

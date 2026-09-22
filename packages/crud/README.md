@@ -172,7 +172,7 @@ form creates.
 | `Closed` | nothing is open |
 | `Loading` | an id is open and its current values have not arrived |
 | `NotFound` | it is gone: the server answered without it, a mutation deleted it, or a live event did. This outranks a save that landed |
-| `LoadFailed` | reading it failed to decode |
+| `LoadFailed` | reading it failed, in the request or in decoding what came back. Once the form is filled it stays `Editing`, whatever a later read says |
 | `Editing` | the form is showing, with no save in progress or just settled |
 | `Saving` | this editor's mutation is pending |
 | `Saved` | it was applied |
@@ -223,6 +223,10 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
   Selection, `hasNext`, `hasPrevious`.
 - `AuthorList.more(model)` is the Command that loads the next page onto this one,
   or `undefined` when there is none. Return it from `update`.
+- `AuthorList.refresh(model)` is the Model with the list asked for again:
+  `Data.refresh` over its page and rows. A failed read is not retried on its
+  own, so this is what a retry button's Message returns. A placed detail has the
+  same `refresh`.
 - `AuthorList.row(id)` is a Projection of one row through the list's Selection,
   whether or not the query finds it now, and `AuthorList.choiceOf(model, id)` is
   that row as a choice once it is read. `Crud.options` uses both for a picker

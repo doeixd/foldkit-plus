@@ -107,6 +107,9 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
   and a `label` (schema `title`, else `Form.label`, else the key).
 - `AuthorList.page(model)`: `RemoteData<Page<Row>>`, rows typed by the Selection.
 - `AuthorList.more(model)`: the Command for the next page, or `undefined`.
+- `AuthorList.refresh(model)` (and a placed detail's `refresh`): the Model with
+  it asked for again. Failed reads are not retried automatically; this is the
+  retry.
 - `Crud.options(EditPostForm, [AuthorList])(model)`: every relation picker of
   the form fed by the list over its target, keyed by the form's keys, for
   `foldkit-mixins-form`'s `options`. Needs `choice` on the list. A picker with no
@@ -159,6 +162,7 @@ PostTable(
     page: Posts.page(model),
     onOpen: row => Message.OpenedPost({ id: row.id }),
     onMore: Message.RequestedMorePosts(),
+    onRetry: Message.RetriedPosts(), // update: { model: Posts.refresh(model) }
     sort: { title: { direction: 'asc', message: Message.SortedPosts({ sort: 'title-desc' }) } },
     cells: { published: (row, h) => h.span([], [row.published ? '●' : '○']) },
     words: { yes: 'Live', no: 'Draft', empty: 'No posts yet.' },
@@ -170,7 +174,9 @@ DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model)
 ```
 
 Slots: `ListSlots` (`root`, `status`, `table`, `headCell`, `sort`, `row`, `cell`,
-`open`, `more`) and `DetailSlots` (`root`, `status`, `term`, `value`).
+`open`, `more`, `retry`) and `DetailSlots` (`root`, `status`, `term`, `value`,
+`retry`). A failed read shows a `role="alert"` line; a failed refresh keeps the
+rows (or the detail's value) below it, and `onRetry` adds a button.
 
 ## Pickers that search
 

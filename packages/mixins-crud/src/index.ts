@@ -26,6 +26,8 @@ export interface ViewWords extends DisplayWords {
   readonly empty?: string
   /** On the button that loads the next page. Default `More`. */
   readonly more?: string
+  /** On the button that asks again after a failed read. Default `Try again`. */
+  readonly retry?: string
 }
 
 /** What a renderer draws one value from. `row` is the list's row, or the detail's whole value. */
@@ -54,6 +56,12 @@ export interface ListInput<Row, Message, Key extends string = string> {
   readonly onOpen?: ((row: Row) => Message) | undefined
   /** Loads the next page. Shown while the page has one. */
   readonly onMore?: Message | undefined
+  /**
+   * Asks again after a failed read, usually a Message whose `update` returns
+   * `Data.refresh`. Given, a failed list shows a button that sends it; a failed
+   * read is not retried on its own.
+   */
+  readonly onRetry?: Message | undefined
   /** The columns that sort, each with its state and its Message. */
   readonly sort?: { readonly [K in Key]?: SortedColumn<Message> } | undefined
   /** Renderers by Display kind, for every column of that kind. */
@@ -68,6 +76,8 @@ export interface ListInput<Row, Message, Key extends string = string> {
 /** What a detail's attachments may read, and what the application gives it. */
 export interface DetailInput<Value, Message, Key extends string = string> {
   readonly value: RemoteData<Value>
+  /** Asks again after a failed read. Given, a failed detail shows a button that sends it. */
+  readonly onRetry?: Message | undefined
   /** Renderers by Display kind, for every field of that kind. */
   readonly renderers?: DisplayRenderers<Message> | undefined
   readonly cells?:
@@ -93,6 +103,8 @@ export const ListSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.Disabled],
   }),
+  /** The button that asks again after a failed read. */
+  retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })
 
 /** A detail: each selected member as a term and its value. */
@@ -101,6 +113,8 @@ export const DetailSlots = Slots.define({
   status: Slot.make({ capability: Capability.Base }),
   term: Slot.make({ capability: Capability.Base }),
   value: Slot.make({ capability: Capability.Base }),
+  /** The button that asks again after a failed read. */
+  retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })
 
 const shown = <Key extends string>(
@@ -128,9 +142,20 @@ const list = <Message>() => ({
       ListSlots,
       (input: ListInput<Row, Message, Key>, slots, h) => {
         const { words } = input
-        const status = (text: string, alert = false): Html =>
+        // What a failed read says, and the way to ask again when one was given.
+        const failure = (error: RemoteError): ReadonlyArray<Html> => [
+          h.p(slots.status.attrs([h.Role('alert')]), [failedWords(words, error)]),
+          ...(input.onRetry === undefined
+            ? []
+            : [
+                h.button(slots.retry.attrs([h.Type('button'), h.OnClick(input.onRetry)]), [
+                  words?.retry ?? 'Try again',
+                ]),
+              ]),
+        ]
+        const status = (text: string): Html =>
           h.div(slots.root.attrs([h.Id(listed.name)]), [
-            h.p(slots.status.attrs(alert ? [h.Role('alert')] : [h.Role('status')]), [text]),
+            h.p(slots.status.attrs([h.Role('status')]), [text]),
           ])
 
         const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
@@ -142,9 +167,19 @@ const list = <Message>() => ({
             h,
           }) ?? Display.show(column.display, value, words)
 
-        const table = (page: Page<Row>, refreshing: boolean): Html => {
-          if (page.items.length === 0) return status(words?.empty ?? 'Nothing here.')
+        // `notice` goes above the rows: a failure that left them on screen.
+        const table = (
+          page: Page<Row>,
+          refreshing: boolean,
+          notice: ReadonlyArray<Html> = [],
+        ): Html => {
+          if (page.items.length === 0) {
+            return notice.length === 0
+              ? status(words?.empty ?? 'Nothing here.')
+              : h.div(slots.root.attrs([h.Id(listed.name)]), [...notice])
+          }
           return h.div(slots.root.attrs([h.Id(listed.name)]), [
+            ...notice,
             h.table(slots.table.attrs(refreshing ? [h.AriaBusy(true)] : []), [
               h.thead(
                 [],
@@ -221,7 +256,11 @@ const list = <Message>() => ({
           case 'Loading':
             return status(words?.loading ?? 'Loading…')
           case 'Failed':
-            return status(failedWords(words, page.error), true)
+            // A failed refresh keeps the rows it had: they are still the best
+            // answer there is, and the failure is said above them.
+            return page.previous === undefined
+              ? h.div(slots.root.attrs([h.Id(listed.name)]), [...failure(page.error)])
+              : table(page.previous, false, failure(page.error))
           case 'NotFound':
             return status(words?.empty ?? 'Nothing here.')
           case 'Refreshing':
@@ -250,9 +289,19 @@ const detail = <Message>() => ({
       DetailSlots,
       (input: DetailInput<Value, Message, Key>, slots, h) => {
         const { words } = input
-        const status = (text: string, alert = false): Html =>
+        const failure = (error: RemoteError): ReadonlyArray<Html> => [
+          h.p(slots.status.attrs([h.Role('alert')]), [failedWords(words, error)]),
+          ...(input.onRetry === undefined
+            ? []
+            : [
+                h.button(slots.retry.attrs([h.Type('button'), h.OnClick(input.onRetry)]), [
+                  words?.retry ?? 'Try again',
+                ]),
+              ]),
+        ]
+        const status = (text: string): Html =>
           h.div(slots.root.attrs([h.Id(detailed.name)]), [
-            h.p(slots.status.attrs(alert ? [h.Role('alert')] : [h.Role('status')]), [text]),
+            h.p(slots.status.attrs([h.Role('status')]), [text]),
           ])
         const lines = (value: Value, refreshing: boolean): Html =>
           h.dl(
@@ -286,7 +335,11 @@ const detail = <Message>() => ({
           case 'Loading':
             return status(words?.loading ?? 'Loading…')
           case 'Failed':
-            return status(failedWords(words, read.error), true)
+            // The description list stays the root when there is a value to show,
+            // so the failure is said beside it rather than inside it.
+            return read.previous === undefined
+              ? h.div(slots.root.attrs([h.Id(detailed.name)]), [...failure(read.error)])
+              : h.div([], [...failure(read.error), lines(read.previous, false)])
           case 'NotFound':
             return status(words?.empty ?? 'Nothing here.')
           case 'Refreshing':

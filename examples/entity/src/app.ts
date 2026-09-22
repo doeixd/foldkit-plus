@@ -96,6 +96,7 @@ export const Message = defineMessageUnion({
   OpenedPost: { id: PostId },
   ClosedEditor: {},
   RequestedMorePosts: {},
+  RetriedPosts: {},
   SortedPosts: { sort: PostSort.Schema },
 })
 export type Message = typeof Message.Type
@@ -192,6 +193,9 @@ export const update = PostEditor.after(
         const more = Posts.more(model)
         return more === undefined ? { model } : { model, commands: [more] }
       }
+      // A failed read is not asked for again on its own; this is the asking.
+      case 'RetriedPosts':
+        return { model: Posts.refresh(model) }
       case 'SortedPosts':
         return { model: evo(model, { postSort: () => message.sort }) }
       default:

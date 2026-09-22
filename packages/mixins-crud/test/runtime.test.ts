@@ -231,3 +231,85 @@ it('says what stands in for the rows: loading, failed, and empty', () => {
     ),
   ).toEqual(['status', 'No posts yet.'])
 })
+
+/** Every element of a rendered tree, in order: its tag, role and own text. */
+const outline = (node: unknown): ReadonlyArray<string> => {
+  const found: Array<string> = []
+  const walk = (current: unknown): void => {
+    const { sel, data, children, text } = (current ?? {}) as {
+      sel?: string
+      data?: { attrs?: Readonly<Record<string, unknown>> }
+      children?: ReadonlyArray<unknown>
+      text?: string
+    }
+    if (sel !== undefined) {
+      const role = data?.attrs?.role
+      const own = (children ?? [])
+        .map(child => (child as { text?: string }).text)
+        .filter(value => value !== undefined)
+        .join('')
+      found.push([sel, role === undefined ? '' : `[${String(role)}]`, own].join(''))
+    } else if (text !== undefined) {
+      return
+    }
+    for (const child of children ?? []) walk(child)
+  }
+  walk(node)
+  return found
+}
+
+const offline = { _tag: 'RemoteQueryError', message: 'offline' } as never
+
+it('keeps the rows a failed refresh left, and says it failed above them', () => {
+  const Plain = ListView.forMessages<Message>().define(Posts)
+  const drawn = outline(
+    Plain(
+      { page: { _tag: 'Failed', error: offline, previous: ready.value } },
+      SlotView.inertBuilder(),
+    ),
+  )
+
+  expect(drawn[1]).toBe('p[alert]offline')
+  expect(drawn).toContain('table')
+  expect(drawn.filter(element => element === 'tr')).toHaveLength(rows.length + 1)
+})
+
+it('offers a retry only when the application gave one', () => {
+  const Plain = ListView.forMessages<Message>().define(Posts)
+  const failed = { _tag: 'Failed', error: offline } as const
+
+  expect(outline(Plain({ page: failed }, SlotView.inertBuilder()))).not.toContain('buttonTry again')
+  expect(
+    outline(
+      Plain(
+        { page: failed, onRetry: Message.AskedForMore(), words: { retry: 'Reload' } },
+        SlotView.inertBuilder(),
+      ),
+    ),
+  ).toContain('buttonReload')
+  expect(
+    outline(
+      Plain(
+        { page: { ...failed, previous: ready.value }, onRetry: Message.AskedForMore() },
+        SlotView.inertBuilder(),
+      ),
+    ),
+  ).toContain('buttonTry again')
+})
+
+it('keeps a detail’s value when its refresh failed', () => {
+  const Plain = DetailView.forMessages<Message>().define(PostDetail)
+  const drawn = outline(
+    Plain(
+      {
+        value: { _tag: 'Failed', error: offline, previous: rows[0]! },
+        onRetry: Message.AskedForMore(),
+      },
+      SlotView.inertBuilder(),
+    ),
+  )
+
+  expect(drawn.slice(0, 3)).toEqual(['div', 'p[alert]offline', 'buttonTry again'])
+  expect(drawn).toContain('dl')
+  expect(drawn).toContain(`dd${rows[0]!.title}`)
+})

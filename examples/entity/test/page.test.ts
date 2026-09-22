@@ -4,9 +4,9 @@
  * SQLite database: Remote's own Subscriptions fetch the lists and the open post,
  * DOM events drive the form, and a save reaches the row.
  */
-import { Layer } from 'effect'
+import { Effect, Layer } from 'effect'
 import * as Runtime from 'foldkit/runtime'
-import { Remote } from 'foldkit-remote'
+import { Remote, RemoteClient, RemoteQueryError } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Model, initial, placements, update } from '../src/app.js'
@@ -151,6 +151,70 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
 
     element('#close').click()
     await vi.waitFor(() => expect(element('#editor')).toBeNull())
+  } finally {
+    handle.dispose()
+    backend.close()
+  }
+})
+
+it('says a list could not be read, and reads it again when asked', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'entity-page'
+  document.body.appendChild(container)
+
+  const backend = openServer()
+  // The server, with its queries failing until it comes back.
+  let reachable = false
+  const served = Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
+    Layer.provide(backend.layer),
+  )
+  const flaky = Layer.effect(
+    RemoteClient,
+    Effect.gen(function* () {
+      const client = yield* RemoteClient
+      return {
+        ...client,
+        query: request =>
+          reachable
+            ? client.query(request)
+            : Effect.fail(new RemoteQueryError({ message: 'The server is unreachable.' })),
+      }
+    }),
+  ).pipe(Layer.provide(served))
+
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      placements.complete({
+        Model,
+        container,
+        init: () => ({ model: initial() }),
+        update,
+        view,
+        subscriptions: placements.subscriptions(),
+        resources: flaky,
+      }),
+    ),
+  )
+  try {
+    await vi.waitFor(() =>
+      expect(element('#Posts [role=alert]')?.textContent).toBe('The server is unreachable.'),
+    )
+    expect(cells()).toEqual([])
+
+    // Nothing asks again on its own. The button is the asking.
+    reachable = true
+    element<HTMLButtonElement>('#Posts button').click()
+    await vi.waitFor(() =>
+      expect(cells()).toEqual([
+        ['p1', 'Notes on the Engine', 'yes'],
+        ['p2', 'Compilers', 'no'],
+      ]),
+    )
+    expect(element('#Posts [role=alert]')).toBeNull()
   } finally {
     handle.dispose()
     backend.close()

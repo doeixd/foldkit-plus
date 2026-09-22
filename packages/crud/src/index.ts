@@ -128,6 +128,7 @@ export interface DomainLike<Root> {
   query(query: any, input: any, options: any): Projection<Root, RemoteData<Page<any>>>
   next(model: Root, projection: any): { readonly query: string } | undefined
   fetch(ref: any): Command<RemoteMessage, never, RemoteClient>
+  refresh(model: Root, target: any): Root
   mutation(model: Root, requestId: string): MutationStatus
   readonly contract: { readonly owner?: object | undefined }
 }
@@ -226,6 +227,15 @@ export const Crud = {
         } satisfies ActiveSurface<Root>,
         value: (root: Root): RemoteData<Row> =>
           projectionOf(root)?.read(root) ?? { _tag: 'Initial' },
+        /**
+         * Asks for the value again: `Data.refresh` over this detail, for a retry
+         * button. A failed read is not retried on its own. Unchanged while no id
+         * is shown.
+         */
+        refresh: (root: Root): Root => {
+          const projection = projectionOf(root)
+          return projection === undefined ? root : where.data.refresh(root, projection)
+        },
       }
     },
   }),
@@ -404,6 +414,16 @@ export const Crud = {
             const projection = projectionOf(root)
             const next = projection === undefined ? undefined : data.next(root, projection)
             return next === undefined ? undefined : data.fetch(next)
+          },
+
+          /**
+           * Asks for the list again: `Data.refresh` over its page and rows, for a
+           * retry button. A failed read is not retried on its own. Unchanged while
+           * the list is not shown.
+           */
+          refresh: (root: Root): Root => {
+            const projection = projectionOf(root)
+            return projection === undefined ? root : data.refresh(root, projection)
           },
 
           name,

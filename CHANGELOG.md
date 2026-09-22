@@ -102,6 +102,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-crud`: a failed refresh keeps the rows on screen.**
+  `ListView` and `DetailView` drew any `Failed` as a lone error, which was
+  right while only decode errors produced it. Now that a failed refresh reads
+  `Failed { previous }`, they draw the previous rows or value with the error
+  above them. `onRetry` on either view adds a **Try again** button (the `retry`
+  slot, worded by `words.retry`), and `foldkit-crud`'s placed lists and details
+  gain `refresh(model)` for its Message to return.
 - **`foldkit-remote`: a list waiting on its first page reads `Loading`.** It
   read `Initial`, which is documented as "nothing is fetching this", so a view
   could not tell a slow network from a Surface that was never activated. The

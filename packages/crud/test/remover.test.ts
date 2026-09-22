@@ -207,4 +207,23 @@ describe('Crud.detail', () => {
     expect(PostDetail.active.projectionOf(listed)).toBeUndefined()
     expect(PostDetail.value(listed)).toEqual({ _tag: 'Initial' })
   })
+
+  it('asks for a failed value again when refreshed, and leaves the Model alone with no id', async () => {
+    const listed = await start()
+    expect(PostDetail.refresh(listed)).toBe(listed)
+
+    const shown = { ...listed, shown: 'p1' }
+    const failed = Data.reduce(shown, {
+      _tag: 'ReadFailed',
+      requests: [{ entity: 'Post', id: 'p1', fields: ['title'] }],
+      error: { _tag: 'RemoteReadError', message: 'down' },
+    })
+    const projection = PostDetail.active.projectionOf(failed)!
+    expect(PostDetail.value(failed)._tag).toBe('Failed')
+    expect(Data.plan(failed, projection)).toEqual([])
+
+    expect(Data.plan(PostDetail.refresh(failed), projection)).toEqual([
+      { entity: 'Post', id: 'p1', fields: ['title'] },
+    ])
+  })
 })
