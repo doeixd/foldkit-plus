@@ -22,6 +22,26 @@ disposable view of it. If an edit is client-authored and must survive offline,
 restart, or network failure until it converges, that belongs to
 [`foldkit-sync`](../sync) and [`foldkit-durable`](../durable), not Remote.
 
+## Find what you need
+
+This README is long because it covers everything Remote does. Read the
+[sixty-second example](#sixty-seconds-one-entity-one-surface) first, then jump
+to what you are doing:
+
+| Task | Start here |
+| --- | --- |
+| See it work before there is a server | [A backend held in memory](../remote-server/README.md#a-backend-held-in-memory) |
+| Understand `Initial`, `Loading`, or a stale value | [`RemoteData`](#remotedata-what-does-the-model-know-right-now) |
+| Find out why a read stays `Initial` | [`Data.why`](#remotedata-what-does-the-model-know-right-now) |
+| Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
+| Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
+| Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
+| Save, and show the result before the server answers | [Mutations](#mutations-and-optimistic-state) |
+| Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
+| Keep data across a reload, or seed it from SSR | [Hydration](#persistence-and-hydration) |
+| Release data no active feature needs | [Retention](#retention-and-garbage-collection) |
+| Answer the requests on the server | [How the server packages fit](#how-the-server-packages-fit) |
+
 ## Which state belongs here?
 
 A useful rule across Foldkit Plus is **one owner per datum**:
@@ -985,7 +1005,8 @@ Sync operation
 ```
 
 If losing an unsent edit would be data loss, it belongs to Sync rather than
-Remote.
+Remote. For the same reason, an optimistic overlay is only a temporary view of
+server-owned data: do not persist one and treat it as a queue of edits.
 
 ## Live data
 
@@ -1120,22 +1141,6 @@ execution are layer choices rather than Remote semantics.
 See [`foldkit-remote-server`](../remote-server) for Source and authorization
 rules, and [`examples/kitchen-sink`](../../examples/kitchen-sink) for the real
 server packages together.
-
-## Finding the next API
-
-| Task | Start here |
-| --- | --- |
-| Explain `Initial`, `Loading`, or a stale value | [`RemoteData`](#remotedata-what-does-the-model-know-right-now) |
-| Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
-| Load an ordered list | [Queries and pagination](#queries-and-pagination) |
-| Save and show an optimistic result | [Mutations](#mutations-and-optimistic-state) |
-| Release data no active feature needs | [Retention](#retention-and-garbage-collection) |
-| Seed a cache after reload or SSR | [Hydration](#persistence-and-hydration) |
-
-A successful mutation and an optimistic overlay have different guarantees:
-the overlay is only a temporary view of server-owned data. Use Sync when the
-operation itself must survive offline, rather than persisting an optimistic
-Remote cache and treating it as an outbox.
 
 ## Introspection
 
