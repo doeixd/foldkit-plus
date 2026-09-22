@@ -14,12 +14,20 @@
 | Finding | Where |
 | --- | --- |
 | **The client-side query engine already exists and is on the wrong side of the wire.** `foldkit-remote-server`'s `evaluate` is pure, runs the whole operator kernel, and imports nothing but `foldkit-entity`. | [§7](#7-the-keystone) |
-| **Membership, not the engine, is the real blocker.** A connection's rows are server-delivered edges; nothing on the client ever evaluates a body. That one fact explains the optimistic-placement guess, §21's containment problem, and why a local engine feels like a second authority. | [§4](#4-blocker-2--membership-only-ever-comes-from-the-server) |
-| **"No IVM" is mostly one memo key.** Reads memoize on the store *object*, so any write re-decodes every visible row of every active connection. Untouched entries keep their identity across a write, so a per-entry memo recovers most of the benefit with no API change. | [§3](#3-blocker-1--reads-recompute-from-scratch) |
-| **Four of LiveStore's six contributions are already built under other names.** What is missing is a durable *queryable* local read model — and it is available without adopting LiveStore's event log, which would collide with Sync/Durable. | [§5](#5-blocker-3--nothing-durable-and-queryable-locally) |
+| **Membership, not the engine, is the real blocker.** A connection's rows are server-delivered edges; nothing on the client ever evaluates a body. That one fact explains the optimistic-placement guess, `LivePolicy`'s existence, §21's containment problem, and why a local engine feels like a second authority. | [§4](#4-blocker-2--membership-only-ever-comes-from-the-server) |
+| **The existing guess has a name and a public API.** `LiveInsertion` — `visible \| boundary \| invalidate \| ignore`, declared per connection end — exists *because* nothing can tell whether an inserted row belongs to a query. It is the caller local evaluation needs, and it already shipped. | [§8](#8-what-local-evaluation-unlocks) |
+| **Local evaluation is only sound if it refuses four things**: rows missing the fields the body reads, values it cannot compare in the store's encoding, orderings whose collation the backend defines, and placements outside a loaded boundary. Each is a silent wrong answer, not an error. | [§9](#9-what-local-evaluation-must-refuse) |
+| **Four of LiveStore's six contributions are already built under other names.** What is missing is a durable *queryable* local read model — reachable through §20's mode B without adopting an event log. | [§5](#5-blocker-3--nothing-durable-and-queryable-locally) |
 | **Five of tanstackstart-db's seven route ideas are present, and the sixth is ahead of the original.** Dependent reads are solved at the data level by the planner rather than as route-loader stages. | [§6](#6-blocker-4--the-page-contract-is-opaque-at-its-edges) |
-| **The conformance suite can become a guarantee rather than a test**: that the optimistic local answer equals the eventual server answer. | [§9](#9-the-conformance-suite-becomes-a-guarantee) |
-| **Local execution is how Phase 13's gates open without violating §28.** Ship client-side filtering and real callers for `or` appear on their own. | [§10](#10-gates-that-open-themselves) |
+| **The conformance suite can become a guarantee** — that the optimistic local answer equals the eventual server answer — but only after it gains the cases that make encoding and collation observable. Today its fixtures cannot see either. | [§10](#10-the-conformance-suite-becomes-a-guarantee) |
+
+Two things the **first draft of this plan got wrong**, recorded because they are
+the instructive part:
+
+| Mistake | Correction |
+| --- | --- |
+| "Memoize the read on the `EntityEntry`; untouched entries keep identity." | True about identity, **wrong about the memo**. `assemble` recurses through `assembleRelation` into *other* entities, so a row's value depends on entries its own key does not name. A change to `User:u1` changes `Project:p1`'s value while `Project:p1`'s entry is untouched — a stale read, silently. The memo has to be keyed on the *set of entries the assembly visited*. See [§3](#3-blocker-1--reads-recompute-from-scratch). |
+| "Phase 1 is the cheap obvious win, do it first." | It is an optimization with **no evidenced caller**. There is no benchmark in the repository and every page size in it is between 1 and 25. That is the §28 failure this project criticises elsewhere, committed in its own plan. Measurement comes first, and the phase is demoted. |
 
 ---
 
@@ -48,7 +56,7 @@ Before proposing anything, what is already true.
 | Optimistic transactions (§4.10) | Remote's layers and connection overlays, recomputed rather than patched with inverses |
 | `.required()` | Settled and removed — §11's expectation had no consumer |
 | `.live()` | The subscription's policy, deliberately not the query's |
-| Incremental view maintenance | **Missing** — §3 |
+| Incremental view maintenance | **Missing**, and not yet shown to matter — §3 |
 | Joins, aggregates, derived collections | Phase 13, gated on a real caller |
 
 ### From LiveStore
@@ -78,23 +86,27 @@ Before proposing anything, what is already true.
 
 ## 3. Blocker 1 — reads recompute from scratch
 
-`Data.query`'s read memoizes on the *visible store object*:
+`Data.query`'s read memoizes on the *visible store object*, so a write to one
+field produces a new store, misses every memo, and re-assembles and
+re-`Schema.decode`s every visible row of every active connection.
 
-~~~text
-write one field
-      ↓
-new EntityStore object
-      ↓
-memo miss for every connection
-      ↓
-re-assemble and re-decode every visible row
-~~~
+That is what "no incremental view maintenance" means concretely.
 
-That is what "no incremental view maintenance" means concretely. At 25-row
-pages nobody notices; at a few thousand rows in view it is the whole
-difference.
+### 3.1 It is not obviously a problem
 
-### 3.1 The cheap fix is a memo key
+There is **no benchmark anywhere in this repository**, and every `first:` in it
+is 1, 10 or 25. Nobody has reported a slow list, because nothing here draws a
+list long enough to be slow.
+
+So this section is an observation, not yet a justification. Optimizing it now
+would be generalising from no evidence, which is the rule this project applies
+to everything else. **The first piece of work is a measurement**, not a fix:
+a benchmark that renders a connection of realistic size, changes one field, and
+counts decodes. If the number is uninteresting at the sizes anyone actually
+draws, this blocker is closed as "not a problem" and the section stays as a
+record of why.
+
+### 3.2 And the obvious fix is wrong
 
 `writeEntities` copies the store once and replaces only the keys written:
 
@@ -105,27 +117,43 @@ for (const write of writes) {
 }
 ~~~
 
-So **an untouched `EntityEntry` keeps its object identity across a write.** A
-memo held on the entry rather than on the store survives:
+so an untouched `EntityEntry` keeps its object identity, and `visibleStore`
+preserves that too — it applies layers with the same `writeEntity`.
 
-~~~text
-WeakMap<EntityEntry, Map<relationKey, assembled+decoded value>>
+From which it is tempting to conclude: memoize the row's value on the row's
+entry. **That is a stale-read bug.** `assemble` walks relations:
+
+~~~ts
+const relation = requirement.relations?.[field]
+if (relation === undefined) { … }
+const nested = assembleRelation(store, value.value, relation)
 ~~~
 
-A changed row re-decodes; the other twenty-four hit cache. No API change, no
-dependency, entirely internal to `foldkit-remote`.
+A Selection reaching through `owner` makes `Project:p1`'s assembled value depend
+on `User:u1`'s entry. Change the user's name and `Project:p1`'s entry is
+untouched, so the memo hits and the view keeps the old name. Every selection in
+the CMS and kitchen-sink reaches through a relation, so this would not have been
+a rare case.
 
-A second memo on the page, keyed by its edge list, means an unchanged
-connection with one changed row rebuilds one array slot rather than an array.
+### 3.3 What would actually work
 
-### 3.2 What this is not
+Record the dependency set. Assembly already visits exactly the entries the value
+depends on; have it return them, and key the memo on `(entity key, relation
+key)` with a validity check that every recorded entry is still identical.
 
-It is not a dataflow graph, and it does not make a `where` incremental —
-membership still comes from the server (§4). It makes *materialization*
-incremental, which is the part that costs per-row `Schema.decode`.
+~~~text
+assembled value
+  + the entries it was assembled from
+      ↓
+memo hit only if every one of those entries is still the same object
+~~~
 
-A real dataflow graph is worth revisiting only if §3.1 proves insufficient
-under measurement. Do not start there.
+Validation is O(entries touched) — a handful of identity comparisons — against
+O(fields × decode) to rebuild. It is correct under relations, and it is the
+same idea as fine-grained dependency tracking, arrived at from the other end.
+
+This is strictly more work than the one-line version and should not be
+attempted before §3.1 says it is worth anything.
 
 ---
 
@@ -133,18 +161,22 @@ under measurement. Do not start there.
 
 This is the load-bearing one.
 
-A connection's rows are edges the server delivered. The body says which rows
-the query is *about*, but **nothing on the client ever evaluates it**. Three
-apparently unrelated problems are all this one:
+A connection's rows are edges the server delivered. The body says which rows the
+query is *about*, but **nothing on the client ever evaluates it**. Four
+apparently unrelated things are all this one:
 
 - **Optimistic placement is a guess.** A connection overlay can `prepend`,
-  `append`, or `remove`. It cannot ask whether a new row satisfies the query,
-  or where the ordering puts it.
+  `append`, or `remove`. It cannot ask whether a new row satisfies the query.
+- **`LivePolicy` is the same guess, pre-declared.** `LiveInsertion` —
+  `'visible' | 'boundary' | 'invalidate' | 'ignore'`, per connection end —
+  exists so an application can say in advance what to do with an insert it
+  cannot evaluate. It is a public API whose entire purpose is to stand in for
+  the missing evaluation.
 - **§21's containment is hard** partly because the only thing the client can
   compare is connection identity — "is this the same question" — never "does
   this row belong".
-- **A local engine looks like a second authority**, because it would be
-  producing membership that the server also produces.
+- **A local engine looks like a second authority**, because it would produce
+  membership the server also produces.
 
 ### 4.1 The cheap answers do not work
 
@@ -157,10 +189,16 @@ apparently unrelated problems are all this one:
 
 ### 4.2 The answer is to evaluate the body
 
-Give the client the ability to run a body over the rows it holds. Then
-membership is derivable locally *for rows the client has*, while the server
-stays authoritative for which rows exist. Those are different claims and can
-coexist — which is precisely what an optimistic layer already assumes.
+Give the client the ability to run a body over the rows it holds. Membership
+becomes derivable locally *for rows the client has*, while the server stays
+authoritative for which rows exist. Those are different claims and can coexist —
+which is exactly what an optimistic layer already assumes.
+
+It is also not authorization. A compiled `where` is conjoined with a binding's
+`visible` rule on the server; **locally there is no `visible` at all.** That is
+safe only because the client holds only rows the server already released to it,
+and it must be said plainly, because "filtered locally" reads like a guarantee
+and is not one.
 
 ---
 
@@ -179,21 +217,30 @@ co-authorities for the same fact:
 - **Mode B** — Sync/Durable stay authoritative and a local read model is
   *materialized* from the order they already establish.
 
-**Mode B is the answer**, and it needs no LiveStore dependency: the machinery
-LiveStore would provide is a SQLite and a materializer, and Sync already
-derives replay from the application's own `update`.
+**Mode B is the answer**, and it needs no LiveStore dependency: what LiveStore
+would provide is a SQLite and a materializer, and Sync already derives replay
+from the application's own `update`.
 
 ### 5.1 A cheaper step that is worth doing first
 
 Remote's cache is deliberately "server-derived and disposable" — an
-incompatible or corrupt snapshot is discarded so the planner refetches. That is
-right for a cache and wrong for the thing a user notices, which is a list going
-blank on reload.
+incompatible or corrupt snapshot is discarded so the planner refetches. Right
+for a cache; wrong for the thing a user notices, which is a list going blank on
+reload.
 
-A **declared retained subset** — *this connection survives reload, and is served
-stale-then-refreshed* — gets most of the offline feel with no second authority
-and no new storage engine. Strictly cheaper than mode B, and independently
-useful.
+A **declared retained subset** gets most of the offline feel with no second
+authority and no new storage engine. Two things it must confront, both of which
+are deliberate existing decisions rather than oversights:
+
+- **Connections are explicitly excluded from snapshots today**, along with live
+  cursors, optimistic layers, the mutation ledger, gaps and retention roots,
+  because they belong to the session that produced them. Retaining connection
+  membership reverses that for a declared subset only, and needs a
+  `REMOTE_CACHE_VERSION` bump.
+- **Cursors are opaque strings the server minted.** A restored connection's
+  boundaries may refer to server state that no longer exists. The safe
+  restoration is edges plus `Unknown` boundaries — show the rows, re-establish
+  the window — rather than trusting a persisted cursor.
 
 ---
 
@@ -210,10 +257,9 @@ dependent read, not only one a route declared.
 
 **Activation is opaque, and that now costs something measurable.**
 `Surface.at` takes an arbitrary callback, so *why* a Surface is active cannot be
-inspected. `Data.explain` was built against §29.1, whose own sketch begins
-`Surface: ProjectPage` — and that is the one line it cannot report, because a
-Projection does not know which Surfaces read it. §31.10's tagged-state helper is
-what supplies it:
+inspected. `Data.explain` was built against §29.1, whose sketch begins
+`Surface: ProjectPage` — the one line it cannot report, because a Projection
+does not know which Surfaces read it. §31.10's tagged-state helper supplies it:
 
 ~~~ts
 Surface.when(ProjectPage, App.fields.route, AppRoute.Project, route => ({
@@ -222,8 +268,14 @@ Surface.when(ProjectPage, App.fields.route, AppRoute.Project, route => ({
 ~~~
 
 Not router-specific: a route is one kind of tagged Model state that may activate
-a Surface. §31.10's own constraint — stay as small and unsurprising as
-`Surface.at` — is satisfiable in that form.
+a Surface.
+
+**But the helper alone does not reach `explain`.** `Data.explain` takes a
+Projection, and the Surface relation lives in the active-surface list that
+`Data.subscriptions` is given. Closing §29.1's first line needs a second, small
+piece: a manifest derived from those active surfaces, which `explain` can be
+handed or can consult. Unspecified in the first draft of this plan; it is the
+difference between "a nice helper" and "the finding is closed".
 
 ---
 
@@ -243,16 +295,33 @@ import { Query, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from 'foldkit-entity'
 ~~~
 
-**Nothing from `foldkit-remote`, nothing from the server, nothing from Effect's
-runtime.** It is a function over the IR that happens to live in a package named
-for the server.
+Nothing from `foldkit-remote`, nothing from the server, nothing from Effect's
+runtime. The conformance suite beside it imports only `effect` and
+`foldkit-entity`. `foldkit-remote-server` already depends on `foldkit-remote`,
+so moving both *down* introduces no cycle.
 
-`foldkit-remote-server` already depends on `foldkit-remote`, so the dependency
-direction for moving it *down* into `foldkit-entity` is clear, and no cycle
-appears. `foldkit-remote-server` re-exports it, so nothing breaks.
+### 7.1 Which package, and the tension in the answer
 
-This is unusual and worth stating plainly: the largest single capability gap in
-this document is closed by moving a file.
+`foldkit-entity` is the home, with a caveat worth stating rather than
+discovering later.
+
+The argument for it: `foldkit-entity` owns the IR, and an evaluator of the IR is
+its **reference semantics** — what §6.0.1 means operationally rather than in
+prose. A specification's reference implementation belongs with the
+specification. Putting it in `foldkit-remote` would mean `foldkit-form`,
+`foldkit-crud` and `foldkit-cms` cannot evaluate a body without depending on
+Remote, which they do not otherwise need.
+
+The argument against: `foldkit-entity` is a *declaration* package that others
+interpret, and adding an interpreter inverts that. The mitigation is a rule
+rather than a different package — **the evaluator may only ever depend on the
+IR**, and the moment it wants a Remote concept it has moved to the wrong place
+and should leave.
+
+**Packaging consequence the first draft missed:** `foldkit-entity` currently
+exports only `"."`. The conformance suite is test fixture data — 25 cases, rows,
+an Entity — and must not ship in the main bundle of a package that every form
+and admin screen imports. It needs its own subpath export.
 
 ---
 
@@ -262,20 +331,115 @@ Once a body can be run against the client's own rows:
 
 - **Optimistic placement stops guessing.** Ask whether the new row satisfies the
   body, and where `orderBy` puts it among the edges already held.
+- **`LivePolicy` gets a better default.** The insertion policies exist because
+  an application had to decide in advance what to do with a row nobody could
+  evaluate. With evaluation, `'visible'` and `'ignore'` become *derivable* for
+  the rows the client can judge, and the declared policy becomes the fallback
+  for the rows it cannot. This is the caller that already shipped.
 - **Local connections** — membership computed from the store rather than
-  delivered. Instant filter and sort with no round trip, for rows already held.
+  delivered. Instant filter and sort over rows already held.
 - **Derived connections** — one connection defined as a narrowing of another,
   which is TanStack's "derived collections" without its engine.
-- **§21 gets its cheap half honestly.** Not containment reasoning — *evaluation*.
-  "Does this row satisfy this body" is decidable and exact; "are these rows a
-  subset of those rows" is the research problem. The first was always the one
-  worth having.
-- **A second consumer for `Query.show`**, so a local result can be explained the
-  same way a remote one is.
+- **§21 gets its cheap half honestly.** Not containment reasoning —
+  *evaluation*. "Does this row satisfy this body" is decidable and exact; "are
+  these rows a subset of those rows" is the research problem. The first was
+  always the one worth having.
 
 ---
 
-## 9. The conformance suite becomes a guarantee
+## 9. What local evaluation must refuse
+
+Every item here produces a **wrong answer rather than an error** if it is
+missed, which is why they are a section and not a footnote. §16's rule applies
+to the client exactly as it applies to an interpreter: refuse what you cannot
+answer faithfully, never approximate it.
+
+### 9.1 Rows are partial
+
+The normalized store holds the fields that were *fetched*. A body filtering on
+`status` is evaluated against a row whose Selection never asked for `status`,
+and a missing field reads as absent — so the row is judged against nothing and
+the answer is confidently wrong.
+
+`Query.dependencies(body).fields` already names exactly what must be present.
+Local evaluation checks it and refuses — falling back to the server — when it is
+not.
+
+There is a design consequence beyond the check: a connection that wants to be
+evaluated locally must have the body's fields *planned*, not merely the view's.
+That is a change to what a read requests, and it should be opt-in per connection
+rather than a blanket widening of every read.
+
+### 9.2 The store is encoded; bodies are not
+
+`assemble` returns wire values and `Data.query` decodes them at read time, so
+the store holds **encoded** values. A `QueryRef`'s input is the **decoded**
+domain value, and a body's literals are written in domain terms
+(`Expr.eq(Post.fields.published, true)`).
+
+Comparing a decoded input against an encoded row is a correctness bug that
+typechecks. `Expr.input` and `FieldExpr` both carry their schema, so the
+encoding is available — it simply has to be applied, and the direction chosen
+once and stated: **evaluate in the store's encoded space.**
+
+`evaluate`'s own `Row` is `Readonly<Record<string, unknown>>` with no encoding
+discipline at all, and the conformance fixtures put rows and inputs in the same
+space, so **the suite cannot currently see this class of bug**. It needs a case
+whose encoded and decoded forms differ.
+
+### 9.3 Collation is the backend's, and almost every order is text
+
+This is the sharpest conflict, because it contradicts something already decided.
+
+`ac751ac` recorded that text collation is backend-defined and deliberately
+outside the conformant subset — the first attempt to fix it declared code point
+ordering *because two interpreters agreed*, which was the accident being
+criticised.
+
+But `Order.asc(Post.fields.id)` is an ordering over text, and it is the standard
+tie-breaker. So **local ordering cannot be guaranteed to match the server for
+almost any real query**, and a locally placed row may sit one position away from
+where the server will put it.
+
+Three ways out, and the third is the one to take:
+
+1. Restrict local ordering to non-text fields. Nearly useless — it excludes the
+   id tie-breaker that most bodies carry.
+2. Accept approximation. Defensible for an optimistic insert, which is a guess
+   that the server's page corrects — but it quietly reintroduces the guessing
+   this work exists to remove, and it is not defensible for a local connection.
+3. **Let a query declare its collation**, and let an interpreter that cannot
+   honour it refuse. This is §16's shape applied to ordering rather than
+   operators: SQLite gets `COLLATE BINARY`, Postgres `COLLATE "C"`, the local
+   evaluator a code-point comparison, and a backend that can do none of them
+   says so. It converts an undecidable into a declared constraint, and it
+   resolves `ac751ac` properly — collation is not code point *by default*, but
+   it can be *asked for*.
+
+Option 3 is a change to `Query.define` and to every interpreter, and it should
+be sized as such. Local ordering is not trustworthy until it exists.
+
+### 9.4 A connection is paginated, and cursors are opaque
+
+"Where `orderBy` puts it" is not a placement rule. A connection is a list of
+segments with `Terminal | Cursor | Unknown` boundaries, and **a cursor is an
+opaque string the server minted** — the client cannot compare a row's sort
+position against it.
+
+So placement is decidable only:
+
+- **between two loaded edges**, by comparing against both; or
+- **at an end whose boundary is `Terminal`**, which is the only boundary that
+  asserts there is nothing beyond it.
+
+A row that sorts beyond a `Cursor` or `Unknown` boundary belongs to a page the
+client does not have, and must **not** be shown — showing it invents a position
+in a list the user will see corrected. That is the rule, and it also explains
+why `LiveInsertion` has a `'boundary'` case: somebody already knew.
+
+---
+
+## 10. The conformance suite becomes a guarantee
 
 Today the 25 cases say *four interpreters agree about what a body means*. That
 was worth building and it found real bugs.
@@ -285,152 +449,216 @@ something much stronger:
 
 > **The optimistic local answer equals the eventual server answer.**
 
-That is a property optimistic UI usually only asserts. Here it would be tested,
-case by case, against a real database — and the cases were already chosen to
-make interpreters disagree.
+That is a property optimistic UI usually only asserts.
 
-It also sharpens what the suite must cover. The gap named in the deferred-work
-plan becomes urgent rather than theoretical: every interpreter today runs SQLite
-or JavaScript, and `Expr.contains` folds ASCII-only *because* that is what
-SQLite's `lower` does without ICU. A client evaluating in JavaScript against a
-Postgres server is exactly the divergence nothing currently catches.
+It is not free. The suite must first gain what it cannot currently see:
+
+- a case whose **encoded and decoded forms differ** (§9.2), since today's
+  fixtures put both in one space;
+- cases over **text ordering** once §9.3's declared collation exists, since
+  ordering is currently outside the conformant subset precisely because nobody
+  could commit to it;
+- a **Postgres** subject. Every interpreter today runs SQLite or JavaScript, and
+  `Expr.contains` folds ASCII-only *because* that is what SQLite's `lower` does
+  without ICU. A JavaScript client against a Postgres server is exactly the
+  divergence nothing currently catches. The blocker is that
+  `drizzle-orm/effect-postgres` throws on load against effect rc.112, so this
+  waits on the driver versions agreeing.
 
 ---
 
-## 10. Gates that open themselves
+## 11. Gates that open themselves
 
 §28 says generalise only from evidence, and it is not suspended. Phase 13's
 members — `or`, `distinct`, `groupBy`, aggregates, joins — are each gated on a
 query that wants one, and none exists.
 
 Local execution is the honest way to change that. Ship client-side filtering and
-a search box over two fields is an ordinary product request within a week, which
-is a real caller for `or` rather than an invented one. The same is true of
-`distinct` once derived connections exist.
+a search box over two fields is an ordinary product request, which is a real
+caller for `or` rather than an invented one.
 
 **The way to open a gate without violating the rule is to build the thing that
-creates real callers**, not to argue the rule should bend.
+creates real callers** — not to argue the rule should bend.
 
 ---
 
-## 11. What not to do
+## 12. What not to do
 
 - **Do not adopt LiveStore's event log.** Two durable authorities for one fact,
   which §20 forbids, in exchange for capabilities mode B provides anyway.
 - **Do not promote the LiveStore interpreter.** Its builder runs `eq`, has no
   null predicate at all, and rewrites `= null` into `IS NULL` — the weakest of
   the four engines, as Phase 10 found.
-- **Do not build a dataflow graph** before §3.1 is measured.
+- **Do not optimize §3 before measuring it**, and do not use the one-line memo
+  when you do (§3.2).
+- **Do not build a dataflow graph** at all until the dependency-set memo of
+  §3.3 has been shown to be insufficient.
 - **Do not build `Page`/`RouteContract`** (§31.11). Its justification is several
   concerns repeatedly needing one route-associated value; today one does.
 - **Do not add the fluent read API** (§11.2). The separation was the point and is
   built; the chaining is sugar.
-- **Do not make TanStack DB collections a source of truth.** As an execution
-  engine, yes (§19). As membership authority, that is blocker 2 with extra steps.
+- **Do not make TanStack DB collections a source of truth.** Execution engine
+  yes (§19); membership authority is blocker 2 with extra steps.
 
 ---
 
-## 12. Implementation sequence
+## 13. Sequence
 
-Each phase is independently shippable and independently valuable. Nothing
-depends on a later phase.
+Phases are numbered by dependency, not by priority. **A → B** means B cannot
+start until A lands.
 
-### Phase 1 — memoize materialization per entry
+~~~text
+0 ── 1 ── 2 ── 3 ─┬─ 4        capability chain
+                  └─ 6
+M (independent) ── measure, then maybe M2
+5 (independent)
+7 (independent)
+~~~
 
-Move the read memo from the store object to the `EntityEntry`, and the page memo
-to the edge list. Internal to `foldkit-remote`; no public API changes.
+### 0 — Decide what a local answer *is*
 
-**Done when:** a write to one entity re-decodes one row of a loaded page, proved
-by a test that counts decodes, and the full suite is unchanged otherwise.
+Before any API returns one. A local answer is "of what I have", not "of what
+exists", and an API that does not say which will be read as the second. This is
+phase 3's return type, so it is a decision and not a note.
 
-### Phase 2 — move the reference interpreter down
+**Done when** the distinction is expressible in the type system, and a reviewer
+can say which of the two any given read returns without reading its
+implementation.
+
+### 1 — Move the reference interpreter down
 
 `evaluate`, `supported`, `assertSupported` and the conformance suite move to
-`foldkit-entity`. `foldkit-remote-server` re-exports them.
+`foldkit-entity`, the suite behind its own subpath export (§7.1).
+`foldkit-remote-server` re-exports so nothing breaks.
 
-**Done when:** the four interpreters' conformance runs are untouched, and
-`foldkit-remote` can import `evaluate` without depending on a server package.
+**Done when** all four interpreters' conformance runs are untouched,
+`foldkit-remote` can import `evaluate` without depending on a server package,
+and the fixture is not in `foldkit-entity`'s main bundle.
 
-### Phase 3 — evaluate a body against the store
+### 2 — Teach the suite to see what it cannot
 
-A function from the visible store plus a body plus an input to the entity keys
-that satisfy it, in the body's order. Pure, and reusing Phase 2's evaluator over
-rows assembled from the store.
+The encoded/decoded case of §9.2, before anything depends on the answer. Without
+it phase 3 has no way to fail.
 
-**Done when:** it agrees with the conformance suite over rows written into a
-store, for every case whose operators the kernel runs.
+**Done when** a deliberately mis-encoded comparison turns the suite red.
 
-### Phase 4 — optimistic placement through the body
+### 3 — Evaluate a body against the store
 
-An optimistic insert asks whether the row satisfies the connection's body and
-where the ordering puts it, instead of choosing `prepend` or `append`.
+A pure function from the visible store, a body and an input to the entity keys
+satisfying it — reusing phase 1's evaluator over rows assembled from the store,
+in the store's encoded space (§9.2), refusing when the body's dependency fields
+are absent (§9.1).
 
-**Done when:** a row that does not satisfy the query does not appear
-optimistically, and one that does appears in its ordered position — both proved
-against a connection whose order is not insertion order.
+**Done when** it agrees with the conformance suite over rows written into a
+store, and refuses — rather than answering — every case in §9.
 
-This is the first user-visible phase and the most valuable single change here.
+**Kill criterion:** if §9.1's field requirement turns out to force widening most
+reads, or §9.2's encoding cannot be applied without a schema the store does not
+carry, stop here and record why. Phases 4 and 6 depend on this being *exact*.
 
-### Phase 5 — `Surface.when`
+### 4 — Placement through the body
 
-The tagged-state activation helper (§31.10), and `Data.explain` gains the
-Surface line §29.1 asked for.
+Replace the guess in **both** places it exists: optimistic inserts, and
+`LivePolicy`'s insertion decision for rows the client can judge. The declared
+policy remains the fallback for rows it cannot.
 
-**Done when:** an active Surface can be named from the Model without an opaque
-callback, `Surface.at` still exists and still works, and the helper is not
-router-specific.
+Placement follows §9.4 — between loaded edges, or at a `Terminal` boundary, and
+never past a `Cursor`.
 
-### Phase 6 — a retained connection subset
+**Done when** a row that does not satisfy the query does not appear, one that
+does appears in its ordered position, and one that sorts past a non-`Terminal`
+boundary does not appear at all — each against a connection whose order is
+*not* insertion order, or the test proves nothing.
 
-A declared set of connections whose last good page survives reload, served
-stale-then-refreshed rather than discarded.
+Ordering by text is approximate until §9.3's declared collation exists; until
+then this phase should ship for bodies whose order the client can reproduce and
+refuse the rest.
 
-**Done when:** a reload shows the previous page immediately and refreshes it,
-and an incompatible or corrupt snapshot still degrades to a refetch.
+### 5 — `Surface.when`, and the manifest that makes it useful
 
-### Phase 7 — local connections
+§31.10's helper, **plus** the active-surface manifest that lets `Data.explain`
+report §29.1's first line (§6). The helper alone does not close the finding.
 
-Connections whose membership is computed by Phase 3 rather than delivered, with
-their ownership stated: the server remains authoritative for which rows exist.
+**Done when** an active Surface can be named from the Model without an opaque
+callback, `explain` reports it, `Surface.at` still exists and works, and the
+helper is not router-specific.
 
-**Done when:** a filter over rows already held returns without a request, and a
-filter that could match unheld rows still asks.
+Independent of everything else. Smallest user-visible win here.
+
+### 6 — A retained connection subset
+
+Declared connections whose last good page survives reload, restored as edges
+with `Unknown` boundaries (§5.1), served stale-then-refreshed.
+
+**Done when** a reload shows the previous page immediately and refreshes it, an
+incompatible or corrupt snapshot still degrades to a refetch, and
+`REMOTE_CACHE_VERSION` is bumped.
+
+Depends on phase 3 only if restored membership is to be *verified* locally;
+shippable without that.
+
+### 7 — Local connections
+
+Membership computed by phase 3 rather than delivered, with ownership stated:
+the server stays authoritative for which rows exist.
+
+**Done when** a filter over rows already held returns without a request, one
+that could match unheld rows still asks, and the returned value is the local
+kind from phase 0 — never the authoritative one.
+
+Also needs an answer for retention: a locally computed connection has no server
+page, and retention roots key on connection identity.
+
+### M — Measure §3, then maybe fix it
+
+Independent of the chain, and deliberately not first. Benchmark a realistic
+connection, change one field, count decodes. **If the number is uninteresting at
+the sizes this project actually draws, close blocker 1 and do nothing.**
+Otherwise implement §3.3's dependency-set memo — never §3.2's.
 
 ### Later, as their own projects
 
+- **Declared collation** (§9.3) — touches `Query.define` and every interpreter.
+  Gates trustworthy local ordering.
+- **A Postgres subject** for the suite (§10), gated on the driver versions.
 - **Mode B materialization** to a browser SQLite, with `remote-drizzle`'s
-  compiler retargeted to SQL text + params so it can run there.
-- **`packages/ssr`**, which gates `.defer()` and `.preloadOnly()` entirely.
-- **Phase 13's members**, if and when Phase 7 produces callers for them.
+  compiler retargeted to SQL text + params. Never mode A.
+- **`packages/ssr`** — gates `.defer()`/`.preloadOnly()` entirely, and is not
+  gated on anything itself.
+- **Phase 13's members**, if phase 7 produces callers.
 
 ---
 
-## 13. Risks
+## 14. Risks
 
-**Phase 3 and 4 create a second place a query is answered.** The mitigation is
-§9: the conformance suite is the agreement, and local evaluation must run
-against it. If a case cannot be run locally it must be *refused* locally, the
-same way an interpreter refuses an operator it cannot honour (§16) — never
-approximated.
+**The type distinction of phase 0 is the whole safety story.** Everything else
+here is recoverable; shipping an API that returns "of what I have" where callers
+read "of what exists" is the failure that produces silently wrong screens.
 
-**Local evaluation sees only rows the client holds.** A local answer is
-therefore "of what I have" and not "of what exists". Any API that returns one
-must say which it is, or it will be read as the second. This is the single
-easiest way for this work to become a bug factory, and it should be decided at
-the type level before Phase 7.
+**Phases 3 and 4 create a second place a query is answered**, and §9 is the list
+of ways that goes wrong quietly. The mitigation is the conformance suite as the
+agreement — which is why phase 2 comes before phase 3, and why §10's missing
+cases matter more than they look.
 
-**A JavaScript client against a Postgres server** is the untested dialect pair
-(§9). Phase 3 makes it matter.
+**Local ordering is not trustworthy without declared collation** (§9.3), and
+declared collation is a bigger change than any phase here. Phase 4 must ship
+knowing it, and refuse rather than approximate.
 
-**`Expr.contains` folds ASCII-only.** A local evaluator in JavaScript must fold
-the same way, not the way JavaScript would prefer.
+**Local evaluation applies no authorization** (§4.2). Safe today; would stop
+being safe the moment anything used a local filter as an access decision.
+
+**This plan's own first draft got two things wrong** — a memo key that would
+have shipped stale reads, and an optimization with no evidenced caller. Both
+were found by checking the code rather than by reasoning about it, which is the
+method this plan should be reviewed with again before phase 3.
 
 ---
 
-## 14. Non-goals
+## 15. Non-goals
 
 - Replacing Model / Message / update.
 - A second normalized cache.
 - Reproducing TanStack DB or LiveStore.
 - Making the Router own a loader or cache lifecycle.
 - A second durable authority for any fact.
+- Local evaluation as an authorization boundary.

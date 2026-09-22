@@ -26,6 +26,7 @@ found one at a time:
 | [§32.1](#321-every-other-section-against-what-was-built) | **Working from the phase list left two thirds of the document unchecked.** Most of it holds; §16's capability checking was not built (it is now), and §15's derivation is narrower than sketched. |
 | [§29.1](#291-devtools) | **Building the explanation deleted a concept instead of adding one.** §11's *expectation* had no consumer, and the explanation — the likeliest one there would ever be — turned out not to want it. The *executor* is a Layer and cannot be reached from a pure read, which is the price of being replayable and worth it. |
 | [§21](#21-query-driven-loading-becomes-richer-with-readcontract) | **The block was reasoning, not plumbing.** A body does reach the client planner, through the bound domain's registry. And the cheap containment check is *correct on its examples* and silently wrong elsewhere, which is why it is refused rather than written. |
+| [local-execution](./local-execution-DESIGN.md) | **Local evaluation is only sound if it refuses four things** — partial rows, the store's encoding, backend-defined collation, and placement past an unloaded boundary. Each is a silent wrong answer rather than an error, and `LiveInsertion` is the public API that already exists to stand in for the missing evaluation. |
 | [local-execution](./local-execution-DESIGN.md) | **The client-side query engine already exists, in the server package.** `evaluate` imports nothing but `foldkit-entity`, runs the whole kernel, and is the widest of the four interpreters. The largest capability gap in the TanStack/LiveStore comparison closes by moving a file. |
 | [§33.1](#331-what-the-built-shape-does-not-extend-to) | **The walls**: one Entity per Query, field-only ordering, no scalar operations, and an Expr/Predicate split that has already been revised once and should be expected to change again. |
 
@@ -532,10 +533,15 @@ optimistic transactions
 
 Treat these as execution capabilities, not reasons to replace Foldkit Model/Message/update.
 
-> **Assessed in [local-execution-DESIGN.md](./local-execution-DESIGN.md).** Of these
-> seven, incremental view maintenance is the only one genuinely missing and
-> mostly reduces to a memo key; joins, aggregates and derived collections are
-> Phase 13, gated; optimistic transactions and query-driven loading exist.
+> **Assessed in [local-execution-DESIGN.md](./local-execution-DESIGN.md).**
+> Optimistic transactions and query-driven loading exist; joins, aggregates and
+> derived collections are Phase 13, gated. Incremental view maintenance is the
+> only one genuinely missing — and it is **unmeasured**: there is no benchmark
+> here and every page size is between 1 and 25, so whether it costs anything is
+> an open question rather than a known gap. An earlier draft called it "mostly a
+> memo key", which was wrong twice over: unevidenced, and incorrect, because
+> `assemble` recurses through relations so a row's value depends on entries its
+> own key does not name.
 
 ### 4.11 LiveStore: materialization and durable local SQL
 
@@ -2650,8 +2656,11 @@ First improve composition between Router and Surface.
 
 > **Now evidenced, and scheduled.** `Data.explain` cannot report §29.1's first
 > line — the Surface — because a Projection does not know which Surfaces read
-> it. This helper is what supplies it; see
-> [local-execution-DESIGN.md](./local-execution-DESIGN.md), Phase 5.
+> it. This helper supplies half of it, and only half:
+> `Data.explain` takes a Projection, while the Surface relation lives in the
+> active-surface list `Data.subscriptions` is given — so closing the finding
+> needs a manifest derived from those surfaces as well. See
+> [local-execution-DESIGN.md](./local-execution-DESIGN.md), phase 5.
 
 ### 31.10 Route activation could become more inspectable
 
