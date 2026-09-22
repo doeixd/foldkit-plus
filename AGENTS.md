@@ -455,6 +455,17 @@ installed `.d.ts` before reaching for a remembered API.
 - **Prove a type rejects, not just that it accepts.** Every constraint needs a
   `@ts-expect-error` negative case in `types.test-d.ts`. Both bugs above passed
   a suite full of positive cases.
+- **A type check intersected onto a parameter can fail open.** `Invalid<…>`
+  works when it compares something already resolved, like `Q['name']`. When the
+  check is a conditional over the type still being inferred, inference falls
+  back to the constraint — and `Expr<any>` in that constraint made
+  `Expr.contains`'s text check vacuously true, so every operand passed,
+  including the number the check existed for. Constrain the type parameter
+  instead; a constraint cannot be defeated by inference falling back to it.
+- **An unused `@ts-expect-error` is how a fails-open check announces itself.**
+  It is the only signal, and it looks like tidiness. Mutation-test types the way
+  you mutation-test code: widen the constraint and confirm the negative cases go
+  red. Four did, so the check was load-bearing; before the fix, none would have.
 - **Tie generics to the definition they belong to.** A host's Message type
   inferred independently of the contract let an incompatible host bind.
 - **To type a callback from a sibling property, map over the inferred type, not
@@ -526,6 +537,15 @@ installed `.d.ts` before reaching for a remembered API.
   test per guard.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
+- **A fixture too small cannot tell right from wrong.** An ordering test with
+  one row passed while ids were parsed by splitting on every colon; two ids
+  agreeing up to the first colon caught it. A filter test where every row
+  matches passes when the predicate is dropped entirely.
+- **Do not assert that a pure function left its input alone.** `filtered`
+  returns a value and takes the Model by value, so "no connection was created"
+  was structurally guaranteed and could not go red. I noticed the test was weak,
+  rewrote it, and it was still vacuous for the same reason. Assert the
+  signature — what it returns has no Model in it — or delete the test.
 - **Cleaning up the DOM can hide a leaked runtime.** Removing the embed
   container on unmount made a `FoldkitComponent` that never called `dispose`
   look identical to one that did. Assert on something only a live runtime does,
@@ -535,6 +555,37 @@ installed `.d.ts` before reaching for a remembered API.
   committed view reading the optimistic value: nothing notified between persist
   and exchange, so the wrong read was never evaluated. Force a transition
   between the two states the test tells apart.
+
+**Claims about the repository**
+
+- **A search that proves an absence must cover the space the claim names.** I
+  wrote "there is no benchmark anywhere in this repository" after listing
+  `packages/remote/test`; there is a `pnpm bench` script, a CI workflow,
+  `docs/benchmarks.md` and three `packages/*/bench` directories. The same week I
+  wrote "evo item 2 is done" after grepping `examples/`, when the item's scope
+  says "examples, package READMEs, and conceptual docs" — and the root README's
+  own snippet was the violation. Both claims were then used to justify further
+  decisions. Scope the search to the claim, or narrow the claim to the search.
+
+- **Update the summary in the same change as the section.** Per-phase notes
+  landed while `§0`'s findings table and `§13`'s status banner still described
+  the old state — the banner said "3 onwards are not started" directly above
+  three sections headed *done*. A stale claim is worse than no claim because it
+  reads as current, and this recurred four sections after I committed that
+  sentence.
+
+- **A declared option nothing reads is worse evidence of demand than no
+  option.** `LivePolicy` was typed, documented, carried on the descriptor and
+  present in the Message schema, and nothing in the production path ever set it,
+  so every live insert took the default. I had cited it in a design document as
+  "the caller that already shipped" — the strongest evidence that work had
+  demand. Grep for the field being *written*, not declared. (See also: an unused
+  parameter is a promise the runtime does not keep.)
+
+- **Do not delete scratch work that has a home in the repo.** A throwaway
+  benchmark was deleted with "there is no bench infrastructure here to fit it
+  into", which left published numbers nobody could reproduce. Check for the
+  convention before concluding there is none.
 
 **Tooling**
 
