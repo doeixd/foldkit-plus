@@ -315,6 +315,16 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
+`Data.filtered(model, over, by, input)` filters a **loaded list** by a query
+body without asking the server, returning `Matched<Value>` — `items` decoded
+through the list's own Selection, plus `complete`. It filters a list rather than
+running a query on purpose: "which rows match" would need predicate containment,
+which is deliberately not built, while "which rows *of this list* match" is
+decidable. `complete` requires every edge judged, every match showable, and the
+list terminal at both ends — so empty-and-complete and empty-and-partial stay
+different answers. It creates no connection, so nothing new is retained or
+fetched.
+
 `Remote.matching(store, descriptor, input, { among? })` runs a query body over
 the rows the store already holds, returning `{ matched, skipped }` — keys that
 satisfy it in the body's order, and keys held but missing a field the body reads

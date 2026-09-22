@@ -706,6 +706,32 @@ their required fields. `Data.next` / `Data.previous` preserve the page size and
 use the loaded boundaries; `hasNext` / `hasPrevious` come from those boundaries,
 not from guessing based on row counts.
 
+### Filtering a loaded list without asking the server
+
+A search box over a page you already have should not be a round trip.
+`Data.filtered` narrows a loaded list by a query body:
+
+```ts
+const found = Data.filtered(model, projects, ActiveProjects, {})
+
+found.items     // decoded exactly as the list decodes them
+found.complete  // whether the answer was about the whole list
+```
+
+**It filters a list; it does not run a query**, and the distinction is the
+design. "Which rows match" would need to know this list holds every row the body
+could match — predicate containment, which Remote deliberately does not do.
+"Which rows *of this list* match" is decidable from what is already here.
+
+`complete` is false unless three things hold: every edge could be judged (no row
+missing a field the *body* reads), every match could be shown (no row missing a
+field the *Selection* reads), and the list is terminal at both ends. So
+empty-and-complete and empty-and-partial stay different answers — one means
+"none", the other means "none that I can see yet".
+
+Nothing is created: no connection, nothing new to retain, nothing new to fetch.
+The server stays authoritative for which rows exist.
+
 ### Judging the rows you already hold
 
 A connection's rows are edges the server delivered, and a query body describes

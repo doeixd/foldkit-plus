@@ -31,7 +31,7 @@ import {
 } from './client.js'
 import { emptyConnection, hasNext, hasPrevious, type Edge } from './connection.js'
 import { Entity, type EntityDescriptor } from './entity.js'
-import { belongsEncoded } from './matching.js'
+import { belongsEncoded, matching, type Matched } from './matching.js'
 import {
   inspectEntity,
   inspectRemote,
@@ -335,6 +335,31 @@ export interface RemoteDomain<
       readonly surfaces?: Readonly<Record<string, ActiveSurface<AppModel>>> | undefined
     },
   ): QueryExplanation
+  /**
+   * The rows of a loaded list that a body matches, decoded as the list decodes
+   * them — a filter that asks the server nothing.
+   *
+   * **It filters a list; it does not run a query.** That distinction is what
+   * keeps it honest. "Which rows match" would need to know that the list holds
+   * every row the body could match, which is predicate containment and is
+   * deliberately not built. "Which rows *of this list* match" is decidable from
+   * what is already here, and is what a search box over a loaded page actually
+   * wants.
+   *
+   * `complete` says whether the answer is about the whole list: every edge
+   * judged, and the connection terminal at both ends. An incomplete answer is
+   * not wrong — it is about less than the caller may have meant, which is why
+   * it is said rather than left for a view to assume.
+   *
+   * Creates no connection, so there is nothing new to retain and nothing new to
+   * fetch. The server stays authoritative for which rows exist.
+   */
+  filtered<Value, Name extends string, Input, Q extends QueryDescriptor<any, any, any>>(
+    model: AppModel,
+    over: QueryProjection<AppModel, Value, Name, Input>,
+    by: Q & Registered<Q['name'], QueryName<Queries[number]>, 'Query'>,
+    input: QueryInput<Q>,
+  ): Matched<Value>
   /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
   fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
   /**
@@ -478,6 +503,8 @@ export interface QueryProjection<AppModel, Value, Name extends string, Input> ex
   RemoteData<Page<Value>>
 > {
   readonly ref: QueryRef<Name, Input>
+  /** What it reads of each item, so a filter over the same list decodes identically. */
+  readonly selection: Selection<Value, string>
 }
 
 /** The input of a query descriptor. */
@@ -1770,6 +1797,7 @@ const bindDomain = <
         dependencies: [],
         metadata: RemoteConnections.of(requirement),
         ref,
+        selection: select as Selection<Value, string>,
         read: (root: AppModel): RemoteData<Page<Value>> => {
           const remote = store.get(root)
           const connection = remote.connections[ref.identity]
@@ -1870,6 +1898,50 @@ const bindDomain = <
                   : [{ surface: active.name, ...active.activation }],
               ),
             }),
+      }
+    },
+    filtered: (model, over, by, input) => {
+      assertRegistered(bound, 'Query', definition.registry.queries, by.name)
+      const remote = store.get(model)
+      const connection = remote.connections[over.ref.identity]
+      const visible = visibleStoreOf(remote.entities, remote.optimistic)
+      const edges =
+        connection === undefined
+          ? []
+          : visibleItems(connection, over.ref.identity, remote.optimistic.overlays, remote.entities)
+      const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
+      const judged = matching(visible, by, input, { among })
+      const relation = relationOf(over.selection)
+
+      const items: unknown[] = []
+      let assembledAll = true
+      for (const key of judged.matched) {
+        const assembled = assemble(visible, key, relation)
+        // A matching row whose selected fields are not all here cannot be shown.
+        // It is not dropped from the truth, only from the list: `complete` says
+        // the answer is about less than the whole.
+        if (assembled === undefined) {
+          assembledAll = false
+          continue
+        }
+        const decoded = Schema.decodeUnknownResult(over.selection.schema)(assembled.values)
+        if (Result.isFailure(decoded)) {
+          assembledAll = false
+          continue
+        }
+        items.push(decoded.success)
+      }
+
+      return {
+        items: items as never,
+        // Whole only if every edge was judged, every match could be shown, and
+        // the list itself is all there — a connection terminal at both ends.
+        complete:
+          judged.skipped.length === 0 &&
+          assembledAll &&
+          connection !== undefined &&
+          !hasNext(connection) &&
+          !hasPrevious(connection),
       }
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),

@@ -764,7 +764,7 @@ incompatible or corrupt snapshot still degrades to a refetch, and
 Depends on phase 3 only if restored membership is to be *verified* locally;
 shippable without that.
 
-### 7 — Local connections
+### 7 — Local connections — **done, as a filter rather than a connection**
 
 Membership computed by phase 3 rather than delivered, with ownership stated:
 the server stays authoritative for which rows exist.
@@ -773,8 +773,33 @@ the server stays authoritative for which rows exist.
 that could match unheld rows still asks, and the returned value is the local
 kind from phase 0 — never the authoritative one.
 
-Also needs an answer for retention: a locally computed connection has no server
-page, and retention roots key on connection identity.
+> **Built as `Data.filtered`, and the name is the decision.**
+>
+> A *connection* whose membership is computed would have to answer "which rows
+> match", and that needs to know the client holds every row the body could
+> match — predicate containment, which §21 refuses. Writing it as a connection
+> would have smuggled containment in through the back door: the thing would
+> look like a connection, be read like one, and be quietly wrong whenever a
+> matching row had never been fetched.
+>
+> So it filters **a list**. "Which rows *of this list* match" is decidable from
+> what is already here, and is what a search box over a loaded page actually
+> wants. `Data.filtered(model, over, by, input)` takes the loaded projection as
+> the population and a body as the filter, and decodes matches through the
+> list's own Selection — so a filtered item and a listed item are the same
+> shape and one view function renders either.
+>
+> **`complete` is three conditions, and each was a test that failed first.**
+> Every edge judged (nothing missing a field the *body* reads), every match
+> shown (nothing missing a field the *Selection* reads — a different set), and
+> the list terminal at both ends. Empty-and-complete and empty-and-partial are
+> different answers, which is the entire reason the flag exists.
+>
+> **Retention answers itself.** The question was what to do about a locally
+> computed connection having no server page. It has no connection at all:
+> filtering creates nothing, retains nothing, and plans nothing. A test pins
+> that filtering by a registered query does not bring that query's connection
+> into being, since that would give retention a root nothing fetches.
 
 ### M — Measure §3, then maybe fix it — **measured**
 

@@ -31,6 +31,26 @@ import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
 
 /**
+ * An answer over the rows the client holds — never over the rows that exist.
+ *
+ * `complete` is the whole reason this is its own type rather than a `Page`. A
+ * `Page` carries `hasNext`/`hasPrevious`, which are facts the *server* stated
+ * about rows beyond the ones it delivered; a local answer has no such facts and
+ * cannot invent them. What it can say is whether the population it judged was
+ * all of it, which is decidable: a connection terminal at both ends is wholly
+ * held, and nothing was skipped for a missing field.
+ *
+ * An incomplete answer is not wrong — it is an answer about less than the
+ * caller may have meant, and the flag is what lets a view say "3 so far" rather
+ * than "3", or a caller decide to ask the server.
+ */
+export interface Matched<A> {
+  readonly items: ReadonlyArray<A>
+  /** Whether every row the answer is about was judged. */
+  readonly complete: boolean
+}
+
+/**
  * What the rows the client holds had to say about a body.
  *
  * `skipped` is the honest half. A row missing a field the body reads cannot be
