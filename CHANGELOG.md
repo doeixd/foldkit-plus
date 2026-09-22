@@ -7,6 +7,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-remote`: `Remote.patch(entity, id, values)` and
+  `Remote.ref(entity, id)`.** An optimistic patch or a connection change for a
+  `foldkit-entity` Entity, the recommended way to declare a domain, had no
+  direct spelling: it needed `Entity.from(Project).patch(...)` with Remote's
+  `Entity`, whose name collides with `foldkit-entity`'s. Both helpers take
+  either kind of entity and check `values` against its fields.
+
 ### Deprecated
 
 - **`foldkit-surface`: `App.fields` is deprecated; use `App.model`.** They

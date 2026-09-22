@@ -532,7 +532,7 @@ A mutation's `optimistic` operations show over the store while it is in flight.
 `Data.lift`: a preview, in every Selection and view, of something not yet sent.
 
 ```ts
-const previewed = Data.overlay(model, 'post-preview', [Project.patch(id, { name: draft })])
+const previewed = Data.overlay(model, 'post-preview', [Remote.patch(Project, id, { name: draft })])
 const back = Data.lift(previewed, 'post-preview')
 ```
 
@@ -844,7 +844,7 @@ case 'ClickedRename': {
     RenameProject,
     { id, name },
     {
-      optimistic: [Project.patch(id, { name })],
+      optimistic: [Remote.patch(Project, id, { name })],
     },
   )
 
@@ -857,6 +857,12 @@ case 'ClickedRename': {
 1. it applies `MutationStarted` to the Model, including any optimistic overlays;
 2. it returns the Command that calls `RemoteClient` and eventually emits
    `MutationSucceeded` or `MutationFailed`.
+
+`Remote.patch(entity, id, values)` builds one entity's patch, and
+`Remote.ref(entity, id)` names one row. Both take the entity you declared,
+whether with `foldkit-entity` or Remote's `Entity.make`, and check `values`
+against its fields in their wire shape: a relation is written as its ref key,
+such as `'User:u1'`.
 
 Those settlement Messages go through `Data.reduce` like every other Remote fact.
 The request id comes from the Remote Model's sequence, so `update` stays pure.
@@ -885,10 +891,10 @@ import { ConnectionChange } from 'foldkit-remote'
 
 const { model: started, command } = Data.mutate(model, AddComment, input, {
   optimistic: ({ tempId }) => [
-    Comment.patch(tempId, { id: tempId, body: input.body }),
+    Remote.patch(Comment, tempId, { id: tempId, body: input.body }),
     ConnectionChange.prepend(
       CommentsForPost.ref({ postId }),
-      Comment.ref(tempId),
+      Remote.ref(Comment, tempId),
     ),
   ],
 })

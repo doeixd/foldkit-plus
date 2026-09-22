@@ -29,7 +29,7 @@ Packages:
 ## Mental model
 
 ```text
-Entity.make + .select           what a fact looks like / what a consumer needs
+Entity.define + Entity.select  what a fact looks like / what a consumer needs
 Data.get / live / query         pure Projection; requirements ride in Projection metadata
 Data.subscriptions({...})       per active Surface: `<key>.read`, `<key>.live`, plus one `retain`
 RemoteClient (Effect service)   read / query / mutate / live I/O
@@ -57,17 +57,24 @@ import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
-import { Entity, Remote, RemoteClient, RemoteData, type RemoteRpcClient } from 'foldkit-remote'
+import { Entity, Relation } from 'foldkit-entity'
+import { Remote, RemoteClient, RemoteData, type RemoteRpcClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
-// Declare the domain with `foldkit-entity`: Remote accepts its own
-// `Entity.make` too, but only a `foldkit-entity` entity has addressable
-// `fields`, so only it can carry relations, derived members, or a query body.
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make('Project', Schema.Struct({
-  id: Schema.String, name: Schema.String, owner: Entity.ref(User), // refs, not nested copies
-}))
-const ProjectSummary = Project.select({ id: true, name: true, owner: User.select({ id: true, name: true }) })
+// Declare the domain with `foldkit-entity`. Only its entities have addressable
+// `fields`, which relations, derived members, and query bodies point at.
+const UserBase = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const ProjectBase = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+// A relation is stored as a ref, never a nested copy.
+const { User, Project } = Entity.relate(
+  { User: UserBase, Project: ProjectBase },
+  { Project: { owner: Relation.one(UserBase) } },
+)
+const ProjectSummary = Entity.select(Project, {
+  id: true,
+  name: true,
+  owner: Entity.select(User, { id: true, name: true }),
+})
 
 const Model = Schema.Struct({ projectId: Schema.NullOr(Schema.String), remote: Remote.Model })
 type Model = typeof Model.Type
@@ -82,7 +89,7 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
 
 const App = Surface.application({ Model, Message, initial: { projectId: null, remote: Remote.initial }, update })
 
-const Data = Remote.make({ model: App.model.remote, entities: [User, Project] }) // App.model.remote also works
+const Data = Remote.make({ model: App.model.remote, entities: [User, Project] })
 
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
@@ -93,7 +100,7 @@ const label = (data: RemoteData<{ readonly name: string }>) =>
   RemoteData.match(data, {
     Initial: () => 'not requested', Loading: () => 'loading',
     Ready: p => p.name, Refreshing: p => `${p.name} (refreshing)`,
-    Failed: () => 'bad data', NotFound: () => 'gone',
+    Failed: e => `failed: ${e.message}`, NotFound: () => 'gone',
   })
 
 // For a view, the three-way fold that keeps useful data on screen:
@@ -147,7 +154,7 @@ const RenameProject = Mutation.make('RenameProject', {
   Input: { id: Schema.String, name: Schema.String }, Output: { id: Schema.String },
 })
 
-// Query Projection: RemoteData<Page<Value>>; Initial until the page AND every item's selected fields are present.
+// Query Projection: RemoteData<Page<Value>>; Loading while its page or its rows' fields are in flight, Ready once all are present.
 const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
 
 // Data.live: same as get, but also opens a live stream while the Surface is active.
@@ -160,7 +167,7 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 case 'ClickedRename': {
   const { model: started, command } = Data.mutate(model, RenameProject,
     { id: message.id, name: message.name },
-    { optimistic: [Project.patch(message.id, { name: message.name })] })
+    { optimistic: [Remote.patch(Project, message.id, { name: message.name })] })
   return { model: started, commands: [command] } // command yields MutationSucceeded/MutationFailed
 }
 case 'ClickedMore': {
@@ -177,7 +184,7 @@ case 'ClickedRefresh': {
 
 - Optimistic patches are **layers** over the base store (recomputed base +
   pending layers), released on settle by `requestId`; settlement is idempotent.
-  Optimistic list edits: `optimistic: ({ tempId }) => [Project.patch(tempId, {...}), ConnectionChange.prepend(projects.ref, Project.ref(tempId))]`,
+  Optimistic list edits: `optimistic: ({ tempId }) => [Remote.patch(Project, tempId, {...}), ConnectionChange.prepend(projects.ref, Remote.ref(Project, tempId))]`,
   where `projects` is the `Data.query(...)` Projection above.
 - `Query.define(name, Input, ({ input }) => body, options?)` declares a query by
   what it *means*: `Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.ownerId,
@@ -400,7 +407,7 @@ const ProjectSource = RemoteServer.entity<Principal>(Project, {
 const RenameSource = RemoteServer.mutation(RenameProject, ({ input }) =>
   Effect.succeed({
     output: { id: input.id },
-    entities: [Entity.patch(Project.ref(input.id), { name: input.name })],
+    entities: [Remote.patch(Project, input.id, { name: input.name })],
   }))
 
 const Server = RemoteServer.make({ entities: [ProjectSource], mutations: [RenameSource] })

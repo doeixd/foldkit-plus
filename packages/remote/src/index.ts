@@ -37,7 +37,13 @@ import {
   type Connection,
   type Edge,
 } from './connection.js'
-import { Entity, type EntityDescriptor } from './entity.js'
+import {
+  Entity,
+  type EntityDescriptor,
+  type EntityPatch,
+  type EntityRef,
+  type FieldsFrom,
+} from './entity.js'
 import { belongsEncoded, matching, type Matched } from './matching.js'
 import {
   inspectEntity,
@@ -143,6 +149,19 @@ export type EntitySelection<Value, Name extends string, Id extends string = stri
 
 const descriptorOf = (entity: EntityLike): EntityDescriptor<any, any> =>
   DomainEntity.is(entity) ? Entity.from(entity as never) : entity
+
+/** The Remote descriptor either kind of entity reads as, at the type level. */
+type DescriptorOf<E extends EntityLike> =
+  E extends EntityDescriptor<any, any>
+    ? E
+    : E extends Domain.AnyEntity
+      ? EntityDescriptor<E['name'], FieldsFrom<E>>
+      : never
+
+type NameOf<E extends EntityLike> =
+  DescriptorOf<E> extends EntityDescriptor<infer N, any> ? N : never
+type FieldsOf<E extends EntityLike> =
+  DescriptorOf<E> extends EntityDescriptor<any, infer F> ? F : never
 
 const selectionOf = <Value, Name extends string>(
   selection: EntitySelection<Value, Name>,
@@ -1203,6 +1222,29 @@ export const Remote = {
   messages: remoteMessageCases,
   /** Whether a Message is one of Remote's, by tag. */
   reduces: isRemoteMessage,
+
+  /**
+   * A patch of one entity's values, for a mutation's `optimistic` list or an
+   * overlay. Takes a `foldkit-entity` Entity or a Remote descriptor alike, so
+   * the domain you declared once is the one you patch:
+   * `Remote.patch(Project, 'p1', { name: 'Apollo II' })`. Values are the
+   * fields' wire shape, as the server writes them; a relation is its ref key
+   * (`'User:u1'`).
+   */
+  patch: <E extends EntityLike>(
+    entity: E,
+    id: string,
+    values: Partial<Schema.Struct.Encoded<FieldsOf<E>>>,
+  ): EntityPatch<NameOf<E>, FieldsOf<E>> =>
+    descriptorOf(entity).patch(id, values) as EntityPatch<NameOf<E>, FieldsOf<E>>,
+
+  /**
+   * A reference to one entity, for `ConnectionChange` and anything else that
+   * names a row: `Remote.ref(Project, 'p3')`. Either kind of entity, as with
+   * `Remote.patch`.
+   */
+  ref: <E extends EntityLike>(entity: E, id: string): EntityRef<NameOf<E>, FieldsOf<E>> =>
+    descriptorOf(entity).ref(id) as EntityRef<NameOf<E>, FieldsOf<E>>,
 
   /**
    * Declares a Remote domain and binds it to its place in the application Model
