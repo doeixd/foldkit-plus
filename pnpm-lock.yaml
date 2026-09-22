@@ -154,6 +154,9 @@ importers:
       foldkit-mixins-form:
         specifier: workspace:*
         version: link:../../packages/mixins-form
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
       foldkit-remote:
         specifier: workspace:*
         version: link:../../packages/remote

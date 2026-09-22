@@ -299,6 +299,14 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
+A connection's identity is its query plus its **input**, so an input that changes
+per keystroke mints a connection and a request per keystroke. Remote has no
+debounce and should not — it is a faithful function of the Model. Debounce
+between the input Message and the Model field the query reads, with
+`debounce` from `foldkit-primitives/time` placed as a Bundle: its `latest` is
+what the box draws, its settled `OutMessage` moves the field the query reads.
+Two fields, on purpose. `examples/entity` does this.
+
 A page carrying more edges than its window asked for (`first ?? last`) is
 refused: it becomes `QueryFailed` with a protocol error and none of its edges
 reach the store, leaving an already-loaded connection untouched. A window with

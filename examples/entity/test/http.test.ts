@@ -1,7 +1,17 @@
 import { Effect } from 'effect'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { Data, EditForm, Message, PostEditor, Posts, initial, update } from '../src/app.js'
+import {
+  Data,
+  EditForm,
+  Message,
+  PostEditor,
+  Posts,
+  initial,
+  searchSettled,
+  searched,
+  update,
+} from '../src/app.js'
 import { PostId } from '../src/domain.js'
 import { EditPostForm } from '../src/editForm.js'
 import { startHttpServer } from '../src/http.js'
@@ -67,10 +77,18 @@ describe('the HTTP transport the browser uses', () => {
     ).model
     expect(await titles(reversed)).toEqual([second, first])
 
-    const searched = update(reversed, Message.SearchedPosts({ text: 'Engine' })).model
-    expect(await titles(searched)).toEqual(['Notes on the Engine'])
+    // The box is debounced, so a keystroke moves the box and not the query:
+    // `postSearch` is what the query reads, and it is still what it was.
+    const typed = update(reversed, searched('Engine')).model
+    expect(typed.postSearch).toBe('')
+    expect(await titles(typed)).toEqual([second, first])
+
+    // A quarter second later the settled value arrives and the input changes.
+    const settled = update(typed, searchSettled(typed, 'Engine')).model
+    expect(settled.postSearch).toBe('Engine')
+    expect(await titles(settled)).toEqual(['Notes on the Engine'])
     // Another input is another connection: the unsearched list is untouched.
-    expect(Posts.page(searched)._tag).toBe('Initial')
+    expect(Posts.page(settled)._tag).toBe('Initial')
   })
 
   it('turns a failure on the server into the client’s own error', async () => {

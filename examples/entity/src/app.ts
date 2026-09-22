@@ -11,6 +11,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
 import { defineMessageUnion } from 'foldkit/message'
+import { debounce } from 'foldkit-primitives/time'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { AuthorChoice, AuthorId, AuthorPage, Blog, PostId, PostPage, PostRow } from './domain.js'
@@ -61,27 +62,57 @@ const Remover = Crud.remover('PostRemover', {
 export const RemoverMessage = Remover.Message
 const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
 
+/**
+ * The search box, debounced.
+ *
+ * A `QueryRef`'s identity is its input, so a query input that changes as fast
+ * as someone types mints a connection and a request per keystroke. The
+ * debounce belongs here — between the input Message and the Model field the
+ * query reads — and never inside Remote, whose job is to be a faithful
+ * function of the Model.
+ *
+ * `latest` is what the box shows, so typing stays immediate; the settled
+ * `OutMessage` is what moves `postSearch`, which is what the query reads.
+ */
+const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
+const SearchBox = Bundle.declare(SearchInput, 'search')
+
 export const Model = Schema.Struct({
   remote: Remote.Model,
-  // What the post list shows is the page's state, and the query's input.
+  // What the query reads: the *settled* search, not every keystroke.
   postSearch: Schema.String,
   postSort: PostSort.Schema,
   ...EditSlot.fields,
   ...RemoveSlot.fields,
+  ...SearchBox.fields,
 })
 export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   ...Remote.messages,
   ...EditSlot.cases,
   ...RemoveSlot.cases,
+  ...SearchBox.cases,
   AskedToDeletePost: { id: PostId },
   OpenedPost: { id: PostId },
   ClosedEditor: {},
   RequestedMorePosts: {},
-  SearchedPosts: { text: Schema.String },
   SortedPosts: { sort: PostSort.Schema },
 })
 export type Message = typeof Message.Type
+
+/** A keystroke, on its way to the debounce rather than to the query. */
+export const searched = (text: string): Message =>
+  Message.GotSearchMessage({ message: SearchInput.Message.Changed({ value: text }) })
+
+/**
+ * The settled search, as the debounce's own Command would deliver it. Its
+ * timing is the bundle's and is tested there; this is for driving the wiring
+ * by hand, without a clock.
+ */
+export const searchSettled = (model: Model, text: string): Message =>
+  Message.GotSearchMessage({
+    message: SearchInput.Message.Settled({ value: text, generation: model.search.generation }),
+  })
 
 export const App = Surface.application({ Model, Message })
 
@@ -129,6 +160,12 @@ const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 // `EditPostInput` into the mutation.
 export const EditForm = Page.at(EditSlot, { onOut: PostEditor.onOut })
 export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
+// The settled search, a quarter second after the last keystroke, is the only
+// thing that changes the query's input — and so the only thing that fetches.
+export const Search = Page.at(SearchBox, {
+  args: { delayMs: 250 },
+  onOut: out => (model: Model) => ({ model: evo(model, { postSearch: () => out.value }) }),
+})
 
 // One list for the page: the editor's placement, and Remote with what is on
 // screen. Remote's Messages route to its reducer and its Subscriptions fetch what
@@ -136,6 +173,7 @@ export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 export const placements = Page.assemble(
   EditForm,
   RemoveForm,
+  Search,
   // Every piece on the page, handed over: each one's requirement is gathered.
   Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers })),
 )
@@ -154,9 +192,6 @@ export const update = PostEditor.after(
         const more = Posts.more(model)
         return more === undefined ? { model } : { model, commands: [more] }
       }
-      // Nothing is fetched here: the list's input changed, so Remote requires another connection.
-      case 'SearchedPosts':
-        return { model: evo(model, { postSearch: () => message.text }) }
       case 'SortedPosts':
         return { model: evo(model, { postSort: () => message.sort }) }
       default:

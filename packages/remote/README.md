@@ -706,6 +706,46 @@ their required fields. `Data.next` / `Data.previous` preserve the page size and
 use the loaded boundaries; `hasNext` / `hasPrevious` come from those boundaries,
 not from guessing based on row counts.
 
+### An input that changes as fast as someone types
+
+A connection's identity is its query plus its **input**, which is exactly right
+for caching and exactly wrong for a search box. Bound naively, every keystroke
+is a different connection, a different request, and a different thing to retain:
+
+```ts
+// Don't: `postSearch` changes per keystroke, so the query's input does too.
+h.OnInput(text => Message.Searched({ text }))
+```
+
+Remote has no debounce, and should not: its job is to be a faithful function of
+the Model, so if the Model says the search is `Engi` then `Engi` is what the
+query asks. **The debounce belongs between the input Message and the Model field
+the query reads** — which is ordinary application state, and
+[`foldkit-primitives`](../primitives) already has the piece:
+
+```ts
+import { debounce } from 'foldkit-primitives/time'
+
+const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
+const SearchBox = Bundle.declare(SearchInput, 'search')
+
+// `latest` is what the box shows, so typing stays immediate.
+// The settled OutMessage is what moves the field the query reads.
+Page.at(SearchBox, {
+  args: { delayMs: 250 },
+  onOut: out => model => ({ model: evo(model, { postSearch: () => out.value }) }),
+})
+```
+
+Two fields, deliberately: the one the box draws changes on every keystroke, and
+the one the query reads changes a quarter second after the last one.
+[`examples/entity`](../../examples/entity) does exactly this.
+
+The same applies to any high-frequency query input — a slider, a map viewport, a
+date scrubber. What makes a search box the usual case is that the query is often
+written *for* it: `Expr.contains` over an empty string matches everything, so an
+empty box and a filled one are one query rather than two.
+
 ### A page that overruns its window is refused
 
 The client asks for `first: 25`, and a page carrying more than that is a
