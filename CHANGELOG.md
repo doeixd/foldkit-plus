@@ -7,6 +7,90 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.9.0
+
+`foldkit-entity` 0.3.0; `foldkit-surface` 0.4.0; `foldkit-remote`,
+`foldkit-remote-server` and `foldkit-remote-drizzle` 0.6.0; `foldkit-crud` and
+`foldkit-mixins-crud` 0.2.0. Republished only so their pinned dependencies are
+the current ones: `foldkit-agent` 0.3.2, `foldkit-bundle-surface` 0.1.2,
+`foldkit-cms` and `foldkit-cms-drizzle` 0.1.1, `foldkit-form` and
+`foldkit-mixins-form` 0.1.2, `foldkit-mirror` 0.2.2 and `foldkit-sync` 0.5.3.
+`foldkit-mixins-surface` 0.3.1 moves its peer range to `foldkit-surface@^0.4.0`.
+
+**Remote reads now tell the truth about failure and loading.** A request that
+failed used to leave a read at `Initial`, which looks exactly like "nobody
+asked", and nothing asked again, so a list could sit empty for good with no sign
+of an error. A failed refresh read `Ready`, as if it had worked. Now a failed
+read is `Failed`, keeping what was on screen as `previous`. It is retried when
+something asks for it, never in a loop. A list whose first page is on its way
+reads `Loading`. The CRUD views keep the rows through a failed refresh and can
+offer a **Try again** button.
+
+**The client can run a query over the rows it already holds.** The reference
+interpreter moved to `foldkit-entity`, so `Data.filtered` can filter a loaded
+list without asking the server, and says whether its answer covers the whole
+list. Live inserts are judged against the query before the declared policy is
+used.
+
+**Also:** a list can survive a reload (its rows, never its cursors),
+`Data.explain` describes a query read in one serializable value, and
+`Surface.when` makes why a Surface is active something a tool can read. Two
+declared behaviours that had never been wired now work: a connection's
+`LivePolicy`, and live invalidation.
+
+### Upgrading from 0.8
+
+Upgrade every `foldkit-*` package you use together. They pin each other's
+versions exactly, and `foldkit-mixins-surface` 0.3.0 does not accept
+`foldkit-surface` 0.4. Most applications then need only the first two steps.
+
+1. **Persistence takes a `Snapshot`.** Wrap the Model in `snapshotOf`, and pass
+   both halves of what comes back to `Hydrated`:
+
+   ```ts
+   // 0.8
+   RemotePersistence.dehydrate(model.remote.entities, { scope })
+   // 0.9
+   RemotePersistence.dehydrate(RemotePersistence.snapshotOf(model.remote), { scope })
+
+   const restored =
+     RemotePersistence.hydrate(text, { scope }) ?? RemotePersistence.emptySnapshot
+   Data.reduce(model, {
+     _tag: 'Hydrated',
+     entities: restored.entities,
+     connections: restored.connections,
+     merge: 'preserve-existing',
+   })
+   ```
+
+   `REMOTE_CACHE_VERSION` is 4, so a cache written by 0.8 is discarded once
+   and refetched, never misread.
+2. **`Failed` now also means the request failed**, not only that stored data
+   did not decode. `RemoteData.render` already draws `Failed { previous }` as
+   the old value with a `Stale` freshness, so a view built on it needs nothing.
+   A view that matches `Failed` itself should draw `previous` when it is there.
+   Nothing retries a failed read on its own, so give the user a way to ask:
+   `Data.refresh(model, projection)`, a placed list's or detail's
+   `refresh(model)`, or `onRetry` on `ListView`/`DetailView`.
+3. **One new Remote Message, `QueryStarted`.** Code that spreads
+   `Remote.messages` into its union and routes through `Data.reduce` or
+   `Data.wiring` needs nothing. A hand-written exhaustive switch over Remote's
+   Messages needs one more case.
+4. **A `RemoteModel` built by hand** (rather than from `Remote.initial`) needs
+   `failures: noFailures`.
+5. **Removed:** `invalidateConnection`, `isStale`, `refreshConnection` and
+   `LiveState.stale`. They recorded staleness that nothing read. To invalidate
+   a connection, reduce `ConnectionInvalidated`.
+6. **`Expr.contains` accepts only text** (a text field, nullable included, or
+   an `Expr<string>`). A number field used to typecheck and then fail in the
+   database.
+7. **A hand-written `DomainLike`** passed to `foldkit-crud` needs `refresh`.
+   Remote's own domain already has it.
+
+`evaluate`, `supported`, `assertSupported` and `Row` can now be imported from
+`foldkit-entity`. Their old home, `foldkit-remote-server`, still re-exports
+them, so nothing has to move.
+
 ### Breaking
 
 - **`foldkit-remote`: a snapshot is a `Snapshot`, not a store.**
@@ -129,6 +213,10 @@ version changed; `pnpm` skips versions already in the registry.
   refused.** More edges than `first` or `last` requested is now `QueryFailed`
   with a protocol error that carries both numbers. The edges never reach the
   store, and a connection already loaded keeps the rows it had.
+- **`foldkit-remote-drizzle`: a `contains` whose search is null compiles.**
+  It threw at compile time. It is now SQL's unknown, so a negated or compared
+  `contains` over a missing input means what the reference interpreter says it
+  means, rather than stopping the request.
 - **`foldkit-entity`: `Expr.contains` accepts only text.** A number field
   typechecked and reached the database as `lower(rank) like …`, which SQLite
   coerces and Postgres rejects at runtime. Its operand must be a text field
