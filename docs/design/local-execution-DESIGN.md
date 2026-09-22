@@ -704,8 +704,50 @@ decode count because it is paid on *every* change rather than on writes, and
 because the fix is bounded: memoize identity on the input object and
 `relationKey` on the Selection object, both by reference, both `WeakMap`.
 
-**Still measure before fixing.** The numbers may be small. But this is the path
-to put a benchmark on first.
+### 16.1.1 Measured, and the hypothesis was wrong
+
+Benchmarked: one connection, a Selection reaching through a relation (as every
+real one here does), microseconds per operation, three page sizes.
+
+| | 25 rows | 100 rows | 400 rows |
+| --- | --- | --- | --- |
+| `Data.query` (build a projection) | 21.5 | 12.7 | 6.6 |
+| `projection.read`, same Model (memo hit) | 1.2 | 1.2 | 0.5 |
+| **read after a write to one unrelated entity** | **183.7** | **379.0** | **1549.7** |
+| — of which the reduce alone | 27.2 | 51.8 | 231.6 |
+| `Remote.plan` | 130.4 | 161.9 | 822.2 |
+
+**`Data.query` is the cheapest thing on the list and does not scale with the
+page** — it is roughly 10µs flat, and the variation across sizes is warm-up
+noise rather than signal. At sixty Model changes a second with three queries on
+screen that is under 2ms per second. **Close it: not worth memoizing.**
+
+So §16.1 was wrong, and §3 — which it was written to correct — was right.
+
+**Re-assembly after an unrelated write is the cost, and it is linear.**
+Subtracting the reduce, it is 156µs, 327µs and 1318µs: about **3.3µs per row per
+write**, paid by every connection on screen whenever anything in the store
+changes, however unrelated. Against a memo hit of around 1µs, the recompute is
+**three orders of magnitude** more expensive. That is the shape of a fix worth
+having.
+
+`Remote.plan` is the second cost and also scales — 130µs to 822µs — and it runs
+per Model change per active Surface. Not investigated further here; recorded so
+it is not mistaken for free.
+
+**What the numbers do not say** is that anyone is hurting. At 25 rows a write
+costs 156µs, and ten writes a second is 1.6ms — nothing. The cost becomes
+visible at a few hundred rows with a live-updating list, which nothing in this
+repository draws. So this is now *evidenced* rather than *urgent*: the curve is
+known, the threshold is known, and the fix is known to be worth roughly 1000× on
+the case it addresses.
+
+**One thing to settle before building it.** §3.3's memo has to survive store
+changes — that is its whole purpose — so it cannot be keyed on the store the way
+today's is. That means a cache whose lifetime is not tied to a Model snapshot,
+which is exactly the shape of the unbounded-growth problems §16.3 lists as
+already dealt with. It needs a bound, and deciding that bound is part of the
+work rather than a detail of it.
 
 ### 16.2 A high-frequency input mints a connection per change
 
