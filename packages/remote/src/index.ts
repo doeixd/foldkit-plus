@@ -29,7 +29,7 @@ import {
   remoteError,
   type RemoteRpcClient,
 } from './client.js'
-import { emptyConnection, hasNext, hasPrevious, type Edge } from './connection.js'
+import { emptyConnection, hasNext, hasPrevious, isGapped, type Edge } from './connection.js'
 import { Entity, type EntityDescriptor } from './entity.js'
 import { belongsEncoded, matching, type Matched } from './matching.js'
 import {
@@ -1632,14 +1632,18 @@ const bindDomain = <
    */
   const livePolicyFor = (model: AppModel, event: LiveEvent): LivePolicy | undefined => {
     if (event._tag !== 'ConnectionInsert') return undefined
+    // An identity is always `name`, the separator, and the encoded input — it
+    // is minted in exactly one place — so the separator is always present.
     const identity = event.connection
-    const separator = identity.indexOf(IDENTITY_SEPARATOR)
     const descriptor = definition.registry.queries.get(
-      separator === -1 ? identity : identity.slice(0, separator),
+      identity.slice(0, identity.indexOf(IDENTITY_SEPARATOR)),
     )
     const declared = (descriptor?.Result as Partial<ConnectionSpec> | undefined)?.live
-    if (descriptor?.body === undefined || separator === -1) return declared
-    const encoded = JSON.parse(identity.slice(separator + 1)) as Record<string, unknown>
+    if (descriptor?.body === undefined) return declared
+    const encoded = JSON.parse(identity.slice(identity.indexOf(IDENTITY_SEPARATOR) + 1)) as Record<
+      string,
+      unknown
+    >
     const decided = belongsEncoded(
       storeOf(bound, model),
       descriptor,
@@ -1902,6 +1906,15 @@ const bindDomain = <
     },
     filtered: (model, over, by, input) => {
       assertRegistered(bound, 'Query', definition.registry.queries, by.name)
+      // A filter over a different Entity can never match anything, and would
+      // otherwise answer "I checked the whole list and found nothing" — a
+      // confident wrong answer rather than a refusal.
+      const filters = by.body?.entity.name
+      if (filters !== undefined && filters !== over.selection.entity) {
+        throw new Error(
+          `Remote: query "${by.name}" is over "${filters}", but the list is of "${over.selection.entity}", so it cannot filter it`,
+        )
+      }
       const remote = store.get(model)
       const connection = remote.connections[over.ref.identity]
       const visible = visibleStoreOf(remote.entities, remote.optimistic)
@@ -1936,10 +1949,16 @@ const bindDomain = <
         items: items as never,
         // Whole only if every edge was judged, every match could be shown, and
         // the list itself is all there — a connection terminal at both ends.
+        // Whole only if every edge was judged, every match could be shown, and
+        // the list itself is all there. `hasNext`/`hasPrevious` read the outer
+        // boundaries alone, so `isGapped` is the third question: a connection
+        // paged from both ends is `Terminal` at both and still missing its
+        // middle.
         complete:
           judged.skipped.length === 0 &&
           assembledAll &&
           connection !== undefined &&
+          !isGapped(connection) &&
           !hasNext(connection) &&
           !hasPrevious(connection),
       }

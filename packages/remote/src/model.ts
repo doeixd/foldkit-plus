@@ -168,7 +168,8 @@ export type RemoteMessage =
        * at once and the connection is refetched, because a persisted cursor
        * may name server state that is gone.
        */
-      readonly connections?: Readonly<Record<string, ReadonlyArray<Edge>>> | undefined
+      readonly connections?:
+        Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>> | undefined
       readonly merge: MergePolicy
     }
   /** A mutation began; its optimistic operations show until it settles. */
@@ -512,11 +513,18 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       // longer honour — and it is stale, so the planner refetches it while the
       // rows it held are already on screen.
       const restored = Object.entries(message.connections ?? {}).map(
-        ([identity, edges]) =>
+        ([identity, segments]) =>
           [
             identity,
             {
-              segments: [{ edges: [...edges], start: unknownBoundary, end: unknownBoundary }],
+              // One segment per saved segment: the gaps between them are what
+              // says "these rows do not adjoin", and merging them into one run
+              // would invent an adjacency nobody established.
+              segments: segments.map(edges => ({
+                edges: [...edges],
+                start: unknownBoundary,
+                end: unknownBoundary,
+              })),
               stale: true,
             },
           ] as const,

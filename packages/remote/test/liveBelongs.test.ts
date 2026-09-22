@@ -150,14 +150,36 @@ describe('A row the body can judge', () => {
   })
 })
 
+describe('A row the body could judge, but only from a stale value', () => {
+  it('is not suppressed, because a live event is what the stale value contradicts', () => {
+    // `p2` is archived as far as the store knows, and the store has marked that
+    // field stale. The server then says it belongs in the connection. Deciding
+    // "does not belong" from the very fact the event contradicts would drop a
+    // row that has just become relevant — exactly the case live events exist
+    // for.
+    const held = loaded([{ id: 'p2', status: 'archived' }])
+    const stale = Data.reduce(held, {
+      _tag: 'RefreshStarted',
+      requests: [{ entity: 'Project', id: 'p2', fields: ['status'] }],
+    })
+
+    expect(edges(insert(stale, 'p2'))).toEqual(['p2', 'p1'])
+  })
+
+  it('is still suppressed when the value it is judged on is fresh', () => {
+    expect(edges(insert(loaded([{ id: 'p2', status: 'archived' }]), 'p2'))).toEqual(['p1'])
+  })
+})
+
 describe('A row the body cannot judge', () => {
   it('follows the declared policy when the row was never fetched', () => {
     // Nothing is known about `p9`, so "does it belong" has no answer and the
-    // application's declaration is the whole answer. This connection says a
-    // prepend must not be shown.
-    const model = insert(loaded([], quiet), 'p9', quiet)
-
-    expect(edges(model, quiet)).toEqual(['p1'])
+    // declaration is the whole answer. Asserted against *both* connections from
+    // one unjudgeable insert: an implementation that read "unknown" as "no"
+    // would ignore both declarations and hide it in each, so only the contrast
+    // shows the declaration was consulted at all.
+    expect(edges(insert(loaded([], quiet), 'p9', quiet), quiet)).toEqual(['p1'])
+    expect(edges(insert(loaded(), 'p9'))).toEqual(['p9', 'p1'])
   })
 
   it('admits it where the application declared nothing, which is the default', () => {

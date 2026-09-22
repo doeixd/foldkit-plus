@@ -4,7 +4,7 @@
  * two things fails in whichever of the two is wrong.
  */
 import { describe, expect, it } from 'vitest'
-import { cases, rows } from '../src/conformance.js'
+import { cases, rows } from 'foldkit-entity/conformance'
 import { evaluate } from '../src/index.js'
 
 describe('foldkit-remote-server conforms to the query semantics', () => {

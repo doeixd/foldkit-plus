@@ -10,7 +10,7 @@
 import { State } from '@livestore/livestore'
 import { DatabaseSync } from 'node:sqlite'
 import { Query } from 'foldkit-entity'
-import { cases, rows } from 'foldkit-remote-server'
+import { cases, rows } from 'foldkit-entity/conformance'
 import { describe, expect, it } from 'vitest'
 import { LiveStoreCompileError, compile, supported } from '../src/interpreter.js'
 

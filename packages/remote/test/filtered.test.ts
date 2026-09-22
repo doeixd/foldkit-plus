@@ -21,7 +21,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote } from '../src/index.js'
+import { Query, Remote, type Matched } from '../src/index.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -115,16 +115,13 @@ describe('A filter over rows already held', () => {
 
   it('decodes each match exactly as the list decodes it', () => {
     // The Selection is the list's, so a filtered item and a listed item are the
-    // same shape — a view can render either with one function.
+    // same value — a view renders either with one function. Compared whole
+    // rather than by id, or a decode that dropped or reshaped fields would pass.
     const page = projects.read(loaded())
+    if (page._tag !== 'Ready') throw new Error(`expected Ready, got ${page._tag}`)
     const found = Data.filtered(loaded(), projects, Active, {})
 
-    expect(page._tag).toBe('Ready')
-    if (page._tag === 'Ready') {
-      expect(
-        found.items.every(item => page.value.items.some(listed => listed.id === item.id)),
-      ).toBe(true)
-    }
+    expect(found.items).toEqual(page.value.items.filter(item => item.id !== 'p2'))
   })
 
   it('keeps the body’s order, not the list’s', () => {
@@ -146,8 +143,17 @@ describe('A filter over rows already held', () => {
 
   it('filters on a field the list fetched but does not show', () => {
     // `status` is in the store because the read asked for it; the Selection
-    // does not render it. A filter reads the store, not the Selection.
-    expect(Data.filtered(loaded(), projects, Active, {}).items).toHaveLength(2)
+    // does not render it. Two rows differ *only* in that field, so an
+    // implementation reading the Selection rather than the store cannot tell
+    // them apart and fails here.
+    expect(Data.filtered(loaded(), projects, Active, {}).items.map(item => item.id)).toEqual([
+      'p1',
+      'p3',
+    ])
+    expect(Object.keys(Data.filtered(loaded(), projects, Active, {}).items[0]!)).toEqual([
+      'id',
+      'name',
+    ])
   })
 })
 
@@ -211,18 +217,64 @@ describe('Whether the answer is about the whole list', () => {
   })
 })
 
-describe('What it does not do', () => {
-  it('creates no connection, so there is nothing new to retain or fetch', () => {
-    // The filter is a registered query with an identity of its own. Filtering
-    // by it must not bring that connection into being — otherwise retention
-    // would have a root nothing fetches and the planner a query nothing asked
-    // for.
-    const model = loaded()
-    Data.filtered(model, projects, Active, {})
+describe('Gaps, which the outer boundaries do not show', () => {
+  it('is incomplete when the list was paged from both ends and has a hole', () => {
+    // A connection paged from both ends is `Terminal` at both — `hasNext` and
+    // `hasPrevious` are false — and is still missing its middle. Only
+    // `isGapped` sees that, and a filter that ignored it would report a partial
+    // answer as whole.
+    const head = Data.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ConnectionMerged',
+        connection: projects.ref.identity,
+        page: {
+          edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Cursor', cursor: 'c1' },
+        },
+      },
+    )
+    const bothEnds = Data.reduce(head, {
+      _tag: 'ConnectionMerged',
+      connection: projects.ref.identity,
+      page: {
+        edges: [{ key: 'Project:p3', ref: { entity: 'Project', id: 'p3' } }],
+        start: { _tag: 'Cursor', cursor: 'c9' },
+        end: { _tag: 'Terminal' },
+      },
+    })
+    const model = Data.reduce(bothEnds, {
+      _tag: 'ReadReceived',
+      requests: rows.map(r => ({ entity: 'Project', id: r.id, fields: ['id', 'name', 'status'] })),
+      result: { entities: rows.map(r => ({ entity: 'Project', id: r.id, values: r })) },
+      now: 0,
+    })
 
-    expect(Object.keys(model.remote.connections)).toEqual([projects.ref.identity])
-    expect(model.remote.connections[Active.ref({}).identity]).toBeUndefined()
-    expect(Remote.planQueries(Data, model, projects)).toEqual([])
+    const connection = model.remote.connections[projects.ref.identity]!
+    expect(connection.segments.length).toBe(2)
+
+    const found = Data.filtered(model, projects, Active, {})
+
+    expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
+    expect(found.complete).toBe(false)
+  })
+})
+
+describe('What it does not do', () => {
+  it('returns an answer rather than a Model, so nothing can be created', () => {
+    // The original of this test asserted that the *input* model was unchanged,
+    // which a function returning `Matched` cannot change however broken it is.
+    // What is actually worth pinning is the signature: there is no Model in the
+    // result, so no connection, retention root or plan can come out of it.
+    const found: Matched<{ readonly id: string; readonly name: string }> = Data.filtered(
+      loaded(),
+      projects,
+      Active,
+      {},
+    )
+
+    expect(Object.keys(found).sort()).toEqual(['complete', 'items'])
   })
 
   it('judges only the list, never every row of the Entity the store holds', () => {
@@ -244,6 +296,44 @@ describe('What it does not do', () => {
     })
 
     expect(Data.filtered(model, projects, Active, {}).items.map(i => i.id)).toEqual(['p1', 'p3'])
+  })
+
+  it('refuses a filter over a different Entity, rather than finding nothing', () => {
+    // Every candidate is of the wrong Entity, so an unguarded implementation
+    // matches none of them and reports `complete: true` — "I checked the whole
+    // list and found nothing", about a question that was never applicable.
+    const Other = DomainEntity.define('Other', Schema.Struct({ id: Schema.String }))
+    const OtherQuery = Query.define('OtherQuery', {}, () =>
+      Query.from(Other).pipe(Query.orderBy(Order.asc(Other.fields.id))),
+    )
+    const Domain = Remote.make({
+      model: App.model.remote,
+      entities: [Project, Other],
+      queries: [ProjectsByOwner, OtherQuery],
+    })
+    const list = Domain.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
+
+    expect(() => Domain.filtered(loaded(), list, OtherQuery, {})).toThrow(
+      'query "OtherQuery" is over "Other", but the list is of "Project"',
+    )
+  })
+
+  it('counts an edge whose row is absent as unjudged, not as no match', () => {
+    // An optimistic insert can put an edge in a connection with no entity entry
+    // behind it. Dropping it silently would let `complete` claim the whole list
+    // was considered when one of its rows never was.
+    const withGhost = Data.overlay(loaded(), 'pending', [
+      {
+        _tag: 'Insert',
+        connection: projects.ref.identity,
+        edge: { key: 'Project:p9', ref: { entity: 'Project', id: 'p9' } },
+        position: 'prepend',
+      },
+    ])
+    const found = Data.filtered(withGhost, projects, Active, {})
+
+    expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
+    expect(found.complete).toBe(false)
   })
 
   it('refuses a query the domain never registered', () => {

@@ -35,8 +35,17 @@ export const REMOTE_CACHE_VERSION = 4
  */
 export interface Snapshot {
   readonly entities: EntityStore
-  /** By connection identity: the edges it held, in order. No boundaries. */
-  readonly connections: Readonly<Record<string, ReadonlyArray<Edge>>>
+  /**
+   * By connection identity: its **segments**, each a run of edges. No
+   * boundaries.
+   *
+   * Segments rather than one flat list, because the gaps between them are
+   * knowledge too. A connection paged from both ends holds a head and a tail
+   * with an unfetched middle; flattening those into one run would claim the
+   * tail's first row follows the head's last, which is a thing the client was
+   * never told.
+   */
+  readonly connections: Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>>
 }
 
 /**
@@ -58,7 +67,9 @@ const snapshotOf = (
     (options.connections ?? []).flatMap(connection => {
       const identity = connectionIdentity(connection)
       const held = model.connections[identity]
-      return held === undefined ? [] : [[identity, items(held)] as const]
+      return held === undefined
+        ? []
+        : [[identity, held.segments.map(segment => segment.edges)] as const]
     }),
   ),
 })
@@ -90,7 +101,7 @@ interface SerializedStore {
   readonly version: number
   readonly scope: string | null
   readonly entities: Readonly<Record<string, SerializedEntry>>
-  readonly connections: Readonly<Record<string, ReadonlyArray<Edge>>>
+  readonly connections: Readonly<Record<string, ReadonlyArray<ReadonlyArray<Edge>>>>
 }
 
 const sorted = <T>(values: Iterable<T>): T[] => [...values].sort()
@@ -152,7 +163,7 @@ const parseEntry = (value: unknown): EntityEntry => {
 
 /** Throws on a malformed edge so the whole snapshot is discarded. */
 const parseEdges = (value: unknown): ReadonlyArray<Edge> => {
-  if (!Array.isArray(value)) throw new Error('connection is not an array of edges')
+  if (!Array.isArray(value)) throw new Error('segment is not an array of edges')
   return value.map(edge => {
     const candidate = edge as { key?: unknown; ref?: { entity?: unknown; id?: unknown } }
     if (
@@ -171,13 +182,18 @@ const deserializeStore = (serialized: SerializedStore): Snapshot => ({
     Object.entries(serialized.entities).map(([key, entry]) => [key, parseEntry(entry)]),
   ),
   connections: Object.fromEntries(
-    Object.entries(serialized.connections ?? {}).map(([key, edges]) => [key, parseEdges(edges)]),
+    Object.entries(serialized.connections ?? {}).map(([key, segments]) => {
+      if (!Array.isArray(segments)) throw new Error('connection is not an array of segments')
+      return [key, segments.map(parseEdges)]
+    }),
   ),
 })
 
 /**
- * The snapshot text, or `undefined` when it would exceed `maxBytes`. Only the
- * entity store goes in; pass `model.entities`, never the whole `RemoteModel`.
+ * The snapshot text, or `undefined` when it would exceed `maxBytes`. Build the
+ * snapshot with `snapshotOf`, which is where the connections that survive are
+ * named; runtime state — optimistic layers, live cursors, gaps, the mutation
+ * ledger — is never in one.
  */
 function dehydrate(
   snapshot: Snapshot,
@@ -248,7 +264,7 @@ const mergeStores = (
 ): EntityStore => (policy === 'replace' ? { ...current, ...snapshot } : { ...snapshot, ...current })
 
 /** An empty snapshot: the cache as a fresh session has it. */
-export const emptySnapshot: Snapshot = { entities: emptyStore, connections: {} }
+const emptySnapshot: Snapshot = { entities: emptyStore, connections: {} }
 
 export const RemotePersistence = {
   /** The snapshot text, or `undefined` when it would exceed `maxBytes`. */
@@ -262,6 +278,8 @@ export const RemotePersistence = {
   snapshotOf,
   /** A snapshot's entities brought into a store by policy. */
   mergeStores,
+  /** The cache as a fresh session has it; what a refused `restore` yields. */
+  emptySnapshot,
 
   /**
    * Writes the snapshot under `key`, or removes the key when the store would

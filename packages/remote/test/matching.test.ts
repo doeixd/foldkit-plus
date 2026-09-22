@@ -165,9 +165,13 @@ describe('What it will not judge', () => {
     expect(judged.skipped).toEqual([])
   })
 
-  it('says nothing about a key in `among` that the store does not hold', () => {
-    // Not skipped: skipped means "held but not judgeable", and this was never
-    // held at all. Conflating the two would make `skipped` mean two things.
+  it('skips a key in `among` that the store does not hold', () => {
+    // An earlier version dropped this silently, reasoning that `skipped` meant
+    // "held but not judgeable" and this was never held at all. That is the
+    // wrong reading: `skipped` is what a caller must not treat as answered, and
+    // both cases are the same from where it stands — *I could not tell you
+    // about this one*. Dropping it lets an answer built from the result claim
+    // to have considered a row it never saw.
     const store = writeEntity(emptyStore, key('a'), { title: 'Intro' })
 
     const judged = matching(
@@ -180,7 +184,7 @@ describe('What it will not judge', () => {
     )
 
     expect(judged.matched).toEqual([key('a')])
-    expect(judged.skipped).toEqual([])
+    expect(judged.skipped).toEqual([key('gone')])
   })
 
   it('refuses a descriptor with no body, by name', () => {
@@ -192,6 +196,48 @@ describe('What it will not judge', () => {
     expect(() => matching(emptyStore, declared, { title: 'x' })).toThrow(
       'query "Declared" carries no body',
     )
+  })
+})
+
+describe('An id the store holds is the id, and the key is only a fallback', () => {
+  // `Entity.ref` stringifies ids, so a numeric id is `7` in the store and `"7"`
+  // in the key. Overwriting the encoded value with the key's makes `eq(id, 7)`
+  // false and sorts ids lexicographically — both without any error.
+  const Ticket = DomainEntity.define(
+    'Ticket',
+    Schema.Struct({ id: Schema.Number, title: Schema.String }),
+  )
+  const numbered = (id: number) => entityKey('Ticket', String(id))
+
+  const ById = Query.define('ById', { id: Schema.Number }, ({ input }) =>
+    Query.from(Ticket).pipe(
+      Query.where(Expr.eq(Ticket.fields.id, input.id)),
+      Query.orderBy(Order.asc(Ticket.fields.id)),
+    ),
+  )
+  const Every = Query.define('EveryTicket', {}, () =>
+    Query.from(Ticket).pipe(Query.orderBy(Order.asc(Ticket.fields.id))),
+  )
+
+  const tickets = (): EntityStore =>
+    [2, 9, 10, 100].reduce<EntityStore>(
+      (store, id) => writeEntity(store, numbered(id), { id, title: `T${id}` }),
+      emptyStore,
+    )
+
+  it('matches a numeric id against the number the request gave', () => {
+    expect(matching(tickets(), ById, { id: 10 }).matched).toEqual([numbered(10)])
+  })
+
+  it('orders numeric ids as numbers, not as text', () => {
+    // Lexicographically this is 10, 100, 2, 9.
+    expect(matching(tickets(), Every, {}).matched).toEqual([2, 9, 10, 100].map(numbered))
+  })
+
+  it('still supplies an id from the key when the store never fetched one', () => {
+    const store = writeEntity(emptyStore, key('a'), { title: 'Intro' })
+
+    expect(matching(store, ByTitle, { title: 'Intro' }).matched).toEqual([key('a')])
   })
 })
 

@@ -11,7 +11,8 @@ import {
   createLiveQueryCollection,
   localOnlyCollectionOptions,
 } from '@tanstack/db'
-import { cases, rows, supported as reference } from 'foldkit-remote-server'
+import { supported as reference } from 'foldkit-remote-server'
+import { cases, rows } from 'foldkit-entity/conformance'
 import { Query } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { run, supported, TanstackCompileError } from '../src/interpreter.js'

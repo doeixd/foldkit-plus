@@ -9,7 +9,7 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { Query } from 'foldkit-remote'
-import { Subject, cases, rows } from 'foldkit-remote-server'
+import { Subject, cases, rows } from 'foldkit-entity/conformance'
 import { databaseLayer, entity, query } from '../src/index.js'
 
 const table = sqliteTable('conformance_rows', {

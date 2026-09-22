@@ -8,6 +8,7 @@
     "noEmit": false,
     "paths": {
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],

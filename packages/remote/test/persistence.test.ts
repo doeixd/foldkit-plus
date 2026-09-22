@@ -21,7 +21,9 @@ import {
   type EntityStore,
   type RemoteModel,
 } from '../src/index.js'
-import { RemotePersistence, emptySnapshot } from '../src/persistence.js'
+import { RemotePersistence } from '../src/persistence.js'
+
+const { emptySnapshot } = RemotePersistence
 
 /**
  * A snapshot of entities alone — which is what a snapshot was, before a

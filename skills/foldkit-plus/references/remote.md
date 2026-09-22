@@ -255,7 +255,7 @@ const ssr = Effect.gen(function* () {
 `RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
 version/scope, oversized, or malformed snapshots yield `undefined` from
-`hydrate` (`restore` yields `emptySnapshot` and removes the key). An oversized
+`hydrate` (`restore` yields `RemotePersistence.emptySnapshot` and removes the key). An oversized
 `save` removes the key instead of writing.
 
 **A connection can be declared to survive a reload**:
@@ -315,6 +315,10 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
+The conformance fixtures (`Subject`, `cases`, `rows`) are imported from
+`foldkit-entity/conformance` directly; `foldkit-remote-server` no longer
+re-exports them.
+
 `Data.filtered(model, over, by, input)` filters a **loaded list** by a query
 body without asking the server, returning `Matched<Value>` — `items` decoded
 through the list's own Selection, plus `complete`. It filters a list rather than
@@ -324,6 +328,13 @@ decidable. `complete` requires every edge judged, every match showable, and the
 list terminal at both ends — so empty-and-complete and empty-and-partial stay
 different answers. It creates no connection, so nothing new is retained or
 fetched.
+
+`Remote.matching` and `Remote.belongsEncoded` are the two entry points, and the
+asymmetry is deliberate: `matching` takes the input **decoded** (an application
+writes it that way), `belongsEncoded` takes it **encoded** (its caller holds a
+connection identity, which carries the encoded input). A decoded `belongs` and
+an exported `matchingEncoded` were written first and removed — nothing called
+them.
 
 `Remote.matching(store, descriptor, input, { among? })` runs a query body over
 the rows the store already holds, returning `{ matched, skipped }` — keys that

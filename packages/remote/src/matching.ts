@@ -116,14 +116,11 @@ export const matching = <Name extends string, Input>(
   )
 
 /**
- * As `matching`, for a caller that already holds the input **encoded**.
- *
- * A connection identity is the query's name and its canonical *encoded* input,
- * so anything working from one has the encoded form already; making it decode
- * only for this to encode it again would be a round trip that can fail. Every
- * other caller should use `matching`, which cannot be given the wrong space.
+ * As `matching`, for the callers in this module that already hold the input
+ * **encoded**. Not exported: `matching` is the way in, and it cannot be given
+ * the wrong space.
  */
-export const matchingEncoded = <Name extends string, Input>(
+const matchingEncoded = <Name extends string, Input>(
   store: EntityStore,
   descriptor: QueryDescriptor<Name, Input, unknown>,
   encoded: Readonly<Record<string, unknown>>,
@@ -146,16 +143,32 @@ export const matchingEncoded = <Name extends string, Input>(
   const skipped: EntityKey[] = []
 
   for (const key of candidates) {
-    const entry = store[key]
-    // A row the store does not hold is not skipped — it was never a candidate.
-    // A tombstone is not a row at all.
-    if (entry === undefined || entry.tombstone) continue
     if (!key.startsWith(prefix)) continue
+    const entry = store[key]
+    // Not held at all: nothing to judge. Reachable only through `among`, where
+    // a caller named a key the store does not have — and a key nobody could
+    // judge belongs in `skipped`, not in silence, or an answer built from it
+    // would claim to have considered it.
+    if (entry === undefined) {
+      skipped.push(key)
+      continue
+    }
+    // A tombstone is not a row. Known absent is an answer, not an absence of
+    // one, so it is neither matched nor skipped.
+    if (entry.tombstone) continue
     if (needed.some(field => !entry.present.has(field))) {
       skipped.push(key)
       continue
     }
-    rows.push({ ...entry.values, id: key.slice(prefix.length), __key: key })
+    // The key's id is a **fallback**, not the truth: `Entity.ref` stringifies
+    // ids, so a numeric id is `7` in the store and `"7"` in the key. Overwriting
+    // the encoded value with the key's makes `eq(id, 7)` false and sorts ids
+    // lexicographically — both silently.
+    rows.push(
+      'id' in entry.values
+        ? { ...entry.values, __key: key }
+        : { ...entry.values, id: key.slice(prefix.length), __key: key },
+    )
   }
 
   const matched = evaluate(body, encoded, rows).map(
@@ -182,20 +195,15 @@ export const matchingEncoded = <Name extends string, Input>(
  */
 export type Belongs = 'yes' | 'no' | 'unknown'
 
-export const belongs = <Name extends string, Input>(
-  store: EntityStore,
-  descriptor: QueryDescriptor<Name, Input, unknown>,
-  input: Input,
-  key: EntityKey,
-): Belongs =>
-  belongsEncoded(
-    store,
-    descriptor,
-    Schema.encodeSync(descriptor.Input)(input) as Readonly<Record<string, unknown>>,
-    key,
-  )
-
-/** As `belongs`, for a caller holding the input encoded — see `matchingEncoded`. */
+/**
+ * Takes the input **encoded**, because its one caller holds it that way: a
+ * connection identity carries the canonical encoded input, and making it decode
+ * only for this to encode again would be a round trip that can fail.
+ *
+ * A decoded-input sibling was written first and deleted: nothing called it. The
+ * asymmetry with `matching`, which takes a decoded input, is the shape of the
+ * two real callers rather than an oversight.
+ */
 export const belongsEncoded = <Name extends string, Input>(
   store: EntityStore,
   descriptor: QueryDescriptor<Name, Input, unknown>,
@@ -208,6 +216,16 @@ export const belongsEncoded = <Name extends string, Input>(
   // Known absent. Not "does not match" — but it definitely does not belong in
   // a list, which is what a caller is asking.
   if (entry.tombstone) return 'no'
+
+  // A value the store itself calls outdated cannot settle a question about new
+  // information. `matching` still judges on a stale value — that is what is on
+  // screen — but this is used to *decide*, and deciding "does not belong" from
+  // a field the store says may be behind would suppress a live insert on the
+  // strength of the very fact the insert contradicts.
+  const body = descriptor.body
+  if (body !== undefined && decidableOn(body).some(field => entry.stale.has(field))) {
+    return 'unknown'
+  }
 
   const judged = matchingEncoded(store, descriptor, encoded, { among: [key] })
   if (judged.matched.includes(key)) return 'yes'
