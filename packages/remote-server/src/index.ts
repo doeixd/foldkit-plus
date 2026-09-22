@@ -5,9 +5,12 @@
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
  * auth protocol; `principal` is resolved outside and passed in.
  */
-import { Effect, Queue, Schema, Stream } from 'effect'
+import { Effect, Layer, Queue, Schema, Stream } from 'effect'
+import { evaluate, type Row } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
+  Remote,
+  RemoteClient,
   RemoteLiveError,
   RemoteMutationError,
   RemoteProtocolError,
@@ -551,7 +554,186 @@ interface EntityName {
   readonly fields?: Readonly<Record<string, unknown>> | undefined
 }
 
+/** One entity's rows in their wire shape: a relation is its ref key, `'User:u1'`. */
+export type MemoryRows = Readonly<
+  Record<string, ReadonlyArray<Readonly<Record<string, unknown>> & { readonly id: string }>>
+>
+
+/**
+ * The rows a memory backend holds, which its mutations write through. A
+ * change is what the next read sees; nothing is pushed to a client.
+ */
+export interface MemoryStore {
+  /** The rows of one entity, in insertion order. */
+  readonly rows: (entity: string) => ReadonlyArray<Readonly<Record<string, unknown>>>
+  /** Writes these values onto a row, creating it if it is new. */
+  readonly write: (entity: string, id: string, values: Readonly<Record<string, unknown>>) => void
+  readonly remove: (entity: string, id: string) => void
+}
+
+export interface MemoryBackend extends MemoryStore {
+  /** A `RemoteClient` answering from the rows. Provide it where the real one would go. */
+  readonly layer: Layer.Layer<RemoteClient>
+}
+
+/** A page of `total` ordered items for a window, with offset cursors. */
+const windowOf = (
+  total: number,
+  window: QueryWindow,
+): { readonly from: number; readonly to: number } => {
+  const after = window.after === undefined ? -1 : Number(window.after)
+  const before = window.before === undefined ? total : Number(window.before)
+  let from = Math.max(0, after + 1)
+  let to = Math.min(total, before)
+  if (window.first !== undefined) to = Math.min(to, from + window.first)
+  else if (window.last !== undefined) from = Math.max(from, to - window.last)
+  return { from, to: Math.max(from, to) }
+}
+
+const boundaries = (
+  total: number,
+  from: number,
+  to: number,
+): { readonly start: Boundary; readonly end: Boundary } => ({
+  start: from > 0 && to > from ? { _tag: 'Cursor', cursor: String(from) } : { _tag: 'Terminal' },
+  end: to < total && to > from ? { _tag: 'Cursor', cursor: String(to - 1) } : { _tag: 'Terminal' },
+})
+
+/**
+ * A backend held in memory: the rows you give it, served through the same
+ * handlers a real server uses. For a first run, a test, a story or a demo, with
+ * no database and no network.
+ *
+ * Reads go through `handlers`, so field filtering and nested relations behave
+ * as they do in production. A query declared with `Query.define` is answered
+ * by running its body over the rows with the reference interpreter, the one
+ * every interpreter is held to by the conformance suite. A query with no body
+ * has nothing to run and is refused when the backend is made, unless `queries`
+ * supplies a source for it. Mutations are yours to give: each one writes
+ * through the store it is handed, and the next read sees the change.
+ *
+ * It does not push live changes, and it authorizes nothing: every field of
+ * every row is readable. It is not a server to deploy.
+ */
+const memory = (config: {
+  readonly domain: Pick<RemoteDescriptor, 'registry'>
+  readonly rows: MemoryRows
+  readonly queries?: ReadonlyArray<QuerySource<undefined>>
+  readonly mutations?: (store: MemoryStore) => ReadonlyArray<MutationSource<undefined>>
+}): MemoryBackend => {
+  const tables = new Map<string, Map<string, Record<string, unknown>>>()
+  const table = (entity: string) => {
+    const existing = tables.get(entity)
+    if (existing !== undefined) return existing
+    const created = new Map<string, Record<string, unknown>>()
+    tables.set(entity, created)
+    return created
+  }
+  for (const [entity, rows] of Object.entries(config.rows)) {
+    for (const row of rows) table(entity).set(row.id, { ...row })
+  }
+  const store: MemoryStore = {
+    rows: entity => [...table(entity).values()],
+    write: (entity, id, values) => {
+      table(entity).set(id, { ...table(entity).get(id), id, ...values })
+    },
+    remove: (entity, id) => {
+      table(entity).delete(id)
+    },
+  }
+
+  // A relation page is the refs in a window of the stored list, with no
+  // cursors of its own: `after` and `before` name refs already shown.
+  const valueFor = (value: unknown, window: QueryWindow | undefined): unknown => {
+    if (window === undefined || !Array.isArray(value)) return value
+    const refs = value as ReadonlyArray<string>
+    let from = window.after === undefined ? 0 : refs.indexOf(window.after) + 1
+    const before = window.before === undefined ? -1 : refs.indexOf(window.before)
+    let to = before < 0 ? refs.length : before
+    if (window.first !== undefined) to = Math.min(to, from + window.first)
+    else if (window.last !== undefined) from = Math.max(from, to - window.last)
+    return { refs: refs.slice(from, to), hasNext: to < refs.length, hasPrevious: from > 0 }
+  }
+
+  const entities = [...config.domain.registry.entities.keys()].map(name =>
+    RemoteServer.entity<undefined>(
+      { name },
+      {
+        read: ({ ids, fields, windows }) =>
+          Effect.succeed(
+            ids.flatMap(id => {
+              const row = table(name).get(id)
+              if (row === undefined) return []
+              const values = Object.fromEntries(
+                fields.flatMap(field =>
+                  field in row ? [[field, valueFor(row[field], windows?.[field])] as const] : [],
+                ),
+              )
+              return [{ id, values }]
+            }),
+          ),
+      },
+    ),
+  )
+
+  const given = new Set((config.queries ?? []).map(source => source.query))
+  const bodiless = [...config.domain.registry.queries.values()].filter(
+    query => query.body === undefined && !given.has(query.name),
+  )
+  if (bodiless.length > 0) {
+    throw new Error(
+      `RemoteServer.memory: ${bodiless.map(query => `"${query.name}"`).join(', ')} ${bodiless.length === 1 ? 'has' : 'have'} no body to run. Declare ${bodiless.length === 1 ? 'it' : 'them'} with Query.define, or give a source in \`queries\`.`,
+    )
+  }
+  const queries = [
+    ...(config.queries ?? []),
+    ...[...config.domain.registry.queries.values()]
+      .filter(query => !given.has(query.name))
+      .map(query =>
+        RemoteServer.query<undefined>(query, ({ input, window }) =>
+          Effect.try({
+            try: () => {
+              const body = query.body!
+              const encoded = Schema.encodeSync(query.Input)(input) as Readonly<
+                Record<string, unknown>
+              >
+              const entity = body.entity.name
+              const matched = evaluate(body, encoded, store.rows(entity) as ReadonlyArray<Row>)
+              const { from, to } = windowOf(matched.length, window)
+              return {
+                edges: matched.slice(from, to).map(row => {
+                  const id = String(row.id)
+                  return { entity, id, key: entityKey(entity, id) }
+                }),
+                ...boundaries(matched.length, from, to),
+              }
+            },
+            catch: error =>
+              new RemoteServerError({
+                message: error instanceof Error ? error.message : String(error),
+              }),
+          }),
+        ),
+      ),
+  ]
+
+  const server = RemoteServer.make<undefined>({
+    entities,
+    queries,
+    mutations: config.mutations?.(store) ?? [],
+  })
+  return {
+    ...store,
+    layer: Remote.clientLayer(
+      RemoteServer.handlers(server, undefined),
+    ) as Layer.Layer<RemoteClient>,
+  }
+}
+
 export const RemoteServer = {
+  /** A backend held in memory, for a first run, a test or a demo. See `memory`. */
+  memory,
+
   /** A mutation outcome's report that `ref` now heads the connection. */
   prepend: (
     connection: ConnectionIdentity,

@@ -416,6 +416,9 @@ RemoteServer.validate(Remote.define({ entities: [User, Project], mutations: [Ren
 declare const principal: Principal // authentication happens outside this package
 const handlers = RemoteServer.handlers(Server, principal) // once per authenticated principal
 const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
+// No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
+// Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
+// mutations: store => [...] write through store.write. No live, no authorization.
 // across a process boundary: RemoteRpc.toLayer(handlers) + your Effect RPC transport
 ```
 

@@ -10,13 +10,15 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
-      "foldkit-remote": ["../remote/src/index.ts"]
+      "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
   "references": [
     { "path": "../entity/tsconfig.build.json" },
     { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../remote/tsconfig.build.json" }
+    { "path": "../remote/tsconfig.build.json" },
+    { "path": "../surface/tsconfig.build.json" }
   ]
 }

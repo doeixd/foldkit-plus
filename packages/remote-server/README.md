@@ -591,6 +591,45 @@ The handler applies bounded, protocol-level safeguards before or around Sources:
 A `liveHub` applies the same id bound to a subscription. A hand-written live
 Source is responsible for any additional bounds appropriate to its backend.
 
+## A backend held in memory
+
+`RemoteServer.memory` serves rows you give it through the same `handlers` a
+real server uses, so a client sees what production would send: only the
+fields asked for, and nested relations resolved in one read. Use it for a
+first run, a test, a story or a demo, when there is no database yet.
+
+```ts
+const backend = RemoteServer.memory({
+  domain: Data, // or the definition from Remote.define
+  rows: {
+    User: [{ id: 'u1', name: 'Ada' }],
+    Project: [{ id: 'p1', name: 'Apollo', status: 'active', owner: 'User:u1' }],
+  },
+  // Optional: each mutation writes through the store, and the next read sees it.
+  mutations: store => [
+    RemoteServer.mutation(RenameProject, ({ input }) => {
+      store.write('Project', input.id, { name: input.name })
+      return Effect.succeed({
+        output: { id: input.id },
+        entities: [Remote.patch(Project, input.id, { name: input.name })],
+      })
+    }),
+  ],
+})
+
+backend.layer // provide it where the real RemoteClient would go
+```
+
+- Rows are in their **wire shape**: a relation is its ref key (`'User:u1'`),
+  and a to-many relation is a list of them.
+- A query declared with `Query.define` is answered by running its body over
+  the rows with [`evaluate`](#running-a-query-body-over-rows-you-already-hold),
+  the reference interpreter, and paged with offset cursors. A query with no
+  body has nothing to run and is refused when the backend is made, unless you
+  pass a source for it in `queries`.
+- It pushes no live changes and authorizes nothing: every field is readable.
+  It is not a server to deploy.
+
 ## What it does not own
 
 `foldkit-remote-server` intentionally does **not** own:

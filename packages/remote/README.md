@@ -256,6 +256,21 @@ const clientLayer = Remote.clientLayer(rpcClient)
 `RemoteClient` service used by subscriptions and Commands. The transport itself
 is not owned by Remote.
 
+To see the page work before you have a server, give it rows instead. A backend
+held in memory answers through the same handlers a real server uses:
+
+```ts
+import { RemoteServer } from 'foldkit-remote-server'
+
+const clientLayer = RemoteServer.memory({
+  domain: Data,
+  rows: { Project: [{ id: 'p1', name: 'Apollo', status: 'active' }] },
+}).layer
+```
+
+It is for a first run, a test or a demo. See
+[`RemoteServer.memory`](../remote-server/README.md#a-backend-held-in-memory).
+
 ## One list per application with `Data.wiring`
 
 The integration steps above — spread `Remote.messages`, reduce by tag, derive

@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-server`: `RemoteServer.memory`, a backend held in memory.**
+  Give it the domain and some rows, and its `layer` is a `RemoteClient`, so a
+  first run, a test or a demo needs no database and no network. Reads go
+  through the same `handlers` a real server uses. A `Query.define` body is run
+  over the rows by the reference interpreter and paged with offset cursors.
+  Mutations are yours to give, and write through the store they are handed.
+  No live changes, no authorization.
 - **`foldkit-remote`: `Remote.patch(entity, id, values)` and
   `Remote.ref(entity, id)`.** An optimistic patch or a connection change for a
   `foldkit-entity` Entity, the recommended way to declare a domain, had no
