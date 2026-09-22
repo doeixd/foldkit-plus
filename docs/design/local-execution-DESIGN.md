@@ -580,6 +580,11 @@ creates real callers** — not to argue the rule should bend.
 
 ## 13. Sequence
 
+> **Status lives here**, not in a scratch plan file: phases 0, 1 and 2 are
+> built, M is measured, and 3 onwards are not started. What each of the
+> finished ones actually changed — including the three places the plan was
+> wrong — is in the sections they point at.
+
 Phases are numbered by dependency, not by priority. **A → B** means B cannot
 start until A lands.
 
@@ -591,7 +596,7 @@ M (independent) ── measure, then maybe M2
 7 (independent)
 ~~~
 
-### 0 — Decide what a local answer *is*
+### 0 — Decide what a local answer *is* — **done**
 
 Before any API returns one. A local answer is "of what I have", not "of what
 exists", and an API that does not say which will be read as the second. This is
@@ -601,7 +606,7 @@ phase 3's return type, so it is a decision and not a note.
 can say which of the two any given read returns without reading its
 implementation.
 
-### 1 — Move the reference interpreter down
+### 1 — Move the reference interpreter down — **done**
 
 `evaluate`, `supported`, `assertSupported` and the conformance suite move to
 `foldkit-entity`, the suite behind its own subpath export (§7.1).
@@ -611,14 +616,14 @@ implementation.
 `foldkit-remote` can import `evaluate` without depending on a server package,
 and the fixture is not in `foldkit-entity`'s main bundle.
 
-### 2 — Teach the suite to see what it cannot
+### 2 — Teach the suite to see what it cannot — **done**
 
 The encoded/decoded case of §9.2, before anything depends on the answer. Without
 it phase 3 has no way to fail.
 
 **Done when** a deliberately mis-encoded comparison turns the suite red.
 
-### 3 — Evaluate a body against the store
+### 3 — Evaluate a body against the store — *next*
 
 A pure function from the visible store, a body and an input to the entity keys
 satisfying it — reusing phase 1's evaluator over rows assembled from the store,
@@ -685,7 +690,7 @@ kind from phase 0 — never the authoritative one.
 Also needs an answer for retention: a locally computed connection has no server
 page, and retention roots key on connection identity.
 
-### M — Measure §3, then maybe fix it
+### M — Measure §3, then maybe fix it — **measured**
 
 Independent of the chain, and deliberately not first. Benchmark a realistic
 connection, change one field, count decodes. **If the number is uninteresting at
