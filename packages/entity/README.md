@@ -330,9 +330,17 @@ as a value:
 
 > **Why query semantics live in this package.** They describe and interpret
 > nothing, which is the line this package already draws: an `Expr` says which
-> rows and fetches none of them, and the interpreters that run one live
-> elsewhere — `foldkit-remote-drizzle` compiles a body to SQL,
-> `foldkit-remote-server` evaluates one over rows. Nothing that imports only
+> rows and fetches none of them, and the interpreters that *fetch* live
+> elsewhere — `foldkit-remote-drizzle` compiles a body to SQL against a
+> database.
+>
+> `evaluate` is here rather than there because it is the **reference
+> semantics** of the IR: what the operator definitions mean, operationally, over
+> rows already in hand. A specification's reference implementation belongs with
+> the specification, and it reaches nothing — no database, no transport, no
+> Remote concept. The rule that keeps it honest is that **it may depend on the
+> IR and nothing else**; the moment it wants one of those it has moved to the
+> wrong place. Nothing that imports only
 > `Entity` pays for them: they are ordinary consts in a `sideEffects: false`
 > package, so a bundler drops them, and a package like `foldkit-form` imports
 > only types from here in any case.

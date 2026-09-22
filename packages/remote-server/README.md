@@ -296,11 +296,17 @@ A descriptor declared with
 value, and `evaluate` runs that value directly:
 
 ```ts
-import { evaluate } from 'foldkit-remote-server'
+import { evaluate } from 'foldkit-entity'
 
 evaluate(PostsBySlug.body!, { slug: 'intro' }, rows)
 // the matching rows, in the order the body asks for
 ```
+
+It lives in [`foldkit-entity`](../entity), beside the IR it interprets, because
+it is that IR's reference semantics rather than anything this package does —
+and because a client judging rows it already holds needs it without depending on
+a server package. This package re-exports it, so importing it from either place
+means the same thing.
 
 It is pure — it reads the rows it is given and nothing else — and it is the
 reference the compiled interpreters are checked against. `foldkit-remote-drizzle`

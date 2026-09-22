@@ -30,6 +30,10 @@ export default defineConfig({
       ),
       'foldkit-durable': fileURLToPath(new URL('./packages/durable/src/index.ts', import.meta.url)),
       'foldkit-sync': fileURLToPath(new URL('./packages/sync/src/index.ts', import.meta.url)),
+      // Before the bare package, so the more specific entry wins.
+      'foldkit-entity/conformance': fileURLToPath(
+        new URL('./packages/entity/src/conformance/index.ts', import.meta.url),
+      ),
       'foldkit-entity': fileURLToPath(new URL('./packages/entity/src/index.ts', import.meta.url)),
       'foldkit-form': fileURLToPath(new URL('./packages/form/src/index.ts', import.meta.url)),
       'foldkit-metadata': fileURLToPath(

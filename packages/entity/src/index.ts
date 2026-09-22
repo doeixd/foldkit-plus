@@ -979,3 +979,8 @@ export const Derived = {
 }
 
 export * from './expr.js'
+// The reference semantics of the IR above. The conformance suite that proves
+// an interpreter agrees with it is `foldkit-entity/conformance`, kept out of
+// this entry because it is fixture data every form and admin screen would
+// otherwise carry.
+export * from './evaluate.js'

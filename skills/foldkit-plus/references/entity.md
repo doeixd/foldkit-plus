@@ -259,7 +259,13 @@ Query.dependencies(recent)     // every predicate and ordering term at once
   not run, so it can **refuse** rather than skip one — skipping answers a
   different question and still passes every case it does support. Both shipped
   interpreters declare a `supported` list and check it: `foldkit-remote-drizzle`
-  at registration, `foldkit-remote-server` on `evaluate`.
+  at registration, and `evaluate` on every run.
+- **`evaluate(body, input, rows)` is here**, not in a server package: it is the
+  IR's *reference semantics* — what §6.0.1 means over rows already in hand — and
+  it may depend on the IR and nothing else. `foldkit-remote-server` re-exports
+  it. The conformance suite that checks an interpreter against it is
+  `foldkit-entity/conformance`, a subpath so the fixtures stay out of the main
+  bundle.
 - `Expr.contains` takes a **text or nullable-text** operand only, checked by the
   type parameter: over a number it would compile to `lower(rank) like …`, which
   SQLite coerces and Postgres rejects. The check is a constraint rather than an
