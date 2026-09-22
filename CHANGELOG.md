@@ -7,6 +7,102 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Breaking
+
+- **`foldkit-remote`: a snapshot is a `Snapshot`, not a store.**
+  `RemotePersistence.dehydrate`, `hydrate`, `save` and `restore` take and return
+  `{ entities, connections }` rather than an `EntityStore`. Build one with
+  `RemotePersistence.snapshotOf(model.remote)`; to get the old behaviour, name no
+  connections. That is the default. `restore`'s fallback is
+  `RemotePersistence.emptySnapshot`, which replaces returning `emptyStore`.
+  `REMOTE_CACHE_VERSION` is 4, so a cache written by an earlier version is
+  discarded, never misread. Migrating: `dehydrate(model.remote.entities)`
+  becomes `dehydrate(RemotePersistence.snapshotOf(model.remote))`, and code
+  that used the value `restore` returns as a store reads its `.entities`.
+- **`foldkit-remote`: `invalidateConnection`, `isStale` and `refreshConnection`
+  are gone, and so is `LiveState.stale`.** They kept a second record of stale
+  connections that no read or plan consulted, so an invalidation written
+  through them had no effect (see Fixed below). A connection's staleness is
+  its own `stale` flag. To invalidate one, reduce `ConnectionInvalidated`.
+
+### Added
+
+- **`foldkit-remote`: `Data.filtered(model, over, by, input)` filters a loaded
+  list on the client.** It runs the body of `by`, a registered `Query.define`
+  query, over the rows of the connection `over` reads, and returns
+  `{ items, complete }`. The items are decoded through `over`'s own Selection,
+  so one view function renders a filtered item or a listed one. It filters a
+  list and does not run a query: `complete` is true only when every row was
+  judged, every match could be shown, and the list is terminal at both ends
+  with no gap. An empty, incomplete answer means "none that I can see yet",
+  which is a different answer from "none". It creates no connection and fetches
+  nothing. It throws when `by` reads a different Entity from `over`.
+- **`foldkit-remote`: `Remote.matching(store, descriptor, input)`**, the
+  primitive under `Data.filtered`. It returns the keys a body matches among the
+  rows the store holds, plus the keys it skipped because a row lacked a field
+  the body reads. The input is given decoded and encoded through the
+  descriptor's `Input`. The store holds wire values, and a decoded input
+  compared against them matches nothing, with no error.
+- **`foldkit-remote`: a declared connection survives a reload.**
+  `snapshotOf(model, { connections: [ref] })` keeps that connection's edges,
+  segment by segment, and never its cursors, because a cursor may name server
+  state that no longer exists. A restored connection has `Unknown` boundaries
+  and is stale, so its rows show at once, it reads as `Refreshing`, and the
+  planner refetches it. It reports `hasNext` and `hasPrevious` as true in both
+  directions, because `Unknown` is not `Terminal`.
+- **`foldkit-remote`: a live insert is judged before the declared policy is
+  used.** For a connection whose query has a body, an inserted row that the
+  client holds and can tell does not match is ignored. A row that matches, or
+  that the client cannot judge, gets the connection's `LivePolicy`. A row held
+  with a stale value in a field the body reads counts as one it cannot judge,
+  so an outdated value never suppresses an insert.
+- **`foldkit-remote`: `Data.explain(model, projection, { surfaces? })`**
+  returns one serializable value describing a query read: the definition and
+  its input, the connection identity, the window, the Selection, the body as
+  text with its dependencies, and what the read answers from this Model. Given
+  the application's Surfaces, it also lists every active Surface that reads the
+  connection and why each is active.
+- **`foldkit-surface`: `Surface.when(surface, place, Case, value => params)`**
+  activates a Surface while a place in the Model holds one case of a tagged
+  union, with the case's fields inferred for `params`. It does what `Surface.at`
+  does, but the place and the tag are values, so `Data.explain` can report why a
+  Surface is on. It takes a `ModelPlace` (`dependency` and `get`), which a
+  `ModelRef` satisfies. `Surface.at` is unchanged.
+- **`foldkit-entity`: `Expr.show` and `Query.show`** render a body as text for
+  reading. This is deliberately not SQL: an input shows as `$name`, and
+  `contains` is named rather than rendered as any dialect's `like`.
+- **`foldkit-entity`: `evaluate`, `supported`, `assertSupported` and `Row`**
+  are exported from `foldkit-entity`. The reference interpreter depends only on
+  the IR, and a client needs it without a server package.
+  `foldkit-remote-server` still re-exports all four, so existing imports are
+  unchanged.
+- **`foldkit-entity/conformance`**, a new subpath, holds the conformance suite
+  (`Subject`, `rows`, `cases`) that every interpreter runs. The fixture has an
+  `at` column whose encoded form differs from its domain form, so an
+  interpreter that compares decoded values fails.
+
+### Fixed
+
+- **`foldkit-remote`: a declared `LivePolicy` is honoured.**
+  `Query.connection(E, { live })` was typed, carried on the descriptor and
+  documented, but nothing set the policy on a `LiveReceived` Message, so every
+  live insert used the default. The bound `reduce` now resolves the policy.
+- **`foldkit-remote`: a live invalidation invalidates the connection.** A
+  server's `ConnectionInvalidate` event and a `LiveInsertion` of `'invalidate'`
+  used to advance the cursor and do nothing else. Both now mark the connection
+  stale, so it reads as `Refreshing` and the planner refetches it.
+- **`foldkit-remote`: a page bigger than the window that asked for it is
+  refused.** More edges than `first` or `last` requested is now `QueryFailed`
+  with a protocol error that carries both numbers. The edges never reach the
+  store, and a connection already loaded keeps the rows it had.
+- **`foldkit-entity`: `Expr.contains` accepts only text.** A number field
+  typechecked and reached the database as `lower(rank) like …`, which SQLite
+  coerces and Postgres rejects at runtime. Its operand must be a text field
+  (nullable included) or an `Expr<string>`. Code in this repository needed no
+  change.
+
+### Interpreters
+
 - **How text compares when ordering is the backend's, and outside the
   conformant subset.** A third interpreter (TanStack DB, in `examples/tanstack`)
   sorts strings by locale where SQLite sorts by code point, and the semantics
@@ -16,7 +112,7 @@ version changed; `pnpm` skips versions already in the registry.
   sort by locale, Postgres would need `COLLATE "C"` on both the ordering and the
   keyset comparison that pages it (losing the index built in its own collation),
   and code point puts every capital before every lowercase. No interpreter
-  changed behaviour; the conformance suite exported by `foldkit-remote-server`
+  changed behaviour; the conformance suite (now `foldkit-entity/conformance`)
   drops its text-ordering case, because it pinned whichever engine was written
   first rather than anything promised.
 
@@ -28,8 +124,9 @@ version changed; `pnpm` skips versions already in the registry.
   directly fail at different moments.
 - **Both interpreters declare what they run.** `foldkit-remote-drizzle` checks
   at registration, beside its column check, so a server that starts is one whose
-  queries it can answer; `foldkit-remote-server` exports `supported` and
-  `assertSupported`, and `evaluate` calls it. Both currently run the whole
+  queries it can answer; the reference interpreter exports `supported` and
+  `assertSupported` (from `foldkit-entity`, re-exported by
+  `foldkit-remote-server`), and `evaluate` calls it. Both currently run the whole
   kernel, so there is nothing to refuse yet; it exists for the interpreter that
   does not.
 
