@@ -20,8 +20,26 @@
  * hypothetical, it is how `contains` reached a released package meaning three
  * different things.
  */
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 import { Entity, Expr, Order, Query, type AnyQuery } from '../index.js'
+
+/**
+ * A `Date` on the way in, an ISO string on the wire — the one fixture whose
+ * **encoded form differs from its decoded form**.
+ *
+ * Every other column here encodes to itself, which is why the suite could not
+ * previously see an interpreter comparing a decoded value against an encoded
+ * row. That is not a hypothetical bug: a store holds wire values and decodes at
+ * read, while a `QueryRef`'s input and a body's literals are written in domain
+ * terms, so anything that runs a body over stored rows has to reconcile the two
+ * and nothing was checking that it did.
+ */
+const Timestamp = Schema.Date.pipe(
+  Schema.encodeTo(Schema.String, {
+    decode: SchemaGetter.transform((iso: string) => new Date(iso)),
+    encode: SchemaGetter.transform((at: Date) => at.toISOString()),
+  }),
+)
 
 /** The one Entity every case reads, with a column of each kind that matters. */
 export const Subject = Entity.define(
@@ -33,6 +51,8 @@ export const Subject = Entity.define(
     rank: Schema.Number,
     /** Nullable on purpose: three-valued logic has to be exercised. */
     tag: Schema.String,
+    /** Encoded and decoded forms differ on purpose: see `Timestamp`. */
+    at: Timestamp,
   }),
 )
 
@@ -46,21 +66,29 @@ export interface ConformanceRow {
   readonly label: string
   readonly rank: number
   readonly tag: string | null
+  /** The **encoded** form: what a store holds and an interpreter compares. */
+  readonly at: string
   readonly [key: string]: unknown
 }
 
 export const rows: ReadonlyArray<ConformanceRow> = [
-  { id: 'a', label: 'Intro', rank: 2, tag: null },
-  { id: 'b', label: 'intro to sql', rank: 1, tag: 'x' },
-  { id: 'c', label: 'Other', rank: 3, tag: null },
-  { id: 'd', label: '100% cotton', rank: 3, tag: 'x' },
-  { id: 'e', label: 'snake_case', rank: 4, tag: 'y' },
+  { id: 'a', label: 'Intro', rank: 2, tag: null, at: '2026-01-01T00:00:00.000Z' },
+  { id: 'b', label: 'intro to sql', rank: 1, tag: 'x', at: '2026-01-02T00:00:00.000Z' },
+  { id: 'c', label: 'Other', rank: 3, tag: null, at: '2026-01-02T00:00:00.000Z' },
+  { id: 'd', label: '100% cotton', rank: 3, tag: 'x', at: '2026-01-03T00:00:00.000Z' },
+  { id: 'e', label: 'snake_case', rank: 4, tag: 'y', at: '2026-01-04T00:00:00.000Z' },
 ]
 
 export interface ConformanceCase {
   /** What the case pins, as a sentence an interpreter fails by name. */
   readonly what: string
   readonly body: AnyQuery
+  /**
+   * The inputs, **encoded** — the space a store's rows are in, not the domain
+   * space the body's types describe. For every column but `at` the two are the
+   * same value, which is exactly why this has to be said rather than inferred
+   * from the fixtures.
+   */
   readonly input: Readonly<Record<string, unknown>>
   /** The ids the body matches, in the order it asks for. */
   readonly expected: ReadonlyArray<string>
@@ -71,6 +99,7 @@ const byId = Query.orderBy(Order.asc(Subject.fields.id))
 const label = Expr.input('label', Schema.String)
 const tag = Expr.input('tag', Schema.String)
 const present = Expr.input('present', Schema.Boolean)
+const at = Expr.input('at', Timestamp)
 
 export const cases: ReadonlyArray<ConformanceCase> = [
   // ---- eq ------------------------------------------------------------------
@@ -208,6 +237,36 @@ export const cases: ReadonlyArray<ConformanceCase> = [
     body: from.pipe(byId),
     input: {},
     expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+
+  // ---- encoded values ------------------------------------------------------
+  // The body's types say `Date`; a store's rows and a request's inputs are ISO
+  // strings. An interpreter compares in the **encoded** space, and these are the
+  // cases that say so — for every other column the two spaces hold the same
+  // value, so nothing here could previously tell them apart.
+  //
+  // What happens when a caller passes a *decoded* value is deliberately not a
+  // case, because the interpreters do not agree: the reference one matches
+  // nothing, SQLite raises `datatype mismatch`, and a local engine does
+  // whatever its own comparison does. `cases` are what interpreters must agree
+  // about. The consequence is pinned in `packages/entity/test/encoding.test.ts`
+  // instead, and it is the one that matters: **a runtime error cannot be relied
+  // on to catch the mistake**, because one of the three answers is an empty
+  // result that reads exactly like a correct one.
+  {
+    what: 'an input whose encoded form differs from its decoded one matches on the encoded one',
+    body: from.pipe(Query.where(Expr.eq(Subject.fields.at, at)), byId),
+    input: { at: '2026-01-02T00:00:00.000Z' },
+    expected: ['b', 'c'],
+  },
+  {
+    what: 'a literal is encoded too, or it has the same problem as an input',
+    body: from.pipe(
+      Query.where(Expr.eq(Subject.fields.at, '2026-01-03T00:00:00.000Z' as never)),
+      byId,
+    ),
+    input: {},
+    expected: ['d'],
   },
 
   // ---- ordering ------------------------------------------------------------

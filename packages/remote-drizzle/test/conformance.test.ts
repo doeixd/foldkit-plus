@@ -17,6 +17,7 @@ const table = sqliteTable('conformance_rows', {
   label: text('label').notNull(),
   rank: integer('rank').notNull(),
   tag: text('tag'),
+  at: text('at').notNull(),
 })
 
 const binding = entity('Subject', table)
@@ -24,10 +25,10 @@ const binding = entity('Subject', table)
 const open = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(
-    'create table conformance_rows (id text primary key, label text not null, rank integer not null, tag text)',
+    'create table conformance_rows (id text primary key, label text not null, rank integer not null, tag text, at text not null)',
   )
-  const insert = sqlite.prepare('insert into conformance_rows values (?, ?, ?, ?)')
-  for (const row of rows) insert.run(row.id, row.label, row.rank, row.tag)
+  const insert = sqlite.prepare('insert into conformance_rows values (?, ?, ?, ?, ?)')
+  for (const row of rows) insert.run(row.id, row.label, row.rank, row.tag, row.at)
   return { sqlite, layer: databaseLayer(drizzle({ client: sqlite })) }
 }
 

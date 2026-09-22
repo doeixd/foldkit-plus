@@ -21,15 +21,18 @@ const table = State.SQLite.table({
     label: State.SQLite.text(),
     rank: State.SQLite.integer(),
     tag: State.SQLite.text({ nullable: true }),
+    at: State.SQLite.text(),
   },
 })
 
 /** The rows in a real SQLite, so the compiled SQL is actually run. */
 const database = () => {
   const db = new DatabaseSync(':memory:')
-  db.exec("create table 'subjects' (id text primary key, label text, rank integer, tag text)")
-  const insert = db.prepare("insert into 'subjects' values (?, ?, ?, ?)")
-  for (const row of rows) insert.run(row.id, row.label, row.rank, row.tag)
+  db.exec(
+    "create table 'subjects' (id text primary key, label text, rank integer, tag text, at text)",
+  )
+  const insert = db.prepare("insert into 'subjects' values (?, ?, ?, ?, ?)")
+  for (const row of rows) insert.run(row.id, row.label, row.rank, row.tag, row.at)
   return db
 }
 
