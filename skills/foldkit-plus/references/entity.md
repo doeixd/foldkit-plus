@@ -260,6 +260,12 @@ Query.dependencies(recent)     // every predicate and ordering term at once
   different question and still passes every case it does support. Both shipped
   interpreters declare a `supported` list and check it: `foldkit-remote-drizzle`
   at registration, `foldkit-remote-server` on `evaluate`.
+- `Expr.contains` takes a **text or nullable-text** operand only, checked by the
+  type parameter: over a number it would compile to `lower(rank) like …`, which
+  SQLite coerces and Postgres rejects. The check is a constraint rather than an
+  `Invalid` brand intersected onto the parameter — a conditional over the type
+  being inferred falls back to the constraint and passes everything, which is
+  how the original version failed open.
 - `Query.show(query)` and `Expr.show(node)` render a body as readable text
   (`FROM Post` / `WHERE Post.slug = $slug` / `ORDER BY ...`), for a person and
   never for an interpreter: an input is `$slug` rather than a bound parameter,

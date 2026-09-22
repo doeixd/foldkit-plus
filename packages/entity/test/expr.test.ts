@@ -237,9 +237,13 @@ describe('The operations the CMS worklist needs', () => {
     expect(() => Expr.isNull(Expr.eq(Post.fields.title, 'x'))).toThrow(
       'a predicate is already an answer',
     )
-    expect(() => Expr.contains(Expr.eq(Post.fields.title, 'x'), 'y')).toThrow(
-      'a predicate is already an answer',
-    )
+    // `contains` refuses this twice over: a predicate holds a boolean, so it
+    // does not hold text either. The type check comes first, and the runtime
+    // one still has to hold for callers without one.
+    expect(() =>
+      // @ts-expect-error a predicate is an answer, and holds no text
+      Expr.contains(Expr.eq(Post.fields.title, 'x'), 'y'),
+    ).toThrow('a predicate is already an answer')
   })
 
   it('reads the fields and inputs of a nested predicate', () => {

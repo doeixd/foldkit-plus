@@ -393,6 +393,12 @@ has to be said, not left to the interpreter: SQLite's `like` ignores case and
 Postgres's does not, so a body that left it open would mean two things. Folding
 is ASCII-only, since that is what `lower` does in SQLite without ICU.
 
+**It searches text, and the operand is constrained to text.** `contains` over a
+number would compile to `lower(rank) like …`, which SQLite coerces into an
+answer and Postgres rejects at runtime — so a non-text operand is a compile
+error where it is written rather than a surprise where it runs. Nullable text is
+allowed, because it is a real case with a real meaning:
+
 **Over a column that can be null it is not the same as no filter.** A null
 contains nothing, not even the empty string, so its rows drop out. The column
 the CMS searches is declared not-null, which is what makes an empty search
@@ -495,7 +501,7 @@ from queries, not from what a database could express.
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
 | `Expr.eq(left, right)` | Two values are the same; a field or a plain value on either side is coerced, and a predicate may stand where a boolean is wanted. |
 | `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
-| `Expr.contains(field, search)` | Whether text contains text. Containing the empty string is everything, but a null contains nothing. |
+| `Expr.contains(field, search)` | Whether text contains text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |

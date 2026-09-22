@@ -6,6 +6,7 @@
 import { Schema } from 'effect'
 import { expectTypeOf } from 'vitest'
 import {
+  Entity,
   Expr,
   Order,
   Query,
@@ -72,3 +73,48 @@ Query.from(Post).pipe(Query.where(Order.asc(Post.fields.id)))
 
 // @ts-expect-error `from` takes an Entity, not one of its fields
 Query.from(Post.fields.title)
+
+// ---------------------------------------------------------------------------
+// `contains` searches text, and only text
+// ---------------------------------------------------------------------------
+// It compiles to `lower(column) like lower(?)`. Over a number that is nonsense
+// which reaches the database — SQLite coerces and answers something, Postgres
+// raises — so the operand is checked here instead.
+
+const Doc = Entity.define(
+  'Doc',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    subtitle: Schema.NullOr(Schema.String),
+    rank: Schema.Number,
+    archived: Schema.Boolean,
+  }),
+)
+
+// Text, which is the whole point.
+Expr.contains(Doc.fields.title, 'a')
+Expr.contains(Doc.fields.title, Expr.input('q', Schema.String))
+
+// A nullable text column is allowed, and is a documented case rather than an
+// oversight: a null contains nothing, not even the empty string, so its rows
+// drop out of a search that would otherwise match everything.
+Expr.contains(Doc.fields.subtitle, 'a')
+
+// A scalar already built from a field is still text.
+Expr.contains(Expr.field(Doc.fields.title), 'a')
+
+// @ts-expect-error a number holds no text
+Expr.contains(Doc.fields.rank, 'a')
+
+// @ts-expect-error a boolean holds no text
+Expr.contains(Doc.fields.archived, 'a')
+
+// @ts-expect-error a predicate holds a boolean, so it holds no text either
+Expr.contains(Expr.isNull(Doc.fields.subtitle), 'a')
+
+// The other operators are deliberately not constrained this way: absence is a
+// question about a field of any type.
+Expr.isNull(Doc.fields.rank)
+Expr.isNotNull(Doc.fields.archived)
+Expr.eq(Doc.fields.rank, 3)

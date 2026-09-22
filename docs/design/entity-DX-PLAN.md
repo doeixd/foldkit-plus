@@ -134,7 +134,7 @@ a plain value and fail it with a branded type whose name is the sentence —
 descriptor. Document the orientation and `Expr.literal` in the README's `Expr`
 section, since the workaround currently exists and is undiscoverable.
 
-## 11. `Expr.contains` compiles over a field that holds no text (open)
+## 11. `Expr.contains` compiles over a field that holds no text (resolved)
 
 **Friction.** `Expr.contains(Post.fields.rank, 'x')` typechecks. `contains` is
 documented as a case-insensitive text search and compiles to
@@ -146,9 +146,28 @@ Postgres raises at runtime.
 section about (§6.0), and it is the one with no constraint on what it may be
 applied to.
 
-**Plan.** Constrain the value parameter to an operand whose `ValueOf` is
-assignable to `string`. `Expr.isNull`/`isNotNull` stay unconstrained, which is
-correct — absence is a question about any field.
+**Resolved**, though not the way the plan said. Constraining "an operand whose
+`ValueOf` is assignable to `string`" as a check *intersected onto the parameter*
+— the `Invalid` idiom `foldkit-remote` uses for an unregistered descriptor —
+does not work here, and **fails open**. That idiom compares an already-resolved
+indexed access (`Q['name']`); this check is a conditional over the type being
+inferred, so inference falls back to the constraint, whose `Expr<any>` branch
+makes the check vacuously true. Every operand passed, including the number the
+item is about.
+
+The constraint had to go on the type parameter itself: `TextOperand`, being a
+field whose schema is a `Codec<string | null, …>`, or an `Expr<string>` /
+`Expr<string | null>`. A constraint cannot be defeated by inference falling back
+to it.
+
+Found by a type test being reported as an **unused** `@ts-expect-error`, which
+is the only signal a fails-open type check gives — and the reason the type tests
+were written before the implementation was believed.
+
+`Expr.isNull`/`isNotNull` stay unconstrained, which is correct — absence is a
+question about any field. A predicate operand is now refused twice over, for a
+different reason each time: it is already an answer (runtime), and it holds a
+boolean rather than text (compile time).
 
 Worth checking the same way: nothing stops `Order.asc` over a field whose type
 has no total order the backends agree on. That is the collation question rather

@@ -109,6 +109,31 @@ export type ValueOf<E> =
         ? T
         : never
 
+/**
+ * A field or scalar whose value is text, or absent text.
+ *
+ * `Expr.contains` is a case-insensitive **text** search that compiles to
+ * `lower(column) like lower(?)`. Over a number that is nonsense which reaches
+ * the database — SQLite coerces and answers something, Postgres raises — so
+ * the operand is constrained here rather than discovered there.
+ *
+ * Null belongs in the type, because a nullable text column is a real and
+ * documented case: a null contains nothing, not even the empty string, so its
+ * rows drop out of a search that would otherwise match everything.
+ *
+ * Written as a **constraint on the type parameter** rather than as a check
+ * intersected onto the parameter (the `Invalid` idiom `foldkit-remote` uses for
+ * an unregistered descriptor). That idiom compares an already-resolved indexed
+ * access; here the check would be a conditional over the type being inferred,
+ * and inference falls back to the constraint — whose `Expr<any>` branch makes
+ * the check vacuously true, so every operand passes. A constraint cannot be
+ * defeated that way.
+ */
+export type TextOperand =
+  | EntityField<string, string, Schema.Constraint & Schema.Codec<string | null, any, any, any>>
+  | Expr<string>
+  | Expr<string | null>
+
 const tagOf = (value: unknown): unknown =>
   typeof value === 'object' && value !== null
     ? (value as { readonly _tag?: unknown })._tag
@@ -250,7 +275,7 @@ export const Expr = {
    * `Expr.or` does not exist yet, so for now such a column needs its own
    * predicate or a native escape hatch.
    */
-  contains: <L extends Operand<any>>(
+  contains: <L extends TextOperand>(
     value: L,
     search: string | Expr<string>,
   ): ContainsPredicate => ({
