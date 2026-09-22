@@ -51,7 +51,7 @@ import {
 } from './store.js'
 import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
-import { gc, type Retained, type RetentionRoots } from './retain.js'
+import { gc, reachable, type Retained, type RetentionRoots } from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
 import { NormalizedEntity, ReadBatchResult, ReadRequest, RelationRequest } from './wire.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
@@ -576,7 +576,13 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         ...model,
         entities: writeRead(model.entities, message.requests, message.result, message.now),
         loading: withoutLoading(model.loading, message.requests),
-        failures: withoutFieldFailures(model.failures, fieldMarks(message.requests)),
+        // What was asked, and what came back: a relation riding on the request
+        // writes its targets too, and a target's old failure must not outlive
+        // the value that answers it.
+        failures: withoutFieldFailures(model.failures, [
+          ...fieldMarks(message.requests),
+          ...patchedMarks(message.result.entities),
+        ]),
       }
     case 'ReadFailed':
       // A broken live stream is not a failed read. Marking its fields failed
@@ -597,7 +603,7 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         ...model,
         ...retained,
         refresh: prunedRefresh(model.refresh, retained),
-        failures: prunedFailures(model.failures, message.roots, retained.entities),
+        failures: prunedFailures(model, message.roots),
         loading: prunedQueryLoading(model.loading, message.roots),
       }
     }
@@ -784,7 +790,14 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
     case 'ConnectionInvalidated':
       // Asking again is also how a failed query is retried, so the failure goes
       // with the mark: a connection is never both due and failed.
-      if (model.connections[message.connection]?.stale === true) return model
+      // A connection can be both, though: `Hydrated` restores one stale, and a
+      // failure recorded before it arrived must still go when asked again.
+      if (
+        model.connections[message.connection]?.stale === true &&
+        !(message.connection in model.failures.connections)
+      ) {
+        return model
+      }
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),
@@ -862,23 +875,30 @@ const patchedMarks = function* (
  * entity's failure goes with it, so asking for it again later asks the server
  * again rather than repeating an error that may no longer hold.
  *
- * An entity counts as reached if retention kept it or a root names it by id:
- * one that failed before it ever loaded has no entry to keep.
+ * Reached is retention's own walk, taken over the Model before collection. It
+ * counts a relation's target and a list's row that the store does not hold,
+ * which is exactly a value whose first read failed: it is still on screen,
+ * behind the parent that refers to it.
  */
-const prunedFailures = (
-  failures: Failures,
-  roots: RetentionRoots,
-  entities: EntityStore,
-): Failures => {
+const prunedFailures = (model: RemoteModel, roots: RetentionRoots): Failures => {
+  const { failures } = model
   const named = new Set(roots.connections.map(root => root.identity))
   const connections = Object.entries(failures.connections).filter(([identity]) =>
     named.has(identity),
   )
-  const asked = new Set(roots.requirements.map(root => entityKey(root.entity, root.id)))
-  const fields = Object.entries(failures.fields).filter(([mark]) => {
-    const key = mark.slice(0, mark.indexOf('\u0000'))
-    return asked.has(key) || key in entities
-  })
+  const kept =
+    Object.keys(failures.fields).length === 0
+      ? new Set<string>()
+      : reachable(
+          model.entities,
+          roots,
+          model.connections,
+          model.optimistic,
+          model.mutations.pending,
+        )
+  const fields = Object.entries(failures.fields).filter(([mark]) =>
+    kept.has(mark.slice(0, mark.indexOf('\u0000'))),
+  )
   return connections.length === Object.keys(failures.connections).length &&
     fields.length === Object.keys(failures.fields).length
     ? failures
@@ -907,15 +927,20 @@ export const failureOf = (
 ): RemoteError | undefined => {
   const failed = model.failures.fields
   if (Object.keys(failed).length === 0) return undefined
-  const seen = new Set<string>()
+  // Once per entity and requirement, as retention walks: two relations can
+  // reach one entity for different fields, and skipping the second would hide
+  // its failure. A requirement tree is finite, so cyclic data still ends.
+  const walked = new Map<string, Set<RelationRequirement>>()
   const walk = (
     target: string,
     targetId: string,
     requirement: RelationRequirement,
   ): RemoteError | undefined => {
     const key = entityKey(target, targetId)
-    if (seen.has(key)) return undefined
-    seen.add(key)
+    const seen = walked.get(key) ?? new Set()
+    if (seen.has(requirement)) return undefined
+    seen.add(requirement)
+    walked.set(key, seen)
     for (const field of requirement.fields) {
       const error = failed[fieldMark(target, targetId, field)]
       if (error !== undefined) return error

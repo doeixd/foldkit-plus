@@ -1891,6 +1891,26 @@ const bindDomain = <
         }
         return undefined
       }
+      // A page carries refs; its rows' fields are read after it lands. While
+      // that read is in flight the list is loading, not `Initial`.
+      const loadingItem = (
+        remote: RemoteModel,
+        connection: Connection,
+      ): { readonly _tag: 'Loading' } | undefined => {
+        if (remote.loading.size === 0) return undefined
+        for (const edge of visibleItems(
+          connection,
+          ref.identity,
+          remote.optimistic.overlays,
+          remote.entities,
+        )) {
+          if (edge.ref.entity !== relation.entity) continue
+          if (isLoading(remote, edge.ref.entity, edge.ref.id, relation.fields)) {
+            return { _tag: 'Loading' }
+          }
+        }
+        return undefined
+      }
       // The page as the rows held make it, before any failure is laid over it;
       // `undefined` when a row is missing a field.
       const readPage = (
@@ -1961,7 +1981,8 @@ const bindDomain = <
           // A query that answered is not the whole of a list: its rows' fields
           // are read separately, and one of those failing is the list's failure.
           const read = readPage(remote, connection) ??
-            failedItem(remote, connection) ?? { _tag: 'Initial' }
+            failedItem(remote, connection) ??
+            loadingItem(remote, connection) ?? { _tag: 'Initial' }
           if (failure === undefined) {
             if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return read
             const item = failedItem(remote, connection)
