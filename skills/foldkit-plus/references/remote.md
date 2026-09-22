@@ -299,6 +299,16 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
+`Remote.matching(store, descriptor, input, { among? })` runs a query body over
+the rows the store already holds, returning `{ matched, skipped }` — keys that
+satisfy it in the body's order, and keys held but missing a field the body reads
+(neither a match nor a non-match; naming them keeps "could not tell" from
+becoming "no"). It uses the same reference interpreter the server is checked
+against, takes the input **decoded** and encodes it itself (a decoded value
+produces an empty answer that no error catches), and answers *which of the rows
+I hold match* — never *which rows match*. It applies no `visible` rule and is
+not an access decision.
+
 A connection's identity is its query plus its **input**, so an input that changes
 per keystroke mints a connection and a request per keystroke. Remote has no
 debounce and should not — it is a faithful function of the Model. Debounce

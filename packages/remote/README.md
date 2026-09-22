@@ -706,6 +706,48 @@ their required fields. `Data.next` / `Data.previous` preserve the page size and
 use the loaded boundaries; `hasNext` / `hasPrevious` come from those boundaries,
 not from guessing based on row counts.
 
+### Judging the rows you already hold
+
+A connection's rows are edges the server delivered, and a query body describes
+*which rows* — so until something evaluates the body on the client, nothing here
+can say whether a row belongs to a query. `Remote.matching` says:
+
+```ts
+const judged = Remote.matching(Data.storeOf(model), ProjectsByOwner, { ownerId: 'u1' })
+
+judged.matched  // keys satisfying the body, in the order it asks for
+judged.skipped  // keys held, but missing a field the body reads
+```
+
+It is pure, and it runs the **same interpreter the server checks itself
+against** — the reference implementation in
+[`foldkit-entity`](../entity) — so a body means one thing in both places. The
+conformance suite is run over a store as well as over rows and a table.
+
+Three things about it are deliberate.
+
+**It answers "which of the rows I hold match", never "which rows match."** Those
+are different questions, and the difference is not recoverable from a list of
+keys — so it is in the shape. A caller that knows it holds the whole population
+(a connection terminal at both ends) is the one that can turn this into a
+complete answer.
+
+**`skipped` is the honest half.** A row missing a field the body reads cannot be
+judged: it is neither a match nor a non-match. Dropping it silently would turn
+"I could not tell" into "no", so it is named instead, and the caller decides
+whether to fetch the field, ask the server, or say the answer is partial.
+
+**It takes the input decoded and encodes it itself.** A store holds wire values,
+so a comparison has to happen in that space — and handing an interpreter a
+decoded value is a mistake *no runtime error catches*: the answer is simply
+empty, which reads exactly like a correct one. Doing the encoding here means a
+caller cannot get it wrong.
+
+It is **not authorization**. On the server a compiled `where` is conjoined with
+the binding's `visible` rule; there is no `visible` here. This is safe only
+because the client holds only rows the server already released to it, and a
+local filter is not an access decision.
+
 ### An input that changes as fast as someone types
 
 A connection's identity is its query plus its **input**, which is exactly right

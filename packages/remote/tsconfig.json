@@ -9,6 +9,7 @@
     "paths": {
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-surface": ["../surface/src/index.ts"]
     }
