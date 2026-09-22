@@ -637,6 +637,13 @@ installed `.d.ts` before reaching for a remembered API.
   tighter match-arm inference failed `Idle`/`Interval` updates the package
   check passed. The root check is what CI runs: verify with it (or plain
   `npx tsc -b <project>`) before committing, not just the package script.
+- **"It retries" is a claim about what restarts it.** A Remote read entry
+  restarts only when its dependencies change. A failed query or read that
+  changed nothing in the Model changed nothing in the plan, so nothing
+  retried, and a list sat at `Initial` for good. The docs said "the
+  subscription retries" in three places. Before writing that something
+  happens again, find the condition that makes it happen and check the
+  failure path meets it.
 - **Map every workspace dep in a composite example's `paths`.** A package's
   `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
   import through `exports` fails on a clean checkout; a stale local `dist` hides
