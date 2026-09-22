@@ -40,6 +40,9 @@ export default defineConfig({
         new URL('./packages/metadata/src/index.ts', import.meta.url),
       ),
       'foldkit-surface': fileURLToPath(new URL('./packages/surface/src/index.ts', import.meta.url)),
+      'foldkit-primitives/time': fileURLToPath(
+        new URL('./packages/primitives/src/time/index.ts', import.meta.url),
+      ),
       'foldkit-bundle': fileURLToPath(new URL('./packages/bundle/src/index.ts', import.meta.url)),
       'foldkit-react': fileURLToPath(new URL('./packages/react/src/index.ts', import.meta.url)),
       'foldkit-react-codegen': fileURLToPath(

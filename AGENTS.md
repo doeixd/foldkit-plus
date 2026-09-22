@@ -642,7 +642,12 @@ installed `.d.ts` before reaching for a remembered API.
   import through `exports` fails on a clean checkout; a stale local `dist` hides
   it and only CI's `typecheck:force` goes red. `examples/kitchen-sink` omitted
   `foldkit-remote-drizzle` and failed with `Cannot find module` plus cascading
-  `unknown` types. Diff the example's `paths` against its `workspace:` deps.
+  `unknown` types. Diff the example's `paths` against the specifiers its
+  sources import, not against its `workspace:` deps: a subpath like
+  `foldkit-primitives/time` needs its own entry (and a vitest alias), and
+  `examples/entity` failed CI this way with the dependency declared. To
+  reproduce locally, move the package's `dist` aside and run
+  `npx tsc -b --force <example>`.
 
 ## Repository
 
