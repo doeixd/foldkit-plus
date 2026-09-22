@@ -114,12 +114,10 @@ const ProjectSummary = Entity.select(Project, {
 ```
 
 The entity comes from [`foldkit-entity`](../entity), which declares a domain
-without Remote in it. Remote also has an `Entity.make` of its own, and accepts
-either — but only a `foldkit-entity` entity has addressable `fields`, so only
-that one can be given [relations](#entities-declared-with-foldkit-entity),
-derived members, or a [query body](#queries-and-pagination). Reach for
-`Entity.make` when a domain is small enough that Remote is all it will ever
-need; reach for `Entity.define` otherwise, which is most of the time.
+without Remote in it, so the same declaration can serve the server's database
+binding and your forms too. It is also what gives an entity
+[relations](#entities-declared-with-foldkit-entity), derived members, and a
+[query body](#queries-and-pagination) to point at.
 
 Embed Remote's Submodel in the application and bind the domain to that field:
 
@@ -1199,6 +1197,11 @@ place in an application Model. It exposes the Remote `Model`, `initial`,
 `Remote.at(definition, modelRef)` binds that domain to a `ModelRef`;
 `Remote.make` combines definition and binding in one step.
 
+`Entity.make(name, schema)` is Remote's own entity descriptor, and what a
+`foldkit-entity` Entity is compiled to (`Entity.from`). Remote accepts either
+wherever it takes an entity. Declaring one directly skips `foldkit-entity`,
+and with it relations, derived members and query bodies, which is only worth
+it for a domain that Remote is all it will ever need.
 `Selection.make(Entity, { ... })`, `Selection.connection(...)`, and
 `Entity.patch(ref, values)` are the kernel constructors behind the entity
 helpers. `Remote.select(bound, selection)(id)` is the lower-level form of
