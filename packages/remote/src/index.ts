@@ -809,20 +809,60 @@ const queryRequestOf = (query: {
  * `refreshes` marks the page as answering the connection's refresh, so one
  * Message both merges it and clears `stale`.
  */
+/**
+ * The page a window asked for, or the number of edges that came back instead.
+ *
+ * A window is a request the client made and the server answered, so more edges
+ * than were asked for is a protocol disagreement rather than a windfall: the
+ * client cannot tell which of them the window meant, the connection's
+ * boundaries stop describing what it holds, and a `first: 25` that quietly
+ * becomes a thousand is a memory event with no error attached to it.
+ *
+ * `undefined` when the page is within its window, or when no size was asked
+ * for — `after`/`before` with no `first`/`last` bounds nothing.
+ */
+const overrun = (
+  window: QueryWindow,
+  edges: ReadonlyArray<unknown>,
+): { readonly asked: number; readonly got: number } | undefined => {
+  const asked = window.first ?? window.last
+  return asked !== undefined && edges.length > asked ? { asked, got: edges.length } : undefined
+}
+
 const pageMessage = (
   connection: string,
   result: Schema.Schema.Type<typeof QueryResult>,
   refreshes = false,
-): RemoteMessage => ({
-  _tag: 'ConnectionMerged',
-  connection,
-  page: {
-    edges: result.edges.map(edge => ({ key: edge.key, ref: { entity: edge.entity, id: edge.id } })),
-    start: result.start,
-    end: result.end,
-  },
-  ...(refreshes ? { refreshes } : {}),
-})
+  window: QueryWindow = {},
+): RemoteMessage => {
+  // Failed the same way a version mismatch fails: the read reads `Failed` with
+  // a named protocol error, rather than the page being silently accepted or an
+  // exception escaping a subscription.
+  const over = overrun(window, result.edges)
+  if (over !== undefined) {
+    return {
+      _tag: 'QueryFailed',
+      connection,
+      error: {
+        _tag: 'RemoteProtocolError',
+        message: `the server returned ${over.got} edges for a window of ${over.asked}`,
+      },
+    }
+  }
+  return {
+    _tag: 'ConnectionMerged',
+    connection,
+    page: {
+      edges: result.edges.map(edge => ({
+        key: edge.key,
+        ref: { entity: edge.entity, id: edge.id },
+      })),
+      start: result.start,
+      end: result.end,
+    },
+    ...(refreshes ? { refreshes } : {}),
+  }
+}
 
 /**
  * The retention roots of some projections: their requirements, their
@@ -878,7 +918,7 @@ const queryMessage = (query: {
     )
     return Result.isFailure(result)
       ? { _tag: 'QueryFailed', connection: query.identity, error: remoteError(result.failure) }
-      : pageMessage(query.identity, result.success, true)
+      : pageMessage(query.identity, result.success, true, query.window)
   })
 
 /** A query the read entry runs, as its dependencies carry it: plain data Foldkit compares. */
@@ -1389,7 +1429,7 @@ export const Remote = {
   queryMessage: <Name extends string, Input>(
     ref: QueryRef<Name, Input>,
     result: Schema.Schema.Type<typeof QueryResult>,
-  ): RemoteMessage => pageMessage(ref.identity, result),
+  ): RemoteMessage => pageMessage(ref.identity, result, false, ref.window),
 
   /**
    * The edges a connection shows: its server-known region with pending and
@@ -1604,7 +1644,7 @@ const bindDomain = <
           const page = yield* queryRequestOf(query).pipe(
             Effect.flatMap(request => client.query(request)),
           )
-          current = reduce(current, pageMessage(query.identity, page, true))
+          current = reduce(current, pageMessage(query.identity, page, true, query.window))
         }
         const requirements = planAsked(
           store.get(current),
@@ -1769,7 +1809,7 @@ const bindDomain = <
             connection: ref.identity,
             error: remoteError(error),
           }),
-          onSuccess: (page): RemoteMessage => pageMessage(ref.identity, page),
+          onSuccess: (page): RemoteMessage => pageMessage(ref.identity, page, false, ref.window),
         }),
       ),
     }),

@@ -757,9 +757,29 @@ instinct to fail closed on protocol mismatch, and a response that ignores the
 window is a protocol mismatch. A buggy server paginating wrongly is at least as
 likely as a hostile one.
 
-**Fix:** check the edge count against the requested window and treat an overrun
-the way a version mismatch is treated. Cheap, and it turns a silent memory
-event into a diagnosable error.
+**Fix, built.** `pageMessage` — the single funnel every page passes through —
+takes the window and returns `QueryFailed` with a named protocol error when the
+edge count exceeds `first ?? last`. A window with neither bounds nothing, since
+`after`/`before` says where to start rather than how much to take.
+
+**What it buys and what it does not.** The edges are rejected: they never reach
+the store or the connection, and a connection that was already loaded is left
+exactly as it was, so a refresh that overruns cannot replace good rows with a
+rejected page. That was the point.
+
+But it surfaced a pre-existing limitation worth recording separately.
+`QueryFailed` for a connection the Model never held is a deliberate no-op —
+*"one the Model never held stays absent"* — so a view reading it still sees
+`Initial`, not `Failed`. The same is true of a failed refresh, which clears
+staleness and reads as before. **No read surfaces a query failure**, of any
+kind, and this check inherits that rather than causing it.
+
+Whether it should is a real question and a separate one: `Initial` means
+"nothing known", which is honest, and the subscription will retry — but a
+protocol disagreement that is only visible to whoever reduces the Message is
+hard to notice in exactly the situation it exists for. Recorded here rather
+than changed, because it affects every query failure and deserves deciding on
+its own terms.
 
 ### 17.2 Local evaluation applies no authorization, and must say so
 

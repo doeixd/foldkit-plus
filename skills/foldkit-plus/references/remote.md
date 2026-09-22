@@ -299,6 +299,13 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
+A page carrying more edges than its window asked for (`first ?? last`) is
+refused: it becomes `QueryFailed` with a protocol error and none of its edges
+reach the store, leaving an already-loaded connection untouched. A window with
+neither bounds nothing. Note that a failed query never makes a read `Failed` —
+`QueryFailed` on a connection the Model never held is a no-op, so the read stays
+`Initial` and the error travels on the Message.
+
 `Data.explain(model, queryProjection)` explains one query read as a single
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
 the `body` as readable text with its `dependencies` (absent for a `Query.make`

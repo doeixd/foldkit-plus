@@ -706,6 +706,25 @@ their required fields. `Data.next` / `Data.previous` preserve the page size and
 use the loaded boundaries; `hasNext` / `hasPrevious` come from those boundaries,
 not from guessing based on row counts.
 
+### A page that overruns its window is refused
+
+The client asks for `first: 25`, and a page carrying more than that is a
+protocol disagreement rather than a windfall: the client cannot tell which of
+the edges the window meant, and the connection's boundaries stop describing what
+it holds. Such a page becomes a `QueryFailed` with a named protocol error, and
+none of its edges reach the store — a connection already loaded is left exactly
+as it was, so a refresh that overruns cannot replace good rows with a rejected
+page.
+
+A window with neither `first` nor `last` bounds nothing: `after`/`before` says
+where to start, not how much to take.
+
+Note what a failed query does **not** do, here or anywhere: it does not make a
+read `Failed`. A `QueryFailed` for a connection the Model never held is a no-op,
+so the read stays `Initial` — nothing is known, which is honest — and the
+subscription retries. The error is carried by the Message, for whoever reduces
+it to log or surface.
+
 ## Mutations and optimistic state
 
 Register mutations on the domain:
