@@ -320,12 +320,20 @@ export interface RemoteDomain<
    * with what it depends on, and what the read answers from this Model.
    *
    * Pure, so a DevTools panel showing it shows something the Model can be
-   * replayed to. See `QueryExplanation` for the two members of the design's
-   * sketch that are deliberately absent.
+   * replayed to.
+   *
+   * Given `surfaces` — the same active record `subscriptions` takes — it also
+   * reports which of them read this connection, and why each is active where
+   * that is a readable fact (`Surface.when`) rather than a callback
+   * (`Surface.at`). A Projection cannot carry this itself: several Surfaces may
+   * read one connection, so it is not a property of the read.
    */
   explain<Name extends string, Input>(
     model: AppModel,
     projection: QueryProjection<AppModel, any, Name, Input>,
+    options?: {
+      readonly surfaces?: Readonly<Record<string, ActiveSurface<AppModel>>> | undefined
+    },
   ): QueryExplanation
   /** A Command that runs the query and yields the `ConnectionMerged` (or `QueryFailed`) that reduces it: "load more". */
   fetch(ref: QueryRef<string, unknown>): Command<RemoteMessage, never, RemoteClient>
@@ -1822,8 +1830,20 @@ const bindDomain = <
           }
         : undefined
     },
-    explain: (model, projection) => {
+    explain: (model, projection, options) => {
       const { ref } = projection
+      // Which active Surfaces read this connection, asked of the Model rather
+      // than of the projection: a Surface's projection is rebuilt per Model, so
+      // the only honest comparison is by connection identity.
+      const reading = Object.values(options?.surfaces ?? {}).filter(active => {
+        const active_ = active.projectionOf(model)
+        // An inactive Surface reads nothing, which is not the same as reading
+        // something else.
+        return (
+          active_ !== undefined &&
+          connectionsOf(active_).some(connection => connection.identity === ref.identity)
+        )
+      })
       // The body lives on the descriptor, and a projection keeps only its
       // `QueryRef` — so the explanation looks the definition back up by name.
       // Which it can, because `Data` is bound to the domain that registered it.
@@ -1840,6 +1860,16 @@ const bindDomain = <
           ? {}
           : { body: Relational.show(body), dependencies: Relational.dependencies(body) }),
         state: projection.read(model)._tag,
+        ...(options?.surfaces === undefined
+          ? {}
+          : {
+              surfaces: reading.map(active => active.name),
+              activation: reading.flatMap(active =>
+                active.activation === undefined
+                  ? []
+                  : [{ surface: active.name, ...active.activation }],
+              ),
+            }),
       }
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),

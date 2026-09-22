@@ -180,6 +180,15 @@ a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
 `Metadata.combine(parts)`, which runs each key's own `merge`. `Metadata.is`
 rejects copies and hand-built values.
 
+- `Surface.when(surface, place, TaggedCase, value => params)` is `Surface.at`
+  with the activation **readable**: it records the Model path and the tag, so a
+  route-to-Surface manifest, a prefetch analysis or `Data.explain`'s heading can
+  be built without running a callback. Not router-specific — a route is one kind
+  of tagged Model state. It takes the *read half* of a ref (`dependency` +
+  `get`), because activation observes and because a union field is a union of
+  `FieldRef`s that no single `ModelRef` accepts. `Surface.at` stays for
+  activation that is a genuine computation.
+
 ## Gotchas
 
 - **Reserved field names.** `Surface.application` throws

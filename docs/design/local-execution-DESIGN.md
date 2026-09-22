@@ -687,7 +687,7 @@ refuse the rest.
 > nothing reads is worse evidence of demand than no option at all, and it is
 > worth being slower to count one next time.
 
-### 5 — `Surface.when`, and the manifest that makes it useful
+### 5 — `Surface.when`, and the manifest that makes it useful — **done**
 
 §31.10's helper, **plus** the active-surface manifest that lets `Data.explain`
 report §29.1's first line (§6). The helper alone does not close the finding.
@@ -695,6 +695,34 @@ report §29.1's first line (§6). The helper alone does not close the finding.
 **Done when** an active Surface can be named from the Model without an opaque
 callback, `explain` reports it, `Surface.at` still exists and works, and the
 helper is not router-specific.
+
+> **Done, and the signature is the interesting part.**
+>
+> `Surface.when(surface, place, tagged, params)` records the Model path and the
+> tag as values, so a manifest can be built without evaluating anything.
+> `Surface.at` is untouched and is still right when activation is a genuine
+> computation rather than a tag.
+>
+> It takes a **`ModelPlace`** — `dependency` and `get`, the read half of a
+> `ModelRef` — rather than a `ModelRef`. Two reasons, and the second only
+> appeared on trying it. Activation **observes**: it never installs a value, so
+> asking for a writable reference claims an authority it does not use. And a
+> field holding a tagged union is a *union of* `FieldRef`s, one per case, which
+> no single `ModelRef<Root, Value>` accepts — `ModelRef` is invariant in its
+> value, because of `set`. Asking only for what it reads fixes the inference and
+> states the truth at once.
+>
+> The case type is inferred from the constructor, so the callback receives
+> `{ _tag: 'Owner', ownerId: string }` rather than `{ _tag: string }`. That is
+> not cosmetic: the whole helper exists so the params come from the tagged
+> value, and an un-narrowed parameter would mean casting at every call site.
+>
+> **The manifest half is separate and was the easier half to get wrong.**
+> `Data.explain(model, projection, { surfaces })` reports **every** active
+> Surface reading the connection, not the first — several may, which is exactly
+> why a Projection cannot carry the answer itself. Given no Surfaces it omits
+> the members rather than reporting an empty list, so "nobody is reading this"
+> and "I was not told" stay distinguishable.
 
 Independent of everything else. Smallest user-visible win here.
 

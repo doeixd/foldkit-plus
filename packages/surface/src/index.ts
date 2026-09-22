@@ -616,12 +616,46 @@ export interface Surface<Root, Model, Message, Params> {
  * builds one; a Subscription derives what to fetch, subscribe, and retain
  * from a list of them.
  */
+/**
+ * Why a Surface is active, when that is something other than a callback.
+ *
+ * `Surface.at` takes an arbitrary function of the Model, which is correct and
+ * opaque: nothing can say *why* the Surface is on without running it. When
+ * activation is a tagged value at a known place — a route, a mode, a
+ * selection — `Surface.when` records the place and the tag, and a manifest can
+ * be built without evaluating anything.
+ */
+/**
+ * What `Surface.when` needs of a place in the Model: where it is, and how to
+ * read it.
+ *
+ * The read half of a `ModelRef`, and deliberately not the whole thing.
+ * Activation **observes** — it never installs a value — so asking for a
+ * writable reference would claim an authority it does not use. It also makes
+ * the common case work: a field holding a tagged union is a *union of*
+ * `FieldRef`s, one per case, which no single `ModelRef<Root, Value>` accepts.
+ */
+export interface ModelPlace<Root> {
+  /** Where the value lives, as `ModelRef.dependency` gives it. */
+  readonly dependency: readonly string[]
+  readonly get: (root: Root) => unknown
+}
+
+export interface Activation {
+  /** The Model path the tagged value lives at, as `ModelRef.dependency` gives it. */
+  readonly path: readonly string[]
+  /** The tag that makes the Surface active. */
+  readonly tag: string
+}
+
 export interface ActiveSurface<Root> {
   readonly name: string
   /** Identity token of the application the Surface belongs to. */
   readonly owner: object
   /** The projection for the params the Model gives, or `undefined` while inactive. */
   readonly projectionOf: (model: Root) => Projection<Root, unknown> | undefined
+  /** Present when the Surface was placed with `Surface.when`; absent for `Surface.at`. */
+  readonly activation?: Activation | undefined
 }
 
 declare const invalid: unique symbol
@@ -1031,6 +1065,52 @@ export const Surface = {
         : surface.projection(resolved as Params)
     },
   }),
+
+  /**
+   * A Surface active while a tagged value at a known place has a given tag.
+   *
+   * ```ts
+   * Surface.when(ProjectPage, App.fields.route, AppRoute.Project, route => ({
+   *   projectId: route.projectId,
+   * }))
+   * ```
+   *
+   * The same thing `Surface.at` does with a callback, and one fact more: the
+   * place and the tag are **values**, so what activates the Surface can be read
+   * without running anything. That is what a route-to-Surface manifest, a
+   * prefetch analysis, or an explanation of why a read is happening needs.
+   *
+   * Deliberately **not router-specific.** A route is one kind of tagged Model
+   * state; a mode, a wizard step and a selected tab are others, and none of
+   * them should need their own helper.
+   *
+   * `Surface.at` stays, and is still the answer when activation is a genuine
+   * computation rather than a tag.
+   */
+  when: <Root, Model, Message, Params, Case extends Schema.Top>(
+    surface: Surface<Root, Model, Message, Params>,
+    place: ModelPlace<Root>,
+    tagged: Case,
+    params: (value: Schema.Schema.Type<Case>) => Params,
+  ): ActiveSurface<Root> => {
+    const tag = messageTag(tagged)
+    if (tag === undefined) {
+      throw new Error(
+        `Surface.when: expected a tagged constructor for "${surface.name}", which is what names the case that activates it`,
+      )
+    }
+    return {
+      name: surface.name,
+      owner: surface.owner,
+      activation: { path: place.dependency, tag },
+      projectionOf: model => {
+        const value = place.get(model) as { readonly _tag: string } | undefined
+        return value?._tag === tag
+          ? surface.projection(params(value as Schema.Schema.Type<Case>))
+          : undefined
+      },
+    }
+  },
 
   make: <
     Root,

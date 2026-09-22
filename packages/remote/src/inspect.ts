@@ -77,9 +77,11 @@ export const inspectEntity = (
  * finding rather than an omission:
  *
  * - **Surface.** A Projection does not know which Surface reads it, and often
- *   several do. Naming one would be a guess; `Remote.subscriptions` is where
- *   the Surface-to-read relation actually lives, and a panel that wants the
- *   heading has the Surface in hand already.
+ *   several do — so it is not a property of the read, and `explain` cannot
+ *   recover it alone. Given the active Surfaces (the same record
+ *   `subscriptions` takes), it reports **every** Surface reading the connection
+ *   rather than guessing one, and omits the member entirely when it was not
+ *   given them.
  * - **Executor.** The thing that answers a query is a `RemoteClient` Layer in
  *   the runtime, not a value in the Model, and a pure read of the Model cannot
  *   see it. That is the same boundary that makes this function pure and
@@ -115,4 +117,22 @@ export interface QueryExplanation {
   readonly dependencies?: Dependencies | undefined
   /** What the read answers from this Model right now. */
   readonly state: RemoteData<unknown>['_tag']
+  /**
+   * The active Surfaces reading this connection at this Model, if the active
+   * record was supplied. Plural because several may, which is why a Projection
+   * cannot carry the answer itself.
+   */
+  readonly surfaces?: ReadonlyArray<string> | undefined
+  /**
+   * Why each of those Surfaces is active, where it was placed with
+   * `Surface.when` — the Model path and the tag, without running anything. A
+   * Surface placed with `Surface.at` has no entry: a callback cannot be read.
+   */
+  readonly activation?:
+    | ReadonlyArray<{
+        readonly surface: string
+        readonly path: readonly string[]
+        readonly tag: string
+      }>
+    | undefined
 }
