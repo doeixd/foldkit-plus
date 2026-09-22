@@ -1,14 +1,53 @@
 # `foldkit-primitives/events`
 
-Raw browser events: visibility, size, idleness, keys, pointer, scroll,
-focus. See the [package README](../README.md) for the full guide; this
-page is the reference card. ([source](https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives/src/events))
+Raw browser events: visibility, size, idleness, keys, pointer, scroll, focus. See the
+[package README](../README.md) for the full guide; this page walks through one placement
+before the API reference.
+([source](https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives/src/events))
 
 ## Owns
 
-Nothing by itself. Bundles keep a stored fact (`Visibility`, `WindowSize`,
-`Idle`); entries report and the parent keeps what matters. Element-scoped
-needs belong to Mounts, not these window-level streams.
+Nothing by itself. Bundles keep a stored fact (`Visibility`, `WindowSize`, `Idle`);
+entries report and the parent keeps what matters. Element-scoped needs belong to Mounts,
+not these window-level streams.
+
+```text
+browser / clock → subscription → Message → update → parent Model
+```
+
+## Start with one slice
+
+```ts
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+import { Visibility } from 'foldkit-primitives/events'
+
+const Tab = Bundle.declare(Visibility, 'tab')
+const Model = Schema.Struct({ ...Tab.fields })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Tab.cases })
+type Message = typeof Message.Type
+const Page = Bundle.parent({ Model, Message })
+const placements = Page.assemble(Page.at(Tab))
+
+const config = placements.complete({
+  init: () => placements.initial({}),
+  update: placements.update(model => ({ model })),
+  view: (model: Model, h: HtmlBuilder<Message>) => h.div([], [String(model.tab.visible)]),
+  subscriptions: placements.subscriptions(),
+})
+```
+
+The initial value reads the document when available and assumes visible on the server.
+The subscription reports the current visibility and subsequent changes. Your application
+decides which work to pause when the tab becomes hidden.
+
+`config` is a Foldkit application configuration. Creating it does not start the
+subscription; pass it to your Foldkit runtime. The parent Model owns the slice, and
+`placements.update` routes its wrapper Messages. See the [Bundle
+guide](../../bundle/README.md) for mounting and composing placements.
 
 ## Exports
 
@@ -23,45 +62,9 @@ needs belong to Mounts, not these window-level streams.
 | `scrollEvents` | entry: positions (capture: containers included) | none |
 | `activeElementEvents` | entry: focus `{ tag, id }` | none |
 
-Lift entries with `Subscription.persistent`, mapping into the parent's
-Message. Hotkey matching is exact with Mac aliases; auto-repeat never
-matches. Placing both `WindowSize` and `Breakpoints` doubles resize
-listeners.
-
-## Example
-
-```ts
-import { Bundle } from 'foldkit-bundle'
-import { Visibility } from 'foldkit-primitives/events'
-
-const Tab = Bundle.declare(Visibility, 'tab')
-// ...Model/Message/parent, then:
-Page.assemble(Page.at(Tab))
-```
-
-Entries lift beside it, mapping into the same Message union:
-
-```ts
-import { Stream } from 'effect'
-import * as Subscription from 'foldkit/subscription'
-import { keyboardEvents, type KeyboardMessage } from 'foldkit-primitives/events'
-
-type Pressed = Extract<KeyboardMessage, { readonly _tag: 'Pressed' }>
-
-changes: Subscription.persistent(
-  Stream.map(
-    Stream.filter(
-      keyboardEvents(),
-      (message): message is Pressed => message._tag === 'Pressed',
-    ),
-    pressed => KeyMessage.Key({ key: pressed.key }),
-  ),
-),
-```
-
-where `KeyMessage` is the parent union with a `Key { key }` variant. The
-filter's type predicate is what keeps `.key` typed — a boolean filter
-alone does not narrow the union.
+Lift entries with `Subscription.persistent`, mapping into the parent's Message. Hotkey
+matching is exact with Mac aliases; auto-repeat never matches. Placing both `WindowSize`
+and `Breakpoints` doubles resize listeners.
 
 ## Failure
 
