@@ -924,7 +924,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       expect(Remote.refresh(Data, loaded, Home)).toEqual(refreshed)
     })
 
-    it('settles a failed refetch: an entity back to its value, a list to Failed with its rows', async () => {
+    it('settles a failed refetch to Failed, keeping the value it had', async () => {
       const project = Data.get(summary, 'p1')
       const loaded = read(merged(initial, ['p1']), ['p1'])
       const unreachable = Layer.succeed(RemoteClient, {
@@ -937,7 +937,11 @@ describe('Data.query reads a connection as a page of selected items', () => {
       const entity = await observe(Data.refresh(loaded, project), project, unreachable)
       const page = await observe(Data.refresh(loaded, projects), projects, unreachable)
 
-      expect(project.read(entity)).toEqual({ _tag: 'Ready', value: { name: 'name of p1' } })
+      expect(project.read(entity)).toEqual({
+        _tag: 'Failed',
+        error: { _tag: 'RemoteReadError', message: 'down' },
+        previous: { name: 'name of p1' },
+      })
       expect(page.remote.connections[identity]?.stale).toBe(false)
       const before = projects.read(loaded)
       expect(before._tag).toBe('Ready')

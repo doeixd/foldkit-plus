@@ -1053,6 +1053,13 @@ and a page arriving, a live invalidation, or retention dropping the connection
 clears it. Pinned in `packages/remote/test/queryFailure.test.ts`, each part
 mutation-checked.
 
+Entity reads had the same stall one level down, and got the same answer per
+field (`packages/remote/test/readFailure.test.ts`). Doing that exposed a
+conflation: the live entry reported a broken stream as `ReadFailed` over the
+fields it watched, so it would have failed fields nobody was reading and pulled
+them out of the read entry's plan. A broken stream now records a gap on its
+stream instead, which is what `gaps` was for.
+
 ### 17.2 Local evaluation applies no authorization, and must say so
 
 Repeated here because it belongs in this list. On the server a compiled `where`

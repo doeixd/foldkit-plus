@@ -47,7 +47,9 @@ import {
 } from './inspect.js'
 import type { LiveCursor, LiveEvent } from './live.js'
 import {
+  failureOf,
   initialRemoteModel,
+  isFieldFailed,
   isLoading,
   isRemoteMessage,
   refreshIsInFlight,
@@ -77,7 +79,7 @@ import { plan, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
 import type { ConnectionSpec, LivePolicy, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
-import { remoteDataSchema, type RemoteData } from './remoteData.js'
+import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
 import { Selection, assemble, pageSchema, relationOf, type Page } from './selection.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
@@ -790,7 +792,7 @@ const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Pla
   ) as ReadonlyArray<QueryRequirement>
   for (const connection of connections) {
     const known = remote.connections[connection.identity]
-    const failed = options.force !== true && connection.identity in remote.failures
+    const failed = options.force !== true && connection.identity in remote.failures.connections
     if (!failed && (known === undefined || known.stale || options.force === true)) {
       queries.push(connection)
       continue
@@ -809,14 +811,52 @@ const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Pla
       ),
     )
   }
+  const planned = plan(
+    visibleStoreOf(remote.entities, remote.optimistic),
+    [...asked.requirements, ...items],
+    options,
+  )
   return {
-    requirements: plan(
-      visibleStoreOf(remote.entities, remote.optimistic),
-      [...asked.requirements, ...items],
-      options,
-    ),
+    requirements: options.force === true ? planned : withoutFailedFields(remote, planned),
     queries,
   }
+}
+
+/**
+ * The plan without the fields whose last read failed. Like a failed query,
+ * a failed field is shown rather than retried on its own, so a persistent
+ * error is not asked again on every unrelated restart of the read entry. A
+ * field leaving the request takes its window and its relation with it.
+ */
+const withoutFailedFields = (
+  remote: RemoteModel,
+  planned: ReadonlyArray<Requirement>,
+): ReadonlyArray<Requirement> => {
+  if (Object.keys(remote.failures.fields).length === 0) return planned
+  return planned.flatMap(requirement => {
+    const fields = requirement.fields.filter(
+      field => !isFieldFailed(remote, requirement.entity, requirement.id, field),
+    )
+    if (fields.length === requirement.fields.length) return [requirement]
+    if (fields.length === 0) return []
+    const kept = new Set(fields)
+    const only = <T>(record: Readonly<Record<string, T>> | undefined) =>
+      record === undefined
+        ? undefined
+        : Object.fromEntries(Object.entries(record).filter(([field]) => kept.has(field)))
+    const windows = only(requirement.windows)
+    const relations = only(requirement.relations)
+    return [
+      {
+        entity: requirement.entity,
+        id: requirement.id,
+        fields,
+        ...(windows === undefined || Object.keys(windows).length === 0 ? {} : { windows }),
+        ...(relations === undefined || Object.keys(relations).length === 0 ? {} : { relations }),
+        ...(requirement.live === undefined ? {} : { live: requirement.live }),
+      },
+    ]
+  })
 }
 
 /** The entity requirements a page's edges add under a selection. */
@@ -1104,6 +1144,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
                   _tag: 'ReadFailed',
                   requests: requirements,
                   error: remoteError(error),
+                  stream: liveStreamKey(requirements),
                 }),
               ),
           ),
@@ -1225,12 +1266,22 @@ export const Remote = {
                 : { _tag: 'Ready', value: decoded.success }
           },
         )
-        if (present !== undefined) return present
-        // Nothing is fetching this: usually a projection no active Surface
-        // observes, rather than a slow network.
-        return isLoading(bound.store.get(root), selection.entity, id, relation.fields)
-          ? { _tag: 'Loading' }
-          : { _tag: 'Initial' }
+        // Decided outside the memo, as loading is: a failure can arrive
+        // without the store changing.
+        const remote = bound.store.get(root)
+        const failure = failureOf(remote, selection.entity, id, relation)
+        if (present !== undefined) {
+          // A value on screen whose refresh failed stays on screen, with the
+          // error, which `RemoteData.render` draws as stale.
+          return failure !== undefined &&
+            (present._tag === 'Ready' || present._tag === 'Refreshing')
+            ? { _tag: 'Failed', error: failure, previous: present.value }
+            : present
+        }
+        if (isLoading(remote, selection.entity, id, relation.fields)) return { _tag: 'Loading' }
+        // Nothing is fetching this. Either its read failed, which is said, or no
+        // active Surface observes it, which is usually a wiring mistake.
+        return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
       },
     })
   },
@@ -1366,7 +1417,7 @@ export const Remote = {
       .filter(
         connection =>
           remote.connections[connection.identity] !== undefined ||
-          connection.identity in remote.failures,
+          connection.identity in remote.failures.connections,
       )
       .map(connection => connection.identity)
     const marks: RemoteMessage[] = [
@@ -1582,8 +1633,10 @@ export const Remote = {
 
   /**
    * A Foldkit Subscription entry that consumes the live stream for a Surface's
-   * requirements, emitting a `LiveReceived` per event and a `ReadFailed` when
-   * the stream breaks (including `ResumeUnavailable`). The resume cursor is read
+   * requirements, emitting a `LiveReceived` per event and a `ReadFailed`
+   * carrying its `stream` when the stream breaks (including
+   * `ResumeUnavailable`). That records a gap on the stream rather than a failed
+   * read, since nothing was being read. The resume cursor is read
    * from `RemoteModel.live`, so the application tracks no cursor of its own.
    */
   live: <
@@ -1806,38 +1859,67 @@ const bindDomain = <
       }
       const relation = relationOf(select)
       const relationKey = stableStringify(relation)
-      // The page as the rows held make it, before any failure is laid over it.
-      const readPage = (remote: RemoteModel, connection: Connection): RemoteData<Page<Value>> => {
+      // The first failed field among the rows a list shows, if any. Decided
+      // outside the memo, which is keyed on the store and the connection: a
+      // failure can arrive without either changing.
+      const failedItem = (
+        remote: RemoteModel,
+        connection: Connection,
+      ): { readonly _tag: 'Failed'; readonly error: RemoteError } | undefined => {
+        if (Object.keys(remote.failures.fields).length === 0) return undefined
+        for (const edge of visibleItems(
+          connection,
+          ref.identity,
+          remote.optimistic.overlays,
+          remote.entities,
+        )) {
+          if (edge.ref.entity !== relation.entity) continue
+          const error = failureOf(remote, edge.ref.entity, edge.ref.id, relation)
+          if (error !== undefined) return { _tag: 'Failed', error }
+        }
+        return undefined
+      }
+      // The page as the rows held make it, before any failure is laid over it;
+      // `undefined` when a row is missing a field.
+      const readPage = (
+        remote: RemoteModel,
+        connection: Connection,
+      ): RemoteData<Page<Value>> | undefined => {
         const visible = visibleStoreOf(remote.entities, remote.optimistic)
-        return memoRead(visible, connection, `${ref.identity}\u0000${relationKey}`, () => {
-          const items: Value[] = []
-          let refreshing = connection.stale
-          const edges = visibleItems(
-            connection,
-            ref.identity,
-            remote.optimistic.overlays,
-            remote.entities,
-          )
-          for (const edge of edges) {
-            const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
-            if (assembled === undefined) return { _tag: 'Initial' }
-            const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
-            if (Result.isFailure(decoded)) {
-              return {
-                _tag: 'Failed',
-                error: { _tag: 'DecodeError', message: decoded.failure.message },
+        return memoRead<RemoteData<Page<Value>> | undefined>(
+          visible,
+          connection,
+          `${ref.identity}\u0000${relationKey}`,
+          () => {
+            const items: Value[] = []
+            let refreshing = connection.stale
+            const edges = visibleItems(
+              connection,
+              ref.identity,
+              remote.optimistic.overlays,
+              remote.entities,
+            )
+            for (const edge of edges) {
+              const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
+              if (assembled === undefined) return undefined
+              const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
+              if (Result.isFailure(decoded)) {
+                return {
+                  _tag: 'Failed',
+                  error: { _tag: 'DecodeError', message: decoded.failure.message },
+                }
               }
+              refreshing ||= assembled.refreshing
+              items.push(decoded.success)
             }
-            refreshing ||= assembled.refreshing
-            items.push(decoded.success)
-          }
-          const page = {
-            items,
-            hasNext: hasNext(connection),
-            hasPrevious: hasPrevious(connection),
-          }
-          return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
-        })
+            const page = {
+              items,
+              hasNext: hasNext(connection),
+              hasPrevious: hasPrevious(connection),
+            }
+            return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
+          },
+        )
       }
       const requirement: QueryRequirement = {
         identity: ref.identity,
@@ -1857,14 +1939,23 @@ const bindDomain = <
         read: (root: AppModel): RemoteData<Page<Value>> => {
           const remote = store.get(root)
           const connection = remote.connections[ref.identity]
-          const failure = remote.failures[ref.identity]
+          const failure = remote.failures.connections[ref.identity]
           // Invalidating a connection the Model never loaded records it stale with no
           // segments: still nothing to show. (A loaded empty page is not stale.)
           if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
             return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
           }
-          const read = readPage(remote, connection)
-          if (failure === undefined) return read
+          // A query that answered is not the whole of a list: its rows' fields
+          // are read separately, and one of those failing is the list's failure.
+          const read = readPage(remote, connection) ??
+            failedItem(remote, connection) ?? { _tag: 'Initial' }
+          if (failure === undefined) {
+            if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return read
+            const item = failedItem(remote, connection)
+            return item === undefined
+              ? read
+              : { _tag: 'Failed', error: item.error, previous: read.value }
+          }
           // The rows held before the failure are still the best there is, so they
           // go with it as `previous`, which `RemoteData.render` shows as stale.
           switch (read._tag) {

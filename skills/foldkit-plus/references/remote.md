@@ -45,8 +45,8 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 - `Loading`: absent, a read is in flight.
 - `Ready`: all selected fields present and decode.
 - `Refreshing`: old value still visible while refetching.
-- `Failed`: stored data does not decode against the Selection, or a list's
-  query failed (keeping its rows as `previous`, if it had any).
+- `Failed`: stored data does not decode against the Selection, or the read or
+  query behind it failed (keeping the old value as `previous`, if any).
 - `NotFound`: tombstone (server said the entity is absent).
 
 ## Minimal client
@@ -360,13 +360,18 @@ refused: it becomes `QueryFailed` with a protocol error and none of its edges
 reach the store, leaving an already-loaded connection untouched. A window with
 neither bounds nothing.
 
-A failed query (`QueryFailed`, including an overrun) is kept on the Model per
-connection: the list reads `Failed`, with its rows as `previous` if it had any
-(`render` draws those as data with `Stale` freshness). It is **not retried
-automatically**; its rows are still fetched, its query is not. Retry with
-`Data.refresh(model, projection)`, which also works on a list that never
-loaded. A page arriving, a live `ConnectionInvalidate`, or retention dropping
-the connection also clears it. `Remote.inspect(remote).failures` lists them.
+A failed read is kept on the Model: `QueryFailed` (including an overrun) per
+connection, `ReadFailed` per field. The read reads `Failed`, with the old value
+as `previous` if there was one (`render` draws that as data with `Stale`
+freshness). A list fails when a row's field failed, and a read through a
+relation fails when the target's did. It is **not retried automatically**:
+what failed leaves the plan, everything else is still fetched. Retry with
+`Data.refresh(model, projection)`, which also works on something that never
+loaded. The value arriving (page, read, live patch, mutation result), a live
+invalidation or delete, or retention dropping it also clears it.
+`Remote.inspect(remote).failures` is `{ connections, fields }`. A live stream
+breaking emits `ReadFailed` with its `stream`, which records a gap and fails no
+field.
 
 `Data.explain(model, queryProjection)` explains one query read as a single
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,

@@ -311,7 +311,7 @@ missing ------------------------------------------------> Loading
 
 server says entity is absent ---------------------------> NotFound
 stored value fails Selection decoding -----------------> Failed
-a list's query fails ----------------------------------> Failed (with its rows, if it had any)
+a read or a list's query fails ------------------------> Failed (with the old value, if any)
 ```
 
 The states are:
@@ -320,8 +320,9 @@ The states are:
 - **`Loading`** — required data is absent and a read is in flight.
 - **`Ready`** — every selected field is present and decodes.
 - **`Refreshing`** — the current value remains visible while it is being refetched.
-- **`Failed`** — stored server data does not decode against the Selection, or a
-  list's query failed. A list that had rows keeps them as `previous`.
+- **`Failed`** — stored server data does not decode against the Selection, or
+  the read or query behind it failed. A value that was already shown is kept as
+  `previous`.
 - **`NotFound`** — the entity is represented by a tombstone: a live event
   deleted it, or the server was asked for it by id and answered without it. That
   id is then known absent, whether it never existed, is gone, or is not this
@@ -786,28 +787,37 @@ page.
 A window with neither `first` nor `last` bounds nothing: `after`/`before` says
 where to start, not how much to take.
 
-### When a list's query fails
+### When a read fails
 
-A failed query is kept on the Model until something settles it, and the list's
-read says so. A list that never loaded reads `Failed` with the error. One that
-had rows (a failed refresh, or a failed "load more") reads `Failed` with those
-rows as `previous`, which `RemoteData.render` draws as data with a `Stale`
-freshness, so the rows stay on screen.
+A failure is kept on the Model until something settles it, and the read says
+so. Queries fail per connection, and entity reads per field. A read with
+nothing to show reads `Failed` with the error. One that had a value (a failed
+refresh, or a failed "load more") reads `Failed` with that value as
+`previous`, which `RemoteData.render` draws as data with a `Stale` freshness,
+so it stays on screen. A failure reaches every read that needs it: a list
+fails when one of its rows' fields failed, and a project read fails when its
+owner's did.
 
 **It is not retried on its own.** A persistent error would otherwise be asked
-again every time some unrelated read restarted the entry. The rows a failed
-list already holds are still fetched; only its query is not run again. What
-asks again:
+again every time some unrelated read restarted the entry. What failed is left
+out of the plan, and everything else is still fetched: the rows a failed list
+holds, the other fields of an entity. What asks again:
 
-- `Data.refresh(model, projection)` — the retry button. It works on a list that
-  never loaded, too.
-- A page arriving for it, from `Data.fetch` or anywhere else.
-- The server invalidating it over a live stream.
-- Retention dropping it: a list nothing reads any more forgets its failure, so
-  coming back to it later asks the server again.
+- `Data.refresh(model, projection)` — the retry button. It works on something
+  that never loaded, too.
+- The value arriving anyway: a page for a list, or a read, live patch or
+  mutation result that writes the field.
+- The server invalidating a list over a live stream, or deleting the entity.
+- Retention dropping it: something nothing reads any more forgets its failure,
+  so coming back to it later asks the server again.
 
-`Remote.inspect(model.remote).failures` lists the failed connections and their
-errors.
+`Remote.inspect(model.remote).failures` lists what failed, by connection
+identity and by `entity\0id\0field` mark.
+
+A broken live stream is not a failed read. Its `ReadFailed` carries the
+`stream`, and records a gap in `RemoteModel.gaps` rather than failing any
+field: nothing was being read, and the values on screen are still what the
+server last said.
 
 ## Mutations and optimistic state
 

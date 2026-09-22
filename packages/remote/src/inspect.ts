@@ -1,8 +1,8 @@
 /** A serializable summary of a RemoteModel for DevTools and diagnostics. */
 import type { Dependencies } from 'foldkit-entity'
-import type { RemoteModel } from './model.js'
+import type { Failures, RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'
-import type { RemoteData, RemoteError } from './remoteData.js'
+import type { RemoteData } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
 import type { EntityEntry } from './store.js'
 
@@ -26,8 +26,11 @@ export interface RemoteInspection {
    * be replayed to, and nothing that needs the runtime to be asked.
    */
   readonly loading: ReadonlyArray<string>
-  /** The last error of each connection whose query failed and is not yet settled. */
-  readonly failures: Readonly<Record<string, RemoteError>>
+  /**
+   * The reads that failed and are not yet settled: queries by connection
+   * identity, entity fields by `entity\0id\0field` mark, each with its error.
+   */
+  readonly failures: Failures
   readonly mutations: {
     readonly pending: ReadonlyArray<string>
     readonly failed: ReadonlyArray<string>

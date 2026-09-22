@@ -12,6 +12,8 @@ import {
   emptyStore,
   entityKey,
   initialRemoteModel,
+  updateRemote,
+  writeEntity,
   type LiveEvent,
   type RemoteMessage,
 } from '../src/index.js'
@@ -131,5 +133,37 @@ describe('Remote live subscription', () => {
       Stream.runCollect(entry.dependenciesToStream(dependencies)).pipe(Effect.provide(client)),
     )
     expect([...messages]).toEqual([{ _tag: 'ResumeUnavailable', message: 'ResumeUnavailable' }])
+  })
+
+  it('reports a broken stream as a gap, not as a failed read of what it watched', async () => {
+    const client = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('unused'),
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: () => Stream.fail(new RemoteLiveError({ message: 'ResumeUnavailable' })),
+    })
+    const raw = Remote.live(
+      AppRemote,
+      UserPage,
+      { userId: 'u1' },
+      (message: RemoteMessage) => message,
+    )
+    const [failure] = await Effect.runPromise(
+      Stream.runCollect(raw.dependenciesToStream(dependencies)).pipe(Effect.provide(client)),
+    )
+    const shown = {
+      ...initialRemoteModel,
+      entities: writeEntity(emptyStore, entityKey('User', 'u1'), { id: 'u1', name: 'ada' }, 0),
+    }
+
+    const after = updateRemote(shown, failure as RemoteMessage)
+
+    expect(failure).toMatchObject({ _tag: 'ReadFailed', stream: expect.any(String) })
+    expect([...after.gaps]).toEqual([(failure as { readonly stream: string }).stream])
+    expect(after.failures).toEqual(initialRemoteModel.failures)
+    expect(UserPage.projection({ userId: 'u1' }).read({ remote: after }).user).toEqual({
+      _tag: 'Ready',
+      value: { id: 'u1', name: 'ada' },
+    })
   })
 })

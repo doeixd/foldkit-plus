@@ -73,7 +73,7 @@ describe('Loading', () => {
     expect(read(done)).toEqual({ _tag: 'Ready', value: { id: 'u1', name: 'ada' } })
   })
 
-  it('a failed read goes back to Initial rather than a spinner that never ends', () => {
+  it('a failed read reads Failed, rather than a spinner that never ends', () => {
     const started = updateRemote(initialRemoteModel, {
       _tag: 'ReadStarted',
       requests: [requirement],
@@ -84,7 +84,10 @@ describe('Loading', () => {
       requests: [requirement],
       error: { _tag: 'RemoteReadError', message: 'boom' },
     })
-    expect(read(failed)._tag).toBe('Initial')
+    expect(read(failed)).toEqual({
+      _tag: 'Failed',
+      error: { _tag: 'RemoteReadError', message: 'boom' },
+    })
   })
 
   it('a present value reads Refreshing, not Loading, while it is refetched', () => {

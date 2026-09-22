@@ -203,7 +203,7 @@ describe('review: a failed refresh ends', () => {
     live: () => Stream.empty,
   })
 
-  it('reads Ready again after ReadFailed, with nothing left stale', async () => {
+  it('keeps the value after ReadFailed, with the error and nothing left stale', async () => {
     const known = writeEntity(emptyStore, entityKey('User', 'u1'), { name: 'ada' }, 0)
     const entry = Remote.observe(UserRemote, Page, { id: 'u1' }, (m: RemoteMessage) => m, {
       policy: RemotePolicy.networkOnly,
@@ -223,7 +223,11 @@ describe('review: a failed refresh ends', () => {
       'ReadFailed',
     ])
     expect(isFieldStale(model.entities, entityKey('User', 'u1'), 'name')).toBe(false)
-    expect(Page.projection({ id: 'u1' }).read({ remote: model }).user._tag).toBe('Ready')
+    expect(Page.projection({ id: 'u1' }).read({ remote: model }).user).toEqual({
+      _tag: 'Failed',
+      error: { _tag: 'RemoteReadError', message: 'down' },
+      previous: { name: 'ada' },
+    })
   })
 })
 

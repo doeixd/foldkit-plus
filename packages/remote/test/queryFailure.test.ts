@@ -75,7 +75,10 @@ describe('A query that failed before anything loaded', () => {
   })
 
   it('shows in the inspection a DevTools panel reads', () => {
-    expect(Remote.inspect(failed(initial).remote).failures).toEqual({ [mine.ref.identity]: down })
+    expect(Remote.inspect(failed(initial).remote).failures).toEqual({
+      connections: { [mine.ref.identity]: down },
+      fields: {},
+    })
   })
 
   it('is not run again on its own', () => {
@@ -151,13 +154,13 @@ describe('What settles a failure', () => {
     })
 
     expect(mine.read(recovered)._tag).toBe('Ready')
-    expect(recovered.remote.failures).toEqual({})
+    expect(recovered.remote.failures.connections).toEqual({})
   })
 
   it('Remote.refresh, which asks again even for a list that never loaded', () => {
     const retried = Data.refresh(failed(initial), mine)
 
-    expect(retried.remote.failures).toEqual({})
+    expect(retried.remote.failures.connections).toEqual({})
     expect(planned(retried)).toHaveLength(1)
   })
 
@@ -176,7 +179,7 @@ describe('What settles a failure', () => {
       now: 0,
     })
 
-    expect(invalidated.remote.failures).toEqual({})
+    expect(invalidated.remote.failures.connections).toEqual({})
     expect(planned(invalidated)).toHaveLength(1)
   })
 
@@ -186,7 +189,7 @@ describe('What settles a failure', () => {
       roots: { requirements: [], connections: [] },
     })
 
-    expect(released.remote.failures).toEqual({})
+    expect(released.remote.failures.connections).toEqual({})
     expect(planned(released)).toHaveLength(1)
   })
 
