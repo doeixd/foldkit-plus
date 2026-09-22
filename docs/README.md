@@ -50,7 +50,9 @@ size of an example.
 | **Owner** | The one authoritative source for a datum. Mirrors observe; Remote caches server-owned facts; Sync owns replicated client-authored state through the durable log. |
 
 Those terms are enough to understand most of the repository. Package-specific
-vocabulary should refine them, not replace them.
+vocabulary should refine them, not replace them. Every package's own terms, from
+Link and Placement to Connection and Segment, are in the
+[glossary](./glossary.md), one line each.
 
 ## Guides by problem
 
@@ -124,6 +126,8 @@ executable claims.
 
 ## Reference and maintenance docs
 
+- [Glossary](./glossary.md) — every term the packages use, one line each, grouped
+  by the package that owns it.
 - [Releases](./releases.md) — every workspace package's current version, publish
   status, and dependency expectations.
 - [Benchmarks](./benchmarks.md) — `foldkit-sync` local costs and one

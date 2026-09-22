@@ -92,6 +92,9 @@ For a full composition of agents, replication, mirrors, and views, follow
 
 ## Which package do I need?
 
+If a term below is new, the [glossary](./docs/glossary.md) defines each one
+in a line.
+
 | You want to… | Reach for | Read |
 | --- | --- | --- |
 | Let an LLM or another agent use the app, safely, over MCP, WebMCP, A2A, or Agent Native | `foldkit-agent` + one adapter | [Agents](./docs/agents.md) |
