@@ -19,6 +19,9 @@
 | **Local evaluation is only sound if it refuses four things**: rows missing the fields the body reads, values it cannot compare in the store's encoding, orderings whose collation the backend defines, and placements outside a loaded boundary. Each is a silent wrong answer, not an error. | [§9](#9-what-local-evaluation-must-refuse) |
 | **Four of LiveStore's six contributions are already built under other names.** What is missing is a durable *queryable* local read model — reachable through §20's mode B without adopting an event log. | [§5](#5-blocker-3--nothing-durable-and-queryable-locally) |
 | **Five of tanstackstart-db's seven route ideas are present, and the sixth is ahead of the original.** Dependent reads are solved at the data level by the planner rather than as route-loader stages. | [§6](#6-blocker-4--the-page-contract-is-opaque-at-its-edges) |
+| **The hot path is not the one §3 guessed.** `Data.query` re-encodes its input through Schema and re-serializes its Selection on **every Model change**, to produce two strings that almost never differ. That is paid per frame; the decode cost is paid only on writes. | [§16.1](#161-the-read-path-is-not-where-the-evidence-points) |
+| **The one query designed for a search box mints a connection per keystroke**, and nothing in Remote mentions the `debounce` that `foldkit/primitives` already ships. | [§16.2](#162-a-high-frequency-input-mints-a-connection-per-change) |
+| **`Expr.contains` compiles over a numeric field** and reaches the database as `lower(rank) like …`. The one operator whose semantics needed a whole section is the one with no constraint on its operand. | [§18](#18-inference-and-dx) |
 | **The conformance suite can become a guarantee** — that the optimistic local answer equals the eventual server answer — but only after it gains the cases that make encoding and collation observable. Today its fixtures cannot see either. | [§10](#10-the-conformance-suite-becomes-a-guarantee) |
 
 Two things the **first draft of this plan got wrong**, recorded because they are
@@ -662,3 +665,170 @@ method this plan should be reviewed with again before phase 3.
 - Making the Router own a loader or cache lifecycle.
 - A second durable authority for any fact.
 - Local evaluation as an authorization boundary.
+
+---
+
+# Part II — Performance, hardening, and inference
+
+The capability work above is about what the project *cannot do*. This part is
+about what it does badly, unsafely, or unclearly. Each item was found by
+reading the source or probing the compiler, and each says what the evidence is,
+because the §28 rule applies here too: an optimization with no measured cost and
+a hardening fix with no reachable failure are both speculation.
+
+## 16. Performance
+
+### 16.1 The read path is not where the evidence points
+
+§3 assumed the decode-per-row cost was the performance story. Looking harder,
+there is a better candidate, and it is on a hotter path.
+
+**`Data.query(...)` is not cheap, and it runs on every Model change.** A
+Surface's `model` function is re-evaluated whenever the Model changes, so every
+`Data.query` call in it rebuilds its projection. Each rebuild:
+
+- calls `query.ref(input)`, which runs **`Schema.encodeSync(Input)(input)`** —
+  a full schema encode — and then `stableStringify` over the result, to compute
+  a connection identity that is almost always the same string as last time;
+- calls `relationOf(select)`, walking the Selection graph;
+- calls `stableStringify(relation)` over that walk, to compute a memo key.
+
+So a schema encode and two recursive serializations happen per query per Model
+change, to produce two strings that change only when the input or the Selection
+does — and the Selection is a module-level constant in every use in this
+repository.
+
+That is a per-frame cost proportional to the number of queries on screen, paid
+whether or not any data changed. It is a better first measurement than §3's
+decode count because it is paid on *every* change rather than on writes, and
+because the fix is bounded: memoize identity on the input object and
+`relationKey` on the Selection object, both by reference, both `WeakMap`.
+
+**Still measure before fixing.** The numbers may be small. But this is the path
+to put a benchmark on first.
+
+### 16.2 A high-frequency input mints a connection per change
+
+A `QueryRef`'s identity is its definition plus its canonical input, which is
+exactly right for caching and exactly wrong for an input that changes as fast as
+someone types.
+
+The CMS worklist is the case: its body is
+
+~~~ts
+Expr.contains(Entities.Entry.fields.label, input.search)
+~~~
+
+and §6's "containing the empty string is everything" exists *specifically* so an
+empty search box is the same query as a filled one — that is, the query was
+designed for a text input. Today `examples/cms` passes `search: ''` as a
+constant, so nothing demonstrates the problem. The moment the box is wired up,
+every keystroke is a new identity, a new connection, and a new request.
+
+Memory is bounded — GC drops connections that are no longer retention roots —
+but the requests are not, and neither is the churn.
+
+`foldkit/primitives` already ships `debounce` and `throttle`. Nothing in
+`foldkit-remote` uses or mentions them, and no README says what to do here. The
+fix is guidance plus an example, not machinery: **the debounce belongs between
+the input Message and the Model field the query input reads**, not inside
+Remote, because Remote's job is to be a faithful function of the Model.
+
+This is worth doing before anyone wires a search box, not after.
+
+### 16.3 What not to optimize
+
+`applied`, the mutation ledger's set of settled request ids, is already bounded
+by `MUTATION_ID_WINDOW` with most-recent-wins eviction. Connections are already
+collected by GC. The refresh marks were already fixed. The obvious unbounded
+collections have been dealt with; the remaining cost is compute on hot paths,
+not memory.
+
+## 17. Hardening
+
+### 17.1 A page larger than the window is accepted
+
+The client asks for `first: 25`. Nothing checks what comes back. `merge` accepts
+whatever edges the page carries, and they enter the connection and the store.
+
+In a normal deployment the server is yours and this is a non-issue. But
+`foldkit-remote` is a library with a versioned wire protocol and a stated
+instinct to fail closed on protocol mismatch, and a response that ignores the
+window is a protocol mismatch. A buggy server paginating wrongly is at least as
+likely as a hostile one.
+
+**Fix:** check the edge count against the requested window and treat an overrun
+the way a version mismatch is treated. Cheap, and it turns a silent memory
+event into a diagnosable error.
+
+### 17.2 Local evaluation applies no authorization, and must say so
+
+Repeated here because it belongs in this list. On the server a compiled `where`
+is conjoined with the binding's `visible` rule. **Locally there is no `visible`
+at all.**
+
+That is safe today for one reason only: the client holds only rows the server
+already released to it, so filtering them further cannot reveal anything. It
+stops being safe the moment anything treats a local filter as an access
+decision — and "filtered locally" reads like a guarantee.
+
+**Fix:** state it in the README beside the local API, and name it in the type if
+phase 0's local-answer distinction can carry it.
+
+### 17.3 The things that are already right
+
+Recorded so a later reader does not redo them: the persistence snapshot is
+discarded on version, scope or corruption mismatch rather than trusted; the
+mutation ledger is bounded; live events carry a per-stream monotonic cursor with
+duplicate rejection and explicit gap reporting; decode failure surfaces as
+`Failed` rather than throwing; retention roots live outside the Model so GC
+arrives as a Message and is replayable.
+
+## 18. Inference and DX
+
+Four items, found by compiling probes rather than by reasoning about the types.
+They are recorded in [entity-DX-PLAN.md](./entity-DX-PLAN.md) items 10–13, with
+the friction and the plan for each. In brief:
+
+| Item | What a reader hits |
+| --- | --- |
+| 10 | `Expr.eq(3, field)` fails with "not assignable to `Operand<any>`", naming neither the problem nor `Expr.literal`, which is the fix |
+| 11 | `Expr.contains` compiles over a numeric field and reaches the database as `lower(rank) like …` |
+| 12 | a predicate over the wrong Entity is a runtime throw, though `Query<E>` and `FieldExpr`'s owner are enough to catch it at compile time |
+| 13 | a body with no `orderBy` fails at registration rather than at compile time |
+
+Item 11 is the one to do first: it is a one-line constraint and it currently
+lets nonsense reach a database. Item 12 removes a whole class of error and is
+the largest. Item 13 is recorded mainly so the trade-off is not re-derived.
+
+What the probes found working, which is worth knowing: a typo'd input key inside
+a `Query.define` body is caught, an input compared against a field of the wrong
+type is caught, and the branded `Registered` failure does name the descriptor in
+the parameter's own type.
+
+## 19. Where these fit in the sequence
+
+None of Part II blocks Part I, and Part I does not block most of Part II.
+
+Do first, because they are cheap and currently wrong:
+
+- **18/item 11** — constrain `Expr.contains`. One line, stops nonsense reaching
+  a database.
+- **16.2** — debounce guidance and an example, before anyone wires the search
+  box the CMS worklist was designed for.
+- **17.1** — reject a page that overruns its window.
+
+Do next, with a benchmark first:
+
+- **16.1** — measure `Data.query`'s per-change cost, then memoize identity on
+  the input object and the relation key on the Selection. This replaces §3's
+  decode count as the first thing to measure.
+
+Do alongside phase 0, since it is the same decision:
+
+- **17.2** — local evaluation's lack of authorization, stated in the type if the
+  local-answer distinction can carry it and in prose regardless.
+
+Do when the class of error justifies the signature churn:
+
+- **18/item 12** — the owner as a type parameter.

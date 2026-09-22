@@ -1,6 +1,7 @@
 # Entity, Form, and Crud: DX plan
 
-Status: all resolved. Friction found while building `foldkit-entity`, `foldkit-form`,
+Status: items 1–9 resolved; items 10–13 open, found by probing the query IR's
+inference rather than by building with it. Friction found while building `foldkit-entity`, `foldkit-form`,
 `foldkit-mixins-form`, `foldkit-crud`, and `foldkit-mixins-crud` and wiring them
 into [`examples/entity`](../../examples/entity). Each item names what prompted
 it, so it can be judged rather than taken on faith. Items are marked as they are
@@ -107,3 +108,90 @@ so a library cannot hand over a partly configured form.
 - **A picker that searches is a `select` under a search box**, not a combobox.
   Recorded, not planned: it is the accessible floor, and a combobox is a renderer
   an application can now add (item 1).
+
+## 10. `Expr.eq` is not symmetric, and the error does not say so (open)
+
+**Friction.** `Expr.eq(Post.fields.rank, 3)` compiles. `Expr.eq(3, Post.fields.rank)`
+does not, and the message is:
+
+~~~text
+Argument of type 'number' is not assignable to parameter of type 'Operand<any>'.
+~~~
+
+which names neither the problem (the left side must be a field, a scalar or a
+predicate) nor the fix (`Expr.literal(3)`, which does work on the left). The
+asymmetry is a consequence of `ValueOf<L>` typing the right side from the left,
+so it is not going away — but a reader hitting it has nothing to go on.
+
+Comparison orientation has already cost this project once: the test for it was
+vacuous because the field was never on the right, which mutation testing caught
+and a reader would not have.
+
+**Plan.** Keep the asymmetry; fix the signal. Widen the left parameter to accept
+a plain value and fail it with a branded type whose name is the sentence —
+`foldkit-entity: put the field on the left, or wrap the value in Expr.literal`
+— which is the technique `Registered` already uses for an unregistered
+descriptor. Document the orientation and `Expr.literal` in the README's `Expr`
+section, since the workaround currently exists and is undiscoverable.
+
+## 11. `Expr.contains` compiles over a field that holds no text (open)
+
+**Friction.** `Expr.contains(Post.fields.rank, 'x')` typechecks. `contains` is
+documented as a case-insensitive text search and compiles to
+`lower(column) like lower(?) escape '\'`, so over a numeric column it is
+nonsense that reaches the database: SQLite coerces and answers something,
+Postgres raises at runtime.
+
+`contains` is the one operator whose semantics this project had to write a whole
+section about (§6.0), and it is the one with no constraint on what it may be
+applied to.
+
+**Plan.** Constrain the value parameter to an operand whose `ValueOf` is
+assignable to `string`. `Expr.isNull`/`isNotNull` stay unconstrained, which is
+correct — absence is a question about any field.
+
+Worth checking the same way: nothing stops `Order.asc` over a field whose type
+has no total order the backends agree on. That is the collation question rather
+than a typing one, and belongs with it.
+
+## 12. A predicate over the wrong Entity is a runtime error (open)
+
+**Friction.** This compiles and throws when it runs:
+
+~~~ts
+Query.from(Post).pipe(Query.where(Expr.eq(Other.fields.tag, 'x')))
+~~~
+
+`Query.where` checks ownership by identity token and raises
+`Query.where: a predicate reads Other.tag, but the query is from Post`. The
+message is good. The timing is not: it is the kind of mistake a reader makes
+while composing, and the compiler has enough to catch it — `Query<E>` knows its
+Entity, and `FieldExpr` carries an `owner`.
+
+It cannot catch it *today* because `FieldExpr<T>` is parameterised by the value
+type alone; the owner is a value, not a type.
+
+**Plan.** Carry the owner's name as a type parameter — `FieldExpr<T, Name>`,
+defaulting to `string` so nothing existing breaks — and constrain `where` and
+`orderBy` to predicates whose names match the query's. Keep the runtime check:
+it is what catches two Entities that share a name, which no type can.
+
+Sized honestly: this touches every `Expr` signature and is the largest of these
+four. It is also the one that removes a whole class of error rather than
+improving a message.
+
+## 13. A body with no ordering fails at registration, not at compile time (open)
+
+**Friction.** `Query.define('NoOrder', {}, () => Query.from(Post))` compiles, and
+`foldkit-remote-drizzle` throws when the domain is registered:
+`query "NoOrder" needs an orderBy, or a descriptor declared with Query.define
+whose body has one`.
+
+Registration is boot, so this fails fast and loudly — much better than per
+request. But it is still a type-level fact discovered at runtime.
+
+**Plan.** Lowest priority of the four, and possibly not worth it: expressing
+"this query has at least one ordering term" means a `Query<E, Ordered>` type
+parameter threaded through `from`, `where` and `orderBy`, which costs more
+inference noise than the error costs. Recorded so the trade-off is visible
+rather than re-derived.
