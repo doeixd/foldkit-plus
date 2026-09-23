@@ -116,7 +116,8 @@ const idSelector = (id: string): string => `[id="${id.replace(/["\\]/g, '\\$&')}
  * Wires a placed `RovingTabindex` to the slots: the container's arrow, Home
  * and End keys focus the next item (synchronously, then dispatch), each item
  * gets `tabindex` 0 or -1 and reports `Focused` when focused. Under `virtual`
- * the container gets `aria-activedescendant` and items keep no `tabindex`.
+ * DOM focus never leaves the container: the key only dispatches, the
+ * container carries `aria-activedescendant`, and items keep no `tabindex`.
  *
  * Every handled key is default-prevented. Nothing is written on dispose: the
  * attributes are data, so a view that no longer attaches this leaves no
@@ -142,17 +143,26 @@ export const behavior =
             const direction = options.direction?.(input) ?? 'ltr'
             const stop = tabStop(items, current)
             const stopId = stop === -1 ? undefined : items.ids[stop]
+            const target = (key: string, modifiers: KeyboardModifiers): string | undefined => {
+              const next = move(items.enabled, from, key, modifiers, { ...args, direction })
+              return next === undefined ? undefined : items.ids[next]
+            }
+            // Virtual: DOM focus stays on the container, only the pointer moves.
+            if (args.virtual) {
+              return [
+                h.OnKeyDownPreventDefault((key, modifiers) =>
+                  Option.map(Option.fromNullishOr(target(key, modifiers)), wrap),
+                ),
+                ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
+              ]
+            }
             return [
-              h.OnKeyDownFocus((key, modifiers) => {
-                const next = move(items.enabled, from, key, modifiers, { ...args, direction })
-                const id = next === undefined ? undefined : items.ids[next]
-                if (id === undefined) return Option.none()
-                return Option.some({
-                  focusSelector: args.virtual ? idSelector(stopId ?? id) : idSelector(id),
+              h.OnKeyDownFocus((key, modifiers) =>
+                Option.map(Option.fromNullishOr(target(key, modifiers)), id => ({
+                  focusSelector: idSelector(id),
                   message: wrap(id),
-                })
-              }),
-              ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
+                })),
+              ),
             ]
           },
         }),

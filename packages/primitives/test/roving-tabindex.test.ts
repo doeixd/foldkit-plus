@@ -180,12 +180,15 @@ describe('RovingTabindex behavior', () => {
     const b = builders(input, virtual)
     expect(Attributes.find(b.root.attrs(), 'AriaActiveDescendant')?.value).toBe('paste')
     expect(Attributes.find(b.tool.attrs([], items.slotItem(2)), 'Tabindex')).toBeUndefined()
-    const result = keyHandler({ ...input, toolbarFocus: { current: 'cut' } }, virtual)('ArrowRight', plain)
-    // Focus stays where it is (the current stop); only the Message moves the pointer.
-    expect(Option.getOrThrow(result)).toEqual({
-      focusSelector: '[id="cut"]',
-      message: Roving.wrapper.make(RovingTabindexMessage.Focused({ id: 'paste' })),
-    })
+    // DOM focus never moves: the container prevents default and dispatches only.
+    const root = builders({ ...input, toolbarFocus: { current: 'cut' } }, virtual).root.attrs()
+    expect(Attributes.find(root, 'OnKeyDownFocus')).toBeUndefined()
+    const handler = Attributes.find(root, 'OnKeyDownPreventDefault')?.f
+    if (handler === undefined) throw new Error('no OnKeyDownPreventDefault on the container')
+    expect(Option.getOrThrow(handler('ArrowRight', plain))).toEqual(
+      Roving.wrapper.make(RovingTabindexMessage.Focused({ id: 'paste' })),
+    )
+    expect(Option.isNone(handler('Enter', plain))).toBe(true)
   })
 
   it('contributes nothing to an item slot resolved without an item', () => {
