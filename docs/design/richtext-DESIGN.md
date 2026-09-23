@@ -1590,6 +1590,16 @@ email generation
 React codegen where supported
 ```
 
+**Implemented in the harness (`examples/richtext/src/view.ts`).**
+`renderDocument(document)` and `renderBlocks(blocks)` build ordinary Foldkit
+`Html` through `inertHtml`, so the read-only path dispatches nothing and owns no
+DOM: blocks become `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the same
+order the HTML serializer uses, unknown marks ride on a `span` with
+`data-marks`, and unknown blocks render as an inert
+`div data-unknown="Type"` placeholder. It renders a slice as well as a document,
+so a preview and a copy share one interpreter. The editable adapter's element
+and attribute names match it, which is what lets one stylesheet serve both.
+
 The semantic Node renderer definitions should be reusable by both editable and read-only interpreters.
 
 ---

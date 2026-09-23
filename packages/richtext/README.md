@@ -127,8 +127,9 @@ Known marks become `strong`/`em`/`code` in a deterministic nesting order (not
 the order they were added), unknown marks survive as `data-marks` on a span,
 unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
 attribute values are escaped, so content cannot become markup. Importing HTML
-is a whitelist walk over a `DOMParser` tree, which lives in the harness adapter
-because the package stays DOM-free; nothing parses HTML back into authority
+is a whitelist walk over a `DOMParser` tree, and the read-only Foldkit view is
+built with `inertHtml`; both live in the harness adapter because the package
+stays DOM-free and framework-free. Nothing parses HTML back into authority
 without that walk.
 
 ## Clipboard slices

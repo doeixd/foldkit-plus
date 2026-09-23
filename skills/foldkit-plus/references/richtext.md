@@ -66,6 +66,10 @@ elements are unwrapped or dropped with a diagnostic, attributes are never
 interpreted, and `script`/`style`/`iframe` are dropped with their content. A
 Kit passed to `attach` degrades undeclared node kinds.
 
+The read-only view (`examples/richtext/src/view.ts`) renders a document or a
+slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
+ownership — with the same element and attribute names the editable adapter uses.
+
 The harness adapter carries slices over the clipboard
 (`application/x-foldkit-richtext+json`, HTML, and plain text) and resolves a
 paste as slice → HTML → text.

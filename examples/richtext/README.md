@@ -75,6 +75,22 @@ slice under `application/x-foldkit-richtext+json`, its HTML, and its plain text
 collapsed caret cuts nothing). `paste` resolves in the documented priority:
 slice, then HTML, then plain text.
 
+## Read-only view
+
+`src/view.ts` renders a document (or a slice) as ordinary Foldkit `Html` using
+`inertHtml`, so it dispatches nothing and owns no DOM:
+
+```ts
+const html = renderDocument(document)   // a div of block elements
+renderBlocks(slice.blocks)              // one element per block
+```
+
+Blocks become `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the same
+order the HTML serializer uses, unknown marks ride on a `span` with
+`data-marks`, and unknown blocks render as an inert `div data-unknown="Type"`
+placeholder. One caveat worth knowing: `h.DataAttribute` prefixes `data-` itself,
+so it takes the bare name (`DataAttribute('unknown', …)` → `data-unknown`).
+
 ## HTML import
 
 `src/html.ts` parses pasted HTML with a whitelist rather than trusting it.
@@ -110,9 +126,8 @@ needs a text node for the caret to be addressable, a removed identity that is
 also dirty must still lose its element, and repairing detaches the live
 selection unless it is captured and restored.
 
-Not built yet: mobile virtual keyboards and an HTML *renderer* for the
-read-only Foldkit view (the string serializer exists). The adapter is still
-private and throwaway-tolerant.
+Not built yet: mobile virtual keyboards. The adapter is still private and
+throwaway-tolerant.
 
 ## Running it
 
