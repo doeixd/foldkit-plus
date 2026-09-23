@@ -3590,14 +3590,15 @@ explicit NodeIds and named Node references, range/node selections, inspection, a
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection transactions with UTF-16
 position maps. Operations are built with `Edit.*` constructors that accept ids
 or `Node` references, fill `type`, and throw on malformed shapes. Mark edits
-are idempotent per run and emit no position steps.
+are idempotent per run and emit no position steps. `decodeDocument` enforces
+bounded `DocumentLimits` with generous defaults; violations throw a named error.
 Unknown extensions are currently rejected, not losslessly loaded. ChangeSet
 currently summarizes touched text nodes and their parent blocks; structural
 fields arrive with structural operations. This is not completion of Phase 1.
 
 Remaining: extensible Kits and metadata, mark boundary semantics,
-structural operations and their position maps, transforms/normalization, bounded
-validation and unknown-extension preservation, followed by all three feasibility
+structural operations and their position maps, transforms/normalization,
+unknown-extension preservation, followed by all three feasibility
 proofs below. The current implementation is private/unpublished and APIs may change
 as those proofs establish the final contracts.
 

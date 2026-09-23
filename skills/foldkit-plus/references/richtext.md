@@ -15,7 +15,9 @@ and inspection. Mark edits are idempotent per run: redundant adds and removes
 are no-ops without position steps. Build operations with `Edit.*`, which fills
 `type`, accepts a NodeId or `Node.make` reference, and returns a narrowed
 variant; shape misuse throws at the call site while document mismatches stay
-`apply` diagnostics.
+`apply` diagnostics. `decodeDocument` enforces `DocumentLimits` (defaults:
+10,000 blocks, 50,000 runs, 5,000,000 UTF-16 units); violations throw a named
+error. `apply` does not enforce limits, so size-check untrusted payloads first.
 Schema constructors build values; `decodeDocument` strictly validates persisted
 input. Offsets are UTF-16 units. Position maps use sequential edit coordinates;
 the returned selection is already mapped. ChangeSet tracks touched nodes, not

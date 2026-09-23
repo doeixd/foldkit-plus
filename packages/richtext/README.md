@@ -119,15 +119,21 @@ final selection with the original. Empty edits preserve state identity.
 
 ## Loading and limits
 
-Use `decodeDocument(unknown)` at a persistence boundary. It rejects excess fields,
-duplicate IDs, invalid structure, unknown extensions, and unsupported versions.
-The exported Schemas also compose into an application's Model; when decoding
-them directly, pass `{ onExcessProperty: 'error' }` for the same strict policy.
+Use `decodeDocument(input, limits?)` at a persistence boundary. It rejects excess
+fields, duplicate IDs, invalid structure, unknown extensions, and unsupported
+versions, then enforces `limits` (default `DefaultDocumentLimits`: 10,000 blocks,
+50,000 text runs, 5,000,000 UTF-16 text units). A violation throws an `Error`
+naming the exceeded bound. Tighten per document with
+`{ ...DefaultDocumentLimits, maxBlocks: 100 }`. The exported Schemas also compose
+into an application's Model; when decoding them directly, pass
+`{ onExcessProperty: 'error' }` for the same strict policy.
 
-Unknown-extension preservation, migrations, configurable document limits, custom
+`apply` does not enforce limits: size-check untrusted operation payloads
+(notably inserted text) before applying, and apply byte-size limits before
+decoding untrusted payloads. Unknown-extension preservation, migrations, custom
 Kits, structural operations, mark boundary expansion, transforms, history,
-rendering, and collaboration are still pending. Retain rejected source content for recovery; do not replace it
-with an empty document. Apply request-size limits before decoding untrusted payloads.
+rendering, and collaboration are still pending. Retain rejected source content
+for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document

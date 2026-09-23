@@ -50,7 +50,48 @@ export const Document = Schema.Struct({
 export type Document = typeof Document.Type
 
 /** Strict boundary for persisted content. Throws a Schema error on invalid input. */
-export const decodeDocument = Schema.decodeUnknownSync(Document, { onExcessProperty: 'error' })
+const decodeStructure = Schema.decodeUnknownSync(Document, { onExcessProperty: 'error' })
+
+const PositiveCount = Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0))
+
+/** Bounds for decoded documents: blocks, text runs, and total UTF-16 text units. */
+export const DocumentLimits = Schema.Struct({
+  maxBlocks: PositiveCount,
+  maxTextRuns: PositiveCount,
+  maxTextLength: PositiveCount,
+})
+export type DocumentLimits = typeof DocumentLimits.Type
+
+/** Generous DoS guardrails, not application quotas; tighten per document with a spread. */
+export const DefaultDocumentLimits: DocumentLimits = DocumentLimits.make({
+  maxBlocks: 10_000,
+  maxTextRuns: 50_000,
+  maxTextLength: 5_000_000,
+})
+
+/**
+ * Strict boundary for persisted content. Decodes structure first, then enforces
+ * `limits`. Throws a Schema error on invalid input, or an Error naming the
+ * first exceeded bound.
+ */
+export const decodeDocument = (
+  input: unknown,
+  limits: DocumentLimits = DefaultDocumentLimits,
+): Document => {
+  const document = decodeStructure(input)
+  const summary = inspect(document)
+  const blocks = document.children.length
+  const runs = summary.nodeCount - blocks
+  if (blocks > limits.maxBlocks)
+    throw new Error(`Document exceeds maxBlocks: ${blocks} > ${limits.maxBlocks}`)
+  if (runs > limits.maxTextRuns)
+    throw new Error(`Document exceeds maxTextRuns: ${runs} > ${limits.maxTextRuns}`)
+  if (summary.textLength > limits.maxTextLength)
+    throw new Error(
+      `Document exceeds maxTextLength: ${summary.textLength} > ${limits.maxTextLength}`,
+    )
+  return document
+}
 
 /** UTF-16 offset in one text run, with insertion affinity at that offset. */
 export const Position = Schema.Struct({

@@ -75,3 +75,8 @@ void built.text
 RichText.Edit.removeMark(42, 'Bold')
 void builtMark
 void builtOperation
+
+const tightLimits: RichText.DocumentLimits = { maxBlocks: 2, maxTextRuns: 2, maxTextLength: 8 }
+RichText.decodeDocument(document, tightLimits)
+RichText.decodeDocument(document, { ...RichText.DefaultDocumentLimits, maxBlocks: 1 })
+void tightLimits

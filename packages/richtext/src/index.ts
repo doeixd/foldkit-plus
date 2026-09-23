@@ -8,6 +8,8 @@ export {
   Heading,
   Block,
   Document,
+  DocumentLimits,
+  DefaultDocumentLimits,
   Position,
   Selection,
   EditorState,
