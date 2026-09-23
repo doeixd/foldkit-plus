@@ -5,34 +5,41 @@ Server-owned data, cached **inside the Foldkit Model**.
 A feature declares the server facts it needs. `foldkit-remote` compares those
 requirements with what the Model already knows, fetches only what is missing or
 stale, normalizes the result so every consumer shares one copy, and returns new
-facts to the application as ordinary Messages.
-
-The central rule is:
+facts to the application as ordinary Messages. Every reader gets `Initial`,
+`Loading`, `Ready` and the rest for free, and a fact loaded for one screen is
+already there for the next.
 
 > **A Remote Projection does not fetch. It declares what server-owned facts a
 > consumer requires. I/O happens outside render, and its results reduce back into
 > the Model.**
 
-There is no hidden mutable cache beside the application. A read result, query
-page, mutation result, live event, hydration, and retention change all become
-Remote Messages and move the same Model through one pure reducer.
-
 Use Remote when the **server owns the truth** and the client needs a normalized,
 disposable view of it. If an edit is client-authored and must survive offline,
 restart, or network failure until it converges, that belongs to
-[`foldkit-sync`](../sync) and [`foldkit-durable`](../durable), not Remote.
+[`foldkit-sync`](../sync) and [`foldkit-durable`](../durable), not Remote:
+
+```text
+Remote                              Sync
+  server owns the fact                client owns the edit
+  cache is disposable                 intent must survive offline/restart
+  refetch is recovery                 replay + reconciliation is recovery
+```
+
+A Remote mutation is an immediate request against server-owned data whose
+result updates the cache; it is **not** a durable local intent queue.
 
 ## Find what you need
 
-This README is long because it covers everything Remote does. Read the
-[sixty-second example](#sixty-seconds-one-entity-one-surface) first, then jump
-to what you are doing:
+Read the [first run](#the-first-run-one-entity-one-surface) once, then jump to
+what you are doing:
 
 | Task | Start here |
 | --- | --- |
-| See it work before there is a server | [A backend held in memory](../remote-server/README.md#a-backend-held-in-memory) |
-| Understand `Initial`, `Loading`, or a stale value | [`RemoteData`](#remotedata-what-does-the-model-know-right-now) |
-| Find out why a read stays `Initial` | [`Data.why`](#remotedata-what-does-the-model-know-right-now) |
+| See it work before there is a server | [Step 5](#5-provide-a-client) |
+| A read stays `Initial` | [Why is it still `Initial`?](#why-is-it-still-initial) |
+| A list shows old rows | [Why is it stale?](#why-is-it-stale) |
+| A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
+| Data was gone when I came back | [Why is it gone?](#why-is-it-gone-after-navigating-away) |
 | Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
 | Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
@@ -40,12 +47,11 @@ to what you are doing:
 | Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
 | Keep data across a reload | [Hydration](#persistence-and-hydration) |
 | Hand a server render's data to the browser | [Server rendering](#server-rendering-remoteresume) |
-| Release data no active feature needs | [Retention](#retention-and-garbage-collection) |
 | Answer the requests on the server | [How the server packages fit](#how-the-server-packages-fit) |
 
 ## Which state belongs here?
 
-A useful rule across Foldkit Plus is **one owner per datum**:
+One owner per datum:
 
 | State | Owner |
 | --- | --- |
@@ -53,23 +59,6 @@ A useful rule across Foldkit Plus is **one owner per datum**:
 | Server-derived facts that can be refetched | `foldkit-remote` |
 | Client-authored state that must survive offline and converge | `foldkit-sync` |
 | Local state represented in the URL or another store | the Model, observed by `foldkit-mirror` |
-
-The distinction between Remote and Sync is especially important:
-
-```text
-Remote
-  server owns the fact
-  cache is disposable
-  refetch is recovery
-
-Sync
-  client owns the edit
-  intent must survive offline/restart
-  replay + reconciliation is recovery
-```
-
-A Remote mutation is therefore an immediate request against server-owned data.
-Its result updates the cache. It is **not** a durable local intent queue.
 
 A Surface may project all of these owners at once. Observation does not transfer
 ownership.
@@ -88,9 +77,7 @@ requirements with the cache, then requests missing or stale fields. The
 result returns as a Message; only reducing it changes what the next read sees.
 Rendering the same Projection twice starts no work by itself.
 
-## Four pieces to remember
-
-Most application code only needs four roles:
+Four roles carry the loop, and most application code needs no more:
 
 | Piece | Responsibility |
 | --- | --- |
@@ -99,7 +86,11 @@ Most application code only needs four roles:
 | `Data.reduce` | reduce returned Remote Messages into the application's `Remote.Model` |
 | `RemoteClient` | perform the actual read/query/mutate/live I/O |
 
-Everything else builds on those four pieces.
+One rule keeps the cache coherent: **`Data.reduce` is the only writer.** Local
+application state changes with `modifyFields` inside `update`, like anywhere
+else; a server fact only enters the cache as a Remote Message. Never install
+cache state with a ref `set`: requirements, staleness and tombstones stay
+consistent only because every fact arrives through the reducer.
 
 ## Install
 
@@ -110,9 +101,12 @@ pnpm add foldkit-remote foldkit-entity
 `foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the
 package. The server-side interpreter is [`foldkit-remote-server`](../remote-server).
 
-## Sixty seconds: one entity, one Surface
+## The first run: one entity, one Surface
 
-Start with one server entity and one selection:
+Six steps take a project's name from a server to a screen. Each says what it
+does, and what it deliberately does not.
+
+### 1. Declare an entity and what this screen needs of it
 
 ```ts
 import { Schema } from 'effect'
@@ -138,9 +132,10 @@ The entity comes from [`foldkit-entity`](../entity), which declares a domain
 without Remote in it, so the same declaration can serve the server's database
 binding and your forms too. It is also what gives an entity
 [relations](#entities-declared-with-foldkit-entity), derived members, and a
-[query body](#queries-and-pagination) to point at.
+[query body](#queries-and-pagination) to point at. Nothing here touches a
+network.
 
-Embed Remote's Submodel in the application and bind the domain to that field:
+### 2. Give Remote a place in the Model, and route its Messages
 
 ```ts
 import { defineMessageUnion } from 'foldkit/message'
@@ -167,16 +162,6 @@ const Message = defineMessageUnion({
 })
 type Message = typeof Message.Type
 
-function update(
-  model: Model,
-  message: Message,
-): Update.Return<Model, Message, RemoteClient> {
-  return Message.match(message, {
-    // Remote owns the `remote` Submodel: everything it says goes through its reducer.
-    GotRemoteMessage: ({ message }) => foldData(model, message),
-  })
-}
-
 const App = Surface.application({
   Model,
   Message,
@@ -194,34 +179,27 @@ const Data = Remote.make({
 
 // Remote under one variant of the union, the shape Foldkit gives a Submodel.
 const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
-```
 
-`update` matches the application's union exhaustively; Remote's own Messages
-arrive inside `GotRemoteMessage`. The fold's `fetch`, `mutate`, and
-`subscriptions` yield that variant too, with the lift recorded so a Story
-resolves a fetch or a mutation by Remote's own answer.
-
-The shorter path, for an `update` that only reduces, spreads Remote's cases
-into the union and narrows by tag; the rest of `update` is then a partial
-match over tags the application never handles:
-
-```ts
-const Message = defineMessageUnion({ ...Remote.messages })
-
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  return { model }
+function update(
+  model: Model,
+  message: Message,
+): Update.Return<Model, Message, RemoteClient> {
+  return Message.match(message, {
+    // Remote owns the `remote` Submodel: everything it says goes through its reducer.
+    GotRemoteMessage: ({ message }) => foldData(model, message),
+  })
 }
 ```
 
-The rest of this guide uses the fold. With the spread, read `Data.subscriptions`
-for `foldData.subscriptions` and `Data.fetch` for `foldData.fetch`.
+`Remote.Model` is not a second store. It is a Submodel **inside** the
+application Model, and `Data` is the bound API for this domain: it knows where
+that Submodel lives and which entities this application registered. `update`
+matches the union exhaustively; Remote's own Messages arrive inside
+`GotRemoteMessage` and go straight to Remote's reducer. (There is a shorter
+form for an `update` that only reduces; see
+[Routing Remote's Messages](#routing-remotes-messages).)
 
-`Remote.Model` is not a second application store. It is a Submodel **inside** the
-application Model. `Data` is the bound API for this domain: it knows where that
-Submodel lives and which descriptors this application registered.
-
-Now declare what a feature needs:
+### 3. Declare what the screen reads
 
 ```ts
 const ProjectPage = App.surface('ProjectPage', {
@@ -236,9 +214,10 @@ const ProjectPage = App.surface('ProjectPage', {
 ```
 
 `ProjectPage` reads a `RemoteData<{ id: string; name: string }>` from the Model.
-If those fields are absent, the Projection still does not fetch them.
+If those fields are absent, the Projection still does not fetch them: it says
+what it needs, and something else decides whether to ask.
 
-The active Surface drives I/O through a Foldkit Subscription:
+### 4. Let the active screen drive the fetching
 
 ```ts
 import * as Subscription from 'foldkit/subscription'
@@ -256,9 +235,36 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
 
 `Surface.at` makes activation a fact of the Model. When the route activates the
 page, Remote sees its requirements, diffs them against the cache, and fetches
-only what is missing. When the page is inactive, it creates no read work.
+only what is missing. When the page is inactive, it creates no read work. This
+is the one step that causes I/O, and it does so only while the screen is on.
 
-The complete loop is:
+### 5. Provide a client
+
+The Subscription needs a `RemoteClient`. Before there is a server, a backend
+held in memory answers through the same handlers a real one uses:
+
+```ts
+import { RemoteServer } from 'foldkit-remote-server'
+
+const clientLayer = RemoteServer.memory({
+  domain: Data,
+  rows: { Project: [{ id: 'p1', name: 'Apollo', status: 'active' }] },
+}).layer
+```
+
+With a server, adapt your configured Effect RPC client instead; the
+[server guide](../remote-server/README.md) supplies the other side:
+
+```ts
+const clientLayer = Remote.clientLayer(rpcClient)
+```
+
+Either is a Layer the runtime provides to `subscriptions` and Commands. The
+transport itself is not owned by Remote. See
+[`RemoteServer.memory`](../remote-server/README.md#a-backend-held-in-memory)
+for what the in-memory one can and cannot do.
+
+### 6. Watch it arrive
 
 ```text
 ProjectPage Projection
@@ -285,39 +291,36 @@ Remote.Model
 ProjectPage now reads Ready(...)
 ```
 
-The first example starts on the `home` route, so no project read runs yet.
-Your route update must activate `{ _tag: 'project', projectId: 'p1' }`, and the
-runtime must install `subscriptions`. Expect `Initial` until work starts,
-`Loading` during the first request, and `Ready` once its result is reduced.
+The first run starts on the `home` route, so no project read runs yet. Your
+route update must activate `{ _tag: 'project', projectId: 'p1' }`, and the
+runtime must install `subscriptions`. The page then reads `Initial` until work
+starts, `Loading` during the first request, and `Ready` once its result is
+reduced. If it stays `Initial`, the next section says why.
 
-Finally, provide the client implementation to the runtime. Here `rpcClient`
-is your configured Effect RPC client, not a value created by the declarations
-above; the [server guide](../remote-server/README.md) supplies the other side:
+## Routing Remote's Messages
 
-```ts
-const clientLayer = Remote.clientLayer(rpcClient)
-```
+The first run folds Remote's Messages under one variant of the application's
+union, the shape Foldkit gives a Submodel. The fold's `fetch`, `mutate`, and
+`subscriptions` yield that variant too, with the lift recorded so a Story
+resolves a fetch or a mutation by Remote's own answer.
 
-`Remote.clientLayer` adapts an Effect RPC client for `RemoteRpc` into the
-`RemoteClient` service used by subscriptions and Commands. The transport itself
-is not owned by Remote.
-
-To see the page work before you have a server, give it rows instead. A backend
-held in memory answers through the same handlers a real server uses:
+The shorter path, for an `update` that only reduces, spreads Remote's cases
+into the union and narrows by tag; the rest of `update` is then a partial
+match over tags the application never handles:
 
 ```ts
-import { RemoteServer } from 'foldkit-remote-server'
+const Message = defineMessageUnion({ ...Remote.messages })
 
-const clientLayer = RemoteServer.memory({
-  domain: Data,
-  rows: { Project: [{ id: 'p1', name: 'Apollo', status: 'active' }] },
-}).layer
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
+  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
+  return { model }
+}
 ```
 
-It is for a first run, a test or a demo. See
-[`RemoteServer.memory`](../remote-server/README.md#a-backend-held-in-memory).
+The rest of this guide uses the fold. With the spread, read `Data.subscriptions`
+for `foldData.subscriptions` and `Data.fetch` for `foldData.fetch`.
 
-## One list per application with `Data.wiring`
+### One value with `foldkit-bundle`: `Data.wiring`
 
 The integration steps above — fold or reduce, derive the Subscriptions,
 provide the client — are one value when the application uses `foldkit-bundle`:
@@ -395,20 +398,8 @@ no active Surface may remain `Initial` forever. Rendering a spinner for
 `Initial` can therefore hide an activation/wiring mistake; `Loading` is the
 state that actually means "wait for this request."
 
-When a read sits at `Initial` and you expected data, ask the Model why:
-
-```ts
-Data.why(model, projection, { surfaces }) // the record you give Data.subscriptions
-// { state: 'Initial', reason: 'NotFetching', surfaces: ['ProjectPage'],
-//   message: 'ProjectPage reads it and is active, yet nothing is fetching it. …' }
-```
-
-`NotObserved` means no active Surface reads it: the Surface is not in the
-record, or its params are `undefined` for this Model. `NotFetching` means one
-does, and nothing started a request, which almost always means Remote's
-Subscriptions are not installed in the runtime. Without `surfaces` it can only
-say `Unknown`. For every other state it says what the state means in words,
-and a failed request's message says that nothing retries it on its own.
+When a read sits at `Initial` and you expected data, ask the Model why with
+`Data.why`; see [Why is it still `Initial`?](#why-is-it-still-initial).
 
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time.
@@ -452,6 +443,99 @@ spinner that never ends or an error nobody can act on.
 
 Reach for `match` instead when the six states really do draw differently — it
 stays the exhaustive fold, and `render` does not replace it.
+
+## When it does not do what you expect
+
+Each of these is a design of the package showing through, not a fault. The
+symptom names the section; the cure is one call.
+
+### Why is it still `Initial`?
+
+`Initial` means required data is absent and **nothing is fetching it**, so a
+spinner here hides a wiring mistake. Ask the Model:
+
+```ts
+Data.why(model, projection, { surfaces }) // the record you give Data.subscriptions
+// { state: 'Initial', reason: 'NotFetching', surfaces: ['ProjectPage'],
+//   message: 'ProjectPage reads it and is active, yet nothing is fetching it. …' }
+```
+
+- `NotObserved`: no active Surface reads it. The Surface is not in the record
+  you gave `Data.subscriptions`, or its params are `undefined` for this Model
+  (the route is not there yet).
+- `NotFetching`: an active Surface reads it and nothing started a request,
+  which almost always means Remote's Subscriptions are not installed in the
+  runtime.
+- Without `surfaces` it can only say `Unknown`. For every other state it says
+  what the state means in words.
+
+`Data.plan(model, projection)` shows whether Remote believes anything is
+missing at all.
+
+### Why is it stale?
+
+Under the default `RemotePolicy.cacheFirst`, a present field is never asked for
+again. That is the point of a cache, and the reason a list shows what the
+server said last time. To see change:
+
+- **On demand**: `Data.refresh(model, projection)` from `update` marks what the
+  screen reads `Refreshing` and the active Subscription fetches it again, old
+  value still on screen. A refresh button, a window regaining focus.
+- **By age**: `RemotePolicy.staleWhileRevalidate({ maxAge })` refetches a value
+  older than `maxAge` the next time it is planned.
+- **Always**: `RemotePolicy.networkOnly` requests every selected field, cached
+  value visible meanwhile.
+- **As it happens**: `Data.live` instead of `Data.get`, with a server that
+  publishes changes; see [Live data](#live-data).
+
+Connections have no age: a list re-queries when invalidated, refreshed, or
+under `networkOnly`. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
+
+### Why did my change disappear?
+
+A mutation's `optimistic` patches are layers over the store while the request
+is in flight. When the server answers, the layers come off and the cache shows
+what the server said:
+
+- **It failed.** `MutationFailed` removes the layers; `Data.mutation(model,
+  requestId)` reads `Failed` with the error. Nothing retries it: the mutation
+  is not a durable queue, and if losing it is data loss the edit belongs to
+  [`foldkit-sync`](../sync).
+- **It succeeded, but the server's result did not include the field.** The
+  layer came off and the store still holds the old value, until a read or the
+  result writes the new one. A mutation `Output` that returns the changed
+  entity settles this at once.
+- **A preview** shown with `Data.overlay` stays until `Data.lift`; a settled
+  mutation never takes it along.
+
+See [Mutations and optimistic state](#mutations-and-optimistic-state).
+
+### Why is it gone after navigating away?
+
+Remote is a cache, and it forgets facts no active feature needs. Retention
+roots come from the active Surfaces; after the grace period, `RetentionChanged`
+collects everything they do not reach. A screen you left, and nothing else
+reads, loses its rows, which is safe because coming back refetches them. To
+keep something a screen does not read, name it in a retain entry or a
+`connections` list; see [Retention](#retention-and-garbage-collection).
+
+### Why does a value the server has read `Failed`?
+
+`Failed` with no `previous` and no request error means the stored value did not
+**decode** against the Selection: the server's shape and the entity's Schema
+disagree; the error is a `DecodeError` with the Schema's message. A failed
+request reads the same way, with
+the request's error; see [When a read fails](#when-a-read-fails). A
+`RemoteProtocolError` means the client and server disagree on
+`REMOTE_PROTOCOL_VERSION`, and nothing is silently accepted.
+
+### Why did a live update not show?
+
+Live events carry cursors. One behind the Model's is a duplicate and is
+dropped; one ahead of the next is a **gap**, recorded in `RemoteModel.gaps`
+and not applied, so the screen keeps what the server last said rather than
+a history with a hole in it. The host resynchronizes and clears the gap; see
+[Live data](#live-data).
 
 ## Normalized entities and selections
 
@@ -596,8 +680,6 @@ const loaded = await Effect.runPromise(
 Remote Messages reduced into it. It never changes the semantics of the
 Projection itself.
 
-### Refreshing from `update`
-
 ### Showing a change nobody has made
 
 A mutation's `optimistic` operations show over the store while it is in flight.
@@ -615,6 +697,8 @@ const back = Data.lift(previewed, 'post-preview')
   returns the same Model.
 - An overlay's id is apart from every request's, so a mutation that settles does
   not take a preview with it.
+
+### Refreshing from `update`
 
 To revalidate what a screen already declares — a refresh button, a focus
 regained — hand its Projection (or a Surface without params) to `Data.refresh`:
@@ -1450,15 +1534,6 @@ Remote does **not** own:
 - HTTP/WebSocket deployment details;
 - authentication; server-side authorization belongs at the Source boundary;
 - a background scheduler or general-purpose database/query engine.
-
-## How state changes here
-
-Local application state uses `modifyFields` inside `update`, like anywhere else.
-Remote Messages go through `Data.reduce` into the embedded `Remote.Model`
-submodel — Remote owns that reducer, and it is the only writer of the
-cache. Never install cache state with a ref `set`; the requirements,
-staleness, and tombstones only stay coherent when every fact arrives as a
-Remote Message.
 
 ## Limits
 
