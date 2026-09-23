@@ -74,8 +74,9 @@ describe('Collection.behavior', () => {
     posInSet: true,
   })
 
-  const resolved = (behavior: Behavior.NamedBehavior<typeof ToolbarSlots, ToolbarInput, TestMessage>) =>
-    SlotView.buildersFor(ToolbarSlots, [behavior.mixin], { input: { tools }, h })
+  const resolved = (
+    behavior: Behavior.NamedBehavior<typeof ToolbarSlots, ToolbarInput, TestMessage>,
+  ) => SlotView.buildersFor(ToolbarSlots, [behavior.mixin], { input: { tools }, h })
 
   it('writes id, position, and disabled state per item', () => {
     const builders = resolved(Ids)

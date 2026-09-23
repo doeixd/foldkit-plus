@@ -61,7 +61,11 @@ export const of = <T>(items: ReadonlyArray<T>, describe: Describe<T>): Items<T> 
     indexOf: (id: string) => indexById.get(id) ?? -1,
     isDisabled: (index: number) => disabled[index] ?? false,
     enabled: Object.freeze(enabled),
-    slotItem: (index: number): SlotItem => ({ index, id: ids[index] ?? String(index), count: size }),
+    slotItem: (index: number): SlotItem => ({
+      index,
+      id: ids[index] ?? String(index),
+      count: size,
+    }),
   })
 }
 

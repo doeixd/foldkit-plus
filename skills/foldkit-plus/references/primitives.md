@@ -18,7 +18,7 @@ imports.
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
 | A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
-| The current item of a roving tab stop | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
+| The current item of a roving tab stop, a typeahead query, or both for a list | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
 A bundle holds no state. Placing it twice observes twice; share the field
 instead. The browser, clock, or server only reports facts as Messages.
@@ -73,12 +73,21 @@ into a chord answer. Slices that must survive reload persist through
   `Received` notifies without storing — project it to keep it.
 - **Observe an element:** `h.div([h.OnMount(Resize())], [...])`; without the
   observer API the Mount emits nothing.
-- **Roving tab stop:** place `RovingTabindex` (`{ orientation, loop, virtual }`)
+- **Roving tab stop:** place `RovingTabindex.bundle` (`{ orientation, loop, virtual }`)
   from `foldkit-primitives/interaction`; attach
-  `behavior(Declared, args)(Slots)<Model, Message>({ container, item, items: model => Behaviors.Collection.of(...), direction? })`
+  `RovingTabindex.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items: model => Behaviors.Collection.of(...), direction? })`
   beside `Behaviors.Collection.behavior` (which writes the ids it focuses by).
   The Model slice is the current item's id; the container's `OnKeyDownFocus`
   focuses the next enabled item and dispatches `Focused { id }`.
+- **Type to find:** `Typeahead.bundle` (`{ timeoutMs }`) with
+  `Typeahead.behavior(Declared)(Slots)<Model, Message>({ host, items, text, current })`
+  for a host with no roving tab stop; `Typeahead.match(texts, enabled, query, current)` is the pure pick.
+- **A list host that wants both** arrows and typeahead takes `ListNavigation.bundle`
+  (`{ orientation, loop, virtual, timeoutMs, page }`) with
+  `ListNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, text, direction? })`.
+  One placement, one key handler: `RovingTabindex` and `Typeahead` on one host are
+  refused by the resolver (one owner per event), and under `virtual` a typed key
+  must move the pointer and extend the query in one transition.
 
 ## Gotchas
 

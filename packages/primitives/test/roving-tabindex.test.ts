@@ -10,15 +10,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
-import {
-  RovingTabindex,
-  RovingTabindexMessage,
-  behavior,
-  move,
-  tabStop,
-  type MoveOptions,
-  type RovingTabindexArgs,
-} from '../src/interaction/index.js'
+import { RovingTabindex } from '../src/interaction/index.js'
+
+const { behavior, move, tabStop } = RovingTabindex
+type MoveOptions = RovingTabindex.MoveOptions
+type RovingTabindexArgs = RovingTabindex.Args
 
 const plain: KeyboardModifiers = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }
 const enabled = [0, 1, 3] // item 2 disabled
@@ -34,9 +30,27 @@ describe('move', () => {
     ['Home goes first', 'Home', 3, vertical, 0],
     ['End goes last', 'End', 0, vertical, 3],
     ['ArrowRight is not vertical navigation', 'ArrowRight', 0, vertical, undefined],
-    ['ArrowRight steps forward when horizontal', 'ArrowRight', 0, { ...vertical, orientation: 'horizontal' }, 1],
-    ['ArrowLeft steps forward under rtl', 'ArrowLeft', 0, { ...vertical, orientation: 'horizontal', direction: 'rtl' }, 1],
-    ['ArrowRight steps back under rtl', 'ArrowRight', 1, { ...vertical, orientation: 'horizontal', direction: 'rtl' }, 0],
+    [
+      'ArrowRight steps forward when horizontal',
+      'ArrowRight',
+      0,
+      { ...vertical, orientation: 'horizontal' },
+      1,
+    ],
+    [
+      'ArrowLeft steps forward under rtl',
+      'ArrowLeft',
+      0,
+      { ...vertical, orientation: 'horizontal', direction: 'rtl' },
+      1,
+    ],
+    [
+      'ArrowRight steps back under rtl',
+      'ArrowRight',
+      1,
+      { ...vertical, orientation: 'horizontal', direction: 'rtl' },
+      0,
+    ],
     ['both accepts either axis', 'ArrowRight', 0, { ...vertical, orientation: 'both' }, 1],
     ['nothing current: ArrowDown lands on the first enabled', 'ArrowDown', -1, vertical, 0],
     ['nothing current: ArrowUp lands on the last enabled', 'ArrowUp', -1, vertical, 3],
@@ -68,7 +82,8 @@ const describeTools = (items: ReadonlyArray<Tool>) =>
 describe('tabStop', () => {
   const items = describeTools(tools)
   it('is the current item when it is enabled', () => expect(tabStop(items, 'paste')).toBe(2))
-  it('is the first enabled item when nothing is current', () => expect(tabStop(items, null)).toBe(0))
+  it('is the first enabled item when nothing is current', () =>
+    expect(tabStop(items, null)).toBe(0))
   it('is the first enabled item when the current one is gone or disabled', () => {
     expect(tabStop(items, 'gone')).toBe(0)
     expect(tabStop(items, 'copy')).toBe(0)
@@ -78,7 +93,7 @@ describe('tabStop', () => {
   })
 })
 
-const Roving = Bundle.declare(RovingTabindex, 'toolbarFocus')
+const Roving = Bundle.declare(RovingTabindex.bundle, 'toolbarFocus')
 const Model = Schema.Struct({ ...Roving.fields })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Roving.cases })
@@ -92,7 +107,7 @@ describe('RovingTabindex placement', () => {
     const start = placed.init({ toolbarFocus: { current: 'stale' } }).model
     expect(start.toolbarFocus.current).toBeNull()
     const next = Option.getOrThrow(
-      placed.update(start, Roving.wrapper.make(RovingTabindexMessage.Focused({ id: 'paste' }))),
+      placed.update(start, Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'paste' }))),
     ).model
     expect(next.toolbarFocus.current).toBe('paste')
   })
@@ -136,7 +151,7 @@ describe('RovingTabindex behavior', () => {
     expect(Attributes.find(copy!, 'Tabindex')?.value).toBe(-1)
     expect(Attributes.find(paste!, 'Tabindex')?.value).toBe(0)
     expect(Attributes.find(cut!, 'OnFocus')?.message).toEqual(
-      Roving.wrapper.make(RovingTabindexMessage.Focused({ id: 'cut' })),
+      Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'cut' })),
     )
   })
 
@@ -150,7 +165,7 @@ describe('RovingTabindex behavior', () => {
     const result = keyHandler({ ...input, toolbarFocus: { current: 'cut' } })('ArrowRight', plain)
     expect(Option.getOrThrow(result)).toEqual({
       focusSelector: '[id="paste"]',
-      message: Roving.wrapper.make(RovingTabindexMessage.Focused({ id: 'paste' })),
+      message: Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'paste' })),
     })
   })
 
@@ -172,7 +187,9 @@ describe('RovingTabindex behavior', () => {
       toolbarFocus: { current: null },
       tools: [{ id: 'a"b' }, { id: 'c' }],
     }
-    expect(Option.getOrThrow(keyHandler(odd)('ArrowRight', plain)).focusSelector).toBe('[id="a\\"b"]')
+    expect(Option.getOrThrow(keyHandler(odd)('ArrowRight', plain)).focusSelector).toBe(
+      '[id="a\\"b"]',
+    )
   })
 
   it('under virtual keeps focus on the container and points with aria-activedescendant', () => {
@@ -186,7 +203,7 @@ describe('RovingTabindex behavior', () => {
     const handler = Attributes.find(root, 'OnKeyDownPreventDefault')?.f
     if (handler === undefined) throw new Error('no OnKeyDownPreventDefault on the container')
     expect(Option.getOrThrow(handler('ArrowRight', plain))).toEqual(
-      Roving.wrapper.make(RovingTabindexMessage.Focused({ id: 'paste' })),
+      Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'paste' })),
     )
     expect(Option.isNone(handler('Enter', plain))).toBe(true)
   })
@@ -214,7 +231,10 @@ describe('RovingTabindex behavior', () => {
     ).pipe(SlotView.attach(Ids.mixin), SlotView.attach(wire(args).mixin))
     const vnode = Toolbar(input, h) as {
       readonly children?: ReadonlyArray<{
-        readonly data?: { readonly props?: Record<string, unknown>; readonly attrs?: Record<string, unknown> }
+        readonly data?: {
+          readonly props?: Record<string, unknown>
+          readonly attrs?: Record<string, unknown>
+        }
       }>
     }
     const children = vnode.children ?? []

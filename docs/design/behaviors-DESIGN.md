@@ -106,7 +106,7 @@ version has that ours must not repeat, each of which becomes a test.
 | --- | --- | --- | --- | --- |
 | `RovingTabindex` | Bundle + Behavior | `container: Interactive`, `items: Collection` | One tab stop; arrows by `orientation` (`vertical`, `horizontal`, `both`), `loop`, Home and End to first and last enabled, disabled items skipped, `virtual` mode writes `aria-activedescendant` instead of moving focus. | **RTL flips horizontal arrows**; **restore `tabindex` on dispose**; every handled key calls `preventDefault` |
 | `Typeahead` | Bundle + Behavior | `host: Interactive`, `items: Collection` | Printable keys buffer for 500 ms on Effect's clock, match from the current index forward then wrap, locale-lowercased. Composes with `RovingTabindex`. `@foldkit/ui` has `resolveTypeaheadMatch` in `dist/typeahead.js` but on no public subpath, so the matcher is written here (it is thirty lines) rather than deep-imported. | none |
-| `ListNavigation` | Bundle + Behavior | as `RovingTabindex` | `RovingTabindex` plus `Typeahead` plus PageUp and PageDown by ten, in one placement. Their `keyboardNav` seed with its bugs removed. | **ids for `aria-activedescendant` come from the Collection, never `item-N`** |
+| `ListNavigation` | Bundle + Behavior | as `RovingTabindex` | `RovingTabindex` plus `Typeahead` plus PageUp and PageDown by `page`, in one placement with one key handler. Built: it is its own Bundle (`{ current, query, generation }`) rather than a composition, because the resolver allows one owner per event on a slot and because under `virtual` a typed key must move the pointer and extend the query in one transition. Their `keyboardNav` seed with its bugs removed. | **ids for `aria-activedescendant` come from the Collection, never `item-N`** |
 | `GridNavigation` | Bundle + Behavior | `grid`, `cells: Collection` | Two-dimensional arrows with `columns` and `wrap`; RTL flips columns. Waits for a real grid (DatePicker uses `@foldkit/ui`'s). | none |
 | `FocusScope` | Bundle + Behavior | `container: Container` | `contain` (Tab cycles inside), `restore` (focus returns on close), `initialFocus`. Distinct from a trap: with `contain: false` tabbing out is allowed. Dynamic focusables via a `Mutation()` Mount. | **restore on deactivate**, which their trap lacks |
 | `DismissLayer` | Bundle (stack, placed once) + Behavior | `root: Container`, optional `trigger` | Escape and outside press dismiss the topmost layer; a press inside a parent layer is outside its children; the trigger is excluded so dismiss-then-reopen cannot happen. The document listener is the stack Bundle's Subscription, so no embedding has to report presses. Defers to native `popover="auto"` when the slot has it. | **document listener included**; **trigger exclusion**; drop their unused `disableOutsidePointerEvents` |
@@ -155,7 +155,7 @@ version has that ours must not repeat, each of which becomes a test.
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { RovingTabindex, behavior as rovingTabindex } from 'foldkit-primitives/interaction'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 
 const ToolbarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
@@ -163,7 +163,7 @@ const ToolbarSlots = Slots.define({
 })
 
 // State: one Bundle in the parent Model, like any primitive.
-const Roving = Bundle.declare(RovingTabindex, 'toolbarFocus')
+const Roving = Bundle.declare(RovingTabindex.bundle, 'toolbarFocus')
 const Model = Schema.Struct({ ...Roving.fields, tools: Schema.Array(Tool) })
 const Message = defineMessageUnion({ ...Roving.cases, /* … */ })
 const Page = Bundle.parent({ Model, Message })
@@ -173,7 +173,7 @@ const placements = Page.assemble(
 
 // Behavior: maps the slots to that placement. Its Input is the parent Model,
 // so it can read the placed slice and dispatch the placed Messages.
-const ToolbarFocus = rovingTabindex(Roving, args)(ToolbarSlots)<Model, Message>({
+const ToolbarFocus = RovingTabindex.behavior(Roving, args)(ToolbarSlots)<Model, Message>({
   container: 'root',
   items: 'tool',
   itemId: (model, index) => model.tools[index]?.id,

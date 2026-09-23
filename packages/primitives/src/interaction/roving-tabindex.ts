@@ -6,7 +6,7 @@
  * function of the items and the key; the Behavior wires it to the slots.
  */
 import { Option, Schema } from 'effect'
-import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import type { Attribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
@@ -15,19 +15,19 @@ import type { Declared } from 'foldkit-bundle'
 export const Orientation = Schema.Literals(['vertical', 'horizontal', 'both'])
 export type Orientation = typeof Orientation.Type
 
-export const RovingTabindexModel = Schema.Struct({
+export const Model = Schema.Struct({
   /** The current item's id, or `null` before any item has been focused. */
   current: Schema.NullOr(Schema.String),
 })
-export type RovingTabindexModel = typeof RovingTabindexModel.Type
+export type Model = typeof Model.Type
 
-export const RovingTabindexMessage = defineMessageUnion({
+export const Message = defineMessageUnion({
   /** An item became current: the user focused it, or a key moved there. */
   Focused: { id: Schema.String },
 })
-export type RovingTabindexMessage = typeof RovingTabindexMessage.Type
+export type Message = typeof Message.Type
 
-export const RovingTabindexArgs = Schema.Struct({
+export const Args = Schema.Struct({
   orientation: Orientation,
   /** Wrap from the last enabled item to the first, and back. */
   loop: Schema.Boolean,
@@ -35,12 +35,12 @@ export const RovingTabindexArgs = Schema.Struct({
    *  `aria-activedescendant` instead of moving focus. */
   virtual: Schema.Boolean,
 })
-export type RovingTabindexArgs = typeof RovingTabindexArgs.Type
+export type Args = typeof Args.Type
 
-export const RovingTabindex = Bundle.make('RovingTabindex', {
-  Model: RovingTabindexModel,
-  Message: RovingTabindexMessage,
-  args: RovingTabindexArgs,
+export const bundle = Bundle.make('RovingTabindex', {
+  Model,
+  Message,
+  args: Args,
   init: () => ({ model: { current: null } }),
   update: (_model, message) => ({ model: { current: message.id } }),
 })
@@ -51,6 +51,8 @@ export interface MoveOptions {
   readonly orientation: Orientation
   readonly loop: boolean
   readonly direction: Direction
+  /** How many enabled items PageUp and PageDown move; absent, they are not handled. */
+  readonly page?: number
 }
 
 const isPlain = (modifiers: KeyboardModifiers): boolean =>
@@ -60,7 +62,8 @@ const isPlain = (modifiers: KeyboardModifiers): boolean =>
  * The index the key moves to from `current`, over the enabled indices only, or
  * `undefined` when the key is not a navigation key here. `current` may be
  * `-1` (nothing current yet): arrows then land on the first or last enabled
- * item. Under `rtl`, left and right swap.
+ * item. Under `rtl`, left and right swap. PageUp and PageDown move by `page`
+ * and clamp at the ends, never wrapping.
  */
 export const move = (
   enabled: ReadonlyArray<number>,
@@ -74,6 +77,12 @@ export const move = (
   const last = enabled[enabled.length - 1]!
   if (key === 'Home') return first
   if (key === 'End') return last
+  if (options.page !== undefined && (key === 'PageUp' || key === 'PageDown')) {
+    const position = enabled.indexOf(current)
+    if (position === -1) return key === 'PageDown' ? first : last
+    const jumped = position + (key === 'PageDown' ? options.page : -options.page)
+    return enabled[Math.min(enabled.length - 1, Math.max(0, jumped))]
+  }
   const vertical = options.orientation !== 'horizontal'
   const horizontal = options.orientation !== 'vertical'
   const forwardKey = options.direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
@@ -94,7 +103,10 @@ export const move = (
 }
 
 /** The item that holds the tab stop: the current one, else the first enabled. */
-export const tabStop = (items: Behaviors.Collection.Items<unknown>, current: string | null): number => {
+export const tabStop = (
+  items: Behaviors.Collection.Items<unknown>,
+  current: string | null,
+): number => {
   const index = current === null ? -1 : items.indexOf(current)
   if (index !== -1 && !items.isDisabled(index)) return index
   return items.enabled[0] ?? -1
@@ -110,7 +122,27 @@ export interface BehaviorOptions<Input, Slots> {
   readonly direction?: (input: Input) => Direction
 }
 
-const idSelector = (id: string): string => `[id="${id.replace(/["\\]/g, '\\$&')}"]`
+/** A selector for an element by id, safe for any id. */
+export const idSelector = (id: string): string => `[id="${id.replace(/["\\]/g, '\\$&')}"]`
+
+/**
+ * The attributes one item gets: `tabindex` 0 when it holds the tab stop and
+ * -1 otherwise (none under `virtual`), and `OnFocus` reporting it current.
+ * Shared with `ListNavigation`.
+ */
+export const itemAttributes = <ParentMessage>(
+  h: HtmlBuilder<ParentMessage>,
+  items: Behaviors.Collection.Items<unknown>,
+  current: string | null,
+  item: SlotItem,
+  virtual: boolean,
+  focused: (id: string) => ParentMessage,
+): ReadonlyArray<Attribute<ParentMessage>> => {
+  const id = item.id ?? items.ids[item.index]
+  if (id === undefined) return []
+  const isStop = tabStop(items, current) === item.index
+  return [...(virtual ? [] : [h.Tabindex(isStop ? 0 : -1)]), h.OnFocus(focused(id))]
+}
 
 /**
  * Wires a placed `RovingTabindex` to the slots: the container's arrow, Home
@@ -124,19 +156,25 @@ const idSelector = (id: string): string => `[id="${id.replace(/["\\]/g, '\\$&')}
  * `tabindex` behind.
  */
 export const behavior =
-  <Field extends string>(declared: Declared<typeof RovingTabindex, Field>, args: RovingTabindexArgs) =>
+  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
   <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: RovingTabindexModel }, Message>(
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, Message> => {
-    const wrap = (id: string): Message =>
-      declared.wrapper.make(RovingTabindexMessage.Focused({ id })) as unknown as Message
-    const slice = (input: Input): RovingTabindexModel => input[declared.field]
-    return Behavior.forSlots(slots)<Input, Message>(
+  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+    const wrap = (id: string): ParentMessage =>
+      declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+    const slice = (input: Input): Model => input[declared.field]
+    return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
           requires: { capability: Capability.Interactive },
-          attributes: ({ input, h }: { readonly input: Input; readonly h: HtmlBuilder<Message> }) => {
+          attributes: ({
+            input,
+            h,
+          }: {
+            readonly input: Input
+            readonly h: HtmlBuilder<ParentMessage>
+          }) => {
             const items = options.items(input)
             const current = slice(input).current
             const from = current === null ? -1 : items.indexOf(current)
@@ -174,22 +212,22 @@ export const behavior =
             item,
           }: {
             readonly input: Input
-            readonly h: HtmlBuilder<Message>
+            readonly h: HtmlBuilder<ParentMessage>
             readonly item?: SlotItem
           }) => {
             if (item === undefined) return []
-            const items = options.items(input)
-            const id = item.id ?? items.ids[item.index]
-            if (id === undefined) return []
-            const isStop = tabStop(items, slice(input).current) === item.index
-            return [
-              ...(args.virtual ? [] : [h.Tabindex(isStop ? 0 : -1)]),
-              h.OnFocus(wrap(id)),
-            ]
+            return itemAttributes(
+              h,
+              options.items(input),
+              slice(input).current,
+              item,
+              args.virtual,
+              wrap,
+            )
           },
         }),
         // Keyed by values the caller chose; `forSlots` checks both keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
+      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'RovingTabindex' },
     )
   }

@@ -29,7 +29,7 @@ only that subpath needs.
 | Kind | Form | Example |
 | --- | --- | --- |
 | Stateful + effectful | bundle | MediaQuery, Timer, WebSocket, Pagination |
-| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex |
+| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex, Typeahead, ListNavigation |
 | Keyed collections of stateful items | bundle per key | uploads, sockets, timers (later) |
 | Stream source with a stored fact | bundle with one boolean/scalar slice | Online, Visibility, WindowSize |
 | Stream source only | Subscription entry, not a bundle | keyboard, pointer, scroll, broadcast |
@@ -91,7 +91,7 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle and its `foldkit-mixins` Behavior: RovingTabindex
+- `interaction` — a Bundle and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
@@ -494,9 +494,9 @@ page knows where focus was. Args: `orientation` (`'vertical' | 'horizontal' |
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { RovingTabindex, behavior as rovingTabindex } from 'foldkit-primitives/interaction'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 
-const Roving = Bundle.declare(RovingTabindex, 'toolbarFocus')
+const Roving = Bundle.declare(RovingTabindex.bundle, 'toolbarFocus')
 const Model = Schema.Struct({ ...Roving.fields, tools: Schema.Array(Tool) })
 const Message = defineMessageUnion({ ...Roving.cases })
 const Page = Bundle.parent({ Model, Message })
@@ -515,7 +515,7 @@ const Ids = Behaviors.Collection.behavior(ToolbarSlots)<Model, Message>({
   item: 'tool',
   items: model => describeTools(model.tools),
 })
-const Focus = rovingTabindex(Roving, args)(ToolbarSlots)<Model, Message>({
+const Focus = RovingTabindex.behavior(Roving, args)(ToolbarSlots)<Model, Message>({
   container: 'root',
   item: 'tool',
   items: model => describeTools(model.tools),
@@ -547,7 +547,46 @@ left and right. The pure `move(enabled, current, key, modifiers, options)` and
 Under `virtual` the items get no `tabindex`, the container gets
 `aria-activedescendant`, and a key keeps DOM focus where it is and only moves
 the pointer. Nothing is written on dispose: the attributes are data, so a view
-that no longer attaches the Behavior leaves no `tabindex` behind.
+that no longer attaches the Behavior leaves no `tabindex` behind. PageUp and
+PageDown are handled when `move` is given a `page`; `ListNavigation` below
+does that.
+
+`Typeahead` is type-to-find for a host that has no roving tab stop, or whose
+focus is managed elsewhere. The Model slice is `{ query, generation }`:
+printable keys extend the query, a timer of `timeoutMs` on Effect's clock
+clears it (`generation` lets a superseded timer change nothing), and `Cleared`
+drops it on purpose. Which item a query picks is the pure
+`Typeahead.match(texts, enabled, query, current)`: one character, or one
+character repeated, starts *after* the current item so repeated presses cycle;
+a longer query starts *at* it, since the user is refining. Case and leading
+whitespace are ignored and disabled items are skipped. The Behavior
+(`Typeahead.behavior(Declared)(Slots)<Model, Message>({ host, items, text,
+current })`) gives the host `OnKeyDownFocus`: a printable key with no ctrl, alt
+or meta extends the query, focuses the match by id, and dispatches `Typed`;
+with no match the key is still recorded and focus stays put; a space with an
+empty query is left to the host.
+
+`ListNavigation` is what a list host takes when it wants both: arrows, Home,
+End, PageUp and PageDown by `page`, and typeahead, in **one placement**. It
+exists for two reasons. The resolver allows one owner per event on a slot, so
+`RovingTabindex` and `Typeahead` cannot both own the host's `OnKeyDownFocus`;
+and under `virtual` a typed key must move the pointer and extend the query in
+one transition, which two placements cannot do. Its Model slice is `{ current,
+query, generation }`, its args are `RovingTabindex`'s plus `timeoutMs` and
+`page`, and its Behavior takes `{ container, item, items, text, direction? }`.
+`Typed { char, match }` carries the item the query now picks, so `update` sets
+`current` and `query` together.
+
+```ts
+const Nav = Bundle.declare(ListNavigation.bundle, 'nav')
+// place with { args: { orientation: 'vertical', loop: false, virtual: false, timeoutMs: 500, page: 10 } }
+const Keys = ListNavigation.behavior(Nav, args)(ListSlots)<Model, Message>({
+  container: 'list',
+  item: 'option',
+  items: model => describeFruits(model.fruits),
+  text: (model, index) => model.fruits[index]?.label ?? '',
+})
+```
 
 ## Testing placements
 
