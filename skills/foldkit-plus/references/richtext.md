@@ -55,8 +55,10 @@ trimmed to the selection), `serializeSlice`/`deserializeSlice` round-trip it
 with a strict decoder, `withFreshIds` remints identities for a paste, and
 `sliceFromText` is the plain-text fallback. `run(state, { type: 'Paste', slice },
 ids)` places a slice at the caret — above the block at its start, below at its
-end, and mid-block by splitting the block so trailing text stays below. DOM
-clipboard events are not wired yet.
+end, and mid-block by splitting the block so trailing text stays below. The
+harness adapter carries slices over the clipboard
+(`application/x-foldkit-richtext+json` plus plain text), preferring a slice
+payload on paste and falling back to text; HTML interchange is pending.
 
 `run(state, command, ids)` resolves editor intent (typing, backward/forward
 delete, split block, toggle mark over a range, set selection) into a

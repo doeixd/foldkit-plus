@@ -69,6 +69,14 @@ and `Mod-y` chords) and `attach` routes them through `onHistory`. The harness
 commits history in the child and replaces the document on undo, reporting a
 whole-document ChangeSet so the patch cannot leave stale elements behind.
 
+Clipboard events are wired too. `copy` and `cut` write two payloads — the slice
+under `application/x-foldkit-richtext+json` and its plain text — and `cut`
+additionally emits the same delete intent a Backspace would (a collapsed caret
+cuts nothing). `paste` prefers a slice payload, falls back to plain text when
+the payload is absent or unreadable, and leaves an empty clipboard to the
+browser. HTML on either side of that boundary still waits on the read-only
+renderer.
+
 `repair(dom, content)` is recovery, not domain state (§31): it re-renders only
 blocks whose rendered text drifted, drops elements the document does not know,
 and returns the same `EditorDom` when nothing was wrong. `compositionend` uses
@@ -89,8 +97,8 @@ needs a text node for the caret to be addressable, a removed identity that is
 also dirty must still lose its element, and repairing detaches the live
 selection unless it is captured and restored.
 
-Not built yet: the DOM clipboard events that carry copy/cut/paste, and mobile
-virtual keyboards. The adapter is still private and throwaway-tolerant.
+Not built yet: HTML on either side of the clipboard boundary and mobile virtual
+keyboards. The adapter is still private and throwaway-tolerant.
 
 ## Running it
 

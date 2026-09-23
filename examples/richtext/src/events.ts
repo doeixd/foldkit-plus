@@ -6,7 +6,7 @@
  * but cannot yet honor is prevented without a command — a deliberate no-op
  * rather than a silent DOM divergence.
  */
-import type * as RichText from 'foldkit-richtext'
+import * as RichText from 'foldkit-richtext'
 import {
   patch as patchInto,
   positionToRange,
@@ -141,6 +141,14 @@ export const restoreSelection = (dom: EditorDom, selection: RichText.Selection |
   live.addRange(range)
 }
 
+/** The clipboard type a Foldkit RichText slice travels under. */
+export const SLICE_CLIPBOARD_TYPE = 'application/x-foldkit-richtext+json'
+
+interface ClipboardLike {
+  getData: (type: string) => string
+  setData: (type: string, value: string) => void
+}
+
 export interface AttachOptions {
   /** Called with each semantic command the browser produced. */
   readonly onIntent: (command: RichText.Command) => void
@@ -166,6 +174,7 @@ export interface Attachment {
 export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let current = dom
   let composing = false
+  let placeholderIds = 0
   const onEvent = (event: Event): void => {
     const intent = intentFor(event, composing)
     if (intent === undefined) return
@@ -188,11 +197,57 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     restoreSelection(current, semantic)
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
   }
+  const onCopy = (event: Event): void => {
+    const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
+    const slice = RichText.sliceOf(current.content, readSelection(current))
+    if (clipboard === undefined || slice === undefined) return
+    event.preventDefault()
+    clipboard.setData(SLICE_CLIPBOARD_TYPE, RichText.serializeSlice(slice))
+    clipboard.setData('text/plain', RichText.plainTextOf(slice))
+  }
+  const onCut = (event: Event): void => {
+    const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
+    const selection = readSelection(current)
+    const slice = RichText.sliceOf(current.content, selection)
+    if (clipboard === undefined || slice === undefined) return
+    event.preventDefault()
+    clipboard.setData(SLICE_CLIPBOARD_TYPE, RichText.serializeSlice(slice))
+    clipboard.setData('text/plain', RichText.plainTextOf(slice))
+    // A collapsed caret cuts nothing; a range is removed through the same
+    // delete intent a Backspace would produce.
+    const collapsed =
+      selection?.type === 'Range' &&
+      selection.anchor.node === selection.focus.node &&
+      selection.anchor.offset === selection.focus.offset
+    if (!collapsed) options.onIntent({ type: 'DeleteBackward' })
+  }
+  const onPaste = (event: Event): void => {
+    const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
+    if (clipboard === undefined) return
+    const payload = clipboard.getData(SLICE_CLIPBOARD_TYPE)
+    const text = clipboard.getData('text/plain')
+    // Slice first, then plain text: a payload this version cannot read falls
+    // back rather than pasting nothing. An empty clipboard pastes nothing at
+    // all, so the browser's default is left alone.
+    const slice =
+      (payload.length > 0 ? RichText.deserializeSlice(payload) : undefined) ??
+      (text.length > 0
+        ? RichText.sliceFromText(text, () => `clipboard-${++placeholderIds}`)
+        : undefined)
+    if (slice === undefined || slice.blocks.length === 0) return
+    event.preventDefault()
+    // The placeholder identities above are discarded: the Paste command remints
+    // every identity it inserts.
+    options.onIntent({ type: 'Paste', slice })
+  }
   const target = dom.root
   target.addEventListener('beforeinput', onEvent)
   target.addEventListener('keydown', onEvent)
   target.addEventListener('compositionstart', onCompositionStart)
   target.addEventListener('compositionend', onCompositionEnd)
+  target.addEventListener('copy', onCopy)
+  target.addEventListener('cut', onCut)
+  target.addEventListener('paste', onPaste)
   return {
     current: () => current,
     composing: () => composing,
@@ -205,6 +260,9 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       target.removeEventListener('keydown', onEvent)
       target.removeEventListener('compositionstart', onCompositionStart)
       target.removeEventListener('compositionend', onCompositionEnd)
+      target.removeEventListener('copy', onCopy)
+      target.removeEventListener('cut', onCut)
+      target.removeEventListener('paste', onPaste)
     },
   }
 }

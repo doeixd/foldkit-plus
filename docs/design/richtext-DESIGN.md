@@ -2966,8 +2966,7 @@ fields, malformed blocks, and duplicate identities inside the slice all return
 `sliceFromText` is the plain-text fallback. Identities come from the caller, as
 everywhere else.
 
-Still pending: HTML on either side of the boundary and the DOM clipboard events
-that carry these payloads.
+Still pending: HTML on either side of the boundary.
 
 **Paste insertion, implemented.** `{ type: 'Paste', slice }` remints every
 identity, then places the content relative to the caret: above the block at its
@@ -2976,6 +2975,15 @@ the caret stays below what was pasted. A range is replaced first. The caret
 lands at the end of the pasted text, or — when the pasted content ends without
 text — at the start of the trailing half the split created. An empty slice is a
 no-op preserving state identity.
+
+**DOM clipboard events, wired in the harness.** `copy`/`cut` write the slice
+under `application/x-foldkit-richtext+json` plus its plain text; `cut` also
+emits the delete intent a Backspace would, and a collapsed caret cuts nothing.
+`paste` prefers the slice payload, falls back to plain text when the payload is
+absent or unreadable (a strict decode failure must not paste nothing), and
+leaves an empty clipboard to the browser's default. The paste command remints
+identities, so the placeholder ids a plain-text payload needs never reach the
+document.
 
 ---
 

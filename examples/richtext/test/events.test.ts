@@ -7,13 +7,32 @@
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { mount, repair, toText } from '../src/dom.js'
-import { attach, intentFor, readSelection, restoreSelection } from '../src/events.js'
+import {
+  attach,
+  intentFor,
+  readSelection,
+  restoreSelection,
+  SLICE_CLIPBOARD_TYPE,
+} from '../src/events.js'
 
 const id = RichText.NodeId.make
 const at = (node: string, offset: number): RichText.Position => ({
   node: id(node),
   offset,
   affinity: 'after',
+})
+const caretAt = ([node, offset]: readonly [string, number]): RichText.Selection => ({
+  type: 'Range',
+  anchor: at(node, offset),
+  focus: at(node, offset),
+})
+const range = (
+  anchor: readonly [string, number],
+  focus: readonly [string, number],
+): RichText.Selection => ({
+  type: 'Range',
+  anchor: at(anchor[0], anchor[1]),
+  focus: at(focus[0], focus[1]),
 })
 const content = () =>
   RichText.decodeDocument({
@@ -58,6 +77,24 @@ const key = (
 const composition = (type: 'compositionstart' | 'compositionend', data?: string): Event => {
   const event = new Event(type, { bubbles: true })
   if (data !== undefined) Object.defineProperty(event, 'data', { value: data })
+  return event
+}
+
+/** A clipboard stub, so the adapter's payloads are what the test inspects. */
+const fakeClipboard = (initial: Record<string, string> = {}) => {
+  const data = new Map(Object.entries(initial))
+  return {
+    getData: (type: string) => data.get(type) ?? '',
+    setData: (type: string, value: string) => void data.set(type, value),
+    contents: () => Object.fromEntries(data),
+  }
+}
+const clipboardEvent = (
+  type: 'copy' | 'cut' | 'paste',
+  clipboard: ReturnType<typeof fakeClipboard>,
+): Event => {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', { value: clipboard })
   return event
 }
 
@@ -247,5 +284,125 @@ describe('the wired editing loop', () => {
     attachment.detach()
     root.dispatchEvent(beforeInput('insertText', 'X'))
     expect(intents).toEqual([])
+  })
+})
+
+describe('clipboard events', () => {
+  const setup = (
+    selection:
+      | readonly [string, number]
+      | readonly [readonly [string, number], readonly [string, number]] = ['a', 2],
+  ) => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    const semantic =
+      Array.isArray(selection) && Array.isArray(selection[0])
+        ? range(
+            selection[0] as readonly [string, number],
+            selection[1] as readonly [string, number],
+          )
+        : caretAt(selection as readonly [string, number])
+    restoreSelection(dom, semantic)
+    const intents: RichText.Command[] = []
+    const attachment = attach(dom, { onIntent: command => intents.push(command) })
+    return { attachment, intents }
+  }
+
+  it('copies a semantic slice plus plain text, and no command', () => {
+    const { attachment, intents } = setup([
+      ['a', 0],
+      ['a', 2],
+    ])
+    const clipboard = fakeClipboard()
+    const event = clipboardEvent('copy', clipboard)
+    attachment.current().root.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(intents).toEqual([])
+    const contents = clipboard.contents()
+    expect(contents['text/plain']).toBe('ab')
+    const slice = RichText.deserializeSlice(contents[SLICE_CLIPBOARD_TYPE]!)!
+    expect(RichText.plainTextOf(slice)).toBe('ab')
+    expect(slice.blocks[0]?.id).toBe('p')
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  })
+
+  it('cuts by copying and deleting the range', () => {
+    const { attachment, intents } = setup([
+      ['a', 1],
+      ['b', 1],
+    ])
+    const clipboard = fakeClipboard()
+    attachment.current().root.dispatchEvent(clipboardEvent('cut', clipboard))
+    expect(
+      RichText.deserializeSlice(clipboard.contents()[SLICE_CLIPBOARD_TYPE]!)?.blocks[0]?.children,
+    ).toEqual([
+      { type: 'Text', id: 'a', text: 'b', marks: [] },
+      { type: 'Text', id: 'b', text: 'c', marks: ['Bold'] },
+    ])
+    expect(intents).toEqual([{ type: 'DeleteBackward' }])
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  })
+
+  it('cuts nothing at a collapsed caret', () => {
+    const { attachment, intents } = setup(['a', 1])
+    const clipboard = fakeClipboard()
+    attachment.current().root.dispatchEvent(clipboardEvent('cut', clipboard))
+    expect(clipboard.contents()['text/plain']).toBe('')
+    expect(intents).toEqual([])
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  })
+
+  it('prefers a slice payload over plain text', () => {
+    const { attachment, intents } = setup(['a', 2])
+    const source = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'x',
+          children: [{ type: 'Text', id: 'y', text: 'from slice', marks: ['Italic'] }],
+        },
+      ],
+    })
+    const clipboard = fakeClipboard({
+      [SLICE_CLIPBOARD_TYPE]: RichText.serializeSlice(
+        RichText.sliceOf(source, { type: 'Node', node: RichText.NodeId.make('x') })!,
+      ),
+      'text/plain': 'from text',
+    })
+    attachment.current().root.dispatchEvent(clipboardEvent('paste', clipboard))
+    expect(intents).toHaveLength(1)
+    expect(RichText.plainTextOf((intents[0] as { slice: RichText.Slice }).slice)).toBe('from slice')
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  })
+
+  it('falls back to plain text when the slice payload is absent or unreadable', () => {
+    for (const payload of [undefined, 'not a slice', JSON.stringify({ version: 9, blocks: [] })]) {
+      const { attachment, intents } = setup(['a', 2])
+      const clipboard = fakeClipboard({
+        ...(payload === undefined ? {} : { [SLICE_CLIPBOARD_TYPE]: payload }),
+        'text/plain': 'one\ntwo',
+      })
+      attachment.current().root.dispatchEvent(clipboardEvent('paste', clipboard))
+      const slice = (intents[0] as { slice: RichText.Slice }).slice
+      expect(RichText.plainTextOf(slice)).toBe('one\ntwo')
+      expect(slice.blocks.map(block => block.type)).toEqual(['Paragraph', 'Paragraph'])
+      attachment.detach()
+      document.body.removeChild(attachment.current().root)
+    }
+  })
+
+  it('leaves an empty clipboard alone', () => {
+    const { attachment, intents } = setup(['a', 2])
+    const event = clipboardEvent('paste', fakeClipboard())
+    attachment.current().root.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(intents).toEqual([])
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
   })
 })
