@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { mount, toText } from '../src/dom.js'
+import { mount, repair, toText } from '../src/dom.js'
 import { attach, intentFor, readSelection, restoreSelection } from '../src/events.js'
 
 const id = RichText.NodeId.make
@@ -195,6 +195,29 @@ describe('the wired editing loop', () => {
     run(intents[0]!)
     expect(toText(attachment.current())).toBe('abにほcd\nef')
     expect(attachment.current().elements.has(id('a'))).toBe(true)
+    attachment.detach()
+  })
+
+  it('repairs the subtree when a composition is cancelled', () => {
+    const { attachment, intents } = setup()
+    const root = attachment.current().root
+    attachment.current().root.dispatchEvent(composition('compositionstart'))
+    // A cancelled IME (Escape, a lost focus) leaves text the document never had.
+    attachment.current().elements.get(id('a'))!.append(document.createTextNode('にほ'))
+    expect(toText(attachment.current())).toBe('abにほcd\nef')
+
+    attachment.current().root.dispatchEvent(composition('compositionend', ''))
+    expect(intents).toEqual([])
+    expect(toText(attachment.current())).toBe('abcd\nef')
+    // The block was re-rendered from the document, so the stray text is gone.
+    expect(attachment.current().content.children[0]?.children[0]?.text).toBe('ab')
+    attachment.detach()
+  })
+
+  it('leaves a matching subtree alone', () => {
+    const { attachment } = setup()
+    const before = attachment.current()
+    expect(repair(before, before.content)).toBe(before)
     attachment.detach()
   })
 

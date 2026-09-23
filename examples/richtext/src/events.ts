@@ -7,7 +7,13 @@
  * rather than a silent DOM divergence.
  */
 import type * as RichText from 'foldkit-richtext'
-import { patch as patchInto, positionToRange, rangeToPosition, type EditorDom } from './dom.js'
+import {
+  patch as patchInto,
+  positionToRange,
+  rangeToPosition,
+  repair,
+  type EditorDom,
+} from './dom.js'
 
 export interface Intent {
   /** The semantic command to run, when the event maps to one. */
@@ -173,7 +179,13 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   const onCompositionEnd = (event: Event): void => {
     composing = false
     const data = (event as Event & { readonly data?: string | null }).data
-    // The composed text becomes one ordinary edit at the semantic caret.
+    // The browser's temporary text is not in the document, whether the IME
+    // committed or cancelled, so repair the subtree before anything else. The
+    // repair re-renders blocks and detaches the live selection, so capture the
+    // semantic selection first and put it back after.
+    const semantic = readSelection(current)
+    current = repair(current, current.content)
+    restoreSelection(current, semantic)
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
   }
   const target = dom.root

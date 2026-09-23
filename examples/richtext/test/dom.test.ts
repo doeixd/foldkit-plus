@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { mount, patch, positionToRange, rangeToPosition, toText } from '../src/dom.js'
+import { mount, patch, positionToRange, rangeToPosition, repair, toText } from '../src/dom.js'
 
 const id = RichText.NodeId.make
 const at = (
@@ -172,6 +172,32 @@ describe('patching only what changed', () => {
       Array.from((after.root.children[0] as HTMLElement).children).map(child => child.textContent),
     ).toEqual(['ab', 'c', 'd'])
     expect(after.elements.get(id('h'))).toBe(before.elements.get(id('h')))
+  })
+})
+
+describe('repairing a subtree the browser touched', () => {
+  it('re-renders only blocks whose text drifted, and returns the same dom otherwise', () => {
+    const before = mount(document, content())
+    expect(repair(before, before.content)).toBe(before)
+
+    const run = before.elements.get(id('a'))!
+    run.append(document.createTextNode('drift'))
+    const after = repair(before, before.content)
+    expect(after).not.toBe(before)
+    expect(toText(after)).toBe('abcd\nTitle')
+    expect(after.elements.get(id('h'))).toBe(before.elements.get(id('h')))
+    expect(after.elements.get(id('a'))).not.toBe(run)
+  })
+
+  it('drops elements the document no longer knows', () => {
+    const before = mount(document, content())
+    const stray = document.createElement('p')
+    stray.setAttribute('data-block', 'ghost')
+    before.root.append(stray)
+    const after = repair(before, before.content)
+    expect(after.elements.has(id('ghost'))).toBe(false)
+    expect(after.root.contains(stray)).toBe(false)
+    expect(toText(after)).toBe('abcd\nTitle')
   })
 })
 

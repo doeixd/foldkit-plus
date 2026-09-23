@@ -69,19 +69,28 @@ and `Mod-y` chords) and `attach` routes them through `onHistory`. The harness
 commits history in the child and replaces the document on undo, reporting a
 whole-document ChangeSet so the patch cannot leave stale elements behind.
 
+`repair(dom, content)` is recovery, not domain state (§31): it re-renders only
+blocks whose rendered text drifted, drops elements the document does not know,
+and returns the same `EditorDom` when nothing was wrong. `compositionend` uses
+it — whether the IME committed or cancelled, the browser's temporary text is not
+in the document — and because a repair detaches the live selection, the adapter
+captures the semantic selection first and restores it after.
+
 `test/events.test.ts` covers the translation table, the deliberate no-ops, the
-IME handover, the history chords, and the wired loop (type, Enter, Backspace,
-composition commit, detach). `test/controlled.test.ts` covers undo end to end:
-a typing burst collapses to one step, a discrete command undoes alone, an empty
-history is refused, and redo restores what undo took away.
+IME handover and cancellation, the history chords, and the wired loop (type,
+Enter, Backspace, composition commit, detach). `test/controlled.test.ts` covers
+undo end to end: a typing burst collapses to one step, a discrete command undoes
+alone, an empty history is refused, and redo restores what undo took away.
+`test/dom.test.ts` covers repair directly.
 
-Three bugs the loop test caught, all now recorded in the design doc: inserted
+Four bugs the loop tests caught, all now recorded in the design doc: inserted
 nodes must be inserted (replacement alone leaves them out), an empty run still
-needs a text node for the caret to be addressable, and a removed identity that
-is also dirty must still lose its element.
+needs a text node for the caret to be addressable, a removed identity that is
+also dirty must still lose its element, and repairing detaches the live
+selection unless it is captured and restored.
 
-Not built yet: the IME cancellation path, clipboard, and mobile virtual
-keyboards. The adapter is still private and throwaway-tolerant.
+Not built yet: clipboard and mobile virtual keyboards. The adapter is still
+private and throwaway-tolerant.
 
 ## Running it
 

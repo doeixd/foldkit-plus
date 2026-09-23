@@ -197,3 +197,47 @@ export const toText = (dom: EditorDom): string =>
     .map(child => (child.textContent ?? '').trim())
     .filter(line => line.length > 0)
     .join('\n')
+
+const renderedText = (block: RichText.Block): string =>
+  block.type === 'Unknown'
+    ? `[${block.originalType}]`
+    : block.children.map(run => run.text).join('')
+
+/**
+ * Recovery, not domain state (§31): makes the subtree match the document again
+ * after something outside the semantic pipeline touched it — a cancelled IME
+ * composition leaves text the document never had, and a browser extension can
+ * mutate anything. Blocks whose rendered text already matches are left alone,
+ * so this costs nothing in the normal case and returns the same `EditorDom`
+ * when nothing was wrong.
+ */
+export const repair = (dom: EditorDom, content: RichText.Document): EditorDom => {
+  const present = new Set<RichText.NodeId>()
+  const dirtyNodes = new Set<RichText.NodeId>()
+  const removedNodes = new Set<RichText.NodeId>()
+  for (const block of content.children) {
+    present.add(block.id)
+    for (const run of block.children) present.add(run.id)
+    const element = dom.elements.get(block.id)
+    if (element === undefined || element.textContent !== renderedText(block)) {
+      dirtyNodes.add(block.id)
+      for (const run of block.children) dirtyNodes.add(run.id)
+    }
+  }
+  for (const id of dom.elements.keys()) if (!present.has(id)) removedNodes.add(id)
+  // A browser or extension can insert elements the map never knew about; sweep
+  // the subtree for identities the document does not have.
+  for (const element of Array.from(dom.root.querySelectorAll('[data-block], [data-run]'))) {
+    const identity = element.getAttribute('data-block') ?? element.getAttribute('data-run') ?? ''
+    if (identity.length > 0 && !present.has(identity as RichText.NodeId)) element.remove()
+  }
+  if (dirtyNodes.size === 0 && removedNodes.size === 0) return dom
+  return patch(dom, content, {
+    dirtyNodes,
+    insertedNodes: new Set(),
+    removedNodes,
+    textChanged: new Set(),
+    structureChanged: false,
+    selectionChanged: false,
+  })
+}

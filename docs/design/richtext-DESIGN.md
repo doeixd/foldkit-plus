@@ -3958,7 +3958,7 @@ alone omits it), an empty run still needs a text node so a caret inside it is
 addressable, and a removed identity that is also dirty must still lose its
 element.
 
-Still to build: the IME cancellation path, clipboard, and
+Still to build: clipboard and
 mobile keyboards.
 
 **Undo, wired end to end.** The harness now commits `History` in the child and
@@ -3967,6 +3967,14 @@ than editing it, so it reports a `Replaced` out-message with a whole-document
 `ChangeSet`: every surviving identity dirty, every departed identity removed.
 `Mod-z`/`Mod-Shift-z`/`Mod-y` are history intents rather than commands, so the
 adapter routes them through a separate `onHistory` channel.
+
+**Composition cancellation.** `repair(dom, content)` makes the subtree match the
+document again after the browser touched it: it re-renders only blocks whose
+rendered text drifted, drops elements the document does not know, and returns
+the same value when nothing was wrong. `compositionend` always repairs (a
+committed IME and a cancelled one both leave text the document never had) and
+restores the semantic selection afterwards, because a repair detaches the live
+one. Only then does a commit become one `InsertText` at the semantic caret.
 
 No collaboration. No Form. No CMS.
 
