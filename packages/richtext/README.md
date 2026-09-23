@@ -124,6 +124,14 @@ document and owns no state.
 - `SetNodeProps` retypes a heading's level today (the first block prop; Kit
   definitions generalize this later). Same-level sets are no-ops; paragraphs
   reject the operation.
+- `InsertNode` splices a caller-built block at an explicit index; every carried
+  identity must be fresh within the transaction. Positions need no mapping
+  (they address runs, not indexes).
+- `DeleteNode` removes one block and collapses its positions to the start of
+  the block now at that index, wrapping to the document start — or clears the
+  selection when no text remains. Node selections on the removed subtree remap
+  to the collapse target. Collapse steps in the position map carry the same
+  rule to external positions.
 - Positions count **UTF-16 code units**. Low-level edits may split a surrogate
   pair; grapheme-aware user commands are not implemented.
 - `SetSelection` resolves against the document at that point in the transaction.
@@ -159,9 +167,9 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Unknown-extension preservation, migrations, custom
-Kits, remaining structural operations (insert/delete), mark boundary expansion,
-transforms, history, rendering, and collaboration are still pending. Retain
-rejected source content for recovery; do not replace it with an empty document.
+Kits, mark boundary expansion, transforms, history, rendering, and collaboration
+are still pending. Retain rejected source content for recovery; do not replace
+it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document

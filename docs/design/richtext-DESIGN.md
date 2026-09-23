@@ -1160,7 +1160,10 @@ The DOM renderer should not rediscover all changes by diffing the entire documen
 A ChangeSet is an invalidation summary, not a position map or a durable change
 packet. Transactions must also provide composable position mapping through every
 operation and normalization step. Define offset units, boundary affinity, and
-fallback positions for deleted nodes. Split, join, move, and adjacent-text merge
+fallback positions for deleted nodes. The implemented rule: positions in removed
+runs collapse to offset 0 of the first surviving run at or after the removed
+index (wrapping to the document start), preserving affinity; with no runs left,
+the selection clears and no collapse step is emitted. Split, join, move, and adjacent-text merge
 must preserve selection direction and map both endpoints, including endpoints
 in a node whose identity normalization removes. Future collaborative anchors are
 resolved by their engine, not made stable merely by applying local offset maps.
@@ -3747,14 +3750,15 @@ Unknown nodes are still rejected, not preserved. `SplitNode` divides one text
 block at a run offset with caller-supplied identities; `JoinNode` moves runs
 into the surviving previous sibling without merging. `MoveNode` reorders blocks
 without touching run identities, and `SetNodeProps` retypes heading levels.
+`InsertNode` splices caller-built blocks at explicit indexes; `DeleteNode`
+removes one block and collapses its positions to the surviving text start.
 `ChangeSet` carries
 `insertedNodes`/`removedNodes`/`structureChanged`, and the position map
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
-Remaining: extensible Kits and metadata, mark boundary semantics, remaining
-structural operations (insert/delete) and their position
-maps, transforms/normalization, unknown node preservation, alongside the
+Remaining: extensible Kits and metadata, mark boundary semantics,
+transforms/normalization, unknown node preservation, alongside the
 parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.

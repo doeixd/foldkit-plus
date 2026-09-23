@@ -103,3 +103,12 @@ RichText.apply({ document, selection: null }, [moved, leveled])
 // @ts-expect-error Heading levels are 1 through 6.
 RichText.Edit.setNodeProps(reference, 7)
 void [movedNode, leveledNode]
+
+const inserted = RichText.Edit.insertBlock(paragraph, 0)
+const insertedBlock: RichText.Block = inserted.block
+const removed = RichText.Edit.deleteBlock(reference)
+const removedNode: RichText.NodeId = removed.node
+RichText.apply({ document, selection: null }, [inserted, removed])
+// @ts-expect-error Insert positions are numbers.
+RichText.Edit.insertBlock(paragraph, '0')
+void [insertedBlock, removedNode]

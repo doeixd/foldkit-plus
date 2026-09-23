@@ -30,5 +30,6 @@ export {
   type PositionStep,
   type SplitStep,
   type RelocateStep,
+  type CollapseStep,
   type TransactionResult,
 } from './transaction.js'

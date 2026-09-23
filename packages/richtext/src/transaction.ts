@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 import {
+  Block,
   EditorState,
   Mark,
   NodeId,
@@ -60,6 +61,15 @@ const SetNodePropsOperation = Schema.Struct({
   node: NodeId,
   level: Schema.Literals([1, 2, 3, 4, 5, 6]),
 })
+const InsertNodeOperation = Schema.Struct({
+  type: Schema.Literal('InsertNode'),
+  block: Block,
+  at: Offset,
+})
+const DeleteNodeOperation = Schema.Struct({
+  type: Schema.Literal('DeleteNode'),
+  node: NodeId,
+})
 
 export const Operation = Schema.Union([
   InsertTextOperation,
@@ -71,6 +81,8 @@ export const Operation = Schema.Union([
   JoinNodeOperation,
   MoveNodeOperation,
   SetNodePropsOperation,
+  InsertNodeOperation,
+  DeleteNodeOperation,
 ])
 export type Operation = typeof Operation.Type
 export const Transaction = Schema.Array(Operation)
@@ -152,6 +164,12 @@ export const Edit = {
     level: 1 | 2 | 3 | 4 | 5 | 6,
   ): Extract<Operation, { readonly type: 'SetNodeProps' }> =>
     SetNodePropsOperation.make({ type: 'SetNodeProps', node: targetId(node), level }),
+
+  insertBlock: (block: Block, at: number): Extract<Operation, { readonly type: 'InsertNode' }> =>
+    InsertNodeOperation.make({ type: 'InsertNode', block, at }),
+
+  deleteBlock: (node: TextTarget): Extract<Operation, { readonly type: 'DeleteNode' }> =>
+    DeleteNodeOperation.make({ type: 'DeleteNode', node: targetId(node) }),
 }
 
 export interface ChangeSet {
@@ -193,10 +211,20 @@ export interface RelocateStep {
   readonly base: number
 }
 
+/**
+ * Deletion collapse: every offset in node moves to offset 0 of into;
+ * affinity is preserved. Emitted per removed run when a surviving run exists;
+ * with no text left, positions cannot map and selection clears instead.
+ */
+export interface CollapseStep {
+  readonly node: NodeId
+  readonly into: NodeId
+}
+
 /** Maps a position through each edit, preserving insertion affinity. */
 export const mapPosition = (
   position: Position,
-  steps: ReadonlyArray<PositionStep | SplitStep | RelocateStep>,
+  steps: ReadonlyArray<PositionStep | SplitStep | RelocateStep | CollapseStep>,
 ): Position =>
   steps.reduce((current, step) => {
     if (current.node !== step.node) return current
@@ -204,10 +232,13 @@ export const mapPosition = (
       if (current.offset < step.at) return current
       return { ...current, node: step.into, offset: step.base + current.offset - step.at }
     }
-    if ('into' in step) {
+    if ('at' in step) {
       if (current.offset < step.at) return current
       if (current.offset === step.at && current.affinity === 'before') return current
       return { ...current, node: step.into, offset: current.offset - step.at }
+    }
+    if ('into' in step) {
+      return { ...current, node: step.into, offset: 0 }
     }
     if (current.offset < step.from) return current
     const offset =
@@ -222,7 +253,7 @@ export type TransactionResult =
       readonly ok: true
       readonly state: EditorState
       readonly changeSet: ChangeSet
-      readonly positionMap: ReadonlyArray<PositionStep | SplitStep | RelocateStep>
+      readonly positionMap: ReadonlyArray<PositionStep | SplitStep | RelocateStep | CollapseStep>
     }
   | {
       readonly ok: false
@@ -277,7 +308,7 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
   const removedNodes = new Set<NodeId>()
   const textChanged = new Set<NodeId>()
   let structureChanged = false
-  const positionMap: Array<PositionStep | SplitStep | RelocateStep> = []
+  const positionMap: Array<PositionStep | SplitStep | RelocateStep | CollapseStep> = []
   for (const operation of transaction) {
     if (operation.type === 'SetSelection') {
       if (!selectionIsValid(document, operation.selection)) {
@@ -393,6 +424,71 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
       blocks[blockIndex] = { ...target, level: operation.level }
       document = { ...document, children: blocks }
       dirtyNodes.add(target.id)
+      structureChanged = true
+      continue
+    }
+    if (operation.type === 'InsertNode') {
+      if (operation.at > document.children.length) return { ok: false, error: 'InvalidRange' }
+      const carried = [operation.block.id, ...operation.block.children.map(run => run.id)]
+      if (new Set(carried).size !== carried.length || carried.some(id => usedIds.has(id))) {
+        return { ok: false, error: 'InvalidInput' }
+      }
+      const blocks = [...document.children]
+      blocks.splice(operation.at, 0, operation.block)
+      document = { ...document, children: blocks }
+      for (const id of carried) usedIds.add(id)
+      reindex()
+      dirtyNodes.add(operation.block.id)
+      insertedNodes.add(operation.block.id)
+      for (const run of operation.block.children) {
+        dirtyNodes.add(run.id)
+        insertedNodes.add(run.id)
+      }
+      structureChanged = true
+      continue
+    }
+    if (operation.type === 'DeleteNode') {
+      const blockIndex = blockIndexes.get(operation.node)
+      if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const target = document.children[blockIndex]!
+      const blocks = [...document.children]
+      blocks.splice(blockIndex, 1)
+      // Collapse to the start of the block now at this index, wrapping to the
+      // document start; with no runs left anywhere, selection clears instead.
+      const ordered = [...blocks.slice(blockIndex), ...blocks.slice(0, blockIndex)]
+      const fallbackBlock = ordered.find(block => block.children[0] !== undefined)
+      const fallback = fallbackBlock?.children[0]
+      const collapses: Array<CollapseStep> = []
+      if (fallback !== undefined) {
+        for (const run of target.children) collapses.push({ node: run.id, into: fallback.id })
+      }
+      document = { ...document, children: blocks }
+      reindex()
+      if (selection?.type === 'Range') {
+        selection =
+          fallback === undefined
+            ? null
+            : {
+                ...selection,
+                anchor: mapPosition(selection.anchor, collapses),
+                focus: mapPosition(selection.focus, collapses),
+              }
+      } else if (selection?.type === 'Node') {
+        const selectedNode = selection.node
+        if (
+          selectedNode === operation.node ||
+          target.children.some(run => run.id === selectedNode)
+        ) {
+          selection = fallbackBlock === undefined ? null : { ...selection, node: fallbackBlock.id }
+        }
+      }
+      for (const step of collapses) positionMap.push(step)
+      dirtyNodes.add(operation.node)
+      removedNodes.add(operation.node)
+      for (const run of target.children) {
+        dirtyNodes.add(run.id)
+        removedNodes.add(run.id)
+      }
       structureChanged = true
       continue
     }
