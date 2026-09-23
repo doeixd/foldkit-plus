@@ -3767,6 +3767,8 @@ are structurally addressable but never text-edited. `SplitNode` divides one text
 block at a run offset with caller-supplied identities; `JoinNode` moves runs
 into the surviving previous sibling without merging. `MoveNode` reorders blocks
 without touching run identities, and `SetNodeProps` retypes heading levels.
+Kits declare a vocabulary (`RichText.kit`, `validate`) without yet driving
+parsing or `apply`.
 `InsertNode` splices caller-built blocks at explicit indexes; `DeleteNode`
 removes one block and collapses its positions to the surviving text start.
 Every transaction normalizes touched blocks by merging adjacent same-mark runs
@@ -3777,8 +3779,8 @@ transactions stay untouched.
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
-Remaining: extensible Kits and metadata (including the mark registry and
-custom definitions), migrations, further transforms, alongside
+Remaining: node prop schemas and nested children, the mark registry and custom
+definitions, metadata keys, migrations, further transforms, alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.

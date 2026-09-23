@@ -13,7 +13,8 @@ headings, text runs, Bold/Italic/Code marks, range and node selections,
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNode/SetNodeProps/InsertNode/DeleteNode,
 text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion,
-unknown node preservation, bounded decode limits, and inspection. Unknown mark
+unknown node preservation, bounded decode limits, Kits with vocabulary
+validation, and inspection. Unknown mark
 strings load verbatim and
 round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
 `Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
@@ -36,6 +37,11 @@ Positions validate shape at construction and resolve against the document during
 or stable collaborative anchors. Keep references in application definitions,
 not serialized Models. Reuse the ID across edits rather than holding a
 stale content snapshot. `read` performs a linear lookup.
+
+`RichText.kit({ nodes, marks })` declares an editor's vocabulary as data;
+`validate(document, kit)` reports `UnknownNode` / `UnsupportedNode` /
+`UnknownMark` diagnostics without changing the document. It does not yet drive
+parsing or `apply`, and prop schemas and nested children are pending.
 
 Custom Kits, migrations, further transforms, Form/Bundle integration, DOM
 editing, and collaboration remain unfinished. Unknown nodes and marks are

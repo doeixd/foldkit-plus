@@ -32,6 +32,16 @@ export {
   resolveInsertion,
 } from './marks.js'
 export {
+  type NodeDefinition,
+  type Kit,
+  type Diagnostic,
+  block,
+  atom,
+  kit,
+  inspectKit,
+  validate,
+} from './kit.js'
+export {
   Operation,
   Transaction,
   Edit,

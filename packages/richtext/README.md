@@ -92,6 +92,26 @@ reused split identities — still return `apply` diagnostics (`MissingText`,
 input still decodes to `InvalidInput`. `Edit` builds values only; it reads no
 document and owns no state.
 
+## Kits
+
+A `Kit` declares the vocabulary one editor accepts — node kinds and marks — as
+plain data, with no renderers or executable code:
+
+```ts
+const ArticleKit = RichText.kit({
+  nodes: [RichText.block('Paragraph'), RichText.block('Heading'), RichText.atom('Image')],
+  marks: ['Bold', 'Italic'],
+})
+
+RichText.validate(document, ArticleKit)
+// → [] when the document fits; otherwise UnknownNode / UnsupportedNode / UnknownMark
+```
+
+`validate` reads the document and never repairs it: callers decide whether a
+diagnostic blocks publishing or shows a placeholder. Prop schemas, nested
+children, transforms, and metadata arrive with node definitions; the Kit does
+not yet drive parsing or `apply`.
+
 ## Current semantics
 
 - Documents contain paragraphs and headings (levels 1–6), each containing text
@@ -182,9 +202,9 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Migrations, custom Kits, further transforms,
-history, rendering, and collaboration are still pending. Retain rejected source
-content for recovery; do not replace it with an empty document.
+decoding untrusted payloads. Migrations, prop schemas, nested children,
+transforms, history, rendering, and collaboration are still pending. Retain
+rejected source content for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document
