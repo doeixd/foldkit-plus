@@ -19,7 +19,7 @@ it('resumes a page generated for /about at /about/?utm_source=mail', async () =>
     }),
   )
   window.history.replaceState(null, '', '/about/?utm_source=mail')
-  load(about!.html)
+  load(about.html)
   const route = document.getElementById('route')
   calls.init = 0
 

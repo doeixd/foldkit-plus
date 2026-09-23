@@ -1,7 +1,7 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U and R done. Next: the resumable track (Phases A
-to F). Written 2026-09-22 against
+**Status:** Phases 0 to 6, U and R done, and Phase A's builder. Next: the
+Surface hook that finishes Phase A, then Phases B to F. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -621,6 +621,37 @@ this plan's next track, in its order, and it is the source for their detail:
   change in the same commit. Phase 2's view
   check compares the two renders' manifests (decision 11); test that a
   Message built from an unsent field is refused.
+
+  **Builder done; the Surface hook is next.** `Resume.builder(h)`, the
+  bindings in the envelope, and their comparison between the two renders,
+  with twelve mutations each turning a test red once a keyed element had a
+  binding, and each of the three hole checks in the types shown to fail
+  `tsc` when removed. Decided and found on the way:
+
+  - **Foldkit's attributes are tagged data** (`{ _tag: 'OnClick', message,
+    options }`), so a Message-valued binding is read off the attribute and
+    needs no record of its own. Only the four value events (`OnInput`,
+    `OnChange`, `OnKeyDown`, `OnKeyUp`) hold a closure; for those the builder
+    records, per attribute, the member and its hole.
+  - **The render context moved to its own module** (`src/context.ts`) and
+    gained the binding list in its two server modes, so `SSR.static` and the
+    builder read one context.
+  - **Ordinals are indices.** The envelope's `bindings` is an array, and a
+    marker's value is its index; the design's `e12` was a name for the same
+    thing. One binding per event per element, the last, as Foldkit keeps.
+  - **A hole's Message is encoded whole**, with the hole filled by a
+    placeholder (`''`, and no modifiers), so the envelope needs no second
+    Schema for partial Messages and Phase B decodes one Message and fills the
+    hole in its encoded form.
+  - **No casts in code an application writes, tests included.** A cast in a
+    test is a gap in an API, so the tests use the API as an application does.
+    It found one real gap: `SSR.generate` returned a plain array, so
+    destructuring a page needed an assertion. Its result is now typed as a
+    tuple of `paths`. A deliberately wrong call, such as a member that leaves
+    two fields, is written with `@ts-expect-error` saying why.
+  - The "load more" click that Phase 6 moved here needs a paging application
+    and a real client, which Phase B's dispatch tests will build; it is
+    still open.
 - **B. Delegated dispatch.** `Resume.listen`, one capture-phase listener per
   event type at the root, honouring each binding's propagation and default
   action as the eager page does. The manifest is decoded once, at load, through

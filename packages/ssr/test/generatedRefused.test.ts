@@ -16,7 +16,7 @@ it('refuses a page generated for /about when the browser is at /other', async ()
     }),
   )
   window.history.replaceState(null, '', '/other')
-  load(about!.html)
+  load(about.html)
   const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
   calls.init = 0
 

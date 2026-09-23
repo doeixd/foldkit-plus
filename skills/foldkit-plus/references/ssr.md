@@ -5,7 +5,8 @@ render on the server or at build time (`SSR.generate`) and serve through
 Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
 without rerunning `init`, a plan is checked against the Surfaces the browser
 reads, `SSR.static` regions belong to the server alone, and Remote's data
-crosses through `parts`.
+crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
+marks bindings; nothing dispatches them before boot yet.
 
 ## What it owns
 
@@ -64,6 +65,14 @@ SSR.hydrate(config, Editor, { buildId })
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.
+- `const rh = Resume.builder(h)` in a view: `h` plus hole forms,
+  `rh.OnInput(Message.ChangedSearch)`, `rh.OnChange(Message.Renamed, { id })`,
+  `rh.OnKeyDown(Message.Pressed)`; the member must leave one string field (or
+  `key` and `modifiers`), checked by the types. The server marks each binding
+  and writes its Message into the envelope; a binding built from an unsent
+  field fails with `ViewDependsOnUnsentState`; the plan needs the app's
+  Message Schema (make it from `App`), else `UnencodableBinding`.
+- `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
 - `SSR.entry(config, plan, { buildId, template, flags? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
   and `HEAD` render; other methods get `405`; a refused render gets `500`

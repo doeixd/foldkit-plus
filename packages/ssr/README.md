@@ -10,7 +10,8 @@ done: a page renders on the server or at build time and is served through
 Foldkit's fetch handler, the browser takes it over from the handed-over Model,
 a plan is checked against the Surfaces the browser reads, parts of the page can
 belong to the server alone, and Remote's data crosses with the page. Resumable
-pages, whose view waits for the first interaction, are the next track.
+pages, whose view waits for the first interaction, are being built: the first
+step, bindings the server's markup names, is done.
 
 ## What it owns
 
@@ -262,7 +263,9 @@ for (const page of pages) {
 Each path becomes `index.html` in its own folder (`/about` is
 `about/index.html`), and a path ending in `.html` keeps its name. `origin` makes
 each path the full URL a routing application parses. An application with Flags
-passes `flags: path => ...`, and they stay out of the page as always.
+passes `flags: path => ...`, and they stay out of the page as always. The
+pages come back in the order of `paths`, typed as a tuple of them, so
+`const [home, about] = pages` needs no check.
 
 A static host serves one file whatever the query, and for `/about` and
 `/about/` alike. So a generated page records its path alone, and the browser
@@ -270,6 +273,54 @@ checks the path and ignores the query and a trailing slash: `/about?ref=mail`
 resumes the page generated for `/about`, and `/other` is refused. A path with a
 query or fragment, or two paths that would be one file, are refused with
 `UngeneratablePath`.
+
+## Bindings: what each element causes (in progress)
+
+A resumable page answers an interaction before its view has run. For that the
+page must say, in the server's markup, which Message each element causes. A
+Foldkit handler is already a Message value, so for most events that is data;
+`Resume.builder` writes it down:
+
+```ts
+const view = (model: Model, h: HtmlBuilder<Message>) => {
+  const rh = Resume.builder(h)
+  return {
+    title: 'Post',
+    body: rh.main(
+      [],
+      [
+        rh.button([rh.OnClick(Message.Liked({ id: model.id }))], ['Like']),
+        // A Message with a hole: the event fills `value`.
+        rh.input([rh.Value(model.search), rh.OnInput(Message.ChangedSearch)]),
+        // Fixed fields beside the hole: the event fills `title`.
+        rh.input([rh.OnChange(Message.Renamed, { id: model.id })]),
+        // A key event fills `key` and `modifiers`.
+        rh.div([rh.OnKeyDown(Message.Pressed)], []),
+      ],
+    ),
+  }
+}
+```
+
+`rh` is `h` with one addition: `OnInput`, `OnChange`, `OnKeyDown` and `OnKeyUp`
+also take a Message's own constructor, and the event fills the field it leaves
+open. The types check it where it is written: the member must be one of the
+view's Messages and leave exactly one string field, or exactly `key` and
+`modifiers`, after the fixed ones. A closure still works; it is simply not
+data, so nothing can name what it would do.
+
+During the server's render each binding gets an ordinal, its element a
+`data-foldkit-plus-on-<event>` attribute naming it, and the envelope the
+Message encoded through the application's Message Schema. In the browser the
+builder marks nothing, and Foldkit's first patch removes the server's markers.
+The plan must be made from the application, so it knows that Schema.
+
+The server compares the bindings of its two renders as it compares the body:
+a Message built from a field the plan does not send
+(`Liked({ id: model.id })` with `id` unsent) would be one Message before the
+view runs and another after, so it is refused, naming the element. Nothing
+uses the bindings in the browser yet; delegated dispatch and deferred boot are
+the next phases.
 
 ## When a page is refused
 
@@ -281,6 +332,8 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
 - `DuplicateStaticRegion`: two `SSR.static` regions share an id.
 - `UngeneratablePath`: `SSR.generate` was given a path no file can be served at.
 - `UnrestorablePart`: a part cannot restore its own capture.
+- `UnencodableBinding`: the page has bindings and the plan has no Message
+  Schema, or a binding's Message does not encode through it.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
   from the one served, in its body or in its head (`title`, `lang`, `dir`,
   `canonical`, `ogUrl`), so it reads a field the plan leaves out. The message
@@ -357,3 +410,11 @@ Model can close the script or open another. It also escapes U+2028 and U+2029.
   `HEAD` answers with no body; `POST` is answered `405`; a missed asset renders
   nothing; a refused plan is answered `500` with the reason logged; and each
   request gets its own Flags, kept out of the page.
+- **Phase A, bindings:** each binding, keyed elements included, is marked with
+  its ordinal in render order and written into the envelope as its encoded
+  Message, decodable by the Message Schema; a closure is not marked; a binding
+  built from an unsent field is refused, naming the element; a plan without
+  the Schema is refused. In the browser the markers are gone after the first
+  patch, the nodes are kept, and a click, an input and a key press each
+  dispatch the Message their binding names. A member that leaves the wrong
+  fields fails to compile, and at runtime says why.

@@ -32,6 +32,8 @@ import {
   type MetadataSummary,
   type WritableProjection,
 } from 'foldkit-surface'
+import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
+import { builder } from './resumable.js'
 
 /** The attribute on the script that carries a page's resume envelope. */
 export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
@@ -73,6 +75,8 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly surfaces: ReadonlyArray<ActiveSurface<Model>>
   /** State another package owns, each captured and restored by that package. */
   readonly parts: ReadonlyArray<ResumePart<Model>>
+  /** The application's Message Schema, which encodes the page's bindings. */
+  readonly Message?: Schema.Top | undefined
 }
 
 /**
@@ -132,7 +136,11 @@ const codecOf = <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fiel
  * refuses a plan that leaves a Surface's read or activation in neither.
  */
 const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
-  application: { readonly initial: Model; readonly owner?: object },
+  application: {
+    readonly initial: Model
+    readonly owner?: object
+    readonly Message?: Schema.Top | undefined
+  },
   config: {
     readonly id: string
     readonly state: WritableProjection<Model, Fields>
@@ -167,6 +175,7 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     local: (config.local ?? []).map(place => place.dependency),
     surfaces,
     parts,
+    ...(application.Message === undefined ? {} : { Message: application.Message }),
   }
 }
 
@@ -250,7 +259,11 @@ const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
 const envelope = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,
   model: Model,
-  options: { readonly route?: string | undefined; readonly match?: RouteMatch | undefined } = {},
+  options: {
+    readonly route?: string | undefined
+    readonly match?: RouteMatch | undefined
+    readonly bindings?: ReadonlyArray<EncodedBinding> | undefined
+  } = {},
 ): string => {
   const body = serializeJsonScript({
     v: PROTOCOL,
@@ -258,6 +271,9 @@ const envelope = <Model, Fields extends Schema.Struct.Fields>(
     ...payloadOf(resume, model),
     ...(options.route === undefined ? {} : { route: options.route }),
     ...(options.match === 'path' ? { match: 'path' } : {}),
+    ...(options.bindings === undefined || options.bindings.length === 0
+      ? {}
+      : { bindings: options.bindings }),
   })
   return `<script type="application/json" ${RESUME_ATTRIBUTE}>${body}</script>`
 }
@@ -468,58 +484,13 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'DuplicateStaticRegion',
     'UngeneratablePath',
     'UnrestorablePart',
+    'UnencodableBinding',
   ]),
   message: Schema.String,
 }) {}
 
 /** The attribute on a static region's element, naming the region. */
 export const STATIC_ATTRIBUTE = 'data-foldkit-plus-static'
-
-type Region = ReadonlyArray<Html | string>
-
-/**
- * What `SSR.static` does, set around one synchronous call of the view. With no
- * context, as in a client-only render, a region renders like any other view.
- *
- * - `collect`: the server's render. Each region runs once and is kept.
- * - `replay`: the server's second render, from the browser's Model. Each
- *   region is the one already rendered, so it never reads the browser's Model.
- * - `resume`: the browser. Each region is the markup the server left in the
- *   page, and its render never runs.
- */
-type StaticContext =
-  | {
-      readonly mode: 'collect'
-      readonly regions: Map<string, Region>
-      readonly duplicates: Set<string>
-    }
-  | { readonly mode: 'replay'; readonly regions: ReadonlyMap<string, Region> }
-  | {
-      readonly mode: 'resume'
-      readonly snapshots: ReadonlyMap<string, string>
-      readonly reported: Set<string>
-    }
-
-let context: StaticContext | undefined
-
-const within = <A>(next: StaticContext, run: () => A): A => {
-  const previous = context
-  context = next
-  try {
-    return run()
-  } finally {
-    context = previous
-  }
-}
-
-/** The config whose view runs inside `next`. */
-const withStatic = <Config extends { readonly view: (model: any, h: any) => unknown }>(
-  config: Config,
-  next: StaticContext,
-): Config => ({
-  ...config,
-  view: (model: unknown, h: unknown) => within(next, () => config.view(model, h)),
-})
 
 const boundary = (id: string, trusted: string | undefined, children: Region): Html =>
   inertHtml.div(
@@ -541,24 +512,24 @@ const boundary = (id: string, trusted: string | undefined, children: Region): Ht
  * belongs in a Surface, not here.
  */
 const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Region): Html => {
-  const current = context
-  if (current?.mode === 'resume') {
-    const snapshot = current.snapshots.get(id)
+  const now = current()
+  if (now?.mode === 'resume') {
+    const snapshot = now.snapshots.get(id)
     if (snapshot !== undefined) return boundary(id, snapshot, [])
-    if (!current.reported.has(id)) {
-      current.reported.add(id)
+    if (!now.reported.has(id)) {
+      now.reported.add(id)
       console.error(
         `[foldkit-ssr] the static region "${id}" is not in the server's page, so it is rendered in the browser`,
       )
     }
     return boundary(id, undefined, render(inertHtml))
   }
-  const replayed = current?.mode === 'replay' ? current.regions.get(id) : undefined
+  const replayed = now?.mode === 'replay' ? now.regions.get(id) : undefined
   if (replayed !== undefined) return boundary(id, undefined, replayed)
   const children = render(inertHtml)
-  if (current?.mode === 'collect') {
-    if (current.regions.has(id)) current.duplicates.add(id)
-    else current.regions.set(id, children)
+  if (now?.mode === 'collect') {
+    if (now.regions.has(id)) now.duplicates.add(id)
+    else now.regions.set(id, children)
   }
   return boundary(id, undefined, children)
 }
@@ -632,6 +603,65 @@ const FLAGS_SCRIPT = new RegExp(
 const HEAD_FIELDS = ['title', 'lang', 'dir', 'canonical', 'ogUrl'] as const
 
 /**
+ * A binding as the envelope carries it: the DOM event, the Message encoded
+ * through the application's Message Schema (for a hole, with the hole filled
+ * by a placeholder), the fields the event fills, and the attribute's options.
+ * Its ordinal is its index.
+ */
+export interface EncodedBinding {
+  readonly event: string
+  readonly message: unknown
+  readonly hole?: ReadonlyArray<string> | undefined
+  readonly options?: unknown
+}
+
+/** A render's bindings, encoded, or why one cannot be. */
+const encodeBindings = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  bindings: ReadonlyArray<Binding>,
+): Result.Result<ReadonlyArray<EncodedBinding>, string> => {
+  if (bindings.length === 0) return Result.succeed([])
+  if (plan.Message === undefined) {
+    return Result.fail(
+      'the page has bindings, and the plan has no Message Schema to encode them with: make the plan from the application',
+    )
+  }
+  const encode = Schema.encodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)
+  const out: Array<EncodedBinding> = []
+  for (const binding of bindings) {
+    const message = encode(binding.message)
+    if (Result.isFailure(message)) {
+      return Result.fail(
+        `the ${binding.event} binding on ${binding.element} does not encode as a Message: ${message.failure.message}`,
+      )
+    }
+    out.push({
+      event: binding.event,
+      message: message.success,
+      ...(binding.hole === undefined ? {} : { hole: binding.hole }),
+      ...(binding.options === undefined ? {} : { options: binding.options }),
+    })
+  }
+  return Result.succeed(out)
+}
+
+/**
+ * The bindings that differ between the server's render and the browser's, by
+ * element: a Message built from a field the plan does not send would dispatch
+ * one Message before boot and another after.
+ */
+const changedBindings = (
+  served: ReadonlyArray<Binding>,
+  encoded: ReadonlyArray<EncodedBinding>,
+  reencoded: ReadonlyArray<EncodedBinding>,
+): ReadonlyArray<string> =>
+  served.flatMap((binding, index) =>
+    JSON.stringify(encoded[index]) === JSON.stringify(reencoded[index])
+      ? []
+      : [`${binding.event} binding on ${binding.element}`],
+  )
+
+/**
  * Renders a page on the server against a resume plan.
  *
  * The application's `init` runs once. Its Model's slice is round-tripped
@@ -680,9 +710,11 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
     const regions = new Map<string, Region>()
     const duplicates = new Set<string>()
-    const capturing = withStatic(
+    const servedBindings: Array<Binding> = []
+    const browserBindings: Array<Binding> = []
+    const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
-      { mode: 'collect', regions, duplicates },
+      { mode: 'collect', regions, duplicates, bindings: servedBindings },
     )
     const full = yield* renderToString(capturing as never, options as never)
     if (duplicates.size > 0) {
@@ -716,12 +748,26 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
 
     // With no `Flags` key in the config, Foldkit writes no Flags script.
     const rendered = yield* renderToString(
-      withStatic(startingFrom(config, { model: browser }), { mode: 'replay', regions }) as never,
+      withContext(startingFrom(config, { model: browser }), {
+        mode: 'replay',
+        regions,
+        bindings: browserBindings,
+      }) as never,
       options as never,
     )
+    const encoded = encodeBindings(plan, servedBindings)
+    const reencoded = encodeBindings(plan, browserBindings)
+    if (Result.isFailure(encoded)) {
+      return yield* new ResumeUnsafe({ reason: 'UnencodableBinding', message: encoded.failure })
+    }
     const differing = [
       ...(full.html.replace(FLAGS_SCRIPT, '') === rendered.html ? [] : ['body']),
       ...HEAD_FIELDS.filter(field => full[field] !== rendered[field]),
+      ...changedBindings(
+        servedBindings,
+        encoded.success,
+        Result.isFailure(reencoded) ? [] : reencoded.success,
+      ),
     ]
     if (differing.length > 0) {
       return yield* new ResumeUnsafe({
@@ -736,6 +782,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
           ? {}
           : { route: match === 'path' ? pathKey(routeOf(options.url)) : routeOf(options.url) }),
         match,
+        bindings: encoded.success,
       }),
     }
   })
@@ -758,6 +805,14 @@ export interface GeneratedPage {
   readonly html: string
 }
 
+/**
+ * One generated page per path, in the paths' order: a tuple when the paths
+ * are written out, so `const [home, about] = pages` needs no check.
+ */
+export type GeneratedPages<Paths extends ReadonlyArray<string>> = {
+  readonly [K in keyof Paths]: GeneratedPage
+}
+
 /** The file a static host serves for a path: `/about` is `about/index.html`. */
 const fileOf = (path: string): string => {
   const trimmed = path.replace(/^\/+/, '').replace(/\/+$/, '')
@@ -776,17 +831,21 @@ const fileOf = (path: string): string => {
  * path with a query or fragment, or two paths that would be one file, are
  * refused.
  */
-const generate = <Model, Fields extends Schema.Struct.Fields>(
+const generate = <
+  Model,
+  Fields extends Schema.Struct.Fields,
+  const Paths extends ReadonlyArray<string>,
+>(
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
   options: {
     readonly buildId: string
     readonly template: string
     readonly origin: string
-    readonly paths: ReadonlyArray<string>
+    readonly paths: Paths
     readonly flags?: ((path: string) => unknown) | undefined
   },
-): Effect.Effect<ReadonlyArray<GeneratedPage>, RenderError | ResumeUnsafe> =>
+): Effect.Effect<GeneratedPages<Paths>, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
     const files = new Map<string, string>()
     for (const path of options.paths) {
@@ -805,7 +864,7 @@ const generate = <Model, Fields extends Schema.Struct.Fields>(
       }
       files.set(fileOf(path), path)
     }
-    return yield* Effect.forEach(options.paths, path =>
+    const pages = yield* Effect.forEach(options.paths, path =>
       Effect.map(
         renderMatching(
           config,
@@ -820,6 +879,8 @@ const generate = <Model, Fields extends Schema.Struct.Fields>(
         result => ({ path, file: fileOf(path), html: page(options.template, result) }),
       ),
     )
+    // One page per path, in order, so the array is the tuple the paths describe.
+    return pages as unknown as GeneratedPages<Paths>
   })
 
 /**
@@ -921,19 +982,22 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   }
   const model = resumed.success
   const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
-  const resuming: StaticContext = {
+  const resuming: RenderContext = {
     mode: 'resume',
     snapshots: snapshotsOf(root),
     reported: new Set(),
   }
   adopt(
     makeApplication({
-      ...withStatic(startingFrom(config, { model, commands }), resuming),
+      ...withContext(startingFrom(config, { model, commands }), resuming),
       container: root,
     } as never),
     { buildId: options.buildId },
   )
 }
+
+/** The resumable track: bindings the server's markup names, so a page can answer before it boots. */
+export const Resume = { builder }
 
 export const SSR = {
   plan,
@@ -948,3 +1012,10 @@ export const SSR = {
   entry,
   serializeJsonScript,
 }
+
+export {
+  BINDING_ATTRIBUTE,
+  type KeyHole,
+  type ResumableBuilder,
+  type TextHole,
+} from './resumable.js'
