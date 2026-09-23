@@ -1,47 +1,134 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/richtext" },
-    { "path": "./packages/agent" },
-    { "path": "./packages/agent-webmcp" },
-    { "path": "./packages/agent-mcp" },
-    { "path": "./packages/agent-a2a" },
-    { "path": "./packages/agent-native" },
-    { "path": "./packages/durable" },
-    { "path": "./packages/sync" },
-    { "path": "./packages/metadata" },
-    { "path": "./packages/ssr" },
-    { "path": "./packages/entity" },
-    { "path": "./packages/form" },
-    { "path": "./packages/crud" },
-    { "path": "./packages/surface" },
-    { "path": "./packages/remote" },
-    { "path": "./packages/remote-server" },
-    { "path": "./packages/remote-drizzle" },
-    { "path": "./packages/mirror" },
-    { "path": "./packages/bundle" },
-    { "path": "./packages/bundle-surface" },
-    { "path": "./packages/primitives" },
-    { "path": "./packages/react" },
-    { "path": "./packages/react-codegen" },
-    { "path": "./packages/mixins" },
-    { "path": "./packages/mixins-ui" },
-    { "path": "./packages/mixins-surface" },
-    { "path": "./packages/mixins-form" },
-    { "path": "./packages/mixins-crud" },
-    { "path": "./packages/cms" },
-    { "path": "./packages/cms-drizzle" },
-    { "path": "./examples/todo" },
-    { "path": "./examples/sync" },
-    { "path": "./examples/mixins" },
-    { "path": "./examples/bundle" },
-    { "path": "./examples/react" },
-    { "path": "./examples/remote" },
-    { "path": "./examples/entity" },
-    { "path": "./examples/cms" },
-    { "path": "./examples/tanstack" },
-    { "path": "./examples/livestore" },
-    { "path": "./examples/kitchen-sink" },
-    { "path": "./examples/todo-app" }
+    {
+      "path": "./packages/richtext"
+    },
+    {
+      "path": "./packages/agent"
+    },
+    {
+      "path": "./packages/agent-webmcp"
+    },
+    {
+      "path": "./packages/agent-mcp"
+    },
+    {
+      "path": "./packages/agent-a2a"
+    },
+    {
+      "path": "./packages/agent-native"
+    },
+    {
+      "path": "./packages/durable"
+    },
+    {
+      "path": "./packages/sync"
+    },
+    {
+      "path": "./packages/metadata"
+    },
+    {
+      "path": "./packages/ssr"
+    },
+    {
+      "path": "./packages/entity"
+    },
+    {
+      "path": "./packages/form"
+    },
+    {
+      "path": "./packages/crud"
+    },
+    {
+      "path": "./packages/surface"
+    },
+    {
+      "path": "./packages/remote"
+    },
+    {
+      "path": "./packages/remote-server"
+    },
+    {
+      "path": "./packages/remote-drizzle"
+    },
+    {
+      "path": "./packages/mirror"
+    },
+    {
+      "path": "./packages/bundle"
+    },
+    {
+      "path": "./packages/bundle-surface"
+    },
+    {
+      "path": "./packages/primitives"
+    },
+    {
+      "path": "./packages/react"
+    },
+    {
+      "path": "./packages/react-codegen"
+    },
+    {
+      "path": "./packages/mixins"
+    },
+    {
+      "path": "./packages/mixins-ui"
+    },
+    {
+      "path": "./packages/mixins-surface"
+    },
+    {
+      "path": "./packages/mixins-form"
+    },
+    {
+      "path": "./packages/mixins-crud"
+    },
+    {
+      "path": "./packages/cms"
+    },
+    {
+      "path": "./packages/cms-drizzle"
+    },
+    {
+      "path": "./examples/todo"
+    },
+    {
+      "path": "./examples/sync"
+    },
+    {
+      "path": "./examples/mixins"
+    },
+    {
+      "path": "./examples/bundle"
+    },
+    {
+      "path": "./examples/react"
+    },
+    {
+      "path": "./examples/remote"
+    },
+    {
+      "path": "./examples/entity"
+    },
+    {
+      "path": "./examples/cms"
+    },
+    {
+      "path": "./examples/tanstack"
+    },
+    {
+      "path": "./examples/livestore"
+    },
+    {
+      "path": "./examples/kitchen-sink"
+    },
+    {
+      "path": "./examples/todo-app"
+    },
+    {
+      "path": "./examples/richtext"
+    }
   ]
 }

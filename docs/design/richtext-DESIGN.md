@@ -1371,6 +1371,28 @@ document and how the parent handles the result without a second synchronized
 document copy or a delayed Command to commit half the transition. Cover parent
 document replacement and rejected edits as well as ordinary typing.
 
+**Proof result (track 1, `examples/richtext`).** The controlled mode works with
+the current Bundle machinery, and the shape that makes it work is:
+
+```text
+Link.read  parent → { document, selection, nextId }   (document read, not owned)
+Link.write (parent, child) → parent with interaction state only
+OutMessage Edited { state } | Rejected { error }
+onOut      commits state.document and state.selection in the same transition
+```
+
+`foldChildStep` runs `onOut` with the child already written back, so one parent
+transition commits the document and the interaction state together; nothing
+needs a Command. The child stores no document: `read` re-projects it on every
+transition, so a document replaced from outside (a remote update, a CMS
+restore) is what the next command resolves against. Identity comes from the
+parent-owned `nextId` counter, and a refused command leaves document,
+selection, and the counter untouched — so rejected edits never burn identities.
+
+Still unproven by this track: the browser half (patching a real
+`contenteditable` from the same transition) and lifecycle beyond a single
+placement. Both belong to the Phase 3 slice.
+
 ---
 
 # 28. DOM is a specialized interpreter
@@ -3821,9 +3843,9 @@ needs the Operations and position-mapping work from the list above, and
 nothing else below. Run three bounded feasibility proofs as parallel tracks
 that gate promotion, not discovery:
 
-1. Controlled Bundle (gates Phase 4): one parent transition commits document
-   and interaction state, including rejection and external document
-   replacement (§27).
+1. Controlled Bundle (gates Phase 4): **done** — `examples/richtext` proves one
+   parent transition commits document and interaction state, including rejection
+   and external document replacement (§27). The browser half remains Phase 3.
 2. Stateful Form (gates Phase 5): one non-RichText control proves child
    Commands, subscriptions, outputs, validation, repeated placement/removal,
    resource restrictions, and save/resume semantics (§41–45). Establish
