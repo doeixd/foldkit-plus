@@ -35,7 +35,8 @@ const config = {
 
 it('adopts a controlled input, trusted markup and their nodes, and the input still works', async () => {
   await serve(renderToString(config, { buildId: 'b' }))
-  const field = document.getElementById('field') as HTMLInputElement
+  const field = document.getElementById('field')
+  if (!(field instanceof HTMLInputElement)) throw new Error('the server rendered no input#field')
   const bold = document.getElementById('bold')
 
   hydrate(makeApplication({ ...config, container: root() }), { buildId: 'b' })

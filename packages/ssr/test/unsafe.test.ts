@@ -24,7 +24,7 @@ describe('SSR.render', () => {
   }
 
   it('refuses a startup Command the plan does not declare, naming it', async () => {
-    const reason = await refusal(SSR.render(starting as never, plan, { buildId: 'b' }))
+    const reason = await refusal(SSR.render(starting, plan, { buildId: 'b' }))
 
     expect(reason).toContain('UndeclaredStartup')
     expect(reason).toContain('LoadPreferences')
@@ -37,7 +37,7 @@ describe('SSR.render', () => {
       boot: () => [Startup],
     })
 
-    expect(await refusal(SSR.render(starting as never, booting, { buildId: 'b' }))).toBe('rendered')
+    expect(await refusal(SSR.render(starting, booting, { buildId: 'b' }))).toBe('rendered')
   })
 
   it('refuses a view that reads a field the plan leaves out', async () => {

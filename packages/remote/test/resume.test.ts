@@ -114,7 +114,8 @@ describe('captureRemote', () => {
   })
 
   it('keeps a field marked stale, so the browser revalidates it', () => {
-    const entry = served.remote.entities['Project:p1']!
+    const entry = served.remote.entities['Project:p1']
+    if (entry === undefined) throw new Error('the server read no Project:p1')
     const stale = { ...entry, stale: new Set(['name']) }
     const remote = {
       ...served.remote,

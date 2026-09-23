@@ -33,6 +33,6 @@ it('hands the Model over instead of running init again', async () => {
   expect(calls.init).toBe(1)
   expect(document.getElementById('count')).toBe(button)
   expect(button?.textContent).toBe('41')
-  button!.click()
+  button?.click()
   await vi.waitFor(() => expect(button?.textContent).toBe('42'))
 })

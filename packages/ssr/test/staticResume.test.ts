@@ -27,7 +27,7 @@ it('renders a static region once on the server and never in the browser', async 
 
   SSR.hydrate(config, plan, { buildId: 'b' })
   const like = document.getElementById('like')
-  like!.click()
+  like?.click()
   await vi.waitFor(() => expect(like?.textContent).toBe('1'))
 
   expect(calls.copy).toBe(0)

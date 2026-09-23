@@ -13,7 +13,7 @@ it('reports a region the server did not render, and renders it', async () => {
   const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
 
   SSR.hydrate(config, plan, { buildId: 'b' })
-  document.getElementById('more')!.click()
+  document.getElementById('more')?.click()
 
   await vi.waitFor(() =>
     expect(document.getElementById('extra')?.textContent).toBe('rendered in the browser'),

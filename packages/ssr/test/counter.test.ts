@@ -50,7 +50,7 @@ describe('foldkit-ssr, Phase 0', () => {
 
     expect(document.getElementById('count')).toBe(served)
     expect(inits).toBe(1)
-    served!.click()
+    served?.click()
     await settle()
     expect(document.getElementById('count')?.textContent).toBe('42')
   })

@@ -5,10 +5,10 @@
  * metadata; and a Surface the browser's Model activates differently is
  * reported. `SSR.render` refuses a plan that falls short, naming each gap.
  */
-import { Effect, Optic } from 'effect'
+import { Effect, Optic, Schema } from 'effect'
 import { ModelRef, Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { SSR, type ResumeUnsafe } from 'foldkit-ssr'
+import { SSR, type ResumePlan } from 'foldkit-ssr'
 import {
   App,
   AppRoute,
@@ -19,12 +19,11 @@ import {
   postActions,
   postAuthor,
   served,
+  type Model,
 } from './coverageFixture.js'
 
-const refusal = (plan: Parameters<typeof SSR.render<typeof served, any>>[1]) =>
-  Effect.runPromise(Effect.flip(SSR.render(config, plan, { buildId: 'b' }))) as Promise<
-    ResumeUnsafe | Error
-  >
+const refusal = <Fields extends Schema.Struct.Fields>(plan: ResumePlan<Model, Fields>) =>
+  Effect.runPromise(Effect.flip(SSR.render(config, plan, { buildId: 'b' })))
 
 describe('SSR.inspect', () => {
   it('says where each read comes from in the browser', () => {

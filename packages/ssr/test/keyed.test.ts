@@ -41,7 +41,7 @@ it('adopts each row, and moves the same rows when the order changes', async () =
   await settle()
   expect(rows()).toEqual([a, b, c])
 
-  document.getElementById('reverse')!.click()
+  document.getElementById('reverse')?.click()
   await settle()
   expect(rows()).toEqual([c, b, a])
 })

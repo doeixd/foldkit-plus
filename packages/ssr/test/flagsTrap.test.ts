@@ -22,10 +22,11 @@ it('refuses a resumed page when the config keeps a Flags key set to undefined', 
   hydrate(
     makeApplication({
       ...config,
+      // @ts-expect-error: Foldkit's types refuse this; the test pins what it does anyway
       Flags: undefined,
       init: () => ({ model: { theme: 'dark' } }),
       container: root,
-    } as never),
+    }),
     { buildId: 'b' },
   )
   await vi.waitFor(() => expect(document.body.inert).toBe(true))

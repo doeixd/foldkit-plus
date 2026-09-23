@@ -55,7 +55,7 @@ export const config = {
   Model,
   init: () => ({ model: loaded }),
   update: (model: Model, message: Message) => ({
-    model: Data.reduce(model, message as RemoteMessage),
+    model: Data.reduce(model, message),
   }),
   subscriptions: Data.subscriptions({ page: authorSurface }),
   resources: client,
