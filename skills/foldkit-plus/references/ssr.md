@@ -1,7 +1,8 @@
 # foldkit-ssr
 
-**In development and unpublished.** Phases 0–2 of its plan are built: render on
-the server, and the browser takes the page over without rerunning `init`.
+**In development and unpublished.** Phases 0–3 of its plan are built: render on
+the server, the browser takes the page over without rerunning `init`, and a
+plan is checked against the Surfaces the browser reads.
 
 ## What it owns
 
@@ -14,13 +15,15 @@ runs once, on the server; nothing outside the slice crosses, Flags included.
 ## Basic use
 
 ```ts
-import { Projection } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 
 const Editor = SSR.plan(App, {
   id: 'editor',
   state: Projection.pick(App.model.draft, App.model.count), // what the browser owns
   // baseline defaults to App.initial; boot: model => Commands to run on load
+  local: [App.model.menuOpen], // may start from the baseline
+  surfaces: [Surface.at(EditorToolbar, undefined)], // checked against state + local
 })
 
 // server
@@ -38,6 +41,11 @@ SSR.hydrate(config, Editor, { buildId })
   `foldkit-bundle` app (`Mirror.kv` restore): `boot: model => assembly.init(model).commands ?? []`.
 - A view that reads a field outside `state` fails with `ResumeUnsafe`
   `ViewDependsOnUnsentState`. Add the field to `state` or stop reading it.
+- A Surface in `surfaces` that reads or is activated by a field in neither
+  `state` nor `local`, reads Remote data (no resume part for it yet), or
+  activates differently from the browser's Model fails with `Uncovered`.
+  `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
+  server's Model, since a Surface's reads follow its params.
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.

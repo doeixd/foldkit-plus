@@ -2,7 +2,7 @@
  * `foldkit-ssr`: what crosses from the server to the browser when a page is
  * rendered on one and resumed on the other.
  *
- * Phase 1 of the plan (`docs/design/ssr-PLAN.md`). A resume plan names the
+ * Built from the plan in `docs/design/ssr-PLAN.md`. A resume plan names the
  * slice of the Model the browser owns. The server writes that slice into the
  * page as a JSON script; the browser reads it back and sets it onto a baseline
  * Model. Nothing outside the slice crosses, and a payload that cannot be read
@@ -19,7 +19,12 @@ import {
   type RenderedApplication,
 } from 'foldkit/experimental/server'
 import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
-import type { WritableProjection } from 'foldkit-surface'
+import {
+  Metadata,
+  type ActiveSurface,
+  type MetadataSummary,
+  type WritableProjection,
+} from 'foldkit-surface'
 
 /** The attribute on the script that carries a page's resume envelope. */
 export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
@@ -55,6 +60,10 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly state: WritableProjection<Model, Fields>
   readonly baseline: Model
   readonly boot?: ((model: Model) => Commands) | undefined
+  /** Model paths allowed to start from the baseline, as `ModelRef.dependency` gives them. */
+  readonly local: ReadonlyArray<ReadonlyArray<string>>
+  /** The Surfaces the browser may activate, which the plan must cover. */
+  readonly surfaces: ReadonlyArray<ActiveSurface<Model>>
 }
 
 /** Why a page's resume envelope was refused. */
@@ -88,21 +97,40 @@ const codecOf = <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fiel
  * application's initial Model. It is never written: a writable projection's
  * `set` returns a new Model, so a baseline Foldkit freezes in development is
  * safe to start from.
+ *
+ * `surfaces` are the Surfaces the browser may activate, and `local` the Model
+ * fields allowed to start from the baseline, such as an open menu. Rendering
+ * refuses a plan that leaves a Surface's read or activation in neither.
  */
 const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
-  application: { readonly initial: Model },
+  application: { readonly initial: Model; readonly owner?: object },
   config: {
     readonly id: string
     readonly state: WritableProjection<Model, Fields>
     readonly baseline?: Model | undefined
     readonly boot?: ((model: Model) => Commands) | undefined
+    readonly local?: ReadonlyArray<{ readonly dependency: ReadonlyArray<string> }> | undefined
+    readonly surfaces?: ReadonlyArray<ActiveSurface<Model>> | undefined
   },
-): ResumePlan<Model, Fields, Commands> => ({
-  id: config.id,
-  state: config.state,
-  baseline: config.baseline ?? application.initial,
-  ...(config.boot === undefined ? {} : { boot: config.boot }),
-})
+): ResumePlan<Model, Fields, Commands> => {
+  const surfaces = config.surfaces ?? []
+  const foreign = surfaces.find(
+    surface => application.owner !== undefined && surface.owner !== application.owner,
+  )
+  if (foreign !== undefined) {
+    throw new Error(
+      `SSR.plan: the Surface "${foreign.name}" belongs to another application than plan "${config.id}"`,
+    )
+  }
+  return {
+    id: config.id,
+    state: config.state,
+    baseline: config.baseline ?? application.initial,
+    ...(config.boot === undefined ? {} : { boot: config.boot }),
+    local: (config.local ?? []).map(place => place.dependency),
+    surfaces,
+  }
+}
 
 /**
  * The script a server writes into its page's template: the plan's slice of
@@ -166,9 +194,151 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
   return Result.succeed(plan.state.set(plan.baseline, decoded.success))
 }
 
+/**
+ * The Model the browser will start from when the server's Model is `model`:
+ * the baseline with the slice set onto it, after a round trip through the
+ * slice's Schema, exactly as the envelope carries it.
+ */
+const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+): Model => {
+  const codec = codecOf(plan.state.schema)
+  const slice = Schema.decodeUnknownSync(codec)(Schema.encodeSync(codec)(plan.state.get(model)))
+  return plan.state.set(plan.baseline, slice)
+}
+
+/** Where the browser gets a Model path's value: the envelope, the baseline, or nowhere it may. */
+export type Cover = 'state' | 'local' | 'missing'
+
+/** One Surface as a plan covers it, for the server's Model. */
+export interface SurfaceCoverage {
+  readonly name: string
+  /** Whether the Surface is active for the server's Model. */
+  readonly active: boolean
+  /** The place a `Surface.when` activation reads; absent for `Surface.at`. */
+  readonly activation?: { readonly path: string; readonly cover: Cover } | undefined
+  /** The Model paths the active Surface reads. */
+  readonly reads: ReadonlyArray<{ readonly path: string; readonly cover: Cover }>
+  /**
+   * What the active Surface reads that no Model path names, such as Remote
+   * data, by its metadata. The slice cannot carry it.
+   */
+  readonly unresumed: ReadonlyArray<MetadataSummary>
+  /** Whether the browser's Model activates it the same way, with the same reads. */
+  readonly sameInBrowser: boolean
+}
+
+/** What a plan sends, what it leaves local, and how it covers each Surface. */
+export interface PlanInspection {
+  readonly id: string
+  readonly state: ReadonlyArray<string>
+  readonly local: ReadonlyArray<string>
+  readonly surfaces: ReadonlyArray<SurfaceCoverage>
+}
+
+const pathOf = (path: ReadonlyArray<string>): string =>
+  path.length === 0 ? '(the whole Model)' : path.join('.')
+
+/**
+ * A path is covered by a sent or local path equal to it or containing it. An
+ * empty path is the whole Model, which no pick covers.
+ */
+const coverOf = (
+  path: ReadonlyArray<string>,
+  plan: {
+    readonly state: { readonly dependencies: ReadonlyArray<ReadonlyArray<string>> }
+    readonly local: ReadonlyArray<ReadonlyArray<string>>
+  },
+): Cover => {
+  const contains = (outer: ReadonlyArray<string>) =>
+    outer.length > 0 &&
+    outer.length <= path.length &&
+    outer.every((key, index) => path[index] === key)
+  if (plan.state.dependencies.some(contains)) return 'state'
+  if (plan.local.some(contains)) return 'local'
+  return 'missing'
+}
+
+/** A projection's reads as one comparable string, or `inactive`. */
+const readsKey = (
+  projection:
+    | {
+        readonly dependencies: ReadonlyArray<ReadonlyArray<string>>
+        readonly metadata: Metadata
+      }
+    | undefined,
+): string =>
+  projection === undefined
+    ? 'inactive'
+    : JSON.stringify([projection.dependencies, Metadata.summarize(projection.metadata)])
+
+/**
+ * How a plan covers each of its Surfaces when the server's Model is `model`.
+ * A Surface's reads depend on the Model, through its params, so coverage is
+ * worked out for a Model, not for the plan alone.
+ */
+const inspect = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+): PlanInspection => {
+  const browser = browserModelOf(plan, model)
+  return {
+    id: plan.id,
+    state: plan.state.dependencies.map(pathOf),
+    local: plan.local.map(pathOf),
+    surfaces: plan.surfaces.map(surface => {
+      const served = surface.projectionOf(model)
+      return {
+        name: surface.name,
+        active: served !== undefined,
+        ...(surface.activation === undefined
+          ? {}
+          : {
+              activation: {
+                path: pathOf(surface.activation.path),
+                cover: coverOf(surface.activation.path, plan),
+              },
+            }),
+        reads: (served?.dependencies ?? []).map(path => ({
+          path: pathOf(path),
+          cover: coverOf(path, plan),
+        })),
+        unresumed: served === undefined ? [] : Metadata.summarize(served.metadata),
+        sameInBrowser: readsKey(served) === readsKey(surface.projectionOf(browser)),
+      }
+    }),
+  }
+}
+
+/** Each way an inspection shows the plan falls short, one line each. */
+const shortfalls = (inspection: PlanInspection): ReadonlyArray<string> =>
+  inspection.surfaces.flatMap(surface => [
+    ...(surface.activation?.cover === 'missing'
+      ? [
+          `Surface "${surface.name}" is activated by ${surface.activation.path}, which is neither in the plan's state nor local`,
+        ]
+      : []),
+    ...surface.reads
+      .filter(read => read.cover === 'missing')
+      .map(
+        read =>
+          `Surface "${surface.name}" reads ${read.path}, which is neither in the plan's state nor local`,
+      ),
+    ...surface.unresumed.map(
+      summary =>
+        `Surface "${surface.name}" reads ${summary.name} data (${summary.entries.join(', ')}), which no part of the plan resumes`,
+    ),
+    ...(surface.sameInBrowser
+      ? []
+      : [
+          `Surface "${surface.name}" is ${surface.active ? 'active' : 'inactive'} on the server and activates differently from the Model the browser starts from`,
+        ]),
+  ])
+
 /** Why a server refused to render a page against its plan. */
 export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsafe', {
-  reason: Schema.Literals(['UndeclaredStartup', 'ViewDependsOnUnsentState']),
+  reason: Schema.Literals(['UndeclaredStartup', 'Uncovered', 'ViewDependsOnUnsentState']),
   message: Schema.String,
 }) {}
 
@@ -226,12 +396,15 @@ const FLAGS_SCRIPT = /<script[^>]*data-foldkit-flags[^>]*>[\s\S]*?<\/script>/g
  *
  * The application's `init` runs once. Its Model's slice is round-tripped
  * through the plan's Schema and set onto the baseline, which is the Model the
- * browser will start from, and the page is rendered from that Model. Two
+ * browser will start from, and the page is rendered from that Model. Three
  * refusals keep the handover honest:
  *
  * - `init` returned Commands and the plan names no `boot`. Foldkit drops
  *   `init`'s Commands on the server and the browser does not run `init`, so an
  *   undeclared one would never run anywhere.
+ * - A Surface in the plan reads, or is activated by, a field in neither the
+ *   slice nor `local`, reads data no part of the plan resumes, or activates
+ *   differently from the browser's Model. `SSR.inspect` shows why.
  * - The view rendered from the browser's Model differs from the view rendered
  *   from the server's. The view reads a field the plan leaves out, and the
  *   browser would rebuild that part of the page. In production Foldkit does so
@@ -265,11 +438,15 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
       })
     }
 
-    const codec = codecOf(plan.state.schema)
-    const slice = Schema.decodeUnknownSync(codec)(
-      Schema.encodeSync(codec)(plan.state.get(started.model)),
-    )
-    const browser = plan.state.set(plan.baseline, slice)
+    const uncovered = shortfalls(inspect(plan, started.model))
+    if (uncovered.length > 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'Uncovered',
+        message: `the plan does not cover what the browser reads:\n- ${uncovered.join('\n- ')}`,
+      })
+    }
+
+    const browser = browserModelOf(plan, started.model)
     // With no `Flags` key in the config, Foldkit writes no Flags script.
     const rendered = yield* renderToString(
       startingFrom(config, { model: browser }) as never,
@@ -340,4 +517,4 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   adopt(program({ model, commands }), { buildId: options.buildId })
 }
 
-export const SSR = { plan, envelope, resume, render, page, hydrate, serializeJsonScript }
+export const SSR = { plan, envelope, resume, render, page, hydrate, inspect, serializeJsonScript }

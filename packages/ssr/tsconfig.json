@@ -11,6 +11,9 @@
       "foldkit-surface": ["../surface/src/index.ts"],
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-mirror": ["../mirror/src/index.ts"],
+      "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"]
     }
   },
@@ -18,6 +21,8 @@
   "references": [
     { "path": "../bundle/tsconfig.build.json" },
     { "path": "../mirror/tsconfig.build.json" },
+    { "path": "../remote/tsconfig.build.json" },
+    { "path": "../entity/tsconfig.build.json" },
     { "path": "../metadata/tsconfig.build.json" },
     { "path": "../surface/tsconfig.build.json" }
   ]

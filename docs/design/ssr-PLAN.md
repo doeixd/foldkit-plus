@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0, 1 and 2 done; Phase 3 next. Written 2026-09-22 against `foldkit`
+**Status:** Phases 0 to 3 done; Phase 4 next. Written 2026-09-22 against `foldkit`
 0.158.2 and this repository at 0.10.0, then revised the same day after an
 independent review (see [What review changed](#what-review-changed)).
 
@@ -243,6 +243,28 @@ out. Learned:
   Surface and the path. A field that decides activation, left out, is reported.
   A Remote read is reported through its metadata.
 - Gate: Phase 2.
+
+**Done.** `SSR.plan` takes `local` and `surfaces`, `SSR.inspect(plan, model)`
+reports coverage, and `SSR.render` refuses a plan that falls short with
+`ResumeUnsafe` `Uncovered`, one line per gap. Eleven mutations each turned a
+test red once two tests were added for survivors: a pathless `local` place had
+covered everything, and a Surface whose Remote id follows an unsent field was
+compared by its paths alone. Decided on the way:
+
+- **The check runs for a Model, at render time.** A Surface's reads follow its
+  params, which follow the Model, so the plan alone cannot say what a Surface
+  reads. `SSR.inspect` takes the Model for the same reason.
+- **Activation is checked twice.** The place a `Surface.when` reads must be sent
+  or local. A `Surface.at` callback records no place, so every Surface is also
+  worked out from the browser's Model and compared, reads and metadata both.
+  That catches an opaque activation that reads an unsent field.
+- **Remote reads are reported, not interpreted.** `foldkit-ssr` reads no
+  package's metadata key; it reports whatever a projection carries by
+  `Metadata.summarize`. Until Phase R gives Remote a resume part, a Surface
+  that reads Remote is refused, which is the honest answer: its data would not
+  be in the browser.
+- **A Surface from another application is refused** when the plan is made, by
+  the owner token Surface already carries.
 
 ### Phase 4: server-owned static regions
 

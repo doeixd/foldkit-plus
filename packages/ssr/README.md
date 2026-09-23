@@ -5,8 +5,9 @@ browser the part of the Model it owns, and hydrate without running `init` a
 second time.
 
 **Status: in development, not published.** Built in phases from
-[the plan](../../docs/design/ssr-PLAN.md). Phases 0, 1 and 2 are done: a page
-renders on the server and the browser takes it over from the handed-over Model.
+[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 3 are done: a page
+renders on the server, the browser takes it over from the handed-over Model,
+and a plan is checked against the Surfaces the browser reads.
 
 ## What it owns
 
@@ -97,11 +98,48 @@ Commands, which is where a `Mirror.kv` restores what the user saved:
 boot: model => assembly.init(model).commands ?? []
 ```
 
+## Check the plan against the browser's Surfaces
+
+The view is checked on every render, but a Surface can read a field the first
+view never shows: a like button's state, a menu's contents. Name the Surfaces
+the browser may activate, and the fields allowed to start from the baseline:
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.post.id, App.model.post.liked),
+  local: [App.model.menuOpen], // the browser starts it from the baseline, on purpose
+  surfaces: [
+    Surface.when(PostActions, App.model.route, AppRoute.Post, route => ({ id: route.id })),
+    Surface.at(Menu, undefined),
+  ],
+})
+```
+
+`SSR.render` then refuses the plan, naming the Surface and the field, when an
+active Surface:
+
+- reads a field that is neither in `state` nor in `local`;
+- is activated by one (the place a `Surface.when` reads);
+- reads data no Model path names, such as a Remote selection, reported by its
+  metadata (`remote data (User:u1)`). Resuming Remote's state is a later phase;
+  until then, leave such a Surface out of `surfaces` or expect it refused;
+- is activated differently, or reads something else, from the Model the browser
+  starts from. This catches a `Surface.at` whose callback reads an unsent field.
+
+A Surface's reads depend on the Model through its params, so the check runs
+for the Model the server rendered. `SSR.inspect(plan, model)` returns the same
+findings as data: what is sent, what is local, and for each Surface whether it
+is active, where each read comes from (`state`, `local` or `missing`), and
+whether the browser would activate it the same way.
+
 ## When a page is refused
 
 On the server, `SSR.render` fails with `ResumeUnsafe`:
 
 - `UndeclaredStartup`: `init` returned Commands and the plan has no `boot`.
+- `Uncovered`: a Surface in `surfaces` reads or is activated by something the
+  plan neither sends nor names `local`, as above.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
   from the one served, so it reads a field the plan leaves out. Add the field to
   `state`, or stop the view reading it. In production Foldkit would silently
@@ -149,3 +187,8 @@ Model can close the script or open another. It also escapes U+2028 and U+2029.
   nowhere in the page; Flags never reach it; `boot` runs, including a
   `Mirror.kv` restore; and each refusal above, on the server and in the
   browser, has its test.
+- **Phase 3, coverage:** each kind of gap is reported, naming the Surface and
+  the field: an unsent read, an unsent activation, a Remote read, and a Surface
+  the browser would activate differently, including one whose Remote id comes
+  from an unsent field. A sent parent field covers its children; a local place
+  with no path covers nothing; an inactive Surface is not checked.

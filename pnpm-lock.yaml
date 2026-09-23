@@ -1185,9 +1185,15 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
       foldkit-mirror:
         specifier: workspace:*
         version: link:../mirror
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
