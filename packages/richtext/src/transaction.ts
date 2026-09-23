@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { sameMarkSet } from './marks.js'
+import { resolveInsertion } from './marks.js'
 import {
   Block,
   EditorState,
@@ -11,6 +11,10 @@ import {
   type Document,
   type NodeReference,
 } from './document.js'
+import { defaultTransforms, type Transform } from './transform.js'
+
+/** How many normalization passes a transaction may spend before it gives up. */
+export const MAX_NORMALIZATION_PASSES = 10
 
 const Offset = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
 
@@ -278,7 +282,12 @@ export type TransactionResult =
   | {
       readonly ok: false
       readonly error:
-        'InvalidInput' | 'MissingText' | 'MissingNode' | 'InvalidRange' | 'InvalidSelection'
+        | 'InvalidInput'
+        | 'MissingText'
+        | 'MissingNode'
+        | 'InvalidRange'
+        | 'InvalidSelection'
+        | 'UnstableNormalization'
     }
 
 const decodeState = Schema.decodeUnknownSync(EditorState, { onExcessProperty: 'error' })
@@ -295,8 +304,16 @@ const sameSelection = (left: Selection | null, right: Selection | null): boolean
   )
 }
 
-/** Pure, atomic text transaction. Rejection returns no partially edited state. */
-export const apply = (state: EditorState, transaction: Transaction): TransactionResult => {
+/**
+ * Pure, atomic text transaction. Rejection returns no partially edited state.
+ * `transforms` defaults to the registry's shipped rules; a Kit's transforms
+ * arrive here when Kit support lands.
+ */
+export const apply = (
+  state: EditorState,
+  transaction: Transaction,
+  transforms: ReadonlyArray<Transform> = defaultTransforms,
+): TransactionResult => {
   try {
     decodeState(state)
     decodeTransaction(transaction)
@@ -609,55 +626,34 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
     dirtyNodes.add(id)
     textChanged.add(id)
   }
-  // Normalization, first rule: merge adjacent equivalent runs within touched
-  // blocks. One left-to-right pass per block; merging strictly reduces the run
-  // count, so this terminates, and the output holds no mergeable pair, so it
-  // is idempotent. Only same-mark sets merge, so unknown marks never drop.
-  const mergeSteps: Array<RelocateStep> = []
-  for (const blockId of [...dirtyNodes]) {
-    const blockIndex = blockIndexes.get(blockId)
-    if (blockIndex === undefined) continue
-    const block = document.children[blockIndex]!
-    const first = block.children[0]
-    if (first === undefined) continue
-    let accumulator = first
+  // Normalization runs as transforms (§23): each is deterministic and idempotent
+  // on normalized state, so the loop settles. The pass bound is a diagnostic,
+  // not a hang: a transform that keeps changing the document is refused rather
+  // than spinning.
+  let pass = 0
+  for (; pass < MAX_NORMALIZATION_PASSES; pass++) {
     let changed = false
-    const kept = [accumulator]
-    for (const run of block.children.slice(1)) {
-      if (sameMarkSet(accumulator.marks, run.marks)) {
-        mergeSteps.push({
-          node: run.id,
-          into: accumulator.id,
-          at: 0,
-          base: accumulator.text.length,
-        })
-        accumulator = { ...accumulator, text: accumulator.text + run.text }
-        kept[kept.length - 1] = accumulator
-        removedNodes.add(run.id)
-        dirtyNodes.add(accumulator.id)
-        textChanged.add(accumulator.id)
-        changed = true
-      } else {
-        accumulator = run
-        kept.push(run)
+    for (const transform of transforms) {
+      const report = transform.apply(document, { dirtyNodes, pass })
+      if (report.document === document) continue
+      changed = true
+      document = report.document
+      for (const id of report.removedNodes) removedNodes.add(id)
+      for (const id of report.dirtyNodes) dirtyNodes.add(id)
+      for (const id of report.textChanged) textChanged.add(id)
+      for (const step of report.steps) positionMap.push(step)
+      if (report.steps.length > 0 && selection?.type === 'Range') {
+        selection = {
+          ...selection,
+          anchor: mapPosition(selection.anchor, report.steps),
+          focus: mapPosition(selection.focus, report.steps),
+        }
       }
+      reindex()
     }
-    if (!changed) continue
-    const blocks = [...document.children]
-    blocks[blockIndex] = { ...block, children: kept }
-    document = { ...document, children: blocks }
+    if (!changed) break
   }
-  if (mergeSteps.length > 0) {
-    reindex()
-    for (const step of mergeSteps) positionMap.push(step)
-    if (selection?.type === 'Range') {
-      selection = {
-        ...selection,
-        anchor: mapPosition(selection.anchor, mergeSteps),
-        focus: mapPosition(selection.focus, mergeSteps),
-      }
-    }
-  }
+  if (pass === MAX_NORMALIZATION_PASSES) return { ok: false, error: 'UnstableNormalization' }
   return {
     ok: true,
     state:

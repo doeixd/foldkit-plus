@@ -1240,6 +1240,24 @@ limited to explicit dependencies
 
 The transform engine should detect excessive normalization loops and return a diagnostic rather than spin forever.
 
+**Implemented.** `Transform` is `{ name, apply(document, { dirtyNodes, pass }) }`
+returning `{ document, steps, removedNodes, dirtyNodes, textChanged }`, and
+`apply(state, transaction, transforms)` folds each report into the same
+ChangeSet and position map, mapping the selection through the transform's steps.
+`mergeAdjacentRuns` is the first shipped transform (`defaultTransforms`); a
+caller may pass its own registry instead. The loop settles when a pass changes
+nothing and refuses after `MAX_NORMALIZATION_PASSES` with the
+`UnstableNormalization` diagnostic, so a transform that never settles is a
+refusal rather than a hang.
+
+Two constraints the interface makes explicit, both from replay and from
+positions: a transform may merge, move, or remove but **never mint** an identity
+(so "ensure an empty Document has a Paragraph" belongs to a command that mints,
+not to a transform), and a transform that removes a run positions address must
+report a step out of it or the selection is left dangling. `dirtyNodes` in the
+context is how a transform stays incremental: the shipped merge touches only the
+blocks the transaction did.
+
 ---
 
 # 25. Collaboration constrains transforms
@@ -3930,8 +3948,8 @@ relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
 Remaining: node prop schemas and nested children, the mark registry and custom
-definitions, metadata keys, migrations, further transforms, rendering, and
-collaboration (including collaborative undo), alongside
+definitions, metadata keys, migrations, and collaboration (including
+collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.

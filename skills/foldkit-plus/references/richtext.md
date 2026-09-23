@@ -79,7 +79,15 @@ delete, split block, toggle mark over a range, set selection) into a
 transaction and applies it; identity comes from the caller's `mint`, never a
 clock. A collapsed toggle is a no-op until stored marks exist.
 
-Custom Kits, migrations, further transforms, Form/Bundle integration, DOM
+Normalization is a transform registry: `Transform` is a pure function of the
+document plus the touched nodes, returning the new document with its position
+steps and identity bookkeeping, which `apply` folds into the same ChangeSet and
+position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
+merge, move, or remove but never mint an identity, and one that never settles is
+refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
+
+Custom Kits, migrations, prop schemas, nested children, the mark registry,
+Form/Bundle integration, DOM
 editing, and collaboration remain unfinished. Unknown nodes and marks are
 preserved verbatim (listed by `findUnknownNodes`/`findUnknownMarks`) rather
 than stripped; everything else is rejected. Preserve the

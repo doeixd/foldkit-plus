@@ -68,9 +68,18 @@ export {
   validate,
 } from './kit.js'
 export {
+  type Transform,
+  type TransformReport,
+  type TransformContext,
+  mergeAdjacentRuns,
+  unchanged,
+  defaultTransforms,
+} from './transform.js'
+export {
   Operation,
   Transaction,
   Edit,
+  MAX_NORMALIZATION_PASSES,
   type TextTarget,
   apply,
   mapPosition,

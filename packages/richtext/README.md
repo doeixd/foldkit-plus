@@ -113,6 +113,43 @@ Nothing mints identity unless the caller's `mint` does, and replay applies
 transactions rather than commands. A collapsed `ToggleMark` is a no-op until
 stored marks exist, and adding an unknown mark is rejected.
 
+## Transforms
+
+Normalization runs as a registry of transforms. Each is a pure function of the
+document plus what the transaction touched, and returns the new document with
+the position steps and identity bookkeeping that go with it:
+
+```ts
+const DropEmptyRuns: RichText.Transform = {
+  name: 'dropEmptyRuns',
+  apply: (document, { dirtyNodes }) => ({ document: next, steps, removedNodes, dirtyNodes, textChanged }),
+}
+
+RichText.apply(state, transaction, [DropEmptyRuns])
+RichText.apply(state, transaction) // defaultTransforms: mergeAdjacentRuns
+```
+
+Two rules make a loop over them safe: a transform is **deterministic** and
+**idempotent on normalized state**, so the loop knows it has settled when a pass
+changes nothing. A pass that keeps changing the document is refused with
+`UnstableNormalization` after `MAX_NORMALIZATION_PASSES` rather than spinning.
+
+Three constraints follow from replay and from positions:
+
+- **A transform cannot mint identities.** It may merge, move, or remove, never
+  create — so "ensure an empty Document has a Paragraph" belongs to a command
+  that mints, not to a transform.
+- **Removing a run that positions address requires a step.** Report a
+  `RelocateStep` (or a collapse) for it, or the selection can be left dangling.
+- **Only what the transaction touched is in scope.** `dirtyNodes` is how a
+  transform stays incremental; the shipped merge uses it and leaves every other
+  block alone.
+
+`apply` folds a transform's report into the same `ChangeSet` and `positionMap`
+it was already building, and maps the selection through the transform's steps,
+so a caller cannot tell whether a change came from an operation or from
+normalization.
+
 ## HTML export
 
 `toHtml(blocks)` and `documentToHtml(document)` serialize to HTML for other
@@ -262,8 +299,9 @@ not yet drive parsing or `apply`.
   forbid the edge to the neighbor carrying exactly the remaining marks; mixed
   edges stay put rather than swapping formatting. Unknown marks default to
   expanding both ways so preservation never retargets them away.
-- Every transaction ends by merging adjacent same-mark runs within touched
-  blocks: the first run keeps its identity and text, later equivalents retire
+- Every transaction ends by running its transforms (by default
+  `mergeAdjacentRuns`): adjacent same-mark runs within touched blocks merge, the
+  first run keeping its identity and text and later equivalents retiring
   (reported in `removedNodes` with `RelocateStep`s). Loading never normalizes,
   so decoded documents stay verbatim until first edited; empty transactions
   stay untouched to preserve state identity.
@@ -301,9 +339,9 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Migrations, prop schemas, nested children,
-further transforms, rendering, and collaboration are still pending. Retain
-rejected source content for recovery; do not replace it with an empty document.
+decoding untrusted payloads. Migrations, prop schemas, nested children, the
+mark registry, and collaboration are still pending. Retain rejected source
+content for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document
