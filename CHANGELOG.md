@@ -7,6 +7,40 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- **Foldkit 0.163.0 and Effect 4.0.0-rc.116.** Every package that peers
+  `foldkit` now requires `^0.163.0`, every package peers
+  `effect@^4.0.0-rc.116`, and `foldkit-mixins-ui` peers `@foldkit/ui@^0.163.0`.
+  Foldkit itself now peers `@effect/platform-browser@4.0.0-rc.116`, so an
+  application installs that alongside `effect`. `foldkit-durable` depends on
+  `@effect/sql-sqlite-node@4.0.0-rc.116`.
+
+  **Upgrading from 0.10.0:** pin `effect`, `@effect/platform-browser`, and any
+  `@effect/*` package to `4.0.0-rc.116`, and `foldkit` and `@foldkit/ui` to
+  `0.163.0`. Replace `evo` with `modifyFields` from `foldkit/struct`; the
+  package READMEs and the skill already do. `@effect/vitest` at rc.116 needs
+  Vitest 5. A test that opened a `@foldkit/ui` Dialog through
+  `Dialog.init({ isOpen: true })` opens it through `Dialog.boot` now, because
+  `init` always returns a closed Dialog since `@foldkit/ui` 0.161.
+- **`foldkit-form`: a nested form's Commands are lifted with
+  `Command.mapMessages`.** The row lift wrapped the inner form's answer by
+  hand, which dispatched correctly but left Story and Scene unable to replay
+  the wrap: resolving a row's check handed the parent update the inner form's
+  bare `Checked`. Resolving it now yields the `Nested` Message the parent
+  handles. The `at` and `row` args the old lift added are gone; nothing read
+  them.
+- **`foldkit-react-codegen` lowers `OnKeyDownSelf`** to `onKeyDown` guarded by
+  `event.target === event.currentTarget`. `OnBeforeInput`,
+  `OnBeforeInputPreventDefault`, `OnKeyDownSelfPreventDefault`, and
+  `OnCancelPreventDefault` report `FKREACT0002` like the other attributes with
+  no one-line React form.
+- **Docs use `Schema.Option` for optional Model fields and `match` over a
+  Message.** Foldkit's recommended Oxlint preset now rejects `Schema.NullOr`
+  in a Model and `switch` on a Message tag; the surface, sync,
+  mixins-surface, and mirror snippets, and the skill's one-screen example,
+  no longer trip it.
+
 ### Fixed
 
 - **`foldkit-surface`: `Projection.pick` no longer merges two fields that share
