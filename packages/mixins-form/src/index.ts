@@ -317,6 +317,8 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
               h.input(
                 slots.choice.attrs([
                   h.Type('checkbox'),
+                  h.Name(input.control.key),
+                  h.Value(option.value),
                   h.Checked(chosen.includes(option.value)),
                   h.OnClick(
                     change(
@@ -364,6 +366,8 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       ]
       const state = [
         h.Id(id),
+        // The key is the field's name, so a form posts its drafts with scripts off.
+        h.Name(key),
         h.AriaInvalid(invalid),
         // A check is running: the control is neither valid nor invalid yet.
         ...(input.field._tag === 'Validating' ? [h.AriaBusy(true)] : []),

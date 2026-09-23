@@ -126,7 +126,7 @@ version has that ours must not repeat, each of which becomes a test.
 | Entry | Shape | Slots | What it does | Fix |
 | --- | --- | --- | --- | --- |
 | `Collection` | Bundle + Behavior | `items: Collection` | Stable ids per item, DOM order via a `Mutation()` Mount, disabled tracking, `aria-posinset` and `aria-setsize` on request. The Bundle is what `RovingTabindex`, `Typeahead`, and `Selection` read. | **DOM order, not insertion order**; **ids exist** |
-| `Selection` | Bundle + Behavior | `items: Collection` | `mode: 'single' \| 'multiple' \| 'none'`, Shift range with an anchor index, `aria-selected`. Reuse `foldkit-primitives/state/selection` for the set. | single mode cannot deselect to empty unless `allowEmpty` |
+| `Selection` | Bundle + Behavior (built; its own slice `{ selected, anchor }` rather than a wrapper over `state/selection`, since the anchor and the mode belong together; a range carries the items' order because the view knows it) | `items: Collection` | `mode: 'single' \| 'multiple' \| 'none'`, Shift range with an anchor, `aria-selected`; Shift comes from `Press`, whose `Pressed` now carries `shiftKey`. | single mode cannot deselect to empty unless `allowEmpty` |
 | `Disclosure` | Attributes over input (built) | `trigger`, `content` | `aria-expanded`, `aria-controls` with a real id, `hidden` on content. The open flag is the parent's. The floor is `<details>`. | **`aria-controls` and ids** |
 | `ToggleState` | Attributes over input (built) | `control: Interactive` | `aria-checked` or `aria-pressed`, including `indeterminate`. | none |
 | `Pagination` | Reuse `foldkit-primitives/state/pagination` | none | Add a test: **changing `perPage` re-clamps `page`**. | their known defect |
@@ -136,9 +136,9 @@ version has that ours must not repeat, each of which becomes a test.
 | Entry | Shape | Slots | What it does | Fix |
 | --- | --- | --- | --- | --- |
 | `FieldAssociation` | Attributes over input (built, in `foldkit-mixins`) | `label`, `control`, `description`, `error` | Stable ids generated once; `aria-labelledby`, `aria-describedby` listing description and error, `aria-invalid`. Ids are part of the Model so they survive resume. | none |
-| `FormControl` | Attributes over input | `control`, `hiddenInput` | A hidden native `<input name value required disabled>` following the field's encoded draft, so a custom widget submits without JavaScript. Lives in `foldkit-mixins-form` as `Form.native` (effect-atom-jsx-LESSONS.md item 3); listed here for completeness. | **project `disabled`**; test: the form posts the value with scripts off |
+| `FormControl` | Done differently: `foldkit-mixins-form`'s default renderers are already native controls, so the gap was only that they carried no `name`. Every control now gets `name=<key>`, and a relation picker's checkboxes get `name` and `value`, so a plain form post carries the drafts. A custom widget that is not a native control still has no hidden-input helper; add one when a renderer needs it. | `control` | A form posts its drafts with scripts off. | test: the field carries its key as `name` |
 | `SpinValue` | Attributes over input (built, in `foldkit-mixins`; revised from Bundle: the value is the parent's, so a key only yields the next value's Message; wheel and press-and-hold repeat not handled, since Foldkit's wheel attribute carries no delta and a repeat is a timer the Model would own) | `input: Focusable` | Up and Down, PageUp and PageDown, Home and End; clamps to `min`, `max`, `step`. Floor `<input type=number>`. | none built there |
-| `LiveAnnounce` | Bundle (placed once) + Command | none | `announce(message, politeness)` is a Command; the region is rendered by the Bundle's view with one node per politeness; debounce and dedupe are options on the placement. | **debounce and dedupe**; timers on Effect's clock |
+| `LiveAnnounce` | Bundle (placed once) + `say` + `view` (built) | none | `say(text, politeness)` is a Message to return from `update`; `view` renders one region per politeness; a burst reads once after `debounceMs`, the text clears after `clearAfterMs`, and a repeated text toggles a no-break space so it reads again. | **debounce and dedupe**; timers on Effect's clock |
 | `Presence` | Reuse `foldkit-primitives/motion/presence` | `root` | Add the `Motion` service (effect-atom-jsx-LESSONS.md item 2) and `data-state`. Keep the timeout fallback they lack. Add `transitionend`. | none |
 
 ### Not in the catalog
@@ -237,9 +237,10 @@ before it is code.
   then `DismissLayer`, `HideOutside`, `ScrollLock`. Tests: a press inside a
   parent layer leaves it open and closes its child; the trigger is excluded;
   nested scroll locks release together; the inert set restores.
-- **E. Collections and forms.** `Selection`, `Disclosure`, `ToggleState`,
-  `FieldAssociation`, `SpinValue`, `LiveAnnounce`, `Form.native`. Test:
-  Shift range respects the anchor; the hidden input posts with scripts off.
+- **E. Collections and forms.** Done. `Selection`, `Disclosure`, `ToggleState`,
+  `FieldAssociation`, `SpinValue`, `LiveAnnounce`, and form controls named by
+  their key in `foldkit-mixins-form`. Tests: a range respects the anchor and
+  the order; a burst of announcements reads once; a control carries its key.
 - **F. Motion.** The `Motion` service in `foldkit-primitives`, `Presence`
   reading it, `data-state`. Test: under reduced motion a presence exits at
   once and a tween jumps to its end.

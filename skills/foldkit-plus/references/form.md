@@ -68,6 +68,9 @@ const RenameForm = Page.at(Slot, {
 - **Dispatch from a view:** `Rename.Message.Changed({ key, value })`,
   `Blurred({ key })`, `Submitted()`, `Reset()`, wrapped in the placement's
   Message (`Message.GotRenameMessage({ message })`).
+- **Posting without scripts:** `foldkit-mixins-form` names every control by
+  its key (`name=<key>`; a relation picker's checkboxes also carry `value`), so
+  a plain form post carries the drafts.
 - **Draw it:** `Rename.controls` is the keys in order, each with `control`
   (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options`,
   `RelationOne` / `RelationMany` with `target`), `label`, `description`,

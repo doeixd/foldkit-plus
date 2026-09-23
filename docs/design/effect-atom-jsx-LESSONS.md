@@ -81,11 +81,13 @@ with one source of truth (`src/behaviors/form-control.ts:1-15`). Our
 widget (a `@foldkit/ui` Slider, Select, or Calendar) with a native field for
 submission.
 
-**Decision.** `foldkit-mixins-form` gains `Form.native(field)`, a Behavior
-for a `Focusable` slot that adds a hidden `<input name=… value=…>` sibling
-carrying the field's encoded draft. It matters most for the no-JavaScript
-fallback in the resumable design, where a posted form must carry the same
-value the Message would.
+**Decision (done, differently).** `foldkit-mixins-form`'s default renderers
+were already native controls; they only lacked a `name`. Every control now
+carries `name=<key>`, and a relation picker's checkboxes carry `name` and
+`value`, so a plain form post carries the drafts. That is what the
+no-JavaScript fallback in the resumable design needs. A hidden-input helper
+for a custom widget that is not a native control waits for a renderer that
+needs it.
 
 ### 4. Semantic keys: checked, not a gap
 
