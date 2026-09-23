@@ -91,11 +91,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move, FocusVisible
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move, FocusVisible, DismissLayer, ScrollLock, HideOutside
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -661,6 +661,46 @@ the page is driven by keyboard, so a stylesheet shows a ring with
 `[data-focus-visible]:focus`. CSS `:focus-visible` does this with no Model at
 all; this is for a design system that must decide in the Model, or show the
 same answer somewhere other than the focused element.
+
+`DismissLayer` closes overlays that are not native `<dialog>` or `popover`
+elements: Escape closes the topmost open layer, and a pointer press closes
+the layers it is outside of. One Bundle, **placed once**, owns the document
+listeners; each layer's Behavior marks its container with
+`data-foldkit-plus-layer="<id>"` and its trigger with the matching trigger
+attribute. The stack is the DOM order of the marked elements at the moment of
+the event, so a layer takes part exactly while it is rendered and an `open`
+flag in the parent Model is its whole lifecycle; nothing registers. The rules,
+each a test: a press inside a parent layer is outside its children, so the
+parent stays and the children go; a press on a layer's trigger counts as
+inside it, so a click on the trigger never dismisses and reopens; a layer
+placed with `outsidePress: false` or `escape: false` opts out of that path.
+`Dismiss { ids }` is the OutMessage, and the placement's `onOut` closes them:
+
+```ts
+const Layers = Bundle.declare(DismissLayer.bundle, 'layers')
+const placements = Page.assemble(
+  Page.at(Layers, {
+    onOut: ({ ids }) => model => ({ model: { ...model, menuOpen: ids.includes('menu') ? false : model.menuOpen } }),
+  }),
+)
+const Dismissable = DismissLayer.behavior(Layers)(MenuSlots)<Model, Message>({
+  layer: 'panel',
+  trigger: 'button',
+  id: () => 'menu',
+})
+```
+
+The Model slice is `{ layers }`, the open layers as the last event saw them,
+for DevTools and agents. `toDismiss(layers, inside)` is the pure rule.
+
+`Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({
+container })` are Mounts over Foldkit's own `Dom.lockScroll` and
+`Dom.inertOthers`: the first locks the document's scroll while the container is
+mounted, refcounted so nested overlays release together, with Foldkit's iOS
+handling; the second marks everything outside the container inert while it is
+mounted, keyed by an id the Mount mints so two overlays restore independently.
+Both live in `foldkit-primitives/dom` as `ScrollLock` and `HideOutside`. A
+native `<dialog>` shown modally needs neither.
 
 ## Testing placements
 
