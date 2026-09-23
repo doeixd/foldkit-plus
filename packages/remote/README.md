@@ -1,17 +1,14 @@
 # `foldkit-remote`
 
-Server-owned data, cached **inside the Foldkit Model**. A screen says what it
-needs; Remote fetches what is missing, keeps one copy, and tells the view what
-it knows.
+Server data, cached inside the Foldkit Model. A screen says what it needs;
+the view gets what the cache knows.
 
 ```ts
-// What this screen needs of the server. Nothing here fetches.
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
   model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }),
 })
 
-// What the view gets back: what the cache knows, never a guess.
 RemoteData.render(project, {
   loading: () => ProjectSkeleton(),
   notFound: () => NoSuchProject(),
@@ -20,38 +17,13 @@ RemoteData.render(project, {
 })
 ```
 
-That is the whole application-side surface. There is no fetch call, no cache
-object, no loading flag, and no effect that watches a route. What happens
-instead:
+No fetch call, no cache object, no loading flag. While the page is active,
+Remote fetches only the fields the Model lacks, stores each entity once, and
+hands the view one of six states rather than an `undefined`. Every result is a
+Message through one reducer, so a screen replays from a recorded Model.
 
-- **Only what is missing is fetched.** While the page is active, Remote diffs
-  what it declares against the Model and asks the server for the fields it
-  lacks. A second screen that reads `Project:p1.name` finds it already there.
-- **One copy.** Every entity is stored once by identity, so two Surfaces
-  reading the same project cannot disagree, and a mutation's result updates
-  both.
-- **The view is told the truth.** `Initial`, `Loading`, `Ready`, `Refreshing`,
-  `Failed` with the last good value, `NotFound`: six states, one exhaustive
-  fold, no `undefined` standing in for "not yet".
-- **It is all Model.** A read result, a page, a mutation, a live event: each is
-  a Message through one pure reducer, so a screen is reproducible from a
-  recorded Model, and a test needs no network.
-
-> **A Remote Projection does not fetch. It declares what server-owned facts a
-> consumer requires. I/O happens outside render, and its results reduce back into
-> the Model.**
-
-Use Remote when the **server owns the truth** and the client needs a normalized,
-disposable view of it. If an edit is client-authored and must survive offline,
-restart, or network failure until it converges, that belongs to
-[`foldkit-sync`](../sync) and [`foldkit-durable`](../durable), not Remote:
-
-```text
-Remote                              Sync
-  server owns the fact                client owns the edit
-  cache is disposable                 intent must survive offline/restart
-  refetch is recovery                 replay + reconciliation is recovery
-```
+Remote is for facts the **server owns**. An edit the client authors, which
+must survive being offline, belongs to [`foldkit-sync`](../sync).
 
 ## Find what you need
 
@@ -85,6 +57,13 @@ One owner per datum:
 | Client-authored state that must survive offline and converge | `foldkit-sync` |
 | Local state represented in the URL or another store | the Model, observed by `foldkit-mirror` |
 
+```text
+Remote                              Sync
+  server owns the fact                client owns the edit
+  cache is disposable                 intent must survive offline/restart
+  refetch is recovery                 replay + reconciliation is recovery
+```
+
 A Surface may project all of these owners at once. Observation does not transfer
 ownership.
 
@@ -101,6 +80,10 @@ A Projection reads the current cache and carries requirements such as
 requirements with the cache, then requests missing or stale fields. The
 result returns as a Message; only reducing it changes what the next read sees.
 Rendering the same Projection twice starts no work by itself.
+
+> **A Remote Projection does not fetch. It declares what server-owned facts a
+> consumer requires. I/O happens outside render, and its results reduce back into
+> the Model.**
 
 Four roles carry the loop, and most application code needs no more:
 
