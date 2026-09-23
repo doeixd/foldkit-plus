@@ -91,11 +91,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -634,6 +634,23 @@ while the element is down for styling, and marks a disabled target
 `aria-disabled`, which the Mount reads at event time so nothing is reported
 and no remount is needed. The Model slice is `{ pressed, pointerId, key,
 suppressing, generation }`; only `pressed` is meant for a view.
+
+`LongPress` is holding for `thresholdMs`. It reads the same facts
+`Press.events` reports, so it needs no Mount of its own; the threshold is a
+Command on Effect's clock carrying a generation, and a release before it fires
+makes its `Elapsed` a no-op. `LongPressed { pointerType }` is the OutMessage,
+required at placement. The Behavior writes `data-holding` while down. `Press`
+and `LongPress` on one slot are refused by the resolver, since both would mount
+`PressEvents`; a slot takes one of them.
+
+`Move` is pointer movement as facts, a Mount in `foldkit-primitives/dom`: a
+primary-button pointer down captures the pointer and reports `MoveStarted`,
+each move reports `Moved { deltaX, deltaY }` from where it went down, and up,
+cancel, or lost capture reports `MoveEnded { completed }`. A second pointer
+and a secondary button are ignored; capture is released with the Mount.
+`Move.behavior(Slots)<Input, Message>({ handle, toMessage })` attaches it to a
+`Draggable` slot and maps each fact into the view's Messages; a drag's meaning
+(a threshold, a snap, a reorder) is the parent's `update`.
 
 ## Testing placements
 

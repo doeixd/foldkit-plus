@@ -99,9 +99,9 @@ version has that ours must not repeat, each of which becomes a test.
 | Entry | Shape | Slots | What it does | Fix |
 | --- | --- | --- | --- | --- |
 | `Press` | Bundle + Mount + Behavior (built; the facts come from a Mount because Foldkit's pointer attributes carry no button, pointer id, or click detail; `update` decides; `Pressed` is an OutMessage the placement must handle) | `target: Interactive` | Pointer and keyboard activation as one `Pressed` Message. Primary button only, cancel on `pointerleave` and `pointercancel`, Enter and Space with repeat ignored, virtual clicks (`detail === 0`) accepted, ghost click suppressed by a timed Command. Exposes `pressed` for styling. | add `pointercancel`; add `onPressUp`; never raw `click` |
-| `LongPress` | Bundle + Behavior | `target: Interactive` | Composes `Press`; `threshold` default 500 ms as an interruptible Command. Cancels on movement past a tolerance. | none built there |
+| `LongPress` | Bundle + Behavior (built; reads `Press.events`, threshold as a generation-carrying Command; movement tolerance not built, since the facts carry no coordinates) | `target: Interactive` | Holding for `thresholdMs`; a release before it fires makes the late `Elapsed` a no-op. | none built there |
 | `Hover` | Reuse `@foldkit/ui/hoverIntent` | `trigger`, `panel` | Open and close delays with intent. The shared group timer (tooltip skip-delay) is a Bundle placed once. Ignores touch. | none |
-| `Move` | Mount | `handle: Draggable` | Pointer capture, `Moved { deltaX, deltaY, pointerType }`, release on dispose. | none built there |
+| `Move` | Mount + Behavior (built) | `handle: Draggable` | Pointer capture, `MoveStarted`, `Moved { deltaX, deltaY, pointerType }`, `MoveEnded { completed }`, release on dispose; second pointer and secondary button ignored. | none built there |
 | `FocusVisible` | Bundle + Behavior | `target: Focusable` | Tracks input modality; writes `data-focus-visible`. Floor is `:focus-visible`; this exists for JavaScript that must know. | none |
 
 ### Focus and layers
