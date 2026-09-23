@@ -243,6 +243,12 @@ case 'ClickedRefresh': {
   params**. It only works if something observes that Projection (an active
   read entry). For unobserved data use `Data.prefetch` with `RemotePolicy.networkOnly`.
 
+Server rendering with `foldkit-ssr` (in development): `Remote.resume(Data)` in
+`SSR.plan({ parts })` sends what the plan's active Surfaces read, field by
+field, with connection boundaries and live cursors, and nothing else of the
+store; the browser plans no request for it. Use it rather than a `Snapshot`,
+which is for a cache that survives a reload and keeps no cursors.
+
 Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts

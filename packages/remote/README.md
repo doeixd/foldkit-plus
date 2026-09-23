@@ -38,7 +38,8 @@ to what you are doing:
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
 | Save, and show the result before the server answers | [Mutations](#mutations-and-optimistic-state) |
 | Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
-| Keep data across a reload, or seed it from SSR | [Hydration](#persistence-and-hydration) |
+| Keep data across a reload | [Hydration](#persistence-and-hydration) |
+| Hand a server render's data to the browser | [Server rendering](#server-rendering-remoteresume) |
 | Release data no active feature needs | [Retention](#retention-and-garbage-collection) |
 | Answer the requests on the server | [How the server packages fit](#how-the-server-packages-fit) |
 
@@ -1084,8 +1085,9 @@ never in one.
 ```ts
 import { RemotePersistence } from 'foldkit-remote'
 
-// SSR: prefetch on the server, embed, then hydrate on the client.
-// `snapshotOf` names the connections that survive; none, here.
+// A cache carried in the page: prefetch on the server, embed, then hydrate.
+// `snapshotOf` names the connections that survive; none, here. For a page
+// the browser resumes with foldkit-ssr, see Server rendering below.
 const text = RemotePersistence.dehydrate(
   RemotePersistence.snapshotOf(loaded.remote),
   { scope: userId },
@@ -1119,6 +1121,40 @@ Snapshots are deterministic, versioned, scoped, and optionally size-bounded. A
 snapshot from another version/scope, an oversized snapshot, or malformed data is
 discarded and the planner refetches. `Hydrated` is itself a Remote Message, so
 hydration still changes the application through the reducer.
+
+## Server rendering: `Remote.resume`
+
+A snapshot is built for a cache that survived a reload: it keeps the whole
+entity store and deliberately no cursors. A page rendered a moment ago wants
+the opposite. `Remote.resume(Data)` is a resume part for
+[`foldkit-ssr`](../ssr/README.md) (in development), which sends exactly what
+the page's active Surfaces read, and resumes it in the browser:
+
+```ts
+const Page = SSR.plan(App, {
+  id: 'project',
+  state: Projection.pick(App.model.route),
+  surfaces: [ProjectPageAt],
+  parts: [Remote.resume(Data)],
+})
+```
+
+- **Only what is read crosses.** For each requirement, the fields it names,
+  following its relations through the refs the store holds; for each
+  connection, the fields its selection reads of each item. A field in the
+  server's store that no Surface selects, such as a user's email, is not in the
+  page.
+- **Connections cross whole**, with their boundaries, so "load more" knows
+  where the server stopped.
+- **Live cursors cross with the entities they follow**, so a live
+  subscription started in the browser asks from where the server's left off.
+- **Nothing else crosses.** Loading marks, failures, the mutation ledger,
+  optimistic layers, gaps and retention start at their initial values.
+
+The browser's read entry plans against the restored store, so it asks for
+none of it again. The capture is JSON through its own Schema, and a page whose
+capture does not decode is refused whole by `foldkit-ssr`. Give a second domain
+in one application its own `id`: `Remote.resume(Catalog, { id: 'catalog' })`.
 
 ## How the server packages fit
 

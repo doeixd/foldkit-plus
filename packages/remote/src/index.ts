@@ -116,8 +116,10 @@ import {
   type ConnectionRequirement,
   type RelationRequirement,
 } from './requirement.js'
+import { resumePart } from './resume.js'
 
 export * from './client.js'
+export type { RemoteResumePart } from './resume.js'
 export * from './coalesce.js'
 export * from './connection.js'
 export * from './entity.js'
@@ -1450,6 +1452,14 @@ export const Remote = {
    * rejects a selection for an entity this domain never declared.
    */
   at: bindRemote,
+
+  /**
+   * The resume part for this domain, for `foldkit-ssr`'s `SSR.plan({ parts })`:
+   * a server render sends what the plan's active Surfaces read from the store,
+   * each connection with its boundaries and each live cursor with it, and
+   * nothing else. `id` tells two domains in one application apart.
+   */
+  resume: resumePart,
 
   /**
    * A Projection node that reads a `RemoteData` value out of the store. The id

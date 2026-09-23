@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Remote.resume(Data)`: Remote's state for a server-rendered page.** A
+  resume part for `foldkit-ssr` (in development) that sends what the page's
+  active Surfaces read, field by field through relations, each connection
+  with its boundaries, and the live cursors of the entities captured; nothing
+  else of the store. A `Snapshot` stays the tool for a cache that survives a
+  reload.
+
 - **`Mirror.fold` and `Remote.fold`: a library's Messages under one variant
   of the application's union.** Spreading `Mirror.messages` or
   `Remote.messages` into the union leaves `update` unable to match it
