@@ -10,7 +10,9 @@ or a diagnostic with no partial result. Call `apply` inside the application's
 
 Available now: version-1 documents, explicit branded NodeIds, paragraphs,
 headings, text runs, Bold/Italic/Code marks, range and node selections,
-InsertText/DeleteText/SetSelection, text position mapping, and inspection.
+InsertText/DeleteText/AddMark/RemoveMark/SetSelection, text position mapping,
+and inspection. Mark edits are idempotent per run: redundant adds and removes
+are no-ops without position steps.
 Schema constructors build values; `decodeDocument` strictly validates persisted
 input. Offsets are UTF-16 units. Position maps use sequential edit coordinates;
 the returned selection is already mapped. ChangeSet tracks touched nodes, not

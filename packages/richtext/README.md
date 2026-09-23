@@ -79,8 +79,11 @@ performs a linear lookup, intended for application reads rather than bulk editin
 - Empty documents, empty blocks, and empty text runs are valid. No normalization
   creates nodes or merges text runs yet.
 - `InsertText` targets one run and inherits that run's marks. Boundary mark
-  expansion and formatting operations await the Kit/mark semantics work.
+  expansion awaits the Kit/mark semantics work.
 - `DeleteText` removes a half-open range `[from, to)` within one run.
+- `AddMark` appends a missing mark to one run; `RemoveMark` filters a present
+  mark away. Redundant mark edits are no-ops that preserve state identity.
+  Mark edits dirty the run and its block without emitting position steps.
 - Positions count **UTF-16 code units**. Low-level edits may split a surrogate
   pair; grapheme-aware user commands are not implemented.
 - `SetSelection` resolves against the document at that point in the transaction.
@@ -104,8 +107,8 @@ The exported Schemas also compose into an application's Model; when decoding
 them directly, pass `{ onExcessProperty: 'error' }` for the same strict policy.
 
 Unknown-extension preservation, migrations, configurable document limits, custom
-Kits, structural operations, transforms, history, rendering, and collaboration
-are still pending. Retain rejected source content for recovery; do not replace it
+Kits, structural operations, mark boundary expansion, transforms, history,
+rendering, and collaboration are still pending. Retain rejected source content for recovery; do not replace it
 with an empty document. Apply request-size limits before decoding untrusted payloads.
 
 Each transaction currently validates the whole input and indexes its text runs.

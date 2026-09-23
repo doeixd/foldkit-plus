@@ -152,8 +152,56 @@ describe('text transactions', () => {
     })
   })
 
+  it('adds and removes marks without moving text positions', () => {
+    const state = initial()
+    const added = success(
+      RichText.apply(state, [{ type: 'AddMark', node: id('other'), mark: 'Bold' }]),
+    )
+    expect(added.state.document.children[0]?.children[1]).toEqual({
+      type: 'Text',
+      id: 'other',
+      text: 'unchanged',
+      marks: ['Bold'],
+    })
+    expect(added.positionMap).toEqual([])
+    expect(added.changeSet).toEqual({
+      dirtyNodes: new Set(['p', 'other']),
+      textChanged: new Set(['other']),
+      selectionChanged: false,
+    })
+    expect(added.state.selection).toEqual(state.selection)
+    expect(state.document.children[0]?.children[1]?.marks).toEqual([])
+
+    const removed = success(
+      RichText.apply(added.state, [{ type: 'RemoveMark', node: id('t'), mark: 'Bold' }]),
+    )
+    expect(removed.state.document.children[0]?.children[0]?.marks).toEqual([])
+    expect(removed.positionMap).toEqual([])
+    expect(removed.changeSet.textChanged).toEqual(new Set(['t']))
+  })
+
+  it('treats redundant mark edits as no-ops preserving state identity', () => {
+    const state = initial()
+    const redundant = success(
+      RichText.apply(state, [
+        { type: 'AddMark', node: id('t'), mark: 'Bold' },
+        { type: 'RemoveMark', node: id('other'), mark: 'Bold' },
+      ]),
+    )
+    expect(redundant.state).toBe(state)
+    expect(redundant.positionMap).toEqual([])
+    expect(redundant.changeSet).toEqual({
+      dirtyNodes: new Set(),
+      textChanged: new Set(),
+      selectionChanged: false,
+    })
+  })
+
   it.each([
     [{ type: 'InsertText', at: { ...position(0), node: id('missing') }, text: '!' }, 'MissingText'],
+    [{ type: 'AddMark', node: id('missing'), mark: 'Bold' }, 'MissingText'],
+    [{ type: 'RemoveMark', node: id('p'), mark: 'Bold' }, 'MissingText'],
+    [{ type: 'RemoveMark', node: id('missing'), mark: 'Bold' }, 'MissingText'],
     [{ type: 'InsertText', at: position(99), text: '!' }, 'InvalidRange'],
     [{ type: 'DeleteText', node: id('t'), from: 3, to: 2 }, 'InvalidRange'],
     [{ type: 'DeleteText', node: id('t'), from: 0, to: 99 }, 'InvalidRange'],
@@ -185,5 +233,9 @@ describe('text transactions', () => {
       ok: false,
       error: 'InvalidInput',
     })
+    expect(
+      // @ts-expect-error Unknown marks are rejected at the boundary.
+      RichText.apply(initial(), [{ type: 'AddMark', node: id('t'), mark: 'Link' }]),
+    ).toEqual({ ok: false, error: 'InvalidInput' })
   })
 })

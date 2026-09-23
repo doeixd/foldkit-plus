@@ -3587,12 +3587,13 @@ DOM reconciliation
 Implemented first slice: `packages/richtext` has a fixed initial vocabulary
 (paragraphs, headings, text, Bold/Italic/Code), versioned document validation,
 explicit NodeIds and named Node references, range/node selections, inspection, and atomic
-InsertText/DeleteText/SetSelection transactions with UTF-16 position maps.
+InsertText/DeleteText/AddMark/RemoveMark/SetSelection transactions with UTF-16
+position maps. Mark edits are idempotent per run and emit no position steps.
 Unknown extensions are currently rejected, not losslessly loaded. ChangeSet
 currently summarizes touched text nodes and their parent blocks; structural
 fields arrive with structural operations. This is not completion of Phase 1.
 
-Remaining: extensible Kits and metadata, mark definitions and boundary semantics,
+Remaining: extensible Kits and metadata, mark boundary semantics,
 structural operations and their position maps, transforms/normalization, bounded
 validation and unknown-extension preservation, followed by all three feasibility
 proofs below. The current implementation is private/unpublished and APIs may change

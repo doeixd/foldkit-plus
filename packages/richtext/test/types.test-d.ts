@@ -13,6 +13,10 @@ const document = RichText.Document.make({ version: 1, children: [paragraph] })
 RichText.apply({ document, selection: null }, [
   { type: 'InsertText', at: { node: text.id, offset: 0, affinity: 'after' }, text: '!' },
 ])
+RichText.apply({ document, selection: null }, [
+  { type: 'AddMark', node: text.id, mark: 'Italic' },
+  { type: 'RemoveMark', node: text.id, mark: 'Bold' },
+])
 Schema.encodeSync(RichText.Document)(document)
 
 // @ts-expect-error Node IDs must cross the branded constructor boundary.
@@ -29,7 +33,11 @@ RichText.Text.make({ type: 'Text', id, text: '', marks: ['Link'] })
 const position: RichText.Position = { node: id, offset: 0 }
 // @ts-expect-error Insertion cannot target a bare offset.
 const operation: RichText.Operation = { type: 'InsertText', at: 0, text: 'x' }
-void [rawId, position, operation]
+// @ts-expect-error Mark edits target a text node, not a bare offset.
+const markOperation: RichText.Operation = { type: 'AddMark', at: 0, mark: 'Bold' }
+// @ts-expect-error Unknown marks are rejected.
+const unknownMark: RichText.Operation = { type: 'AddMark', node: id, mark: 'Link' }
+void [rawId, position, operation, markOperation, unknownMark]
 
 const reference = RichText.Node.make('text')
 const referenceId: RichText.NodeId = reference.id

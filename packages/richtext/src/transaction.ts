@@ -1,6 +1,7 @@
 import { Schema } from 'effect'
 import {
   EditorState,
+  Mark,
   NodeId,
   Position,
   Selection,
@@ -13,6 +14,8 @@ const Offset = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo
 export const Operation = Schema.Union([
   Schema.Struct({ type: Schema.Literal('InsertText'), at: Position, text: Schema.String }),
   Schema.Struct({ type: Schema.Literal('DeleteText'), node: NodeId, from: Offset, to: Offset }),
+  Schema.Struct({ type: Schema.Literal('AddMark'), node: NodeId, mark: Mark }),
+  Schema.Struct({ type: Schema.Literal('RemoveMark'), node: NodeId, mark: Mark }),
   Schema.Struct({ type: Schema.Literal('SetSelection'), selection: Schema.NullOr(Selection) }),
 ])
 export type Operation = typeof Operation.Type
@@ -101,6 +104,25 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
     const [blockIndex, textIndex] = location
     const block = document.children[blockIndex]!
     const text = block.children[textIndex]!
+    if (operation.type === 'AddMark' || operation.type === 'RemoveMark') {
+      const has = text.marks.includes(operation.mark)
+      if (operation.type === 'AddMark' ? has : !has) continue
+      const children = [...block.children]
+      children[textIndex] = {
+        ...text,
+        marks:
+          operation.type === 'AddMark'
+            ? [...text.marks, operation.mark]
+            : text.marks.filter(mark => mark !== operation.mark),
+      }
+      const blocks = [...document.children]
+      blocks[blockIndex] = { ...block, children }
+      document = { ...document, children: blocks }
+      dirtyNodes.add(block.id)
+      dirtyNodes.add(id)
+      textChanged.add(id)
+      continue
+    }
     const from = operation.type === 'InsertText' ? operation.at.offset : operation.from
     const to = operation.type === 'InsertText' ? from : operation.to
     const inserted = operation.type === 'InsertText' ? operation.text : ''
