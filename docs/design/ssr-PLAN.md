@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 3 done; Phase 4 next. Written 2026-09-22 against `foldkit`
+**Status:** Phases 0 to 4 done; Phase 5 next. Written 2026-09-22 against `foldkit`
 0.158.2 and this repository at 0.10.0, then revised the same day after an
 independent review (see [What review changed](#what-review-changed)).
 
@@ -278,6 +278,27 @@ compared by its paths alone. Decided on the way:
   regions with the same id, and a region the server did not render, are each
   reported (design §30, §31).
 - Gate: Phase 2.
+
+**Done.** `SSR.static(id, render)`, with a test for each case above and for a
+render leaving no context behind. Eight mutations each turned a test red once
+that last test was added; one mutation had broken the syntax, so it was run
+again as a real one. What was built differs from the first bullet, for the
+better:
+
+- **The server renders a region as ordinary children**, inside an element
+  carrying `data-foldkit-plus-static`, not as a serialized string. Foldkit's
+  serializer is not exported, and a region rendered inside the render needs
+  none. The markers the first bullet worried about are attributes Foldkit puts
+  only on keyed elements; a keyed element inside a region keeps them, which is
+  harmless because nothing reads them there.
+- **A render context says what a region does**, set around one synchronous
+  call of the view (design §12): the server's render collects each region, its
+  second render (the view check) replays them, so a region's render runs once
+  and never reads the browser's Model, and the browser's render adopts the
+  snapshots `SSR.hydrate` read before hydrating.
+- **A region missing from the page is reported and rendered**, not refused. A
+  Message can show a region after the page is live, and refusing would freeze a
+  working page. Duplicate ids are refused on the server, where they are made.
 
 ### Phase 5: static generation
 

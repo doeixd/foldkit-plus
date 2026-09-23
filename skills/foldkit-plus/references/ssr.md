@@ -1,8 +1,9 @@
 # foldkit-ssr
 
-**In development and unpublished.** Phases 0–3 of its plan are built: render on
-the server, the browser takes the page over without rerunning `init`, and a
-plan is checked against the Surfaces the browser reads.
+**In development and unpublished.** Phases 0–4 of its plan are built: render on
+the server, the browser takes the page over without rerunning `init`, a plan is
+checked against the Surfaces the browser reads, and `SSR.static` regions belong
+to the server alone.
 
 ## What it owns
 
@@ -46,6 +47,11 @@ SSR.hydrate(config, Editor, { buildId })
   activates differently from the browser's Model fails with `Uncovered`.
   `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
   server's Model, since a Surface's reads follow its params.
+- `SSR.static('id', ih => [...])` in a view: rendered once on the server with
+  the inert builder (no handlers), adopted as trusted `InnerHTML` in the
+  browser, never rendered there, so what it reads need not be in `state`. It
+  changes only with a new document; anything a Message changes belongs in a
+  Surface. Duplicate ids fail with `DuplicateStaticRegion`.
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.

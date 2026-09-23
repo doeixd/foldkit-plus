@@ -18,6 +18,7 @@ import {
   type RenderError,
   type RenderedApplication,
 } from 'foldkit/experimental/server'
+import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
 import {
   Metadata,
@@ -338,9 +339,114 @@ const shortfalls = (inspection: PlanInspection): ReadonlyArray<string> =>
 
 /** Why a server refused to render a page against its plan. */
 export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsafe', {
-  reason: Schema.Literals(['UndeclaredStartup', 'Uncovered', 'ViewDependsOnUnsentState']),
+  reason: Schema.Literals([
+    'UndeclaredStartup',
+    'Uncovered',
+    'ViewDependsOnUnsentState',
+    'DuplicateStaticRegion',
+  ]),
   message: Schema.String,
 }) {}
+
+/** The attribute on a static region's element, naming the region. */
+export const STATIC_ATTRIBUTE = 'data-foldkit-plus-static'
+
+type Region = ReadonlyArray<Html | string>
+
+/**
+ * What `SSR.static` does, set around one synchronous call of the view. With no
+ * context, as in a client-only render, a region renders like any other view.
+ *
+ * - `collect`: the server's render. Each region runs once and is kept.
+ * - `replay`: the server's second render, from the browser's Model. Each
+ *   region is the one already rendered, so it never reads the browser's Model.
+ * - `resume`: the browser. Each region is the markup the server left in the
+ *   page, and its render never runs.
+ */
+type StaticContext =
+  | {
+      readonly mode: 'collect'
+      readonly regions: Map<string, Region>
+      readonly duplicates: Set<string>
+    }
+  | { readonly mode: 'replay'; readonly regions: ReadonlyMap<string, Region> }
+  | {
+      readonly mode: 'resume'
+      readonly snapshots: ReadonlyMap<string, string>
+      readonly reported: Set<string>
+    }
+
+let context: StaticContext | undefined
+
+const within = <A>(next: StaticContext, run: () => A): A => {
+  const previous = context
+  context = next
+  try {
+    return run()
+  } finally {
+    context = previous
+  }
+}
+
+/** The config whose view runs inside `next`. */
+const withStatic = <Config extends { readonly view: (model: any, h: any) => unknown }>(
+  config: Config,
+  next: StaticContext,
+): Config => ({
+  ...config,
+  view: (model: unknown, h: unknown) => within(next, () => config.view(model, h)),
+})
+
+const boundary = (id: string, trusted: string | undefined, children: Region): Html =>
+  inertHtml.div(
+    [
+      inertHtml.Attribute(STATIC_ATTRIBUTE, id),
+      ...(trusted === undefined ? [] : [inertHtml.InnerHTML(trusted)]),
+    ],
+    children,
+  )
+
+/**
+ * A region of the page the server owns for the life of the document. It is
+ * rendered on the server with the inert builder, so it can dispatch no
+ * Message. The browser adopts the server's markup as trusted `InnerHTML` and
+ * never runs `render`, so the region reads nothing from the browser's Model
+ * and a plan need not send what it reads.
+ *
+ * A region changes only with a new document. Content a Message should change
+ * belongs in a Surface, not here.
+ */
+const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Region): Html => {
+  const current = context
+  if (current?.mode === 'resume') {
+    const snapshot = current.snapshots.get(id)
+    if (snapshot !== undefined) return boundary(id, snapshot, [])
+    if (!current.reported.has(id)) {
+      current.reported.add(id)
+      console.error(
+        `[foldkit-ssr] the static region "${id}" is not in the server's page, so it is rendered in the browser`,
+      )
+    }
+    return boundary(id, undefined, render(inertHtml))
+  }
+  const replayed = current?.mode === 'replay' ? current.regions.get(id) : undefined
+  if (replayed !== undefined) return boundary(id, undefined, replayed)
+  const children = render(inertHtml)
+  if (current?.mode === 'collect') {
+    if (current.regions.has(id)) current.duplicates.add(id)
+    else current.regions.set(id, children)
+  }
+  return boundary(id, undefined, children)
+}
+
+/** Each static region's markup in the page, read before hydration touches it. */
+const snapshotsOf = (root: Element): ReadonlyMap<string, string> =>
+  new Map(
+    Array.from(root.querySelectorAll(`[${STATIC_ATTRIBUTE}]`), element => [
+      element.getAttribute(STATIC_ATTRIBUTE) ?? '',
+      element.innerHTML,
+    ]),
+  )
 
 /**
  * The part of a Foldkit application config a server render and a resumed
@@ -424,11 +530,19 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
 > =>
   Effect.gen(function* () {
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
-    const capturing = {
-      ...config,
-      init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)),
-    }
+    const regions = new Map<string, Region>()
+    const duplicates = new Set<string>()
+    const capturing = withStatic(
+      { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
+      { mode: 'collect', regions, duplicates },
+    )
     const full = yield* renderToString(capturing as never, options as never)
+    if (duplicates.size > 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'DuplicateStaticRegion',
+        message: `two static regions share the id ${[...duplicates].map(id => `"${id}"`).join(', ')}: the browser could adopt only one`,
+      })
+    }
     const started = served!
     const commands = started.commands ?? []
     if (commands.length > 0 && plan.boot === undefined) {
@@ -449,7 +563,7 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
     const browser = browserModelOf(plan, started.model)
     // With no `Flags` key in the config, Foldkit writes no Flags script.
     const rendered = yield* renderToString(
-      startingFrom(config, { model: browser }) as never,
+      withStatic(startingFrom(config, { model: browser }), { mode: 'replay', regions }) as never,
       options as never,
     )
     if (full.html.replace(FLAGS_SCRIPT, '') !== rendered.html) {
@@ -514,7 +628,28 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   }
   const model = resumed.success
   const commands = (plan.boot?.(model) as ReadonlyArray<unknown> | undefined) ?? []
-  adopt(program({ model, commands }), { buildId: options.buildId })
+  const resuming: StaticContext = {
+    mode: 'resume',
+    snapshots: snapshotsOf(root),
+    reported: new Set(),
+  }
+  adopt(
+    makeApplication({
+      ...withStatic(startingFrom(config, { model, commands }), resuming),
+      container: root,
+    } as never),
+    { buildId: options.buildId },
+  )
 }
 
-export const SSR = { plan, envelope, resume, render, page, hydrate, inspect, serializeJsonScript }
+export const SSR = {
+  plan,
+  envelope,
+  resume,
+  render,
+  page,
+  hydrate,
+  inspect,
+  static: staticRegion,
+  serializeJsonScript,
+}

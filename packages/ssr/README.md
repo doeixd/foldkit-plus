@@ -5,9 +5,10 @@ browser the part of the Model it owns, and hydrate without running `init` a
 second time.
 
 **Status: in development, not published.** Built in phases from
-[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 3 are done: a page
-renders on the server, the browser takes it over from the handed-over Model,
-and a plan is checked against the Surfaces the browser reads.
+[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 4 are done: a page
+renders on the server, the browser takes it over from the handed-over Model, a
+plan is checked against the Surfaces the browser reads, and parts of the page
+can belong to the server alone.
 
 ## What it owns
 
@@ -31,6 +32,7 @@ the part of the Model the browser owns, so `init` runs once.
 | `init`                           | Runs on the server, then again in the browser                                             | Runs on the server only                                                                         |
 | `init`'s Commands                | Ignored on the server, run in the browser                                                 | Run nowhere unless the plan names them in `boot`; rendering refuses a plan that would drop them |
 | Server-only data                 | Crosses if `init` needs it, since it must be in the Flags                                 | Stays on the server unless the plan's slice includes it                                         |
+| Server-only parts of the page    | Rendered again in the browser, from the Model rebuilt there                               | `SSR.static` regions: adopted as they are, never rendered in the browser                        |
 | A view the browser can't match   | The browser rebuilds that part of the page; only development warns                        | `SSR.render` fails with `ViewDependsOnUnsentState` before the page is served                    |
 | The route                        | The browser's `init` reads the browser's URL                                              | The browser must be at the path and query the page was rendered for, or the page is refused     |
 | A page from another build        | Refused and frozen                                                                        | The same: Foldkit's own check runs first                                                        |
@@ -133,6 +135,44 @@ findings as data: what is sent, what is local, and for each Surface whether it
 is active, where each read comes from (`state`, `local` or `missing`), and
 whether the browser would activate it the same way.
 
+## Static regions: parts of the page the server owns
+
+An article body, a product description, highlighted code: a part of the page
+no Message changes need not be rendered in the browser at all, and what it
+reads need not be sent. Mark it with `SSR.static`:
+
+```ts
+const view = (model: Model, h: HtmlBuilder<Message>) => ({
+  title: 'Post', // not the post's title: the browser does not have it
+  body: h.main(
+    [],
+    [
+      SSR.static('post-copy', ih => [
+        ih.h1([], [model.post.title]),
+        ih.p([], [model.post.body]),
+      ]),
+      PostActionsView(model, h), // the part the browser owns
+    ],
+  ),
+})
+```
+
+The render receives Foldkit's inert builder, so it cannot attach a Message
+handler. On the server it runs once, although the server renders the view twice
+to check it. In the browser, `SSR.hydrate` reads each region's markup before
+hydrating, and the region becomes that markup as trusted `InnerHTML`, which
+Foldkit adopts node for node. The render never runs there, so the plan above
+sends neither `post.title` nor `post.body`, and the view check passes.
+
+A region changes only with a new document. Content a Message should change
+belongs in a Surface.
+
+- Two regions with one id are refused on the server
+  (`DuplicateStaticRegion`): the browser could adopt only one.
+- A region the browser asks for that is not in the page, say after a Message
+  shows one, is logged and rendered in the browser from the browser's Model.
+- With no server render, a region renders like any other part of the view.
+
 ## When a page is refused
 
 On the server, `SSR.render` fails with `ResumeUnsafe`:
@@ -140,6 +180,7 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
 - `UndeclaredStartup`: `init` returned Commands and the plan has no `boot`.
 - `Uncovered`: a Surface in `surfaces` reads or is activated by something the
   plan neither sends nor names `local`, as above.
+- `DuplicateStaticRegion`: two `SSR.static` regions share an id.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
   from the one served, so it reads a field the plan leaves out. Add the field to
   `state`, or stop the view reading it. In production Foldkit would silently
@@ -192,3 +233,8 @@ Model can close the script or open another. It also escapes U+2028 and U+2029.
   the browser would activate differently, including one whose Remote id comes
   from an unsent field. A sent parent field covers its children; a local place
   with no path covers nothing; an inactive Surface is not checked.
+- **Phase 4, static regions:** a region's render runs once on the server and
+  never in the browser, its nodes are the same after hydration and after a
+  Message, and what it reads is not in the envelope. A duplicate id is refused,
+  a region missing from the page is reported and rendered, a client-only render
+  works, and a render leaves no context behind.
