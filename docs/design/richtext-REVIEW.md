@@ -94,7 +94,117 @@ Relocate Node selections when their identities retire, and verify successful
 transaction results remain valid inputs. Add a regression covering Node
 selection, not just Range endpoint relocation.
 
+## Follow-up: performance, TypeScript, and design contracts
+
+This pass also includes the custom-node work present as uncommitted changes at
+review time. These findings describe that snapshot, not a released API.
+
+### R8 — P1: the public mark type guard accepts prototype properties and crashes commands
+
+`packages/richtext/src/marks.ts:21`, `isKnownMark`.
+
+`mark in definitions` accepts `toString`, `constructor`, and `__proto__` as known
+marks. The type predicate then falsely narrows these strings to `Mark`.
+Reproduced: `isKnownMark('toString')` returns true; ToggleMark over a nonempty
+range with that value throws from the AddMark schema constructor instead of
+returning the advertised diagnostic. This is both a TypeScript soundness bug
+and a validation-boundary bug, matching the prototype-key trap in AGENTS.md.
+Use an own-property lookup or Map, and test prototype names through `run`.
+
+### R9 — P2: bulk formatting/deletion has quadratic copying and lookup work
+
+`packages/richtext/src/transaction.ts`, per-operation array copies;
+`packages/richtext/src/transform.ts`, dirty-node `findIndex` loop.
+
+For N runs in one paragraph, ToggleMark creates approximately N mark operations.
+Each operation copies the entire N-element children array: O(N²) element copies
+before normalization. Range deletion has the same per-run copying pattern.
+For B blocks touched across a document, normalization performs a linear block
+lookup for every dirty block and run identity, including runs that cannot match
+a block ID: O(B²) lookups even with one run per block. Structural operations
+also rebuild the entire document index after every operation.
+
+These costs follow directly from the loops; no latency or benchmark numbers are
+claimed. They undermine §77's large paste/many-span targets and the stated
+transaction batching advantage. Accumulate changes per block, copy each affected
+container once, and carry a block index into normalization. Retain a benchmark
+for large selections/pastes before claiming the performance target is met.
+
+### R10 — P2: typing rebuilds untouched sibling run DOM
+
+`examples/richtext/src/dom.ts`, dirty block branch in `patch`.
+
+InsertText marks the run and its parent block dirty. The adapter replaces that
+whole block, rebuilding every sibling run even when its ID/content is unchanged;
+it then renders the edited run again when processing the run's dirty ID. Thus
+the comment promising every untouched element retains identity is false within
+the edited paragraph. A long paragraph with many formatting runs rebuilds all
+of them on every keystroke. Distinguish container invalidation from full subtree
+replacement and add a sibling-run identity check, not only an untouched-block
+check. This also matters when browser composition owns another run in the block.
+
+### R11 — P2: Kit validation ignores declared child constraints
+
+`packages/richtext/src/kit.ts`, built-in block branch of `validate`.
+
+Reproduced: a Paragraph containing text validates with zero diagnostics against
+`kit({ nodes: [atom('Paragraph')], marks: [] })`, even though the declaration
+requires `children: 'none'`. The validator checks the name but not the declared
+kind/children. This advertises a constraint that is not enforced (§13/§75).
+Reject incompatible definitions or enforce their child contracts during
+validation; include negative cases for same-name, different-kind definitions.
+
+### R12 — P2: transform reports cannot describe the structural changes they allow
+
+`packages/richtext/src/transform.ts`, `TransformReport`;
+`packages/richtext/src/transaction.ts`, normalization result accumulation.
+
+A Transform may return any new Document, but its report has no insertedNodes or
+structureChanged field, and its steps omit SplitStep/CollapseStep. Reproduced
+with a well-typed, idempotent transform appending one valid paragraph: apply
+returns two blocks but `insertedNodes` is empty and `structureChanged` is false.
+Consumers trusting ChangeSet receive a false structural summary. The contract
+needs either an explicit restriction to supported normalization edits or the
+same structural/mapping vocabulary as transactions, accumulated by `apply`.
+This is a public type/API design gap, not just missing test coverage.
+
+### R13 — P2: node definitions erase caller prop schema types to any
+
+`packages/richtext/src/kit.ts:5`, `PropsSchema`, `node`, and `NodeDefinition`.
+
+The authoring function returns the erased NodeDefinition union containing
+`Schema.Codec<any, any, never>`. After narrowing `kind === 'node'`, decoding a
+declared `{ tone: string }` schema produces `any`: assigning its object result
+to a `number` compiles. The decoded and encoded types, literal node name, and
+concrete definition variant are lost at the authoring boundary. Preserve these
+on the returned descriptor and erase only inside heterogeneous registries;
+add negative type cases for invalid prop reads and decoded/encoded confusion.
+
+### R14 — P2: prop validation silently accepts undeclared fields
+
+`packages/richtext/src/kit.ts`, `propsFailure`.
+
+The validator calls `decodeUnknownSync(props)` with default excess-property
+handling, discards the decoded result, and keeps the original JSON props.
+Reproduced: a schema declaring only `tone` reports no diagnostics for
+`{ tone: 'info', extra: 'retained' }`; the extra field survives in the document.
+This differs from the package's strict persisted-content boundary and repeats
+AGENTS.md's intermediate-validator trap. Use strict excess-property options or
+explicitly document an open-props contract. Schema failures are also copied
+verbatim into public diagnostics; define a deliberate redaction policy before
+these diagnostics cross a server/API boundary.
+
 ## Validation results
+
+Follow-up runtime probes reproduced R8, R11, R12, and R14. R13's invalid
+object-to-number assignment passed strict TypeScript compilation; adding a
+deliberate string-to-number error then produced TS2322, proving the probe file
+was checked. The probe was removed. R9/R10 are source-traced complexity and DOM
+identity findings; no measured performance claim is made.
+The follow-up focused suite passed **320 tests in 29 files**, and the RichText
+package/example typecheck passed. Earlier repository-wide results below are
+retained with their original scope; they are not a claim that the entire
+concurrently changing workspace is green.
 
 Temporary executable probes against source reproduced R1–R4, R6, and R7:
 
@@ -130,8 +240,12 @@ Repository-wide pre-commit checks on the concurrently changing tree:
   and its test before merging.
 - `pnpm demo`: passed, including the workspace build.
 
-This review focuses on correctness, ownership, edge cases, and whether existing
-tests distinguish the failing behavior. It is not a complete audit of deferred
+Coverage includes runtime correctness, ownership, edge cases, algorithmic costs,
+DOM reconciliation, TypeScript boundary soundness, validation, and whether tests
+distinguish the failing behavior. Existing operation builders preserve variant
+types and the type suite includes useful negative cases; the findings identify
+gaps beyond those checks. No standalone slop/style issue was elevated over the
+functional problems. This is not a complete audit of deferred
 collaboration, Form/CMS integrations, custom node APIs, or real-browser behavior.
 No implementation fixes or persistent tests were added, so no implementation
 Jev review or mutation-testing claim is made.
