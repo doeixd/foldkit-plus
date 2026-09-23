@@ -87,6 +87,60 @@ describe('rendering the owned subtree', () => {
     expect(positionToRange(dom, at('t', 3))?.startOffset).toBe(3)
   })
 
+  it('keeps sibling runs in an edited block, and re-renders only the edited run', () => {
+    const before = mount(document, content())
+    const untouchedSibling = before.elements.get(id('b'))
+    const result = success(
+      RichText.apply(state(null), [
+        RichText.Edit.insertText(RichText.Node.make('a').at(2, 'after'), '!'),
+      ]),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    // The review's case: the block is dirty, but its run list is unchanged, so
+    // a long paragraph does not rebuild every formatting run on each keystroke.
+    expect(after.elements.get(id('b'))).toBe(untouchedSibling)
+    expect(after.elements.get(id('a'))).not.toBe(before.elements.get(id('a')))
+    expect(after.elements.get(id('a'))?.textContent).toBe('ab!')
+    expect(after.elements.get(id('p'))).toBe(before.elements.get(id('p')))
+  })
+
+  it('applies a block move to the DOM, not only to the model', () => {
+    const before = mount(document, content())
+    const result = success(
+      RichText.apply(state(null), [RichText.Edit.moveBlock(RichText.Node.make('h'), 0)]),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    expect(after.content.children.map(block => block.id)).toEqual(['h', 'p'])
+    expect(Array.from(after.root.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'h',
+      'p',
+    ])
+    // A move is a move: the block's own element survives.
+    expect(after.elements.get(id('h'))).toBe(before.elements.get(id('h')))
+    expect(toText(after)).toBe('Title\nabcd')
+  })
+
+  it('reorders surviving blocks when the whole document is replaced', () => {
+    const before = mount(document, content())
+    const reversed = RichText.decodeDocument({
+      version: 1,
+      children: [...content().children].reverse(),
+    })
+    const after = patch(before, reversed, {
+      dirtyNodes: new Set([id('p'), id('h'), id('a'), id('b'), id('c')]),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
+      textChanged: new Set(),
+      structureChanged: true,
+      selectionChanged: false,
+    })
+    expect(Array.from(after.root.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'h',
+      'p',
+    ])
+    expect(toText(after)).toBe('Title\nabcd')
+  })
+
   it('shows preserved unknown blocks as read-only placeholders', () => {
     const dom = mount(
       document,

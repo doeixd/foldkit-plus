@@ -92,26 +92,16 @@ const findRun = (
  * untouched element keeps its object identity, so the browser is not handed a
  * rebuilt tree on each keystroke.
  */
+const runIdsOf = (element: HTMLElement): ReadonlyArray<string | null> =>
+  Array.from(element.children).map(child => child.getAttribute('data-run'))
+
 export const patch = (
   dom: EditorDom,
   content: RichText.Document,
   changeSet: RichText.ChangeSet,
 ): EditorDom => {
   const elements = new Map(dom.elements)
-  const place = (
-    fresh: HTMLElement,
-    previous: HTMLElement | undefined,
-    parent: HTMLElement,
-    nextId: RichText.NodeId | undefined,
-  ): void => {
-    if (previous !== undefined) {
-      previous.replaceWith(fresh)
-      return
-    }
-    const next = nextId === undefined ? undefined : elements.get(nextId)
-    if (next !== undefined) next.before(fresh)
-    else parent.append(fresh)
-  }
+  const root = dom.root
   for (const id of changeSet.removedNodes) {
     const element = elements.get(id)
     if (element === undefined) continue
@@ -120,28 +110,61 @@ export const patch = (
     element.remove()
     elements.delete(id)
   }
-  for (const id of changeSet.dirtyNodes) {
-    const blockIndex = content.children.findIndex(block => block.id === id)
-    if (blockIndex >= 0) {
-      const block = content.children[blockIndex]!
-      const previous = elements.get(id)
-      const fresh = renderBlock(dom.root.ownerDocument, block)
-      place(fresh, previous, dom.root, content.children[blockIndex + 1]?.id)
-      elements.set(id, fresh)
-      for (const [index, run] of block.children.entries()) {
-        elements.set(run.id, fresh.children[index] as HTMLElement)
+  const rebuilt = new Set<RichText.NodeId>()
+  // A block is rebuilt only when its run list actually changed, or it is new.
+  // Otherwise its element stays, which keeps every sibling run's identity — and
+  // a block that merely moved is moved, not re-rendered.
+  let previousElement: HTMLElement | undefined
+  for (const [index, block] of content.children.entries()) {
+    const existing = elements.get(block.id)
+    const nextId = content.children[index + 1]?.id
+    const wanted = block.children.map(run => run.id)
+    const present = existing === undefined ? [] : runIdsOf(existing)
+    const sameStructure =
+      existing !== undefined &&
+      present.length === wanted.length &&
+      present.every((id, position) => id === wanted[position])
+    // Placement is relative to the previous block's element, which this loop
+    // has already put in place, so an insert or a move lands in document order
+    // whatever the surrounding elements are doing.
+    const place = (element: HTMLElement): void => {
+      if (previousElement !== undefined) previousElement.after(element)
+      else {
+        const next = nextId === undefined ? undefined : elements.get(nextId)
+        if (next !== undefined) next.before(element)
+        else root.append(element)
       }
+    }
+    if (existing !== undefined && sameStructure) {
+      if (root.children[index] !== existing) place(existing)
+      previousElement = existing
       continue
     }
+    const fresh = renderBlock(root.ownerDocument, block)
+    existing?.remove()
+    place(fresh)
+    elements.set(block.id, fresh)
+    for (const [runIndex, run] of block.children.entries()) {
+      elements.set(run.id, fresh.children[runIndex] as HTMLElement)
+    }
+    rebuilt.add(block.id)
+    previousElement = fresh
+  }
+  for (const id of changeSet.dirtyNodes) {
     const located = findRun(content, id)
-    if (located === undefined) continue
+    if (located === undefined || rebuilt.has(located.block.id)) continue
     const parent = elements.get(located.block.id)
     if (parent === undefined) continue
-    const fresh = renderRun(dom.root.ownerDocument, located.run)
-    place(fresh, elements.get(id), parent, located.block.children[located.index + 1]?.id)
+    const fresh = renderRun(root.ownerDocument, located.run)
+    elements.get(id)?.remove()
     elements.set(id, fresh)
+    // A run belongs where the document says it does inside its block.
+    const next = located.block.children[located.index + 1]
+    const nextElement = next === undefined ? undefined : elements.get(next.id)
+    if (nextElement !== undefined) nextElement.before(fresh)
+    else parent.append(fresh)
   }
-  return { root: dom.root, elements, content }
+  return { root, elements, content }
 }
 
 const textNodeOf = (element: HTMLElement): Text | undefined =>
@@ -215,16 +238,28 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
   const present = new Set<RichText.NodeId>()
   const dirtyNodes = new Set<RichText.NodeId>()
   const removedNodes = new Set<RichText.NodeId>()
+  // A block the browser touched — stray text, a changed run list — is dropped
+  // from the map as well as the DOM, so `patch` renders it fresh rather than
+  // placing a stale element back where it was.
+  const elements = new Map(dom.elements)
   for (const block of content.children) {
     present.add(block.id)
     for (const run of block.children) present.add(run.id)
-    const element = dom.elements.get(block.id)
-    if (element === undefined || element.textContent !== renderedText(block)) {
-      dirtyNodes.add(block.id)
-      for (const run of block.children) dirtyNodes.add(run.id)
-    }
+    const element = elements.get(block.id)
+    const runs = block.type === 'Unknown' ? [] : block.children.map(run => run.id)
+    const shapeMatches =
+      element !== undefined &&
+      element.textContent === renderedText(block) &&
+      runIdsOf(element).length === runs.length &&
+      runIdsOf(element).every((id, position) => id === runs[position])
+    if (shapeMatches) continue
+    element?.remove()
+    elements.delete(block.id)
+    for (const run of runs) elements.delete(run)
+    dirtyNodes.add(block.id)
+    for (const run of runs) dirtyNodes.add(run)
   }
-  for (const id of dom.elements.keys()) if (!present.has(id)) removedNodes.add(id)
+  for (const id of elements.keys()) if (!present.has(id)) removedNodes.add(id)
   // A browser or extension can insert elements the map never knew about; sweep
   // the subtree for identities the document does not have.
   for (const element of Array.from(dom.root.querySelectorAll('[data-block], [data-run]'))) {
@@ -232,7 +267,7 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
     if (identity.length > 0 && !present.has(identity as RichText.NodeId)) element.remove()
   }
   if (dirtyNodes.size === 0 && removedNodes.size === 0) return dom
-  return patch(dom, content, {
+  return patch({ root: dom.root, elements, content: dom.content }, content, {
     dirtyNodes,
     insertedNodes: new Set(),
     removedNodes,

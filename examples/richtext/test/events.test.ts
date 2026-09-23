@@ -235,6 +235,35 @@ describe('the wired editing loop', () => {
     attachment.detach()
   })
 
+  it('commits against the selection composition started from, not the browser’s caret', () => {
+    const { attachment, intents, run } = setup()
+    attachment.current().root.dispatchEvent(composition('compositionstart'))
+    // What a real IME does: it puts its own text in the DOM and moves the caret
+    // into it, so the live offset addresses text the document never had.
+    const runElement = attachment.current().elements.get(id('a'))!
+    runElement.append(document.createTextNode('にほ'))
+    const window = document.defaultView!
+    const range = document.createRange()
+    range.setStart(runElement.lastChild!, 2)
+    range.collapse(true)
+    window.getSelection()!.removeAllRanges()
+    window.getSelection()!.addRange(range)
+
+    attachment.current().root.dispatchEvent(composition('compositionend', 'にほ'))
+    expect(intents).toEqual([{ type: 'InsertText', text: 'にほ' }])
+    // The semantic selection is the pre-composition caret, so a consumer that
+    // reads the live selection can still commit.
+    const committed = readSelection(attachment.current())
+    expect(committed).toEqual({
+      type: 'Range',
+      anchor: { node: id('a'), offset: 2, affinity: 'after' },
+      focus: { node: id('a'), offset: 2, affinity: 'after' },
+    })
+    run(intents[0]!)
+    expect(toText(attachment.current())).toBe('abにほcd\nef')
+    attachment.detach()
+  })
+
   it('repairs the subtree when a composition is cancelled', () => {
     const { attachment, intents } = setup()
     const root = attachment.current().root

@@ -153,14 +153,17 @@ export const Editor = Bundle.make({
       // A refused command changes nothing, so it does not burn identities.
       return { model, outMessage: { _tag: 'Rejected', error: result.error } }
     }
+    // History holds content, not cursor movement: a selection change keeps the
+    // redo stack, and a no-op edit adds no step to undo.
+    const contentChanged = result.state.document !== model.document
     return {
       model: {
         ...model,
         selection: result.state.selection,
         nextId,
-        history: RichText.commit(model.history, state, {
-          group: RichText.groupFor(command),
-        }),
+        history: contentChanged
+          ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
+          : model.history,
       },
       outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
     }

@@ -147,6 +147,26 @@ describe('undo through the parent transition', () => {
     expect(RichText.canUndo(before.editor.history)).toBe(false)
   })
 
+  it('keeps redo through a selection change, and adds no undo step for one', () => {
+    let model = start(caret('a', 2))
+    model = step(model, typed('X'))
+    expect(RichText.inspectHistory(model.editor.history)).toEqual({
+      past: 1,
+      future: 0,
+      group: 'typing',
+    })
+    model = step(model, undone())
+    expect(RichText.canRedo(model.editor.history)).toBe(true)
+
+    // Moving the caret is not an edit: redo survives and no step is added.
+    model = step(model, selected(caret('a', 1)))
+    expect(RichText.canRedo(model.editor.history)).toBe(true)
+    expect(RichText.inspectHistory(model.editor.history).past).toBe(0)
+
+    model = step(model, redone())
+    expect(model.document.children[0]?.children[0]?.text).toBe('abX')
+  })
+
   it('reports the whole document as replaced so the DOM cannot keep stale nodes', () => {
     const before = start(caret('a', 2))
     const typedOnce = step(before, pressed('Entered'))

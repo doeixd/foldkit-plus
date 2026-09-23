@@ -180,6 +180,12 @@ export interface Attachment {
 export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let current = dom
   let composing = false
+  /**
+   * The semantic selection as it was before the browser took over. The live
+   * caret during composition points into text the document does not have, so
+   * committing against it would resolve against the wrong document — or fail.
+   */
+  let composingSelection: RichText.Selection | null = null
   let placeholderIds = 0
   const onEvent = (event: Event): void => {
     const intent = intentFor(event, composing)
@@ -190,17 +196,18 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   }
   const onCompositionStart = (): void => {
     composing = true
+    composingSelection = readSelection(current)
   }
   const onCompositionEnd = (event: Event): void => {
     composing = false
     const data = (event as Event & { readonly data?: string | null }).data
     // The browser's temporary text is not in the document, whether the IME
-    // committed or cancelled, so repair the subtree before anything else. The
-    // repair re-renders blocks and detaches the live selection, so capture the
-    // semantic selection first and put it back after.
-    const semantic = readSelection(current)
+    // committed or cancelled, so repair the subtree before anything else, then
+    // put back the selection composition started from — not the caret the
+    // browser moved into its own temporary text.
     current = repair(current, current.content)
-    restoreSelection(current, semantic)
+    restoreSelection(current, composingSelection)
+    composingSelection = null
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
   }
   const writeClipboard = (clipboard: ClipboardLike, slice: RichText.Slice): void => {
