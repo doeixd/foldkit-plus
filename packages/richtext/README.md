@@ -118,6 +118,12 @@ document and owns no state.
   emitting position steps. No runs merge (that is future normalization's job);
   the survivor keeps its block type. Node selections on the removed block
   remap to the survivor. Only adjacent pairs join.
+- `MoveNode` reorders one block to an explicit post-removal index; moving to
+  the same index is a no-op. Run identities and selections are untouched, so no
+  position steps are emitted.
+- `SetNodeProps` retypes a heading's level today (the first block prop; Kit
+  definitions generalize this later). Same-level sets are no-ops; paragraphs
+  reject the operation.
 - Positions count **UTF-16 code units**. Low-level edits may split a surrogate
   pair; grapheme-aware user commands are not implemented.
 - `SetSelection` resolves against the document at that point in the transaction.
@@ -153,10 +159,9 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Unknown-extension preservation, migrations, custom
-Kits, remaining structural operations (insert/delete/move/set-props), mark
-boundary expansion, transforms, history, rendering, and collaboration are still
-pending. Retain rejected source content for recovery; do not replace it
-with an empty document.
+Kits, remaining structural operations (insert/delete), mark boundary expansion,
+transforms, history, rendering, and collaboration are still pending. Retain
+rejected source content for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document

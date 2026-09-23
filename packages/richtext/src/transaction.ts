@@ -50,6 +50,16 @@ const JoinNodeOperation = Schema.Struct({
   into: NodeId,
   removed: NodeId,
 })
+const MoveNodeOperation = Schema.Struct({
+  type: Schema.Literal('MoveNode'),
+  node: NodeId,
+  to: Offset,
+})
+const SetNodePropsOperation = Schema.Struct({
+  type: Schema.Literal('SetNodeProps'),
+  node: NodeId,
+  level: Schema.Literals([1, 2, 3, 4, 5, 6]),
+})
 
 export const Operation = Schema.Union([
   InsertTextOperation,
@@ -59,6 +69,8 @@ export const Operation = Schema.Union([
   SetSelectionOperation,
   SplitNodeOperation,
   JoinNodeOperation,
+  MoveNodeOperation,
+  SetNodePropsOperation,
 ])
 export type Operation = typeof Operation.Type
 export const Transaction = Schema.Array(Operation)
@@ -131,6 +143,15 @@ export const Edit = {
       into: targetId(survivor),
       removed: targetId(removed),
     }),
+
+  moveBlock: (node: TextTarget, to: number): Extract<Operation, { readonly type: 'MoveNode' }> =>
+    MoveNodeOperation.make({ type: 'MoveNode', node: targetId(node), to }),
+
+  setNodeProps: (
+    node: TextTarget,
+    level: 1 | 2 | 3 | 4 | 5 | 6,
+  ): Extract<Operation, { readonly type: 'SetNodeProps' }> =>
+    SetNodePropsOperation.make({ type: 'SetNodeProps', node: targetId(node), level }),
 }
 
 export interface ChangeSet {
@@ -345,6 +366,33 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
       dirtyNodes.add(operation.removed)
       for (const moved of removed.children) dirtyNodes.add(moved.id)
       removedNodes.add(operation.removed)
+      structureChanged = true
+      continue
+    }
+    if (operation.type === 'MoveNode') {
+      const fromIndex = blockIndexes.get(operation.node)
+      if (fromIndex === undefined) return { ok: false, error: 'MissingNode' }
+      if (operation.to > document.children.length - 1) return { ok: false, error: 'InvalidRange' }
+      if (operation.to === fromIndex) continue
+      const blocks = [...document.children]
+      const [moved] = blocks.splice(fromIndex, 1)
+      blocks.splice(operation.to, 0, moved!)
+      document = { ...document, children: blocks }
+      reindex()
+      dirtyNodes.add(operation.node)
+      structureChanged = true
+      continue
+    }
+    if (operation.type === 'SetNodeProps') {
+      const blockIndex = blockIndexes.get(operation.node)
+      if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const target = document.children[blockIndex]!
+      if (target.type !== 'Heading') return { ok: false, error: 'InvalidRange' }
+      if (target.level === operation.level) continue
+      const blocks = [...document.children]
+      blocks[blockIndex] = { ...target, level: operation.level }
+      document = { ...document, children: blocks }
+      dirtyNodes.add(target.id)
       structureChanged = true
       continue
     }

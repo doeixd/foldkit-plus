@@ -94,3 +94,12 @@ RichText.apply({ document, selection: null }, [joined])
 // @ts-expect-error Join targets are ids or references.
 RichText.Edit.joinBlocks('a', 'b')
 void joinedInto
+
+const moved = RichText.Edit.moveBlock(reference, 0)
+const movedNode: RichText.NodeId = moved.node
+const leveled = RichText.Edit.setNodeProps(reference, 1)
+const leveledNode: RichText.NodeId = leveled.node
+RichText.apply({ document, selection: null }, [moved, leveled])
+// @ts-expect-error Heading levels are 1 through 6.
+RichText.Edit.setNodeProps(reference, 7)
+void [movedNode, leveledNode]
