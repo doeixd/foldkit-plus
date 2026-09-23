@@ -1,8 +1,11 @@
 # A catalog of ready-made Behaviors
 
-**Progress (2026-09-23):** Phases A and B are built and committed: the per-item
-context, `Behaviors.Collection` in `foldkit-mixins`, and `RovingTabindex`,
-`Typeahead`, `ListNavigation`, `FocusScope` in `foldkit-primitives/interaction`.
+**Progress (2026-09-23):** Phases A to D are built and committed: the per-item
+context and `Behaviors.Collection` in `foldkit-mixins`; `RovingTabindex`,
+`Typeahead`, `ListNavigation`, `FocusScope`, `Press`, `LongPress`, `Move`,
+`FocusVisible`, `DismissLayer`, `ScrollLock`, `HideOutside` in
+`foldkit-primitives/interaction`; and the resolver's style-property ownership
+rule. `Hover` and `AnchorPosition` moved to `foldkit-mixins-ui` with Phase H.
 
 **Revised 2026-09-23:** no new package. Entries live where their dependencies
 already are: stateless ones in `foldkit-mixins`, stateful ones in
@@ -225,13 +228,15 @@ before it is code.
   `tabindex` is data; focus restored on unmount; ids come from Collection, so
   no `item-N`; and the one-owner-per-event rule that makes ListNavigation one
   Bundle is pinned.
-- **C. Interaction.** `Press`, `LongPress`, `Move`, `FocusVisible`, `Hover`
-  over `hoverIntent`. Test: `TestClock` advances the suppression window; a
-  virtual click presses; `pointercancel` cancels.
-- **D. Layers.** Style-property ownership in the resolver first, then
-  `DismissLayer`, `HideOutside`, `ScrollLock`, `AnchorPosition` over
-  `@foldkit/ui/anchor`. Test: a press inside a parent layer leaves it open
-  and closes its child; the trigger is excluded; nested modals refcount.
+- **C. Interaction.** Done, except `Hover`, moved to Phase H as a
+  `foldkit-mixins-ui` adapter. `Press`, `LongPress`, `Move`, `FocusVisible`.
+  Tests: `TestClock` advances the suppression window; a virtual click presses;
+  `pointercancel` cancels; a press cannot be dropped by omission (type test).
+- **D. Layers.** Done, except `AnchorPosition`, moved to Phase H as a
+  `foldkit-mixins-ui` adapter. Style-property ownership in the resolver,
+  then `DismissLayer`, `HideOutside`, `ScrollLock`. Tests: a press inside a
+  parent layer leaves it open and closes its child; the trigger is excluded;
+  nested scroll locks release together; the inert set restores.
 - **E. Collections and forms.** `Selection`, `Disclosure`, `ToggleState`,
   `FieldAssociation`, `SpinValue`, `LiveAnnounce`, `Form.native`. Test:
   Shift range respects the anchor; the hidden input posts with scripts off.
