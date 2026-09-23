@@ -120,8 +120,32 @@ export const Message = {
     root.unmount()
   })
 
+  it('guards OnKeyDownSelf so a descendant keystroke does not dispatch', () => {
+    const code = compile(`
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { Message } from './message'
+export const view = (h: HtmlBuilder<Message>): Html =>
+  h.div([h.OnKeyDownSelf((key, modifiers) => Message.Pressed({ key, shift: modifiers.shiftKey }))], [])
+`)
+    expect(code).toContain('onKeyDown={event => event.target === event.currentTarget && dispatch(')
+  })
+
   it.each([
     ['a Mount', `h.div([h.OnMount(mount)], [])`, DiagnosticCode.UnsupportedAttribute, 'h.OnMount'],
+    // Foldkit 0.159 attributes whose callbacks return an Option or read the
+    // edit's inputType have no one-line React equivalent yet.
+    [
+      'a before-input handler',
+      `h.div([h.OnBeforeInput((type, data) => M.A(type))], [])`,
+      DiagnosticCode.UnsupportedAttribute,
+      'h.OnBeforeInput',
+    ],
+    [
+      'a self-only prevent-default key handler',
+      `h.div([h.OnKeyDownSelfPreventDefault(() => Option.none())], [])`,
+      DiagnosticCode.UnsupportedAttribute,
+      'h.OnKeyDownSelfPreventDefault',
+    ],
     [
       'a native change event',
       `h.input([h.OnChange(v => M.A(v))])`,

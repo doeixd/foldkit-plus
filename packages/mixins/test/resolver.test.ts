@@ -68,6 +68,23 @@ describe('Resolver.resolve', () => {
     ).toBe('mixins:event-conflict')
   })
 
+  it('keys the self-only and before-input variants apart from their base events', () => {
+    // Foldkit 0.159 added `OnKeyDownSelf` and `OnBeforeInput`; each is its own
+    // event token, as `OnKeyDownPreventDefault` already was beside `OnKeyDown`.
+    const out = Resolver.resolve(
+      [h.OnKeyDown(() => ({ _tag: 'Clicked' })), h.OnInput(() => ({ _tag: 'Clicked' }))],
+      [
+        {
+          attributes: [
+            h.OnKeyDownSelf(() => ({ _tag: 'Other' })),
+            h.OnBeforeInput(() => ({ _tag: 'Other' })),
+          ],
+        },
+      ],
+    )
+    expect(tags(out)).toEqual(['OnKeyDown', 'OnInput', 'OnKeyDownSelf', 'OnBeforeInput'])
+  })
+
   it('treats distinct raw attribute keys as distinct owners', () => {
     const out = Resolver.resolve(
       [h.Attribute('data-a', '1')],

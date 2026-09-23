@@ -650,7 +650,10 @@ export const transformSourceFile = (
           }
           return prop(event, handler(dispatchCall(args[0]!)))
         }
-        if ((name === 'OnKeyDown' || name === 'OnKeyUp') && args.length === 1) {
+        if (
+          (name === 'OnKeyDown' || name === 'OnKeyUp' || name === 'OnKeyDownSelf') &&
+          args.length === 1
+        ) {
           const event = f.createIdentifier('event')
           const modifiers = f.createObjectLiteralExpression(
             ['shiftKey', 'ctrlKey', 'altKey', 'metaKey'].map(modifier =>
@@ -660,18 +663,27 @@ export const transformSourceFile = (
               ),
             ),
           )
-          return prop(
-            name === 'OnKeyDown' ? 'onKeyDown' : 'onKeyUp',
-            handler(
-              dispatchCall(
-                f.createCallExpression(f.createParenthesizedExpression(args[0]!), undefined, [
-                  f.createPropertyAccessExpression(event, 'key'),
-                  modifiers,
-                ]),
-              ),
-              'event',
-            ),
+          const dispatch = dispatchCall(
+            f.createCallExpression(f.createParenthesizedExpression(args[0]!), undefined, [
+              f.createPropertyAccessExpression(event, 'key'),
+              modifiers,
+            ]),
           )
+          // `OnKeyDownSelf` fires only for the element itself, never for a
+          // keystroke bubbling out of a descendant control.
+          const body =
+            name === 'OnKeyDownSelf'
+              ? f.createBinaryExpression(
+                  f.createBinaryExpression(
+                    f.createPropertyAccessExpression(event, 'target'),
+                    f.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
+                    f.createPropertyAccessExpression(event, 'currentTarget'),
+                  ),
+                  f.createToken(ts.SyntaxKind.AmpersandAmpersandToken),
+                  dispatch,
+                )
+              : dispatch
+          return prop(name === 'OnKeyUp' ? 'onKeyUp' : 'onKeyDown', handler(body, 'event'))
         }
         if (name === 'OnInput' && args.length === 1) {
           // React's onChange on a text control is the native input event, and keeps a controlled value warning-free.

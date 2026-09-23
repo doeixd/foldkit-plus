@@ -123,6 +123,7 @@ testing output that may belong to an earlier successful build.
 | `OnClick(message)`, `OnFocus`, `OnBlur`, mouse enter/leave/over/out/down/up/move, `OnDoubleClick` | `onClick={() => dispatch(message)}` |
 | `OnInput(f)` | `onChange={event => dispatch(f(event.currentTarget.value))}` |
 | `OnKeyDown(f)`, `OnKeyUp(f)` | `onKeyDown={event => dispatch(f(event.key, { shiftKey, ctrlKey, altKey, metaKey }))}` |
+| `OnKeyDownSelf(f)` | the same, guarded by `event.target === event.currentTarget` |
 | `OnSubmit(message)` | `onSubmit={event => { event.preventDefault(); dispatch(message) }}` |
 
 Custom elements work because React 19 writes a prop as a DOM property when the

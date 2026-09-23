@@ -216,6 +216,10 @@ override even when a later attachment would otherwise win.
   `Event.KeyDown`, and a Behavior adding `OnKeyDown` beside it would not be
   flagged. No adapter currently declares `Event.KeyDown`, so this is latent;
   unifying the two would need a suffix-aware normalization in the resolver.
+  Foldkit 0.159 widened the family: `OnKeyDownSelf`,
+  `OnKeyDownSelfPreventDefault`, `OnBeforeInput`, `OnBeforeInputPreventDefault`
+  and `OnCancelPreventDefault` each own their own token the same way. A
+  resolver test pins the first two apart from `OnKeyDown` and `OnInput`.
 - Mount composition is runtime-tested. A composed `f` merges every inner stream
   with `Stream.mergeAll` (unbounded); a failing inner stream fails the merge
   rather than being swallowed; and `foldkit/test`'s `Scene` observes two
