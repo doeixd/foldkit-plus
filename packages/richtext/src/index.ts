@@ -34,7 +34,7 @@ export {
 } from './marks.js'
 export { type Command, type CommandIds, run } from './command.js'
 export {
-  type History,
+  History,
   type CommitOptions,
   type Restore,
   emptyHistory,

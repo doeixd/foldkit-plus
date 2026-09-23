@@ -7,9 +7,12 @@ import * as RichText from 'foldkit-richtext'
 import {
   application,
   pressed,
+  redone,
+  replaceChangeSet,
   selected,
   toggled,
   typed,
+  undone,
   update,
   type Model,
   type ParentMessage,
@@ -61,7 +64,7 @@ describe('one transition commits document and interaction state', () => {
     expect(after.editor.selection).toEqual(caret('a', 3))
     // The parent holds exactly one document; the editor field is interaction only.
     expect(Object.keys(after).sort()).toEqual(['document', 'editor'])
-    expect(Object.keys(after.editor).sort()).toEqual(['nextId', 'selection'])
+    expect(Object.keys(after.editor).sort()).toEqual(['history', 'nextId', 'selection'])
   })
 
   it('carries no document copy between transitions', () => {
@@ -102,6 +105,66 @@ describe('one transition commits document and interaction state', () => {
   })
 })
 
+describe('undo through the parent transition', () => {
+  it('collapses a typing burst into one step that restores text and caret', () => {
+    let model = start(caret('a', 2))
+    model = step(model, typed('X'))
+    model = step(model, typed('Y'))
+    model = step(model, typed('Z'))
+    expect(model.document.children[0]?.children[0]?.text).toBe('abXYZ')
+    expect(RichText.inspectHistory(model.editor.history)).toEqual({
+      past: 1,
+      future: 0,
+      group: 'typing',
+    })
+
+    model = step(model, undone())
+    expect(model.document.children[0]?.children[0]?.text).toBe('ab')
+    expect(model.editor.selection).toEqual(caret('a', 2))
+    expect(RichText.canRedo(model.editor.history)).toBe(true)
+
+    model = step(model, redone())
+    expect(model.document.children[0]?.children[0]?.text).toBe('abXYZ')
+    expect(model.editor.selection).toEqual(caret('a', 5))
+  })
+
+  it('undoes a discrete command on its own, after the typing burst', () => {
+    let model = start(caret('a', 2))
+    model = step(model, typed('X'))
+    model = step(model, pressed('Entered'))
+    expect(model.document.children).toHaveLength(3)
+
+    model = step(model, undone())
+    expect(model.document.children.map(block => block.id)).toEqual(['p', 'q'])
+    expect(model.document.children[0]?.children[0]?.text).toBe('abX')
+    model = step(model, undone())
+    expect(model.document.children[0]?.children[0]?.text).toBe('ab')
+  })
+
+  it('refuses to undo or redo when there is nothing to do', () => {
+    const before = start(caret('a', 2))
+    expect(step(before, undone())).toEqual(before)
+    expect(RichText.canUndo(before.editor.history)).toBe(false)
+  })
+
+  it('reports the whole document as replaced so the DOM cannot keep stale nodes', () => {
+    const before = start(caret('a', 2))
+    const typedOnce = step(before, pressed('Entered'))
+    const back = step(typedOnce, undone())
+    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
+
+    // The undone block is gone, so the replace patch must name it as removed
+    // and name every surviving identity as dirty.
+    const changeSet = replaceChangeSet(typedOnce.document, back.document)
+    const removedBlock = typedOnce.document.children[1]!.id
+    const removedRun = typedOnce.document.children[1]!.children[0]!.id
+    expect(changeSet.removedNodes).toEqual(new Set([removedBlock, removedRun]))
+    expect([...changeSet.dirtyNodes].sort()).toEqual(['a', 'b', 'p', 'q'])
+    expect(changeSet.insertedNodes).toEqual(new Set())
+    expect(changeSet.structureChanged).toBe(true)
+  })
+})
+
 describe('rejection and external replacement', () => {
   it('leaves document, selection, and identities untouched when a command is refused', () => {
     const before = start(null)
@@ -125,7 +188,11 @@ describe('rejection and external replacement', () => {
           },
         ],
       }),
-      editor: { selection: caret('a', 1), nextId: before.editor.nextId },
+      editor: {
+        selection: caret('a', 1),
+        nextId: before.editor.nextId,
+        history: RichText.emptyHistory,
+      },
     }
     const after = step(replaced, typed('!'))
     expect(after.document.children[0]?.children[0]?.text).toBe('Z!')

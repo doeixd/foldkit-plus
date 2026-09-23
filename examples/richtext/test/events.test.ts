@@ -43,13 +43,17 @@ const beforeInput = (inputType: string, data?: string): Event => {
   })
   return event
 }
-const key = (value: string, modifiers: { meta?: boolean; ctrl?: boolean } = {}): KeyboardEvent =>
+const key = (
+  value: string,
+  modifiers: { meta?: boolean; ctrl?: boolean; shift?: boolean } = {},
+): KeyboardEvent =>
   new KeyboardEvent('keydown', {
     key: value,
     bubbles: true,
     cancelable: true,
     metaKey: modifiers.meta ?? false,
     ctrlKey: modifiers.ctrl ?? false,
+    shiftKey: modifiers.shift ?? false,
   })
 const composition = (type: 'compositionstart' | 'compositionend', data?: string): Event => {
   const event = new Event(type, { bubbles: true })
@@ -86,6 +90,17 @@ describe('translating events into intent', () => {
     ['e', { meta: true }, { type: 'ToggleMark', mark: 'Code' }],
   ] as const)('maps keydown %s to a command', (value, modifiers, command) => {
     expect(intentFor(key(value, modifiers ?? {}))).toEqual({ preventDefault: true, command })
+  })
+
+  it('maps the history chords to history intents, not commands', () => {
+    expect(intentFor(key('z', { meta: true }))).toEqual({ preventDefault: true, history: 'undo' })
+    expect(intentFor(key('z', { ctrl: true }))).toEqual({ preventDefault: true, history: 'undo' })
+    expect(intentFor(key('Z', { meta: true, shift: true }))).toEqual({
+      preventDefault: true,
+      history: 'redo',
+    })
+    expect(intentFor(key('y', { ctrl: true }))).toEqual({ preventDefault: true, history: 'redo' })
+    expect(intentFor(key('z'))).toBeUndefined()
   })
 
   it('leaves ordinary typing to beforeinput and unknown keys alone', () => {
@@ -181,6 +196,26 @@ describe('the wired editing loop', () => {
     expect(toText(attachment.current())).toBe('abにほcd\nef')
     expect(attachment.current().elements.has(id('a'))).toBe(true)
     attachment.detach()
+  })
+
+  it('routes undo and redo chords to the history channel', () => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    restoreSelection(dom, { type: 'Range', anchor: at('a', 2), focus: at('a', 2) })
+    const intents: RichText.Command[] = []
+    const history: Array<'undo' | 'redo'> = []
+    const attachment = attach(dom, {
+      onIntent: command => intents.push(command),
+      onHistory: direction => history.push(direction),
+    })
+    const event = key('z', { meta: true })
+    attachment.current().root.dispatchEvent(event)
+    attachment.current().root.dispatchEvent(key('Z', { meta: true, shift: true }))
+    expect(event.defaultPrevented).toBe(true)
+    expect(intents).toEqual([])
+    expect(history).toEqual(['undo', 'redo'])
+    attachment.detach()
+    dom.root.remove()
   })
 
   it('stops listening once detached', () => {

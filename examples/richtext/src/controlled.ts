@@ -17,6 +17,8 @@ export const EditorState = Schema.Struct({
   selection: Schema.NullOr(RichText.Selection),
   /** Caller-owned identity source: a live edit mints, replay never does. */
   nextId: Schema.Number,
+  /** Local undo history: snapshots of document plus selection. */
+  history: RichText.History,
 })
 export type EditorState = typeof EditorState.Type
 
@@ -31,6 +33,7 @@ export const EditorView = Schema.Struct({
   document: RichText.Document,
   selection: Schema.NullOr(RichText.Selection),
   nextId: Schema.Number,
+  history: RichText.History,
 })
 export type EditorView = typeof EditorView.Type
 
@@ -41,15 +44,49 @@ export const Message = defineMessageUnion({
   Entered: {},
   ToggledMark: { mark: Schema.String },
   Selected: { selection: Schema.NullOr(RichText.Selection) },
+  Undone: {},
+  Redone: {},
 })
 export type Message = typeof Message.Type
 
 /** The committed edit, or the diagnostic that refused it. */
 export type OutMessage =
-  | { readonly _tag: 'Edited'; readonly state: RichText.EditorState }
+  | {
+      readonly _tag: 'Edited'
+      readonly state: RichText.EditorState
+      readonly changeSet: RichText.ChangeSet
+    }
+  | {
+      /** Undo and redo replace the document wholesale; nothing was incremental. */
+      readonly _tag: 'Replaced'
+      readonly state: RichText.EditorState
+      readonly changeSet: RichText.ChangeSet
+    }
   | { readonly _tag: 'Rejected'; readonly error: string }
 
-const toCommand = (message: Message): RichText.Command => {
+const idsOf = (content: RichText.Document): ReadonlySet<RichText.NodeId> =>
+  new Set(content.children.flatMap(block => [block.id, ...block.children.map(run => run.id)]))
+
+/** Everything that differs between two whole documents, for a replace patch. */
+export const replaceChangeSet = (
+  previous: RichText.Document,
+  next: RichText.Document,
+): RichText.ChangeSet => {
+  const before = idsOf(previous)
+  const after = idsOf(next)
+  return {
+    dirtyNodes: after,
+    insertedNodes: new Set([...after].filter(id => !before.has(id))),
+    removedNodes: new Set([...before].filter(id => !after.has(id))),
+    textChanged: new Set(),
+    structureChanged: true,
+    selectionChanged: false,
+  }
+}
+
+type CommandMessage = Exclude<Message, { readonly _tag: 'Undone' | 'Redone' }>
+
+const toCommand = (message: CommandMessage): RichText.Command => {
   switch (message._tag) {
     case 'Typed':
       return { type: 'InsertText', text: message.text }
@@ -77,22 +114,55 @@ export const Editor = Bundle.make({
       document: RichText.Document.make({ version: 1, children: [] }),
       selection: null,
       nextId: 0,
+      history: RichText.emptyHistory,
     },
   }),
   update: (model, message): { readonly model: EditorView; readonly outMessage: OutMessage } => {
+    const state: RichText.EditorState = { document: model.document, selection: model.selection }
+    if (message._tag === 'Undone' || message._tag === 'Redone') {
+      const restored =
+        message._tag === 'Undone'
+          ? RichText.undo(model.history, state)
+          : RichText.redo(model.history, state)
+      if (restored === undefined) {
+        return {
+          model,
+          outMessage: {
+            _tag: 'Rejected',
+            error: message._tag === 'Undone' ? 'NothingToUndo' : 'NothingToRedo',
+          },
+        }
+      }
+      return {
+        model: {
+          ...model,
+          selection: restored.state.selection,
+          history: restored.history,
+        },
+        outMessage: {
+          _tag: 'Replaced',
+          state: restored.state,
+          changeSet: replaceChangeSet(model.document, restored.state.document),
+        },
+      }
+    }
     let nextId = model.nextId
-    const result = RichText.run(
-      { document: model.document, selection: model.selection },
-      toCommand(message),
-      { mint: () => `e${nextId++}` },
-    )
+    const command = toCommand(message)
+    const result = RichText.run(state, command, { mint: () => `e${nextId++}` })
     if (!result.ok) {
       // A refused command changes nothing, so it does not burn identities.
-      return { model, outMessage: { _tag: 'Rejected', error: result.error } satisfies OutMessage }
+      return { model, outMessage: { _tag: 'Rejected', error: result.error } }
     }
     return {
-      model: { ...model, selection: result.state.selection, nextId },
-      outMessage: { _tag: 'Edited', state: result.state } satisfies OutMessage,
+      model: {
+        ...model,
+        selection: result.state.selection,
+        nextId,
+        history: RichText.commit(model.history, state, {
+          group: RichText.groupFor(command),
+        }),
+      },
+      outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
     }
   },
 })
@@ -114,11 +184,12 @@ const editorLink: Link<
       document: parent.document,
       selection: parent.editor.selection,
       nextId: parent.editor.nextId,
+      history: parent.editor.history,
     }),
   // Only interaction state is written back: the document is not the child's.
   write: (parent, child) => ({
     ...parent,
-    editor: { selection: child.selection, nextId: child.nextId },
+    editor: { selection: child.selection, nextId: child.nextId, history: child.history },
   }),
   wrapper: GotEditor,
   path: ['editor'],
@@ -127,7 +198,7 @@ const editorLink: Link<
 export const editor = Editor.at(editorLink, {
   // Runs with the child already written back, in the same parent transition.
   onOut: (out: OutMessage) => (parent: Model) =>
-    out._tag === 'Edited'
+    out._tag === 'Edited' || out._tag === 'Replaced'
       ? {
           model: {
             ...parent,
@@ -150,3 +221,5 @@ export const toggled = (mark: string): ParentMessage =>
   GotEditor.make(Message.ToggledMark({ mark }))
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
   GotEditor.make(Message.Selected({ selection }))
+export const undone = (): ParentMessage => GotEditor.make(Message.Undone())
+export const redone = (): ParentMessage => GotEditor.make(Message.Redone())

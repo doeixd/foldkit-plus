@@ -12,10 +12,20 @@ import { patch as patchInto, positionToRange, rangeToPosition, type EditorDom } 
 export interface Intent {
   /** The semantic command to run, when the event maps to one. */
   readonly command?: RichText.Command
+  /** A history intent: undo or redo, which are editor intents, not commands. */
+  readonly history?: 'undo' | 'redo'
   readonly preventDefault: boolean
 }
 
 const MOD = (event: KeyboardEvent): boolean => event.metaKey || event.ctrlKey
+
+const historyChord = (event: KeyboardEvent): 'undo' | 'redo' | undefined => {
+  if (!MOD(event)) return undefined
+  const key = event.key.toLowerCase()
+  if (key === 'z') return event.shiftKey ? 'redo' : 'undo'
+  if (key === 'y') return 'redo'
+  return undefined
+}
 
 const markChord = (event: KeyboardEvent): string | undefined => {
   if (!MOD(event)) return undefined
@@ -66,6 +76,8 @@ export const intentFor = (event: Event, composing = false): Intent | undefined =
   if (event.type !== 'keydown') return undefined
   const key = event as KeyboardEvent
   if (composing) return { preventDefault: false }
+  const history = historyChord(key)
+  if (history !== undefined) return { preventDefault: true, history }
   const mark = markChord(key)
   if (mark !== undefined) return { preventDefault: true, command: { type: 'ToggleMark', mark } }
   switch (key.key) {
@@ -126,6 +138,8 @@ export const restoreSelection = (dom: EditorDom, selection: RichText.Selection |
 export interface AttachOptions {
   /** Called with each semantic command the browser produced. */
   readonly onIntent: (command: RichText.Command) => void
+  /** Called for undo and redo, which are editor intents rather than commands. */
+  readonly onHistory?: (direction: 'undo' | 'redo') => void
 }
 
 export interface Attachment {
@@ -151,6 +165,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     if (intent === undefined) return
     if (intent.preventDefault) event.preventDefault()
     if (intent.command !== undefined) options.onIntent(intent.command)
+    if (intent.history !== undefined) options.onHistory?.(intent.history)
   }
   const onCompositionStart = (): void => {
     composing = true

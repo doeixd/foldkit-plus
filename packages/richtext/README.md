@@ -133,6 +133,13 @@ nothing to do, and a new commit after an undo clears the redo stack. History is
 bounded (200 steps by default). Collaborative undo is a different operation and
 is not implemented.
 
+In the harness, the parent Model owns the history and the child commits it, so
+one transition still commits document and interaction state together. Because
+undo replaces the document rather than editing it, the child reports a
+`Replaced` out-message with a whole-document `ChangeSet`
+(`replaceChangeSet(previous, next)`): every surviving identity is dirty and every
+departed one is removed, so the DOM cannot keep a stale element.
+
 ## Kits
 
 A `Kit` declares the vocabulary one editor accepts — node kinds and marks — as

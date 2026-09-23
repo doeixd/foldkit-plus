@@ -3958,8 +3958,15 @@ alone omits it), an empty run still needs a text node so a caret inside it is
 addressable, and a removed identity that is also dirty must still lose its
 element.
 
-Still to build: the IME cancellation path, undo grouping, clipboard, and
+Still to build: the IME cancellation path, clipboard, and
 mobile keyboards.
+
+**Undo, wired end to end.** The harness now commits `History` in the child and
+undoes through the same parent transition. Undo replaces the document rather
+than editing it, so it reports a `Replaced` out-message with a whole-document
+`ChangeSet`: every surviving identity dirty, every departed identity removed.
+`Mod-z`/`Mod-Shift-z`/`Mod-y` are history intents rather than commands, so the
+adapter routes them through a separate `onHistory` channel.
 
 No collaboration. No Form. No CMS.
 

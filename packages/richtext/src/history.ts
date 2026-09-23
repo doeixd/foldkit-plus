@@ -1,5 +1,6 @@
+import { Schema } from 'effect'
 import type { Command } from './command.js'
-import type { EditorState } from './document.js'
+import { EditorState } from './document.js'
 
 /**
  * Local undo history over editor snapshots. Snapshots are `EditorState` values
@@ -8,14 +9,15 @@ import type { EditorState } from './document.js'
  * beside the selection, never in published content, and collaborative undo is a
  * different operation (§§65–66).
  */
-export interface History {
+export const History = Schema.Struct({
   /** States to return to, oldest first. */
-  readonly past: ReadonlyArray<EditorState>
+  past: Schema.Array(EditorState),
   /** States undone from, nearest first. */
-  readonly future: ReadonlyArray<EditorState>
+  future: Schema.Array(EditorState),
   /** The group the last commit joined, if any. */
-  readonly group?: string | undefined
-}
+  group: Schema.optional(Schema.String),
+})
+export type History = typeof History.Type
 
 export const emptyHistory: History = Object.freeze({ past: [], future: [] })
 
@@ -24,7 +26,7 @@ export interface CommitOptions {
    * Joins the previous step when it used the same group. Consecutive typing
    * shares one undo step; omit the group and every commit stands alone.
    */
-  readonly group?: string
+  readonly group?: string | undefined
   /** Most steps to keep; the oldest is dropped beyond this. Default 200. */
   readonly capacity?: number
 }
