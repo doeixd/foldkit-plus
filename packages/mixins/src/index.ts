@@ -44,6 +44,7 @@ export type {
   DynamicContribution,
   InputContribution,
   SlotContribution,
+  SlotItem,
   StaticContribution,
   StaticContributionMap,
 } from './contribution.js'

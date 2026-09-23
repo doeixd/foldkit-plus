@@ -6,14 +6,19 @@
  * capability masking is preserved.
  */
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
-import type { SlotContribution } from './contribution.js'
+import type { SlotContribution, SlotItem } from './contribution.js'
 import { evaluate, type AnyMixin, type Mixin, type MixinFor, type StaticMixin } from './mixin.js'
 import { pipeSelf, type Pipeable } from './pipe.js'
 import { resolve, type SlotAttributes } from './resolver.js'
 import type { Any as AnySlot, SlotProtection } from './slot.js'
 
 export type SlotBuilder<Message> = {
-  readonly attrs: (base?: SlotAttributes<Message>) => SlotAttributes<Message>
+  /**
+   * The view's base attributes plus every resolved contribution. Pass `item`
+   * when the slot is rendered once per item, so a Behavior can decorate each
+   * repetition differently.
+   */
+  readonly attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => SlotAttributes<Message>
 }
 
 export type SlotBuilders<Slots, Message> = {
@@ -47,7 +52,7 @@ export const buildersFor = <Slots, Message, Input>(
     if (slot === undefined) continue
     const protection: SlotProtection = slot.protected
     builders[name] = {
-      attrs: (base?: SlotAttributes<Message>) => {
+      attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => {
         const contributions = []
         for (const mixin of mixins) {
           const contribution = mixin.contributions[name]
@@ -56,6 +61,7 @@ export const buildersFor = <Slots, Message, Input>(
               evaluate(contribution as SlotContribution<Message>, {
                 input: context.input,
                 h: context.h,
+                ...(item === undefined ? {} : { item }),
               }),
             )
           }

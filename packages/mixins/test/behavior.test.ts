@@ -13,7 +13,7 @@ import {
 } from '../src/index.js'
 import { DiagnosticError } from '../src/diagnostics.js'
 import { FieldSlots } from './fixture.js'
-import { h, type TestMessage } from './resolverFixture.js'
+import { h, mount, type TestMessage } from './resolverFixture.js'
 
 interface FieldInput {
   readonly invalid: boolean
@@ -58,6 +58,45 @@ describe('Behavior', () => {
     const aria = builders.input.attrs().find(attribute => tagOf(attribute) === 'AriaInvalid')
     expect(aria).toMatchObject({ value: true })
     expect(builders.label.attrs()).toEqual([])
+  })
+
+  it('passes the item context through to per-item attributes and the mount', () => {
+    const seen: Array<unknown> = []
+    const Rows = Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>({
+      input: Behavior.slot({
+        attributes: ({ h, item }) =>
+          item === undefined
+            ? []
+            : [h.Tabindex(item.index === 0 ? 0 : -1), h.Id(item.id ?? String(item.index))],
+        mount: (_input, item) => {
+          seen.push(item)
+          return mount('row')
+        },
+      }),
+    })
+    const builders = SlotView.buildersFor(FieldSlots, [Rows.mixin], context(false))
+    const first = builders.input.attrs([], { index: 0, id: 'a', count: 2 })
+    const second = builders.input.attrs([], { index: 1, id: 'b', count: 2 })
+    expect(Attributes.find(first, 'Tabindex')?.value).toBe(0)
+    expect(Attributes.find(second, 'Tabindex')?.value).toBe(-1)
+    expect(Attributes.find(second, 'Id')?.value).toBe('b')
+    expect(seen).toEqual([
+      { index: 0, id: 'a', count: 2 },
+      { index: 1, id: 'b', count: 2 },
+    ])
+  })
+
+  it('resolves with no item when the view passes none', () => {
+    const Rows = Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>({
+      input: Behavior.slot({
+        attributes: ({ h, item }) => (item === undefined ? [h.Role('none')] : [h.Role('row')]),
+        mount: (_input, item) => mount(item === undefined ? 'bare' : 'item'),
+      }),
+    })
+    const builders = SlotView.buildersFor(FieldSlots, [Rows.mixin], context(false))
+    const attributes = builders.input.attrs()
+    expect(Attributes.find(attributes, 'Role')?.value).toBe('none')
+    expect(Attributes.find(attributes, 'OnMount')).toBeDefined()
   })
 
   it('contributes nothing for a slot with no attributes or mount', () => {

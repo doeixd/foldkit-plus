@@ -43,3 +43,23 @@ Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>({
     requires: { cap: 'x' },
   }),
 })
+
+// `item` is optional and typed as SlotItem in both attributes and mount.
+Behavior.forSlots(FieldSlots)<FieldInput, TestMessage>({
+  input: Behavior.slot({
+    attributes: ({ h, item }) => {
+      const index: number | undefined = item?.index
+      const id: string | undefined = item?.id
+      void index
+      void id
+      // @ts-expect-error SlotItem has no `key` field.
+      void item?.key
+      return [h.Tabindex(item?.index ?? -1)]
+    },
+    mount: (_input, item) => {
+      const count: number | undefined = item?.count
+      void count
+      return { name: 'm', f: () => null as never }
+    },
+  }),
+})

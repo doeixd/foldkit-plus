@@ -8,7 +8,7 @@
 import type { Attribute, ChildAttribute, HtmlBuilder } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
 import * as Capability from './capability.js'
-import type { SlotContribution } from './contribution.js'
+import type { SlotContribution, SlotItem } from './contribution.js'
 import { DiagnosticError, type DiagnosticCode } from './diagnostics.js'
 import * as MetadataToken from './metadataToken.js'
 import * as Mixin from './mixin.js'
@@ -24,11 +24,17 @@ export interface SlotRequirements {
 
 export interface BehaviorSlotOptions<Input, Message> {
   readonly requires?: SlotRequirements
+  /**
+   * Attributes for one resolution of the slot. `item` is present when the view
+   * passed one to `slots.x.attrs(base, item)`, that is, when the slot is
+   * rendered once per item.
+   */
   readonly attributes?: (context: {
     readonly input: Input
     readonly h: HtmlBuilder<Message>
+    readonly item?: SlotItem
   }) => ReadonlyArray<Attribute<Message> | ChildAttribute>
-  readonly mount?: (input: Input) => MountAction<Message, any>
+  readonly mount?: (input: Input, item?: SlotItem) => MountAction<Message, any>
 }
 
 export type BehaviorSpec<Slots, Input, Message> = {
@@ -131,8 +137,14 @@ export const forSlots =
       contributions[name] = context => ({
         ...(attributes === undefined
           ? {}
-          : { attributes: attributes({ input: context.input as Input, h: context.h }) }),
-        ...(mount === undefined ? {} : { mounts: [mount(context.input as Input)] }),
+          : {
+              attributes: attributes({
+                input: context.input as Input,
+                h: context.h,
+                ...(context.item === undefined ? {} : { item: context.item }),
+              }),
+            }),
+        ...(mount === undefined ? {} : { mounts: [mount(context.input as Input, context.item)] }),
       })
     }
     return Object.freeze({

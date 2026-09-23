@@ -105,9 +105,10 @@ attributes plus resolved contributions; the view owns `OnInput`, so a Behavior a
 Build outward: `Style.when`, `Style.whenInput(pred, piece)`, `Style.recipe({ base, variants,
 defaults, compound })`, rule-based `Style.pseudo/media/supports/container/nest/keyframes/global`
 (compiled to a deterministic hashed class; read `FieldStyle.css` or
-`Style.stylesheet(...styles)`), `Theme.define`. For repeated items (tabs, rows) use
-`SlotView.buildersFor(slots, [style.mixin, ...], { input, h })` per item. Introspect with
-`Slots.describe(contract)`; combine with `Mixin.compose`.
+`Style.stylesheet(...styles)`), `Theme.define`. For a slot rendered once per item (tabs, rows)
+pass the item as the second argument, `slots.row.attrs(base, { index, id, count })`; a Behavior
+reads it as `item` in `attributes` and as the second argument of `mount`, and it is `undefined`
+for a slot rendered once. Introspect with `Slots.describe(contract)`; combine with `Mixin.compose`.
 
 ## 4. `foldkit-mixins-surface`
 

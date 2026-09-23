@@ -279,6 +279,20 @@ const Focus = Behavior.forSlots(FieldSlots)<FieldInput, Message>({
 `Event.Click` cannot attach to a slot that did not publish click. Multiple mount contributions
 compose into one `OnMount` per element.
 
+A slot rendered once per item (rows, tabs, options) tells the Behavior which repetition it is
+resolving through the second argument of `attrs`:
+
+```ts
+h.ul(slots.list.attrs(), items.map((item, index) =>
+  h.li(slots.row.attrs([h.Key(item.id)], { index, id: item.id, count: items.length }), [item.label]),
+))
+```
+
+The Behavior receives it as `item` (`{ index, id?, count? }`) in `attributes` and as the second
+argument of `mount`, so one Behavior can write `tabindex="0"` on the current row and `-1` on the
+rest, or `aria-posinset` and `aria-setsize` on each. Without an item argument, `item` is
+`undefined` and the Behavior decorates the slot as a single element.
+
 ## SlotView
 
 `SlotView.define(slots, render)` is a pure view that publishes slots. Attach with
