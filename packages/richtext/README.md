@@ -203,6 +203,29 @@ it was already building, and maps the selection through the transform's steps,
 so a caller cannot tell whether a change came from an operation or from
 normalization.
 
+## Performance
+
+`pnpm bench` measures the shapes an editor meets (`bench/operations.bench.ts`).
+On the machine this was recorded on (mean, single run):
+
+```text
+paste 50k characters into one run             0.02 ms
+type one character into a 20k-character run   0.02 ms
+toggle a mark over a 400-run selection        2.3 ms
+toggle a mark over 200 runs across 200 blocks 1.4 ms
+delete a range spanning 100 paragraphs        3.0 ms
+split a block inside a 400-run paragraph      1.1 ms
+paste one paragraph into a 200-block document 1.0 ms
+```
+
+Two costs are known and not yet removed. A transaction copies a block's run
+array per operation, so N formatting operations in one paragraph copy it N
+times; and a structural operation rebuilds the document's index. The merge
+transform carries a block index rather than scanning per dirty block, and the
+numbers above are the honest current state, not a claim that §77's large-document
+target is met: accumulating per-block changes and copying each container once is
+the next step, and it should land with these numbers moving.
+
 ## Migrations
 
 Migrations move semantic data forward when a deployment changes its vocabulary

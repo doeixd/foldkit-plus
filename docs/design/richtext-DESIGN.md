@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 in progress: unpublished document and text-transaction foundation implemented. Kits, structural edits, transforms, and unknown nodes remain unfinished. Integration proofs run as parallel tracks gating Phases 4/5/8 rather than gating the first editing slice. Phases 2–12 are not started.
+**Status:** Phase 1 is implemented except for nested children beyond runs, marks with props, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -3348,6 +3348,29 @@ batched Transactions
 
 Do not optimize by hiding mutable authoritative state outside Model boundaries.
 
+**Measured, with two known costs.** `packages/richtext/bench/operations.bench.ts`
+(and `pnpm bench`) covers the shapes an editor meets. Recorded means: paste 50k
+characters into a run 0.02 ms; type one character into a 20k-character run
+0.02 ms; toggle a mark over a 400-run selection 2.3 ms; over 200 runs across 200
+blocks 1.4 ms; delete a range spanning 100 paragraphs 3.0 ms; split inside a
+400-run paragraph 1.1 ms; paste a paragraph into a 200-block document 1.0 ms.
+
+What is not yet done, and is the honest reading of those numbers rather than a
+claim that this section is satisfied:
+
+```text
+a transaction copies a block's run array per operation, so N formatting
+operations in one paragraph copy it N times
+
+a structural operation rebuilds the document index
+```
+
+The merge transform carries a block index instead of scanning per dirty block,
+so normalization is linear in the blocks the transaction touched. Accumulating
+changes per block and copying each affected container once is the next step, and
+it should land with the benchmark moving; the benchmark exists so that claim can
+be checked rather than asserted.
+
 ---
 
 # 78. Potential text storage evolution
@@ -4066,6 +4089,13 @@ with custom Nodes and Marks.
 
 Add HTML/plain-text serialization.
 
+**Built (private, `examples/richtext`).** `src/view.ts` renders a document or a
+slice as ordinary Foldkit `Html` through `inertHtml`; `packages/richtext/src/html.ts`
+serializes HTML and plain text with escaping, unknown marks on `data-marks`, and
+unknown blocks as placeholders; `examples/richtext/src/html.ts` imports HTML
+through a whitelist walk. None of it is promoted to supported API yet: the
+package has no Foldkit dependency, so the view lives in the harness.
+
 ---
 
 # 103. Phase 3 — vertical editing slice
@@ -4136,8 +4166,9 @@ alone omits it), an empty run still needs a text node so a caret inside it is
 addressable, and a removed identity that is also dirty must still lose its
 element.
 
-Still to build: paste insertion and the DOM clipboard
-events, and mobile keyboards.
+Still to build: mobile keyboards and real-browser verification; paste insertion
+and the DOM clipboard events are done, as are the read-only renderer and HTML
+import/export.
 
 **Undo, wired end to end.** The harness now commits `History` in the child and
 undoes through the same parent transition. Undo replaces the document rather

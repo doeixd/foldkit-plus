@@ -69,9 +69,13 @@ export const mergeAdjacentRuns: Transform = {
     const dirtyNodes = new Set<NodeId>()
     const textChanged = new Set<NodeId>()
     let next: Document = document
+    // One index for the whole pass: merging never adds or removes a block, so
+    // looking each dirty block up in a Map keeps this linear in the blocks the
+    // transaction touched instead of scanning the document per block.
+    const blockIndexes = new Map(document.children.map((block, index) => [block.id, index]))
     for (const blockId of context.dirtyNodes) {
-      const blockIndex = next.children.findIndex(block => block.id === blockId)
-      if (blockIndex < 0) continue
+      const blockIndex = blockIndexes.get(blockId)
+      if (blockIndex === undefined) continue
       const block = next.children[blockIndex]!
       const first = block.children[0]
       if (first === undefined) continue
