@@ -18,7 +18,7 @@ imports.
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
 | A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
-| The current item of a roving tab stop, a typeahead query, or both for a list; whether an element is pressed; the open dismissable layers | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
+| The current item of a roving tab stop, a typeahead query, or both for a list; whether an element is pressed; the open dismissable layers; the selected items; the live-region text | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
 A bundle holds no state. Placing it twice observes twice; share the field
 instead. The browser, clock, or server only reports facts as Messages.
@@ -96,7 +96,7 @@ into a chord answer. Slices that must survive reload persist through
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides
   (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
-  ghost click suppressed by a timed Command). `data-pressed` while down.
+  ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
@@ -108,6 +108,11 @@ into a chord answer. Slices that must survive reload persist through
   The stack is DOM order at the event; a press inside a parent is outside its children; a trigger counts as inside.
   Not for `popover` elements. `Layers.scrollLock(Slots)({ container })` and `Layers.hideOutside(Slots)({ container })`
   mount Foldkit's refcounted scroll lock and keyed inert set.
+- **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
+  with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
+  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).
+- **Announce to assistive technology:** place `LiveAnnounce.bundle` once (`{ debounceMs, clearAfterMs }`), return
+  `LiveAnnounce.say(Declared)(text, politeness?)` from `update`, render `LiveAnnounce.view(slice, h)` once and hide it visually.
 
 ## Gotchas
 

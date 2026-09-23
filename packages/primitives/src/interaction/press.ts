@@ -33,17 +33,21 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   PointerDown: { pointerId: Schema.Number, button: Schema.Number, pointerType: Schema.String },
-  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String },
+  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, shiftKey: Schema.Boolean },
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
-  KeyUp: { key: Schema.String },
+  KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
   /** `detail` is 0 for a click no pointer made: keyboard on a native control, or assistive technology. */
-  Clicked: { detail: Schema.Number },
+  Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
   Unsuppressed: { generation: Schema.Number },
 })
 export type Message = typeof Message.Type
 
-export const Pressed = Schema.TaggedStruct('Pressed', { pointerType: PointerType })
+export const Pressed = Schema.TaggedStruct('Pressed', {
+  pointerType: PointerType,
+  /** Shift was held, for a range selection. */
+  shiftKey: Schema.Boolean,
+})
 export type Pressed = typeof Pressed.Type
 
 export const Args = Schema.Struct({
@@ -77,7 +81,7 @@ export const bundle = Bundle.make('Press', {
         button !== 0 || model.pointerId !== null
           ? { model }
           : { model: { ...model, pressed: true, pointerId } },
-      PointerUp: ({ pointerId, pointerType }) => {
+      PointerUp: ({ pointerId, pointerType, shiftKey }) => {
         if (model.pointerId !== pointerId) return { model }
         const generation = model.generation + 1
         return {
@@ -92,7 +96,7 @@ export const bundle = Bundle.make('Press', {
               ),
             },
           ],
-          outMessage: Pressed.make({ pointerType: asPointerType(pointerType) }),
+          outMessage: Pressed.make({ pointerType: asPointerType(pointerType), shiftKey }),
         }
       },
       PointerCancelled: ({ pointerId }) =>
@@ -101,16 +105,16 @@ export const bundle = Bundle.make('Press', {
         !isActivationKey(key) || repeat || model.key !== null || model.pointerId !== null
           ? { model }
           : { model: { ...model, pressed: true, key } },
-      KeyUp: ({ key }) =>
+      KeyUp: ({ key, shiftKey }) =>
         model.key === key
-          ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard' }) }
+          ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard', shiftKey }) }
           : { model },
-      Clicked: ({ detail }) =>
+      Clicked: ({ detail, shiftKey }) =>
         detail === 0
-          ? { model, outMessage: Pressed.make({ pointerType: 'virtual' }) }
+          ? { model, outMessage: Pressed.make({ pointerType: 'virtual', shiftKey }) }
           : model.suppressing !== null
             ? { model }
-            : { model, outMessage: Pressed.make({ pointerType: 'mouse' }) },
+            : { model, outMessage: Pressed.make({ pointerType: 'mouse', shiftKey }) },
       Unsuppressed: ({ generation }) =>
         model.suppressing === generation ? { model: { ...model, suppressing: null } } : { model },
     }),
@@ -120,6 +124,7 @@ type PointerLike = Event & {
   readonly pointerId?: number
   readonly button?: number
   readonly pointerType?: string
+  readonly shiftKey?: boolean
 }
 
 /** What the element reports; `Unsuppressed` comes from the timer, not the DOM. */
@@ -171,6 +176,7 @@ export const events = Mount.defineStream('PressEvents', {
                   Message.PointerUp({
                     pointerId: pointer.pointerId ?? 0,
                     pointerType: pointer.pointerType ?? 'mouse',
+                    shiftKey: pointer.shiftKey ?? false,
                   }),
                 )
               },
@@ -197,10 +203,21 @@ export const events = Mount.defineStream('PressEvents', {
                 offer(Message.KeyDown({ key: key.key, repeat: key.repeat }))
               },
             ],
-            ['keyup', event => offer(Message.KeyUp({ key: (event as KeyboardEvent).key }))],
+            [
+              'keyup',
+              event => {
+                const key = event as KeyboardEvent
+                offer(Message.KeyUp({ key: key.key, shiftKey: key.shiftKey }))
+              },
+            ],
             [
               'click',
-              event => offer(Message.Clicked({ detail: (event as MouseEvent).detail ?? 0 })),
+              event => {
+                const click = event as MouseEvent
+                offer(
+                  Message.Clicked({ detail: click.detail ?? 0, shiftKey: click.shiftKey ?? false }),
+                )
+              },
             ],
           ]
           for (const [type, listener] of listeners) element.addEventListener(type, listener)

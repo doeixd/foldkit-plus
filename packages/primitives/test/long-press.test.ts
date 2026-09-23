@@ -52,7 +52,7 @@ describe('LongPress placement', () => {
     const released = send(
       fresh,
       M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' }),
-      M.PointerUp({ pointerId: 1, pointerType: 'mouse' }),
+      M.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false }),
     ).model
     expect(released.hold.holding).toBe(false)
     expect(send(released, M.Elapsed({ generation: 1, pointerType: 'mouse' })).model.held).toEqual(
@@ -82,8 +82,8 @@ describe('LongPress placement', () => {
     const key = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
     expect(key.hold).toMatchObject({ holding: true, key: 'Enter' })
     expect(send(key, M.KeyDown({ key: 'Enter', repeat: true })).model.hold.generation).toBe(1)
-    expect(send(fresh, M.Clicked({ detail: 1 })).model.hold.holding).toBe(false)
-    expect(send(key, M.KeyUp({ key: 'Enter' })).model.hold.holding).toBe(false)
+    expect(send(fresh, M.Clicked({ detail: 1, shiftKey: false })).model.hold.holding).toBe(false)
+    expect(send(key, M.KeyUp({ key: 'Enter', shiftKey: false })).model.hold.holding).toBe(false)
   })
 
   it('the threshold runs on the clock', async () => {

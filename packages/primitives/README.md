@@ -91,7 +91,7 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move, FocusVisible, DismissLayer, ScrollLock, HideOutside
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
@@ -613,7 +613,7 @@ or assistive technology) counts, and the ghost click that follows a touch is
 ignored inside a window of `clickSuppressionMs` that a Command on Effect's
 clock closes. Enter and Space are default-prevented on the element, so a
 native control does not also click and Space does not scroll. Activation is
-the OutMessage `Pressed { pointerType }`, and the placement must handle it:
+the OutMessage `Pressed { pointerType, shiftKey }`, and the placement must handle it:
 
 ```ts
 const Button = Bundle.declare(Press.bundle, 'saveButton')
@@ -701,6 +701,29 @@ handling; the second marks everything outside the container inert while it is
 mounted, keyed by an id the Mount mints so two overlays restore independently.
 Both live in `foldkit-primitives/dom` as `ScrollLock` and `HideOutside`. A
 native `<dialog>` shown modally needs neither.
+
+`Selection` is which items are selected, with `mode` `'single'` (a click
+replaces; `allowEmpty` says whether clicking the selected item deselects it),
+`'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
+from. The Model slice is `{ selected, anchor }`. A range needs the items'
+order, which the view knows and the Bundle does not, so `Ranged { id, order }`
+carries it; `Selection.between(order, from, to)` is the pure span. The Behavior
+(`Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?,
+item, items, click? })`) writes `aria-selected` on each item and
+`aria-multiselectable` on the container, and wires a plain click on each
+enabled item to `Activated`; pass `click: false` when `Press` or the view owns
+the click. For a Shift range, `Press`'s `Pressed { pointerType, shiftKey }`
+says whether Shift was held, and the placement's `onOut` dispatches `Ranged`.
+
+`LiveAnnounce` speaks to assistive technology: one Bundle, placed once, holds
+the text of a polite and an assertive live region. `say(Declared)(text,
+politeness?)` builds the Message to return from `update` or an `onOut`; an
+announcement waits `debounceMs` so a burst reads once, then clears after
+`clearAfterMs`, both on Effect's clock with a generation so a superseded timer
+changes nothing; the same text twice gets a trailing no-break space toggled,
+which is what makes a screen reader read it again. `LiveAnnounce.view(slice,
+h)` renders the two regions: put it once in the page and hide them visually
+with a rule on `[data-foldkit-plus-live]`, never `display: none`.
 
 ## Testing placements
 
