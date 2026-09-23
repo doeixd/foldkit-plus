@@ -264,41 +264,59 @@ const Prefs = Mirror.kv(App, {
 })
 ```
 
-A key-value mirror restores through a Message, so include Mirror's cases in the
-application union:
+A key-value mirror restores through a Message. Give it one variant of the
+application's union, the way a Submodel gets one, and fold the mirror under it:
 
 ```ts
 const Message = defineMessageUnion({
-  ...Mirror.messages,
+  GotPrefsMessage: { message: Mirror.Message },
   UrlChanged: { url: Url },
 })
+
+const foldPrefs = Mirror.fold(Prefs, message => Message.GotPrefsMessage({ message }))
 ```
 
-Then reduce only its restore Message:
+`update` then matches the whole union, and the mirror's answer arrives inside
+its variant:
 
 ```ts
 function update(model: Model, message: Message): Return {
-  if (Mirror.reduces(message)) {
-    return {
-      model: Prefs.reduce(model, message),
-    }
-  }
+  return Message.match(message, {
+    GotPrefsMessage: ({ message }) => foldPrefs(model, message),
+    UrlChanged: ({ url }) => ({ model: Filters.reduce(model, url) }),
+  })
+}
+```
 
+Ask the store for its representation at cold load. `foldPrefs.init` runs the
+mirror's `restore`, lifted to yield `GotPrefsMessage`:
+
+```ts
+const init = (url: Url): Return =>
+  // URL wins first because startup already has it; the store answers later.
+  foldPrefs.init(Filters.reduce(initial, url))
+```
+
+The lift is recorded on the Command, so a Story resolves `Prefs.restore` with
+the keys the store would answer and sees the wrapped Message reach `update`.
+
+The shorter path, for an `update` that only reduces, is to spread Mirror's
+cases into the union and narrow by tag. It leaves the union with tags the
+application never matches, so the rest of `update` is a partial match:
+
+```ts
+const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url } })
+
+function update(model: Model, message: Message): Return {
+  if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
   return Match.value(message).pipe(
     Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
     Match.orElse(() => ({ model })),
   )
 }
-```
 
-Ask the store for its representation at cold load:
-
-```ts
 const init = (url: Url): Return => ({
-  // URL wins first because startup already has it.
   model: Filters.reduce(initial, url),
-
-  // The store responds later with MirrorRestored.
   commands: [Prefs.restore],
 })
 ```
@@ -322,7 +340,7 @@ remembered between sessions.
 
 ## One list per application with wiring
 
-The hand-wiring above — reduce by tag, restore at startup, spread the
+The hand-wiring above — fold or reduce, restore at startup, spread the
 Subscriptions — is one value when the application uses `foldkit-bundle`:
 
 ```ts

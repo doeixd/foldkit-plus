@@ -80,18 +80,24 @@ const ProjectSummary = Entity.select(Project, {
 
 const Model = Schema.Struct({ projectId: Schema.Option(Schema.String), remote: Remote.Model })
 type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Remote.messages })
+// Remote's Messages under one variant, the shape a Submodel gets.
+const Message = defineMessageUnion({ GotRemoteMessage: { message: Remote.Message } })
 type Message = typeof Message.Type
 
 // Annotate update's return type: Data is bound to App, App is built from update.
 function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  return { model }
+  return Message.match(message, {
+    GotRemoteMessage: ({ message }) => foldData(model, message),
+  })
 }
 
 const App = Surface.application({ Model, Message, initial: { projectId: Option.none(), remote: Remote.initial }, update })
 
 const Data = Remote.make({ model: App.model.remote, entities: [User, Project] })
+const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
+// `foldData(model, message)` reduces; `foldData.fetch`, `.mutate`, `.subscriptions` yield
+// the wrapper with the lift recorded. Shorter, for an update that only reduces:
+// spread `...Remote.messages` and `if (Remote.reduces(message)) return { model: Data.reduce(model, message) }`.
 
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
@@ -118,7 +124,7 @@ const drawn = (data: RemoteData<{ readonly name: string }>) =>
   })
 
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions({
+  foldData.subscriptions({
     // `undefined` params = Surface inactive = no reads.
     page: Surface.at(ProjectPage, m => Option.getOrUndefined(Option.map(m.projectId, projectId => ({ projectId })))),
   }),

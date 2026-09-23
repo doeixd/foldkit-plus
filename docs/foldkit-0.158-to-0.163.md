@@ -1068,7 +1068,7 @@ The delivery layer is a new item, not a proposal: `handleRequest` and
 
 | Rank | Item | Effect |
 | --- | --- | --- |
-| 1 | Message subsets (`Message.only`) | Weakened as a pitch. `defineTaggedUnion` already had `subset(tags)` at 0.158 and now adds `matchOrElse` (0.159.0). Core owns partial handling of a union. The RFC should say what `Message.only` adds beyond `subset` plus `matchOrElse`, or fold the item into rank 3. |
+| 1 | Message subsets (`Message.only`) | Weakened as a pitch. `defineTaggedUnion` already had `subset(tags)` at 0.158 and now adds `matchOrElse` (0.159.0); `defineMessageUnion` deliberately returns neither, only exhaustive `match`. The RFC now asks for `subset(tags)` on `MessageUnion` and writes `Mirror.fold` and `Remote.fold` to the wrapper-and-fold shape instead. |
 | 2, 3, 4 | Projection, Surface, Application | Unchanged. `foldChildInit` and `foldChildInits` show core investing in Submodel composition helpers, not application identity. Cite them as evidence that composition is a core concern. |
 | 6 | DevTools manifest | Slightly strengthened. The protocol now carries per-Command Submodel paths, so DevTools already has a partial static-architecture view. |
 | 7, 8, 9 | Agent, Mirror as official packages | Unchanged. |

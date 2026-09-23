@@ -619,6 +619,11 @@ Message subset
 
 This is powerful precisely because it names an existing application vocabulary rather than inventing another one.
 
+**Revised after Foldkit 0.163.0.** Upstream already owns the primitive: `defineTaggedUnion` has `subset(tags)` and, since 0.159, `matchOrElse`, but `defineMessageUnion` deliberately returns neither. A Message union has exhaustive `match` only, and 0.160's `no-switch-on-message-tag` rule guards the same line. So the ask is not a subset as a way to make partial handling of `update` respectable. It is two narrower things:
+
+- `subset(tags)` on `MessageUnion`, the one rich-union helper that is safe there: it names Messages without letting `update` skip any, which is what a library needs to say "these are mine" for Agent, Surface, and Sync.
+- The wrapper-and-fold shape for a library that extends an application, which is the shape upstream ships (`foldChild`, `foldChildInit`, `Dialog.boot`). `Mirror.fold` and `Remote.fold` in this repository are written to it; the flat spread of `Mirror.messages` and `Remote.messages` stays as the shorter path for an `update` that only reduces.
+
 ---
 
 # 5. Surface: the idea most worth upstreaming
@@ -2711,7 +2716,7 @@ If only a small amount of `foldkit-plus` is ever incorporated, prioritize:
 
 | Priority | Idea | Recommendation |
 | --- | --- | --- |
-| 1 | Typed Message subsets | Upstream |
+| 1 | Typed Message subsets, as `subset(tags)` on `MessageUnion` | Upstream |
 | 2 | Read-only Model Projection / field refs | Upstream |
 | 3 | Surface as observation + capability boundary | Upstream, optional |
 | 4 | Pure Application descriptor | Strongly consider as substrate |

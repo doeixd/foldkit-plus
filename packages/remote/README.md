@@ -162,7 +162,7 @@ const Model = Schema.Struct({
 type Model = typeof Model.Type
 
 const Message = defineMessageUnion({
-  ...Remote.messages,
+  GotRemoteMessage: { message: Remote.Message },
 })
 type Message = typeof Message.Type
 
@@ -170,9 +170,10 @@ function update(
   model: Model,
   message: Message,
 ): Update.Return<Model, Message, RemoteClient> {
-  // Remote owns the `remote` Submodel, so all Remote Messages go through its reducer.
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  return { model }
+  return Message.match(message, {
+    // Remote owns the `remote` Submodel: everything it says goes through its reducer.
+    GotRemoteMessage: ({ message }) => foldData(model, message),
+  })
 }
 
 const App = Surface.application({
@@ -189,7 +190,31 @@ const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
 })
+
+// Remote under one variant of the union, the shape Foldkit gives a Submodel.
+const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
 ```
+
+`update` matches the application's union exhaustively; Remote's own Messages
+arrive inside `GotRemoteMessage`. The fold's `fetch`, `mutate`, and
+`subscriptions` yield that variant too, with the lift recorded so a Story
+resolves a fetch or a mutation by Remote's own answer.
+
+The shorter path, for an `update` that only reduces, spreads Remote's cases
+into the union and narrows by tag; the rest of `update` is then a partial
+match over tags the application never handles:
+
+```ts
+const Message = defineMessageUnion({ ...Remote.messages })
+
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
+  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
+  return { model }
+}
+```
+
+The rest of this guide uses the fold. With the spread, read `Data.subscriptions`
+for `foldData.subscriptions` and `Data.fetch` for `foldData.fetch`.
 
 `Remote.Model` is not a second application store. It is a Submodel **inside** the
 application Model. `Data` is the bound API for this domain: it knows where that
@@ -218,7 +243,7 @@ The active Surface drives I/O through a Foldkit Subscription:
 import * as Subscription from 'foldkit/subscription'
 
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions({
+  foldData.subscriptions({
     project: Surface.at(ProjectPage, model =>
       model.route._tag === 'project'
         ? { projectId: model.route.projectId }
@@ -293,9 +318,8 @@ It is for a first run, a test or a demo. See
 
 ## One list per application with `Data.wiring`
 
-The integration steps above — spread `Remote.messages`, reduce by tag, derive
-`Data.subscriptions`, provide the client — are one value when the application
-uses `foldkit-bundle`:
+The integration steps above — fold or reduce, derive the Subscriptions,
+provide the client — are one value when the application uses `foldkit-bundle`:
 
 ```ts
 import { Bundle } from 'foldkit-bundle'

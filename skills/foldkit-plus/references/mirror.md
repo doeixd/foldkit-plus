@@ -30,7 +30,7 @@ does have one. Cold-load precedence is: URL value, then KV restore, then initial
 ## Minimal example
 
 ```ts
-import { Match, Schema } from 'effect'
+import { Schema } from 'effect'
 import type { KeyValueStore } from 'effect/unstable/persistence'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -71,18 +71,23 @@ const Prefs = Mirror.kv(App, {
   fields: Projection.pick(App.model.draft),     // field refs or a writable Projection
 })
 
+// Prefs under one variant of the union, the shape a Submodel gets: `update`
+// matches exhaustively, and the store's answer arrives wrapped.
+const foldPrefs = Mirror.fold(Prefs, message => Message.GotPrefsMessage({ message }))
+
 function update(model: Model, message: Message): Return {
-  if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
-  return Match.value(message).pipe(
-    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
-    Match.orElse(() => ({ model })),
-  )
+  return Message.match(message, {
+    GotPrefsMessage: ({ message }) => foldPrefs(model, message),
+    UrlChanged: ({ url }) => ({ model: Filters.reduce(model, url) }),
+  })
 }
 
-const init = (url: Url): Return => ({
-  model: Filters.reduce(initial, url),          // URL first
-  commands: [Prefs.restore],                    // store answers later with MirrorRestored
-})
+// URL first; `foldPrefs.init` runs the lifted `restore`, which answers later.
+const init = (url: Url): Return => foldPrefs.init(Filters.reduce(initial, url))
+
+// Shorter, for an update that only reduces: spread `...Mirror.messages` into the
+// union, `if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }`,
+// and `commands: [Prefs.restore]` in init. The rest of update is then partial.
 
 const subscriptions = Subscription.make<Model, Message, KeyValueStore.KeyValueStore>()(() => ({
   ...Filters.subscriptions,                     // entry key: 'filters.mirror'

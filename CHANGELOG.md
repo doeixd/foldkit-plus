@@ -7,6 +7,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`Mirror.fold` and `Remote.fold`: a library's Messages under one variant
+  of the application's union.** Spreading `Mirror.messages` or
+  `Remote.messages` into the union leaves `update` unable to match it
+  exhaustively, because the library's tags remain in the union after the
+  `reduces` guard. A fold gives the shape Foldkit gives a Submodel: declare
+  `GotPrefsMessage: { message: Mirror.Message }` or
+  `GotRemoteMessage: { message: Remote.Message }`, fold the mirror or the
+  domain under it, and match the whole union. Everything the library produces
+  yields the wrapper with the lift recorded: a kv mirror's `restore` (and the
+  fold's `init` Step that runs it), a domain's `fetch`, a mutation's Command,
+  and its Subscription entries. A Story resolves a restore or a mutation by
+  the library's own answer. `Mirror.Message` and `Remote.Message` are the
+  union Schemas for the wrapper field. The spread and the `reduces` guard stay
+  for an `update` that only reduces; wiring stays the bundle path.
+
 ### Changed
 
 - **Foldkit 0.163.0 and Effect 4.0.0-rc.116.** Every package that peers
