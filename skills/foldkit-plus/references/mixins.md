@@ -110,6 +110,14 @@ pass the item as the second argument, `slots.row.attrs(base, { index, id, count 
 reads it as `item` in `attributes` and as the second argument of `mount`, and it is `undefined`
 for a slot rendered once. Introspect with `Slots.describe(contract)`; combine with `Mixin.compose`.
 
+Ready-made stateless Behaviors live under `Behaviors`. `Behaviors.Collection.of(items, { id,
+disabled? })` describes the parent's array once (`ids`, `size`, `at`, `indexOf`, `isDisabled`,
+`enabled`, `slotItem(index)`), refusing duplicate ids with `mixins:duplicate-item-id`;
+`Behaviors.Collection.behavior(Slots)<Input, Message>({ item: 'row', items: input => ...,
+posInSet? })` writes `id`, `aria-disabled`, and optionally `aria-posinset`/`aria-setsize` on each
+item from the item context. Stateful Behaviors (roving tabindex, press) are Bundles in
+`foldkit-primitives`.
+
 ## 4. `foldkit-mixins-surface`
 
 Use only if the feature already renders through a `foldkit-surface` Surface. `SurfaceView.define`

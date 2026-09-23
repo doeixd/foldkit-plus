@@ -293,6 +293,34 @@ argument of `mount`, so one Behavior can write `tabindex="0"` on the current row
 rest, or `aria-posinset` and `aria-setsize` on each. Without an item argument, `item` is
 `undefined` and the Behavior decorates the slot as a single element.
 
+### Ready-made Behaviors
+
+`Behaviors` holds Behaviors that own no state. The first is `Collection`: describe the parent's
+array once, and a view and the Behaviors on it agree about identity, order, and disabled items.
+
+```ts
+import { Behaviors } from 'foldkit-mixins'
+
+const items = Behaviors.Collection.of(input.tools, {
+  id: tool => tool.id,
+  disabled: tool => tool.disabled,
+}) // ids, size, at, indexOf, isDisabled, enabled, slotItem
+
+const Ids = Behaviors.Collection.behavior(ToolbarSlots)<ToolbarInput, Message>({
+  item: 'tool',
+  items: input => Behaviors.Collection.of(input.tools, { id: tool => tool.id }),
+  posInSet: true,
+})
+
+// in the view: slots.tool.attrs([h.Key(tool.id)], items.slotItem(index))
+```
+
+`of` is pure and refuses two items with one id (`mixins:duplicate-item-id`), since an id is what
+`aria-activedescendant` and `aria-controls` rely on. The Behavior writes `id`, `aria-disabled`,
+and with `posInSet` `aria-posinset` and `aria-setsize`, reading the item context the view passes;
+it contributes nothing to a slot resolved without one. Behaviors that need state, such as a
+roving tab stop or a press, live in `foldkit-primitives` as a Bundle plus its Behavior.
+
 ## SlotView
 
 `SlotView.define(slots, render)` is a pure view that publishes slots. Attach with
