@@ -161,6 +161,57 @@ describe('RemoteServer.memory', () => {
     }
   })
 
+  it('loads more after the last row stopped matching, and refuses one that is gone', async () => {
+    const backend = RemoteServer.memory({ domain: Data, rows })
+    const first = Data.query(ByStatus, { status: 'active' }, { select: summary, first: 1 })
+    const model = await load(backend, first)
+    const next = Data.next(model, first)!
+
+    // Apollo, the row the page ended on, is archived: it leaves the results but
+    // keeps its place in the order, so the next page is still Borealis.
+    backend.write('Project', 'p2', { status: 'archived' })
+    const after = await Effect.runPromise(
+      Data.fetch(next).effect.pipe(Effect.provide(backend.layer)),
+    )
+    expect(after).toMatchObject({
+      _tag: 'ConnectionMerged',
+      page: { edges: [{ ref: { id: 'p1' } }] },
+    })
+
+    backend.remove('Project', 'p2')
+    const gone = await Effect.runPromise(
+      Data.fetch(next).effect.pipe(Effect.provide(backend.layer)),
+    )
+    expect(gone).toMatchObject({ _tag: 'QueryFailed' })
+  })
+
+  it('reads a row whose id arrived as a number', async () => {
+    const backend = RemoteServer.memory({
+      domain: Data,
+      rows: {
+        ...rows,
+        Project: [{ id: 7 as never, name: 'Seven', status: 'active', owner: 'User:u1' }],
+      },
+    })
+    const seven = Data.get(summary, '7')
+
+    expect((seven.read(await load(backend, seven)) as { _tag: string })._tag).toBe('Ready')
+  })
+
+  it('says a page of no rows cannot tell where it ends, while more remain', async () => {
+    const backend = RemoteServer.memory({ domain: Data, rows })
+    const none = Query.first(0)(ByStatus.ref({ status: 'active' }))
+
+    const message = await Effect.runPromise(
+      Data.fetch(none).effect.pipe(Effect.provide(backend.layer)),
+    )
+
+    expect(message).toMatchObject({
+      _tag: 'ConnectionMerged',
+      page: { edges: [], start: { _tag: 'Terminal' }, end: { _tag: 'Unknown' } },
+    })
+  })
+
   it('refuses a window that asks for both directions', async () => {
     const backend = RemoteServer.memory({ domain: Data, rows })
     const both = Query.first(1)(Query.last(1)(ByStatus.ref({ status: 'active' })))
@@ -257,7 +308,14 @@ describe('RemoteServer.memory', () => {
     const backend = RemoteServer.memory({
       domain: BlogData,
       rows: {
-        Post: [{ id: 'a', title: 'Hello', comments: ['Comment:c1', 'Comment:c2', 'Comment:c3'] }],
+        // c1 listed twice: paging must not cycle back to it.
+        Post: [
+          {
+            id: 'a',
+            title: 'Hello',
+            comments: ['Comment:c1', 'Comment:c2', 'Comment:c1', 'Comment:c3'],
+          },
+        ],
         Comment: [
           { id: 'c1', body: 'first' },
           { id: 'c2', body: 'second' },
@@ -322,6 +380,11 @@ describe('RemoteServer.memory', () => {
       hasNext: true,
       hasPrevious: true,
     })
+    expect(await page({ first: 1, after: 'c2' })).toEqual({
+      refs: ['Comment:c3'],
+      hasNext: false,
+      hasPrevious: true,
+    })
     expect(await page({ last: 2 })).toEqual({
       refs: ['Comment:c2', 'Comment:c3'],
       hasNext: false,
@@ -332,7 +395,33 @@ describe('RemoteServer.memory', () => {
       hasNext: true,
       hasPrevious: true,
     })
-    await expect(read({ first: 1, after: 'Comment:gone' })).rejects.toThrow('names nothing')
+    // A cursor that names nothing empties that one field, rather than failing
+    // the batch: the post's title rides in the same read and still arrives.
+    const batch = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        return yield* client.read({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: [
+            {
+              entity: 'Post',
+              id: 'a',
+              fields: ['title', 'comments@w'],
+              windows: { 'comments@w': { first: 1, after: 'Comment:gone' } },
+            },
+            { entity: 'Comment', id: 'c1', fields: ['body'] },
+          ],
+        })
+      }).pipe(Effect.provide(backend.layer)),
+    )
+    expect(batch.entities).toEqual([
+      {
+        entity: 'Post',
+        id: 'a',
+        values: { title: 'Hello', 'comments@w': { refs: [], hasNext: false, hasPrevious: false } },
+      },
+      { entity: 'Comment', id: 'c1', values: { body: 'first' } },
+    ])
   })
 
   it('refuses, when made, a query it has no body to run', () => {

@@ -576,16 +576,28 @@ export interface MemoryBackend extends MemoryStore {
   readonly layer: Layer.Layer<RemoteClient>
 }
 
+/** Where a cursor falls among ordered items: before `index`, or at it when `exact`. */
+interface Position {
+  readonly index: number
+  readonly exact: boolean
+}
+
 /**
  * One page of ordered items for a window, as a real server pages them. A
  * cursor is an item's id: a forward page starts at the `after` it was asked
  * for and ends at its last item while more follow, a backward page the
  * mirror, so a page fetched from another's end cursor joins it.
+ *
+ * `locate` places a cursor that is not among the items, as a keyset does: a
+ * row that stopped matching still has a place in the order. Without it, such
+ * a cursor is an error. A page of no items has no id of its own to end at, so
+ * with more beyond it and no cursor to repeat, its boundary is `Unknown`.
  */
 const pageOf = <Item>(
   items: ReadonlyArray<Item>,
   window: QueryWindow,
   idOf: (item: Item) => string,
+  locate?: (cursor: string) => Position,
 ): { readonly items: ReadonlyArray<Item>; readonly start: Boundary; readonly end: Boundary } => {
   if (
     (window.after !== undefined && window.before !== undefined) ||
@@ -593,31 +605,46 @@ const pageOf = <Item>(
   ) {
     throw new Error('A query window cannot combine after with before, or first with last')
   }
-  const at = (cursor: string): number => {
+  const position = (cursor: string): Position => {
     const index = items.findIndex(item => idOf(item) === cursor)
-    if (index < 0) throw new Error(`Cursor "${cursor}" names nothing in these results`)
-    return index
+    if (index >= 0) return { index, exact: true }
+    if (locate !== undefined) return locate(cursor)
+    throw new Error(`Cursor "${cursor}" names nothing in these results`)
   }
   const cursor = (id: string): Boundary => ({ _tag: 'Cursor', cursor: id })
   const terminal: Boundary = { _tag: 'Terminal' }
+  const unknown: Boundary = { _tag: 'Unknown' }
   if (window.last !== undefined || window.before !== undefined) {
-    const to = window.before === undefined ? items.length : at(window.before)
+    const to = window.before === undefined ? items.length : position(window.before).index
     const from = window.last === undefined ? 0 : Math.max(0, to - window.last)
     const page = items.slice(from, to)
+    const start =
+      from === 0
+        ? terminal
+        : page.length > 0
+          ? cursor(idOf(page[0]!))
+          : window.before === undefined
+            ? unknown
+            : cursor(window.before)
     return {
       items: page,
-      start: from > 0 && page.length > 0 ? cursor(idOf(page[0]!)) : terminal,
+      start,
       end: window.before === undefined ? terminal : cursor(window.before),
     }
   }
-  const from = window.after === undefined ? 0 : at(window.after) + 1
+  const at = window.after === undefined ? undefined : position(window.after)
+  const from = at === undefined ? 0 : at.exact ? at.index + 1 : at.index
   const to = window.first === undefined ? items.length : Math.min(items.length, from + window.first)
   const page = items.slice(from, to)
-  return {
-    items: page,
-    start: window.after === undefined ? terminal : cursor(window.after),
-    end: to < items.length && page.length > 0 ? cursor(idOf(page.at(-1)!)) : terminal,
-  }
+  const end =
+    to >= items.length
+      ? terminal
+      : page.length > 0
+        ? cursor(idOf(page.at(-1)!))
+        : window.after === undefined
+          ? unknown
+          : cursor(window.after)
+  return { items: page, start: window.after === undefined ? terminal : cursor(window.after), end }
 }
 
 /**
@@ -651,7 +678,8 @@ const memory = (config: {
     return created
   }
   for (const [entity, rows] of Object.entries(config.rows)) {
-    for (const row of rows) table(entity).set(row.id, { ...row })
+    // Keyed by the id as the wire carries it, a string, whatever JSON gave.
+    for (const row of rows) table(entity).set(String(row.id), { ...row })
   }
   const store: MemoryStore = {
     rows: entity => [...table(entity).values()],
@@ -667,15 +695,24 @@ const memory = (config: {
   // ref key, or a bare id, as a real server accepts either.
   const valueFor = (value: unknown, window: QueryWindow | undefined): unknown => {
     if (window === undefined || !Array.isArray(value)) return value
-    const refs = value as ReadonlyArray<string>
+    // A ref listed twice would make a cursor ambiguous, and paging cycle.
+    const refs = [...new Set(value as ReadonlyArray<string>)]
     const idOf = (ref: string) => ref.slice(ref.indexOf(':') + 1)
     const named = (cursor: string | undefined) =>
       cursor === undefined ? undefined : cursor.includes(':') ? idOf(cursor) : cursor
-    const page = pageOf(
-      refs,
-      { ...window, after: named(window.after), before: named(window.before) },
-      idOf,
-    )
+    let page: ReturnType<typeof pageOf<string>>
+    try {
+      page = pageOf(
+        refs,
+        { ...window, after: named(window.after), before: named(window.before) },
+        idOf,
+      )
+    } catch {
+      // A cursor that names nothing in the list answers this one field with an
+      // empty page. Failing would fail the whole batch it rode in, every other
+      // entity and field with it.
+      return { refs: [], hasNext: false, hasPrevious: false }
+    }
     // A cursor at either end is exactly "more lie that way".
     return {
       refs: page.items,
@@ -732,8 +769,23 @@ const memory = (config: {
                 Record<string, unknown>
               >
               const entity = body.entity.name
-              const matched = evaluate(body, encoded, store.rows(entity) as ReadonlyArray<Row>)
-              const page = pageOf(matched, window, row => String(row.id))
+              const rows = store.rows(entity) as ReadonlyArray<Row>
+              const matched = evaluate(body, encoded, rows)
+              // A cursor row that no longer matches still has a place in the
+              // order, as a keyset has it: sort it among the matches with the
+              // predicates set aside. One that no longer exists has none.
+              const locate = (cursor: string) => {
+                const row = rows.find(candidate => String(candidate.id) === cursor)
+                if (row === undefined) {
+                  throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
+                }
+                const placed = evaluate({ ...body, where: [] } as typeof body, encoded, [
+                  ...matched,
+                  row,
+                ])
+                return { index: placed.indexOf(row), exact: false }
+              }
+              const page = pageOf(matched, window, row => String(row.id), locate)
               return {
                 edges: page.items.map(row => {
                   const id = String(row.id)
