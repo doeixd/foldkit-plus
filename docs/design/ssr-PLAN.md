@@ -1,7 +1,7 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 5, U and R done. Next, in order: delivery through
-Foldkit's fetch handler (Phase 6), then the resumable track (Phases A to F). Written 2026-09-22 against
+**Status:** Phases 0 to 6, U and R done. Next: the resumable track (Phases A
+to F). Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -580,6 +580,29 @@ once `lang` and `dir` had a test of their own. Found on the way:
   or `ResumeUnsafe` becomes an error response, not a page that cannot resume;
   a `POST` is answered `405`.
 - Gate: Phase U.
+
+**Done.** `SSR.entry(config, plan, { buildId, template, containerId?, flags? })`
+returns Foldkit's `EntryModule`, `{ renderPage }`, tested through the real
+`handleRequest` and resumed in a browser from its response. Eight mutations
+each turned a test red. The first cut stands: the page is answered
+`Responded`, and Foldkit's `toResponse` builds it from a template that already
+holds the envelope, so the headers and the injection stay Foldkit's.
+Learned:
+
+- `handleRequest` answers `HEAD` by dropping the body of whatever
+  `renderPage` returns, and answers a static miss `404` before calling it, so
+  the entry needs no handling of either. It passes `POST` through, which is
+  where Phase E's fallback will attach.
+- A render failure is logged with the request URL and answered with a generic
+  body, since a `ResumeUnsafe` message names the application's fields.
+- `flags(request)` may be async, so an application can load what its `init`
+  needs before the synchronous render (decision 6). A Remote application still
+  has to get its prefetched data into `init`'s Model; `SSR.entry` does not do
+  that for it, and the README says nothing it cannot back up about it yet.
+- The "load more" click in a hydrated Remote page, which Phase R deferred to
+  here, needs an application that pages through a real client. The entry test
+  serves a counter and a routing application; the paging test moves to Phase A,
+  whose resumable builder needs the same application.
 
 ### Phases A to F: resumable pages
 

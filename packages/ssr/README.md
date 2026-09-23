@@ -5,12 +5,12 @@ browser the part of the Model it owns, and hydrate without running `init` a
 second time.
 
 **Status: in development, not published.** Built in phases from
-[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 5, U and R are
-done: a page renders on the server or at build time, the browser takes it over
-from the handed-over Model, a plan is checked against the Surfaces the browser
-reads, parts of the page can belong to the server alone, and Remote's data
-crosses with the page. Delivery through Foldkit's fetch handler (Phase 6) is
-next.
+[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 6, U and R are
+done: a page renders on the server or at build time and is served through
+Foldkit's fetch handler, the browser takes it over from the handed-over Model,
+a plan is checked against the Surfaces the browser reads, parts of the page can
+belong to the server alone, and Remote's data crosses with the page. Resumable
+pages, whose view waits for the first interaction, are the next track.
 
 ## What it owns
 
@@ -86,6 +86,34 @@ default from the URL, so a page that wants one derives it from the route in its
 Model, as it does its `title`, and sends the route in `state`. A head field
 read from a field the plan leaves out is refused like a body that is (see
 below).
+
+## Serve it through Foldkit's fetch handler
+
+Foldkit's server entry is one function, `renderPage(request)`, which its
+`handleRequest` calls for every request that is not a static file, on Node and
+on Workers alike. `SSR.entry` is that function for a resume plan:
+
+```ts
+import { handleRequest } from 'foldkit/experimental/server'
+
+// The server entry.
+export const { renderPage } = SSR.entry(config, Editor, { buildId, template })
+
+// A Worker, or any host that hands you a Web Request.
+export default {
+  fetch: (request: Request) => handleRequest(request, { renderPage, template }),
+}
+```
+
+`GET` and `HEAD` render the page with the request's URL; an application with
+Flags passes `flags: request => ...`. Any other method is answered `405`. A
+render that fails, or a plan it refuses, is answered `500` with the reason
+logged, never with a page the browser could not resume. `handleRequest` still
+answers a missed asset `404` without rendering, and `HEAD` without a body.
+
+The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
+`toResponse`: the `Rendered` result `handleRequest` would place in its
+template has no room for a per-request envelope.
 
 ## Startup Commands: `boot`
 
@@ -324,3 +352,8 @@ Model can close the script or open another. It also escapes U+2028 and U+2029.
   check. `foldkit-remote`'s own tests pin the capture: relations, connection
   boundaries, stale marks, live cursors under the key the live entry uses,
   and retention keeping what was resumed.
+- **Phase 6, delivery:** through Foldkit's real `handleRequest`, `GET` answers
+  the resumable page and the browser resumes it on its route without `init`;
+  `HEAD` answers with no body; `POST` is answered `405`; a missed asset renders
+  nothing; a refused plan is answered `500` with the reason logged; and each
+  request gets its own Flags, kept out of the page.

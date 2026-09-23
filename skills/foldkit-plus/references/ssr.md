@@ -1,10 +1,11 @@
 # foldkit-ssr
 
-**In development and unpublished.** Phases 0–5, U and R of its plan are built:
-render on the server or at build time (`SSR.generate`), the browser takes the
-page over without rerunning `init`, a plan is checked against the Surfaces the
-browser reads, `SSR.static` regions belong to the server alone, and Remote's
-data crosses through `parts`.
+**In development and unpublished.** Phases 0–6, U and R of its plan are built:
+render on the server or at build time (`SSR.generate`) and serve through
+Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
+without rerunning `init`, a plan is checked against the Surfaces the browser
+reads, `SSR.static` regions belong to the server alone, and Remote's data
+crosses through `parts`.
 
 ## What it owns
 
@@ -63,6 +64,11 @@ SSR.hydrate(config, Editor, { buildId })
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.
+- `SSR.entry(config, plan, { buildId, template, flags? })` returns the
+  `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
+  and `HEAD` render; other methods get `405`; a refused render gets `500`
+  with the reason logged. It answers `Responded`, since a `Rendered` result
+  has no room for the envelope.
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`
   records its path alone, since a static host ignores the query: it resumes at

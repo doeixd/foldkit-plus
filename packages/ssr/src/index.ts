@@ -15,8 +15,12 @@ import { Effect, Result, Schema } from 'effect'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
+  Rendered,
+  Responded,
   injectIntoTemplate,
   renderToString,
+  toResponse,
+  type EntryModule,
   type RenderError,
   type RenderedApplication,
 } from 'foldkit/experimental/server'
@@ -819,6 +823,69 @@ const generate = <Model, Fields extends Schema.Struct.Fields>(
   })
 
 /**
+ * The server entry for Foldkit's fetch handler: the `renderPage` that
+ * `handleRequest` calls, and that the `fetch.js` a Foldkit build emits
+ * exports, so a resumed page is served by Node and Workers alike.
+ *
+ * `GET` and `HEAD` render the page against the plan, with the request's URL
+ * and, when the application has Flags, `flags(request)`. Any other method is
+ * answered `405` (`handleRequest` passes every method through, `POST`
+ * included). A render that fails, or a plan the render refuses, is answered
+ * `500` with the reason logged, never with a page the browser cannot resume.
+ *
+ * The page is answered whole, as `Responded`: a `Rendered` result is placed in
+ * `handleRequest`'s one template, which has no place for a per-request
+ * envelope. Foldkit's own `toResponse` still builds the response, from a
+ * template that already holds the envelope, so the headers and the
+ * injection are Foldkit's. `handleRequest` still classifies static misses and
+ * answers `HEAD` without a body.
+ */
+const entry = <Model, Fields extends Schema.Struct.Fields>(
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  options: {
+    readonly buildId: string
+    readonly template: string
+    readonly containerId?: string | undefined
+    readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
+  },
+): EntryModule => ({
+  renderPage: async request => {
+    const method = request.method.toUpperCase()
+    if (method !== 'GET' && method !== 'HEAD') {
+      return Responded(new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } }))
+    }
+    const flags = options.flags === undefined ? undefined : await options.flags(request)
+    const result = await Effect.runPromise(
+      Effect.result(
+        render(config, plan, {
+          buildId: options.buildId,
+          url: request.url,
+          ...(options.flags === undefined ? {} : { flags }),
+        }),
+      ),
+    )
+    if (Result.isFailure(result)) {
+      console.error(`[foldkit-ssr] ${request.url} was not rendered: ${result.failure.message}`)
+      return Responded(
+        new Response('The page could not be rendered.', {
+          status: 500,
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        }),
+      )
+    }
+    const template = options.template.replace('</body>', `${result.success.envelope}</body>`)
+    return Responded(
+      toResponse(
+        template,
+        Rendered(result.success.rendered),
+        options.containerId === undefined ? undefined : { containerId: options.containerId },
+      ),
+    )
+  },
+})
+
+/**
  * Starts the browser from the page's resumed Model, without running `init`.
  *
  * In the order Foldkit checks a page: the build id first, before the payload
@@ -878,5 +945,6 @@ export const SSR = {
   inspect,
   static: staticRegion,
   generate,
+  entry,
   serializeJsonScript,
 }
