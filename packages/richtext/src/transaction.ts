@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { sameMarkSet } from './marks.js'
 import {
   Block,
   EditorState,
@@ -547,8 +548,6 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
   // blocks. One left-to-right pass per block; merging strictly reduces the run
   // count, so this terminates, and the output holds no mergeable pair, so it
   // is idempotent. Only same-mark sets merge, so unknown marks never drop.
-  const sameMarks = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
-    left.length === right.length && left.every(mark => right.includes(mark))
   const mergeSteps: Array<RelocateStep> = []
   for (const blockId of [...dirtyNodes]) {
     const blockIndex = blockIndexes.get(blockId)
@@ -560,7 +559,7 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
     let changed = false
     const kept = [accumulator]
     for (const run of block.children.slice(1)) {
-      if (sameMarks(accumulator.marks, run.marks)) {
+      if (sameMarkSet(accumulator.marks, run.marks)) {
         mergeSteps.push({
           node: run.id,
           into: accumulator.id,

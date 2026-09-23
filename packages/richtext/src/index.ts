@@ -20,6 +20,15 @@ export {
   inspect,
 } from './document.js'
 export {
+  type MarkDef,
+  type MarkExpansion,
+  Bold,
+  Italic,
+  Code,
+  sameMarkSet,
+  resolveInsertion,
+} from './marks.js'
+export {
   Operation,
   Transaction,
   Edit,

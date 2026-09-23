@@ -563,7 +563,11 @@ Typing immediately after bold usually continues bold.
 
 Typing immediately after a hyperlink usually should not extend the link.
 
-That distinction belongs in mark semantics, not ad hoc DOM code.
+That distinction belongs in mark semantics, not ad hoc DOM code. The fixed
+vocabulary implements it: `Bold`/`Italic` expand `after`, `Code` expands
+`none`, and `resolveInsertion` retargets edge insertions per these rules
+(refusing mark swaps at mixed edges). Unknown marks default to `both`. The
+registry, custom marks, and overlap rules remain Kit work.
 
 ---
 
@@ -3762,9 +3766,9 @@ transactions stay untouched.
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
-Remaining: extensible Kits and metadata, mark boundary semantics,
-further transforms, unknown node preservation, alongside the
-parallel feasibility tracks below. The current implementation is
+Remaining: extensible Kits and metadata (including the mark registry and
+custom definitions), further transforms, unknown node preservation, alongside
+the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.
 

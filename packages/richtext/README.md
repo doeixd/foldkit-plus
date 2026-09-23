@@ -132,6 +132,11 @@ document and owns no state.
   selection when no text remains. Node selections on the removed subtree remap
   to the collapse target. Collapse steps in the position map carry the same
   rule to external positions.
+- Marks carry boundary expansion (`Bold`/`Italic`: `after`, `Code`: `none`).
+  `resolveInsertion(document, position)` retargets edge insertions whose marks
+  forbid the edge to the neighbor carrying exactly the remaining marks; mixed
+  edges stay put rather than swapping formatting. Unknown marks default to
+  expanding both ways so preservation never retargets them away.
 - Every transaction ends by merging adjacent same-mark runs within touched
   blocks: the first run keeps its identity and text, later equivalents retire
   (reported in `removedNodes` with `RelocateStep`s). Loading never normalizes,

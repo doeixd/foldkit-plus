@@ -12,8 +12,9 @@ Available now: version-1 documents, explicit branded NodeIds, paragraphs,
 headings, text runs, Bold/Italic/Code marks, range and node selections,
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNode/SetNodeProps/InsertNode/DeleteNode,
 text position mapping with split relocation and deletion collapse, structural
-ChangeSets, merge normalization, bounded decode limits, and inspection.
-Unknown mark strings load verbatim and
+ChangeSets, merge normalization, mark definitions with boundary expansion,
+bounded decode limits, and inspection. Unknown mark strings load
+verbatim and
 round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
 `Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
 are no-ops without position steps. Build operations with `Edit.*`, which fills
