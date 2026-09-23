@@ -244,6 +244,8 @@ Style is pure data. It never touches the DOM.
 | `Style.pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance |
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `variable` / `variables` | typed tokens and CSS custom properties |
+| `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
+| `Style.layers` / `Style.inLayer(name, piece)` / `Style.foundation(theme)` | the closed cascade order (`defaults`, `components`, `variants`, `utilities`, `app`), a piece's rules in one layer, and the no-JavaScript stylesheet: the order, the tokens on `:root`, `color-scheme` |
 
 Rule-based Style compiles to one deterministic class (an FNV-1a hash of canonical rule text) plus
 CSS as data:

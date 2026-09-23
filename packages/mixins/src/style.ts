@@ -223,6 +223,54 @@ export const allowDiscrete: StyleValue = inline({ transitionBehavior: 'allow-dis
 /** Opts the slot into Foldkit's view transitions under `name`. */
 export const viewTransitionName = (name: string): StyleValue => inline({ viewTransitionName: name })
 
+/**
+ * The cascade layers, in order: a design system's rules come before an
+ * application's, and `app` is always last. A closed tuple, so a misspelled
+ * layer is a type error rather than a silently unlayered rule.
+ */
+export const layers = Object.freeze([
+  'defaults',
+  'components',
+  'variants',
+  'utilities',
+  'app',
+] as const)
+export type Layer = (typeof layers)[number]
+
+/**
+ * The piece's rules emitted inside `@layer name`. Inline declarations and
+ * classes are not rules and stay where they are; put what must be layered in
+ * `pseudo`, `nest`, or `states`, or use `Style.inLayer(name, Style.nest('&', decl))`.
+ */
+export const inLayer = (name: Layer, piece: StyleValue): StyleValue =>
+  Object.freeze({
+    ...piece,
+    ...(piece.rules === undefined
+      ? {}
+      : { rules: Object.freeze(piece.rules.map(rule => ({ ...rule, layer: name }))) }),
+  })
+
+/**
+ * The stylesheet a page ships with no JavaScript: the layer order declared
+ * first, every theme token as a custom property on `:root`, and
+ * `color-scheme: light dark` so `Theme.lightDark` tokens resolve. Put its text
+ * before `Style.stylesheet(...)`.
+ */
+export const foundation = (
+  theme: Readonly<Record<string, Readonly<Record<string, string>>>>,
+  options?: { readonly colorScheme?: 'light dark' | 'light' | 'dark' },
+): string => {
+  const declarations = Object.entries(theme)
+    .flatMap(([group, names]) =>
+      Object.entries(names).map(([name, value]) =>
+        Rules.variableDeclaration('--fk', group, name, value),
+      ),
+    )
+    .join(';')
+  const scheme = options?.colorScheme ?? 'light dark'
+  return `@layer ${layers.join(', ')};:root{${declarations}${declarations === '' ? '' : ';'}color-scheme:${scheme}}`
+}
+
 /** A boolean known at authoring time. */
 export const when = (condition: boolean, piece: StyleValue): StyleValue =>
   condition ? piece : empty
@@ -681,6 +729,9 @@ export const Style = {
   empty,
   perItem,
   stagger,
+  layers,
+  inLayer,
+  foundation,
   forSlots,
   forCapability,
   attach,

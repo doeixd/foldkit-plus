@@ -267,10 +267,35 @@ adapter.
 | Dialog | `dialog`, `backdrop`, `panel`, `title`, `description`, `initialFocus`, `closeButton` |
 | Popover | `button`, `panel`, `backdrop`, `arrow` |
 | Tooltip | `trigger`, `panel` |
+| HoverIntent | `trigger`, `panel` (open and close delays with intent, for a hover card or a menu) |
 | Slider | `root`, `track`, `filledTrack`, `thumb`, `label`, `hiddenInput` |
 | Tabs | `tablist`, `tab`, `panel` |
 | RadioGroup | `group`, `option`, `label`, `description`, `hiddenInput` |
+| Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
+
+## Accessibility patterns
+
+Every adapter has an `A11y.pattern` beside its Slots, under `Patterns`: the
+slots a widget of that kind must publish and what each must expose. The
+catalog lists them with a `tier` (`stateful` for a Submodel, `stateless` for
+a decorated native control), the ARIA `roles` involved, and the platform
+`floor`: what the widget relies on the browser for (`focus-trap`,
+`escape-dismiss`, `top-layer`, `form-submission`, ...), so nothing here
+reimplements it and a reader or an agent can ask.
+
+```ts
+import { A11y } from 'foldkit-mixins'
+import { Patterns } from 'foldkit-mixins-ui'
+
+A11y.validate(Patterns.Tabs, MyTabsSlots) // [] when a custom tabs view publishes what tabs need
+Patterns.catalog.find(entry => entry.name === 'dialog')?.floor // ['focus-trap', 'escape-dismiss', ...]
+```
+
+A test iterates the catalog and validates each adapter's own Slots against
+its pattern, so an adapter cannot drift from the contract it claims. The
+patterns are written separately from the Slots, which is what makes the
+check mean something.
 
 ## Why some components cannot be adapted
 
@@ -283,7 +308,7 @@ They cannot be adapted here without a change to their upstream component API.
 That is a limitation of the exposed render seam, not of Slot resolution.
 
 Other `@foldkit/ui` modules—`Toast`, `FileDrop`, `VirtualList`, `DragAndDrop`,
-`Anchor`, `HoverIntent`, and `Animation`—simply do not have adapters here yet.
+and `Animation`—simply do not have adapters here yet.
 `FileDrop` does expose a render seam, so it is an example that could be added
 without changing `@foldkit/ui`.
 

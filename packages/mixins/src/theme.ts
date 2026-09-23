@@ -37,4 +37,35 @@ export const variables = <T extends ThemeTokens>(theme: T): StyleValue => {
   return inline(style)
 }
 
-export const Theme = { define, variable, variables } as const
+/**
+ * A token that follows the user's color scheme with CSS `light-dark()`: no
+ * JavaScript and no Model field. A theme the user chooses is the other case,
+ * and belongs in the Model as a class on the root; `variables` compiles both.
+ */
+export const lightDark = (light: string, dark: string): string => `light-dark(${light}, ${dark})`
+
+type Merge<A, B> = {
+  readonly [G in keyof A | keyof B]: G extends keyof B
+    ? G extends keyof A
+      ? A[G] & B[G]
+      : B[G]
+    : G extends keyof A
+      ? A[G]
+      : never
+}
+
+/** Themes merged at definition time, later tokens winning within a group. */
+export const compose = <A extends ThemeTokens, B extends ThemeTokens>(
+  base: A,
+  over: B,
+): Readonly<Merge<A, B>> => {
+  const merged: Record<string, Record<string, string>> = {}
+  for (const source of [base, over]) {
+    for (const [group, names] of Object.entries(source)) {
+      merged[group] = { ...merged[group], ...(names as Record<string, string>) }
+    }
+  }
+  return define(merged) as unknown as Readonly<Merge<A, B>>
+}
+
+export const Theme = { define, variable, variables, lightDark, compose } as const

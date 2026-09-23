@@ -267,6 +267,13 @@ adapter.
   slot (`mixins:unknown-slot` for a slot the contract lacks). `Style.perItem(item => piece)` and
   `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
   piece)` styles every slot whose capability satisfies `cap`.
+- Theme and layers: `Theme.lightDark(light, dark)` (CSS `light-dark()`, no Model field),
+  `Theme.compose(base, over)`; `Style.layers` is the closed order `defaults, components, variants,
+  utilities, app`, `Style.inLayer(name, piece)` emits a piece's rules in that layer (a misspelled
+  name is a type error), and `Style.foundation(theme)` is the stylesheet a page ships first.
+- `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
+  (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
+  (`Anchor.behavior(Slots)({ floating, config })`).
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data: put `Style.stylesheet(StyleA, StyleB)` (global then scoped, deduped)
   into a `<style>` element yourself.

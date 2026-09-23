@@ -8,6 +8,8 @@
 export interface StyleRule {
   readonly selector: string
   readonly at?: string
+  /** The cascade layer the rule is emitted in; none means the unlayered cascade. */
+  readonly layer?: string
   readonly declarations: Readonly<Record<string, string>>
 }
 
@@ -55,13 +57,19 @@ const declarationsText = (declarations: Readonly<Record<string, string>>): strin
     .join(';')
 
 /** Canonical, declaration-sorted, authored-rule-order text for a rule list. */
+const inLayerText = (layer: string | undefined, text: string): string =>
+  layer === undefined ? text : `@layer ${layer}{${text}}`
+
 export const canonical = (rules: ReadonlyArray<StyleRule>): string =>
   rules
     .map(entry => {
       const body = `{${declarationsText(entry.declarations)}}`
-      return entry.at === undefined
-        ? `${entry.selector}${body}`
-        : `${entry.at}{${entry.selector}${body}}`
+      return inLayerText(
+        entry.layer,
+        entry.at === undefined
+          ? `${entry.selector}${body}`
+          : `${entry.at}{${entry.selector}${body}}`,
+      )
     })
     .join('')
 
@@ -101,6 +109,17 @@ export const css = (generated: string, rules: ReadonlyArray<StyleRule>): string 
     .map(entry => {
       const body = `{${declarationsText(entry.declarations)}}`
       const selector = `${selectorFor(generated, entry.selector)}${body}`
-      return entry.at === undefined ? selector : `${entry.at}{${selector}}`
+      return inLayerText(
+        entry.layer,
+        entry.at === undefined ? selector : `${entry.at}{${selector}}`,
+      )
     })
     .join('')
+
+/** A custom property line for one theme token, for `Style.foundation`. */
+export const variableDeclaration = (
+  prefix: string,
+  group: string,
+  name: string,
+  value: string,
+): string => `${prefix}-${group}-${name}:${value}`

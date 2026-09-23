@@ -381,23 +381,21 @@ deselect, `mergeRecipes`, `extendRecipeSlots`, an override `Provider`,
 
 These add two phases to the plan:
 
-- **I. Style.** Lift the conditional-rules limit first, since `states`,
-  `enter`, `exit`, and `stagger` all produce rule pieces an author will want
-  under `whenInput`. Then `states`, `responsive`, `Selector`, `vars`, `enter`,
-  `exit`, `stagger`, `viewTransitionName`, `recipeFor`, `Recipe.extend` and
-  `widen`, `forCapability`. Test: a `pseudo` inside `whenInput` toggles its
-  class with the input and emits one rule; a `states` piece styles a
-  server-rendered `data-state` with no script; a patch naming an unknown slot
-  raises `mixins:unknown-slot`; `enter` and `exit` emit `@starting-style`
-  and `allow-discrete` and nothing else.
+- **I. Style.** Done. The conditional-rules limit is lifted, then `states`,
+  `responsive`, `Selector`, `vars`, `enter` with `allowDiscrete` (an exit is
+  `states({ closed })`, so no separate `exit`), `stagger` through `perItem`,
+  `viewTransitionName`, `recipeFor` with `extend` (no `widen`: a recipe is
+  typed by its contract, and a wider contract is a different `recipeFor`),
+  `forCapability`. Tests: a `pseudo` inside `whenInput` toggles its class with
+  the input and emits one rule; a patch naming an unknown slot raises
+  `mixins:unknown-slot`; `enter` emits `@starting-style` and nothing else.
 
-- **H. Kit-adjacent.** `Patterns` and the adapter gate in `foldkit-mixins-ui`,
-  the `floor` metadata, `Theme.lightDark` and `Theme.compose`, the fixed
-  layer order with `Style.inLayer` and `Style.foundation`. Test: every adapter
-  passes its pattern; a misspelled layer fails to type check; the foundation
-  sheet round-trips a theme's variables. Independent of A through G, so it can
-  run first: it is small and touches only `foldkit-mixins` and
-  `foldkit-mixins-ui`.
+- **H. Kit-adjacent.** Done. `Patterns` with the adapter gate and `floor`
+  metadata in `foldkit-mixins-ui`, the `HoverIntent` and `Anchor` adapters,
+  `Theme.lightDark` and `Theme.compose`, the closed layer order with
+  `Style.inLayer` and `Style.foundation`. Tests: every adapter passes its
+  pattern and a weakened contract does not; a misspelled layer is a type
+  error; the foundation sheet carries a theme's variables and the scheme.
 
 ### Count
 
