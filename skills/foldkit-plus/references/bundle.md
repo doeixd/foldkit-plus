@@ -128,6 +128,9 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement in a second position.
 - **Gates:** `Page.at(Dark, { …, when: model => model.open })`; for a collection,
   `when: (model, key) => …`.
+- **A helper typed by a declaration:** `Declared<typeof Bundle, Field>` (exported
+  type) is what a function takes to read `declared.field` and dispatch
+  `declared.wrapper.make(message)` for a placement it did not make.
 - **Many of one:** `const Rows = Bundle.declareEach(Row, 'rows')`, spread
   `Rows.fields` and `Rows.cases`, then `Page.each(Rows, config)`. Use
   `placed.add(key, model => ({ ...model, id: key }))` (an item cannot see its key)

@@ -21,11 +21,15 @@ import { MediaQuery } from 'foldkit-primitives/media'
 A primitive belongs here when it is **reused across applications** and
 **stateful**: something observes it, something reacts to it, and replay sees
 the same transitions. That is exactly the bundle shape, which is why this
-package depends on `foldkit-bundle` and nothing else (besides peers).
+package depends on `foldkit-bundle` and nothing else (besides peers). The one
+exception is `interaction`, whose Bundles ship with a `foldkit-mixins` Behavior
+that wires them to a view's slots; `foldkit-mixins` is an optional peer that
+only that subpath needs.
 
 | Kind | Form | Example |
 | --- | --- | --- |
 | Stateful + effectful | bundle | MediaQuery, Timer, WebSocket, Pagination |
+| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex |
 | Keyed collections of stateful items | bundle per key | uploads, sockets, timers (later) |
 | Stream source with a stored fact | bundle with one boolean/scalar slice | Online, Visibility, WindowSize |
 | Stream source only | Subscription entry, not a bundle | keyboard, pointer, scroll, broadcast |
@@ -87,6 +91,7 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
+- `interaction` — a Bundle and its `foldkit-mixins` Behavior: RovingTabindex
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
@@ -471,6 +476,78 @@ the live clock and TestClock; the stream ends with `Finished` carrying the
 exact end value even when an underdamped spring overshoots on the way.
 `Tween` (fixed duration, linear) versus `Spring` (physics, settles) — pick
 the motion, not both.
+
+## Interaction: `foldkit-primitives/interaction`
+
+Interaction state that a view's slots must reflect: the Bundle holds it in the
+Model, and a matching [`foldkit-mixins`](../mixins) Behavior writes the
+attributes and handlers on the slots. Importing this subpath needs
+`foldkit-mixins`; the other subpaths do not.
+
+`RovingTabindex` is one tab stop for a set of items: arrows move focus between
+them, the rest stay out of the tab order. The Model slice is `{ current }`, the
+current item's **id**, so a reorder keeps the same item current and a resumed
+page knows where focus was. Args: `orientation` (`'vertical' | 'horizontal' |
+'both'`), `loop`, and `virtual` (focus stays on the container and
+`aria-activedescendant` points at the current item).
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { RovingTabindex, behavior as rovingTabindex } from 'foldkit-primitives/interaction'
+
+const Roving = Bundle.declare(RovingTabindex, 'toolbarFocus')
+const Model = Schema.Struct({ ...Roving.fields, tools: Schema.Array(Tool) })
+const Message = defineMessageUnion({ ...Roving.cases })
+const Page = Bundle.parent({ Model, Message })
+const args = { orientation: 'horizontal', loop: true, virtual: false } as const
+const placements = Page.assemble(Page.at(Roving, { args }))
+
+const ToolbarSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  tool: Slot.make({ capability: Capability.Focusable }),
+})
+const describeTools = (tools: ReadonlyArray<Tool>) =>
+  Behaviors.Collection.of(tools, { id: tool => tool.id, disabled: tool => tool.disabled })
+
+// Ids on each item come from Collection; RovingTabindex reads them.
+const Ids = Behaviors.Collection.behavior(ToolbarSlots)<Model, Message>({
+  item: 'tool',
+  items: model => describeTools(model.tools),
+})
+const Focus = rovingTabindex(Roving, args)(ToolbarSlots)<Model, Message>({
+  container: 'root',
+  item: 'tool',
+  items: model => describeTools(model.tools),
+})
+
+const Toolbar = SlotView.forMessages<Message>()
+  .define(ToolbarSlots, (model, slots, h) => {
+    const items = describeTools(model.tools)
+    return h.div(
+      slots.root.attrs([h.Role('toolbar')]),
+      model.tools.map((tool, index) =>
+        h.button(slots.tool.attrs([h.Key(tool.id)], items.slotItem(index)), [tool.label]),
+      ),
+    )
+  })
+  .pipe(Behavior.attach(Ids), Behavior.attach(Focus))
+```
+
+What each half does: the container gets `OnKeyDownFocus`, which on an arrow,
+Home or End focuses the next **enabled** item synchronously by its id, prevents
+the default, and dispatches `Focused { id }`. Each item gets `tabindex` `0` when
+it is the tab stop and `-1` otherwise, and `OnFocus` reporting `Focused`, so a
+click makes an item current too. Before anything is current, or when the
+current item is gone or disabled, the first enabled item is the tab stop. Keys
+with ctrl, alt or meta held are left alone; `direction: model => 'rtl'` swaps
+left and right. The pure `move(enabled, current, key, modifiers, options)` and
+`tabStop(items, current)` are exported for a view that wires its own.
+
+Under `virtual` the items get no `tabindex`, the container gets
+`aria-activedescendant`, and a key keeps DOM focus where it is and only moves
+the pointer. Nothing is written on dispose: the attributes are data, so a view
+that no longer attaches the Behavior leaves no `tabindex` behind.
 
 ## Testing placements
 

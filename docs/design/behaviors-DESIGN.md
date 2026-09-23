@@ -155,7 +155,7 @@ version has that ours must not repeat, each of which becomes a test.
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { RovingTabindex } from 'foldkit-primitives/state'
+import { RovingTabindex, behavior as rovingTabindex } from 'foldkit-primitives/interaction'
 
 const ToolbarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
@@ -173,7 +173,7 @@ const placements = Page.assemble(
 
 // Behavior: maps the slots to that placement. Its Input is the parent Model,
 // so it can read the placed slice and dispatch the placed Messages.
-const ToolbarFocus = RovingTabindex.behavior(Roving, ToolbarSlots, {
+const ToolbarFocus = rovingTabindex(Roving, args)(ToolbarSlots)<Model, Message>({
   container: 'root',
   items: 'tool',
   itemId: (model, index) => model.tools[index]?.id,

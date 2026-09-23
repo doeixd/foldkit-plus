@@ -6,6 +6,7 @@ export default defineConfig({
     'src/device/index.ts',
     'src/dom/index.ts',
     'src/events/index.ts',
+    'src/interaction/index.ts',
     'src/media/index.ts',
     'src/motion/index.ts',
     'src/net/index.ts',
@@ -17,5 +18,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'es2022',
-  deps: { neverBundle: ['effect', 'foldkit', 'foldkit-bundle'] },
+  deps: { neverBundle: ['effect', /^foldkit(\/.*)?$/, 'foldkit-bundle', 'foldkit-mixins'] },
 })

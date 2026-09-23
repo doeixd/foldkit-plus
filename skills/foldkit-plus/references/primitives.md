@@ -18,6 +18,7 @@ imports.
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
 | A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
+| The current item of a roving tab stop | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
 A bundle holds no state. Placing it twice observes twice; share the field
 instead. The browser, clock, or server only reports facts as Messages.
@@ -72,6 +73,12 @@ into a chord answer. Slices that must survive reload persist through
   `Received` notifies without storing — project it to keep it.
 - **Observe an element:** `h.div([h.OnMount(Resize())], [...])`; without the
   observer API the Mount emits nothing.
+- **Roving tab stop:** place `RovingTabindex` (`{ orientation, loop, virtual }`)
+  from `foldkit-primitives/interaction`; attach
+  `behavior(Declared, args)(Slots)<Model, Message>({ container, item, items: model => Behaviors.Collection.of(...), direction? })`
+  beside `Behaviors.Collection.behavior` (which writes the ids it focuses by).
+  The Model slice is the current item's id; the container's `OnKeyDownFocus`
+  focuses the next enabled item and dispatches `Focused { id }`.
 
 ## Gotchas
 

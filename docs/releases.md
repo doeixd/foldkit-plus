@@ -33,7 +33,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-mirror`](../packages/mirror) | 0.2.3 | Published | A Model slice mirrored into the URL or a key-value store, restored on load. |
 | [`foldkit-bundle`](../packages/bundle) | 0.2.0 | Published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
 | [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.1.3 | Published | Placements as Module contracts that own their Model path. |
-| [`foldkit-primitives`](../packages/primitives) | 0.2.1 | Published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom) under tree-shakeable subpaths. |
+| [`foldkit-primitives`](../packages/primitives) | 0.2.1 | Published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom, interaction) under tree-shakeable subpaths. |
 | [`foldkit-react`](../packages/react) | 0.1.0 | Published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
 | [`foldkit-react-codegen`](../packages/react-codegen) | 0.1.0 | Published | Compiles Foldkit view functions to React TSX, refusing with a located diagnostic what it cannot translate faithfully. |
 | [`foldkit-mixins`](../packages/mixins) | 0.3.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
@@ -95,7 +95,7 @@ and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-en
 `foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
 `foldkit-surface`; `foldkit-remote` and `foldkit-remote-drizzle` also depend on `foldkit-entity`; `foldkit-form` depends on `foldkit-bundle`, `foldkit-entity`, and `foldkit-metadata`; `foldkit-mixins-form` depends on `foldkit-bundle`, `foldkit-form`, and `foldkit-mixins`; `foldkit-crud` depends on `foldkit-bundle`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-remote`, and `foldkit-surface`; `foldkit-cms-drizzle` depends on `foldkit-cms`, `foldkit-entity`, `foldkit-remote`, `foldkit-remote-drizzle`, `foldkit-remote-server`, and `drizzle-orm`; `foldkit-cms` depends on `foldkit-bundle`, `foldkit-crud`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-remote`, and `foldkit-surface`; `foldkit-mixins-crud` depends on `foldkit-crud`, `foldkit-form`, `foldkit-mixins`, and `foldkit-remote`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
-`foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
+`foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle` (and has `foldkit-mixins` as an optional peer, needed only by its `interaction` subpath); `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.
 `foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.116` and requires
 Node 22 (`engines.node`).
