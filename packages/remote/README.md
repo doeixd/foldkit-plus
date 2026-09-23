@@ -680,24 +680,6 @@ const loaded = await Effect.runPromise(
 Remote Messages reduced into it. It never changes the semantics of the
 Projection itself.
 
-### Showing a change nobody has made
-
-A mutation's `optimistic` operations show over the store while it is in flight.
-`Data.overlay` shows operations the same way with no request behind them, until
-`Data.lift`: a preview, in every Selection and view, of something not yet sent.
-
-```ts
-const previewed = Data.overlay(model, 'post-preview', [Remote.patch(Project, id, { name: draft })])
-const back = Data.lift(previewed, 'post-preview')
-```
-
-- Both are called from `update`, and neither performs I/O or touches what the
-  server said: the store beneath is as it was.
-- Showing an id again replaces what it showed. Lifting what was never shown
-  returns the same Model.
-- An overlay's id is apart from every request's, so a mutation that settles does
-  not take a preview with it.
-
 ### Refreshing from `update`
 
 To revalidate what a screen already declares — a refresh button, a focus
@@ -1060,6 +1042,24 @@ const { model: started, command } = Data.mutate(model, AddComment, input, {
 A successful server result can replace the request's temporary connection
 overlays with confirmed ones in place.
 
+### Showing a change nobody has made
+
+A mutation's `optimistic` operations show over the store while it is in flight.
+`Data.overlay` shows operations the same way with no request behind them, until
+`Data.lift`: a preview, in every Selection and view, of something not yet sent.
+
+```ts
+const previewed = Data.overlay(model, 'post-preview', [Remote.patch(Project, id, { name: draft })])
+const back = Data.lift(previewed, 'post-preview')
+```
+
+- Both are called from `update`, and neither performs I/O or touches what the
+  server said: the store beneath is as it was.
+- Showing an id again replaces what it showed. Lifting what was never shown
+  returns the same Model.
+- An overlay's id is apart from every request's, so a mutation that settles does
+  not take a preview with it.
+
 ### Reading past what is only pending
 
 Every projection reads the **visible** cache: the server-derived store under
@@ -1097,25 +1097,12 @@ flight](../../docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight
 
 ### Remote mutation vs Sync operation
 
-Do not use Remote mutation as a durable offline-write mechanism:
-
-```text
-Remote mutation
-  request server now
-  server owns truth
-  result updates disposable cache
-  no durable outbox
-
-Sync operation
-  client authored the durable fact/intent
-  survives offline/restart
-  enters an ordered log
-  converges with other replicas
-```
-
-If losing an unsent edit would be data loss, it belongs to Sync rather than
-Remote. For the same reason, an optimistic overlay is only a temporary view of
-server-owned data: do not persist one and treat it as a queue of edits.
+A Remote mutation requests the server now; its result updates a disposable
+cache, and there is no durable outbox. If losing an unsent edit would be data
+loss, it belongs to [`foldkit-sync`](../sync), not here (see [which state
+belongs here](#which-state-belongs-here)). For the same reason, an optimistic
+overlay is only a temporary view of server-owned data: do not persist one and
+treat it as a queue of edits.
 
 ## Live data
 
@@ -1299,10 +1286,9 @@ Remote.planQueries(...)        // missing/stale query work
 Remote.inspectEntity(...)      // one normalized entity
 ```
 
-These are pure and useful in tests, tooling, and debugging. A particularly
-useful question is: **"Why is this Projection still Initial?"** `Data.plan`
-shows whether Remote believes anything is actually missing; active Surface
-wiring determines whether that plan is being executed.
+These are pure and useful in tests, tooling, and debugging. For a read that
+stays `Initial`, `Data.why` and `Data.plan` are the tools; see
+[Why is it still `Initial`?](#why-is-it-still-initial).
 
 `Data.inspect(model).loading` answers the other one — **"what is Remote doing
 right now?"** — with the `entity\0id\0field` marks of the reads in flight,
