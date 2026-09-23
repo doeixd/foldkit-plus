@@ -5,10 +5,11 @@ browser the part of the Model it owns, and hydrate without running `init` a
 second time.
 
 **Status: in development, not published.** Built in phases from
-[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 4 are done: a page
-renders on the server, the browser takes it over from the handed-over Model, a
-plan is checked against the Surfaces the browser reads, and parts of the page
-can belong to the server alone.
+[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 5 are done: a page
+renders on the server or at build time, the browser takes it over from the
+handed-over Model, a plan is checked against the Surfaces the browser reads,
+and parts of the page can belong to the server alone. Resuming Remote's state
+(Phase R) is next.
 
 ## What it owns
 
@@ -173,6 +174,41 @@ belongs in a Surface.
   shows one, is logged and rendered in the browser from the browser's Model.
 - With no server render, a region renders like any other part of the view.
 
+## Static generation
+
+The same render at build time, for paths you know, as files a static host
+serves:
+
+```ts
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+
+const pages = await Effect.runPromise(
+  SSR.generate(config, Editor, {
+    buildId,
+    template,
+    origin: 'https://example.com',
+    paths: ['/', '/about', '/docs/intro'],
+  }),
+)
+for (const page of pages) {
+  await mkdir(dirname(join('dist', page.file)), { recursive: true })
+  await writeFile(join('dist', page.file), page.html)
+}
+```
+
+Each path becomes `index.html` in its own folder (`/about` is
+`about/index.html`), and a path ending in `.html` keeps its name. `origin` makes
+each path the full URL a routing application parses. An application with Flags
+passes `flags: path => ...`, and they stay out of the page as always.
+
+A static host serves one file whatever the query, and for `/about` and
+`/about/` alike. So a generated page records its path alone, and the browser
+checks the path and ignores the query and a trailing slash: `/about?ref=mail`
+resumes the page generated for `/about`, and `/other` is refused. A path with a
+query or fragment, or two paths that would be one file, are refused with
+`UngeneratablePath`.
+
 ## When a page is refused
 
 On the server, `SSR.render` fails with `ResumeUnsafe`:
@@ -181,6 +217,7 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
 - `Uncovered`: a Surface in `surfaces` reads or is activated by something the
   plan neither sends nor names `local`, as above.
 - `DuplicateStaticRegion`: two `SSR.static` regions share an id.
+- `UngeneratablePath`: `SSR.generate` was given a path no file can be served at.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
   from the one served, so it reads a field the plan leaves out. Add the field to
   `state`, or stop the view reading it. In production Foldkit would silently
@@ -195,8 +232,8 @@ with no server render at all starts on the client as usual.
 The envelope's reasons, which `SSR.resume` returns as `ResumeRefused`:
 `Missing` or `Duplicate` envelope, `Unreadable` JSON, another `Protocol`
 version, another `Plan`, state that is `Invalid` for the plan's Schema, and a
-`Route` other than the one the page was rendered for (path and query). A page
-is never half-restored.
+`Route` other than the one the page was rendered for (path and query, or the
+path alone for a generated page). A page is never half-restored.
 
 ## The pieces underneath
 
@@ -238,3 +275,7 @@ Model can close the script or open another. It also escapes U+2028 and U+2029.
   Message, and what it reads is not in the envelope. A duplicate id is refused,
   a region missing from the page is reported and rendered, a client-only render
   works, and a render leaves no context behind.
+- **Phase 5, static generation:** each path is rendered to its file, with its
+  own Flags; a generated page resumes at its path with a query and a trailing
+  slash, and is refused at another path; and each path no file can be served
+  at is refused.

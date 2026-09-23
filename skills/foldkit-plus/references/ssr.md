@@ -1,9 +1,9 @@
 # foldkit-ssr
 
-**In development and unpublished.** Phases 0–4 of its plan are built: render on
-the server, the browser takes the page over without rerunning `init`, a plan is
-checked against the Surfaces the browser reads, and `SSR.static` regions belong
-to the server alone.
+**In development and unpublished.** Phases 0–5 of its plan are built: render on
+the server or at build time (`SSR.generate`), the browser takes the page over
+without rerunning `init`, a plan is checked against the Surfaces the browser
+reads, and `SSR.static` regions belong to the server alone.
 
 ## What it owns
 
@@ -56,6 +56,10 @@ SSR.hydrate(config, Editor, { buildId })
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.
 - The route check compares path and query with the URL the server rendered.
+  A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`
+  records its path alone, since a static host ignores the query: it resumes at
+  `/about?ref=x` or `/about/`, not at `/other`. Each result has `file`
+  (`about/index.html`) and `html` to write.
 - `Projection.pick` refuses two fields with the same last key (`post.id` and
   `viewer.id`), which would otherwise merge into one.
 - Lower level: `SSR.envelope(plan, model, { route? })` and

@@ -134,6 +134,21 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
 }
 
 /**
+ * How a page's recorded route is compared with the browser's. `full` compares
+ * path and query. `path` compares the path alone, ignoring a trailing slash or
+ * `index.html`, for a page generated as a file: a static host serves one file
+ * for every query, and for `/about` and `/about/` alike.
+ */
+type RouteMatch = 'full' | 'path'
+
+/** A path as a `path` match compares it. */
+const pathKey = (route: string): string => {
+  const path = route.split(/[?#]/)[0] ?? ''
+  const trimmed = path.replace(/\/index\.html$/, '/').replace(/\/+$/, '')
+  return trimmed === '' ? '/' : trimmed
+}
+
+/**
  * The script a server writes into its page's template: the plan's slice of
  * `model`, encoded through the slice's own Schema, and the route it was
  * rendered for, if it was rendered for one.
@@ -141,7 +156,7 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
 const envelope = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,
   model: Model,
-  options: { readonly route?: string | undefined } = {},
+  options: { readonly route?: string | undefined; readonly match?: RouteMatch | undefined } = {},
 ): string => {
   const state = Schema.encodeSync(codecOf(resume.state.schema))(resume.state.get(model))
   const body = serializeJsonScript({
@@ -149,6 +164,7 @@ const envelope = <Model, Fields extends Schema.Struct.Fields>(
     plan: resume.id,
     state,
     ...(options.route === undefined ? {} : { route: options.route }),
+    ...(options.match === 'path' ? { match: 'path' } : {}),
   })
   return `<script type="application/json" ${RESUME_ATTRIBUTE}>${body}</script>`
 }
@@ -175,7 +191,7 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
   } catch (error) {
     return refuse('Unreadable', `the resume envelope is not JSON: ${String(error)}`)
   }
-  const { v, plan: id, state, route } = (parsed ?? {}) as Record<string, unknown>
+  const { v, plan: id, state, route, match } = (parsed ?? {}) as Record<string, unknown>
   if (v !== PROTOCOL) {
     return refuse('Protocol', `the envelope is protocol ${String(v)}, not ${PROTOCOL}`)
   }
@@ -185,8 +201,15 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
   // The route the Model was made for. The runtime never reports the URL at
   // boot, so a page resumed on another route would show one and be on the
   // other.
-  if (route !== undefined && options.route !== undefined && route !== options.route) {
-    return refuse('Route', `the page was rendered for ${String(route)}, not ${options.route}`)
+  if (route !== undefined && options.route !== undefined) {
+    const matches =
+      match === 'path' ? pathKey(String(route)) === pathKey(options.route) : route === options.route
+    if (!matches) {
+      return refuse(
+        'Route',
+        `the page was ${match === 'path' ? 'generated' : 'rendered'} for ${String(route)}, not ${options.route}`,
+      )
+    }
   }
   const decoded = Schema.decodeUnknownResult(codecOf(plan.state.schema))(state)
   if (Result.isFailure(decoded)) {
@@ -344,6 +367,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'Uncovered',
     'ViewDependsOnUnsentState',
     'DuplicateStaticRegion',
+    'UngeneratablePath',
   ]),
   message: Schema.String,
 }) {}
@@ -527,6 +551,20 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
 ): Effect.Effect<
   { readonly rendered: RenderedApplication; readonly envelope: string },
   RenderError | ResumeUnsafe
+> => renderMatching(config, plan, options, 'full')
+
+const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  options: {
+    readonly buildId: string
+    readonly url?: string | undefined
+    readonly flags?: unknown
+  },
+  match: RouteMatch,
+): Effect.Effect<
+  { readonly rendered: RenderedApplication; readonly envelope: string },
+  RenderError | ResumeUnsafe
 > =>
   Effect.gen(function* () {
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
@@ -576,7 +614,10 @@ const render = <Model, Fields extends Schema.Struct.Fields>(
     return {
       rendered,
       envelope: envelope(plan, started.model, {
-        ...(options.url === undefined ? {} : { route: routeOf(options.url) }),
+        ...(options.url === undefined
+          ? {}
+          : { route: match === 'path' ? pathKey(routeOf(options.url)) : routeOf(options.url) }),
+        match,
       }),
     }
   })
@@ -591,6 +632,77 @@ const page = (
   result: { readonly rendered: RenderedApplication; readonly envelope: string },
 ): string =>
   injectIntoTemplate(template.replace('</body>', `${result.envelope}</body>`), result.rendered)
+
+/** A page generated at build time, and the file a static host serves it from. */
+export interface GeneratedPage {
+  readonly path: string
+  readonly file: string
+  readonly html: string
+}
+
+/** The file a static host serves for a path: `/about` is `about/index.html`. */
+const fileOf = (path: string): string => {
+  const trimmed = path.replace(/^\/+/, '').replace(/\/+$/, '')
+  if (trimmed === '') return 'index.html'
+  return trimmed.endsWith('.html') ? trimmed : `${trimmed}/index.html`
+}
+
+/**
+ * Renders pages at build time, one per path, each as `SSR.render` and
+ * `SSR.page` would, to be written as files. `origin` makes each path the full
+ * URL a routing application parses. `flags`, when the application has them,
+ * gives each path its own.
+ *
+ * A generated page records its path alone: a static host serves the same file
+ * whatever the query, so the browser checks the path and ignores the query. A
+ * path with a query or fragment, or two paths that would be one file, are
+ * refused.
+ */
+const generate = <Model, Fields extends Schema.Struct.Fields>(
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  options: {
+    readonly buildId: string
+    readonly template: string
+    readonly origin: string
+    readonly paths: ReadonlyArray<string>
+    readonly flags?: ((path: string) => unknown) | undefined
+  },
+): Effect.Effect<ReadonlyArray<GeneratedPage>, RenderError | ResumeUnsafe> =>
+  Effect.gen(function* () {
+    const files = new Map<string, string>()
+    for (const path of options.paths) {
+      if (!path.startsWith('/') || /[?#]/.test(path)) {
+        return yield* new ResumeUnsafe({
+          reason: 'UngeneratablePath',
+          message: `"${path}" is not a path a file can be served at: start it with / and leave out any query or fragment`,
+        })
+      }
+      const other = files.get(fileOf(path))
+      if (other !== undefined) {
+        return yield* new ResumeUnsafe({
+          reason: 'UngeneratablePath',
+          message: `"${other}" and "${path}" would both be written to ${fileOf(path)}`,
+        })
+      }
+      files.set(fileOf(path), path)
+    }
+    return yield* Effect.forEach(options.paths, path =>
+      Effect.map(
+        renderMatching(
+          config,
+          plan,
+          {
+            buildId: options.buildId,
+            url: new URL(path, options.origin).href,
+            ...(options.flags === undefined ? {} : { flags: options.flags(path) }),
+          },
+          'path',
+        ),
+        result => ({ path, file: fileOf(path), html: page(options.template, result) }),
+      ),
+    )
+  })
 
 /**
  * Starts the browser from the page's resumed Model, without running `init`.
@@ -651,5 +763,6 @@ export const SSR = {
   hydrate,
   inspect,
   static: staticRegion,
+  generate,
   serializeJsonScript,
 }

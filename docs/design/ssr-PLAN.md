@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 4 done; Phase 5 next. Written 2026-09-22 against `foldkit`
+**Status:** Phases 0 to 5 done; Phase R next. Written 2026-09-22 against `foldkit`
 0.158.2 and this repository at 0.10.0, then revised the same day after an
 independent review (see [What review changed](#what-review-changed)).
 
@@ -307,6 +307,22 @@ better:
 - Test: a page generated for one route resumes on it, and is refused when served
   at another.
 - Gate: Phase 2.
+
+**Done.** `SSR.generate(config, plan, { buildId, template, origin, paths,
+flags? })` returns each page with the file it is served from. Twelve mutations
+each turned a test red. One thing did not apply unchanged:
+
+- **Decision 8 is revised for generated pages.** A static host serves one file
+  whatever the query, and for `/about` and `/about/` alike, so checking the
+  query would refuse, and freeze, a generated page for every link with a
+  tracking parameter. A generated page's envelope records its path and
+  `match: "path"`, and the browser compares paths only, ignoring a trailing
+  slash and `index.html`. The path is still checked. A page rendered per
+  request keeps the full check, since its server saw the query.
+- Paths with a query or fragment, and two paths that would be one file, are
+  refused before anything renders. `SSR.generate` writes nothing itself: the
+  package runs in the browser too, so it returns the files for a build script
+  to write.
 
 ### Phase R: resume Remote's state
 
