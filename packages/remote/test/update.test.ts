@@ -137,13 +137,14 @@ describe('Remote.update', () => {
       updateRemote(invalidated, { _tag: 'ConnectionMerged', connection: 'c1', page }).connections
         .c1!.stale,
     ).toBe(true)
-    // A failed refresh ends the refresh; the pages stay as they were.
+    // A failed refresh keeps the pages, and is still owed: the connection stays
+    // stale, so whatever settles the failure leaves it to be refreshed.
     const failed = updateRemote(invalidated, {
       _tag: 'QueryFailed',
       connection: 'c1',
       error: { _tag: 'RemoteQueryError', message: 'boom' },
     })
-    expect(failed.connections.c1).toEqual({ ...merged.connections.c1, stale: false })
+    expect(failed.connections.c1).toEqual({ ...merged.connections.c1, stale: true })
     expect(
       updateRemote(initialRemoteModel, {
         _tag: 'QueryFailed',

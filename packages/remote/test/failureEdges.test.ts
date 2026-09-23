@@ -13,7 +13,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, entityKey, type RemoteError, type Requirement } from '../src/index.js'
+import {
+  Query,
+  Remote,
+  emptyStore,
+  entityKey,
+  writeEntity,
+  type RemoteError,
+  type Requirement,
+} from '../src/index.js'
 
 const User = DomainEntity.define(
   'User',
@@ -227,5 +235,136 @@ describe('Paths nothing else exercises', () => {
     expect(Remote.plan(Data, ownerRefFailed, withOwner)).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'] },
     ])
+  })
+})
+
+describe('A second review: reads that lied about loading, and failures that outlived their cause', () => {
+  it('a read whose related entity is being fetched reads Loading, not Initial', () => {
+    const fetching = Data.reduce(owned(), {
+      _tag: 'ReadStarted',
+      requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
+    })
+
+    expect(withOwner.read(owned())._tag).toBe('Initial')
+    expect(withOwner.read(fetching)._tag).toBe('Loading')
+  })
+
+  it('so does a list whose rows are waiting on their related entity', () => {
+    const owners = Data.query(
+      All,
+      {},
+      {
+        select: DomainEntity.select(Project, {
+          name: true,
+          owner: DomainEntity.select(User, { name: true }),
+        }),
+        first: 25,
+      },
+    )
+    const listed = Data.reduce(owned(), {
+      _tag: 'ConnectionMerged',
+      connection: owners.ref.identity,
+      page: {
+        edges: [{ key: entityKey('Project', 'p1'), ref: { entity: 'Project', id: 'p1' } }],
+        start: { _tag: 'Terminal' },
+        end: { _tag: 'Terminal' },
+      },
+      refreshes: true,
+    })
+    const fetching = Data.reduce(listed, {
+      _tag: 'ReadStarted',
+      requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
+    })
+
+    expect(owners.read(listed)._tag).toBe('Initial')
+    expect(owners.read(fetching)._tag).toBe('Loading')
+  })
+
+  it('a refresh retries a related entity even when the server does not expand the relation', () => {
+    const retried = Data.refresh(ownerFailed(), withOwner)
+    // The server answers the parent alone, owner as a ref, and no user.
+    const answered = received(retried, Remote.plan(Data, retried, withOwner), [
+      { entity: 'Project', id: 'p1', values: { name: 'One', owner: 'User:u1' } },
+    ])
+
+    expect(retried.remote.failures.fields).toEqual({})
+    expect(Remote.plan(Data, answered, withOwner)).toEqual([
+      { entity: 'User', id: 'u1', fields: ['name'] },
+    ])
+  })
+
+  it('retention forgets a field read nothing is waiting for any more', () => {
+    const fetching = Data.reduce(initial, {
+      _tag: 'ReadStarted',
+      requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+    })
+    const project = Data.get(DomainEntity.select(Project, { name: true }), 'p1')
+    const roots = (requirements: ReadonlyArray<Requirement>) =>
+      Data.reduce(fetching, {
+        _tag: 'RetentionChanged',
+        roots: { requirements, connections: [] },
+      })
+
+    expect(project.read(roots([]))._tag).toBe('Initial')
+    expect(project.read(roots([{ entity: 'Project', id: 'p1', fields: ['name'] }]))._tag).toBe(
+      'Loading',
+    )
+  })
+
+  it('a hydrated value settles the failure of the field it writes', () => {
+    const failedName = failed(initial, [{ entity: 'Project', id: 'p1', fields: ['name'] }])
+    const hydrate = (model: Model, merge: 'replace' | 'preserve-existing') =>
+      Data.reduce(model, {
+        _tag: 'Hydrated',
+        entities: writeEntity(emptyStore, entityKey('Project', 'p1'), { name: 'Restored' }, 0),
+        merge,
+      })
+    const project = Data.get(DomainEntity.select(Project, { name: true }), 'p1')
+
+    expect(project.read(hydrate(failedName, 'replace'))).toEqual({
+      _tag: 'Ready',
+      value: { name: 'Restored' },
+    })
+    // Under preserve-existing a held entity keeps its own value, and its failure.
+    const held = failed(
+      received(
+        initial,
+        [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+        [{ entity: 'Project', id: 'p1', values: { name: 'Held' } }],
+      ),
+      [{ entity: 'Project', id: 'p1', fields: ['name'] }],
+    )
+    expect(project.read(hydrate(held, 'preserve-existing'))._tag).toBe('Failed')
+  })
+
+  it('a failed refresh is still owed after "load more" succeeds', () => {
+    const page = (id: string, end: 'Cursor' | 'Terminal', refreshes: boolean) => ({
+      _tag: 'ConnectionMerged' as const,
+      connection: list.ref.identity,
+      page: {
+        edges: [{ key: entityKey('Project', id), ref: { entity: 'Project', id } }],
+        start: { _tag: 'Terminal' as const },
+        end:
+          end === 'Cursor'
+            ? { _tag: 'Cursor' as const, cursor: id }
+            : { _tag: 'Terminal' as const },
+      },
+      refreshes,
+    })
+    const loaded = Data.reduce(initial, page('p1', 'Cursor', true))
+    const refreshFailed = Data.reduce(
+      Data.reduce(loaded, { _tag: 'ConnectionInvalidated', connection: list.ref.identity }),
+      { _tag: 'QueryFailed', connection: list.ref.identity, error: down },
+    )
+    expect(Remote.planQueries(Data, refreshFailed, list)).toEqual([])
+
+    // "Load more" lands a later page. The failure is settled, but page one is
+    // still the outdated one, so the refresh it owed now runs.
+    const more = Data.reduce(refreshFailed, {
+      ...page('p2', 'Terminal', false),
+      page: { ...page('p2', 'Terminal', false).page, start: { _tag: 'Cursor', cursor: 'p1' } },
+    })
+    expect(more.remote.failures.connections).toEqual({})
+    expect(Remote.planQueries(Data, more, list)).toHaveLength(1)
   })
 })

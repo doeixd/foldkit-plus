@@ -429,12 +429,19 @@ const withoutQueryLoading = (loading: ReadonlySet<string>, identity: string) => 
  * leaves its mark behind, and a connection released with that mark would read
  * `Loading` forever the next time something asked for it before sending.
  */
-const prunedQueryLoading = (
+const prunedLoading = (
   loading: ReadonlySet<string>,
   roots: RetentionRoots,
+  reached: () => ReadonlySet<string>,
 ): ReadonlySet<string> => {
+  if (loading.size === 0) return loading
   const named = new Set(roots.connections.map(root => connectionMark(root.identity)))
-  const kept = [...loading].filter(mark => !mark.startsWith(connectionPrefix) || named.has(mark))
+  // A field mark goes with its entity, exactly as a connection's goes with the
+  // connection: a read the entry stopped waiting for must not leave a value
+  // reading `Loading` with nothing fetching it.
+  const kept = [...loading].filter(mark =>
+    mark.startsWith(connectionPrefix) ? named.has(mark) : reached().has(markEntity(mark)),
+  )
   return kept.length === loading.size ? loading : new Set(kept)
 }
 
@@ -599,12 +606,24 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       }
     case 'RetentionChanged': {
       const retained = gc(model, message.roots)
+      // Retention's own walk over the Model before collection. It counts a
+      // relation's target and a list's row the store does not hold, which is
+      // exactly a value whose first read failed or is still in flight.
+      let reachedKeys: ReadonlySet<string> | undefined
+      const reached = () =>
+        (reachedKeys ??= reachable(
+          model.entities,
+          message.roots,
+          model.connections,
+          model.optimistic,
+          model.mutations.pending,
+        ))
       return {
         ...model,
         ...retained,
         refresh: prunedRefresh(model.refresh, retained),
-        failures: prunedFailures(model, message.roots),
-        loading: prunedQueryLoading(model.loading, message.roots),
+        failures: prunedFailures(model.failures, message.roots, reached),
+        loading: prunedLoading(model.loading, message.roots, reached),
       }
     }
     case 'Hydrated': {
@@ -630,9 +649,18 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
             },
           ] as const,
       )
+      // A restored value is a write like any other, and settles a failure on the
+      // field it writes: every field under `replace`, and only fields of
+      // entities the store did not hold under `preserve-existing`.
+      const written = Object.entries(message.entities).flatMap(([key, entry]) =>
+        message.merge === 'replace' || !(key in model.entities)
+          ? [...entry.present].map(field => `${key}\u0000${field}`)
+          : [],
+      )
       return {
         ...model,
         entities: RemotePersistence.mergeStores(model.entities, message.entities, message.merge),
+        failures: withoutFieldFailures(model.failures, written),
         connections:
           message.merge === 'replace'
             ? { ...model.connections, ...Object.fromEntries(restored) }
@@ -651,8 +679,13 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       )
       const entities = setStale(asked, marksOf(message.requests), true)
       // Asking again is also how a failed field is retried, including one that
-      // never loaded and so has nothing to mark stale.
-      const failures = withoutFieldFailures(model.failures, fieldMarks(message.requests))
+      // never loaded and so has nothing to mark stale, and one on a relation's
+      // target, which the request reaches only through the store: a server need
+      // not expand a relation, and the target is then planned by id once more.
+      const failures = withoutFieldFailures(
+        model.failures,
+        reachedMarks(model.entities, message.requests),
+      )
       return entities === model.entities && failures === model.failures
         ? model
         : { ...model, entities, failures }
@@ -789,9 +822,9 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
     }
     case 'ConnectionInvalidated':
       // Asking again is also how a failed query is retried, so the failure goes
-      // with the mark: a connection is never both due and failed.
-      // A connection can be both, though: `Hydrated` restores one stale, and a
-      // failure recorded before it arrived must still go when asked again.
+      // with the mark.
+      // A connection is often both: a failed refresh stays due, and `Hydrated`
+      // restores one stale. Asking again must still settle its failure.
       if (
         model.connections[message.connection]?.stale === true &&
         !(message.connection in model.failures.connections)
@@ -804,14 +837,13 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
         failures: withoutConnectionFailure(model.failures, message.connection),
       }
     case 'QueryFailed':
-      // The refresh is over and the pages stay as they were. One the Model never
-      // held stays absent from `connections`; the failure is what it now knows.
+      // The pages stay as they were, and a refresh that failed is still owed:
+      // the connection stays stale. The failure is what stops the planner
+      // asking again on its own; whatever settles it next (a retry, or a page
+      // from "load more") leaves the connection due, so the refresh then runs
+      // rather than a later page quietly passing for current.
       return {
         ...model,
-        connections:
-          message.connection in model.connections
-            ? setConnectionStale(model.connections, message.connection, false)
-            : model.connections,
         failures: {
           ...model.failures,
           connections: { ...model.failures.connections, [message.connection]: message.error },
@@ -871,6 +903,40 @@ const patchedMarks = function* (
 }
 
 /**
+ * Every field a read's requests reach: their own, and through each relation
+ * the store already holds, the fields they ask of its targets. A request with
+ * a relation riding on it names no target id; the store does, and a failure
+ * recorded on a target is reached only this way.
+ */
+const reachedMarks = (
+  store: EntityStore,
+  requests: ReadonlyArray<Requirement>,
+): ReadonlyArray<string> => {
+  const marks: string[] = []
+  const walked = new Map<string, Set<RelationRequirement>>()
+  const walk = (entity: string, id: string, requirement: RelationRequirement): void => {
+    const key = entityKey(entity, id)
+    const seen = walked.get(key) ?? new Set()
+    if (seen.has(requirement)) return
+    seen.add(requirement)
+    walked.set(key, seen)
+    for (const field of requirement.fields) {
+      marks.push(fieldMark(entity, id, field))
+      const nested = requirement.relations?.[field]
+      if (nested === undefined) continue
+      const value = readField(store, key, field)
+      if (value._tag === 'None') continue
+      for (const ref of targetsOf(value.value, nested)) walk(ref.entity, ref.id, nested)
+    }
+  }
+  for (const request of requests) walk(request.entity, request.id, request)
+  return marks
+}
+
+/** The entity key a field mark belongs to. */
+const markEntity = (mark: string): string => mark.slice(0, mark.indexOf('\u0000'))
+
+/**
  * The failures of what the roots still reach. A released connection's or
  * entity's failure goes with it, so asking for it again later asks the server
  * again rather than repeating an error that may no longer hold.
@@ -880,25 +946,19 @@ const patchedMarks = function* (
  * which is exactly a value whose first read failed: it is still on screen,
  * behind the parent that refers to it.
  */
-const prunedFailures = (model: RemoteModel, roots: RetentionRoots): Failures => {
-  const { failures } = model
+const prunedFailures = (
+  failures: Failures,
+  roots: RetentionRoots,
+  reached: () => ReadonlySet<string>,
+): Failures => {
   const named = new Set(roots.connections.map(root => root.identity))
   const connections = Object.entries(failures.connections).filter(([identity]) =>
     named.has(identity),
   )
-  const kept =
+  const fields =
     Object.keys(failures.fields).length === 0
-      ? new Set<string>()
-      : reachable(
-          model.entities,
-          roots,
-          model.connections,
-          model.optimistic,
-          model.mutations.pending,
-        )
-  const fields = Object.entries(failures.fields).filter(([mark]) =>
-    kept.has(mark.slice(0, mark.indexOf('\u0000'))),
-  )
+      ? []
+      : Object.entries(failures.fields).filter(([mark]) => reached().has(markEntity(mark)))
   return connections.length === Object.keys(failures.connections).length &&
     fields.length === Object.keys(failures.fields).length
     ? failures
@@ -912,6 +972,40 @@ export const isFieldFailed = (
   id: string,
   field: string,
 ): boolean => fieldMark(entity, id, field) in model.failures.fields
+
+/**
+ * Whether a read is fetching any field `relation` reads of an entity, its own
+ * or, through each relation the store holds, its targets'. A value whose owner
+ * is being fetched is loading, not `Initial`: nothing is missing a fetch.
+ */
+export const isLoadingThrough = (
+  model: RemoteModel,
+  entity: string,
+  id: string,
+  relation: RelationRequirement,
+): boolean => {
+  if (model.loading.size === 0) return false
+  const walked = new Map<string, Set<RelationRequirement>>()
+  const walk = (target: string, targetId: string, requirement: RelationRequirement): boolean => {
+    const key = entityKey(target, targetId)
+    const seen = walked.get(key) ?? new Set()
+    if (seen.has(requirement)) return false
+    seen.add(requirement)
+    walked.set(key, seen)
+    for (const field of requirement.fields) {
+      if (model.loading.has(fieldMark(target, targetId, field))) return true
+      const nested = requirement.relations?.[field]
+      if (nested === undefined) continue
+      const value = readField(model.entities, key, field)
+      if (value._tag === 'None') continue
+      for (const ref of targetsOf(value.value, nested)) {
+        if (walk(ref.entity, ref.id, nested)) return true
+      }
+    }
+    return false
+  }
+  return walk(entity, id, relation)
+}
 
 /**
  * The first failure among the fields `relation` reads of an entity, following

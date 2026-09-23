@@ -57,7 +57,7 @@ import {
   failureOf,
   initialRemoteModel,
   isFieldFailed,
-  isLoading,
+  isLoadingThrough,
   isQueryLoading,
   isRemoteMessage,
   refreshIsInFlight,
@@ -1391,7 +1391,7 @@ export const Remote = {
             ? { _tag: 'Failed', error: failure, previous: present.value }
             : present
         }
-        if (isLoading(remote, selection.entity, id, relation.fields)) return { _tag: 'Loading' }
+        if (isLoadingThrough(remote, selection.entity, id, relation)) return { _tag: 'Loading' }
         // Nothing is fetching this. Either its read failed, which is said, or no
         // active Surface observes it, which is usually a wiring mistake.
         return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
@@ -2006,7 +2006,7 @@ const bindDomain = <
           remote.entities,
         )) {
           if (edge.ref.entity !== relation.entity) continue
-          if (isLoading(remote, edge.ref.entity, edge.ref.id, relation.fields)) {
+          if (isLoadingThrough(remote, edge.ref.entity, edge.ref.id, relation)) {
             return { _tag: 'Loading' }
           }
         }

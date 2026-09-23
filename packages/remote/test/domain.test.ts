@@ -942,7 +942,9 @@ describe('Data.query reads a connection as a page of selected items', () => {
         error: { _tag: 'RemoteReadError', message: 'down' },
         previous: { name: 'name of p1' },
       })
-      expect(page.remote.connections[identity]?.stale).toBe(false)
+      // Still owed: the failure, not the stale mark, is what stops the retry.
+      expect(page.remote.connections[identity]?.stale).toBe(true)
+      expect(Remote.planQueries(Data, page, projects)).toEqual([])
       const before = projects.read(loaded)
       expect(before._tag).toBe('Ready')
       expect(projects.read(page)).toEqual({
