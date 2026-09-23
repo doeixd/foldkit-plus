@@ -2956,6 +2956,20 @@ plain text
 
 Applications should be able to customize sanitization and allowed nodes.
 
+**Implemented (copy side and codec).** `sliceOf(document, selection)` produces a
+versioned semantic `Slice`: a whole block for a node selection, and for a range
+only the covered part of each touched block with runs trimmed to the selection,
+so a partial copy never drags in an untouched block. `serializeSlice` /
+`deserializeSlice` round-trip it with a strict decoder (wrong version, excess
+fields, malformed blocks, and duplicate identities inside the slice all return
+`undefined`), `withFreshIds` remints identities so a paste cannot collide, and
+`sliceFromText` is the plain-text fallback. Identities come from the caller, as
+everywhere else.
+
+Still pending: paste *insertion* (placing a slice at a caret, including the
+block split it implies), HTML on either side of the boundary, and the DOM
+clipboard events that carry these payloads.
+
 ---
 
 # 70. HTML import/export
@@ -3958,8 +3972,8 @@ alone omits it), an empty run still needs a text node so a caret inside it is
 addressable, and a removed identity that is also dirty must still lose its
 element.
 
-Still to build: clipboard and
-mobile keyboards.
+Still to build: paste insertion and the DOM clipboard
+events, and mobile keyboards.
 
 **Undo, wired end to end.** The harness now commits `History` in the child and
 undoes through the same parent transition. Undo replaces the document rather

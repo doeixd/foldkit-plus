@@ -47,6 +47,16 @@ export {
   inspectHistory,
 } from './history.js'
 export {
+  Slice,
+  emptySlice,
+  sliceOf,
+  plainTextOf,
+  sliceFromText,
+  withFreshIds,
+  serializeSlice,
+  deserializeSlice,
+} from './clipboard.js'
+export {
   type NodeDefinition,
   type Kit,
   type Diagnostic,

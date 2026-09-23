@@ -113,6 +113,27 @@ Nothing mints identity unless the caller's `mint` does, and replay applies
 transactions rather than commands. A collapsed `ToggleMark` is a no-op until
 stored marks exist, and adding an unknown mark is rejected.
 
+## Clipboard slices
+
+Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with
+its own identities:
+
+```ts
+const slice = RichText.sliceOf(document, selection)   // → Slice | undefined
+RichText.serializeSlice(slice)                         // → string for the clipboard
+RichText.deserializeSlice(payload)                     // → Slice | undefined
+RichText.withFreshIds(slice, mint)                     // identities that cannot collide
+RichText.sliceFromText('plain\npaste', mint)           // the text fallback
+```
+
+`sliceOf` takes a whole block for a node selection, and for a range only the
+covered part of each touched block, with runs trimmed to the selection — so a
+partial copy never drags in an untouched block. `deserializeSlice` returns
+`undefined` for anything this version did not write (bad JSON, another version,
+excess fields, duplicate identities inside the slice) rather than guessing.
+Identities always come from the caller, like every other identity a live edit
+mints. Paste insertion and the DOM clipboard events are not wired yet.
+
 ## Undo history
 
 `History` is interaction state: snapshots of `EditorState` (document plus
@@ -255,8 +276,9 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Migrations, prop schemas, nested children,
-further transforms, rendering, and collaboration are still pending. Retain
-rejected source content for recovery; do not replace it with an empty document.
+further transforms, rendering, paste insertion, and collaboration are still
+pending. Retain rejected source content for recovery; do not replace it with an
+empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document
