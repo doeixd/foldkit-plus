@@ -274,6 +274,25 @@ it('keeps the rows a failed refresh left, and says it failed above them', () => 
   expect(drawn.filter(element => element === 'tr')).toHaveLength(rows.length + 1)
 })
 
+it('says an empty list that failed to refresh was empty, under the failure', () => {
+  const Plain = ListView.forMessages<Message>().define(Posts)
+  const drawn = outline(
+    Plain(
+      {
+        page: {
+          _tag: 'Failed',
+          error: offline,
+          previous: { items: [], hasNext: false, hasPrevious: false },
+        },
+        words: { empty: 'No posts yet.' },
+      },
+      SlotView.inertBuilder(),
+    ),
+  )
+
+  expect(drawn).toEqual(['div', 'p[alert]offline', 'p[status]No posts yet.'])
+})
+
 it('offers a retry only when the application gave one', () => {
   const Plain = ListView.forMessages<Message>().define(Posts)
   const failed = { _tag: 'Failed', error: offline } as const

@@ -177,9 +177,14 @@ const list = <Message>() => ({
           notice: ReadonlyArray<Html> = [],
         ): Html => {
           if (page.items.length === 0) {
+            // An empty list that failed to refresh was still empty, and says so
+            // under the failure.
             return notice.length === 0
               ? status(words?.empty ?? 'Nothing here.')
-              : h.div(slots.root.attrs([h.Id(listed.name)]), [...notice])
+              : h.div(slots.root.attrs([h.Id(listed.name)]), [
+                  ...notice,
+                  h.p(slots.status.attrs([h.Role('status')]), [words?.empty ?? 'Nothing here.']),
+                ])
           }
           return h.div(slots.root.attrs([h.Id(listed.name)]), [
             ...notice,
