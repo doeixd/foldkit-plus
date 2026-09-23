@@ -88,6 +88,11 @@ into a chord answer. Slices that must survive reload persist through
   One placement, one key handler: `RovingTabindex` and `Typeahead` on one host are
   refused by the resolver (one owner per event), and under `virtual` a typed key
   must move the pointer and extend the query in one transition.
+- **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
+  `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
+  Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
+  column, `wrap` continues into the next row or column, Home/End are per row and Ctrl+Home/End
+  per grid. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under

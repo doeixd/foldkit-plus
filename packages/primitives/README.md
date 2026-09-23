@@ -29,7 +29,7 @@ only that subpath needs.
 | Kind | Form | Example |
 | --- | --- | --- |
 | Stateful + effectful | bundle | MediaQuery, Timer, WebSocket, Pagination |
-| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex, Typeahead, ListNavigation, Press |
+| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex, Typeahead, ListNavigation, GridNavigation, Press |
 | Keyed collections of stateful items | bundle per key | uploads, sockets, timers (later) |
 | Stream source with a stored fact | bundle with one boolean/scalar slice | Online, Visibility, WindowSize |
 | Stream source only | Subscription entry, not a bundle | keyboard, pointer, scroll, broadcast |
@@ -91,7 +91,7 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, FocusScope, Press, LongPress, Move, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
@@ -595,6 +595,26 @@ const Keys = ListNavigation.behavior(Nav, args)(ListSlots)<Model, Message>({
   item: 'option',
   items: model => describeFruits(model.fruits),
   text: (model, index) => model.fruits[index]?.label ?? '',
+})
+```
+
+`GridNavigation` is the two-dimensional counterpart for cells laid out in rows
+of `columns` (a calendar grid, a swatch picker, an emoji palette). Its Model
+slice and item attributes are `RovingTabindex`'s, so the two are
+interchangeable on a view; only the pure `move` differs. Left and right step
+within the row and up and down within the column, skipping disabled cells;
+under `wrap` a horizontal key continues into the next row and a vertical key
+into the next column, otherwise the key is consumed at the edge. Home and End
+are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
+RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
+
+```ts
+const Cells = Bundle.declare(GridNavigation.bundle, 'cells')
+// place with { args: { columns: 7, wrap: false, virtual: false } }
+const Keys = GridNavigation.behavior(Cells, args)(CalendarSlots)<Model, Message>({
+  container: 'grid',
+  item: 'day',
+  items: model => describeDays(model.days),
 })
 ```
 

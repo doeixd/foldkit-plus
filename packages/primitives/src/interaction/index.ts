@@ -6,6 +6,7 @@
 export * as DismissLayer from './dismiss-layer.js'
 export * as FocusScope from './focus-scope.js'
 export * as FocusVisible from './focus-visible.js'
+export * as GridNavigation from './grid-navigation.js'
 export * as Layers from './layers.js'
 export * as LiveAnnounce from './live-announce.js'
 export * as ListNavigation from './list-navigation.js'
