@@ -1,13 +1,41 @@
 # `foldkit-remote`
 
-Server-owned data, cached **inside the Foldkit Model**.
+Server-owned data, cached **inside the Foldkit Model**. A screen says what it
+needs; Remote fetches what is missing, keeps one copy, and tells the view what
+it knows.
 
-A feature declares the server facts it needs. `foldkit-remote` compares those
-requirements with what the Model already knows, fetches only what is missing or
-stale, normalizes the result so every consumer shares one copy, and returns new
-facts to the application as ordinary Messages. Every reader gets `Initial`,
-`Loading`, `Ready` and the rest for free, and a fact loaded for one screen is
-already there for the next.
+```ts
+// What this screen needs of the server. Nothing here fetches.
+const ProjectPage = App.surface('ProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }),
+})
+
+// What the view gets back: what the cache knows, never a guess.
+RemoteData.render(project, {
+  loading: () => ProjectSkeleton(),
+  notFound: () => NoSuchProject(),
+  failed: error => ErrorView(error),
+  data: project => ProjectView(project),
+})
+```
+
+That is the whole application-side surface. There is no fetch call, no cache
+object, no loading flag, and no effect that watches a route. What happens
+instead:
+
+- **Only what is missing is fetched.** While the page is active, Remote diffs
+  what it declares against the Model and asks the server for the fields it
+  lacks. A second screen that reads `Project:p1.name` finds it already there.
+- **One copy.** Every entity is stored once by identity, so two Surfaces
+  reading the same project cannot disagree, and a mutation's result updates
+  both.
+- **The view is told the truth.** `Initial`, `Loading`, `Ready`, `Refreshing`,
+  `Failed` with the last good value, `NotFound`: six states, one exhaustive
+  fold, no `undefined` standing in for "not yet".
+- **It is all Model.** A read result, a page, a mutation, a live event: each is
+  a Message through one pure reducer, so a screen is reproducible from a
+  recorded Model, and a test needs no network.
 
 > **A Remote Projection does not fetch. It declares what server-owned facts a
 > consumer requires. I/O happens outside render, and its results reduce back into
@@ -24,9 +52,6 @@ Remote                              Sync
   cache is disposable                 intent must survive offline/restart
   refetch is recovery                 replay + reconciliation is recovery
 ```
-
-A Remote mutation is an immediate request against server-owned data whose
-result updates the cache; it is **not** a durable local intent queue.
 
 ## Find what you need
 
