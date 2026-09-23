@@ -17,10 +17,39 @@ plan**: which slice of the Model crosses from the server to the browser,
 written into the page as a JSON script and read back through the slice's own
 Schema.
 
-Foldkit's own server rendering runs `init` on both sides and sends the Flags
-that produced the page so the browser can. With a resume plan, `init` runs once,
-on the server, and the browser starts from the slice it was sent. Nothing else
-crosses: not the Flags, and not a field the plan leaves out.
+## Compared with Foldkit's own server rendering
+
+Foldkit already renders on the server and hydrates in the browser. What it
+sends across is the **input**: the Flags that produced the page, which the
+browser decodes and feeds to `init` again. A resume plan sends the **result**:
+the part of the Model the browser owns, so `init` runs once.
+
+|                                  | Foldkit (`renderToString` + `Runtime.hydrate`)                                            | `foldkit-ssr` (`SSR.render` + `SSR.hydrate`)                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| What the page carries            | The encoded Flags                                                                         | The plan's slice of the Model; no Flags                                                         |
+| `init`                           | Runs on the server, then again in the browser                                             | Runs on the server only                                                                         |
+| `init`'s Commands                | Ignored on the server, run in the browser                                                 | Run nowhere unless the plan names them in `boot`; rendering refuses a plan that would drop them |
+| Server-only data                 | Crosses if `init` needs it, since it must be in the Flags                                 | Stays on the server unless the plan's slice includes it                                         |
+| A view the browser can't match   | The browser rebuilds that part of the page; only development warns                        | `SSR.render` fails with `ViewDependsOnUnsentState` before the page is served                    |
+| The route                        | The browser's `init` reads the browser's URL                                              | The browser must be at the path and query the page was rendered for, or the page is refused     |
+| A page from another build        | Refused and frozen                                                                        | The same: Foldkit's own check runs first                                                        |
+| A page whose payload can't be read | Refused and frozen                                                                      | The same, and the reason is logged                                                              |
+| What you write                   | Nothing beyond the config                                                                 | A plan: `id`, `state`, and `boot` if `init` returns Commands                                    |
+| Status                           | Experimental, published                                                                   | In development, unpublished                                                                     |
+
+Use Foldkit's own rendering when the Flags are small and `init` is cheap to run
+twice: a Model computed from a few Flags sends less that way than its slice
+would. Use a resume plan when `init` needs data the browser should not receive
+or re-derive, when its Commands would redo work the server already did, or when
+you want a view that reads unsent state caught on the server rather than
+repaired in the browser.
+
+The cost of a plan:
+- `SSR.render` renders the view twice, once from the server's Model and once
+  from the browser's, to catch a view that reads a field the plan doesn't send.
+- `SSR.hydrate` skips `init` by giving Foldkit a config whose `init` returns the
+  resumed Model. That relies on how Foldkit hydrates today, not on a Foldkit API;
+  the tests will fail the day that changes.
 
 ## Render and hydrate
 
