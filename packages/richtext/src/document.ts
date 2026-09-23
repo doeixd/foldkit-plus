@@ -11,8 +11,15 @@ export const Text = Schema.Struct({
   type: Schema.Literal('Text'),
   id: NodeId,
   text: Schema.String,
-  marks: Schema.Array(Mark).check(
-    Schema.makeFilter(marks => new Set(marks).size === marks.length || 'Duplicate mark'),
+  // Any non-empty mark string: loading preserves vocabulary this version does
+  // not define. `Edit.addMark` still accepts only known marks; see
+  // `findUnknownMarks` for the publishing gate.
+  marks: Schema.Array(Schema.String).check(
+    Schema.makeFilter(
+      marks =>
+        (marks.every(mark => mark.length > 0) && new Set(marks).size === marks.length) ||
+        'Invalid marks',
+    ),
   ),
 })
 export type Text = typeof Text.Type
@@ -92,6 +99,22 @@ export const decodeDocument = (
     )
   return document
 }
+
+const isKnownMark = Schema.is(Mark)
+
+/** A mark this vocabulary does not define, kept verbatim on its text run. */
+export interface UnknownMark {
+  readonly node: NodeId
+  readonly mark: string
+}
+
+/** Lists unknown marks per text run; empty means the document publishes cleanly. */
+export const findUnknownMarks = (document: Document): ReadonlyArray<UnknownMark> =>
+  document.children.flatMap(block =>
+    block.children.flatMap(text =>
+      text.marks.filter(mark => !isKnownMark(mark)).map(mark => ({ node: text.id, mark })),
+    ),
+  )
 
 /** UTF-16 offset in one text run, with insertion affinity at that offset. */
 export const Position = Schema.Struct({

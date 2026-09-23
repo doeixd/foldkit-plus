@@ -93,7 +93,10 @@ document and owns no state.
 ## Current semantics
 
 - Documents contain paragraphs and headings (levels 1–6), each containing text
-  runs. The initial marks are `Bold`, `Italic`, and `Code`, with no duplicates.
+  runs. The known marks are `Bold`, `Italic`, and `Code`, with no duplicates.
+  Unknown mark strings load verbatim for forward compatibility (see
+  `findUnknownMarks`); they ride along through text edits, cannot be added via
+  `Edit.addMark`, and can be removed by name via `Edit.removeMark`.
 - Empty documents, empty blocks, and empty text runs are valid. No normalization
   creates nodes or merges text runs yet.
 - `InsertText` targets one run and inherits that run's marks. Boundary mark
@@ -120,8 +123,10 @@ final selection with the original. Empty edits preserve state identity.
 ## Loading and limits
 
 Use `decodeDocument(input, limits?)` at a persistence boundary. It rejects excess
-fields, duplicate IDs, invalid structure, unknown extensions, and unsupported
-versions, then enforces `limits` (default `DefaultDocumentLimits`: 10,000 blocks,
+fields, duplicate IDs, empty or duplicate marks, invalid structure, unknown nodes,
+and unsupported versions — but preserves unknown mark strings verbatim and
+round-trips them. `findUnknownMarks(document)` lists them per text run for a
+publishing gate; unknown nodes are still rejected, not preserved. Then enforces `limits` (default `DefaultDocumentLimits`: 10,000 blocks,
 50,000 text runs, 5,000,000 UTF-16 text units). A violation throws an `Error`
 naming the exceeded bound. Tighten per document with
 `{ ...DefaultDocumentLimits, maxBlocks: 100 }`. The exported Schemas also compose

@@ -31,7 +31,7 @@ const AddMarkOperation = Schema.Struct({
 const RemoveMarkOperation = Schema.Struct({
   type: Schema.Literal('RemoveMark'),
   node: NodeId,
-  mark: Mark,
+  mark: Schema.String,
 })
 const SetSelectionOperation = Schema.Struct({
   type: Schema.Literal('SetSelection'),
@@ -77,7 +77,10 @@ export const Edit = {
   addMark: (node: TextTarget, mark: Mark): Extract<Operation, { readonly type: 'AddMark' }> =>
     AddMarkOperation.make({ type: 'AddMark', node: targetId(node), mark }),
 
-  removeMark: (node: TextTarget, mark: Mark): Extract<Operation, { readonly type: 'RemoveMark' }> =>
+  removeMark: (
+    node: TextTarget,
+    mark: string,
+  ): Extract<Operation, { readonly type: 'RemoveMark' }> =>
     RemoveMarkOperation.make({ type: 'RemoveMark', node: targetId(node), mark }),
 
   setSelection: (

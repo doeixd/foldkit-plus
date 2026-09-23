@@ -80,8 +80,8 @@ describe('semantic documents', () => {
     ],
     ...(
       [
-        ['unknown mark', { marks: ['Link'] }],
         ['duplicate mark', { marks: ['Bold', 'Bold'] }],
+        ['empty mark', { marks: [''] }],
         ['non-text value', { text: 4 }],
         ['unknown text data', { html: '<b>x</b>' }],
       ] as const

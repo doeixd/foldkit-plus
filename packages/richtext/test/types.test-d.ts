@@ -27,8 +27,8 @@ RichText.Document.make({ version: 1, children: [text] })
 RichText.Paragraph.make({ type: 'Paragraph', id, children: [paragraph] })
 // @ts-expect-error Unsupported heading level.
 RichText.Heading.make({ type: 'Heading', id, level: 7, children: [] })
-// @ts-expect-error Unknown marks are not supported yet.
-RichText.Text.make({ type: 'Text', id, text: '', marks: ['Link'] })
+// Unknown marks are authoring-permissive; findUnknownMarks gates publishing.
+RichText.Text.make({ type: 'Text', id, text: '', marks: ['Highlight'] })
 // @ts-expect-error Numeric offsets require explicit boundary affinity.
 const position: RichText.Position = { node: id, offset: 0 }
 // @ts-expect-error Insertion cannot target a bare offset.

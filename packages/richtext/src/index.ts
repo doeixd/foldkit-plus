@@ -10,6 +10,8 @@ export {
   Document,
   DocumentLimits,
   DefaultDocumentLimits,
+  type UnknownMark,
+  findUnknownMarks,
   Position,
   Selection,
   EditorState,
