@@ -180,8 +180,9 @@ passes in what opening a row, sorting, "more" and "try again" mean as Messages.
 If the query fails, the table says so in a `role="alert"` line, with a **Try
 again** button. Remote does not retry a failed read on its own, so the button
 is the retry: `onRetry` sends `RetriedPosts`, and `update` returns
-`Posts.refresh(model)`. A refresh that fails with rows already shown keeps them
-below the error. `test/page.test.ts` drives this against a server that is
+`Posts.refresh(model)`, with a `Dom.focus` Command that moves keyboard focus
+to the list, since the button leaves the page once the refresh starts. A
+refresh that fails with rows already shown keeps them below the error. `test/page.test.ts` drives this against a server that is
 unreachable and then comes back.
 
 ### Searching and sorting

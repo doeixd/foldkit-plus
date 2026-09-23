@@ -207,7 +207,10 @@ it('says a list could not be read, and reads it again when asked', async () => {
 
     // Nothing asks again on its own. The button is the asking.
     reachable = true
+    element<HTMLButtonElement>('#Posts button').focus()
     element<HTMLButtonElement>('#Posts button').click()
+    // The button goes once the refresh starts; focus moves to the list, not the page.
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('Posts'))
     await vi.waitFor(() =>
       expect(cells()).toEqual([
         ['p1', 'Notes on the Engine', 'yes'],

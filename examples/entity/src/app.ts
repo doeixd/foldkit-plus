@@ -4,7 +4,9 @@
  * that is `server.ts`. The trace in `demo.ts`, the drawn page in `view.ts`, and
  * the browser entry in `client.ts` all run this one application.
  */
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
 import { evo } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
@@ -97,6 +99,7 @@ export const Message = defineMessageUnion({
   ClosedEditor: {},
   RequestedMorePosts: {},
   RetriedPosts: {},
+  CompletedFocusPosts: {},
   SortedPosts: { sort: PostSort.Schema },
 })
 export type Message = typeof Message.Type
@@ -194,8 +197,10 @@ export const update = PostEditor.after(
         return more === undefined ? { model } : { model, commands: [more] }
       }
       // A failed read is not asked for again on its own; this is the asking.
+      // The button leaves the page once the refresh starts, so focus goes to
+      // the list it was retrying rather than falling back to the page.
       case 'RetriedPosts':
-        return { model: Posts.refresh(model) }
+        return { model: Posts.refresh(model), commands: [FocusPosts()] }
       case 'SortedPosts':
         return { model: evo(model, { postSort: () => message.sort }) }
       default:
@@ -203,6 +208,16 @@ export const update = PostEditor.after(
     }
   }),
 )
+
+/** Focus on the post list, after the render that shows it refreshing. */
+const FocusPosts = Command.define('FocusPosts', {
+  messages: [Message.CompletedFocusPosts],
+  execute: Dom.focus('#Posts', { makeFocusable: true }).pipe(
+    // Nothing to focus is nothing to do: the list may have been closed meanwhile.
+    Effect.ignore,
+    Effect.as(Message.CompletedFocusPosts()),
+  ),
+})
 
 export const initial = (): Model =>
   placements.initial({ remote: Remote.initial, postSearch: '', postSort: PostSort.none }).model

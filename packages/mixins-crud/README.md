@@ -102,6 +102,22 @@ case 'RetriedPosts':
 `DetailView` does the same with its value: the alert and the button above the
 description list, inside the same root.
 
+The button leaves the page once the refresh starts, and with it the keyboard
+focus. The view cannot move focus itself: focus caused by a Message belongs to
+that Message. Return a `Dom.focus` Command from the retry's branch, which runs
+after the next render, and focus lands on the list instead of the page:
+
+```ts
+case 'RetriedPosts':
+  return { model: Posts.refresh(model), commands: [FocusPosts()] }
+
+// FocusPosts: Command.define('FocusPosts', { messages: [CompletedFocusPosts],
+//   execute: Dom.focus('#Posts', { makeFocusable: true }).pipe(
+//     Effect.ignore, Effect.as(CompletedFocusPosts())) })
+```
+
+`examples/entity` does exactly this, and its page test checks where focus lands.
+
 ## Sorting, more, and special cells
 
 ```ts
