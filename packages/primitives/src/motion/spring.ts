@@ -5,10 +5,11 @@
  * Finished, and the value rests exactly at `to`. Underdamped springs
  * overshoot — that is the point — but the rest value is still exact.
  */
-import { Schema, Stream } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import { Bundle } from 'foldkit-bundle'
+import { reducedMotion } from './motion.js'
 
 export const SpringModel = Schema.Struct({
   value: Schema.Number,
@@ -90,12 +91,20 @@ export const Spring = Bundle.make('Spring', {
               // scan emits the seed (no movement yet) before the first step.
               Stream.drop(1),
             )
-            return Stream.concat(
-              points.pipe(
-                Stream.takeUntil(point => settled(point, to)),
-                Stream.map(point => SpringMessage.Ticked({ value: point.x, velocity: point.v })),
+            return Stream.unwrap(
+              Effect.map(reducedMotion, reduced =>
+                reduced
+                  ? Stream.make(SpringMessage.Finished({ value: to }))
+                  : Stream.concat(
+                      points.pipe(
+                        Stream.takeUntil(point => settled(point, to)),
+                        Stream.map(point =>
+                          SpringMessage.Ticked({ value: point.x, velocity: point.v }),
+                        ),
+                      ),
+                      Stream.make(SpringMessage.Finished({ value: to })),
+                    ),
               ),
-              Stream.make(SpringMessage.Finished({ value: to })),
             )
           },
         },

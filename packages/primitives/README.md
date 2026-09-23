@@ -452,6 +452,16 @@ should survive reload, and keep this package's bundles for live facts.
 
 > Reference: [`./motion/README.md`](./motion/README.md)
 
+Whether motion should be reduced is a service, `Motion`, read when a
+transition starts rather than sniffed once. `Presence` then exits at once,
+and `Tween` and `Spring` jump to `to`, in the same Messages, so the Model sees
+the same transitions. Provide `Motion.live` (the user's
+`prefers-reduced-motion`) through the assembly's resources, or `Motion.reduced`
+and `Motion.full` in a test or for a setting the application owns. With no
+service provided, motion is full, so a placement that provides nothing behaves
+as before. `Motion.reducedMotion` is the Effect the bundles read, for a
+transition of your own.
+
 `Tween` animates one number from `from` to `to` over `ms` milliseconds.
 Model `{ value, running }`, Messages `Started`/`Ticked`/`Finished`, args
 `{ from, to, ms }` (a non-positive or non-finite duration is rejected at

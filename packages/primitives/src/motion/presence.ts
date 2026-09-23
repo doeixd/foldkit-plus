@@ -8,6 +8,7 @@ import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
+import { reducedMotion } from './motion.js'
 
 export const PresenceModel = Schema.Struct({
   phase: Schema.Literals(['shown', 'hiding', 'hidden']),
@@ -62,9 +63,13 @@ export const Presence = Bundle.make<
               {
                 name: 'Presence.hide',
                 args: { generation },
-                effect: Effect.as(
-                  Effect.sleep(args.durationMs),
-                  PresenceMessage.Hidden({ generation }),
+                effect: Effect.flatMap(reducedMotion, reduced =>
+                  reduced
+                    ? Effect.succeed(PresenceMessage.Hidden({ generation }))
+                    : Effect.as(
+                        Effect.sleep(args.durationMs),
+                        PresenceMessage.Hidden({ generation }),
+                      ),
                 ),
               },
             ],

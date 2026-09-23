@@ -65,12 +65,13 @@ read when a transition starts, so a test or a subtree provides its own value
 and sleeps; nothing consults reduced motion, and the `PrefersReducedMotion`
 preset is a separate placement an author must wire in by hand.
 
-**Decision.** `Presence`, `Tween`, and `Spring` read a `Motion` service with a
-default layer over `matchMedia` and a `Motion.reduced` test layer. Under
-reduced motion a presence exits immediately and a tween jumps to its end. The
-placement stays the same; the service rides the assembly's resources like
-`Socket` does. `Locale` and `Clock` are already Effect services here, which is
-the pattern they arrived at late.
+**Decision (done).** `Presence`, `Tween`, and `Spring` read a `Motion` service
+with `Motion.live` over `matchMedia` and `Motion.reduced` and `Motion.full`
+fixed layers, at transition time. Under reduced motion a presence exits
+immediately and a tween or spring jumps to its end. The service is optional,
+so a placement that provides nothing is unchanged; it rides the assembly's
+resources like `Socket` does. `Locale` and `Clock` are already Effect services
+here, which is the pattern they arrived at late.
 
 ### 3. A hidden native control under a custom widget
 

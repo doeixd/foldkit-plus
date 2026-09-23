@@ -126,6 +126,9 @@ into a chord answer. Slices that must survive reload persist through
   bundle collides at `assemble`.
 - **OutMessages are never dropped by omission.** `Debounce` and `Throttle`
   require `onOut` at placement; `Bundle.ignore` drops one on purpose.
+- **Reduced motion is a service.** Provide `Motion.live` (from `foldkit-primitives/motion`) in
+  the resources, or `Motion.reduced` / `Motion.full` in tests; `Presence` then exits at once and
+  `Tween`/`Spring` jump to `to`. Absent, motion is full.
 - **Timers, tweens, debounces, and presence run on Effect's clock.** `TestClock.adjust` advances
   them in tests; a placed Presence hides through a real `sleep` otherwise.
 - **Init is a safe default, not a read.** `matches: false`, `online: true`,

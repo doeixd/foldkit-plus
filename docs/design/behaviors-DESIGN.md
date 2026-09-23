@@ -139,7 +139,7 @@ version has that ours must not repeat, each of which becomes a test.
 | `FormControl` | Done differently: `foldkit-mixins-form`'s default renderers are already native controls, so the gap was only that they carried no `name`. Every control now gets `name=<key>`, and a relation picker's checkboxes get `name` and `value`, so a plain form post carries the drafts. A custom widget that is not a native control still has no hidden-input helper; add one when a renderer needs it. | `control` | A form posts its drafts with scripts off. | test: the field carries its key as `name` |
 | `SpinValue` | Attributes over input (built, in `foldkit-mixins`; revised from Bundle: the value is the parent's, so a key only yields the next value's Message; wheel and press-and-hold repeat not handled, since Foldkit's wheel attribute carries no delta and a repeat is a timer the Model would own) | `input: Focusable` | Up and Down, PageUp and PageDown, Home and End; clamps to `min`, `max`, `step`. Floor `<input type=number>`. | none built there |
 | `LiveAnnounce` | Bundle (placed once) + `say` + `view` (built) | none | `say(text, politeness)` is a Message to return from `update`; `view` renders one region per politeness; a burst reads once after `debounceMs`, the text clears after `clearAfterMs`, and a repeated text toggles a no-break space so it reads again. | **debounce and dedupe**; timers on Effect's clock |
-| `Presence` | Reuse `foldkit-primitives/motion/presence` | `root` | Add the `Motion` service (effect-atom-jsx-LESSONS.md item 2) and `data-state`. Keep the timeout fallback they lack. Add `transitionend`. | none |
+| `Presence` | Reuse `foldkit-primitives/motion/presence` (the `Motion` service is built and read at transition time) | `root` | `data-state` waits for `Style.states`; `transitionend` is not added, since the duration is the Model's and a stray DOM event would be a second owner. Keep the timeout fallback they lack. | none |
 
 ### Not in the catalog
 
@@ -241,9 +241,12 @@ before it is code.
   `FieldAssociation`, `SpinValue`, `LiveAnnounce`, and form controls named by
   their key in `foldkit-mixins-form`. Tests: a range respects the anchor and
   the order; a burst of announcements reads once; a control carries its key.
-- **F. Motion.** The `Motion` service in `foldkit-primitives`, `Presence`
-  reading it, `data-state`. Test: under reduced motion a presence exits at
-  once and a tween jumps to its end.
+- **F. Motion.** Done, except `data-state`, which belongs with Phase I's
+  `Style.states`. The `Motion` service in `foldkit-primitives/motion`, read by
+  `Presence`, `Tween` and `Spring` at transition time, optional so existing
+  placements are unchanged. Tests: under reduced motion a presence exits at
+  once and a tween and a spring jump to their end; without the service a
+  presence still waits its duration.
 - **G. The `@foldkit/ui` Combobox against their keyboard contract.** A Scene
   test per row. Any failure is a note for upstream, not a fork.
 
