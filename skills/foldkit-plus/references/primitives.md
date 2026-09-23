@@ -18,7 +18,7 @@ imports.
 | Element size, visibility, mutations, bounds, focus, scroll position, row height, masked input | the element, observed | Mount attached in the view |
 | A clipboard write, share, script load, fullscreen switch, broadcast post | nothing (one-shot) | Command in `update` |
 | A page list, window math, masonry layout, sticky answer, hotkey match, relative time, platform | nothing (derived) | pure function |
-| The current item of a roving tab stop, a typeahead query, or both for a list | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
+| The current item of a roving tab stop, a typeahead query, or both for a list; whether an element is pressed | the parent Model | `interaction`: a bundle plus a `foldkit-mixins` Behavior wiring it to slots (`foldkit-mixins` is an optional peer for that subpath only) |
 
 A bundle holds no state. Placing it twice observes twice; share the field
 instead. The browser, clock, or server only reports facts as Messages.
@@ -92,6 +92,11 @@ into a chord answer. Slices that must survive reload persist through
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
   `contain`, focus restored on unmount under `restore`. A native `<dialog>` needs none of it.
+- **Activate on press:** place `Press.bundle` (`{ clickSuppressionMs }`) with a required
+  `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
+  The `Press.events` Mount reports pointer, key, and click facts; `update` decides
+  (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
+  ghost click suppressed by a timed Command). `data-pressed` while down.
 
 ## Gotchas
 

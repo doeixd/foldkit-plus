@@ -5,5 +5,6 @@
  */
 export * as FocusScope from './focus-scope.js'
 export * as ListNavigation from './list-navigation.js'
+export * as Press from './press.js'
 export * as RovingTabindex from './roving-tabindex.js'
 export * as Typeahead from './typeahead.js'

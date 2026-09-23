@@ -29,7 +29,7 @@ only that subpath needs.
 | Kind | Form | Example |
 | --- | --- | --- |
 | Stateful + effectful | bundle | MediaQuery, Timer, WebSocket, Pagination |
-| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex, Typeahead, ListNavigation |
+| Interaction state a view's slots must reflect | bundle + Behavior | RovingTabindex, Typeahead, ListNavigation, Press |
 | Keyed collections of stateful items | bundle per key | uploads, sockets, timers (later) |
 | Stream source with a stored fact | bundle with one boolean/scalar slice | Online, Visibility, WindowSize |
 | Stream source only | Subscription entry, not a bundle | keyboard, pointer, scroll, broadcast |
@@ -91,7 +91,7 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
@@ -601,6 +601,39 @@ that had it, if it is still in the document. A native `<dialog>` does all of
 this itself; this is for a custom overlay, a menu, or a command palette.
 `tabbableWithin(element)` is exported: focusable, visible descendants with a
 non-negative `tabindex`, in order.
+
+`Press` turns pointer and keyboard activation of one element into one fact.
+Foldkit's declarative pointer attributes carry no button, pointer id, or click
+detail, so `Press.events` is a Mount that reports what the element saw
+(`PointerDown`, `PointerUp`, `PointerCancelled`, `KeyDown`, `KeyUp`,
+`Clicked`), and the Bundle's `update` decides: primary button only, one
+pointer at a time, `pointerleave` and `pointercancel` cancel, Enter and Space
+with a repeat ignored, a click with `detail` 0 (keyboard on a native control,
+or assistive technology) counts, and the ghost click that follows a touch is
+ignored inside a window of `clickSuppressionMs` that a Command on Effect's
+clock closes. Enter and Space are default-prevented on the element, so a
+native control does not also click and Space does not scroll. Activation is
+the OutMessage `Pressed { pointerType }`, and the placement must handle it:
+
+```ts
+const Button = Bundle.declare(Press.bundle, 'saveButton')
+const placements = Page.assemble(
+  Page.at(Button, {
+    args: { clickSuppressionMs: 50 },
+    onOut: () => model => ({ model, commands: [save(model)] }),
+  }),
+)
+const Activate = Press.behavior(Button)(CardSlots)<Model, Message>({
+  target: 'save',
+  disabled: model => model.saving,
+})
+```
+
+The Behavior attaches the Mount to the target slot, writes `data-pressed`
+while the element is down for styling, and marks a disabled target
+`aria-disabled`, which the Mount reads at event time so nothing is reported
+and no remount is needed. The Model slice is `{ pressed, pointerId, key,
+suppressing, generation }`; only `pressed` is meant for a view.
 
 ## Testing placements
 
