@@ -110,7 +110,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
     what the form writes is fetched and retained like any Surface's requirement.
   - `after(update)`: wraps `update` so `sync` runs after every Message.
   - `sync`, the Step itself, if you compose `update` another way.
-  - `status(model)`, `saveError(model)` while it is `SaveFailed`, and
+  - `status(model)`, `saveError(model)` while it is `SaveFailed`, `refresh(model)`
+    to ask for the value again while it is `LoadFailed`, and
     `target(model)`, the id being edited (`null` for a new one or when closed).
 - The save is a Command that needs `RemoteClient`, so the parent scope names it
   with `withServices<RemoteClient>()`.
@@ -172,7 +173,7 @@ form creates.
 | `Closed` | nothing is open |
 | `Loading` | an id is open and its current values have not arrived |
 | `NotFound` | it is gone: the server answered without it, a mutation deleted it, or a live event did. This outranks a save that landed |
-| `LoadFailed` | reading it failed, in the request or in decoding what came back. Once the form is filled it stays `Editing`, whatever a later read says |
+| `LoadFailed` | reading it failed, in the request or in decoding what came back, with no earlier value to show. A value whose later refresh failed fills the form as the last good one, and once filled the form stays `Editing` whatever a later read says. `refresh(model)` asks again |
 | `Editing` | the form is showing, with no save in progress or just settled |
 | `Saving` | this editor's mutation is pending |
 | `Saved` | it was applied |

@@ -235,6 +235,42 @@ describe('Crud.editor', () => {
     expect(server.posts.p1).toEqual({ title: 'Hello', author: 'Author:a1' })
   })
 
+  it('opens on the last good value when a refresh of it had failed', async () => {
+    // Something else on the page read p1, then its refresh failed.
+    const held = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    const elsewhere = await dispatch(held, Message.OpenedPost({ id: 'p2' }))
+    const failed = Data.reduce(elsewhere, {
+      _tag: 'ReadFailed',
+      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] }],
+      error: { _tag: 'RemoteReadError', message: 'offline' },
+    })
+
+    const reopened = await dispatch(failed, Message.OpenedPost({ id: 'p1' }))
+
+    expect(PostEditor.status(reopened)).toBe('Editing')
+    expect(drafts(reopened)).toEqual({ id: 'p1', title: 'Hello', authorId: 'a1' })
+  })
+
+  it('offers a retry for a value that failed to load, and asks for it again', async () => {
+    const opened = await dispatch(initial, Message.OpenedPost({ id: 'p1' }))
+    const failed = Data.reduce(opened, {
+      _tag: 'ReadFailed',
+      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] }],
+      error: { _tag: 'RemoteReadError', message: 'offline' },
+    })
+    const projection = PostEditor.active.projectionOf(failed)!
+    expect(PostEditor.status(failed)).toBe('LoadFailed')
+    expect(Data.plan(failed, projection)).toEqual([])
+
+    const retried = PostEditor.refresh(failed)
+
+    expect(Data.plan(retried, projection)).toEqual([
+      { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] },
+    ])
+    expect(PostEditor.status(await load(retried))).toBe('Editing')
+    expect(PostEditor.refresh(initial)).toBe(initial)
+  })
+
   it('says when the id it was opened on does not exist', async () => {
     const opened = await dispatch(initial, Message.OpenedPost({ id: 'nope' }))
     expect(PostEditor.status(opened)).toBe('Loading')

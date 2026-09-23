@@ -688,13 +688,24 @@ export const Crud = {
             : undefined
         }
 
-        /** Shows the loaded value once, the first time it is there. Later refreshes leave the drafts alone. */
+        /**
+         * Shows the loaded value once, the first time it is there. Later refreshes
+         * leave the drafts alone. A value whose latest refresh failed is still the
+         * last one known good, so it fills the form too: `status` goes on saying
+         * `Editing`, and the failure is the read's to show.
+         */
         const sync: Update.Step<Root, never, never> = root => {
           const editor = slice.get(root)
           const read = loaded(root)
           if (editor.filled || read === undefined) return { model: root }
-          if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return { model: root }
-          const values = Entity.valuesFor(form.input, read.value) as Partial<Value>
+          const value =
+            read._tag === 'Ready' || read._tag === 'Refreshing'
+              ? read.value
+              : read._tag === 'Failed'
+                ? read.previous
+                : undefined
+          if (value === undefined) return { model: root }
+          const values = Entity.valuesFor(form.input, value) as Partial<Value>
           return {
             model: slice.set(root, {
               ...editor,
@@ -749,6 +760,18 @@ export const Crud = {
               const next = update(model, message)
               return { ...next, model: sync(next.model).model }
             },
+
+          /**
+           * Asks for the value being edited again: `Data.refresh`, for a retry
+           * button while `status` is `LoadFailed`. A failed read is not retried on
+           * its own. Unchanged while nothing is open for editing.
+           */
+          refresh: (root: Root): Root => {
+            const { mode, target } = slice.get(root)
+            return mode === 'edit' && target !== null
+              ? data.refresh(root, data.get(current, target))
+              : root
+          },
 
           /** Why the last save failed, while `status` is `SaveFailed`. */
           saveError: (root: Root): RemoteError | undefined => {

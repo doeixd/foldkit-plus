@@ -29,6 +29,19 @@ version changed; `pnpm` skips versions already in the registry.
   `Entity`, whose name collides with `foldkit-entity`'s. Both helpers take
   either kind of entity and check `values` against its fields.
 
+### Fixed
+
+- **`foldkit-crud`: an editor opens on the last good value when its refresh
+  failed.** An editor opened on a value whose latest refresh had failed read
+  `Failed { previous }` and stayed in `LoadFailed` with an empty form, though
+  the value was right there, and nothing asked for it again. It now fills from
+  `previous`. For a value that never loaded, the editor gains `refresh(model)`,
+  like placed lists and details, for a retry button to return.
+- **`foldkit-remote`: a failed refresh stays owed.** A list whose refresh
+  failed, and then loaded a later page, read `Ready` with its first page still
+  outdated. The connection now stays due, so settling the failure lets the
+  refresh run.
+
 ### Deprecated
 
 - **`foldkit-surface`: `App.fields` is deprecated; use `App.model`.** They
