@@ -4,11 +4,12 @@
  * `forSlots` validates piece keys against the published contract at definition
  * time, so a typo fails loudly.
  */
-import type { InputContribution, SlotContribution } from './contribution.js'
+import * as Capability from './capability.js'
+import type { InputContribution, SlotContribution, SlotItem } from './contribution.js'
 import { DiagnosticError } from './diagnostics.js'
 import * as Mixin from './mixin.js'
 import type { Mixin as MixinValue } from './mixin.js'
-import type { HiddenOf } from './slot.js'
+import type { Any as AnySlot, HiddenOf } from './slot.js'
 import * as SlotView from './slotView.js'
 import * as Rules from './styleRules.js'
 import type { StyleRule } from './styleRules.js'
@@ -18,6 +19,8 @@ export interface StyleValue {
   readonly style: Readonly<Record<string, string>>
   /** Input-driven pieces resolved at render time; empty for a static style. */
   readonly conditions?: ReadonlyArray<StyleCondition>
+  /** Pieces that depend on which repetition of a slot is rendered. */
+  readonly items?: ReadonlyArray<(item: SlotItem | undefined) => StyleValue>
   /** Rule-based appearance compiled to a deterministic class plus CSS. */
   readonly rules?: ReadonlyArray<StyleRule>
   /** Class-independent CSS (keyframes, layers, global rules). */
@@ -65,12 +68,14 @@ export const inline = (value: Readonly<Record<string, string>>): StyleValue =>
 /** Concatenate classes; later inline declarations win per property. */
 export const compose = (...pieces: ReadonlyArray<StyleValue>): StyleValue => {
   const conditions = pieces.flatMap(piece => piece.conditions ?? [])
+  const items = pieces.flatMap(piece => piece.items ?? [])
   const rules = pieces.flatMap(piece => piece.rules ?? [])
   const globalCss = pieces.flatMap(piece => piece.globalCss ?? [])
   return Object.freeze({
     classes: Object.freeze(pieces.flatMap(piece => piece.classes)),
     style: Object.freeze(Object.assign(Object.create(null), ...pieces.map(piece => piece.style))),
     ...(conditions.length === 0 ? {} : { conditions: Object.freeze(conditions) }),
+    ...(items.length === 0 ? {} : { items: Object.freeze(items) }),
     ...(rules.length === 0 ? {} : { rules: Object.freeze(rules) }),
     ...(globalCss.length === 0 ? {} : { globalCss: Object.freeze(globalCss) }),
   })
@@ -236,11 +241,43 @@ export const whenInput = <Input>(
     ]),
   })
 
-/** Fold every active condition (recursively) into a condition-free style. */
-const resolveStyle = (style: StyleValue, input: unknown): StyleValue => {
-  const active = (style.conditions ?? [])
-    .filter(condition => condition.predicate(input))
-    .map(condition => resolveStyle(condition.piece, input))
+/**
+ * A piece computed from the item the slot is rendered for, when the view
+ * passes one to `attrs(base, item)`; nothing for a slot rendered once.
+ */
+export const perItem = (piece: (item: SlotItem) => StyleValue): StyleValue =>
+  Object.freeze({
+    classes: empty.classes,
+    style: empty.style,
+    items: Object.freeze([
+      (item: SlotItem | undefined) => (item === undefined ? empty : piece(item)),
+    ]),
+  })
+
+/**
+ * A per-item delay for an entrance: writes `--fk-index` and
+ * `transition-delay: calc(var(--fk-index) * <step>)` (or `animation-delay`),
+ * so a list staggers with no timer. Pass the item to `attrs` for each row.
+ */
+export const stagger = (options: {
+  readonly stepMs: number
+  readonly property?: 'transitionDelay' | 'animationDelay'
+}): StyleValue =>
+  perItem(item =>
+    inline({
+      '--fk-index': String(item.index),
+      [options.property ?? 'transitionDelay']: `calc(var(--fk-index) * ${options.stepMs}ms)`,
+    }),
+  )
+
+/** Fold every active condition and item piece (recursively) into a plain style. */
+const resolveStyle = (style: StyleValue, input: unknown, item?: SlotItem): StyleValue => {
+  const active = [
+    ...(style.conditions ?? [])
+      .filter(condition => condition.predicate(input))
+      .map(condition => condition.piece),
+    ...(style.items ?? []).map(piece => piece(item)),
+  ].map(piece => resolveStyle(piece, input, item))
   return Object.freeze({
     classes: Object.freeze([...style.classes, ...active.flatMap(piece => piece.classes)]),
     style: Object.freeze(
@@ -323,9 +360,11 @@ const contributionFrom = (
     ...(compiled.css === undefined ? {} : { css: compiled.css }),
     ...(globalCss === undefined ? {} : { globalCss }),
   }
-  if ((style.conditions ?? []).length === 0) return Object.freeze(attributes)
+  if ((style.conditions ?? []).length === 0 && (style.items ?? []).length === 0) {
+    return Object.freeze(attributes)
+  }
   const contribution: InputContribution<never> = context => {
-    const resolved = resolveStyle(compiled.tree, context.input)
+    const resolved = resolveStyle(compiled.tree, context.input, context.item)
     return Object.freeze({
       classes: resolved.classes,
       style: resolved.style,
@@ -462,6 +501,164 @@ export const recipe =
     return compose(...pieces)
   }
 
+export type SlotRecipeVariants<Slots> = Readonly<
+  Record<string, Readonly<Record<string, StylePieces<Slots>>>>
+>
+
+export interface SlotRecipeDef<Slots, Variants extends SlotRecipeVariants<Slots>> {
+  readonly base?: StylePieces<Slots>
+  readonly variants: Variants
+  readonly defaults?: { readonly [K in keyof Variants]?: keyof Variants[K] & string }
+  readonly compound?: ReadonlyArray<{
+    readonly when: Partial<{ readonly [K in keyof Variants]: keyof Variants[K] & string }>
+    readonly style: StylePieces<Slots>
+  }>
+}
+
+/** A selection; `null` unsets an axis that has a default. */
+export type SlotRecipeSelection<Variants> = {
+  readonly [K in keyof Variants]?: (keyof Variants[K] & string) | null
+}
+
+export interface SlotRecipePatch<Slots, Variants extends SlotRecipeVariants<Slots>> {
+  readonly base?: StylePieces<Slots>
+  readonly variants?: {
+    readonly [K in keyof Variants]?: { readonly [V in keyof Variants[K]]?: StylePieces<Slots> }
+  }
+  readonly defaults?: SlotRecipeDef<Slots, Variants>['defaults']
+  readonly compound?: SlotRecipeDef<Slots, Variants>['compound']
+}
+
+export interface SlotRecipe<Slots, Variants extends SlotRecipeVariants<Slots>> {
+  (selection?: SlotRecipeSelection<Variants>): StylePieces<Slots>
+  readonly def: SlotRecipeDef<Slots, Variants>
+  /**
+   * The same recipe with `patch` merged in: base pieces compose per slot, a
+   * variant's pieces compose over the base recipe's, compounds append,
+   * defaults override. A slot the contract lacks is refused at once.
+   */
+  readonly extend: (patch: SlotRecipePatch<Slots, Variants>) => SlotRecipe<Slots, Variants>
+}
+
+const mergePieces = <Slots>(
+  left: StylePieces<Slots> | undefined,
+  right: StylePieces<Slots> | undefined,
+): StylePieces<Slots> => {
+  const merged: Record<string, StyleValue> = {}
+  for (const source of [left, right]) {
+    for (const [slot, piece] of Object.entries((source ?? {}) as Record<string, StyleValue>)) {
+      const existing = merged[slot]
+      merged[slot] = existing === undefined ? piece : compose(existing, piece)
+    }
+  }
+  return merged as StylePieces<Slots>
+}
+
+const assertKnownSlots = <Slots>(
+  slots: Slots,
+  pieces: StylePieces<Slots> | undefined,
+  where: string,
+): void => {
+  const known = slots as unknown as Record<string, unknown>
+  for (const slot of Object.keys((pieces ?? {}) as Record<string, unknown>)) {
+    if (!Object.hasOwn(known, slot)) {
+      throw new DiagnosticError({
+        source: 'mixins',
+        code: 'mixins:unknown-slot',
+        severity: 'error',
+        message: `Recipe ${where} targets unknown slot "${slot}"`,
+        slot,
+      })
+    }
+  }
+}
+
+/**
+ * A recipe over every slot of a contract: `base` pieces per slot, `variants`
+ * per axis and value, `defaults`, and `compound` matches. The result of a
+ * selection is a `StylePieces` for `Style.forSlots`. A design system ships
+ * the recipe; an application adjusts it with `extend` instead of forking.
+ */
+export const recipeFor =
+  <Slots>(slots: Slots) =>
+  <Variants extends SlotRecipeVariants<Slots>>(
+    def: SlotRecipeDef<Slots, Variants>,
+  ): SlotRecipe<Slots, Variants> => {
+    assertKnownSlots(slots, def.base, 'base')
+    for (const [axis, values] of Object.entries(def.variants)) {
+      for (const [value, pieces] of Object.entries(values)) {
+        assertKnownSlots(slots, pieces as StylePieces<Slots>, `variants.${axis}.${value}`)
+      }
+    }
+    for (const entry of def.compound ?? []) assertKnownSlots(slots, entry.style, 'compound')
+    const select = (selection: SlotRecipeSelection<Variants> = {}): StylePieces<Slots> => {
+      let pieces = def.base ?? ({} as StylePieces<Slots>)
+      const effective: Record<string, string> = {}
+      for (const [axis, values] of Object.entries(def.variants)) {
+        const picked = (selection as Record<string, string | null | undefined>)[axis]
+        const chosen =
+          picked === null
+            ? undefined
+            : (picked ?? (def.defaults as Record<string, string | undefined> | undefined)?.[axis])
+        if (chosen === undefined) continue
+        effective[axis] = chosen
+        const piece = (values as Record<string, StylePieces<Slots>>)[chosen]
+        if (piece !== undefined) pieces = mergePieces(pieces, piece)
+      }
+      for (const entry of def.compound ?? []) {
+        if (Object.entries(entry.when).every(([axis, value]) => effective[axis] === value)) {
+          pieces = mergePieces(pieces, entry.style)
+        }
+      }
+      return pieces
+    }
+    const extend = (patch: SlotRecipePatch<Slots, Variants>): SlotRecipe<Slots, Variants> => {
+      const variants: Record<string, Record<string, StylePieces<Slots>>> = {}
+      for (const [axis, values] of Object.entries(def.variants)) {
+        variants[axis] = { ...(values as Record<string, StylePieces<Slots>>) }
+      }
+      for (const [axis, values] of Object.entries(patch.variants ?? {})) {
+        const target = variants[axis] ?? {}
+        for (const [value, pieces] of Object.entries(
+          (values ?? {}) as Record<string, StylePieces<Slots>>,
+        )) {
+          target[value] = mergePieces(target[value], pieces)
+        }
+        variants[axis] = target
+      }
+      return recipeFor(slots)({
+        base: mergePieces(def.base, patch.base),
+        variants: variants as unknown as Variants,
+        defaults: { ...def.defaults, ...patch.defaults } as NonNullable<
+          SlotRecipeDef<Slots, Variants>['defaults']
+        >,
+        compound: [...(def.compound ?? []), ...(patch.compound ?? [])],
+      })
+    }
+    return Object.assign(select, { def, extend })
+  }
+
+/**
+ * One piece for every public slot whose capability satisfies `capability`:
+ * a focus ring for every `Focusable`, a disabled treatment for every
+ * `Interactive`, in one line.
+ */
+export const forCapability =
+  <Slots>(slots: Slots) =>
+  (
+    capability: string | Capability.Any,
+    piece: StyleValue,
+    options?: { readonly name?: string },
+  ): NamedStyle<Slots> => {
+    const source = slots as unknown as Record<string, AnySlot>
+    const pieces: Record<string, StyleValue> = {}
+    for (const [name, slot] of Object.entries(source)) {
+      if (slot.hidden) continue
+      if (Capability.extendsCapability(slot.capability, capability)) pieces[name] = piece
+    }
+    return forSlots(slots)(pieces as StylePieces<Slots>, options)
+  }
+
 export const Style = {
   class: classPiece,
   inline,
@@ -482,8 +679,12 @@ export const Style = {
   keyframes,
   global,
   empty,
+  perItem,
+  stagger,
   forSlots,
+  forCapability,
   attach,
   recipe,
+  recipeFor,
   stylesheet,
 } as const

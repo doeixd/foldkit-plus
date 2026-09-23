@@ -237,7 +237,10 @@ Style is pure data. It never touches the DOM.
 | `Style.compose(...)` | concatenate classes; later declarations win per property |
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
-| `Style.recipe({ base, variants, defaults, compound })` | returns `selection => StyleValue` |
+| `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue` |
+| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
+| `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` and a `calc` delay |
+| `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance |
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `variable` / `variables` | typed tokens and CSS custom properties |

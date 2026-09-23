@@ -53,6 +53,7 @@ export type DynamicContribution<Message> = (
  */
 export type InputContribution<Message = never> = (context: {
   readonly input: unknown
+  readonly item?: SlotItem
 }) => StaticContribution<Message>
 
 export type SlotContribution<Message> = StaticContribution<Message> | DynamicContribution<Message>

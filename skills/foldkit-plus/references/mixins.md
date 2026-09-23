@@ -262,6 +262,11 @@ adapter.
   input; its CSS is always in the stylesheet. Also: `Style.states({ open: {...} })` (`[data-state]`
   rules), `Style.responsive(breakpoints, map)`, `Style.enter(decl)` (`@starting-style`) with
   `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, and `Selector.*` builders.
+- Multi-slot recipes: `Style.recipeFor(Slots)({ base, variants, defaults, compound })` returns
+  `selection => StylePieces` (`null` unsets a defaulted axis) with `.extend(patch)` merging per
+  slot (`mixins:unknown-slot` for a slot the contract lacks). `Style.perItem(item => piece)` and
+  `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
+  piece)` styles every slot whose capability satisfies `cap`.
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data: put `Style.stylesheet(StyleA, StyleB)` (global then scoped, deduped)
   into a `<style>` element yourself.
