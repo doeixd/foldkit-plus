@@ -38,10 +38,12 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-react-codegen`](../packages/react-codegen) | 0.1.0 | Published | Compiles Foldkit view functions to React TSX, refusing with a located diagnostic what it cannot translate faithfully. |
 | [`foldkit-mixins`](../packages/mixins) | 0.3.0 | Published | Typed slot contracts and inside-out Style/Behavior attachments for Foldkit views. |
 | [`foldkit-mixins-surface`](../packages/mixins-surface) | 0.3.1 | Published | Bridges a Surface projection and Message subset to a `SlotView`. |
+| [`foldkit-ssr`](../packages/ssr) | 0.0.0 | Private | Server rendering that hands the Model over instead of rerunning `init`. In development: Phase 0 of [its plan](./design/ssr-PLAN.md). |
 | [`foldkit-mixins-ui`](../packages/mixins-ui) | 0.3.0 | Published | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
 
-No package is `private`. A package that still needs to stay off npm sets
-`"private": true` in its manifest, and `pnpm publish` skips it.
+One package is `private`: `foldkit-ssr`, while it is built in phases. A package
+that still needs to stay off npm sets `"private": true` in its manifest, and
+`pnpm publish` skips it.
 
 ## Publish process
 

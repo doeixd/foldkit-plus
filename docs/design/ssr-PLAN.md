@@ -1,8 +1,8 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** plan, not started. Written 2026-09-22 against `foldkit` 0.158.2 and
-this repository at 0.10.0, then revised the same day after an independent
-review (see [What review changed](#what-review-changed)).
+**Status:** Phases 0 and 1 done; Phase 2 next. Written 2026-09-22 against `foldkit`
+0.158.2 and this repository at 0.10.0, then revised the same day after an
+independent review (see [What review changed](#what-review-changed)).
 
 **Source:** [SSR-DESIGN.txt](./SSR-DESIGN.txt), the 3,000-line design. This plan
 does not restate it. It records what checking the design against the code found,
@@ -129,9 +129,11 @@ behaviour it pins removed.
 
 ### Phase 0: a package that renders and hydrates as Foldkit does
 
-- `packages/ssr`, published as `foldkit-ssr`, with `foldkit-ssr/server`
-  re-exporting `renderToString`, `injectIntoTemplate` and `toResponse`, and
-  `foldkit-ssr/client` re-exporting `Runtime.hydrate`.
+- `packages/ssr`, published as `foldkit-ssr`. The first version re-exported
+  Foldkit's server and runtime entry points unchanged, as the design proposed.
+  Review refused it as a module that only forwards, and it was right: the
+  package exports only what it adds, and an application imports Foldkit's own
+  rendering and hydration directly.
 - Foldkit ships no tests to port, so parity is proven by the design's
   compatibility list (§32), each item a test through the package: a stamped
   root, a build id and its mismatch, a routing application, Flags, head
@@ -140,13 +142,24 @@ behaviour it pins removed.
   or is refused where Foldkit refuses it.
 - Gate: nothing. This phase only proves the ground is where the design says.
 
+**Done.** `packages/ssr`, private, with the compatibility list as eight test
+files, one per item, run against Foldkit directly. Every hydration test was shown to fail when the server's
+root is swapped for a copy before hydrating. Two things learned:
+
+- The container passed to `makeApplication` must be the stamped root itself;
+  Foldkit refuses one beside it.
+- A view renders a custom element through `CustomElement.define`
+  (`foldkit/customElement`) bound with `.withMessage(h)`. The builder has no
+  generic element in its public API.
+
 ### Phase 1: a resume plan and its envelope
 
 - `SSR.plan(App, { id, state, baseline, boot? })`. `App` must be a runnable
   application, with `init` and `update`. `state` is a writable projection
   (`Projection.pick` or `compose`) of the client-owned Model. `baseline` is the
-  Model the client starts from before `state` is set onto it, and is copied,
-  since Foldkit freezes a Model in development.
+  Model the client starts from before `state` is set onto it. It is never
+  written, since a writable projection's `set` returns a new Model, so a
+  baseline Foldkit freezes in development is safe.
 - `ResumeEnvelope { v: 1, plan, state }` in a
   `<script type="application/json" data-foldkit-plus-resume>`. The runtime id is
   not in it: it comes from the root's stamp, as the design keeps it.
@@ -154,6 +167,13 @@ behaviour it pins removed.
   including a payload read under the wrong build; each escape in decision 4 is
   a test with a Model string that would otherwise break out of the script.
 - Gate: Phase 0.
+
+**Done.** `SSR.plan`, `SSR.envelope`, `SSR.resume` and `serializeJsonScript`,
+with a test for the round trip, for nothing outside the slice crossing, for
+each refusal and for each escape. Six of seven mutations turned a test red. The
+seventh removed a copy of the baseline, which turned out to be redundant: `set`
+never writes the Model it is given. The copy came out. The build-id check in
+decision 3 belongs with hydration, and is in Phase 2.
 
 ### Phase 2: hand the Model over instead of rerunning `init`
 

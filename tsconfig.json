@@ -9,6 +9,7 @@
     { "path": "./packages/durable" },
     { "path": "./packages/sync" },
     { "path": "./packages/metadata" },
+    { "path": "./packages/ssr" },
     { "path": "./packages/entity" },
     { "path": "./packages/form" },
     { "path": "./packages/crud" },

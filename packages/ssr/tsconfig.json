@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild",
+    "emitDeclarationOnly": true,
+    "composite": true,
+    "noEmit": false,
+    "paths": {
+      "foldkit-ssr": ["./src/index.ts"],
+      "foldkit-surface": ["../surface/src/index.ts"],
+      "foldkit-metadata": ["../metadata/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../surface/tsconfig.build.json" }
+  ]
+}
