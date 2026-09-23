@@ -7,56 +7,109 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.10.0
+
+`foldkit-remote`, `foldkit-remote-server` and `foldkit-remote-drizzle` 0.7.0;
+`foldkit-crud` and `foldkit-mixins-crud` 0.3.0; `foldkit-surface` 0.4.1.
+Republished only so their pinned dependencies are the current ones:
+`foldkit-agent` 0.3.3, `foldkit-bundle-surface` 0.1.3, `foldkit-cms` and
+`foldkit-cms-drizzle` 0.1.2, `foldkit-mirror` 0.2.3 and `foldkit-sync` 0.5.4.
+
+**A first run no longer needs a server, and a stuck read says why.**
+`RemoteServer.memory` serves rows you give it through the same handlers a real
+server uses, so a page can show real data before there is a database.
+`Data.why` answers the question every newcomer asks of a read sitting at
+`Initial`: is no active Surface reading it, or are Remote's Subscriptions not
+installed? `Remote.patch` and `Remote.ref` let the entity you declared with
+`foldkit-entity` be the one you patch.
+
+**Reads are more honest about loading and failure.** Two reviews of 0.9's
+failure handling found reads that still lied. A failed refresh could be
+forgotten once a later page loaded, leaving an outdated first page reading
+`Ready`. A read waiting on a related entity said `Initial`, the state that
+means a wiring mistake. An editor opened on a value whose refresh had failed
+showed an empty form. All of these are fixed.
+
+### Upgrading from 0.9
+
+Upgrade every `foldkit-*` package you use together; they pin each other's
+versions exactly. Most applications need nothing else.
+
+1. **A relation's value is typed by its entity.** A relation to `User` takes
+   `` `User:${string}` `` (`RefKey<'User'>`), not any `string`. A literal such
+   as `'User:u1'` or a template such as `` `User:${id}` `` already fits. A plain
+   `string` variable passed to a relation field needs the same template.
+2. **`DetailView`'s root is a `div` in every state.** A style or behaviour that
+   targeted `root` to reach the `dl` moves to the new `list` slot.
+3. **A failed list refresh stays stale.** Code that read a connection's `stale`
+   flag after a `QueryFailed` sees `true` where it saw `false`. What shows on
+   screen is unchanged: the list reads `Failed` with its rows as `previous`.
+4. **`App.fields` is deprecated.** Use `App.model`; they are the same object.
+
 ### Breaking
 
+- **`foldkit-remote`: a relation's wire value names its entity in the type.**
+  A relation to `User` was typed as any `string`, so `owner: 'Project:p9'`
+  typechecked in a patch and read as a row that does not exist. It is now
+  `RefKey<'User'>`, which is `` `User:${string}` ``. Runtime is unchanged.
 - **`foldkit-mixins-crud`: `DetailView`'s root is a `div` in every state.** It
   was the `dl` while showing a value, and a `div` around a status line
   otherwise, so a style or behaviour on `root` covered different elements as
   the read changed, and missed the alert a failed refresh shows beside the
   value. The `dl` now has a slot of its own, `list`, and carries `aria-busy`
-  while refreshing. A style that targeted `root` to reach the `dl` moves to
-  `list`.
+  while refreshing.
+- **`foldkit-remote`: a failed refresh stays owed.** `QueryFailed` cleared the
+  connection's stale mark, so once "load more" landed a later page and settled
+  the failure, the list read `Ready` with its first page still outdated and the
+  refresh never retried. The connection now stays stale; the failure is what
+  stops the planner asking again, and whatever settles it lets the refresh run.
 
 ### Added
 
-- **`foldkit-remote`: `Data.why(model, projection, { surfaces })`.** `Initial`
-  means nothing is fetching a read, and in practice it is almost always
-  wiring. `Data.why` tells the two usual mistakes apart: `NotObserved`, when no
-  active Surface reads it, and `NotFetching`, when one does and Remote's
-  Subscriptions are not running. It names the Surfaces involved and says what
-  to do. For every other state it says in words what the state means.
 - **`foldkit-remote-server`: `RemoteServer.memory`, a backend held in memory.**
   Give it the domain and some rows, and its `layer` is a `RemoteClient`, so a
   first run, a test or a demo needs no database and no network. Reads go
-  through the same `handlers` a real server uses. A `Query.define` body is run
-  over the rows by the reference interpreter and paged with offset cursors.
-  Mutations are yours to give, and write through the store they are handed.
-  No live changes, no authorization.
+  through the same `handlers` a real server uses, so fields, nested relations
+  and relation pages arrive as production sends them. A `Query.define` body is
+  run over the rows by the reference interpreter and paged by row id, as a
+  keyset: a page ends where the next begins, and "load more" keeps working
+  after the last row stops matching. Mutations are yours to give, and write
+  through the store they are handed. No live changes, no authorization.
+- **`foldkit-remote`: `Data.why(model, projection, { surfaces })`.** `Initial`
+  means nothing is fetching a read, and in practice it is almost always wiring.
+  `Data.why` tells the two usual mistakes apart: `NotObserved`, when no active
+  Surface asks for all of the read, and `NotFetching`, when one does and
+  Remote's Subscriptions are not running. It names the Surfaces involved and
+  says what to do. For every other state it says in words what the state means.
 - **`foldkit-remote`: `Remote.patch(entity, id, values)` and
   `Remote.ref(entity, id)`.** An optimistic patch or a connection change for a
-  `foldkit-entity` Entity, the recommended way to declare a domain, had no
-  direct spelling: it needed `Entity.from(Project).patch(...)` with Remote's
-  `Entity`, whose name collides with `foldkit-entity`'s. Both helpers take
-  either kind of entity and check `values` against its fields.
+  `foldkit-entity` Entity had no direct spelling: it needed
+  `Entity.from(Project).patch(...)` with Remote's `Entity`, whose name collides
+  with `foldkit-entity`'s. Both take either kind of entity and check `values`
+  against its fields.
+- **`foldkit-crud`: `refresh(model)` on the editor**, like placed lists and
+  details, for a retry button while `status` is `LoadFailed`.
 
 ### Fixed
 
-- **`foldkit-remote`: a relation's wire value names its entity in the type.**
-  A relation to `User` was typed as any `string`, so `owner: 'Project:p9'`
-  typechecked in a patch and read as a row that does not exist. It is now
-  `RefKey<'User'>`, which is `` `User:${string}` ``. Runtime is unchanged. Code
-  that passed a plain `string` variable to a relation field now needs the key
-  typed, for example `` `User:${id}` ``.
+- **`foldkit-remote`: a read waiting on a related entity reads `Loading`.** It
+  read `Initial`, so a live patch that moved a project to a new owner dropped a
+  value that was on screen into the "nothing is fetching this" state while the
+  owner loaded. Loading is now checked through relations, for entity reads and
+  list rows alike.
+- **`foldkit-remote`: a refresh retries a related entity whose read failed**,
+  even when the server does not expand the relation, as servers need not.
+- **`foldkit-remote`: retention forgets a field read nothing waits for any
+  more**, as it already did for a list's query, so an interrupted read cannot
+  leave a value reading `Loading` for good.
+- **`foldkit-remote`: a hydrated value settles the failure of the field it
+  writes**: every field under `replace`, and under `preserve-existing` only
+  those of entities the store did not hold.
 - **`foldkit-crud`: an editor opens on the last good value when its refresh
-  failed.** An editor opened on a value whose latest refresh had failed read
-  `Failed { previous }` and stayed in `LoadFailed` with an empty form, though
-  the value was right there, and nothing asked for it again. It now fills from
-  `previous`. For a value that never loaded, the editor gains `refresh(model)`,
-  like placed lists and details, for a retry button to return.
-- **`foldkit-remote`: a failed refresh stays owed.** A list whose refresh
-  failed, and then loaded a later page, read `Ready` with its first page still
-  outdated. The connection now stays due, so settling the failure lets the
-  refresh run.
+  failed.** It stayed in `LoadFailed` with an empty form, though the value was
+  in `previous`. It now fills from it.
+- **`foldkit-mixins-crud`: an empty list that failed to refresh says it was
+  empty**, under the failure, instead of showing the alert alone.
 
 ### Deprecated
 

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-bundle-surface",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "foldkit-bundle placements as foldkit-surface Module contracts: each placement owns its Model path, validated with every other owner.",
   "keywords": [
     "foldkit",

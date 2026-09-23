@@ -1,6 +1,6 @@
 {
   "name": "foldkit-cms",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "What a CMS adds to a Foldkit Plus domain: audience, time, and address. A draft is an unsent form kept beside the content row; state is derived, never stored. Headless.",
   "keywords": [
     "foldkit",

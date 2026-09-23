@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mirror",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A Foldkit Model slice kept in the URL or a key-value store: written when the slice changes, read back on navigation or cold load.",
   "keywords": [
     "foldkit",

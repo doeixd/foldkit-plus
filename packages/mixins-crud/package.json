@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-crud",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "foldkit-crud lists and details drawn through foldkit-mixins slots: an accessible table and description list, styleable and extensible by contract.",
   "keywords": [
     "foldkit",
