@@ -41,13 +41,18 @@ const renderRun = (run: Text): string => {
 
 const blockTag = (block: Block): string => {
   if (block.type === 'Heading') return `h${block.level}`
-  return 'p'
+  return block.type === 'Node' ? 'div' : 'p'
 }
 
-const renderBlock = (block: Block): string =>
-  block.type === 'Unknown'
-    ? `<div data-unknown="${escapeAttribute(block.originalType)}"></div>`
-    : `<${blockTag(block)}>${block.children.map(renderRun).join('')}</${blockTag(block)}>`
+const renderBlock = (block: Block): string => {
+  if (block.type === 'Unknown')
+    return `<div data-unknown="${escapeAttribute(block.originalType)}"></div>`
+  const tag = blockTag(block)
+  // An application node carries its kind so a stylesheet can reach it; a Kit
+  // renderer may replace this default element later.
+  const attributes = block.type === 'Node' ? ` data-node="${escapeAttribute(block.kind)}"` : ''
+  return `<${tag}${attributes}>${block.children.map(renderRun).join('')}</${tag}>`
+}
 
 /** Serializes blocks as HTML, with text and attributes escaped. */
 export const toHtml = (blocks: BlockList): string => blocks.map(renderBlock).join('')

@@ -113,6 +113,33 @@ Nothing mints identity unless the caller's `mint` does, and replay applies
 transactions rather than commands. A collapsed `ToggleMark` is a no-op until
 stored marks exist, and adding an unknown mark is rejected.
 
+## Application node blocks
+
+A `Node` block is an application's own kind — a Callout, an Image, an embed. Its
+`props` are JSON at the codec level, because the document codec cannot know an
+application's schemas; a Kit's node definition validates them at that boundary:
+
+```ts
+const ArticleKit = RichText.kit({
+  nodes: [
+    RichText.block('Paragraph'),
+    RichText.node('Callout', { Props: Schema.Struct({ tone: Schema.Literals(['info', 'warning']) }) }),
+    RichText.node('Image'),
+  ],
+  marks: ['Bold'],
+})
+
+RichText.validate(document, ArticleKit)
+// → [] | UnsupportedNode (kind not declared) | InvalidProps (schema refused them)
+```
+
+A node block's children are text runs, so positions, operations, selection,
+clipboard slices, history, and the interpreters all work on it unchanged — a
+split keeps its kind and props on both halves. `data-node="Kind"` is the default
+rendering in HTML and in the view until a Kit renderer replaces it. Nesting
+children beyond runs, mark definitions with props, and migrations are still to
+come.
+
 ## Transforms
 
 Normalization runs as a registry of transforms. Each is a pure function of the
@@ -339,9 +366,9 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Migrations, prop schemas, nested children, the
-mark registry, and collaboration are still pending. Retain rejected source
-content for recovery; do not replace it with an empty document.
+decoding untrusted payloads. Migrations, nested children, the mark registry,
+and collaboration are still pending. Retain rejected source content for
+recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document

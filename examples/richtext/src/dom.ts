@@ -20,7 +20,7 @@ const MARK_ATTRIBUTE = 'data-marks'
 
 const blockTag = (block: RichText.Block): string => {
   if (block.type === 'Heading') return `h${block.level}`
-  if (block.type === 'Unknown') return 'div'
+  if (block.type === 'Unknown' || block.type === 'Node') return 'div'
   return 'p'
 }
 

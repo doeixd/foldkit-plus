@@ -53,7 +53,23 @@ export const UnknownBlock = Schema.Struct({
 })
 export type UnknownBlock = typeof UnknownBlock.Type
 
-export const Block = Schema.Union([Paragraph, Heading, UnknownBlock])
+/**
+ * A block whose kind the application declares: a Callout, an Image, an embed.
+ * `props` is JSON at the codec level because the document codec cannot know an
+ * application's schemas; a Kit's node definition validates it at that boundary,
+ * and runtime declarations stay outside the codec (§12). `children` are text
+ * runs, so positions, operations, and selection work on it unchanged.
+ */
+export const NodeBlock = Schema.Struct({
+  type: Schema.Literal('Node'),
+  kind: Schema.NonEmptyString,
+  id: NodeId,
+  props: Schema.JsonObject,
+  children: Schema.Array(Text),
+})
+export type NodeBlock = typeof NodeBlock.Type
+
+export const Block = Schema.Union([Paragraph, Heading, NodeBlock, UnknownBlock])
 export type Block = typeof Block.Type
 
 /** Version 1's initial block vocabulary, with document-wide identity validation. */
@@ -74,7 +90,8 @@ export const Document = Schema.Struct({
 )
 export type Document = typeof Document.Type
 
-const isKnownBlockType = (type: unknown): boolean => type === 'Paragraph' || type === 'Heading'
+const isKnownBlockType = (type: unknown): boolean =>
+  type === 'Paragraph' || type === 'Heading' || type === 'Node'
 
 /**
  * Converts blocks whose type this version does not implement into `Unknown`

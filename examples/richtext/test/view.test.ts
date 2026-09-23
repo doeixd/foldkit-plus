@@ -93,6 +93,27 @@ describe('the read-only renderer', () => {
     expect(attr(paragraph.children?.[0] as VNode, 'data-marks')).toBe('Highlight')
   })
 
+  it('renders application node blocks with their kind addressable', () => {
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'c',
+          props: { tone: 'info' },
+          children: [{ type: 'Text', id: 't', text: 'Careful', marks: ['Bold'] }],
+        },
+      ],
+    })
+    const rendered = renderDocument(document) as unknown as VNode
+    const block = rendered.children?.[0] as VNode
+    expect(block.sel).toBe('div')
+    expect(attr(block, 'data-node')).toBe('Callout')
+    expect(tags(block)).toEqual(['div', 'strong'])
+    expect(text(block)).toBe('Careful')
+  })
+
   it('renders every heading level and empty blocks', () => {
     const levels = RichText.decodeDocument({
       version: 1,

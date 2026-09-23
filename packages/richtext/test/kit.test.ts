@@ -30,7 +30,7 @@ describe('kits', () => {
       { name: 'Image', kind: 'atom', children: 'none' },
     ])
     expect(ArticleKit.marks).toEqual(['Bold', 'Italic'])
-    expect(RichText.inspectKit(ArticleKit)).toEqual({ blocks: 2, atoms: 1, marks: 2 })
+    expect(RichText.inspectKit(ArticleKit)).toEqual({ blocks: 2, atoms: 1, nodes: 0, marks: 2 })
     expect(Reflect.set(ArticleKit, 'marks', [])).toBe(false)
   })
 

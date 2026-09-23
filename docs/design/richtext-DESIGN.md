@@ -471,6 +471,19 @@ const ProductCard = RichText.embed(
 
 Effect Schema remains the validity source for node attributes.
 
+**Implemented (first slice).** A `Node` block carries `kind`, JSON `props`, and
+text-run `children`; a Kit declares the kind with `RichText.node(name, { Props })`
+and `validate` reports `UnsupportedNode` for an undeclared kind and
+`InvalidProps` when the schema refuses the props — so the codec stays
+application-agnostic and the Kit is where an application's types meet persisted
+data. Because children are runs, positions, every operation, selection,
+clipboard slices, history, and both interpreters work on a node block
+unchanged, and a split keeps its kind and props on both halves. `data-node` is
+the default rendering until a Kit renderer replaces it.
+
+Not yet: nested children beyond runs (`blockContent`), `atom`'s no-children
+enforcement at the operation level, renderers per kind, and metadata.
+
 ---
 
 # 9. Marks
@@ -3947,7 +3960,7 @@ transactions stay untouched.
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
-Remaining: node prop schemas and nested children, the mark registry and custom
+Remaining: nested children beyond runs, the mark registry and custom
 definitions, metadata keys, migrations, and collaboration (including
 collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is

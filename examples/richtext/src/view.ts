@@ -34,6 +34,10 @@ const renderBlock = (block: RichText.Block): Html => {
     return h.div([h.DataAttribute('unknown', block.originalType)], [`[${block.originalType}]`])
   }
   const children: ReadonlyArray<Child> = block.children.map(renderRun)
+  if (block.type === 'Node') {
+    // The kind is addressable so a stylesheet or a renderer can reach it.
+    return h.div([h.DataAttribute('node', block.kind)], children)
+  }
   return block.type === 'Heading' ? HEADINGS[block.level]([], children) : h.p([], children)
 }
 

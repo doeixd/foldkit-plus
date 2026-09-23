@@ -62,6 +62,31 @@ describe('rendering the owned subtree', () => {
     expect(toText(dom)).toBe('abcd\nTitle')
   })
 
+  it('renders application node blocks as editable containers with their runs', () => {
+    const dom = mount(
+      document,
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'Callout',
+            id: 'c',
+            props: { tone: 'info' },
+            children: [{ type: 'Text', id: 't', text: 'Careful', marks: ['Bold'] }],
+          },
+        ],
+      }),
+    )
+    const block = dom.root.children[0] as HTMLElement
+    expect(block.tagName).toBe('DIV')
+    expect(block.getAttribute('data-block')).toBe('c')
+    expect((block.children[0] as HTMLElement).getAttribute('data-run')).toBe('t')
+    expect(toText(dom)).toBe('Careful')
+    // Its runs take positions like any other block's.
+    expect(positionToRange(dom, at('t', 3))?.startOffset).toBe(3)
+  })
+
   it('shows preserved unknown blocks as read-only placeholders', () => {
     const dom = mount(
       document,
