@@ -1,5 +1,5 @@
 import { Effect, Exit, Schema, Scope } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { IDBFactory } from 'fake-indexeddb'
 import { defineMessageUnion } from 'foldkit/message'
 import {
@@ -26,7 +26,7 @@ const empty: Shared = {
   title: { stamp: { counter: 0, replicaId: ReplicaId.make('initial') }, value: 'Original' },
 }
 const update = (model: Shared, message: Message): Shared =>
-  evo(model, {
+  modifyFields(model, {
     title: () => Title.merge(model.title, message.title),
   })
 const decodeMessage = Schema.decodeUnknownSync(Message, { onExcessProperty: 'error' })

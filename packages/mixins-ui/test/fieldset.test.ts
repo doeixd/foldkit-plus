@@ -30,7 +30,7 @@ const renderFieldset = (
 
 describe('Fieldset adapter', () => {
   it('preserves the base fieldset, legend, and description bundles', () => {
-    const view = renderFieldset({ id: 'shipping' })
+    const view = renderFieldset({ id: 'shipping', hasDescription: true })
     expect(attributeOf(view.fieldset, 'Id')?.value).toBe('shipping')
     expect(attributeOf(view.legend, 'Id')?.value).toBe('shipping-legend')
     expect(attributeOf(view.description, 'Id')?.value).toBe('shipping-description')

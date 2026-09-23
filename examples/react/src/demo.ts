@@ -6,7 +6,7 @@
  * 3. A Foldkit view compiled to React TSX (foldkit-react-codegen).
  */
 import { Effect, Schema, Stream } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Port from 'foldkit/port'
@@ -119,9 +119,9 @@ const reactInsideFoldkit = async (lines: Array<string>) => {
     update: (model: ReviewModel, message: ReviewMessage) => {
       switch (message._tag) {
         case 'Rated':
-          return { model: evo(model, { stars: () => message.stars }) }
+          return { model: modifyFields(model, { stars: () => message.stars }) }
         case 'Renamed':
-          return { model: evo(model, { title: () => `${model.title} (2021)` }) }
+          return { model: modifyFields(model, { title: () => `${model.title} (2021)` }) }
       }
     },
     view: reviewView,
@@ -188,7 +188,7 @@ const makeCounter = (container: HTMLElement, start: number) =>
     update: (model: CounterModel, message: CounterMessage) => {
       switch (message._tag) {
         case 'ChangedStep':
-          return { model: evo(model, { step: () => message.step }) }
+          return { model: modifyFields(model, { step: () => message.step }) }
         case 'Reported':
           return { model }
         case 'Incremented': {
@@ -199,7 +199,7 @@ const makeCounter = (container: HTMLElement, start: number) =>
               Effect.as(CounterMessage.Reported()),
             ),
           }
-          return { model: evo(model, { count: () => count }), commands: [report] }
+          return { model: modifyFields(model, { count: () => count }), commands: [report] }
         }
       }
     },

@@ -4,6 +4,10 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     alias: {
+      // Vite's client environment (the jsdom tests) refuses to bundle a Node
+      // builtin, so a static `node:sqlite` import resolves to this shim under
+      // Vitest. Node and tsx still resolve the real builtin.
+      'node:sqlite': fileURLToPath(new URL('./test-support/sqlite.ts', import.meta.url)),
       // Resolve the workspace package from source, so tests never depend on a
       // prior build of packages/agent.
       'foldkit-cms-drizzle': fileURLToPath(

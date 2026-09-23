@@ -24,8 +24,9 @@
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "effect": "4.0.0-rc.112",
-    "foldkit": "0.158.2",
+    "@effect/platform-browser": "4.0.0-rc.116",
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
     "jsdom": "26.1.0",
     "typescript": "5.9.3",
     "vite": "5.4.21"

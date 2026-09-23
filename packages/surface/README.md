@@ -289,7 +289,7 @@ intentional. They operate at different levels:
 A useful shorthand is:
 
 ```text
-evo               = evolve application data inside update
+modifyFields      = modify application data inside update
 Optic / ModelRef  = locate a value structurally
 Projection        = describe/read/write a known Model slice
 Surface           = observation + capability contract
@@ -301,7 +301,7 @@ application with a `filter` field and an already-decoded `restoredFilter`:
 
 ```ts
 // application transition
-evo(model, { filter: () => 'active' })
+modifyFields(model, { filter: () => 'active' })
 
 // structural addressing
 App.model.filter.get(model)

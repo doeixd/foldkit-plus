@@ -42,15 +42,16 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "@foldkit/ui": "^0.158.2",
-    "effect": "^4.0.0-rc.112",
-    "foldkit": "^0.158.2",
+    "@foldkit/ui": "^0.163.0",
+    "effect": "^4.0.0-rc.116",
+    "foldkit": "^0.163.0",
     "foldkit-mixins": "workspace:^"
   },
   "devDependencies": {
-    "@foldkit/ui": "0.158.2",
-    "effect": "4.0.0-rc.112",
-    "foldkit": "0.158.2",
+    "@effect/platform-browser": "4.0.0-rc.116",
+    "@foldkit/ui": "0.163.0",
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
     "foldkit-mixins": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"

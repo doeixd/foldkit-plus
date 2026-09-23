@@ -79,11 +79,14 @@ export const Spring = Bundle.make('Spring', {
             // all at once.
             const dt = step / 1000
             const points = Stream.tick(step).pipe(
-              Stream.scan({ x: from, v: 0 }, point => {
-                const force = -stiffness * (point.x - to) - damping * point.v
-                const v = point.v + force * dt
-                return { x: point.x + v * dt, v }
-              }),
+              Stream.scan(
+                (): Point => ({ x: from, v: 0 }),
+                point => {
+                  const force = -stiffness * (point.x - to) - damping * point.v
+                  const v = point.v + force * dt
+                  return { x: point.x + v * dt, v }
+                },
+              ),
               // scan emits the seed (no movement yet) before the first step.
               Stream.drop(1),
             )

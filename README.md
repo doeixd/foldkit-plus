@@ -48,14 +48,14 @@ Install `foldkit-surface` alongside the workspace-compatible `foldkit` and
 ```ts
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { Surface } from 'foldkit-surface'
 
 const Model = Schema.Struct({ count: Schema.Number, internalNote: Schema.String })
 const Message = defineMessageUnion({ Incremented: {} })
 const initial: typeof Model.Type = { count: 0, internalNote: 'Only the app reads this' }
 const update = (model: typeof Model.Type, _message: typeof Message.Type) => ({
-  model: evo(model, { count: count => count + 1 }),
+  model: modifyFields(model, { count: count => count + 1 }),
 })
 const App = Surface.application({ Model, Message, initial, update })
 

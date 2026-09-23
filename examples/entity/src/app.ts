@@ -8,7 +8,7 @@ import { Effect, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
@@ -168,7 +168,7 @@ export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 // thing that changes the query's input — and so the only thing that fetches.
 export const Search = Page.at(SearchBox, {
   args: { delayMs: 250 },
-  onOut: out => (model: Model) => ({ model: evo(model, { postSearch: () => out.value }) }),
+  onOut: out => (model: Model) => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
 })
 
 // One list for the page: the editor's placement, and Remote with what is on
@@ -202,7 +202,7 @@ export const update = PostEditor.after(
       case 'RetriedPosts':
         return { model: Posts.refresh(model), commands: [FocusPosts()] }
       case 'SortedPosts':
-        return { model: evo(model, { postSort: () => message.sort }) }
+        return { model: modifyFields(model, { postSort: () => message.sort }) }
       default:
         return { model }
     }

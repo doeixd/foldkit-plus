@@ -14,7 +14,7 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { EntryRow, Post, PostForm, PostPage, Posts } from './domain.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
@@ -154,7 +154,7 @@ const placed = placements.update((model: Model, message: Message) => {
     case 'ClosedEditor':
       return leaving(EditorSlot.helpers.close())
     case 'TypedSchedule':
-      return { model: evo(model, { scheduleAt: () => message.text }) }
+      return { model: modifyFields(model, { scheduleAt: () => message.text }) }
     case 'AskedForHistory': {
       // A publish patches the new revision in; its place in the list is asked for.
       const projection = history(model)
@@ -162,7 +162,7 @@ const placed = placements.update((model: Model, message: Message) => {
       return { model: Data.refresh(refreshed, Worklist.active.projectionOf(refreshed)!) }
     }
     case 'Visited':
-      return { model: evo(model, { visiting: () => message.slug }) }
+      return { model: modifyFields(model, { visiting: () => message.slug }) }
     case 'LookedAgain':
       return { model: Data.refresh(model, Site.active.projectionOf(model)!) }
     default:

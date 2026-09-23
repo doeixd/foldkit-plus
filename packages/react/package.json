@@ -40,16 +40,17 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "effect": "^4.0.0-rc.112",
-    "foldkit": "^0.158.2",
+    "effect": "^4.0.0-rc.116",
+    "foldkit": "^0.163.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@effect/platform-browser": "4.0.0-rc.116",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "effect": "4.0.0-rc.112",
-    "foldkit": "0.158.2",
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
     "jsdom": "26.1.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",

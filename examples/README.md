@@ -28,7 +28,10 @@ The todo app covers URL/device mirrors. The Bundle example authors small
 bundles; the ready-made primitives have their own
 [subpath guides](../packages/primitives/README.md#map-of-the-package).
 The `tanstack` and `livestore` directories contain query-interpreter conformance
-work rather than the application transcripts listed here.
+work rather than the application transcripts listed here. `livestore` pins
+`effect@4.0.0-rc.112` on its own: LiveStore's only Effect 4 build imports a
+testing module Effect removed after that release, and the example hands it
+plain data, so it never shares an Effect value with the rest of the workspace.
 
 ## Recommended reading order
 

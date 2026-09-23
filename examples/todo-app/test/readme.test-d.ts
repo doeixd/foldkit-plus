@@ -1,6 +1,6 @@
 /** Composition fixture for Surface, Agent, Sync, Mirror, and Mixins. */
 import { Schema } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from 'foldkit-agent'
 import { Mirror } from 'foldkit-mirror'
@@ -30,13 +30,13 @@ const update = (model: typeof Model.Type, message: typeof Message.Type) => {
       return { model }
     case 'SubmittedTodo':
       return {
-        model: evo(model, {
+        model: modifyFields(model, {
           todos: () => [...model.todos, { id: message.id, title: message.title, done: false }],
         }),
       }
     case 'ToggledTodo':
       return {
-        model: evo(model, {
+        model: modifyFields(model, {
           todos: () =>
             model.todos.map(todo =>
               todo.id === message.id ? { ...todo, done: !todo.done } : todo,
@@ -45,7 +45,9 @@ const update = (model: typeof Model.Type, message: typeof Message.Type) => {
       }
     case 'DeletedTodo':
       return {
-        model: evo(model, { todos: () => model.todos.filter(todo => todo.id !== message.id) }),
+        model: modifyFields(model, {
+          todos: () => model.todos.filter(todo => todo.id !== message.id),
+        }),
       }
     default:
       return { model }

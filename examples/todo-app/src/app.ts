@@ -21,7 +21,7 @@
  *   never leave the tab.
  */
 import { Clock, Effect, Schema } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
 import { defineMessageUnion } from 'foldkit/message'
@@ -144,12 +144,12 @@ export const makeUpdate =
       RequestedTodo: ({ title }) =>
         title.trim() === ''
           ? { model }
-          : { model: evo(model, { draft: () => '' }), commands: [mintTodo(title.trim())] },
+          : { model: modifyFields(model, { draft: () => '' }), commands: [mintTodo(title.trim())] },
       EditingCommitted: () => {
         const id = model.editingId
         const title = model.editDraft.trim()
         if (id === null) return { model }
-        const stopped = evo(model, { editingId: () => null, editDraft: () => '' })
+        const stopped = modifyFields(model, { editingId: () => null, editDraft: () => '' })
         if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
         return {
           model: stopped,
@@ -162,7 +162,7 @@ export const makeUpdate =
       // Durable facts: pure over the shared slice, idempotent where a retry could
       // deliver one twice.
       SubmittedTodo: ({ id, title, createdAt }) => ({
-        model: evo(model, {
+        model: modifyFields(model, {
           todos: () =>
             model.todos.some(todo => todo.id === id)
               ? model.todos
@@ -170,7 +170,7 @@ export const makeUpdate =
         }),
       }),
       ToggledTodo: ({ id }) => ({
-        model: evo(model, {
+        model: modifyFields(model, {
           todos: () =>
             model.todos.map(todo =>
               todo.id === id ? { ...todo, completed: !todo.completed } : todo,
@@ -178,36 +178,38 @@ export const makeUpdate =
         }),
       }),
       RenamedTodo: ({ id, title }) => ({
-        model: evo(model, {
+        model: modifyFields(model, {
           todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
         }),
       }),
       PrioritySet: ({ id, priority }) => ({
-        model: evo(model, {
+        model: modifyFields(model, {
           todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, priority } : todo)),
         }),
       }),
       DeletedTodo: ({ id }) => ({
-        model: evo(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
+        model: modifyFields(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
       }),
       ClearedCompleted: () => ({
-        model: evo(model, { todos: () => model.todos.filter(todo => !todo.completed) }),
+        model: modifyFields(model, { todos: () => model.todos.filter(todo => !todo.completed) }),
       }),
       RenamedList: ({ title }) =>
-        title.trim() === '' ? { model } : { model: evo(model, { listTitle: () => title.trim() }) },
+        title.trim() === ''
+          ? { model }
+          : { model: modifyFields(model, { listTitle: () => title.trim() }) },
 
       // Local.
-      DraftChanged: ({ value }) => ({ model: evo(model, { draft: () => value }) }),
-      FilterSelected: ({ filter }) => ({ model: evo(model, { filter: () => filter }) }),
+      DraftChanged: ({ value }) => ({ model: modifyFields(model, { draft: () => value }) }),
+      FilterSelected: ({ filter }) => ({ model: modifyFields(model, { filter: () => filter }) }),
       EditingStarted: ({ id }) => ({
-        model: evo(model, {
+        model: modifyFields(model, {
           editingId: () => id,
           editDraft: () => model.todos.find(todo => todo.id === id)?.title ?? '',
         }),
       }),
-      EditDraftChanged: ({ value }) => ({ model: evo(model, { editDraft: () => value }) }),
+      EditDraftChanged: ({ value }) => ({ model: modifyFields(model, { editDraft: () => value }) }),
       EditingStopped: () => ({
-        model: evo(model, { editingId: () => null, editDraft: () => '' }),
+        model: modifyFields(model, { editingId: () => null, editDraft: () => '' }),
       }),
     })
 

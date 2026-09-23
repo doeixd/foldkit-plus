@@ -5,7 +5,7 @@
  */
 import * as Tabs from '@foldkit/ui/tabs'
 import { Schema, Stream } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Submodel from 'foldkit/submodel'
@@ -50,7 +50,7 @@ export const Upload = Bundle.make('Upload', {
   Message: UploadMessage,
   init: () => ({ model: { name: '', percent: 0 } }),
   update: (model, message) => {
-    const next = evo(model, { percent: () => message.percent })
+    const next = modifyFields(model, { percent: () => message.percent })
     return message.percent >= 100
       ? { model: next, outMessage: Finished.make({ name: model.name }) }
       : { model: next }
@@ -59,7 +59,7 @@ export const Upload = Bundle.make('Upload', {
     h.li([], [`${model.name} ${model.percent}%`]),
   ),
   helpers: {
-    restart: (model: UploadModel) => ({ model: evo(model, { percent: () => 0 }) }),
+    restart: (model: UploadModel) => ({ model: modifyFields(model, { percent: () => 0 }) }),
   },
 })
 
@@ -114,7 +114,7 @@ const Page = BundleSurface.parent(App)
 
 export const Uploads = Page.each(UploadsSlot, {
   onOut: (finished, _key) => model => ({
-    model: evo(model, { finished: () => [...model.finished, finished.name] }),
+    model: modifyFields(model, { finished: () => [...model.finished, finished.name] }),
   }),
 })
 
@@ -123,7 +123,7 @@ const placements = Page.assemble(
   Page.at(Narrow, { args: { query: '(max-width: 40rem)' } }),
   Page.at(TabsSlot, {
     args: { id: 'settings' },
-    onOut: selected => model => ({ model: evo(model, { section: () => selected.value }) }),
+    onOut: selected => model => ({ model: modifyFields(model, { section: () => selected.value }) }),
   }),
   Uploads,
 )
@@ -133,7 +133,9 @@ export const placementKeys: ReadonlyArray<string> = placements.placements.map(pl
 export const update = placements.update((model, message) => {
   switch (message._tag) {
     case 'ChoseFile':
-      return Uploads.add(message.id, upload => evo(upload, { name: () => message.name }))(model)
+      return Uploads.add(message.id, upload => modifyFields(upload, { name: () => message.name }))(
+        model,
+      )
     case 'ClickedRestart':
       return Uploads.helpers.restart(message.id)(model)
     default:

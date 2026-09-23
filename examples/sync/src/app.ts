@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 
@@ -26,17 +26,17 @@ export const initialModel: Model = { todos: [], selectedTodoId: null, lastError:
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => ({
   model: Message.match(message, {
     CreatedTodo: ({ id, title }) =>
-      evo(model, {
+      modifyFields(model, {
         todos: () =>
           model.todos.some(todo => todo.id === id) ? model.todos : [...model.todos, { id, title }],
       }),
     RenamedTodo: ({ id, title }) =>
-      evo(model, {
+      modifyFields(model, {
         todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
       }),
     DeletedTodo: ({ id }) =>
-      evo(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
-    SelectedTodo: ({ id }) => evo(model, { selectedTodoId: () => id }),
+      modifyFields(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
+    SelectedTodo: ({ id }) => modifyFields(model, { selectedTodoId: () => id }),
   }),
 })
 

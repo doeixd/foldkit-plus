@@ -810,7 +810,7 @@ const SearchBox = Bundle.declare(SearchInput, 'search')
 // The settled OutMessage is what moves the field the query reads.
 Page.at(SearchBox, {
   args: { delayMs: 250 },
-  onOut: out => model => ({ model: evo(model, { postSearch: () => out.value }) }),
+  onOut: out => model => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
 })
 ```
 
@@ -1393,7 +1393,7 @@ Remote does **not** own:
 
 ## How state changes here
 
-Local application state uses `evo` inside `update`, like anywhere else.
+Local application state uses `modifyFields` inside `update`, like anywhere else.
 Remote Messages go through `Data.reduce` into the embedded `Remote.Model`
 submodel — Remote owns that reducer, and it is the only writer of the
 cache. Never install cache state with a ref `set`; the requirements,

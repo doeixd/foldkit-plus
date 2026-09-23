@@ -9,8 +9,8 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "effect": "4.0.0-rc.112",
-    "foldkit": "0.158.2",
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
     "foldkit-agent": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-sync": "workspace:*",
@@ -18,11 +18,12 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@effect/platform-browser": "4.0.0-rc.116",
+    "@types/jsdom": "21.1.7",
+    "@types/ws": "^8.5.12",
     "fake-indexeddb": "6.2.4",
     "foldkit-agent-mcp": "workspace:*",
     "jsdom": "26.1.0",
-    "@types/jsdom": "21.1.7",
-    "@types/ws": "^8.5.12",
     "typescript": "5.9.3",
     "vite": "5.4.21"
   }

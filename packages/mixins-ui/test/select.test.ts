@@ -30,7 +30,12 @@ const renderSelect = (
 
 describe('Select adapter', () => {
   it('preserves the base select, label, and description bundles', () => {
-    const view = renderSelect({ id: 'fruit', value: 'apple', onChange: () => message('Other') })
+    const view = renderSelect({
+      id: 'fruit',
+      value: 'apple',
+      hasDescription: true,
+      onChange: () => message('Other'),
+    })
     expect(attributeOf(view.select, 'Id')?.value).toBe('fruit')
     expect(attributeOf(view.select, 'Value')?.value).toBe('apple')
     expect(attributeOf(view.select, 'AriaDescribedBy')?.value).toBe('fruit-description')

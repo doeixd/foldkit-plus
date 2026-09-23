@@ -51,7 +51,8 @@ const runDialog = (mixins: DialogMixins, capture: (captured: Captured) => void):
           h,
         ),
     },
-    Scene.given(Dialog.init({ id: 'test-dialog', isOpen: true })),
+    // `init` is always closed since @foldkit/ui 0.161; `boot` opens through update.
+    Scene.given(Dialog.boot({ id: 'test-dialog' }).model),
   )
 }
 

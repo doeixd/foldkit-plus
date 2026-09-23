@@ -14,7 +14,7 @@
  * once at start and its Message dispatched.
  */
 import { Effect } from 'effect'
-import { evo } from 'foldkit/struct'
+import { modifyFields } from 'foldkit/struct'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import type { Mounted, Replica } from 'foldkit-sync'
 import { Message, initialModel, type Model, type Shared } from './app.js'
@@ -35,7 +35,7 @@ export const mountApp = (
     resources: storage,
     url: wiring.url(url => Message.UrlChanged({ url })),
     onPersistenceFailure: (model, error) =>
-      evo(model, {
+      modifyFields(model, {
         lastError: () =>
           error._tag === 'ReplayError'
             ? `Refused: ${error.message}`

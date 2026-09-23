@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import type { Attribute } from 'foldkit/html'
 import { Attr, Attributes, Event, Resolver, Slot, type SlotAttributes } from '../src/index.js'
@@ -77,7 +78,11 @@ describe('Resolver.resolve', () => {
 
   it('keys a custom event by its name instead of one native event', () => {
     const custom = (name: string): Attribute<TestMessage> =>
-      ({ _tag: 'OnCustomEvent', name, f: () => ({ _tag: 'Clicked' }) }) as Attribute<TestMessage>
+      ({
+        _tag: 'OnCustomEvent',
+        name,
+        f: () => Option.some({ _tag: 'Clicked' }),
+      }) as Attribute<TestMessage>
     const out = Resolver.resolve([custom('a')], [{ attributes: [custom('b')] }])
     expect(tags(out)).toEqual(['OnCustomEvent', 'OnCustomEvent'])
     expect(codeOf(() => Resolver.resolve([custom('a')], [{ attributes: [custom('a')] }]))).toBe(
