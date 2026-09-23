@@ -55,7 +55,10 @@ describe('text transactions', () => {
     ])
     expect(result.changeSet).toEqual({
       dirtyNodes: new Set(['p', 't']),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
       textChanged: new Set(['t']),
+      structureChanged: false,
       selectionChanged: false,
     })
     expect(result.state.document.children[1]).toBe(state.document.children[1])
@@ -129,7 +132,10 @@ describe('text transactions', () => {
     expect(result.positionMap).toEqual([])
     expect(result.changeSet).toEqual({
       dirtyNodes: new Set(),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
       textChanged: new Set(),
+      structureChanged: false,
       selectionChanged: false,
     })
   })
@@ -147,7 +153,10 @@ describe('text transactions', () => {
     expect(cleared.state.selection).toBeNull()
     expect(cleared.changeSet).toEqual({
       dirtyNodes: new Set(),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
       textChanged: new Set(),
+      structureChanged: false,
       selectionChanged: true,
     })
   })
@@ -166,7 +175,10 @@ describe('text transactions', () => {
     expect(added.positionMap).toEqual([])
     expect(added.changeSet).toEqual({
       dirtyNodes: new Set(['p', 'other']),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
       textChanged: new Set(['other']),
+      structureChanged: false,
       selectionChanged: false,
     })
     expect(added.state.selection).toEqual(state.selection)
@@ -192,7 +204,10 @@ describe('text transactions', () => {
     expect(redundant.positionMap).toEqual([])
     expect(redundant.changeSet).toEqual({
       dirtyNodes: new Set(),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
       textChanged: new Set(),
+      structureChanged: false,
       selectionChanged: false,
     })
   })

@@ -28,5 +28,7 @@ export {
   mapPosition,
   type ChangeSet,
   type PositionStep,
+  type SplitStep,
+  type RelocateStep,
   type TransactionResult,
 } from './transaction.js'

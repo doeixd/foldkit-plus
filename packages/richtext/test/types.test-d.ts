@@ -80,3 +80,10 @@ const tightLimits: RichText.DocumentLimits = { maxBlocks: 2, maxTextRuns: 2, max
 RichText.decodeDocument(document, tightLimits)
 RichText.decodeDocument(document, { ...RichText.DefaultDocumentLimits, maxBlocks: 1 })
 void tightLimits
+
+const split = RichText.Edit.splitBlock(reference, reference, 0, 'next', RichText.NodeId.make('run'))
+const splitBlock: RichText.NodeId = split.blockId
+RichText.apply({ document, selection: null }, [split])
+// @ts-expect-error Split ids cannot be numbers.
+RichText.Edit.splitBlock(reference, reference, 0, 7, 'run')
+void splitBlock

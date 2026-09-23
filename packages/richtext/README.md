@@ -84,9 +84,11 @@ const result = RichText.apply(state, [
 
 Builders accept a `NodeId` or a `Node.make` reference interchangeably and
 validate shape immediately: a bad mark, offset, or `from > to` throws at the
-call site. Document-dependent failures — missing nodes, block targets,
-out-of-bounds ranges, unresolvable selections — still return `apply`
-diagnostics (`MissingText`, `InvalidRange`, `InvalidSelection`), and raw wire
+call site. `Edit.splitBlock` additionally takes the two new identities as
+strings or ids (`NodeId.make` rejects empties). Document-dependent failures —
+missing nodes, block targets, out-of-bounds ranges, unresolvable selections,
+reused split identities — still return `apply` diagnostics (`MissingText`,
+`MissingNode`, `InvalidRange`, `InvalidSelection`, `InvalidInput`), and raw wire
 input still decodes to `InvalidInput`. `Edit` builds values only; it reads no
 document and owns no state.
 
@@ -105,6 +107,12 @@ document and owns no state.
 - `AddMark` appends a missing mark to one run; `RemoveMark` filters a present
   mark away. Redundant mark edits are no-ops that preserve state identity.
   Mark edits dirty the run and its block without emitting position steps.
+- `SplitNode` splits one block at a run offset into two: runs before the split
+  stay (trailing runs move right with their ids), the split run keeps its id on
+  the left, and the right remainder takes the caller-supplied run id under a
+  caller-supplied block id of the same block type. Splitting an empty block is
+  rejected; split that via node insertion once it exists. New identities must be
+  fresh within the transaction.
 - Positions count **UTF-16 code units**. Low-level edits may split a surrogate
   pair; grapheme-aware user commands are not implemented.
 - `SetSelection` resolves against the document at that point in the transaction.
@@ -113,12 +121,16 @@ document and owns no state.
   `after` affinity past the insertion. Deletion collapses covered positions to
   its start. Other nodes' positions are unchanged.
 
-`positionMap` records text replacements in sequential coordinates. Use
+`positionMap` records text replacements in sequential coordinates, plus split
+relocations (`{ node, into, at }`): offsets above the split point move to the
+new run, the split point itself follows affinity, lower offsets stay. Use
 `mapPosition(position, result.positionMap)` for another position from the original
 document. The returned selection is already mapped. `ChangeSet` names touched
-text runs and their blocks; it is neither a replication packet nor proof of a net
-content change (insert-then-delete can cancel). `selectionChanged` compares the
-final selection with the original. Empty edits preserve state identity.
+text runs and their blocks, plus `insertedNodes`/`removedNodes` and
+`structureChanged` once structural operations exist; it is neither a replication
+packet nor proof of a net content change (insert-then-delete can cancel).
+`selectionChanged` compares the final selection with the original. Empty edits
+preserve state identity.
 
 ## Loading and limits
 
@@ -136,9 +148,10 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Unknown-extension preservation, migrations, custom
-Kits, structural operations, mark boundary expansion, transforms, history,
-rendering, and collaboration are still pending. Retain rejected source content
-for recovery; do not replace it with an empty document.
+Kits, remaining structural operations (join/insert/delete/move/set-props), mark
+boundary expansion, transforms, history, rendering, and collaboration are still
+pending. Retain rejected source content for recovery; do not replace it
+with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document

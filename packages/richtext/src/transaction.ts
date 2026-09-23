@@ -37,6 +37,14 @@ const SetSelectionOperation = Schema.Struct({
   type: Schema.Literal('SetSelection'),
   selection: Schema.NullOr(Selection),
 })
+const SplitNodeOperation = Schema.Struct({
+  type: Schema.Literal('SplitNode'),
+  block: NodeId,
+  node: NodeId,
+  offset: Offset,
+  blockId: NodeId,
+  textId: NodeId,
+})
 
 export const Operation = Schema.Union([
   InsertTextOperation,
@@ -44,6 +52,7 @@ export const Operation = Schema.Union([
   AddMarkOperation,
   RemoveMarkOperation,
   SetSelectionOperation,
+  SplitNodeOperation,
 ])
 export type Operation = typeof Operation.Type
 export const Transaction = Schema.Array(Operation)
@@ -53,6 +62,9 @@ export type Transaction = typeof Transaction.Type
 export type TextTarget = NodeId | NodeReference
 
 const targetId = (target: TextTarget): NodeId => (typeof target === 'string' ? target : target.id)
+
+/** Accepts a raw string or validated id; empty strings throw via `NodeId`. */
+const freshId = (id: string | NodeId): NodeId => (typeof id === 'string' ? NodeId.make(id) : id)
 
 /**
  * Typesafe constructors for transaction operations. Each builder accepts a
@@ -87,11 +99,30 @@ export const Edit = {
     selection: Selection | null,
   ): Extract<Operation, { readonly type: 'SetSelection' }> =>
     SetSelectionOperation.make({ type: 'SetSelection', selection }),
+
+  splitBlock: (
+    block: TextTarget,
+    node: TextTarget,
+    offset: number,
+    newBlock: string | NodeId,
+    newRun: string | NodeId,
+  ): Extract<Operation, { readonly type: 'SplitNode' }> =>
+    SplitNodeOperation.make({
+      type: 'SplitNode',
+      block: targetId(block),
+      node: targetId(node),
+      offset,
+      blockId: freshId(newBlock),
+      textId: freshId(newRun),
+    }),
 }
 
 export interface ChangeSet {
   readonly dirtyNodes: ReadonlySet<NodeId>
+  readonly insertedNodes: ReadonlySet<NodeId>
+  readonly removedNodes: ReadonlySet<NodeId>
   readonly textChanged: ReadonlySet<NodeId>
+  readonly structureChanged: boolean
   readonly selectionChanged: boolean
 }
 
@@ -103,10 +134,45 @@ export interface PositionStep {
   readonly inserted: number
 }
 
+/**
+ * Split relocation: offsets > at move to into with offset - at; offset == at
+ * follows affinity (before stays, after moves to 0); lower offsets stay.
+ */
+export interface SplitStep {
+  readonly node: NodeId
+  readonly into: NodeId
+  readonly at: number
+}
+
+/**
+ * Merge relocation: offsets >= at move to into with base + offset - at;
+ * lower offsets stay. Affinity is preserved, not consulted: the source
+ * location ceases to exist, so every endpoint must move.
+ */
+export interface RelocateStep {
+  readonly node: NodeId
+  readonly into: NodeId
+  readonly at: number
+  readonly base: number
+}
+
 /** Maps a position through each edit, preserving insertion affinity. */
-export const mapPosition = (position: Position, steps: ReadonlyArray<PositionStep>): Position =>
+export const mapPosition = (
+  position: Position,
+  steps: ReadonlyArray<PositionStep | SplitStep | RelocateStep>,
+): Position =>
   steps.reduce((current, step) => {
-    if (current.node !== step.node || current.offset < step.from) return current
+    if (current.node !== step.node) return current
+    if ('base' in step) {
+      if (current.offset < step.at) return current
+      return { ...current, node: step.into, offset: step.base + current.offset - step.at }
+    }
+    if ('into' in step) {
+      if (current.offset < step.at) return current
+      if (current.offset === step.at && current.affinity === 'before') return current
+      return { ...current, node: step.into, offset: current.offset - step.at }
+    }
+    if (current.offset < step.from) return current
     const offset =
       current.offset > step.to
         ? current.offset + step.inserted - (step.to - step.from)
@@ -119,11 +185,12 @@ export type TransactionResult =
       readonly ok: true
       readonly state: EditorState
       readonly changeSet: ChangeSet
-      readonly positionMap: ReadonlyArray<PositionStep>
+      readonly positionMap: ReadonlyArray<PositionStep | SplitStep | RelocateStep>
     }
   | {
       readonly ok: false
-      readonly error: 'InvalidInput' | 'MissingText' | 'InvalidRange' | 'InvalidSelection'
+      readonly error:
+        'InvalidInput' | 'MissingText' | 'MissingNode' | 'InvalidRange' | 'InvalidSelection'
     }
 
 const decodeState = Schema.decodeUnknownSync(EditorState, { onExcessProperty: 'error' })
@@ -148,21 +215,98 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
   } catch {
     return { ok: false, error: 'InvalidInput' }
   }
-  const locations = new Map<NodeId, readonly [number, number]>()
-  state.document.children.forEach((block, blockIndex) =>
-    block.children.forEach((text, textIndex) => locations.set(text.id, [blockIndex, textIndex])),
-  )
+  const indexDocument = (current: Document) => {
+    const runLocations = new Map<NodeId, readonly [number, number]>()
+    const blockIndexes = new Map<NodeId, number>()
+    current.children.forEach((block, blockIndex) => {
+      blockIndexes.set(block.id, blockIndex)
+      block.children.forEach((text, textIndex) =>
+        runLocations.set(text.id, [blockIndex, textIndex]),
+      )
+    })
+    return { runLocations, blockIndexes }
+  }
+  let { runLocations: locations, blockIndexes } = indexDocument(state.document)
+  const reindex = () => {
+    ;({ runLocations: locations, blockIndexes } = indexDocument(document))
+  }
+  // Identities stay reserved for the whole transaction so a reused id can
+  // never silently address two nodes across structural edits.
+  const usedIds = new Set<NodeId>([...locations.keys(), ...blockIndexes.keys()])
   let document: Document = state.document
   let selection = state.selection
   const dirtyNodes = new Set<NodeId>()
+  const insertedNodes = new Set<NodeId>()
+  const removedNodes = new Set<NodeId>()
   const textChanged = new Set<NodeId>()
-  const positionMap: Array<PositionStep> = []
+  let structureChanged = false
+  const positionMap: Array<PositionStep | SplitStep | RelocateStep> = []
   for (const operation of transaction) {
     if (operation.type === 'SetSelection') {
       if (!selectionIsValid(document, operation.selection)) {
         return { ok: false, error: 'InvalidSelection' }
       }
       selection = operation.selection
+      continue
+    }
+    if (operation.type === 'SplitNode') {
+      const blockIndex = blockIndexes.get(operation.block)
+      if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const runLocation = locations.get(operation.node)
+      if (runLocation === undefined) return { ok: false, error: 'MissingText' }
+      const [runBlockIndex, textIndex] = runLocation
+      if (runBlockIndex !== blockIndex) return { ok: false, error: 'InvalidRange' }
+      const target = document.children[blockIndex]!
+      const run = target.children[textIndex]!
+      if (operation.offset > run.text.length) return { ok: false, error: 'InvalidRange' }
+      if (
+        usedIds.has(operation.blockId) ||
+        usedIds.has(operation.textId) ||
+        operation.blockId === operation.textId
+      ) {
+        return { ok: false, error: 'InvalidInput' }
+      }
+      const leftBlock = {
+        ...target,
+        children: [
+          ...target.children.slice(0, textIndex),
+          { ...run, text: run.text.slice(0, operation.offset) },
+        ],
+      }
+      const rightBlock = {
+        ...target,
+        id: operation.blockId,
+        children: [
+          { ...run, id: operation.textId, text: run.text.slice(operation.offset) },
+          ...target.children.slice(textIndex + 1),
+        ],
+      }
+      const blocks = [...document.children]
+      blocks[blockIndex] = leftBlock
+      blocks.splice(blockIndex + 1, 0, rightBlock)
+      document = { ...document, children: blocks }
+      usedIds.add(operation.blockId)
+      usedIds.add(operation.textId)
+      reindex()
+      const relocate: SplitStep = { node: run.id, into: operation.textId, at: operation.offset }
+      positionMap.push(relocate)
+      if (selection?.type === 'Range') {
+        selection = {
+          ...selection,
+          anchor: mapPosition(selection.anchor, [relocate]),
+          focus: mapPosition(selection.focus, [relocate]),
+        }
+      }
+      dirtyNodes.add(target.id)
+      dirtyNodes.add(operation.blockId)
+      dirtyNodes.add(run.id)
+      dirtyNodes.add(operation.textId)
+      for (const moved of target.children.slice(textIndex + 1)) dirtyNodes.add(moved.id)
+      textChanged.add(run.id)
+      textChanged.add(operation.textId)
+      insertedNodes.add(operation.blockId)
+      insertedNodes.add(operation.textId)
+      structureChanged = true
       continue
     }
     const id = operation.type === 'InsertText' ? operation.at.node : operation.node
@@ -224,7 +368,10 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
         : { document, selection },
     changeSet: {
       dirtyNodes,
+      insertedNodes,
+      removedNodes,
       textChanged,
+      structureChanged,
       selectionChanged: !sameSelection(selection, state.selection),
     },
     positionMap,

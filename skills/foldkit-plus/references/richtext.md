@@ -10,8 +10,9 @@ or a diagnostic with no partial result. Call `apply` inside the application's
 
 Available now: version-1 documents, explicit branded NodeIds, paragraphs,
 headings, text runs, Bold/Italic/Code marks, range and node selections,
-InsertText/DeleteText/AddMark/RemoveMark/SetSelection, text position mapping,
-bounded decode limits, and inspection. Unknown mark strings load verbatim and
+InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode, text position
+mapping with split relocation, structural ChangeSets, bounded decode limits,
+and inspection. Unknown mark strings load verbatim and
 round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
 `Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
 are no-ops without position steps. Build operations with `Edit.*`, which fills
@@ -34,9 +35,10 @@ or stable collaborative anchors. Keep references in application definitions,
 not serialized Models. Reuse the ID across edits rather than holding a
 stale content snapshot. `read` performs a linear lookup.
 
-Custom Kits, unknown node preservation, structural operations,
-normalization, Form/Bundle integration, DOM editing, and collaboration remain
-unfinished. Unknown nodes are rejected rather than silently stripped. Preserve the
+Custom Kits, unknown node preservation, remaining structural operations
+(join/insert/delete/move/set-props), normalization, Form/Bundle integration,
+DOM editing, and collaboration remain unfinished. Unknown nodes are rejected
+rather than silently stripped. Preserve the
 original input for recovery. Do not present the design's API sketches as shipped APIs.
 
 The planned integrations reuse Bundle lifecycle, Form controls, CMS drafts,
