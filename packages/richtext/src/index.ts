@@ -28,9 +28,11 @@ export {
   Bold,
   Italic,
   Code,
+  isKnownMark,
   sameMarkSet,
   resolveInsertion,
 } from './marks.js'
+export { type Command, type CommandIds, run } from './command.js'
 export {
   type NodeDefinition,
   type Kit,

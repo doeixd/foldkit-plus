@@ -92,6 +92,27 @@ reused split identities — still return `apply` diagnostics (`MissingText`,
 input still decodes to `InvalidInput`. `Edit` builds values only; it reads no
 document and owns no state.
 
+## Commands
+
+Intent is resolved into operations by `run`, so durable history keeps its
+meaning and identity comes from the caller:
+
+```ts
+let n = 0
+const ids = { mint: () => `new-${++n}` }
+
+RichText.run(state, { type: 'InsertText', text: 'hi' }, ids)
+RichText.run(state, { type: 'ToggleMark', mark: 'Bold' }, ids)
+RichText.run(state, { type: 'SplitBlock' }, ids)
+```
+
+`InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`,
+and `SetSelection` read the current selection, emit a Transaction, and apply it
+in one step; the returned `ChangeSet` and `positionMap` describe the effect.
+Nothing mints identity unless the caller's `mint` does, and replay applies
+transactions rather than commands. A collapsed `ToggleMark` is a no-op until
+stored marks exist, and adding an unknown mark is rejected.
+
 ## Kits
 
 A `Kit` declares the vocabulary one editor accepts — node kinds and marks — as

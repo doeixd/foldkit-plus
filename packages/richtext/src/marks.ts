@@ -15,6 +15,9 @@ export const Code: MarkDef = { name: 'Code', expand: 'none' }
 
 const definitions: Record<Mark, MarkDef> = { Bold, Italic, Code }
 
+/** Whether this vocabulary defines the mark; unknown marks load but never add. */
+export const isKnownMark = (mark: string): mark is Mark => mark in definitions
+
 /** Order-insensitive mark-set equality; the equivalence normalization merges on. */
 export const sameMarkSet = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
   left.length === right.length && left.every(mark => right.includes(mark))

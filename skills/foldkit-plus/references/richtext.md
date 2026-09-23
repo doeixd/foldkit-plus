@@ -14,7 +14,8 @@ InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNod
 text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion,
 unknown node preservation, bounded decode limits, Kits with vocabulary
-validation, and inspection. Unknown mark
+validation, a command layer resolving intent into transactions, and inspection.
+Unknown mark
 strings load verbatim and
 round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
 `Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
@@ -42,6 +43,11 @@ stale content snapshot. `read` performs a linear lookup.
 `validate(document, kit)` reports `UnknownNode` / `UnsupportedNode` /
 `UnknownMark` diagnostics without changing the document. It does not yet drive
 parsing or `apply`, and prop schemas and nested children are pending.
+
+`run(state, command, ids)` resolves editor intent (typing, backward/forward
+delete, split block, toggle mark over a range, set selection) into a
+transaction and applies it; identity comes from the caller's `mint`, never a
+clock. A collapsed toggle is a no-op until stored marks exist.
 
 Custom Kits, migrations, further transforms, Form/Bundle integration, DOM
 editing, and collaboration remain unfinished. Unknown nodes and marks are
