@@ -49,6 +49,7 @@ reader can tell a gate from an oversight.
 | Doc | What it covers |
 | --- | --- |
 | [SSR-DESIGN.txt](./SSR-DESIGN.txt) | An unbuilt `packages/ssr` in eight phases: a versioned resume plan, hydration that does not rerun `init`, static boundaries, and eventually binding-level resumability. Unusually, it is gated on nothing — it is unstarted work rather than blocked work, and its note says so. |
+| [ssr-PLAN.md](./ssr-PLAN.md) | The plan to build it: what checking the design against Foldkit 0.158 and this repository found (three upstream changes missing, two traps in the `init` workaround, five outdated assumptions), the open questions decided, and seven phases that each end in a test, revised after review. |
 | [pagebuilder-DESIGN.md](./pagebuilder-DESIGN.md) | `foldkit-composition` and `foldkit-builder`: a typed, inspectable composition system able to power Builder.io-style visual authoring without adding a second state system, component framework or action runtime. |
 | [richtext-DESIGN.md](./richtext-DESIGN.md) | `foldkit-richtext`: a Lexical-class editor whose document model, operations, collaboration and CMS integration fit Model/Message/update rather than bringing a second runtime. Prior art from Lexical, Peritext, Loro and Yjs. |
 | [reactivity-DESIGN.md](./reactivity-DESIGN.md) | Fine-grained propagation without mutable signals. Mostly `foldkit/foldkit`: the Plus packages are defined as interpreters of three core primitives that do not exist yet, so this one cannot start here. |
