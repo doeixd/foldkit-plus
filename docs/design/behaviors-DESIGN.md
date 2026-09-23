@@ -1,4 +1,9 @@
-# `foldkit-behaviors`: a catalog of ready-made Behaviors
+# A catalog of ready-made Behaviors
+
+**Revised 2026-09-23:** no new package. Entries live where their dependencies
+already are: stateless ones in `foldkit-mixins`, stateful ones in
+`foldkit-primitives` beside the Bundles they extend. See "Where each entry
+lives" below; `foldkit-behaviors` in the inventory tables means that split.
 
 **Status:** design, 2026-09-23. Follows
 [effect-atom-jsx-LESSONS.md](./effect-atom-jsx-LESSONS.md) and
@@ -43,10 +48,30 @@ entry, not left to the author.
    a pointer capture during a drag, a `ResizeObserver`. Already the
    `foldkit-primitives/observers` shape.
 
-The package is `foldkit-behaviors`. It depends on `foldkit-mixins` and
-`foldkit-bundle`, and reuses `foldkit-primitives` and `@foldkit/ui`'s
-utilities rather than duplicating them. One subpath per entry, as primitives
-does, so a page pays for what it attaches.
+### Where each entry lives
+
+No new package. The split follows dependencies, so nothing gains one it did
+not have:
+
+- **Stateless entries go in `foldkit-mixins`**, under a `Behaviors`
+  namespace beside `Behavior`: the mechanism next to the shelf. Collection,
+  Disclosure, ToggleState, FieldAssociation, and `Style.forCapability` are
+  contributions over the view's input, which is what the package already is,
+  and they add no dependency. `foldkit-mixins` stays the kernel every
+  `mixins-*` package depends on, with peers `effect` and `foldkit` only.
+- **Stateful entries go in `foldkit-primitives`**, each as a Bundle plus its
+  matching Behavior from one subpath: RovingTabindex, Typeahead, Press,
+  DismissLayer, FocusScope, HideOutside, ScrollLock, LiveAnnounce, SpinValue,
+  FocusVisible. Primitives already ships Bundles for UI state (pagination,
+  selection, history), so a roving index sits beside them, and the package
+  already depends on `foldkit-bundle`. `foldkit-mixins` becomes an optional
+  peer, needed only by the subpaths that export a Behavior.
+- **Kit-adjacent patterns go in `foldkit-mixins-ui`**, as Phase H says.
+
+Why not everything in `foldkit-mixins`: the stateful entries would make the
+kernel depend on `foldkit-bundle`, and every `mixins-*` package would inherit
+it. Why not a third package: it would be a second home for Behaviors with no
+dependency reason to exist.
 
 Two rules from their audits become package rules here:
 
@@ -130,7 +155,7 @@ version has that ours must not repeat, each of which becomes a test.
 ```ts
 import { Bundle } from 'foldkit-bundle'
 import { Behavior, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { RovingTabindex } from 'foldkit-behaviors/roving-tabindex'
+import { RovingTabindex } from 'foldkit-primitives/state'
 
 const ToolbarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
@@ -184,9 +209,13 @@ additive change and every collection entry above needs it.
 Each ends in a test that can fail, and each entry's "Fix" column is a test
 before it is code.
 
-- **A. Package and the item context.** `foldkit-behaviors` scaffold; the
-  per-item context in `foldkit-mixins`; `Collection` as the first entry.
-  Test: ids are stable across reorder and follow DOM order.
+- **A. The item context and `Collection`.** The per-item context in
+  `foldkit-mixins` (done: `slots.x.attrs(base, item)`); `Behaviors.Collection`
+  in `foldkit-mixins` as the first entry. Revised from the inventory: the
+  parent's array is the collection and render order is DOM order, so no
+  Bundle and no `Mutation()` Mount; a pure `Collection.of(items, { id,
+  disabled })` describes it and a Behavior writes ids and `aria-posinset`.
+  Test: a duplicate id is refused; per-item attributes follow the item.
 - **B. Focus.** `RovingTabindex`, `Typeahead`, `ListNavigation`,
   `FocusScope`. Test: RTL flips, `tabindex` restored on dispose, restore on
   deactivate, no `item-N` anywhere.
