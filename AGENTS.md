@@ -637,6 +637,11 @@ installed `.d.ts` before reaching for a remembered API.
   tighter match-arm inference failed `Idle`/`Interval` updates the package
   check passed. The root check is what CI runs: verify with it (or plain
   `npx tsc -b <project>`) before committing, not just the package script.
+- **Gate the commit on the review's verdict, not on the command finishing.**
+  `jev-pref review … ; git commit …` commits whatever the review says. One
+  change here went in on a `fix_now` for a skill reference it had not updated,
+  and needed a follow-up. Commit only on `approve`: branch on the verdict, or
+  stop and read it first.
 - **"It retries" is a claim about what restarts it.** A Remote read entry
   restarts only when its dependencies change. A failed query or read that
   changed nothing in the Model changed nothing in the plan, so nothing
