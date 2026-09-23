@@ -10,6 +10,7 @@ import {
   selectionIsValid,
   type Document,
   type NodeReference,
+  type Text,
 } from './document.js'
 import { defaultTransforms, type Transform } from './transform.js'
 
@@ -360,6 +361,36 @@ export const apply = (
   // never silently address two nodes across structural edits.
   const usedIds = new Set<NodeId>([...locations.keys(), ...blockIndexes.keys()])
   let document: Document = state.document
+  // Working copies: a block's run array is copied once per transaction, however
+  // many operations touch it, so N edits in one paragraph cost O(N) rather than
+  // N copies of the same array. Structural operations materialize first, since
+  // they rebuild the block list itself.
+  let workingBlocks: Array<Block> | undefined
+  const workingRuns = new Map<number, Array<Text>>()
+  const materialize = (): void => {
+    if (workingBlocks === undefined && workingRuns.size === 0) return
+    const next = workingBlocks ?? [...document.children]
+    for (const [index, children] of workingRuns) next[index] = { ...next[index]!, children }
+    workingRuns.clear()
+    workingBlocks = undefined
+    document = { ...document, children: next }
+  }
+  const blockAt = (index: number): Block => workingBlocks?.[index] ?? document.children[index]!
+  /** The block's runs as they stand: a pending copy if one exists, else the document's. */
+  const runsAt = (index: number): ReadonlyArray<Text> =>
+    workingRuns.get(index) ?? document.children[index]!.children
+  /** The block's run array, copied on first write and mutated in place after. */
+  const runArray = (index: number): Array<Text> => {
+    const existing = workingRuns.get(index)
+    if (existing !== undefined) return existing
+    const copy = [...document.children[index]!.children]
+    workingRuns.set(index, copy)
+    return copy
+  }
+  const writeBlock = (index: number, block: Block): void => {
+    workingBlocks ??= [...document.children]
+    workingBlocks[index] = block
+  }
   let selection = state.selection
   const dirtyNodes = new Set<NodeId>()
   const insertedNodes = new Set<NodeId>()
@@ -369,6 +400,8 @@ export const apply = (
   const positionMap: Array<PositionStep | SplitStep | RelocateStep | CollapseStep> = []
   for (const operation of transaction) {
     if (operation.type === 'SetSelection') {
+      // A pending edit could change what a position resolves against.
+      materialize()
       if (!selectionIsValid(document, operation.selection)) {
         return { ok: false, error: 'InvalidSelection' }
       }
@@ -379,8 +412,8 @@ export const apply = (
       const location = locations.get(operation.node)
       if (location === undefined) return { ok: false, error: 'MissingText' }
       const [blockIndex, textIndex] = location
-      const target = document.children[blockIndex]!
-      const run = target.children[textIndex]!
+      const target = blockAt(blockIndex)
+      const run = runsAt(blockIndex)[textIndex]!
       if (operation.offset > run.text.length) return { ok: false, error: 'InvalidRange' }
       if (usedIds.has(operation.textId)) return { ok: false, error: 'InvalidInput' }
       if (operation.offset === 0) {
@@ -388,17 +421,15 @@ export const apply = (
         // at 0 is the caller's no-op, not a silent identity change.
         continue
       }
-      const children = [...target.children]
+      const children = runArray(blockIndex)
       children[textIndex] = { ...run, text: run.text.slice(0, operation.offset) }
       children.splice(textIndex + 1, 0, {
         ...run,
         id: operation.textId,
         text: run.text.slice(operation.offset),
       })
-      const blocks = [...document.children]
-      blocks[blockIndex] = { ...target, children }
-      document = { ...document, children: blocks }
       usedIds.add(operation.textId)
+      materialize()
       reindex()
       const relocate: SplitStep = {
         node: run.id,
@@ -422,6 +453,7 @@ export const apply = (
       continue
     }
     if (operation.type === 'SplitNode') {
+      materialize()
       const blockIndex = blockIndexes.get(operation.block)
       if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
       const runLocation = locations.get(operation.node)
@@ -482,6 +514,7 @@ export const apply = (
       continue
     }
     if (operation.type === 'JoinNode') {
+      materialize()
       const intoIndex = blockIndexes.get(operation.into)
       if (intoIndex === undefined) return { ok: false, error: 'MissingNode' }
       const removedIndex = blockIndexes.get(operation.removed)
@@ -505,6 +538,7 @@ export const apply = (
       continue
     }
     if (operation.type === 'MoveNode') {
+      materialize()
       const fromIndex = blockIndexes.get(operation.node)
       if (fromIndex === undefined) return { ok: false, error: 'MissingNode' }
       if (operation.to > document.children.length - 1) return { ok: false, error: 'InvalidRange' }
@@ -521,17 +555,16 @@ export const apply = (
     if (operation.type === 'SetNodeProps') {
       const blockIndex = blockIndexes.get(operation.node)
       if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
-      const target = document.children[blockIndex]!
+      const target = blockAt(blockIndex)
       if (target.type !== 'Heading') return { ok: false, error: 'InvalidRange' }
       if (target.level === operation.level) continue
-      const blocks = [...document.children]
-      blocks[blockIndex] = { ...target, level: operation.level }
-      document = { ...document, children: blocks }
+      writeBlock(blockIndex, { ...target, level: operation.level })
       dirtyNodes.add(target.id)
       structureChanged = true
       continue
     }
     if (operation.type === 'InsertNode') {
+      materialize()
       if (operation.at > document.children.length) return { ok: false, error: 'InvalidRange' }
       const carried = [operation.block.id, ...operation.block.children.map(run => run.id)]
       if (new Set(carried).size !== carried.length || carried.some(id => usedIds.has(id))) {
@@ -552,6 +585,7 @@ export const apply = (
       continue
     }
     if (operation.type === 'DeleteNode') {
+      materialize()
       const blockIndex = blockIndexes.get(operation.node)
       if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
       const target = document.children[blockIndex]!
@@ -600,12 +634,12 @@ export const apply = (
     const location = locations.get(id)
     if (location === undefined) return { ok: false, error: 'MissingText' }
     const [blockIndex, textIndex] = location
-    const block = document.children[blockIndex]!
-    const text = block.children[textIndex]!
+    const block = blockAt(blockIndex)
+    const text = runsAt(blockIndex)[textIndex]!
     if (operation.type === 'AddMark' || operation.type === 'RemoveMark') {
       const has = text.marks.includes(operation.mark)
       if (operation.type === 'AddMark' ? has : !has) continue
-      const children = [...block.children]
+      const children = runArray(blockIndex)
       children[textIndex] = {
         ...text,
         marks:
@@ -613,9 +647,6 @@ export const apply = (
             ? [...text.marks, operation.mark]
             : text.marks.filter(mark => mark !== operation.mark),
       }
-      const blocks = [...document.children]
-      blocks[blockIndex] = { ...block, children }
-      document = { ...document, children: blocks }
       dirtyNodes.add(block.id)
       dirtyNodes.add(id)
       textChanged.add(id)
@@ -626,14 +657,11 @@ export const apply = (
     const inserted = operation.type === 'InsertText' ? operation.text : ''
     if (from > to || to > text.text.length) return { ok: false, error: 'InvalidRange' }
     if (from === to && inserted.length === 0) continue
-    const children = [...block.children]
+    const children = runArray(blockIndex)
     children[textIndex] = {
       ...text,
       text: text.text.slice(0, from) + inserted + text.text.slice(to),
     }
-    const blocks = [...document.children]
-    blocks[blockIndex] = { ...block, children }
-    document = { ...document, children: blocks }
     const step = { node: id, from, to, inserted: inserted.length }
     positionMap.push(step)
     if (selection?.type === 'Range') {
@@ -647,6 +675,8 @@ export const apply = (
     dirtyNodes.add(id)
     textChanged.add(id)
   }
+  // The op loop accumulates; the document is assembled once, here.
+  materialize()
   // Normalization runs as transforms (§23): each is deterministic and idempotent
   // on normalized state, so the loop settles. The pass bound is a diagnostic,
   // not a hang: a transform that keeps changing the document is refused rather

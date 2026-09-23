@@ -206,25 +206,33 @@ normalization.
 ## Performance
 
 `pnpm bench` measures the shapes an editor meets (`bench/operations.bench.ts`).
-On the machine this was recorded on (mean, single run):
+A transaction accumulates changes per block and copies each affected container
+once, so N edits in one paragraph are O(N) rather than N copies of the same
+array. Measured back to back on the same machine (mean), old per-operation
+copying against the current accumulation:
 
 ```text
-paste 50k characters into one run             0.02 ms
-type one character into a 20k-character run   0.02 ms
-toggle a mark over a 400-run selection        2.3 ms
-toggle a mark over 200 runs across 200 blocks 1.4 ms
-delete a range spanning 100 paragraphs        3.0 ms
-split a block inside a 400-run paragraph      1.1 ms
-paste one paragraph into a 200-block document 1.0 ms
+                                          before   after
+paste 50k characters into one run          0.021    0.023 ms
+type one character into a 20k-character run 0.024    0.025 ms
+toggle a mark over a 400-run selection     2.07     1.80 ms
+toggle a mark over a 2000-run selection   16.99     9.59 ms
+toggle a mark over 200 runs / 200 blocks   1.47     1.48 ms
+delete a range spanning 100 paragraphs     3.06     3.27 ms
+split a block inside a 400-run paragraph   1.14     1.35 ms
+paste one paragraph into a 200-block document 1.13   1.22 ms
 ```
 
-Two costs are known and not yet removed. A transaction copies a block's run
-array per operation, so N formatting operations in one paragraph copy it N
-times; and a structural operation rebuilds the document's index. The merge
-transform carries a block index rather than scanning per dirty block, and the
-numbers above are the honest current state, not a claim that §77's large-document
-target is met: accumulating per-block changes and copying each container once is
-the next step, and it should land with these numbers moving.
+The large formatting case is the one the change targets: it halves, and it now
+scales linearly (5× the runs costs 5.3× the time, where it used to cost 8.2×).
+Differences under a few percent in the other rows are within this machine's
+run-to-run noise, not a claim either way.
+
+Two costs remain. A structural operation still rebuilds the document index, and
+normalization walks the whole dirty set — including run identities, which cannot
+match a block — so a transaction that touches every run of a block does O(dirty)
+lookups in the merge pass. Neither is measured as a problem at these sizes; the
+benchmark exists so a claim about them can be checked rather than asserted.
 
 ## Migrations
 

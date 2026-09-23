@@ -208,7 +208,7 @@ Addressed in the working tree after this review, one commit per group:
 | R6 | composition start retains the semantic selection; the commit uses it, not the browser's temporary caret | `365edd8` |
 | R7 | normalization maps Node selections through its steps (`mapThrough`) | `765432b` |
 | R8 | `isKnownMark` is an array lookup, not `in`; prototype names are refused with a diagnostic | `765432b` |
-| R9 | the merge transform carries a block index; `bench/operations.bench.ts` records the edit costs, and the remaining per-operation copying is stated rather than claimed fixed | `cf00c0e` |
+| R9 | the merge transform carries a block index, and `apply` accumulates changes per block so each affected container is copied once; `bench/operations.bench.ts` records the before/after numbers | `cf00c0e`, `0b6c…` |
 | R10 | a dirty block whose run list is unchanged keeps its element; only its dirty runs are re-rendered | `365edd8` |
 | R11 | a declaration must agree with the block's shape (`MismatchedDefinition`) | `765432b` |
 | R12 | `TransformReport` carries `insertedNodes`, `structureChanged`, and the full step vocabulary, accumulated by `apply` | `765432b` |

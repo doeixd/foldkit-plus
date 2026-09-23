@@ -3348,28 +3348,30 @@ batched Transactions
 
 Do not optimize by hiding mutable authoritative state outside Model boundaries.
 
-**Measured, with two known costs.** `packages/richtext/bench/operations.bench.ts`
-(and `pnpm bench`) covers the shapes an editor meets. Recorded means: paste 50k
-characters into a run 0.02 ms; type one character into a 20k-character run
-0.02 ms; toggle a mark over a 400-run selection 2.3 ms; over 200 runs across 200
-blocks 1.4 ms; delete a range spanning 100 paragraphs 3.0 ms; split inside a
-400-run paragraph 1.1 ms; paste a paragraph into a 200-block document 1.0 ms.
-
-What is not yet done, and is the honest reading of those numbers rather than a
-claim that this section is satisfied:
+**Measured, with the copying cost removed.** `packages/richtext/bench/operations.bench.ts`
+(and `pnpm bench`) covers the shapes an editor meets. A transaction accumulates
+changes per block and copies each affected container once, so N edits in one
+paragraph are O(N) rather than N copies of the same array. Measured back to back
+on the same machine (mean), old against current:
 
 ```text
-a transaction copies a block's run array per operation, so N formatting
-operations in one paragraph copy it N times
-
-a structural operation rebuilds the document index
+                                          before   after
+paste 50k characters into one run          0.021    0.023 ms
+type one character into a 20k-character run 0.024    0.025 ms
+toggle a mark over a 400-run selection     2.07     1.80 ms
+toggle a mark over a 2000-run selection   16.99     9.59 ms
+toggle a mark over 200 runs / 200 blocks   1.47     1.48 ms
+delete a range spanning 100 paragraphs     3.06     3.27 ms
+split a block inside a 400-run paragraph   1.14     1.35 ms
+paste one paragraph into a 200-block document 1.13   1.22 ms
 ```
 
-The merge transform carries a block index instead of scanning per dirty block,
-so normalization is linear in the blocks the transaction touched. Accumulating
-changes per block and copying each affected container once is the next step, and
-it should land with the benchmark moving; the benchmark exists so that claim can
-be checked rather than asserted.
+The large formatting case is what the change targets: it halves, and it scales
+linearly now (5× the runs costs 5.3× the time, where it used to cost 8.2×).
+Differences under a few percent elsewhere are within this machine's run-to-run
+noise and are not claimed either way. What remains: a structural operation still
+rebuilds the document index, and normalization walks the whole dirty set,
+including run identities that cannot match a block.
 
 ---
 

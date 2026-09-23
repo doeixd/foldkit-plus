@@ -93,6 +93,14 @@ describe('formatting', () => {
     )
   })
 
+  benchmark('toggle a mark over a 2000-run selection', () => {
+    RichText.run(
+      { ...manyRuns(2000), selection: range(['r0', 0], ['r1999', 12]) },
+      { type: 'ToggleMark', mark: 'Italic' },
+      ids(),
+    )
+  })
+
   benchmark('toggle a mark over 200 runs across 200 blocks', () => {
     const state = manyBlocks(200)
     RichText.run(
