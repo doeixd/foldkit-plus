@@ -35,7 +35,9 @@ const applyMarks = (element: HTMLElement, marks: ReadonlyArray<string>): void =>
 const renderRun = (owner: Document, run: RichText.Text): HTMLElement => {
   const element = owner.createElement('span')
   element.setAttribute('data-run', run.id)
-  element.textContent = run.text
+  // Always a text node, even when empty: a caret inside an empty run has to be
+  // addressable, and an element container has no semantic offset.
+  element.append(owner.createTextNode(run.text))
   applyMarks(element, run.marks)
   return element
 }
@@ -70,24 +72,25 @@ export const mount = (owner: Document, content: RichText.Document): EditorDom =>
   return { root, elements, content }
 }
 
-const findBlock = (content: RichText.Document, id: RichText.NodeId): RichText.Block | undefined =>
-  content.children.find(block => block.id === id)
-
 const findRun = (
   content: RichText.Document,
   id: RichText.NodeId,
-): { readonly block: RichText.Block; readonly run: RichText.Text } | undefined => {
+):
+  | { readonly block: RichText.Block; readonly run: RichText.Text; readonly index: number }
+  | undefined => {
   for (const block of content.children) {
-    const run = block.children.find(candidate => candidate.id === id)
-    if (run !== undefined) return { block, run }
+    const index = block.children.findIndex(candidate => candidate.id === id)
+    if (index < 0) continue
+    return { block, run: block.children[index]!, index }
   }
   return undefined
 }
 
 /**
  * Applies a ChangeSet: removed identities lose their elements, dirty identities
- * are re-rendered in place, and every untouched element keeps its object
- * identity, so the browser is not handed a rebuilt tree on each keystroke.
+ * are re-rendered in place (or inserted, when they are new), and every
+ * untouched element keeps its object identity, so the browser is not handed a
+ * rebuilt tree on each keystroke.
  */
 export const patch = (
   dom: EditorDom,
@@ -95,19 +98,35 @@ export const patch = (
   changeSet: RichText.ChangeSet,
 ): EditorDom => {
   const elements = new Map(dom.elements)
+  const place = (
+    fresh: HTMLElement,
+    previous: HTMLElement | undefined,
+    parent: HTMLElement,
+    nextId: RichText.NodeId | undefined,
+  ): void => {
+    if (previous !== undefined) {
+      previous.replaceWith(fresh)
+      return
+    }
+    const next = nextId === undefined ? undefined : elements.get(nextId)
+    if (next !== undefined) next.before(fresh)
+    else parent.append(fresh)
+  }
   for (const id of changeSet.removedNodes) {
     const element = elements.get(id)
     if (element === undefined) continue
-    // A removed run sits inside a dirty block, which replaces it wholesale.
-    if (!changeSet.dirtyNodes.has(id)) element.remove()
+    // Harmless when a dirty ancestor replaces the subtree anyway: removing a
+    // node that is already detached is a no-op.
+    element.remove()
     elements.delete(id)
   }
   for (const id of changeSet.dirtyNodes) {
-    const block = findBlock(content, id)
-    if (block !== undefined) {
+    const blockIndex = content.children.findIndex(block => block.id === id)
+    if (blockIndex >= 0) {
+      const block = content.children[blockIndex]!
       const previous = elements.get(id)
       const fresh = renderBlock(dom.root.ownerDocument, block)
-      previous?.replaceWith(fresh)
+      place(fresh, previous, dom.root, content.children[blockIndex + 1]?.id)
       elements.set(id, fresh)
       for (const [index, run] of block.children.entries()) {
         elements.set(run.id, fresh.children[index] as HTMLElement)
@@ -116,10 +135,10 @@ export const patch = (
     }
     const located = findRun(content, id)
     if (located === undefined) continue
-    const previous = elements.get(id)
-    if (previous === undefined) continue
+    const parent = elements.get(located.block.id)
+    if (parent === undefined) continue
     const fresh = renderRun(dom.root.ownerDocument, located.run)
-    previous.replaceWith(fresh)
+    place(fresh, elements.get(id), parent, located.block.children[located.index + 1]?.id)
     elements.set(id, fresh)
   }
   return { root: dom.root, elements, content }

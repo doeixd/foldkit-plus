@@ -3934,8 +3934,19 @@ in-place ChangeSet patching, with jsdom tests including one end-to-end loop
 keeping: a DOM caret carries no affinity, so mapping back must derive it (run
 end → `after`, elsewhere → `before`) rather than pretend to round-trip it; and
 untouched elements must keep object identity, which is the property that makes
-patching cheaper than re-rendering. Still to build: `beforeinput`/`keydown`
-wiring, the IME composition state machine, undo grouping, clipboard, and
+patching cheaper than re-rendering.
+
+**Built so far (second increment, `examples/richtext/src/events.ts`).**
+`beforeinput`/`keydown` translation into commands, `preventDefault` on
+everything the adapter understands, and composition handover: the browser keeps
+its temporary text while an IME composes, and `compositionend` becomes one
+`InsertText` at the semantic caret, corrected by the following patch. Three
+findings from the wired loop: an inserted node must be inserted (replacement
+alone omits it), an empty run still needs a text node so a caret inside it is
+addressable, and a removed identity that is also dirty must still lose its
+element.
+
+Still to build: the IME cancellation path, undo grouping, clipboard, and
 mobile keyboards.
 
 No collaboration. No Form. No CMS.

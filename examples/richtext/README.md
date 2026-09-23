@@ -38,8 +38,9 @@ Document into an owned `contenteditable` root (one element per block, one
 `span[data-run]` per run, marks as `data-marks`, preserved unknown blocks as
 read-only placeholders), maps positions both ways (`positionToRange` /
 `rangeToPosition`), and patches a ChangeSet in place: removed identities lose
-their elements, dirty identities are re-rendered, and every untouched element
-keeps its object identity so a keystroke does not rebuild the tree.
+their elements, dirty identities are re-rendered or inserted, and every
+untouched element keeps its object identity so a keystroke does not rebuild the
+tree.
 
 `test/dom.test.ts` runs under jsdom and covers rendering, both-way position
 mapping (including what a DOM caret cannot recover: affinity is derived, not
@@ -47,9 +48,33 @@ round-tripped), in-place patching, retired identities after normalization, and
 one end-to-end editing loop: DOM selection → `RichText.run` → patch → restored
 selection.
 
-Not built yet: `beforeinput`/`keydown` wiring, the IME composition state
-machine, undo grouping, clipboard, and mobile virtual keyboards. The adapter is
-still private and throwaway-tolerant.
+## The DOM half (second increment)
+
+`src/events.ts` wires the subtree to an application. `intentFor(event)` reads
+`beforeinput` and `keydown` as a semantic command; every event the adapter
+understands is `preventDefault`ed so the browser cannot mutate the DOM behind
+the document, and one it understands but cannot honor yet (paste, word
+deletion, autocorrect) is prevented with no command rather than allowed to
+drift. `attach(dom, { onIntent })` listens, tracks composition, and `sync`s a
+committed `EditorState` back into the DOM and the browser selection.
+
+Composition is the sharp case: while an IME is composing, input passes through
+and no command is emitted; `compositionend` becomes one `InsertText` at the
+semantic caret, and the following patch corrects whatever temporary text the
+browser had put in the DOM.
+
+`test/events.test.ts` covers the translation table, the deliberate no-ops, the
+IME handover, and the wired loop (type, Enter, Backspace, composition commit,
+detach).
+
+Three bugs the loop test caught, all now recorded in the design doc: inserted
+nodes must be inserted (replacement alone leaves them out), an empty run still
+needs a text node for the caret to be addressable, and a removed identity that
+is also dirty must still lose its element.
+
+Not built yet: the IME state machine's cancellation path, undo grouping,
+clipboard, and mobile virtual keyboards. The adapter is still private and
+throwaway-tolerant.
 
 ## Running it
 
