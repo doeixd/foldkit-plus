@@ -25,7 +25,7 @@ Message through one reducer, so a screen replays from a recorded Model.
 Remote is for facts the **server owns**. An edit the client authors, which
 must survive being offline, belongs to [`foldkit-sync`](../sync).
 
-## If you know TanStack Query
+## If you know TanStack Query, TanStack DB or fate
 
 The same job, done from the other side of the Model:
 
@@ -56,6 +56,29 @@ What Remote does not have: a component hook (it has Surfaces and Foldkit
 Subscriptions), a devtools panel of its own (`Data.inspect` and `Data.why` are
 the data one would show), and retries on failure (a failed read stays failed
 until something asks again; see [When a read fails](#when-a-read-fails)).
+
+### And TanStack DB, and fate
+
+[TanStack DB](https://tanstack.com/db) is a local database: collections
+populated eagerly (or on demand) from a REST API or a sync engine, live queries
+that update incrementally, and optimistic transactions rolled back on failure.
+Its unit is the collection; a screen queries what is already local. Remote's
+unit is the field: a screen declares which fields of which entities it reads,
+and only those are fetched, so there is no collection to load first and a page
+carries what it shows. Remote has no live query engine: `Data.filtered` and
+`Remote.matching` judge the rows a list already holds, and a new list is a
+server query. Where TanStack DB syncs client-authored writes through a sync
+engine, that job here belongs to [`foldkit-sync`](../sync), and Remote stays
+the disposable cache of what the server owns.
+
+[fate](https://fate.technology) is the nearest cousin: components declare
+views of exactly the data they need, composed into one request per screen,
+with a normalized cache that masks what a component did not ask for, and
+actions with optimistic rollback. Remote's Selections are that strictness, and
+its store is that cache. The differences are where it lives and what runs it:
+fate is a React data client, driven by Suspense and Actions; Remote is a
+Submodel of a Foldkit Model, driven by which Surfaces are active, with no view
+framework in it.
 
 ## Find what you need
 
