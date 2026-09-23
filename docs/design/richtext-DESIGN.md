@@ -1,12 +1,32 @@
 # Foldkit Plus Rich Text
 
-**Status:** Proposed architecture
+**Status:** Proposed architecture; reviewed against existing package contracts. Implementation not started.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
 **Existing packages affected:** `foldkit-form`, `foldkit-cms`, potentially `foldkit-sync`
 **Prior art:** Lexical, Loro Rich Text, Peritext, Fugue, Eg-walker, Yjs
 **Goal:** Build a Lexical-class rich-text and structured-content editor whose document model, editing operations, rendering, collaboration, CMS integration, extensibility, and agent capabilities fit Foldkit's existing architecture instead of introducing a second state/runtime framework.
+
+## Implementation entry point
+
+Start with Phase 1 (§101): semantic documents, atomic transactions, and position
+mapping. Before committing to the representation, prove controlled Bundle
+ownership, a non-RichText stateful Form control, and the collaboration replay
+boundary in small feasibility spikes. These are prerequisites for the DOM editor,
+not early delivery of the full Form or collaboration integrations.
+
+Existing machinery to reuse explicitly:
+
+- Bundle placement, helpers, and `OutMessage` routing for child transitions and
+  lifecycle; prove repeated controls against the current managed-resource limits.
+- `foldkit-metadata` for interpreter-owned metadata on Kit definitions, never as
+  serialized document content.
+- Sync's existing ephemeral presence channels and TTL tracking for remote selections.
+- The history primitive only where its authoritative `present` value fits the
+  ownership model; collaborative undo remains a different operation.
+
+The API snippets below are design sketches, not currently available APIs.
 
 ---
 
@@ -594,6 +614,10 @@ const ArticleKit = RichText.kit({
 
 The Kit is analogous to Composition's Catalog.
 
+Use `foldkit-metadata` for extension facts attached to Kit, Node, and Mark
+definitions. Each interpreter owns its metadata key. These runtime declarations
+must stay outside the document codec; persisted props remain schema-defined data.
+
 It answers:
 
 ```text
@@ -966,6 +990,12 @@ next EditorState
 ChangeSet
 ```
 
+Application of a transaction is atomic: invalid operations, failed validation,
+or non-terminating normalization return a diagnostic and leave the prior state
+intact. Selection, stored marks, and history bookkeeping must correspond to the
+same resulting document. IDs needed by operations are explicit inputs; replay
+must not generate fresh IDs or read clocks.
+
 ---
 
 # 21. Operations
@@ -1054,6 +1084,14 @@ tests
 ```
 
 The DOM renderer should not rediscover all changes by diffing the entire document if the semantic transition already knows them.
+
+A ChangeSet is an invalidation summary, not a position map or a durable change
+packet. Transactions must also provide composable position mapping through every
+operation and normalization step. Define offset units, boundary affinity, and
+fallback positions for deleted nodes. Split, join, move, and adjacent-text merge
+must preserve selection direction and map both endpoints, including endpoints
+in a node whose identity normalization removes. Future collaborative anchors are
+resolved by their engine, not made stable merely by applying local offset maps.
 
 ---
 
@@ -1239,6 +1277,14 @@ shared documents
 ```
 
 The architecture should support both without two separate editor implementations.
+
+Prove this before the DOM implementation. A parent reducer must apply the
+transaction to its authoritative document and install the corresponding editor
+interaction state in one transition. Use existing Bundle helpers and `OutMessage`
+routing where they fit; the spike must show how the child reads the current
+document and how the parent handles the result without a second synchronized
+document copy or a delayed Command to commit half the transition. Cover parent
+document replacement and rejected edits as well as ordinary typing.
 
 ---
 
@@ -1711,6 +1757,13 @@ workflow editors
 
 The proposed abstraction is a **Bundle-backed Form control**.
 
+This is a lifecycle integration, not just a new draft shape. Reuse Bundle
+placement for initialization Commands, child Commands, Subscriptions, managed
+resources, and outputs wherever possible. Specify validation, service requirements,
+view routing, reset, and removal cleanup. Current `Bundle.each` rejects managed
+resources: prove repeated controls and removal before promising arbitrary Bundles
+inside nested Form rows. Do not silently drop unsupported capabilities.
+
 ---
 
 # 42. Bundle-backed Form control
@@ -1734,8 +1787,6 @@ const RichTextInput =
     settled: model =>
       ArticleEditor.settled(model),
 
-    isEdit: message =>
-      ArticleEditor.isEdit(message),
   })
 ```
 
@@ -1798,6 +1849,11 @@ or another representation that preserves current compatibility.
 
 The exact shape needs a spike.
 
+In the existing Form API, `settled(model)` returns a resumable Model with abandoned
+in-flight validation and submission cleared; it is not a readiness predicate.
+Preserve that meaning for custom controls. Define fill/reset as distinct from
+resume, including whether each preserves selection and history.
+
 A Bundle-backed control must provide enough capability for Form to implement:
 
 ```text
@@ -1826,36 +1882,16 @@ Nested(...)
 
 That will not scale to custom controls.
 
-`Form.make` should expose:
-
-```ts
-form.isEdit(message)
-```
-
-or more generally:
-
-```ts
-form.classify(message)
-```
-
-returning something like:
-
-```text
-edit
-interaction
-validation
-submit
-```
-
-A custom Form control contributes its own classification.
-
-`Cms.editor` should use:
-
-```ts
-form.isEdit(message)
-```
-
+Form should report whether a completed transition changed authored content.
+The exact result field is to be established by the stateful-control spike and
+must compose with Bundle outputs and nested Forms. CMS consumes that result
 rather than knowing Form's internal Message tags.
+
+A message-only `isEdit` or classification helper may describe intent, but cannot
+prove a content change: the edit may be rejected, target a missing row, or be a
+no-op. Selection, focus, and validation-only updates must not schedule content
+autosave. A successful document change must report one even when generated by
+normalization or a child output. Define reset/fill behavior explicitly.
 
 This is a useful architectural improvement independent of RichText.
 
@@ -1910,6 +1946,16 @@ preview
 ```
 
 to RichText content automatically.
+
+That lifecycle still needs a persistence contract. Today CMS saves both
+`form.partial(model)` and the encoded whole Form Model. Adding an editor would
+therefore also save its interaction state and history unless the integration
+explicitly changes that path. Decide which local state is worth retaining, bound
+history size, exclude runtime handles, and clear composition/focus/in-flight work
+on resume. Version the saved editor Model separately from published content and
+test recovery from an incompatible saved Model using semantic values when valid.
+Do not claim that publishing only the Document prevents transient state from
+entering the saved draft Model.
 
 ---
 
@@ -2322,6 +2368,16 @@ The requirement is:
 
 A mutable hidden singleton must not become the actual source of truth.
 
+Move a minimal feasibility spike into Phase 1. Sync's replay callback is
+synchronous and is reused for admission, committed replay, and optimistic pending
+replay. Prove cold restoration, duplicate integration, checkpoint adoption with
+pending changes, and projection without relying on a surviving runtime cache.
+Benchmark restoration, integration, export, projection, and pending-queue replay
+at explicit document/queue sizes. Resolve engine initialization and deterministic
+actor/change identity before calling this a compatible replay implementation.
+Retain the benchmark in the repository's benchmark infrastructure. Full
+collaboration remains Phase 8; this spike gates the representation choice.
+
 ---
 
 # 59. Potential Sync improvement: operation identity
@@ -2480,6 +2536,12 @@ wait for newer presence
 
 No journal replay is necessary.
 
+Reuse `foldkit-sync`'s existing `PresenceChannel`, `createPresence`, socket
+channels, and server-stamped peer identity. The RichText integration supplies
+validated stable-selection payloads, document/session scoping, refresh/leave
+lifecycle, and decoration projection. It must not create another presence
+transport or put presence into the durable Message subset.
+
 ---
 
 # 63. Remote selections
@@ -2540,6 +2602,11 @@ Transactions
 inverse Transactions
 or snapshots
 ```
+
+Evaluate `foldkit-primitives/state` history before implementing another snapshot
+stack. It owns `past`, `present`, and `future`; use it only if `present` is the
+authoritative document, rather than mirroring an independently owned document.
+Transaction grouping and selection restoration still need explicit semantics.
 
 Collaborative undo is different.
 
@@ -2742,6 +2809,15 @@ UnknownNode {
 The read-only renderer can show a diagnostic placeholder.
 
 The editor can preserve the data until migration becomes available.
+
+Separate lossless loading from editability and publish validation. Validate the
+versioned envelope, identities, bounded structure, and JSON-safe opaque payloads
+before preserving unknown extensions. Unavailable nodes/marks retain their type,
+version, props, and children; they do not execute or silently disappear. Define
+whether their subtree is read-only and require an explicit migration or removal
+before any publishing policy that forbids unknown extensions can pass. Unsupported
+document-envelope versions need an explicit failure/recovery path rather than
+being treated as an unknown node.
 
 ---
 
@@ -3038,7 +3114,7 @@ custom Draft Models
 
 Form-level delegation of child Messages
 
-form.isEdit(message)
+transition-level authored-content change reporting
 
 fill / partial / settled support
 for stateful controls
@@ -3066,9 +3142,7 @@ Nested
 
 with:
 
-```ts
-form.isEdit(message)
-```
+the Form transition's authored-content change result (§45).
 
 CMS should ask the Form whether a Message changed authored content.
 
@@ -3499,7 +3573,7 @@ DOM reconciliation
 
 ---
 
-# 101. Phase 1 — pure RichText semantics
+# 101. Phase 1 — pure semantics and integration feasibility
 
 Implement only:
 
@@ -3512,6 +3586,7 @@ Text
 basic Marks
 Kit
 Selection
+Position mapping
 Transaction
 Operations
 Transforms
@@ -3522,7 +3597,24 @@ inspection
 
 No DOM editor yet.
 
-Tests operate entirely on values.
+Semantic tests operate entirely on values. Include transaction rollback,
+normalization termination/idempotence, position mapping through splits/joins/
+deletions/merges, selection direction, codec round trips, and unknown-extension
+preservation versus edit/publish validation.
+
+Before Phase 2, complete three bounded feasibility proofs:
+
+1. Controlled Bundle: one parent transition commits document and interaction
+   state, including rejection and external document replacement (§27).
+2. Stateful Form: one non-RichText control proves child Commands, subscriptions,
+   outputs, validation, repeated placement/removal, resource restrictions, and
+   save/resume semantics (§41–45). Establish content-change reporting here.
+3. Collaboration: synchronous replay over reconstructible state, checkpoint plus
+   pending replay, and retained cold/warm benchmarks (§58). Do not implement a
+   production adapter yet.
+
+Record results and unresolved constraints before freezing public APIs. Phase 1
+is complete only when these ownership and representation questions have answers.
 
 ---
 
@@ -3562,11 +3654,15 @@ focus
 
 Use a specialized owned DOM subtree.
 
+Use the controlled/standalone Bundle transition path proven in Phase 1 and its
+position maps. The minimal Bundle is a prerequisite here; Phase 4 adds editor
+features rather than introducing ownership after browser editing already works.
+
 No collaboration.
 
 ---
 
-# 104. Phase 4 — editor Bundle
+# 104. Phase 4 — editor Bundle features
 
 Add:
 
@@ -3587,15 +3683,15 @@ Prove editor interaction remains ordinary Foldkit Messages and Model.
 
 Generalize `foldkit-form`.
 
-Add one non-RichText test control first to prove the abstraction is generic.
+Build on the non-RichText control proof from Phase 1 and complete its public API,
+renderer integration, lifecycle support, and persistence/resume coverage.
 
 Then integrate RichText.
 
 Update CMS to use:
 
-```ts
-form.isEdit(message)
-```
+the Form transition's authored-content change result, with tests that selection,
+validation, rejected edits, and no-ops do not trigger content autosave.
 
 ---
 
@@ -3656,6 +3752,9 @@ without changing core document semantics.
 ---
 
 # 108. Phase 8 — Loro collaboration spike
+
+Extend the Phase 1 feasibility proof into an editor adapter; retain its cold-state
+replay and checkpoint tests. Revisit the backend choice if that proof failed.
 
 Implement a minimal adapter for:
 
@@ -3722,6 +3821,8 @@ This is also where knowledge gained from collaborative Page Composition may beco
 ---
 
 # 111. Phase 11 — presence
+
+Build on Sync's existing ephemeral presence channel and lifecycle (§62).
 
 Add:
 
