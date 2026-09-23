@@ -5,6 +5,7 @@
  * not send is in the page.
  */
 import { Effect } from 'effect'
+import { FOLDKIT_FLAGS_ATTRIBUTE } from 'foldkit/experimental/server'
 import { expect, it } from 'vitest'
 import { SSR } from 'foldkit-ssr'
 import { load, settle, template } from './handoverFixture.js'
@@ -15,7 +16,7 @@ it('resumes an application with Flags without sending them', async () => {
     template,
     await Effect.runPromise(SSR.render(config, plan, { buildId: 'b', flags })),
   )
-  expect(served).not.toContain('data-foldkit-flags')
+  expect(served).not.toContain(FOLDKIT_FLAGS_ATTRIBUTE)
   expect(served).not.toContain('server-only token')
 
   load(served)

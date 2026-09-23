@@ -80,6 +80,12 @@ SSR.hydrate(config, Editor, { buildId })
 `SSR.page` puts the envelope in the template, not in Foldkit's rendered HTML,
 which `injectIntoTemplate` requires to hold only the root and its own payload.
 
+The head is part of the view. Since Foldkit 0.163 nothing gives `canonical` a
+default from the URL, so a page that wants one derives it from the route in its
+Model, as it does its `title`, and sends the route in `state`. A head field
+read from a field the plan leaves out is refused like a body that is (see
+below).
+
 ## Startup Commands: `boot`
 
 The browser does not run `init`, so the Commands `init` returns would run
@@ -219,9 +225,11 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
 - `DuplicateStaticRegion`: two `SSR.static` regions share an id.
 - `UngeneratablePath`: `SSR.generate` was given a path no file can be served at.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
-  from the one served, so it reads a field the plan leaves out. Add the field to
-  `state`, or stop the view reading it. In production Foldkit would silently
-  rebuild that part of the page, so this is the one place it shows.
+  from the one served, in its body or in its head (`title`, `lang`, `dir`,
+  `canonical`, `ogUrl`), so it reads a field the plan leaves out. The message
+  names which. Add the field to `state`, or stop the view reading it. In
+  production Foldkit would silently rebuild that part of the page, so this is
+  the one place it shows.
 
 In the browser, `SSR.hydrate` checks, in Foldkit's order, the page's build id
 and then its envelope. A page from another build is refused by Foldkit itself.

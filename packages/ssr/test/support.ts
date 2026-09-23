@@ -4,6 +4,7 @@
  */
 import { Effect } from 'effect'
 import {
+  FOLDKIT_APP_ATTRIBUTE,
   injectIntoTemplate,
   type RenderedApplication,
   type RenderError,
@@ -22,7 +23,7 @@ export const serve = async (render: Effect.Effect<RenderedApplication, RenderErr
 
 /** The root the server stamped, which a page-owning application must adopt. */
 export const root = (): HTMLElement | null =>
-  document.querySelector<HTMLElement>('[data-foldkit-app]')
+  document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 
 /** Lets the runtime boot or settle a Message. */
 export const settle = () => new Promise(resolve => setTimeout(resolve, 20))

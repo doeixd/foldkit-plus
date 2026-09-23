@@ -1,7 +1,7 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 5 done. Next, in order: the Foldkit 0.163 upgrade
-(Phase U), Remote's resume (Phase R), delivery through Foldkit's fetch handler
+**Status:** Phases 0 to 5 and U done. Next, in order: Remote's resume
+(Phase R), delivery through Foldkit's fetch handler
 (Phase 6), then the resumable track (Phases A to F). Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
@@ -499,6 +499,24 @@ internals and checked again. The repository-wide upgrade is the guide's steps
 - Say in the README that `canonical` comes from the Model, and word the
   development risk in model-preservation terms.
 - Gate: Phase 5, and the repository's own upgrade commits.
+
+**Done.** The repository moved to 0.163.0 in `c5dd8f1`, which changed only
+`packages/ssr`'s pins: all 55 tests passed on 0.163 unchanged, the Flags trap
+and the build-id refusal included, so the hydrate-without-`init` workaround
+holds. Then the source and tests read Foldkit's two exported attribute names,
+and the view check compares the head. Seven mutations each turned a test red
+once `lang` and `dir` had a test of their own. Found on the way:
+
+- **`ogUrl` follows `canonical`.** A view that sets only `canonical` gets an
+  `ogUrl` from it, so an unsent field in `canonical` changes both, and the
+  refusal names both.
+- **The view's `dir` is `'Ltr' | 'Rtl' | 'Auto'`**, which Foldkit lowers to the
+  attribute's value; the rendered result reports the lowered one. A test typed
+  its head loosely and passed a lowered value the view ignores, and only the
+  mutation run showed the test was not testing `dir`. Its head is typed now.
+- The development risk already uses model-preservation terms (revised with
+  this phase's plan); the README says nothing about development, so it needed
+  no change there.
 
 ### Phase 6: deliver a page through Foldkit's fetch handler
 

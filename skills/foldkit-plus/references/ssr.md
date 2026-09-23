@@ -41,7 +41,9 @@ SSR.hydrate(config, Editor, { buildId })
   `ResumeUnsafe` `UndeclaredStartup` until the plan names them in `boot`. A
   `foldkit-bundle` app (`Mirror.kv` restore): `boot: model => assembly.init(model).commands ?? []`.
 - A view that reads a field outside `state` fails with `ResumeUnsafe`
-  `ViewDependsOnUnsentState`. Add the field to `state` or stop reading it.
+  `ViewDependsOnUnsentState`, in its body or its head (`title`, `lang`, `dir`,
+  `canonical`, `ogUrl`). Add the field to `state` or stop reading it. Foldkit
+  0.163 gives `canonical` no default: derive it from the route in the Model.
 - A Surface in `surfaces` that reads or is activated by a field in neither
   `state` nor `local`, reads Remote data (no resume part for it yet), or
   activates differently from the browser's Model fails with `Uncovered`.

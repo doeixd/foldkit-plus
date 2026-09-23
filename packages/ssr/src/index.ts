@@ -13,6 +13,8 @@
  */
 import { Effect, Result, Schema } from 'effect'
 import {
+  FOLDKIT_APP_ATTRIBUTE,
+  FOLDKIT_FLAGS_ATTRIBUTE,
   injectIntoTemplate,
   renderToString,
   type RenderError,
@@ -490,11 +492,11 @@ export interface ResumableConfig<Model> {
 }
 
 /**
- * Foldkit's hydration root attributes. The build one is not exported by
- * Foldkit; a test pins it to what Foldkit's server stamps.
+ * The build attribute on Foldkit's hydration root. Foldkit does not export it,
+ * as it does the app and Flags attributes; a test pins it to what Foldkit's
+ * server stamps.
  */
 const BUILD_ATTRIBUTE = 'data-foldkit-build'
-const APP_ATTRIBUTE = 'data-foldkit-app'
 
 /**
  * The config without a `Flags` key at all. Deleted, never set to `undefined`:
@@ -519,7 +521,17 @@ const routeOf = (url: string): string => {
 }
 
 /** Foldkit's own Flags script, which a resumed page never carries. */
-const FLAGS_SCRIPT = /<script[^>]*data-foldkit-flags[^>]*>[\s\S]*?<\/script>/g
+const FLAGS_SCRIPT = new RegExp(
+  `<script[^>]*${FOLDKIT_FLAGS_ATTRIBUTE}[^>]*>[\\s\\S]*?</script>`,
+  'g',
+)
+
+/**
+ * The head fields a render returns beside the body. Each is read by the view,
+ * so each must come out the same from the browser's Model; since Foldkit 0.163
+ * none has a default from the URL.
+ */
+const HEAD_FIELDS = ['title', 'lang', 'dir', 'canonical', 'ogUrl'] as const
 
 /**
  * Renders a page on the server against a resume plan.
@@ -604,11 +616,14 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       withStatic(startingFrom(config, { model: browser }), { mode: 'replay', regions }) as never,
       options as never,
     )
-    if (full.html.replace(FLAGS_SCRIPT, '') !== rendered.html) {
+    const differing = [
+      ...(full.html.replace(FLAGS_SCRIPT, '') === rendered.html ? [] : ['body']),
+      ...HEAD_FIELDS.filter(field => full[field] !== rendered[field]),
+    ]
+    if (differing.length > 0) {
       return yield* new ResumeUnsafe({
         reason: 'ViewDependsOnUnsentState',
-        message:
-          'the view differs when rendered from the Model the browser will start from: it reads a field the plan leaves out',
+        message: `the view differs in its ${differing.join(', ')} when rendered from the Model the browser will start from: it reads a field the plan leaves out`,
       })
     }
     return {
@@ -719,7 +734,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   options: { readonly buildId: string },
 ): void => {
-  const root = document.querySelector<HTMLElement>(`[${APP_ATTRIBUTE}]`)
+  const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
   if (root === null) {
     run(makeApplication(config as never))
     return

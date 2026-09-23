@@ -5,7 +5,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { expect, it } from 'vitest'
 import { hydrate, makeApplication } from 'foldkit/runtime'
-import { renderToString } from 'foldkit/experimental/server'
+import { FOLDKIT_FLAGS_ATTRIBUTE, renderToString } from 'foldkit/experimental/server'
 import { root, serve, settle } from './support.js'
 
 const Flags = Schema.Struct({ theme: Schema.String })
@@ -37,5 +37,5 @@ it('hands Flags to the client in its payload, and keeps the server nodes', async
   // Once on the server, once on the client: Foldkit runs init on both.
   expect(received).toEqual(['dark', 'dark'])
   expect(document.getElementById('theme')).toBe(served)
-  expect(document.querySelector('script[data-foldkit-flags]')).not.toBeNull()
+  expect(document.querySelector(`script[${FOLDKIT_FLAGS_ATTRIBUTE}]`)).not.toBeNull()
 })

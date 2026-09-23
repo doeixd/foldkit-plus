@@ -6,6 +6,7 @@
  * carry, and the page is refused.
  */
 import { Effect } from 'effect'
+import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit/experimental/server'
 import { hydrate, makeApplication } from 'foldkit/runtime'
 import { expect, it, vi } from 'vitest'
 import { SSR } from 'foldkit-ssr'
@@ -16,7 +17,7 @@ it('refuses a resumed page when the config keeps a Flags key set to undefined', 
   load(
     SSR.page(template, await Effect.runPromise(SSR.render(config, plan, { buildId: 'b', flags }))),
   )
-  const root = document.querySelector<HTMLElement>('[data-foldkit-app]')
+  const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 
   hydrate(
     makeApplication({
