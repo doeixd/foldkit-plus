@@ -19,7 +19,6 @@ export type DiagnosticCode =
   | 'mixins:structural-override'
   | 'mixins:duplicate-mount-name'
   | 'mixins:duplicate-item-id'
-  | 'style:conditional-rules-unsupported'
   | 'a11y:missing-slot'
   | 'a11y:hidden-slot'
   | 'a11y:capability-mismatch'

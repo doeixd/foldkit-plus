@@ -154,6 +154,70 @@ export const global = (css: string): StyleValue =>
     globalCss: Object.freeze([css]),
   })
 
+/**
+ * Appearance per `data-state` value, e.g. `Style.states({ open: { opacity: '1' } })`
+ * compiles to `&[data-state="open"]`. Pairs with Behaviors that write
+ * `data-state`, so state is styled with no JavaScript and no `whenInput`:
+ * `whenInput` when the view knows, `states` when the DOM does.
+ */
+export const states = (
+  map: Readonly<Record<string, Readonly<Record<string, string>>>>,
+  attribute = 'data-state',
+): StyleValue =>
+  Object.freeze({
+    classes: empty.classes,
+    style: empty.style,
+    rules: Object.freeze(
+      Object.entries(map).map(([state, declarations]) =>
+        Rules.pseudo(`[${attribute}="${state}"]`, declarations),
+      ),
+    ),
+  })
+
+/**
+ * Declarations per named breakpoint, e.g.
+ * `Style.responsive({ md: '(min-width: 48rem)' }, { md: { display: 'flex' } })`.
+ * The breakpoint names come from the record you pass, typically a theme's, so
+ * a misspelled one is a type error.
+ */
+export const responsive = <Breakpoints extends Readonly<Record<string, string>>>(
+  breakpoints: Breakpoints,
+  map: Partial<Readonly<Record<keyof Breakpoints & string, Readonly<Record<string, string>>>>>,
+): StyleValue =>
+  Object.freeze({
+    classes: empty.classes,
+    style: empty.style,
+    rules: Object.freeze(
+      Object.entries(map).flatMap(([name, declarations]) => {
+        const query = breakpoints[name]
+        return query === undefined || declarations === undefined
+          ? []
+          : [Rules.media(query, declarations)]
+      }),
+    ),
+  })
+
+/** Custom properties on the slot: `Style.vars({ '--gap': '1rem' })`. */
+export const vars = (values: Readonly<Record<`--${string}`, string>>): StyleValue => inline(values)
+
+/**
+ * The declarations an element starts from when it enters, as a
+ * `@starting-style` rule. With a `transition` on the base, the browser
+ * animates from these; pair with `allowDiscrete` when `display` takes part.
+ */
+export const enter = (declarations: Readonly<Record<string, string>>): StyleValue =>
+  Object.freeze({
+    classes: empty.classes,
+    style: empty.style,
+    rules: Object.freeze([Rules.rule('&', declarations, '@starting-style')]),
+  })
+
+/** `transition-behavior: allow-discrete`, so `display` and `overlay` transition too. */
+export const allowDiscrete: StyleValue = inline({ transitionBehavior: 'allow-discrete' })
+
+/** Opts the slot into Foldkit's view transitions under `name`. */
+export const viewTransitionName = (name: string): StyleValue => inline({ viewTransitionName: name })
+
 /** A boolean known at authoring time. */
 export const when = (condition: boolean, piece: StyleValue): StyleValue =>
   condition ? piece : empty
@@ -185,17 +249,14 @@ const resolveStyle = (style: StyleValue, input: unknown): StyleValue => {
   })
 }
 
-const hasConditionalRules = (style: StyleValue): boolean =>
-  (style.conditions ?? []).some(
-    condition => (condition.piece.rules ?? []).length > 0 || hasConditionalRules(condition.piece),
-  )
-
 interface CompiledStyle {
   readonly classes: ReadonlyArray<string>
   readonly style: Readonly<Record<string, string>>
   readonly css?: string
   readonly ruleClass?: string
   readonly globalRules?: ReadonlyArray<string>
+  /** Every class the tree compiled to, with its CSS, static or conditional. */
+  readonly compiled: ReadonlyArray<{ readonly className: string; readonly css: string }>
 }
 
 /** Global CSS is emitted whether or not its condition is active. */
@@ -204,35 +265,57 @@ const collectGlobalCss = (style: StyleValue): ReadonlyArray<string> => [
   ...(style.conditions ?? []).flatMap(condition => collectGlobalCss(condition.piece)),
 ]
 
-/** A rule-bearing style gets one deterministic class and its CSS text. */
-const compileStyle = (style: StyleValue): CompiledStyle => {
+/**
+ * Compiles every rule-bearing node in the tree to its class: the node's
+ * classes gain the generated one, and the CSS is collected. A conditional
+ * piece's rules are compiled the same way, so the class is static and only
+ * its presence follows the input.
+ */
+const compileTree = (
+  style: StyleValue,
+  collected: Array<{ readonly className: string; readonly css: string }>,
+): StyleValue => {
   const rules = style.rules ?? []
-  const globalRules = collectGlobalCss(style)
   const generated = rules.length === 0 ? undefined : Rules.className(rules)
-  return {
+  if (generated !== undefined)
+    collected.push({ className: generated, css: Rules.css(generated, rules) })
+  const conditions = (style.conditions ?? []).map(condition => ({
+    predicate: condition.predicate,
+    piece: compileTree(condition.piece, collected),
+  }))
+  return Object.freeze({
+    ...style,
     classes: generated === undefined ? style.classes : Object.freeze([...style.classes, generated]),
-    style: style.style,
-    ...(generated === undefined ? {} : { css: Rules.css(generated, rules), ruleClass: generated }),
-    ...(globalRules.length === 0 ? {} : { globalRules }),
-  }
+    ...(conditions.length === 0 ? {} : { conditions: Object.freeze(conditions) }),
+  })
 }
 
-/** A rule's class is static while a `whenInput` condition is not, so they cannot combine. */
-const assertRulesSupported = (style: StyleValue): void => {
-  if (!hasConditionalRules(style)) return
-  throw new DiagnosticError({
-    source: 'mixins',
-    code: 'style:conditional-rules-unsupported',
-    severity: 'error',
-    message: 'Style.pseudo/media may not appear inside Style.whenInput',
-  })
+/** A style with every rule in it compiled: the tree with classes, plus the CSS. */
+const compileStyle = (style: StyleValue): CompiledStyle & { readonly tree: StyleValue } => {
+  const collected: Array<{ readonly className: string; readonly css: string }> = []
+  const tree = compileTree(style, collected)
+  const globalRules = collectGlobalCss(style)
+  const first = collected[0]
+  return {
+    tree,
+    classes: tree.classes,
+    style: tree.style,
+    ...(first === undefined
+      ? {}
+      : { css: collected.map(entry => entry.css).join(''), ruleClass: first.className }),
+    ...(globalRules.length === 0 ? {} : { globalRules }),
+    compiled: collected,
+  }
 }
 
 /**
  * A static style stays static data; a style with input conditions compiles to a
  * message-free `InputContribution`, so it still attaches to any view.
  */
-const contributionFrom = (style: StyleValue, compiled: CompiledStyle): SlotContribution<never> => {
+const contributionFrom = (
+  style: StyleValue,
+  compiled: CompiledStyle & { readonly tree: StyleValue },
+): SlotContribution<never> => {
   const globalCss = compiled.globalRules?.join('')
   const attributes = {
     classes: compiled.classes,
@@ -242,7 +325,7 @@ const contributionFrom = (style: StyleValue, compiled: CompiledStyle): SlotContr
   }
   if ((style.conditions ?? []).length === 0) return Object.freeze(attributes)
   const contribution: InputContribution<never> = context => {
-    const resolved = resolveStyle({ ...style, classes: compiled.classes }, context.input)
+    const resolved = resolveStyle(compiled.tree, context.input)
     return Object.freeze({
       classes: resolved.classes,
       style: resolved.style,
@@ -284,12 +367,11 @@ export const forSlots =
       if (piece !== undefined) {
         // Rule and global CSS are static even when the contribution is deferred,
         // so compile once, then build the contribution and gather the CSS.
-        assertRulesSupported(piece)
         const compiled = compileStyle(piece)
         contributions[key] = contributionFrom(piece, compiled)
-        if (compiled.ruleClass !== undefined && compiled.css !== undefined) {
-          rules.push({ className: compiled.ruleClass, css: compiled.css })
-          css += compiled.css
+        for (const entry of compiled.compiled) {
+          rules.push(entry)
+          css += entry.css
         }
         if (compiled.globalRules !== undefined) {
           globalRules.push(...compiled.globalRules)
@@ -391,6 +473,12 @@ export const Style = {
   supports,
   container,
   nest,
+  states,
+  responsive,
+  vars,
+  enter,
+  allowDiscrete,
+  viewTransitionName,
   keyframes,
   global,
   empty,

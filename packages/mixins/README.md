@@ -258,9 +258,22 @@ CardStyle.css
 Style.stylesheet(FieldStyle, CardStyle)
 ```
 
-Equal rules share a class, so server and client derive the same class and CSS. Rules inside
-`Style.whenInput` are rejected (`style:conditional-rules-unsupported`) because the class is static
-while the condition is not.
+Equal rules share a class, so server and client derive the same class and CSS. A rule piece
+inside `Style.whenInput` compiles to its class like any other; the class is static and only its
+presence follows the input, and its CSS is in `Style.stylesheet` whether or not the condition
+ever holds.
+
+Beyond `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
+
+- `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that
+  write `data-state`; `whenInput` when the view knows, `states` when the DOM does;
+- `Style.responsive(breakpoints, { md: { display: 'flex' } })`, named breakpoints from the record
+  you pass, so a misspelled one is a type error;
+- `Style.enter({ opacity: '0' })`, a `@starting-style` rule the element animates from, with
+  `Style.allowDiscrete` when `display` takes part;
+- `Style.vars({ '--gap': '1rem' })` and `Style.viewTransitionName('hero')`, declarations;
+- `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
+  strings `pseudo` and `nest` take.
 
 ## Behavior: reusable element-level interaction
 

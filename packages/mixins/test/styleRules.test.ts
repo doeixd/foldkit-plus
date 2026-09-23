@@ -8,23 +8,12 @@ import {
   Style,
   type SlotAttributes,
 } from '../src/index.js'
-import { DiagnosticError } from '../src/diagnostics.js'
 import { h, type TestMessage } from './resolverFixture.js'
 
 const RuleSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
 
 const classValue = (attributes: SlotAttributes<TestMessage>): string | undefined =>
   Attributes.find(attributes, 'Class')?.value
-
-const diagnosticCode = (run: () => unknown): string | undefined => {
-  try {
-    run()
-    return undefined
-  } catch (error) {
-    if (error instanceof DiagnosticError) return error.diagnostic.code
-    throw error
-  }
-}
 
 describe('Style rule compiler', () => {
   it('compiles a pseudo rule to one deterministic class and CSS', () => {
@@ -94,16 +83,6 @@ describe('Style rule compiler', () => {
     const other = Style.forSlots(RuleSlots)({ root: Style.pseudo(':hover', { color: 'blue' }) })
     expect(one.css).toBe(two.css)
     expect(one.css).not.toBe(other.css)
-  })
-
-  it('rejects rules inside an input condition', () => {
-    expect(
-      diagnosticCode(() =>
-        Style.forSlots(RuleSlots)({
-          root: Style.whenInput(() => true, Style.pseudo(':hover', { color: 'red' })),
-        }),
-      ),
-    ).toBe('style:conditional-rules-unsupported')
   })
 
   it('does not evaluate an input predicate until render', () => {

@@ -258,7 +258,10 @@ adapter.
 - **A mixin cannot replace a base attribute:** adding `h.AriaDisabled(false)` over a
   `@foldkit/ui` Button that set it, or a second `OnClick`, throws. Adding an attribute the base
   lacks is fine.
-- `Style.whenInput` cannot contain rule-based pieces (`style:conditional-rules-unsupported`).
+- A rule piece inside `Style.whenInput` compiles to a static class whose presence follows the
+  input; its CSS is always in the stylesheet. Also: `Style.states({ open: {...} })` (`[data-state]`
+  rules), `Style.responsive(breakpoints, map)`, `Style.enter(decl)` (`@starting-style`) with
+  `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, and `Selector.*` builders.
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data: put `Style.stylesheet(StyleA, StyleB)` (global then scoped, deduped)
   into a `<style>` element yourself.
