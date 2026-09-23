@@ -1,5 +1,6 @@
 export * from './autofocus.js'
 export * from './clipboard.js'
+export * from './focus-scope.js'
 export * from './input-mask.js'
 export * from './script-loader.js'
 export * from './share.js'

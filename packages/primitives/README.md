@@ -91,11 +91,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -587,6 +587,20 @@ const Keys = ListNavigation.behavior(Nav, args)(ListSlots)<Model, Message>({
   text: (model, index) => model.fruits[index]?.label ?? '',
 })
 ```
+
+`FocusScope` is the one entry here that is a Mount, not a Bundle: which
+element has focus is a DOM fact, so nothing crosses to the Model. The Mount
+lives in `foldkit-primitives/dom`; `FocusScope.behavior(Slots)<Input,
+Message>({ container, contain?, restore?, initialFocus? })` attaches it to a
+container slot. On insert the container focuses `initialFocus`, else its first
+tabbable descendant, else itself. With `contain` (default), Tab from the last
+tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
+focus that lands outside comes straight back; Tab in the middle is the
+browser's. On unmount, with `restore` (default), focus returns to the element
+that had it, if it is still in the document. A native `<dialog>` does all of
+this itself; this is for a custom overlay, a menu, or a command palette.
+`tabbableWithin(element)` is exported: focusable, visible descendants with a
+non-negative `tabindex`, in order.
 
 ## Testing placements
 

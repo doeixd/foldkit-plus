@@ -88,6 +88,10 @@ into a chord answer. Slices that must survive reload persist through
   One placement, one key handler: `RovingTabindex` and `Typeahead` on one host are
   refused by the resolver (one owner per event), and under `virtual` a typed key
   must move the pointer and extend the query in one transition.
+- **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
+  attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
+  Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
+  `contain`, focus restored on unmount under `restore`. A native `<dialog>` needs none of it.
 
 ## Gotchas
 
