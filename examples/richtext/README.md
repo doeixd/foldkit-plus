@@ -89,8 +89,8 @@ needs a text node for the caret to be addressable, a removed identity that is
 also dirty must still lose its element, and repairing detaches the live
 selection unless it is captured and restored.
 
-Not built yet: paste insertion and the DOM clipboard events, and mobile virtual
-keyboards. The adapter is still private and throwaway-tolerant.
+Not built yet: the DOM clipboard events that carry copy/cut/paste, and mobile
+virtual keyboards. The adapter is still private and throwaway-tolerant.
 
 ## Running it
 

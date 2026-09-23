@@ -1,10 +1,12 @@
 import {
   NodeId,
+  type Block,
   type Document,
   type EditorState,
   type Position,
   type Selection,
 } from './document.js'
+import { withFreshIds, type Slice } from './clipboard.js'
 import { isKnownMark, resolveInsertion } from './marks.js'
 import { Edit, apply, type Operation, type TransactionResult } from './transaction.js'
 
@@ -21,6 +23,7 @@ export type Command =
   | { readonly type: 'SplitBlock' }
   | { readonly type: 'ToggleMark'; readonly mark: string }
   | { readonly type: 'SetSelection'; readonly selection: Selection | null }
+  | { readonly type: 'Paste'; readonly slice: Slice }
 
 /** Caller-owned identity source. Live edits mint; replay applies transactions. */
 export interface CommandIds {
@@ -269,5 +272,69 @@ export const run = (state: EditorState, command: Command, ids: CommandIds): Tran
     return apply(state, operations)
   }
 
+  if (command.type === 'Paste') {
+    const content = command.slice.blocks
+    if (content.length === 0) return apply(state, [])
+    const span = isCollapsed(selection) ? undefined : ordered(state.document, selection)
+    if (!isCollapsed(selection) && span === undefined) return failure('InvalidSelection')
+    const caret = span?.start ?? selection.anchor
+    const at = locate(state.document, caret.node)
+    if (at === undefined) return failure('MissingText')
+    const operations: Array<Operation> =
+      span === undefined ? [] : [...deleteRange(state.document, span.start, span.end)]
+    const inserted = withFreshIds(command.slice, ids.mint).blocks
+    const block = state.document.children[at.blockIndex]!
+    const atBlockStart = at.runIndex === 0 && caret.offset === 0
+    const atBlockEnd = at.runIndex === block.children.length - 1 && caret.offset === at.text.length
+    let trailingRun: NodeId | undefined
+    if (atBlockStart) {
+      // Pasting at the very start puts the content above this block.
+      for (const [index, piece] of inserted.entries()) {
+        operations.push(Edit.insertBlock(piece, at.blockIndex + index))
+      }
+    } else if (atBlockEnd) {
+      for (const [index, piece] of inserted.entries()) {
+        operations.push(Edit.insertBlock(piece, at.blockIndex + 1 + index))
+      }
+    } else {
+      // Mid-block: split the block at the caret and land the content between
+      // the halves, so the text after the caret stays below what was pasted.
+      const textId = ids.mint()
+      operations.push(Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId))
+      trailingRun = NodeId.make(textId)
+      for (const [index, piece] of inserted.entries()) {
+        operations.push(Edit.insertBlock(piece, at.blockIndex + 1 + index))
+      }
+    }
+    const landing = landingAfter(inserted, trailingRun, state.document, at.blockIndex, atBlockEnd)
+    if (landing !== undefined) operations.push(Edit.setSelection(caretAt(landing)))
+    return apply(state, operations)
+  }
+
   return apply(state, [])
+}
+
+/**
+ * Where the caret goes after a paste: the end of the last inserted run, or the
+ * start of what follows when the inserted content ends without text — the
+ * trailing half a split created, then whatever block follows in the document.
+ */
+const landingAfter = (
+  inserted: ReadonlyArray<Block>,
+  trailingRun: NodeId | undefined,
+  document: Document,
+  blockIndex: number,
+  atBlockEnd: boolean,
+): Position | undefined => {
+  const last = inserted[inserted.length - 1]!
+  const lastRun = last.children[last.children.length - 1]
+  if (lastRun !== undefined) {
+    return { node: lastRun.id, offset: lastRun.text.length, affinity: 'after' }
+  }
+  if (trailingRun !== undefined) return { node: trailingRun, offset: 0, affinity: 'after' }
+  const following = document.children[blockIndex + (atBlockEnd ? 1 : 0)]
+  const followingRun = following?.children[0]
+  return followingRun === undefined
+    ? undefined
+    : { node: followingRun.id, offset: 0, affinity: 'after' }
 }

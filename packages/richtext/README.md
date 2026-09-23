@@ -132,7 +132,15 @@ partial copy never drags in an untouched block. `deserializeSlice` returns
 `undefined` for anything this version did not write (bad JSON, another version,
 excess fields, duplicate identities inside the slice) rather than guessing.
 Identities always come from the caller, like every other identity a live edit
-mints. Paste insertion and the DOM clipboard events are not wired yet.
+mints.
+
+Paste is a command (`{ type: 'Paste', slice }`): it remints every identity, then
+places the content relative to the caret — above the block at its start, below
+it at its end, and mid-block by splitting the block and landing the content
+between the halves, so text after the caret stays below what was pasted. A range
+selection is replaced first, and the caret lands at the end of the pasted text
+(or at the start of what follows when the pasted content has none). The DOM
+clipboard events that carry these payloads are not wired yet.
 
 ## Undo history
 
@@ -276,7 +284,7 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Migrations, prop schemas, nested children,
-further transforms, rendering, paste insertion, and collaboration are still
+further transforms, rendering, HTML interchange, and collaboration are still
 pending. Retain rejected source content for recovery; do not replace it with an
 empty document.
 

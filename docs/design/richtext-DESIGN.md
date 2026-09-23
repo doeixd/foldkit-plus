@@ -2966,9 +2966,16 @@ fields, malformed blocks, and duplicate identities inside the slice all return
 `sliceFromText` is the plain-text fallback. Identities come from the caller, as
 everywhere else.
 
-Still pending: paste *insertion* (placing a slice at a caret, including the
-block split it implies), HTML on either side of the boundary, and the DOM
-clipboard events that carry these payloads.
+Still pending: HTML on either side of the boundary and the DOM clipboard events
+that carry these payloads.
+
+**Paste insertion, implemented.** `{ type: 'Paste', slice }` remints every
+identity, then places the content relative to the caret: above the block at its
+start, below it at its end, and mid-block by splitting the block so text after
+the caret stays below what was pasted. A range is replaced first. The caret
+lands at the end of the pasted text, or — when the pasted content ends without
+text — at the start of the trailing half the split created. An empty slice is a
+no-op preserving state identity.
 
 ---
 
