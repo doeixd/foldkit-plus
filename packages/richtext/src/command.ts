@@ -140,13 +140,78 @@ const covered = (document: Document, start: Position, end: Position): ReadonlyAr
   return spans
 }
 
-/** Deletes an ordered [start, end) across runs, one operation per covered run. */
+/**
+ * Deletes an ordered [start, end): one operation per covered run, then the
+ * blocks the range spanned are joined, so selecting across a paragraph boundary
+ * and deleting removes the boundary too. The first block survives, which is
+ * where the caret already is.
+ */
 const deleteRange = (
   document: Document,
   start: Position,
   end: Position,
-): ReadonlyArray<Operation> =>
-  covered(document, start, end).map(span => Edit.deleteText(span.run.id, span.from, span.to))
+): ReadonlyArray<Operation> => {
+  const startAt = locate(document, start.node)
+  const endAt = locate(document, end.node)
+  const deletions: Array<Operation> = covered(document, start, end).map(span =>
+    Edit.deleteText(span.run.id, span.from, span.to),
+  )
+  if (startAt === undefined || endAt === undefined || endAt.blockIndex <= startAt.blockIndex) {
+    return deletions
+  }
+  const survivor = document.children[startAt.blockIndex]!.id
+  for (let index = startAt.blockIndex + 1; index <= endAt.blockIndex; index++) {
+    const block = document.children[index]
+    if (block !== undefined) deletions.push(Edit.joinBlocks(survivor, block.id))
+  }
+  return deletions
+}
+
+const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff
+const isLowSurrogate = (code: number): boolean => code >= 0xdc00 && code <= 0xdfff
+
+/** A combining mark, by the ranges this version knows: the ones that extend a grapheme. */
+const isCombining = (code: number): boolean =>
+  (code >= 0x0300 && code <= 0x036f) ||
+  (code >= 0x0483 && code <= 0x0489) ||
+  (code >= 0x1ab0 && code <= 0x1aff) ||
+  (code >= 0x20d0 && code <= 0x20ff) ||
+  (code >= 0xfe20 && code <= 0xfe2f)
+
+/**
+ * Where the grapheme before `offset` starts: a surrogate pair counts as one
+ * character, and the combining marks that extend it go with it. Deleting half a
+ * character is corruption, not an edit, and UTF-16 coordinates do not require
+ * it: a command can remove the whole grapheme.
+ */
+const previousBoundary = (text: string, offset: number): number => {
+  if (offset <= 0) return 0
+  let index = offset - 1
+  if (
+    isLowSurrogate(text.charCodeAt(index)) &&
+    index > 0 &&
+    isHighSurrogate(text.charCodeAt(index - 1))
+  ) {
+    index -= 1
+  }
+  while (index > 0 && isCombining(text.charCodeAt(index))) index -= 1
+  return index
+}
+
+/** Where the grapheme at `offset` ends, for forward deletion. */
+const nextBoundary = (text: string, offset: number): number => {
+  if (offset >= text.length) return text.length
+  let index = offset + 1
+  if (
+    isHighSurrogate(text.charCodeAt(offset)) &&
+    index < text.length &&
+    isLowSurrogate(text.charCodeAt(index))
+  ) {
+    index += 1
+  }
+  while (index < text.length && isCombining(text.charCodeAt(index))) index += 1
+  return index
+}
 
 /**
  * Resolves one intent into a transaction and applies it atomically. Commands
@@ -198,18 +263,22 @@ export const run = (
     if (at === undefined) return failure('MissingText')
     const backward = command.type === 'DeleteBackward'
     if (backward ? caret.offset > 0 : caret.offset < at.text.length) {
-      const from = backward ? caret.offset - 1 : caret.offset
+      const from = backward ? previousBoundary(at.text, caret.offset) : caret.offset
+      const to = backward ? caret.offset : nextBoundary(at.text, caret.offset)
       return apply(state, [
-        Edit.deleteText(at.id, from, from + 1),
+        Edit.deleteText(at.id, from, to),
         Edit.setSelection(caretAt({ ...caret, offset: backward ? from : caret.offset })),
       ])
     }
     const neighborRun =
       state.document.children[at.blockIndex]?.children[backward ? at.runIndex - 1 : at.runIndex + 1]
     if (neighborRun !== undefined && neighborRun.text.length > 0) {
-      const from = backward ? neighborRun.text.length - 1 : 0
+      // Stepping into the neighbor removes that run's whole grapheme, not one
+      // code unit of it.
+      const from = backward ? previousBoundary(neighborRun.text, neighborRun.text.length) : 0
+      const to = backward ? neighborRun.text.length : nextBoundary(neighborRun.text, 0)
       return apply(state, [
-        Edit.deleteText(neighborRun.id, from, from + 1),
+        Edit.deleteText(neighborRun.id, from, to),
         Edit.setSelection(
           caretAt(
             backward ? { ...caret, node: neighborRun.id, offset: from, affinity: 'after' } : caret,

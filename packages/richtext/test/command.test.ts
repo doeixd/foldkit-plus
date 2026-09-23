@@ -137,11 +137,16 @@ describe('delete commands', () => {
     expect(forward.state.selection).toEqual(caret('b', 2))
   })
 
-  it('deletes a range across blocks and collapses the caret', () => {
+  it('deletes a range across blocks, joining them, and collapses the caret', () => {
     const result = success(run(state(range(['b', 1], ['c', 1])), { type: 'DeleteBackward' }))
-    expect(result.state.document.children).toHaveLength(2)
-    expect(result.state.document.children[0]?.children.map(run => run.id)).toEqual(['a', 'b'])
-    expect(result.state.document.children[1]?.children[0]?.text).toBe('f')
+    // The paragraph boundary the range covered goes with the text it covered.
+    expect(result.state.document.children).toHaveLength(1)
+    expect(result.state.document.children[0]?.children.map(run => run.id)).toEqual(['a', 'b', 'c'])
+    expect(result.state.document.children[0]?.children.map(run => run.text)).toEqual([
+      'ab',
+      'c',
+      'f',
+    ])
     expect(result.state.selection).toEqual(caret('b', 1))
   })
 
