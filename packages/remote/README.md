@@ -25,6 +25,38 @@ Message through one reducer, so a screen replays from a recorded Model.
 Remote is for facts the **server owns**. An edit the client authors, which
 must survive being offline, belongs to [`foldkit-sync`](../sync).
 
+## If you know TanStack Query
+
+The same job, done from the other side of the Model:
+
+| TanStack Query | `foldkit-remote` |
+| --- | --- |
+| `useQuery({ queryKey, queryFn })` in a component | `Data.get(Selection, id)` in a Surface; the active Surface fetches |
+| a `queryKey` you design | the entity, its id and the fields selected; there is no key to design |
+| one cache entry per key | one entity per id, shared by every selection of it |
+| `staleTime`, `refetchOnWindowFocus` | `RemotePolicy`, `Data.refresh` from `update` |
+| `gcTime` | retention: what no active Surface reaches is collected |
+| `onMutate` + `setQueryData` | `optimistic: [Remote.patch(...)]`, a layer the settlement removes |
+| `invalidateQueries` | not needed for overlap: a result updates the one copy |
+| `isPending`, `isError`, `data` | `RemoteData`: six states, one exhaustive fold |
+| a `QueryClient` beside your state | `Remote.Model`, a field of your Model, changed only by Messages |
+
+Two differences change how you build. **There are no keys.** A TanStack cache
+is a map from keys you design to results you shape, so two components that
+want overlapping data either share a key and over-fetch, or hold two copies
+and invalidate by hand. Remote stores fields by entity and id, and a Surface
+declares which fields it selects, so overlap is the normal case and a
+mutation's result is seen everywhere at once. **The cache is Model.** A
+`QueryClient` lives beside your state and is updated by effects; `Remote.Model`
+is a field of your Model, changed by the same reducer as everything else, so a
+screen is a function of the Model, replays from a recording, and is tested
+without a network.
+
+What Remote does not have: a component hook (it has Surfaces and Foldkit
+Subscriptions), a devtools panel of its own (`Data.inspect` and `Data.why` are
+the data one would show), and retries on failure (a failed read stays failed
+until something asks again; see [When a read fails](#when-a-read-fails)).
+
 ## Find what you need
 
 Read the [first run](#the-first-run-one-entity-one-surface) once, then jump to
