@@ -111,6 +111,12 @@ const Shared = Projection.pick(App.model.todos, App.model.selectedTodoId)
 // { schema, dependencies, get, set }
 ```
 
+Each picked field is named by its last key, so `App.model.post.id` is `id`.
+Two fields with the same name at different paths, such as `post.id` and
+`viewer.id`, would be one field, and are refused when the projection is
+built; pick them in separate projections. `Projection.compose` refuses the
+same collision between its parts.
+
 A reference from a different application is rejected by a per-application owner
 token, so two structurally identical Models cannot be mixed. Duplicate members
 deduplicate; a conflicting definition throws.

@@ -494,13 +494,25 @@ export const Projection = {
         throw new Error('Projection.pick: references from different applications')
       }
     }
+    // A picked field is named by its last key alone, so two fields at
+    // different paths with the same name would be one field: `get` would keep
+    // one value and `set` would write it into both. The same field picked twice
+    // is harmless and kept once; two different ones are refused here.
     const fields: Record<string, AnySchema> = {}
-    for (const ref of selected) {
-      const existing = fields[ref.key]
+    const paths: Record<string, string> = {}
+    for (const ref of [...selected]) {
+      const path = ref.dependency.join('.')
+      const existing = paths[ref.key]
       if (existing !== undefined) {
-        if (existing === ref.Schema) continue
-        throw new Error(`Projection.pick: conflicting definitions for "${ref.key}"`)
+        if (existing === path) {
+          selected.splice(selected.indexOf(ref), 1)
+          continue
+        }
+        throw new Error(
+          `Projection.pick: "${existing}" and "${path}" would both be read as "${ref.key}". Pick them in separate projections.`,
+        )
       }
+      paths[ref.key] = path
       fields[ref.key] = ref.Schema
     }
     return {
@@ -531,14 +543,28 @@ export const Projection = {
   ): WritableProjection<ProjectionModel<Ps[number]>, MergeFields<Ps>> => {
     const parts = [...projections]
     const fields: Record<string, AnySchema> = {}
+    // Where each field is read from, where the part says: a dependency path
+    // ending in the field's name. The same name from two different paths is two
+    // fields that would be read as one, as in `pick`.
+    const paths: Record<string, string> = {}
+    const pathOf = (part: (typeof parts)[number], key: string): string | undefined =>
+      part.dependencies.find(dependency => dependency.at(-1) === key)?.join('.')
     for (const part of parts) {
       for (const [key, codec] of Object.entries(part.schema.fields)) {
         const existing = fields[key]
+        const path = pathOf(part, key)
         if (existing !== undefined) {
+          const previous = paths[key]
+          if (previous !== undefined && path !== undefined && previous !== path) {
+            throw new Error(
+              `Projection.compose: "${previous}" and "${path}" would both be read as "${key}"`,
+            )
+          }
           if (existing === codec) continue
           throw new Error(`Projection.compose: conflicting definitions for "${key}"`)
         }
         fields[key] = codec as AnySchema
+        if (path !== undefined) paths[key] = path
       }
     }
     return {

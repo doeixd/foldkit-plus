@@ -7,6 +7,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- **`foldkit-surface`: `Projection.pick` no longer merges two fields that share
+  a name.** A picked field is named by its last key, so `post.id` and
+  `viewer.id` both became `id`. When their schemas were the same object, which
+  `Schema.String` always is, they were merged without a word: `get` kept one
+  value and dropped the other, and `set` wrote that one value into both
+  fields. Mirror, Sync and Agent contexts are built from `pick`, so a URL
+  mirror or a replica could overwrite one field with another. Both `pick` and
+  `Projection.compose` now refuse the collision when the projection is built,
+  naming both paths. The same field picked twice is still kept once.
+
 ## 0.10.0
 
 `foldkit-remote`, `foldkit-remote-server` and `foldkit-remote-drizzle` 0.7.0;

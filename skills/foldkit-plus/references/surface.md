@@ -210,8 +210,9 @@ rejects copies and hand-built values.
 - **`Projection.pick` needs static `FieldRef`s** (`App.model.x`, or fields of a
   nested Struct). It rejects refs from `.at()` or `.index()`, which belong inside
   projections instead. Refs from two applications throw
-  (`references from different applications`), and so does a repeated key with a
-  different definition.
+  (`references from different applications`), and so do two fields at
+  different paths with the same last key (`post.id` and `viewer.id` would both
+  be `id`); the same field twice is kept once.
 - **`MessageSet.make` throws** on a constructor that is not a variant of the
   app's Message union, or on a duplicate tag. `MessageSet.union` also throws on
   subsets from different applications.
