@@ -197,13 +197,19 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     restoreSelection(current, semantic)
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
   }
+  const writeClipboard = (clipboard: ClipboardLike, slice: RichText.Slice): void => {
+    clipboard.setData(SLICE_CLIPBOARD_TYPE, RichText.serializeSlice(slice))
+    // HTML for other applications; importing it back waits on a
+    // kit-constrained parser, so paste still prefers the slice.
+    clipboard.setData('text/html', RichText.toHtml(slice.blocks))
+    clipboard.setData('text/plain', RichText.toText(slice.blocks))
+  }
   const onCopy = (event: Event): void => {
     const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
     const slice = RichText.sliceOf(current.content, readSelection(current))
     if (clipboard === undefined || slice === undefined) return
     event.preventDefault()
-    clipboard.setData(SLICE_CLIPBOARD_TYPE, RichText.serializeSlice(slice))
-    clipboard.setData('text/plain', RichText.plainTextOf(slice))
+    writeClipboard(clipboard, slice)
   }
   const onCut = (event: Event): void => {
     const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
@@ -211,8 +217,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     const slice = RichText.sliceOf(current.content, selection)
     if (clipboard === undefined || slice === undefined) return
     event.preventDefault()
-    clipboard.setData(SLICE_CLIPBOARD_TYPE, RichText.serializeSlice(slice))
-    clipboard.setData('text/plain', RichText.plainTextOf(slice))
+    writeClipboard(clipboard, slice)
     // A collapsed caret cuts nothing; a range is removed through the same
     // delete intent a Backspace would produce.
     const collapsed =

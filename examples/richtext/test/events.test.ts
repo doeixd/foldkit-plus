@@ -320,6 +320,7 @@ describe('clipboard events', () => {
     expect(intents).toEqual([])
     const contents = clipboard.contents()
     expect(contents['text/plain']).toBe('ab')
+    expect(contents['text/html']).toBe('<p>ab</p>')
     const slice = RichText.deserializeSlice(contents[SLICE_CLIPBOARD_TYPE]!)!
     expect(RichText.plainTextOf(slice)).toBe('ab')
     expect(slice.blocks[0]?.id).toBe('p')

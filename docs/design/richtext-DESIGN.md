@@ -2983,7 +2983,7 @@ emits the delete intent a Backspace would, and a collapsed caret cuts nothing.
 absent or unreadable (a strict decode failure must not paste nothing), and
 leaves an empty clipboard to the browser's default. The paste command remints
 identities, so the placeholder ids a plain-text payload needs never reach the
-document.
+document. `copy`/`cut` also write `text/html`.
 
 ---
 
@@ -2999,6 +2999,15 @@ fromHtml
 ```
 
 or use centralized interpreters.
+
+**Export implemented; import not.** `toHtml(blocks)` (and `documentToHtml`)
+serializes a document or a slice: known marks become `strong`/`em`/`code` in a
+deterministic nesting order, unknown marks survive as `data-marks` on a span,
+unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
+attribute values are escaped so content cannot become markup. `toText` /
+`documentToText` give the plain-text projection. Import still needs a
+kit-constrained parser that refuses anything the vocabulary does not declare;
+until it exists, paste reads the slice or plain text and never the HTML payload.
 
 Import must be constrained by the Kit.
 

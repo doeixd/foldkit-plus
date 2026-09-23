@@ -15,8 +15,8 @@ text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion,
 unknown node preservation, bounded decode limits, Kits with vocabulary
 validation, a command layer resolving intent into transactions, local undo
-history with explicit grouping, clipboard slices with a strict codec, and
-inspection. Unknown mark
+history with explicit grouping, clipboard slices with a strict codec, HTML
+export, and inspection. Unknown mark
 strings load verbatim and
 round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
 `Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
@@ -55,10 +55,15 @@ trimmed to the selection), `serializeSlice`/`deserializeSlice` round-trip it
 with a strict decoder, `withFreshIds` remints identities for a paste, and
 `sliceFromText` is the plain-text fallback. `run(state, { type: 'Paste', slice },
 ids)` places a slice at the caret — above the block at its start, below at its
-end, and mid-block by splitting the block so trailing text stays below. The
-harness adapter carries slices over the clipboard
-(`application/x-foldkit-richtext+json` plus plain text), preferring a slice
-payload on paste and falling back to text; HTML interchange is pending.
+end, and mid-block by splitting the block so trailing text stays below. `toHtml(blocks)` / `documentToHtml(document)` export HTML (marks as
+`strong`/`em`/`code`, unknown marks as `data-marks`, unknown blocks as a
+placeholder, everything escaped) and `toText`/`documentToText` give plain text.
+Import needs a kit-constrained parser and does not exist yet, so paste reads the
+slice or plain text only.
+
+The harness adapter carries slices over the clipboard
+(`application/x-foldkit-richtext+json`, HTML, and plain text), preferring a
+slice payload on paste and falling back to text.
 
 `run(state, command, ids)` resolves editor intent (typing, backward/forward
 delete, split block, toggle mark over a range, set selection) into a

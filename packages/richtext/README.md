@@ -113,8 +113,24 @@ Nothing mints identity unless the caller's `mint` does, and replay applies
 transactions rather than commands. A collapsed `ToggleMark` is a no-op until
 stored marks exist, and adding an unknown mark is rejected.
 
-## Clipboard slices
+## HTML export
 
+`toHtml(blocks)` and `documentToHtml(document)` serialize to HTML for other
+applications; `toText` / `documentToText` give the plain-text projection.
+
+```ts
+RichText.documentToHtml(document)
+// → '<p>plain <strong>bold</strong></p><h2><code><em>Title</em></code></h2>'
+```
+
+Known marks become `strong`/`em`/`code` in a deterministic nesting order (not
+the order they were added), unknown marks survive as `data-marks` on a span,
+unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
+attribute values are escaped, so content cannot become markup. HTML is an
+interchange format: importing it needs a kit-constrained parser, which does not
+exist yet, so nothing parses HTML back into authority.
+
+## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with
 its own identities:
 
@@ -284,7 +300,7 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Migrations, prop schemas, nested children,
-further transforms, rendering, HTML interchange, and collaboration are still
+further transforms, rendering, HTML import, and collaboration are still
 pending. Retain rejected source content for recovery; do not replace it with an
 empty document.
 

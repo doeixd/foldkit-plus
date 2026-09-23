@@ -47,6 +47,13 @@ export {
   inspectHistory,
 } from './history.js'
 export {
+  type BlockList,
+  toHtml,
+  toText,
+  documentToHtml,
+  documentToText,
+} from './html.js'
+export {
   Slice,
   emptySlice,
   sliceOf,
