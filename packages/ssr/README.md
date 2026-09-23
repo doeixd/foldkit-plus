@@ -5,11 +5,12 @@ browser the part of the Model it owns, and hydrate without running `init` a
 second time.
 
 **Status: in development, not published.** Built in phases from
-[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 5 are done: a page
-renders on the server or at build time, the browser takes it over from the
-handed-over Model, a plan is checked against the Surfaces the browser reads,
-and parts of the page can belong to the server alone. Resuming Remote's state
-(Phase R) is next.
+[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 5, U and R are
+done: a page renders on the server or at build time, the browser takes it over
+from the handed-over Model, a plan is checked against the Surfaces the browser
+reads, parts of the page can belong to the server alone, and Remote's data
+crosses with the page. Delivery through Foldkit's fetch handler (Phase 6) is
+next.
 
 ## What it owns
 
@@ -131,8 +132,8 @@ active Surface:
 - reads a field that is neither in `state` nor in `local`;
 - is activated by one (the place a `Surface.when` reads);
 - reads data no Model path names, such as a Remote selection, reported by its
-  metadata (`remote data (User:u1)`). Resuming Remote's state is a later phase;
-  until then, leave such a Surface out of `surfaces` or expect it refused;
+  metadata (`remote data (User:u1)`), unless one of the plan's `parts` resumes
+  it (see below);
 - is activated differently, or reads something else, from the Model the browser
   starts from. This catches a `Surface.at` whose callback reads an unsent field.
 
@@ -141,6 +142,33 @@ for the Model the server rendered. `SSR.inspect(plan, model)` returns the same
 findings as data: what is sent, what is local, and for each Surface whether it
 is active, where each read comes from (`state`, `local` or `missing`), and
 whether the browser would activate it the same way.
+
+## Parts: state the slice cannot carry
+
+Some state is not a field to pick. Remote's normalized store is keyed by entity
+and holds whatever the server read, most of which the page never shows. A
+**part** is a package's own contribution to the envelope: it captures what the
+plan's active Surfaces read, and restores it in the browser.
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route),
+  surfaces: [PostPageAt],
+  parts: [Remote.resume(Data)],
+})
+```
+
+`Remote.resume` sends each field the Surfaces select, through relations, each
+connection with its boundaries, and the live cursors of what it sends, and
+nothing else of the store; the browser asks the server for none of it again.
+The coverage check counts a read as sent when a part covers it.
+
+Every part the plan names must be in the page and restore, and no other part
+may be, or the page is refused whole. The server resumes each part from its own
+capture before serving, so a part that cannot restore what it captured is
+refused there (`UnrestorablePart`), not in the browser. Two parts with one id
+are refused when the plan is made.
 
 ## Static regions: parts of the page the server owns
 
@@ -224,6 +252,7 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
   plan neither sends nor names `local`, as above.
 - `DuplicateStaticRegion`: two `SSR.static` regions share an id.
 - `UngeneratablePath`: `SSR.generate` was given a path no file can be served at.
+- `UnrestorablePart`: a part cannot restore its own capture.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
   from the one served, in its body or in its head (`title`, `lang`, `dir`,
   `canonical`, `ogUrl`), so it reads a field the plan leaves out. The message
@@ -239,9 +268,10 @@ with no server render at all starts on the client as usual.
 
 The envelope's reasons, which `SSR.resume` returns as `ResumeRefused`:
 `Missing` or `Duplicate` envelope, `Unreadable` JSON, another `Protocol`
-version, another `Plan`, state that is `Invalid` for the plan's Schema, and a
-`Route` other than the one the page was rendered for (path and query, or the
-path alone for a generated page). A page is never half-restored.
+version, another `Plan`, state or a part that is `Invalid` (a part missing,
+unknown to the plan, or not restoring), and a `Route` other than the one the
+page was rendered for (path and query, or the path alone for a generated
+page). A page is never half-restored.
 
 ## The pieces underneath
 
@@ -287,3 +317,10 @@ Model can close the script or open another. It also escapes U+2028 and U+2029.
   own Flags; a generated page resumes at its path with a query and a trailing
   slash, and is refused at another path; and each path no file can be served
   at is refused.
+- **Phase R, Remote's state:** a page with Remote data hydrates with the data
+  present and no request, and with the node the server rendered; a field no
+  Surface selects is not in the page; a part that is missing, unknown or does
+  not restore refuses the page; a covered Remote read passes the coverage
+  check. `foldkit-remote`'s own tests pin the capture: relations, connection
+  boundaries, stale marks, live cursors under the key the live entry uses,
+  and retention keeping what was resumed.

@@ -67,6 +67,28 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly local: ReadonlyArray<ReadonlyArray<string>>
   /** The Surfaces the browser may activate, which the plan must cover. */
   readonly surfaces: ReadonlyArray<ActiveSurface<Model>>
+  /** State another package owns, each captured and restored by that package. */
+  readonly parts: ReadonlyArray<ResumePart<Model>>
+}
+
+/**
+ * A package's contribution to the envelope, for state the plan's slice cannot
+ * carry, such as Remote's normalized store. On the server `capture` takes what
+ * the active Surfaces' projections read and returns it as JSON; in the browser
+ * `restore` sets it onto the Model, or says why it cannot. A part owns its
+ * encoding: this package only carries the value.
+ *
+ * `covers` names the metadata keys whose reads the part resumes, so the
+ * coverage check counts those reads as sent. `Remote.resume(Data)` is one.
+ */
+export interface ResumePart<Model> {
+  readonly id: string
+  readonly covers: ReadonlyArray<string>
+  readonly capture: (
+    model: Model,
+    projections: ReadonlyArray<{ readonly metadata: Metadata }>,
+  ) => unknown
+  readonly restore: (model: Model, value: unknown) => Result.Result<Model, string>
 }
 
 /** Why a page's resume envelope was refused. */
@@ -114,9 +136,17 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     readonly boot?: ((model: Model) => Commands) | undefined
     readonly local?: ReadonlyArray<{ readonly dependency: ReadonlyArray<string> }> | undefined
     readonly surfaces?: ReadonlyArray<ActiveSurface<Model>> | undefined
+    readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
   },
 ): ResumePlan<Model, Fields, Commands> => {
   const surfaces = config.surfaces ?? []
+  const parts = config.parts ?? []
+  const repeated = parts.find((part, index) => parts.findIndex(p => p.id === part.id) !== index)
+  if (repeated !== undefined) {
+    throw new Error(
+      `SSR.plan: two parts of plan "${config.id}" share the id "${repeated.id}"; give one an id of its own`,
+    )
+  }
   const foreign = surfaces.find(
     surface => application.owner !== undefined && surface.owner !== application.owner,
   )
@@ -132,6 +162,7 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     ...(config.boot === undefined ? {} : { boot: config.boot }),
     local: (config.local ?? []).map(place => place.dependency),
     surfaces,
+    parts,
   }
 }
 
@@ -150,21 +181,77 @@ const pathKey = (route: string): string => {
   return trimmed === '' ? '/' : trimmed
 }
 
+/** The projections of the plan's Surfaces that are active for `model`. */
+const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+) =>
+  plan.surfaces.flatMap(surface => {
+    const projection = surface.projectionOf(model)
+    return projection === undefined ? [] : [projection]
+  })
+
+/**
+ * What the envelope carries of `model`: the plan's slice, encoded through its
+ * own Schema, and each part's capture.
+ */
+const payloadOf = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+) => {
+  const state = Schema.encodeSync(codecOf(plan.state.schema))(plan.state.get(model))
+  if (plan.parts.length === 0) return { state }
+  const projections = activeProjections(plan, model)
+  return {
+    state,
+    parts: Object.fromEntries(plan.parts.map(part => [part.id, part.capture(model, projections)])),
+  }
+}
+
+/**
+ * The Model a payload resumes: the baseline with the slice set onto it, then
+ * each part restored, in order. Every part the plan names must be there and
+ * restore, and no other may be: a page is never half-restored.
+ */
+const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  payload: { readonly state: unknown; readonly parts?: unknown },
+): Result.Result<Model, string> => {
+  const decoded = Schema.decodeUnknownResult(codecOf(plan.state.schema))(payload.state)
+  if (Result.isFailure(decoded)) {
+    return Result.fail(`the envelope's state does not decode: ${decoded.failure.message}`)
+  }
+  const parts = (payload.parts ?? {}) as Readonly<Record<string, unknown>>
+  const unknown = Object.keys(parts).find(id => !plan.parts.some(part => part.id === id))
+  if (unknown !== undefined) {
+    return Result.fail(`the envelope carries a part "${unknown}" the plan does not name`)
+  }
+  let model = plan.state.set(plan.baseline, decoded.success)
+  for (const part of plan.parts) {
+    if (!(part.id in parts)) return Result.fail(`the envelope carries no "${part.id}" part`)
+    const restored = part.restore(model, parts[part.id])
+    if (Result.isFailure(restored)) {
+      return Result.fail(`the "${part.id}" part does not restore: ${restored.failure}`)
+    }
+    model = restored.success
+  }
+  return Result.succeed(model)
+}
+
 /**
  * The script a server writes into its page's template: the plan's slice of
- * `model`, encoded through the slice's own Schema, and the route it was
- * rendered for, if it was rendered for one.
+ * `model`, encoded through the slice's own Schema, each part's capture, and
+ * the route it was rendered for, if it was rendered for one.
  */
 const envelope = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,
   model: Model,
   options: { readonly route?: string | undefined; readonly match?: RouteMatch | undefined } = {},
 ): string => {
-  const state = Schema.encodeSync(codecOf(resume.state.schema))(resume.state.get(model))
   const body = serializeJsonScript({
     v: PROTOCOL,
     plan: resume.id,
-    state,
+    ...payloadOf(resume, model),
     ...(options.route === undefined ? {} : { route: options.route }),
     ...(options.match === 'path' ? { match: 'path' } : {}),
   })
@@ -193,7 +280,7 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
   } catch (error) {
     return refuse('Unreadable', `the resume envelope is not JSON: ${String(error)}`)
   }
-  const { v, plan: id, state, route, match } = (parsed ?? {}) as Record<string, unknown>
+  const { v, plan: id, state, parts, route, match } = (parsed ?? {}) as Record<string, unknown>
   if (v !== PROTOCOL) {
     return refuse('Protocol', `the envelope is protocol ${String(v)}, not ${PROTOCOL}`)
   }
@@ -213,26 +300,23 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
       )
     }
   }
-  const decoded = Schema.decodeUnknownResult(codecOf(plan.state.schema))(state)
-  if (Result.isFailure(decoded)) {
-    return refuse('Invalid', `the envelope's state does not decode: ${decoded.failure.message}`)
-  }
-  return Result.succeed(plan.state.set(plan.baseline, decoded.success))
+  const resumed = modelFrom(plan, { state, parts })
+  return Result.isFailure(resumed)
+    ? refuse('Invalid', resumed.failure)
+    : Result.succeed(resumed.success)
 }
 
 /**
  * The Model the browser will start from when the server's Model is `model`:
- * the baseline with the slice set onto it, after a round trip through the
- * slice's Schema, exactly as the envelope carries it.
+ * the payload taken through the page as the envelope carries it, as JSON, and
+ * resumed exactly as `SSR.resume` resumes it. A part that cannot restore its
+ * own capture fails here, on the server.
  */
 const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
-): Model => {
-  const codec = codecOf(plan.state.schema)
-  const slice = Schema.decodeUnknownSync(codec)(Schema.encodeSync(codec)(plan.state.get(model)))
-  return plan.state.set(plan.baseline, slice)
-}
+): Result.Result<Model, string> =>
+  modelFrom(plan, JSON.parse(serializeJsonScript(payloadOf(plan, model))))
 
 /** Where the browser gets a Model path's value: the envelope, the baseline, or nowhere it may. */
 export type Cover = 'state' | 'local' | 'missing'
@@ -260,6 +344,8 @@ export interface PlanInspection {
   readonly id: string
   readonly state: ReadonlyArray<string>
   readonly local: ReadonlyArray<string>
+  /** The ids of the parts that resume state the slice cannot carry. */
+  readonly parts: ReadonlyArray<string>
   readonly surfaces: ReadonlyArray<SurfaceCoverage>
 }
 
@@ -308,11 +394,15 @@ const inspect = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
 ): PlanInspection => {
-  const browser = browserModelOf(plan, model)
+  const resumed = browserModelOf(plan, model)
+  if (Result.isFailure(resumed)) throw new Error(`SSR.inspect: ${resumed.failure}`)
+  const browser = resumed.success
+  const covered = new Set(plan.parts.flatMap(part => part.covers))
   return {
     id: plan.id,
     state: plan.state.dependencies.map(pathOf),
     local: plan.local.map(pathOf),
+    parts: plan.parts.map(part => part.id),
     surfaces: plan.surfaces.map(surface => {
       const served = surface.projectionOf(model)
       return {
@@ -330,7 +420,10 @@ const inspect = <Model, Fields extends Schema.Struct.Fields>(
           path: pathOf(path),
           cover: coverOf(path, plan),
         })),
-        unresumed: served === undefined ? [] : Metadata.summarize(served.metadata),
+        unresumed:
+          served === undefined
+            ? []
+            : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
         sameInBrowser: readsKey(served) === readsKey(surface.projectionOf(browser)),
       }
     }),
@@ -370,6 +463,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'ViewDependsOnUnsentState',
     'DuplicateStaticRegion',
     'UngeneratablePath',
+    'UnrestorablePart',
   ]),
   message: Schema.String,
 }) {}
@@ -602,6 +696,12 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       })
     }
 
+    const resumed = browserModelOf(plan, started.model)
+    if (Result.isFailure(resumed)) {
+      return yield* new ResumeUnsafe({ reason: 'UnrestorablePart', message: resumed.failure })
+    }
+    const browser = resumed.success
+
     const uncovered = shortfalls(inspect(plan, started.model))
     if (uncovered.length > 0) {
       return yield* new ResumeUnsafe({
@@ -610,7 +710,6 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       })
     }
 
-    const browser = browserModelOf(plan, started.model)
     // With no `Flags` key in the config, Foldkit writes no Flags script.
     const rendered = yield* renderToString(
       withStatic(startingFrom(config, { model: browser }), { mode: 'replay', regions }) as never,

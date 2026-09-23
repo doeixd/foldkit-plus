@@ -1,9 +1,10 @@
 # foldkit-ssr
 
-**In development and unpublished.** Phases 0–5 of its plan are built: render on
-the server or at build time (`SSR.generate`), the browser takes the page over
-without rerunning `init`, a plan is checked against the Surfaces the browser
-reads, and `SSR.static` regions belong to the server alone.
+**In development and unpublished.** Phases 0–5, U and R of its plan are built:
+render on the server or at build time (`SSR.generate`), the browser takes the
+page over without rerunning `init`, a plan is checked against the Surfaces the
+browser reads, `SSR.static` regions belong to the server alone, and Remote's
+data crosses through `parts`.
 
 ## What it owns
 
@@ -45,8 +46,13 @@ SSR.hydrate(config, Editor, { buildId })
   `canonical`, `ogUrl`). Add the field to `state` or stop reading it. Foldkit
   0.163 gives `canonical` no default: derive it from the route in the Model.
 - A Surface in `surfaces` that reads or is activated by a field in neither
-  `state` nor `local`, reads Remote data (no resume part for it yet), or
-  activates differently from the browser's Model fails with `Uncovered`.
+  `state` nor `local`, reads Remote data no part resumes, or activates
+  differently from the browser's Model fails with `Uncovered`.
+- `parts: [Remote.resume(Data)]` sends what the active Surfaces read from
+  Remote's store (fields through relations, connection boundaries, live
+  cursors) and nothing else; the browser refetches none of it. A part that
+  cannot restore its own capture fails with `UnrestorablePart`; a page missing
+  a part, or carrying an unknown one, is refused (`Invalid`).
   `SSR.inspect(plan, model)` shows each read's cover. The check runs for the
   server's Model, since a Surface's reads follow its params.
 - `SSR.static('id', ih => [...])` in a view: rendered once on the server with

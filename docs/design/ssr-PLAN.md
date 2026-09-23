@@ -1,8 +1,7 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 5 and U done. Next, in order: Remote's resume
-(Phase R), delivery through Foldkit's fetch handler
-(Phase 6), then the resumable track (Phases A to F). Written 2026-09-22 against
+**Status:** Phases 0 to 5, U and R done. Next, in order: delivery through
+Foldkit's fetch handler (Phase 6), then the resumable track (Phases A to F). Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -480,6 +479,45 @@ Then `Remote.resume(Data, { surfaces })` as a part.
   what was resumed; a live subscription started after a delay receives what
   was published in between.
 - Gate: Phase 3 and Phase U.
+
+**Done.** `ResumePart` and `SSR.plan({ parts })` in `foldkit-ssr`, and
+`Remote.resume(Data)` in `foldkit-remote`, which returns an object of that
+shape without importing `foldkit-ssr`, so neither package depends on the other.
+Remote's side has fourteen tests and `foldkit-ssr`'s eight; eighteen of twenty
+mutations turned a test red once five tests were added for survivors, and the
+last was equivalent (capturing a projection twice captures the same thing).
+Decided and found on the way:
+
+- **The capture is per field, not per entity.** Retention's `reachable` and the
+  store's `gc` work on whole entities, and a whole entity carries fields no
+  view selects, a user's email say, into the page's HTML. The capture walks
+  requirements the way the read planner's `reachedMarks` does and copies only
+  the fields named, through relations, and each connection's items by its
+  selection.
+- **Restore is a function, not a Remote Message.** The plan said "through
+  `updateRemote`". It runs on the baseline before the runtime starts, where no
+  Message is dispatched, and a new case in Remote's Message union would widen
+  every application's. `restoreRemote` sets the captured entries, connections
+  and live states and touches nothing else of the store.
+- **One path for what the page carries.** `payloadOf` builds the envelope's
+  body, `modelFrom` rebuilds the Model from one, and `SSR.envelope`,
+  `SSR.resume`, and the server's model of the browser (for the view and
+  coverage checks) all use them. The server's copy goes through the same JSON
+  text the page carries, so the view check sees what the browser will.
+- **A live stream's key is what the whole Surface group asks, merged per
+  entity.** A page reading `Project:p1` in a detail and live has one stream
+  keyed `Project:p1:name,owner`, not one per projection. The capture keeps a
+  live state when every entity in its key was captured with the fields the key
+  names, which holds whatever the grouping, and its test takes the key from
+  the live entry itself.
+- **Deferrability is not declared yet.** The bullet above has the part declare
+  Remote's entries deferrable (decision 10). Nothing reads such a declaration
+  until Phase C builds deferred boot, so the declaration and its first reader
+  land together there, with the reasons already recorded here.
+- The plan's "load more works" test is pinned at the store: after a restore the
+  page reads `hasNext` and plans no request. Clicking it in a hydrated page
+  waits for an application that pages, which Phase 6's delivery tests will
+  have.
 
 ### Phase U: move to Foldkit 0.163
 
