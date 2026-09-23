@@ -268,6 +268,12 @@ describe('a form with nested keys', () => {
     // The author form asks whether "Root" is taken; the row lifts that Command.
     const asked = step(PostForm.initial, named('r0', 'Root'))
     expect(asked.commands?.map(command => command.name)).toEqual(['PostForm.author.check'])
+    // The lifted Command is typed by this form's Message, but Story resolves it
+    // with the inner form's answer and replays the recorded lift itself.
+    const check = asked.commands![0]! as unknown as Readonly<{
+      name: string
+      effect: Effect.Effect<typeof AuthorForm.Message.Type>
+    }>
     // Story replays the recorded lift: the inner answer lands as `Nested`, and
     // this form's update reduces it into the row.
     Story.story(
@@ -275,7 +281,7 @@ describe('a form with nested keys', () => {
       Story.given(PostForm.initial),
       Story.message(named('r0', 'Root')),
       Story.Command.resolve(
-        asked.commands![0]!,
+        check,
         AuthorForm.Message.Checked({ key: 'name', draft: 'Root', error: 'Root is taken' }),
       ),
       Story.model(model => {
