@@ -48,14 +48,14 @@ fights it. Our resolver has the same property: `resolver.ts:142-175` merges
 from a Style or from a Behavior's `attributes`. Events and scalar attributes
 have one owner; style properties do not.
 
-**Decision.** A style property gets one owner too, with one exception: two
-Styles may layer (that is what `Style.compose` and `Style.when` are for), but
-a Behavior and a Style may not both set the same property. Add
-`mixins:style-property-conflict`, raised at render like the event conflict,
-naming the property and both owners. A Behavior that positions an element
-declares the properties it owns in `Behavior.slot({ styles: ['position',
-'left', 'top'] })`, and `forSlots` checks them against the slot's
-`protected.style` the way it checks events today.
+**Decision (done).** A style property gets one owner too, with one exception: two
+Styles may layer (that is what `Style.compose` and `Style.when` are for), and a
+Style may override the view's base, but a Behavior's property has no other
+writer and a Style may not overwrite what a Behavior set.
+`mixins:style-property-conflict` is raised at render like the event conflict,
+naming the property and both owners. No declaration was needed: a Behavior's
+`h.Style` in its attributes is the ownership claim, and the resolver already
+checks `protected.style` on every write.
 
 ### 2. Environment inputs as services read at transition time
 

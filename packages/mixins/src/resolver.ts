@@ -85,6 +85,10 @@ export const resolve = <Message>(
   const classes: Array<string> = []
   const classSeen = new Set<string>()
   const style = new Map<string, string>()
+  // Who wrote each inline style property. Style pieces layer over the base and
+  // over each other (that is restyling); a Behavior's property has one owner,
+  // and a Style piece may not overwrite what a Behavior set.
+  const styleOwners = new Map<string, 'base' | 'style' | 'behavior'>()
   const mounts: Array<MountAction<Message, any>> = []
   const mountNames = new Map<string, number>()
   const preserved: Array<Attribute<Message> | ChildAttribute> = []
@@ -104,6 +108,33 @@ export const resolve = <Message>(
     if (classSeen.has(token)) return
     classSeen.add(token)
     classes.push(token)
+  }
+
+  const writeStyle = (
+    property: string,
+    value: string,
+    writer: 'base' | 'style' | 'behavior',
+  ): void => {
+    if (writer !== 'base' && protectedStyle.has(property)) {
+      fail(
+        'mixins:protected-style-property',
+        `slot "${slot ?? '?'}" protects style property "${property}"`,
+        { property },
+      )
+    }
+    const owner = styleOwners.get(property)
+    if (
+      (writer === 'behavior' && owner !== undefined) ||
+      (writer === 'style' && owner === 'behavior')
+    ) {
+      fail(
+        'mixins:style-property-conflict',
+        `two owners for style property "${property}": ${owner === 'base' ? 'the view' : owner === 'style' ? 'a Style' : 'a Behavior'} already sets it`,
+        { property, owner, writer },
+      )
+    }
+    if (owner === undefined || writer === 'behavior') styleOwners.set(property, writer)
+    style.set(property, value)
   }
 
   const addMount = (action: MountAction<Message, any>): void => {
@@ -140,7 +171,9 @@ export const resolve = <Message>(
         for (const token of splitClasses(attribute.value)) addClass(token)
         return
       case 'Style':
-        for (const [property, value] of Object.entries(attribute.value)) style.set(property, value)
+        for (const [property, value] of Object.entries(attribute.value)) {
+          writeStyle(property, value, 'base')
+        }
         return
       case 'OnMount':
         addMount(attribute.action)
@@ -164,15 +197,9 @@ export const resolve = <Message>(
         for (const token of splitClasses(attribute.value)) addClass(token)
         return
       case 'Style':
+        // A `Style` attribute inside a contribution's attributes is a Behavior's.
         for (const [property, value] of Object.entries(attribute.value)) {
-          if (protectedStyle.has(property)) {
-            fail(
-              'mixins:protected-style-property',
-              `slot "${slot ?? '?'}" protects style property "${property}"`,
-              { property },
-            )
-          }
-          style.set(property, value)
+          writeStyle(property, value, 'behavior')
         }
         return
       case 'OnMount':
@@ -231,14 +258,7 @@ export const resolve = <Message>(
   for (const contribution of contributions) {
     for (const token of contribution.classes ?? []) addClass(token)
     for (const [property, value] of Object.entries(contribution.style ?? {})) {
-      if (protectedStyle.has(property)) {
-        fail(
-          'mixins:protected-style-property',
-          `slot "${slot ?? '?'}" protects style property "${property}"`,
-          { property },
-        )
-      }
-      style.set(property, value)
+      writeStyle(property, value, 'style')
     }
     for (const attribute of contribution.attributes ?? []) applyMixinAttribute(attribute)
     for (const mount of contribution.mounts ?? []) addMount(mount)

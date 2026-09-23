@@ -183,15 +183,19 @@ returns HTML; it does not inject a stylesheet for you.
 Attachments are not concatenated and left to renderer order. The resolver applies explicit rules:
 
 - classes are additive and deduplicated into one `Class`;
-- inline styles merge per property, with later attachments winning per property;
+- inline styles from Style pieces merge per property, later attachments winning, over the
+  view's base; a property a Behavior sets (through `h.Style` in its attributes) has exactly one
+  owner, so a Style piece, the base, or a second Behavior setting the same property is an error;
 - an event or scalar attribute has exactly one owner — a second owner is an error;
 - a `ChildAttribute` (a Submodel's published handler) is preserved by identity;
 - `Key` and `InnerHTML` are structural and cannot be overridden;
 - multiple mount contributions compose into exactly one `OnMount`.
 
 Conflicts throw `Diagnostics.DiagnosticError` with stable codes such as
-`mixins:event-conflict` and `mixins:protected-attribute`, so tests, DevTools and editor tooling can
-all speak the same diagnostic language.
+`mixins:event-conflict`, `mixins:style-property-conflict` and `mixins:protected-attribute`, so tests,
+DevTools and editor tooling can all speak the same diagnostic language. The style rule exists
+because a positioning Behavior that writes `top` and a Style that also sets `top` would otherwise
+fight silently, last writer winning.
 
 ## Slots: the public contract
 

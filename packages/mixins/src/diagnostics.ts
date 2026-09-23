@@ -13,6 +13,7 @@ export type DiagnosticCode =
   | 'mixins:protected-event'
   | 'mixins:protected-attribute'
   | 'mixins:protected-style-property'
+  | 'mixins:style-property-conflict'
   | 'mixins:event-conflict'
   | 'mixins:attribute-conflict'
   | 'mixins:structural-override'

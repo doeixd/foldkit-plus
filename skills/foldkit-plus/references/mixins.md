@@ -43,13 +43,15 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   (capability/events/attributes) is checked against the slot **when `forSlots` runs**.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
 - `protected: { events, attributes, style }` forbids attachments from supplying those.
-- **Resolver rules:** classes additive + deduped into one `Class`; inline style merged per
-  property (later wins); each event / scalar attribute has exactly one owner (base or one mixin);
+- **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style
+  merged per property (later wins) over the base, but a property a Behavior sets via `h.Style`
+  has one owner (`mixins:style-property-conflict` otherwise); each event / scalar attribute has
+  exactly one owner (base or one mixin);
   `ChildAttribute` preserved by identity and reserves its event; `Key`/`InnerHTML` cannot come
   from a mixin; all mounts compose into one `OnMount`.
 - Diagnostics you will hit (`Diagnostics.DiagnosticError`, `.diagnostic.code`):
   `mixins:unknown-slot`, `mixins:capability-mismatch`, `mixins:event-conflict`,
-  `mixins:attribute-conflict`.
+  `mixins:attribute-conflict`, `mixins:style-property-conflict`.
 
 ## 3. Minimal example (`foldkit-mixins` alone)
 

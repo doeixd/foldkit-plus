@@ -37,6 +37,37 @@ describe('Resolver.resolve', () => {
     expect(out.filter(attribute => tagOf(attribute) === 'Class')).toHaveLength(1)
   })
 
+  it('gives a style property one owner between a Behavior and anything else', () => {
+    const behaviorStyle = { attributes: [h.Style({ position: 'absolute', top: '4px' })] }
+    // A Behavior may set a property nothing else set.
+    expect(styleOf(Resolver.resolve([], [behaviorStyle]))).toEqual({
+      position: 'absolute',
+      top: '4px',
+    })
+    // A Style piece may not overwrite it, in either order.
+    expect(codeOf(() => Resolver.resolve([], [behaviorStyle, { style: { top: '0' } }]))).toBe(
+      'mixins:style-property-conflict',
+    )
+    expect(codeOf(() => Resolver.resolve([], [{ style: { top: '0' } }, behaviorStyle]))).toBe(
+      'mixins:style-property-conflict',
+    )
+    // Nor may the view's own base, or a second Behavior.
+    expect(codeOf(() => Resolver.resolve([h.Style({ top: '0' })], [behaviorStyle]))).toBe(
+      'mixins:style-property-conflict',
+    )
+    expect(
+      codeOf(() =>
+        Resolver.resolve([], [behaviorStyle, { attributes: [h.Style({ position: 'fixed' })] }]),
+      ),
+    ).toBe('mixins:style-property-conflict')
+    // Different properties from both channels coexist.
+    expect(styleOf(Resolver.resolve([], [behaviorStyle, { style: { color: 'red' } }]))).toEqual({
+      position: 'absolute',
+      top: '4px',
+      color: 'red',
+    })
+  })
+
   it('merges inline style per property in attachment order, emitting one Style', () => {
     const out = Resolver.resolve(
       [h.Style({ color: 'red', padding: '1px' })],
