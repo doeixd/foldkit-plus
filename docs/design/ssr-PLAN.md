@@ -7,7 +7,8 @@
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
 changed](#what-changed-upstream-foldkit-0159-to-0163) and for
-[resumable-DESIGN.md](./resumable-DESIGN.md).
+[resumable-DESIGN.md](./resumable-DESIGN.md), whose effect on the phases already
+built is [its own section](#what-the-resumable-design-changes-here).
 
 **Source:** [SSR-DESIGN.txt](./SSR-DESIGN.txt), the 3,000-line design. This plan
 does not restate it. It records what checking the design against the code found,
@@ -115,6 +116,61 @@ claims checked against the published 0.163.0 declarations:
   design asks for. See [Beyond this plan](#beyond-this-plan) for how the ask is
   reframed.
 
+## What the resumable design changes here
+
+[resumable-DESIGN.md](./resumable-DESIGN.md) adds a second thing to the page:
+beside the state that crosses, which Message each element causes, so the view
+need not run until the first one. It is written as an extension, but it
+reaches back into what Phases 1 to 5 built, and checking it against them found
+four things it needs that it does not say, and one place it contradicts
+itself. Each is decided here or in the phase it lands in.
+
+- **The view check must cover bindings, or rule 6 fails silently.** The
+  server's second render, from the browser's Model (Phase 2), would produce
+  the same markers, since ordinals only count, but a Message built from a
+  field the plan does not send, `OnClick(Liked({ id: model.post.id }))` with
+  `post.id` unsent, would differ between the two manifests. A click before
+  boot would then dispatch the server's Message and the same click after boot
+  the browser's, which is exactly what the design's rule 6 forbids. So the
+  second render's manifest must equal the first's, and a binding that differs
+  is `ViewDependsOnUnsentState`, naming the element. Phase A.
+- **A page is validated whole, at load.** The design's rule 5 refuses the page
+  for a marker without a manifest entry; its §2 refuses only the event and
+  logs it. The page wins: `SSR.resume` decodes the whole manifest and checks
+  every marker in the root against it when the page loads, before any event,
+  and a page that fails is refused and contained as any other (decision 3).
+  After load no marker can appear, so there is no per-event refusal left to
+  define. Phase B.
+- **A resumable page must declare its Surfaces.** The manifest is decoded
+  through the Message union restricted to the tags active Surfaces may send
+  (rule 3). That set comes from the plan's `surfaces` (Phase 3), so a plan
+  whose page has bindings and no `surfaces` is refused at render rather than
+  decoded against every tag. Phase D.
+- **"Active" is the wrong test for deferring boot.** `EagerStartRequired`
+  refuses deferral while any Subscription or Managed Resource is active for the
+  sent Model. Remote's entries show why that is too blunt, read from
+  `packages/remote/src/index.ts`: under the default cache-first policy the read entry plans nothing once
+  resumed data is present, so it starts, emits nothing and ends (a refreshing
+  policy only refreshes later); the live entry
+  subscribes from the cursor in the Model, so a late start misses nothing once
+  Phase R sends the cursor; and the retention entry always emits, but
+  collecting late is harmless. Asked "is it active?", all three say yes, and
+  no page using Remote could ever defer. Asked "does starting late change what
+  happens?", all three say no. That cannot be inferred from an entry, so it is
+  declared (decision 10), and Phase R declares Remote's.
+- **The envelope stays one script, and its version stays 1.** The manifest is
+  one more optional field. A page from another build is refused on its build
+  id before the envelope is read, so a server and a browser that disagree on
+  the envelope's fields cannot meet; the version moves when a field changes
+  meaning, not when one is added.
+
+Two things it confirms rather than changes: Phase 4's render context is where
+the manifest is collected, as the design says, one context holding regions and
+bindings together, and the inert builder already keeps bindings out of static
+regions; and Phase 5's generated pages can be resumable like any other,
+  but cannot use Phase E's server fallback, since a static host has nothing to
+  post to.
+
 ## Decisions
 
 The design leaves these open, or the review found the first answer wrong. Each
@@ -184,6 +240,17 @@ it.
    Model, like `title`. Phase 2's view check compares only the body, so a head
    field read from a field the plan leaves out would change in the browser
    unnoticed. Phase U extends the check to the head.
+10. **Whether an entry may start late is declared, not inferred.** Deferring
+    boot (the resumable track's `start: 'idle' | 'on-interaction'`) is refused
+    while a Subscription or Managed Resource that is active for the sent Model
+    has not been declared deferrable. A plan declares entries by key, and a
+    resume part declares its own package's; nothing is deferrable by default,
+    because a late WebSocket or timer is a behaviour change.
+11. **What the page says an element does is checked like what it shows.** The
+    bindings manifest is compared between the server's two renders exactly as
+    the body and head are (decision 9), and decoded at load exactly as the
+    state is (decision 3). A binding is never trusted from the page further
+    than its ordinal.
 
 ## Phases
 
@@ -402,11 +469,17 @@ test:
 
 Then `Remote.resume(Data, { surfaces })` as a part.
 
+- The part also declares Remote's Subscription entries deferrable (decision
+  10): a read with its data resumed plans nothing, a live subscription resumes
+  from the cursor the envelope carries, and retention running late collects
+  late. That is what lets a Remote page use the resumable track's deferred
+  boot at all.
 - Tests: a page rendered with Remote data hydrates with the data present and
   makes no request for it; a list's "load more" works on the client; data no
   Surface needs is not in the payload; retention on the client does not collect
-  what was resumed.
-- Gate: Phase 3.
+  what was resumed; a live subscription started after a delay receives what
+  was published in between.
+- Gate: Phase 3 and Phase U.
 
 ### Phase U: move to Foldkit 0.163
 
@@ -442,9 +515,14 @@ internals and checked again. The repository-wide upgrade is the guide's steps
 - The design's sketched `foldkit-ssr/vite` plugin, if it is built, extends
   `@foldkit/vite-plugin@0.24`'s `ssr.serverEntry` rather than owning a build
   entry.
+- `handleRequest` hands every method but `CONNECT`, `TRACE` and `TRACK` to
+  `renderPage`, `POST` included. Until Phase E, `SSR.entry` renders `GET` and
+  `HEAD` and answers any other method `405`; Phase E then routes a `POST` to
+  the fallback path to `SSR.handle`, with no second route table.
 - Tests: `handleRequest` with a page `Request` returns a `Response` that
   resumes; a hashed-asset miss is not answered with the page; a `RenderError`
-  or `ResumeUnsafe` becomes an error response, not a page that cannot resume.
+  or `ResumeUnsafe` becomes an error response, not a page that cannot resume;
+  a `POST` is answered `405`.
 - Gate: Phase U.
 
 ### Phases A to F: resumable pages
@@ -458,19 +536,31 @@ this plan's next track, in its order, and it is the source for their detail:
 - **A. The resumable builder.** `Resume.builder(h)` marks each binding with an
   ordinal and writes the encoded Message, or a member with a hole, into a
   manifest inside the envelope. Built on Phase 4's render context, which gains
-  the manifest as a fourth concern.
+  the manifest as a fourth concern. The builder reaches views through
+  `Surface.rootView` (`foldkit-surface`) and `SurfaceView.define`
+  (`foldkit-mixins-surface`), so both gain the hook, and their skill references
+  change in the same commit. Phase 2's view
+  check compares the two renders' manifests (decision 11); test that a
+  Message built from an unsent field is refused.
 - **B. Delegated dispatch.** `Resume.listen`, one capture-phase listener per
   event type at the root, honouring each binding's propagation and default
-  action as the eager page does. The manifest is decoded once, through the
-  application's Message union restricted to what the plan allows.
+  action as the eager page does. The manifest is decoded once, at load, through
+  the application's Message union restricted to what the plan allows, and
+  every marker in the root is checked against it then; a page that fails is
+  refused whole (decision 3), which settles the design's rule 5 against its
+  §2.
 - **C. Deferred boot.** `SSR.hydrate`'s `start: 'now' | 'idle' |
   'on-interaction'`, default `'now'`, with Messages queued before boot and
   replayed after Foldkit's first committed patch. `EagerStartRequired` refuses
-  deferral while a Subscription or Managed Resource is active for the sent
-  Model; re-check on 0.163 whether the boot-buffer fix makes it unnecessary.
+  deferral while an entry active for the sent Model is not declared
+  deferrable (decision 10), naming it. Re-check on 0.163 whether the
+  boot-buffer fix narrows the rule further. The plan's `boot` Commands run at
+  boot, so with deferral a `Mirror.kv` restore waits for the first
+  interaction; that is the application's choice to make with `start`.
 - **D. Coverage and static refusal.** Phase 3's check gains the Message side: a
   binding whose Message no active Surface lists in `messages` is `Uncovered`,
-  and a binding inside `SSR.static` is refused.
+  a page with bindings and no `surfaces` is refused, and a binding inside
+  `SSR.static` is refused.
 - **E. Server fallback.** `fallback: 'server'` on forms, and `SSR.handle`,
   called from Phase 6's `renderPage` for a posted Message: the server runs
   `init`, `boot`, `update` and its Commands, and renders the result.
@@ -483,8 +573,9 @@ pin. E on Phase 6. F on E and a real application that shows the boot chunk is
 dominated by Bundle bodies.
 
 The order puts Phase R before this track. A Surface that reads Remote is
-refused today (Phase 3), and a resumable page still needs its data in the
-browser before its first Message arrives.
+refused today (Phase 3), a resumable page still needs its data in the browser
+before its first Message arrives, and Phase R's deferrable declarations are
+what let a Remote page defer its boot at all.
 
 ### Beyond this plan
 
@@ -532,6 +623,11 @@ These wait on something outside this repository, and are not scheduled:
   control's value differing from the vnode is patched to the Model's, and that
   the root's app attribute is removed just before the first committed patch.
   None is an API. Each gets a test that fails the day it changes.
+- **The pre-boot window.** Between the first Message and Foldkit's first
+  committed patch, events are queued by the delegated listeners, which are
+  removed in that commit. A double dispatch or a lost event there is the
+  resumable track's likeliest bug, and effect-atom-jsx's first audit found
+  exactly that. Phase C tests fire during the window and count dispatches.
 - **Foldkit's server module is experimental**, and `handleRequest`,
   `EntryResult` and `toResponse` say so. Phase 6 wraps as little of them as it
   can.
