@@ -127,12 +127,16 @@ not yet drive parsing or `apply`.
 - `AddMark` appends a missing mark to one run; `RemoveMark` filters a present
   mark away. Redundant mark edits are no-ops that preserve state identity.
   Mark edits dirty the run and its block without emitting position steps.
-- `SplitNode` splits one block at a run offset into two: runs before the split
-  stay (trailing runs move right with their ids), the split run keeps its id on
+- `SplitNode` splits one block at a run offset into two: runs before the split  stay (trailing runs move right with their ids), the split run keeps its id on
   the left, and the right remainder takes the caller-supplied run id under a
   caller-supplied block id of the same block type. Splitting an empty block is
   rejected; split that via node insertion once it exists. New identities must be
   fresh within the transaction.
+- `SplitRun` divides one run at an offset so each side can carry different
+  marks; the left keeps the identity, the right takes the caller-supplied id
+  and inherits the marks. Splitting at 0 is a no-op. A bare split (no
+  subsequent difference) is normalized away by the merge pass, so a split is
+  only meaningful together with an edit that makes the sides differ.
 - `JoinNode` moves every run of the removed block into the surviving previous
   sibling, preserving run identities, marks, and range selections without
   emitting position steps. No runs merge (that is future normalization's job);

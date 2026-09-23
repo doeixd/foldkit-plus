@@ -88,6 +88,13 @@ RichText.apply({ document, selection: null }, [split])
 RichText.Edit.splitBlock(reference, reference, 0, 7, 'run')
 void splitBlock
 
+const splitRun = RichText.Edit.splitRun(reference, 1, 'tail')
+const splitTextId: RichText.NodeId = splitRun.textId
+RichText.apply({ document, selection: null }, [splitRun])
+// @ts-expect-error New run ids cannot be numbers.
+RichText.Edit.splitRun(reference, 1, 7)
+void splitTextId
+
 const joined = RichText.Edit.joinBlocks(reference, reference)
 const joinedInto: RichText.NodeId = joined.into
 RichText.apply({ document, selection: null }, [joined])

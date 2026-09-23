@@ -10,7 +10,7 @@ or a diagnostic with no partial result. Call `apply` inside the application's
 
 Available now: version-1 documents, explicit branded NodeIds, paragraphs,
 headings, text runs, Bold/Italic/Code marks, range and node selections,
-InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNode/SetNodeProps/InsertNode/DeleteNode,
+InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNode/SetNodeProps/InsertNode/DeleteNode/SplitRun,
 text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion,
 unknown node preservation, bounded decode limits, Kits with vocabulary

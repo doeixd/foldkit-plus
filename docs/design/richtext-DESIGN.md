@@ -3768,7 +3768,8 @@ block at a run offset with caller-supplied identities; `JoinNode` moves runs
 into the surviving previous sibling without merging. `MoveNode` reorders blocks
 without touching run identities, and `SetNodeProps` retypes heading levels.
 Kits declare a vocabulary (`RichText.kit`, `validate`) without yet driving
-parsing or `apply`.
+parsing or `apply`. `SplitRun` divides one run so each side can carry
+different marks (a bare split is normalized away).
 `InsertNode` splices caller-built blocks at explicit indexes; `DeleteNode`
 removes one block and collapses its positions to the surviving text start.
 Every transaction normalizes touched blocks by merging adjacent same-mark runs

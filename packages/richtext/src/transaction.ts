@@ -71,6 +71,12 @@ const DeleteNodeOperation = Schema.Struct({
   type: Schema.Literal('DeleteNode'),
   node: NodeId,
 })
+const SplitRunOperation = Schema.Struct({
+  type: Schema.Literal('SplitRun'),
+  node: NodeId,
+  offset: Offset,
+  textId: NodeId,
+})
 
 export const Operation = Schema.Union([
   InsertTextOperation,
@@ -84,6 +90,7 @@ export const Operation = Schema.Union([
   SetNodePropsOperation,
   InsertNodeOperation,
   DeleteNodeOperation,
+  SplitRunOperation,
 ])
 export type Operation = typeof Operation.Type
 export const Transaction = Schema.Array(Operation)
@@ -171,6 +178,18 @@ export const Edit = {
 
   deleteBlock: (node: TextTarget): Extract<Operation, { readonly type: 'DeleteNode' }> =>
     DeleteNodeOperation.make({ type: 'DeleteNode', node: targetId(node) }),
+
+  splitRun: (
+    node: TextTarget,
+    offset: number,
+    newRun: string | NodeId,
+  ): Extract<Operation, { readonly type: 'SplitRun' }> =>
+    SplitRunOperation.make({
+      type: 'SplitRun',
+      node: targetId(node),
+      offset,
+      textId: freshId(newRun),
+    }),
 }
 
 export interface ChangeSet {
@@ -316,6 +335,52 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
         return { ok: false, error: 'InvalidSelection' }
       }
       selection = operation.selection
+      continue
+    }
+    if (operation.type === 'SplitRun') {
+      const location = locations.get(operation.node)
+      if (location === undefined) return { ok: false, error: 'MissingText' }
+      const [blockIndex, textIndex] = location
+      const target = document.children[blockIndex]!
+      const run = target.children[textIndex]!
+      if (operation.offset > run.text.length) return { ok: false, error: 'InvalidRange' }
+      if (usedIds.has(operation.textId)) return { ok: false, error: 'InvalidInput' }
+      if (operation.offset === 0) {
+        // No left remainder: the new run would be an empty duplicate. Splitting
+        // at 0 is the caller's no-op, not a silent identity change.
+        continue
+      }
+      const children = [...target.children]
+      children[textIndex] = { ...run, text: run.text.slice(0, operation.offset) }
+      children.splice(textIndex + 1, 0, {
+        ...run,
+        id: operation.textId,
+        text: run.text.slice(operation.offset),
+      })
+      const blocks = [...document.children]
+      blocks[blockIndex] = { ...target, children }
+      document = { ...document, children: blocks }
+      usedIds.add(operation.textId)
+      reindex()
+      const relocate: SplitStep = {
+        node: run.id,
+        into: operation.textId,
+        at: operation.offset,
+      }
+      positionMap.push(relocate)
+      if (selection?.type === 'Range') {
+        selection = {
+          ...selection,
+          anchor: mapPosition(selection.anchor, [relocate]),
+          focus: mapPosition(selection.focus, [relocate]),
+        }
+      }
+      dirtyNodes.add(target.id)
+      dirtyNodes.add(run.id)
+      dirtyNodes.add(operation.textId)
+      textChanged.add(run.id)
+      textChanged.add(operation.textId)
+      insertedNodes.add(operation.textId)
       continue
     }
     if (operation.type === 'SplitNode') {
