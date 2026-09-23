@@ -112,3 +112,11 @@ RichText.apply({ document, selection: null }, [inserted, removed])
 // @ts-expect-error Insert positions are numbers.
 RichText.Edit.insertBlock(paragraph, '0')
 void [insertedBlock, removedNode]
+
+const boldDef: RichText.MarkDef = RichText.Bold
+const expansion: RichText.MarkExpansion = boldDef.expand
+const resolved: RichText.Position = RichText.resolveInsertion(document, referencePosition)
+const markSet: boolean = RichText.sameMarkSet(['Bold'], ['Bold'])
+// @ts-expect-error Expansions are before, after, both, or none.
+const badDef: RichText.MarkDef = { name: 'Bold', expand: 'sideways' }
+void [expansion, resolved, markSet, badDef]
