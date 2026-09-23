@@ -295,7 +295,7 @@ The first run starts on the `home` route, so no project read runs yet. Your
 route update must activate `{ _tag: 'project', projectId: 'p1' }`, and the
 runtime must install `subscriptions`. The page then reads `Initial` until work
 starts, `Loading` during the first request, and `Ready` once its result is
-reduced. If it stays `Initial`, the next section says why.
+reduced. If it stays `Initial`, see [Why is it still `Initial`?](#why-is-it-still-initial).
 
 ## Routing Remote's Messages
 
