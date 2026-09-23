@@ -1,5 +1,9 @@
 # A catalog of ready-made Behaviors
 
+**Progress (2026-09-23):** Phases A and B are built and committed: the per-item
+context, `Behaviors.Collection` in `foldkit-mixins`, and `RovingTabindex`,
+`Typeahead`, `ListNavigation`, `FocusScope` in `foldkit-primitives/interaction`.
+
 **Revised 2026-09-23:** no new package. Entries live where their dependencies
 already are: stateless ones in `foldkit-mixins`, stateful ones in
 `foldkit-primitives` beside the Bundles they extend. See "Where each entry
@@ -216,9 +220,11 @@ before it is code.
   Bundle and no `Mutation()` Mount; a pure `Collection.of(items, { id,
   disabled })` describes it and a Behavior writes ids and `aria-posinset`.
   Test: a duplicate id is refused; per-item attributes follow the item.
-- **B. Focus.** `RovingTabindex`, `Typeahead`, `ListNavigation`,
-  `FocusScope`. Test: RTL flips, `tabindex` restored on dispose, restore on
-  deactivate, no `item-N` anywhere.
+- **B. Focus.** Done. `RovingTabindex`, `Typeahead`, `ListNavigation`,
+  `FocusScope`. Tests: RTL flips; nothing to restore on dispose because
+  `tabindex` is data; focus restored on unmount; ids come from Collection, so
+  no `item-N`; and the one-owner-per-event rule that makes ListNavigation one
+  Bundle is pinned.
 - **C. Interaction.** `Press`, `LongPress`, `Move`, `FocusVisible`, `Hover`
   over `hoverIntent`. Test: `TestClock` advances the suppression window; a
   virtual click presses; `pointercancel` cancels.
