@@ -1,6 +1,9 @@
 # Resumable Foldkit
 
-**Status:** design, 2026-09-23. Extends [ssr-PLAN.md](./ssr-PLAN.md) and
+**Status:** design, 2026-09-23, revised the same day where checking it against
+the built phases found gaps ([ssr-PLAN.md, "What the resumable design changes
+here"](./ssr-PLAN.md#what-the-resumable-design-changes-here)); its phases are
+scheduled there as Phases A to F. Extends [ssr-PLAN.md](./ssr-PLAN.md) and
 [SSR-DESIGN.txt](./SSR-DESIGN.txt) §26–27, which parked "binding-level
 resumability" as research. This document argues it is not research for Foldkit,
 because Foldkit already has the two things Qwik's compiler exists to
@@ -135,18 +138,27 @@ test, never by convention.
 3. **A manifest may only carry Messages an active Surface may send.**
    Surface's `messages` list is not documentation; it is the allow list for
    collection on the server and for decoding in the browser. A decoded
-   Message with a tag outside the plan's allowed set is refused.
+   Message with a tag outside the plan's allowed set is refused, and a plan
+   whose page has bindings but declares no `surfaces` is refused at render,
+   since it has no allowed set to decode against.
    *Checked:* Phase 3's coverage on the server, the decoder in the browser.
 4. **Server-owned markup is `SSR.static`; anything a Message changes is in a
    Surface.** A binding inside a static region is refused. *Checked:* render.
 5. **Identity is ordinal.** Markers number bindings in render order and match
    the same render's manifest. No code id, no source position, no build-stable
-   name, because no code is addressed except `update`. *Checked:* a marker
-   without a manifest entry, or a manifest from another build, refuses the
-   page.
+   name, because no code is addressed except `update`. *Checked:* at load,
+   before any event: a marker without a manifest entry, an entry that does not
+   decode, or a manifest from another build refuses the whole page (see
+   Delegated dispatch).
 6. **The resumed page reaches the same Model as the eager page for the same
    events.** This is the invariant the other five serve, and it is directly
    testable: run both against a recorded event sequence and compare Models.
+   *Checked on the server too:* the second render, from the browser's Model,
+   must produce the same manifest as the first. A Message built from a field
+   the plan does not send (`Liked({ id: model.post.id })` with `post.id`
+   unsent) keeps its ordinal but changes its entry, so a click before boot
+   would dispatch the server's Message and after boot the browser's. That is
+   `ViewDependsOnUnsentState`, naming the element.
 
 ## Why this is native, not bolted on
 
@@ -173,10 +185,10 @@ manifest is meaningless without a resume plan.
 
 ### 1. The resumable builder
 
-Views built for a Surface receive `h` from `Surface.rootView` or
-`SurfaceView.define`. Those wrappers already own the builder handed to the view,
-so that is where a derived builder is installed. Nothing changes in Foldkit
-core.
+Views built for a Surface receive `h` from `Surface.rootView`
+(`foldkit-surface`) or `SurfaceView.define` (`foldkit-mixins-surface`). Those
+wrappers already own the builder handed to the view, so that is where a derived
+builder is installed, in both packages. Nothing changes in Foldkit core.
 
 ```ts
 const rh = Resume.builder(h) // HtmlBuilder<Message>, same type, same behavior in the browser
@@ -279,9 +291,17 @@ field is the **application's** Message union, restricted to the tags the plan
 allows. That decode is the security boundary. The page is untrusted after it
 is served; a marker is a number, and a manifest entry is data until the Schema
 says it is a Message the application declared and a Surface may send. A Date
-or an Option field comes back typed. A tampered entry, or a marker without an
-entry, refuses the event and logs it. Nothing is trusted from a
-`data-` attribute except an ordinal.
+or an Option field comes back typed. Nothing is trusted from a `data-`
+attribute except an ordinal.
+
+A tampered page is refused **whole, at load**, not event by event. When the
+page loads, `SSR.resume` decodes every entry and checks every marker in the
+root against the manifest; an entry that does not decode, or a marker with no
+entry, refuses the page and contains it as any other refusal does, with the
+reason logged. So no event ever reaches a marker that was not checked, and
+there is no per-event refusal to define. An earlier draft refused only the
+event; that would leave a half-working page, which the resume protocol never
+allows.
 
 ### 3. Deferred boot
 
@@ -318,10 +338,23 @@ for the resumed Model would start late, and a late WebSocket or timer is a
 behavior change, not an optimization. The server knows the config's
 `subscriptions` and `managedResources`, so `SSR.render` evaluates each entry's
 `modelToDependencies` or `modelToMaybeRequirements` against the Model it is
-sending and refuses `'idle'` and `'on-interaction'` with
-`ResumeUnsafe: EagerStartRequired`, naming the entries. An entry that activates
-only after a Message is fine, because boot happens on that Message. Mounts are
-view-owned and run when the view does, so they need no rule.
+sending, and refuses `'idle'` and `'on-interaction'` with
+`ResumeUnsafe: EagerStartRequired`, naming the entries, **unless each active
+entry is declared deferrable**. An entry that activates only after a Message
+is fine, because boot happens on that Message. Mounts are view-owned and run
+when the view does, so they need no rule.
+
+"Active" alone is too blunt a test, and Remote shows why. Under the default
+cache-first policy, Remote's read entry plans nothing once resumed data is
+present, so it starts, emits nothing, and ends; its live entry subscribes from
+the cursor in the Model, so a late start misses nothing once the envelope
+carries the cursor; its retention entry always emits, but collecting late is
+harmless. All three are active, so the blunt rule would refuse deferral on
+every page that uses Remote, though none behaves differently started late.
+Whether starting late changes anything cannot be read off an entry, so it is
+declared: a plan names deferrable entries by key, a resume part declares its
+own package's (Remote's part declares these three), and nothing is deferrable
+by default.
 
 `boot` Commands from the plan run at boot as they do now. A page whose `boot`
 restores a `Mirror.kv` draft therefore restores it on first interaction. If
@@ -449,17 +482,23 @@ Each ends in a test that can fail. Gate is the phase it builds on.
 
 - **A. The resumable builder and its attributes.** `Resume.builder(h)`,
   encoding for both attribute kinds, the type check on the hole, attributes
-  emitted only on the server. Test: a server render of a button and an input
+  emitted only on the server, and the manifest compared between the server's
+  two renders (rule 6). Test: a server render of a button and an input
   carries decodable bindings; a browser render of the same view carries none;
-  a mismatched member fails to type check.
+  a mismatched member fails to type check; a Message built from an unsent
+  field is refused.
 - **B. Delegated dispatch.** `Resume.listen`. Test: a click and an input on
   server markup, with no runtime booted, produce the exact Messages the
-  closures would have; a tampered attribute is refused and logged.
+  closures would have; a tampered entry, or a marker with no entry, refuses
+  the page at load, before any event, with the reason logged.
 - **C. Deferred boot.** `start` option, queue, listener removal,
-  `EagerStartRequired`. Test: type-then-boot yields the same Model as an eager
-  page; a page with an active Subscription refuses `'on-interaction'` at render.
+  `EagerStartRequired` with declared deferrability. Test: type-then-boot yields
+  the same Model as an eager page; a page with an active Subscription not
+  declared deferrable refuses `'on-interaction'` at render, and the same page
+  with it declared renders.
 - **D. Coverage and static refusal.** Test: a binding no active Surface may
-  send is `Uncovered`; a binding inside `SSR.static` is refused.
+  send is `Uncovered`; a page with bindings and no `surfaces` is refused; a
+  binding inside `SSR.static` is refused.
 - **E. Server fallback.** `fallback: 'server'` on forms and `SSR.handle`.
   Test: posting a form's Message without JavaScript returns the page a
   browser click would have produced.
