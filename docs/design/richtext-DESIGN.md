@@ -3205,6 +3205,23 @@ ProductCard
 
 Migration operates on semantic data, not DOM.
 
+**Implemented.** `migration(name, from, migrate, to?)` matches a block by its
+type, its node kind, or a preserved block's `originalType`; `migrate(document,
+migrations)` runs the list in order over every block it reads and reports
+`{ document, applied: [{ name, node }], unused }`. The list order is the chain —
+a later migration sees what an earlier one produced. `promoteUnknown(name, from,
+to, Props)` is the common case: a preserved unknown block becomes a declared
+node whose props the target's schema decodes.
+
+Three rules are enforced in code rather than left to discipline: a migration
+must return the same `id` (changing it throws, instead of silently breaking
+every reference to that node); the returned block must decode as a block (so a
+migration cannot write non-JSON props or an unknown shape into persisted
+content); and returning `undefined` declines the block, which is what
+`promoteUnknown` does when legacy data does not decode rather than
+half-converting it. Migrations run at a boundary the application chooses —
+loading, publishing, or an explicit upgrade — never automatically on every read.
+
 ---
 
 # 74. Inspection
@@ -3961,7 +3978,7 @@ relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
 Remaining: nested children beyond runs, the mark registry and custom
-definitions, metadata keys, migrations, and collaboration (including
+definitions, metadata keys, and collaboration (including
 collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final

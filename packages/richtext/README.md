@@ -177,6 +177,42 @@ it was already building, and maps the selection through the transform's steps,
 so a caller cannot tell whether a change came from an operation or from
 normalization.
 
+## Migrations
+
+Migrations move semantic data forward when a deployment changes its vocabulary
+(§73) — a preserved node that is now implemented, a prop renamed, a kind
+replaced:
+
+```ts
+const Callout = Schema.Struct({ tone: Schema.Literals(['info', 'warning', 'critical']) })
+
+RichText.migrate(document, [
+  RichText.promoteUnknown('EmbedToCallout', 'Embed', 'Callout', Callout),
+  RichText.migration('DangerToCritical', 'Callout', block =>
+    block.type === 'Node' && block.props.tone === 'danger'
+      ? { ...block, props: { ...block.props, tone: 'critical' } }
+      : undefined,
+  ),
+])
+// → { document, applied: [{ name, node }], unused: ['…'] }
+```
+
+They operate on blocks, never on DOM, and run at a boundary the application
+chooses — loading, publishing, or an explicit upgrade — never automatically on
+every read. The list order *is* the chain: a later migration sees what an
+earlier one produced.
+
+Three rules are enforced rather than documented and hoped for:
+
+- **Identity survives.** A migration returns the same `id`, so positions,
+  references, and selections keep addressing the same node; changing it throws
+  instead of silently breaking every reference.
+- **The result is still content.** The returned block must decode as a block, so
+  a migration cannot write non-JSON props or an unknown shape into the document.
+- **Declining is allowed.** Returning `undefined` keeps the block as it is —
+  which is what `promoteUnknown` does when legacy data does not decode against
+  the target's schema, rather than half-converting it.
+
 ## HTML export
 
 `toHtml(blocks)` and `documentToHtml(document)` serialize to HTML for other
@@ -366,8 +402,8 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Migrations, nested children, the mark registry,
-and collaboration are still pending. Retain rejected source content for
+decoding untrusted payloads. Nested children, the mark registry, and
+collaboration are still pending. Retain rejected source content for
 recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.

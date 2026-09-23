@@ -70,6 +70,15 @@ export {
   validate,
 } from './kit.js'
 export {
+  type Migration,
+  type MigrationApplied,
+  type MigrationReport,
+  migration,
+  migrate,
+  promoteUnknown,
+  nodeProps,
+} from './migration.js'
+export {
   type Transform,
   type TransformReport,
   type TransformContext,

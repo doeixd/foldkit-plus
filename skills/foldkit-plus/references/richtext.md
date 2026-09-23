@@ -86,12 +86,16 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-Custom Kits, migrations, nested children, the mark registry,
+Custom Kits, nested children, the mark registry,
 Form/Bundle integration, DOM
 editing, and collaboration remain unfinished. Application node kinds are
 first-class: `RichText.node(name, { Props })` declares a `Node` block whose JSON
 props the Kit validates (`UnsupportedNode` / `InvalidProps`), with text-run
-children so positions and operations work unchanged. Unknown nodes and marks are
+children so positions and operations work unchanged. Migrations move persisted
+data forward: `migrate(document, migrations)` runs in list order, must keep each
+block's identity, must produce content the codec can store, and may decline a
+block by returning `undefined`; `promoteUnknown` turns a preserved unknown block
+into a declared kind. Unknown nodes and marks are
 preserved verbatim (listed by `findUnknownNodes`/`findUnknownMarks`) rather
 than stripped; everything else is rejected. Preserve the
 original input for recovery. Do not present the design's API sketches as shipped APIs.
