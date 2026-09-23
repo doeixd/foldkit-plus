@@ -101,6 +101,8 @@ into a chord answer. Slices that must survive reload persist through
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
+- **Focus ring for keyboard users only:** place `InputModality` (`events`; `{ modality }` from window keydown and pointerdown)
+  and attach `FocusVisible.behavior(Declared)(Slots)({ target })`, which writes `data-focus-visible` under keyboard. CSS `:focus-visible` is the floor.
 
 ## Gotchas
 

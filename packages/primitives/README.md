@@ -91,9 +91,9 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, FocusScope, Press, LongPress, Move, FocusVisible
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
-- `events` — raw browser events: Visibility, WindowSize, Idle, keyboard, pointer, scroll, focus
+- `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
 - `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, InputMask, clipboard, share, script loading
 
@@ -651,6 +651,16 @@ and a secondary button are ignored; capture is released with the Mount.
 `Move.behavior(Slots)<Input, Message>({ handle, toMessage })` attaches it to a
 `Draggable` slot and maps each fact into the view's Messages; a drag's meaning
 (a threshold, a snap, a reorder) is the parent's `update`.
+
+`FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
+in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,
+or `'unknown'` before any input), fed by the window's `keydown` (a modifier
+alone says nothing) and `pointerdown`. `FocusVisible.behavior(Declared)(Slots)
+<Model, Message>({ target })` writes `data-focus-visible` on the target while
+the page is driven by keyboard, so a stylesheet shows a ring with
+`[data-focus-visible]:focus`. CSS `:focus-visible` does this with no Model at
+all; this is for a design system that must decide in the Model, or show the
+same answer somewhere other than the focused element.
 
 ## Testing placements
 

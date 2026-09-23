@@ -1,6 +1,7 @@
 export * from './active-element.js'
 export * from './hotkeys.js'
 export * from './idle.js'
+export * from './input-modality.js'
 export * from './keyboard.js'
 export * from './pointer.js'
 export * from './scroll.js'

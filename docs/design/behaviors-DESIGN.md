@@ -100,9 +100,9 @@ version has that ours must not repeat, each of which becomes a test.
 | --- | --- | --- | --- | --- |
 | `Press` | Bundle + Mount + Behavior (built; the facts come from a Mount because Foldkit's pointer attributes carry no button, pointer id, or click detail; `update` decides; `Pressed` is an OutMessage the placement must handle) | `target: Interactive` | Pointer and keyboard activation as one `Pressed` Message. Primary button only, cancel on `pointerleave` and `pointercancel`, Enter and Space with repeat ignored, virtual clicks (`detail === 0`) accepted, ghost click suppressed by a timed Command. Exposes `pressed` for styling. | add `pointercancel`; add `onPressUp`; never raw `click` |
 | `LongPress` | Bundle + Behavior (built; reads `Press.events`, threshold as a generation-carrying Command; movement tolerance not built, since the facts carry no coordinates) | `target: Interactive` | Holding for `thresholdMs`; a release before it fires makes the late `Elapsed` a no-op. | none built there |
-| `Hover` | Reuse `@foldkit/ui/hoverIntent` | `trigger`, `panel` | Open and close delays with intent. The shared group timer (tooltip skip-delay) is a Bundle placed once. Ignores touch. | none |
+| `Hover` | Reuse `@foldkit/ui/hoverIntent`, as a `foldkit-mixins-ui` adapter (decided during Phase C: hoverIntent is a complete Submodel with its own view seams, which is what mixins-ui adapts; wrapping it in primitives would add `@foldkit/ui` as a peer there). Scheduled with Phase H. | `trigger`, `panel` | Open and close delays with intent. The shared group timer (tooltip skip-delay) is a Bundle placed once. Ignores touch. | none |
 | `Move` | Mount + Behavior (built) | `handle: Draggable` | Pointer capture, `MoveStarted`, `Moved { deltaX, deltaY, pointerType }`, `MoveEnded { completed }`, release on dispose; second pointer and secondary button ignored. | none built there |
-| `FocusVisible` | Bundle + Behavior | `target: Focusable` | Tracks input modality; writes `data-focus-visible`. Floor is `:focus-visible`; this exists for JavaScript that must know. | none |
+| `FocusVisible` | Bundle + Behavior (built: `InputModality` in `events`, the Behavior in `interaction`) | `target: Focusable` | Tracks input modality; writes `data-focus-visible`. Floor is `:focus-visible`; this exists for JavaScript that must know. | none |
 
 ### Focus and layers
 
