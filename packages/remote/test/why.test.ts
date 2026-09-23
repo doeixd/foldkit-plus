@@ -160,6 +160,53 @@ describe('Data.why counts only a Surface that asks for all of the read', () => {
   })
 })
 
+describe('Data.why tells apart reads of the same shape', () => {
+  const CommentBase = Entity.define(
+    'Comment',
+    Schema.Struct({ id: Schema.String, body: Schema.String }),
+  )
+  const PostBase = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String }))
+  const { Comment, Post } = Entity.relate(
+    { Comment: CommentBase, Post: PostBase },
+    { Post: { comments: Relation.many(CommentBase) } },
+  )
+  const Blog = Remote.make({ model: App.model.remote, entities: [Comment, Post] })
+  const comments = (window: { readonly first: number; readonly after?: string }) =>
+    Entity.select(Post, {
+      comments: Entity.page(Entity.select(Comment, { body: true }), window),
+    })
+
+  it('by id: a Surface reading another post is not reading this one', () => {
+    const Other = App.surface('OtherPost', {
+      model: () => ({ post: Blog.get(comments({ first: 2 }), 'b') }),
+    })
+
+    expect(
+      Blog.why(open, Blog.get(comments({ first: 2 }), 'a'), {
+        surfaces: { other: Surface.at(Other, undefined) },
+      }).reason,
+    ).toBe('NotObserved')
+  })
+
+  it('by page: the same size of page from another cursor is another page', () => {
+    // Both read `comments@first=2`; only the window says which two.
+    const Later = App.surface('LaterComments', {
+      model: () => ({ post: Blog.get(comments({ first: 2, after: 'Comment:c2' }), 'a') }),
+    })
+    const First = App.surface('FirstComments', {
+      model: () => ({ post: Blog.get(comments({ first: 2 }), 'a') }),
+    })
+    const read = Blog.get(comments({ first: 2 }), 'a')
+
+    expect(Blog.why(open, read, { surfaces: { later: Surface.at(Later, undefined) } }).reason).toBe(
+      'NotObserved',
+    )
+    expect(Blog.why(open, read, { surfaces: { first: Surface.at(First, undefined) } }).reason).toBe(
+      'NotFetching',
+    )
+  })
+})
+
 describe('Data.why for a read that is not Initial', () => {
   it('says a request is in flight', () => {
     const loading = Data.reduce(open, {
