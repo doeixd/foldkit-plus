@@ -1,7 +1,9 @@
 # Foldkit 0.158.0 to 0.163.0: what changed
 
-This workspace pins `foldkit@0.158.2`. Upstream is at `0.163.0` (published
-2026-09-20). This document has three parts: every upstream change between those
+Status: the upgrade guide below was carried out on 2026-09-23; the workspace
+now pins `foldkit@0.163.0`. The document is kept as the record of what changed
+and why each step was taken. It was written when the workspace pinned
+`foldkit@0.158.2` and upstream was at `0.163.0` (published 2026-09-20). This document has three parts: every upstream change between those
 versions, what each one means for this repo's code and for its docs and
 design plans, and a step-by-step upgrade guide.
 
