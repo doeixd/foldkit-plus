@@ -7,6 +7,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Breaking
+
+- **`foldkit-mixins-crud`: `DetailView`'s root is a `div` in every state.** It
+  was the `dl` while showing a value, and a `div` around a status line
+  otherwise, so a style or behaviour on `root` covered different elements as
+  the read changed, and missed the alert a failed refresh shows beside the
+  value. The `dl` now has a slot of its own, `list`, and carries `aria-busy`
+  while refreshing. A style that targeted `root` to reach the `dl` moves to
+  `list`.
+
 ### Added
 
 - **`foldkit-remote`: `Data.why(model, projection, { surfaces })`.** `Initial`

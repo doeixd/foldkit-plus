@@ -109,7 +109,10 @@ export const ListSlots = Slots.define({
 
 /** A detail: each selected member as a term and its value. */
 export const DetailSlots = Slots.define({
+  /** The `div` around everything the detail says, in every state. */
   root: Slot.make({ capability: Capability.Container }),
+  /** The description list of fields, `aria-busy` while refreshing. */
+  list: Slot.make({ capability: Capability.Container }),
   status: Slot.make({ capability: Capability.Base }),
   term: Slot.make({ capability: Capability.Base }),
   value: Slot.make({ capability: Capability.Base }),
@@ -303,31 +306,37 @@ const detail = <Message>() => ({
           h.div(slots.root.attrs([h.Id(detailed.name)]), [
             h.p(slots.status.attrs([h.Role('status')]), [text]),
           ])
-        const lines = (value: Value, refreshing: boolean): Html =>
-          h.dl(
-            slots.root.attrs([h.Id(detailed.name), ...(refreshing ? [h.AriaBusy(true)] : [])]),
-            fields.flatMap(field => {
-              const special = input.cells?.[field.key]
-              return [
-                h.dt(slots.term.attrs(), [field.label]),
-                h.dd(slots.value.attrs(), [
-                  special?.(value, h) ??
-                    input.renderers?.[field.display.kind]?.({
-                      display: field.display,
-                      value: (value as Readonly<Record<string, unknown>>)[field.key],
-                      row: value,
-                      words: words ?? {},
-                      h,
-                    }) ??
-                    Display.show(
-                      field.display,
-                      (value as Readonly<Record<string, unknown>>)[field.key],
-                      words,
-                    ),
-                ]),
-              ]
-            }),
-          )
+        // `notice` goes above the list: a failure that left the value on screen.
+        // The root is the same `div` whatever the state, as a list's is, so a
+        // style or behaviour on it covers the alert and the button too.
+        const lines = (value: Value, refreshing: boolean, notice: ReadonlyArray<Html> = []): Html =>
+          h.div(slots.root.attrs([h.Id(detailed.name)]), [
+            ...notice,
+            h.dl(
+              slots.list.attrs(refreshing ? [h.AriaBusy(true)] : []),
+              fields.flatMap(field => {
+                const special = input.cells?.[field.key]
+                return [
+                  h.dt(slots.term.attrs(), [field.label]),
+                  h.dd(slots.value.attrs(), [
+                    special?.(value, h) ??
+                      input.renderers?.[field.display.kind]?.({
+                        display: field.display,
+                        value: (value as Readonly<Record<string, unknown>>)[field.key],
+                        row: value,
+                        words: words ?? {},
+                        h,
+                      }) ??
+                      Display.show(
+                        field.display,
+                        (value as Readonly<Record<string, unknown>>)[field.key],
+                        words,
+                      ),
+                  ]),
+                ]
+              }),
+            ),
+          ])
 
         const read = input.value
         switch (read._tag) {
@@ -335,11 +344,10 @@ const detail = <Message>() => ({
           case 'Loading':
             return status(words?.loading ?? 'Loading…')
           case 'Failed':
-            // The description list stays the root when there is a value to show,
-            // so the failure is said beside it rather than inside it.
+            // A failed refresh keeps the value it had, with the failure above it.
             return read.previous === undefined
               ? h.div(slots.root.attrs([h.Id(detailed.name)]), [...failure(read.error)])
-              : h.div([], [...failure(read.error), lines(read.previous, false)])
+              : lines(read.previous, false, failure(read.error))
           case 'NotFound':
             return status(words?.empty ?? 'Nothing here.')
           case 'Refreshing':

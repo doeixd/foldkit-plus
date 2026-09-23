@@ -100,7 +100,7 @@ case 'RetriedPosts':
 ```
 
 `DetailView` does the same with its value: the alert and the button above the
-description list, which stays the view's root element.
+description list, inside the same root.
 
 ## Sorting, more, and special cells
 
@@ -171,8 +171,9 @@ A `dl` with a `dt` per shown field and its value in a `dd`. It takes `cells` and
 | The way into a row | `button type="button"` in the first shown cell | `open` |
 | The next page | `button type="button"`, disabled while refreshing | `more` |
 
-`DetailSlots` publishes `root` (the `dl`, or the `div` around a status line),
-`status`, `term`, and `value`.
+`DetailSlots` publishes `root` (the `div` around everything the detail says,
+in every state, as a list's root is), `list` (the `dl`, `aria-busy` while
+refreshing), `status`, `term`, `value`, and `retry`.
 
 The way into a row is a button, not a click on the `tr`, so a keyboard reaches
 it and a screen reader announces it.

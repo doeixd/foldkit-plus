@@ -175,8 +175,8 @@ DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model)
 ```
 
 Slots: `ListSlots` (`root`, `status`, `table`, `headCell`, `sort`, `row`, `cell`,
-`open`, `more`, `retry`) and `DetailSlots` (`root`, `status`, `term`, `value`,
-`retry`). A failed read shows a `role="alert"` line; a failed refresh keeps the
+`open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
+`list`, the `dl`; `status`, `term`, `value`, `retry`). A failed read shows a `role="alert"` line; a failed refresh keeps the
 rows (or the detail's value) below it, and `onRetry` adds a button.
 
 ## Pickers that search

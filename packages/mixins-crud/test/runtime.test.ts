@@ -313,3 +313,26 @@ it('keeps a detail’s value when its refresh failed', () => {
   expect(drawn).toContain('dl')
   expect(drawn).toContain(`dd${rows[0]!.title}`)
 })
+
+it('keeps one root for a detail in every state, around the alert as well', () => {
+  const Plain = DetailView.forMessages<Message>().define(PostDetail)
+  const rootOf = (value: Parameters<typeof Plain>[0]['value']) => {
+    const node = Plain(
+      { value, onRetry: Message.AskedForMore() },
+      SlotView.inertBuilder(),
+    ) as unknown as {
+      readonly sel: string
+      readonly data?: { readonly props?: Readonly<Record<string, unknown>> }
+    }
+    return [node.sel, node.data?.props?.id]
+  }
+
+  // Styles attached to `root` land on the same element whatever the read says.
+  expect(rootOf({ _tag: 'Ready', value: rows[0]! })).toEqual(['div', 'PostDetail'])
+  expect(rootOf({ _tag: 'Loading' })).toEqual(['div', 'PostDetail'])
+  expect(rootOf({ _tag: 'Failed', error: offline })).toEqual(['div', 'PostDetail'])
+  expect(rootOf({ _tag: 'Failed', error: offline, previous: rows[0]! })).toEqual([
+    'div',
+    'PostDetail',
+  ])
+})
