@@ -25,7 +25,7 @@ const ArticleKit = RichText.kit({
     }),
     RichText.node('Image'),
   ],
-  marks: ['Bold', 'Italic'],
+  marks: [RichText.Bold, RichText.Italic],
 })
 
 describe('application node blocks', () => {
@@ -110,7 +110,10 @@ describe('kit validation of application nodes', () => {
 
   it('reports an undeclared kind', () => {
     expect(
-      RichText.validate(callout({ tone: 'info' }), RichText.kit({ nodes: [], marks: ['Bold'] })),
+      RichText.validate(
+        callout({ tone: 'info' }),
+        RichText.kit({ nodes: [], marks: [RichText.Bold] }),
+      ),
     ).toEqual([
       {
         code: 'UnsupportedNode',

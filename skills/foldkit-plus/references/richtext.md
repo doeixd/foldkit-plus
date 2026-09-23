@@ -86,9 +86,12 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-Custom Kits, nested children, the mark registry,
+Custom Kits, nested children, marks with props,
 Form/Bundle integration, DOM
-editing, and collaboration remain unfinished. Application node kinds are
+editing, and collaboration remain unfinished. Marks are definitions
+(`RichText.mark(name, expand?)`) and a Kit carries the policy:
+`resolveInsertion` and `run(..., { marks: markRegistry(kit.marks) })` honor it,
+with an undeclared mark expanding `both`. Application node kinds are
 first-class: `RichText.node(name, { Props })` declares a `Node` block whose JSON
 props the Kit validates (`UnsupportedNode` / `InvalidProps`), with text-run
 children so positions and operations work unchanged. Migrations move persisted

@@ -403,7 +403,7 @@ describe('clipboard events', () => {
     const intents: RichText.Command[] = []
     const attachment = attach(dom, {
       onIntent: command => intents.push(command),
-      kit: RichText.kit({ nodes: [RichText.block('Paragraph')], marks: ['Bold'] }),
+      kit: RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [RichText.Bold] }),
     })
     attachment
       .current()

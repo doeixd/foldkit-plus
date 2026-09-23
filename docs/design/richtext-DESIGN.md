@@ -582,6 +582,22 @@ vocabulary implements it: `Bold`/`Italic` expand `after`, `Code` expands
 (refusing mark swaps at mixed edges). Unknown marks default to `both`. The
 registry, custom marks, and overlap rules remain Kit work.
 
+**Implemented (policy, not yet authoring).** A mark is a `MarkDef`
+(`{ name, expand }`) made with `RichText.mark(name, expand?)`, and a Kit carries
+the definitions, so an editor tunes its own vocabulary:
+
+```ts
+RichText.kit({ nodes: [...], marks: [Bold, Italic, mark('Link', 'none')] })
+RichText.run(state, command, ids, { marks: markRegistry(kit.marks) })
+```
+
+`resolveInsertion` takes the registry, so the rule is unchanged but which marks
+it applies to is the application's. A mark no registry declares expands `both`,
+which keeps preservation from retargeting it away. Still to come: mark props
+(a `Link` with an `href`), which is what makes custom mark *authoring* possible —
+today `Edit.addMark` accepts only the shipped marks, so a registry tunes policy
+rather than adding vocabulary.
+
 ---
 
 # 11. Overlapping annotations
@@ -3977,8 +3993,8 @@ transactions stay untouched.
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
-Remaining: nested children beyond runs, the mark registry and custom
-definitions, metadata keys, and collaboration (including
+Remaining: nested children beyond runs, marks with props and custom mark
+authoring, metadata keys, and collaboration (including
 collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final

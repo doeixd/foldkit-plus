@@ -113,6 +113,32 @@ Nothing mints identity unless the caller's `mint` does, and replay applies
 transactions rather than commands. A collapsed `ToggleMark` is a no-op until
 stored marks exist, and adding an unknown mark is rejected.
 
+## Mark definitions
+
+A mark is a definition, not a bare name: its **boundary expansion** says where
+typing continues it. A Kit carries the policy, so an editor can tune its own
+vocabulary:
+
+```ts
+const ArticleKit = RichText.kit({
+  nodes: [RichText.block('Paragraph'), RichText.block('Heading')],
+  marks: [RichText.Bold, RichText.Italic, RichText.Code, RichText.mark('Link', 'none')],
+})
+
+RichText.run(state, command, ids, { marks: RichText.markRegistry(ArticleKit.marks) })
+```
+
+The shipped policy is `Bold`/`Italic` → `after`, `Code` → `none`, and a mark no
+registry declares → `both` (so preservation never retargets an unknown mark
+away). `resolveInsertion` retargets a boundary insertion when the current run
+carries marks that forbid the edge and the neighbor carries exactly the marks
+that remain; a registry changes which marks those are, not the rule.
+
+Custom mark *authoring* is not here yet: `Edit.addMark` still accepts only the
+shipped marks, so a registry today tunes policy rather than adding vocabulary.
+Marks with props (a `Link` with an `href`) come with the mark-definition work,
+the way node kinds got theirs.
+
 ## Application node blocks
 
 A `Node` block is an application's own kind — a Callout, an Image, an embed. Its
@@ -402,7 +428,7 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Nested children, the mark registry, and
+decoding untrusted payloads. Nested children, marks with props, and
 collaboration are still pending. Retain rejected source content for
 recovery; do not replace it with an empty document.
 

@@ -3,7 +3,7 @@ import * as RichText from 'foldkit-richtext'
 
 const ArticleKit = RichText.kit({
   nodes: [RichText.block('Paragraph'), RichText.block('Heading'), RichText.atom('Image')],
-  marks: ['Bold', 'Italic'],
+  marks: [RichText.Bold, RichText.Italic],
 })
 const document = RichText.decodeDocument({
   version: 1,
@@ -29,7 +29,10 @@ describe('kits', () => {
       { name: 'Heading', kind: 'block', children: 'text' },
       { name: 'Image', kind: 'atom', children: 'none' },
     ])
-    expect(ArticleKit.marks).toEqual(['Bold', 'Italic'])
+    expect(ArticleKit.marks).toEqual([
+      { name: 'Bold', expand: 'after' },
+      { name: 'Italic', expand: 'after' },
+    ])
     expect(RichText.inspectKit(ArticleKit)).toEqual({ blocks: 2, atoms: 1, nodes: 0, marks: 2 })
     expect(Reflect.set(ArticleKit, 'marks', [])).toBe(false)
   })
@@ -39,7 +42,7 @@ describe('kits', () => {
   })
 
   it('reports undeclared node kinds and marks without changing the document', () => {
-    const strict = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: ['Bold'] })
+    const strict = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [RichText.Bold] })
     expect(RichText.validate(document, strict)).toEqual([
       {
         code: 'UnsupportedNode',

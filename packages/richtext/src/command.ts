@@ -7,7 +7,7 @@ import {
   type Selection,
 } from './document.js'
 import { withFreshIds, type Slice } from './clipboard.js'
-import { isKnownMark, resolveInsertion } from './marks.js'
+import { isKnownMark, resolveInsertion, type MarkRegistry } from './marks.js'
 import { Edit, apply, type Operation, type TransactionResult } from './transaction.js'
 
 /**
@@ -28,6 +28,11 @@ export type Command =
 /** Caller-owned identity source. Live edits mint; replay applies transactions. */
 export interface CommandIds {
   readonly mint: () => string
+}
+
+/** What a command needs beyond state and identity, such as a Kit's mark policy. */
+export interface RunOptions {
+  readonly marks?: MarkRegistry | undefined
 }
 
 type Failure = 'InvalidSelection' | 'MissingText' | 'InvalidInput'
@@ -148,7 +153,12 @@ const deleteRange = (
  * describe intent; the returned `positionMap` and `ChangeSet` describe the
  * document effect, and rejection returns no partially edited state.
  */
-export const run = (state: EditorState, command: Command, ids: CommandIds): TransactionResult => {
+export const run = (
+  state: EditorState,
+  command: Command,
+  ids: CommandIds,
+  options: RunOptions = {},
+): TransactionResult => {
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
   }
@@ -157,7 +167,7 @@ export const run = (state: EditorState, command: Command, ids: CommandIds): Tran
 
   if (command.type === 'InsertText') {
     const target = isCollapsed(selection)
-      ? resolveInsertion(state.document, selection.anchor)
+      ? resolveInsertion(state.document, selection.anchor, options.marks)
       : ordered(state.document, selection)?.start
     if (target === undefined) return failure('InvalidSelection')
     const at = locate(state.document, target.node)

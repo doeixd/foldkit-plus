@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 import { Mark, type Document, type NodeBlock, type NodeId } from './document.js'
+import type { MarkDef } from './marks.js'
 
 /** A schema this version can hand to `decodeUnknownSync` at the Kit boundary. */
 type PropsSchema = Schema.Codec<any, any, never>
@@ -47,12 +48,13 @@ export const node = (
  */
 export interface Kit {
   readonly nodes: ReadonlyArray<NodeDefinition>
-  readonly marks: ReadonlyArray<Mark>
+  /** Mark definitions, not just names: a Kit carries each mark's boundary policy. */
+  readonly marks: ReadonlyArray<MarkDef>
 }
 
 export const kit = (definition: {
   readonly nodes: ReadonlyArray<NodeDefinition>
-  readonly marks: ReadonlyArray<Mark>
+  readonly marks: ReadonlyArray<MarkDef>
 }): Kit => Object.freeze({ nodes: [...definition.nodes], marks: [...definition.marks] })
 
 export interface Diagnostic {
@@ -90,7 +92,7 @@ export const inspectKit = (definition: Kit) => ({
  */
 export const validate = (document: Document, definition: Kit): ReadonlyArray<Diagnostic> => {
   const byName = new Map(definition.nodes.map(node => [node.name, node]))
-  const declaredMarks = new Set<string>(definition.marks)
+  const declaredMarks = new Set<string>(definition.marks.map(mark => mark.name))
   const diagnostics: Array<Diagnostic> = []
   for (const node of document.children) {
     if (node.type === 'Unknown') {

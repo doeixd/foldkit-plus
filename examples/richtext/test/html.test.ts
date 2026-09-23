@@ -148,7 +148,7 @@ describe('what import refuses', () => {
   })
 
   it('degrades a node kind the Kit does not declare', () => {
-    const kit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: ['Bold'] })
+    const kit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [RichText.Bold] })
     const parsed = parse('<h1>Title</h1>', kit)
     expect(shape(parsed.blocks)).toEqual([{ type: 'Paragraph', text: 'Title', marks: [[]] }])
     expect(parsed.diagnostics).toEqual([{ code: 'Undeclared', detail: 'Heading' }])

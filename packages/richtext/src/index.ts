@@ -26,14 +26,19 @@ export {
 export {
   type MarkDef,
   type MarkExpansion,
+  type MarkRegistry,
   Bold,
   Italic,
   Code,
+  mark,
+  shippedMarks,
+  markRegistry,
+  shippedRegistry,
   isKnownMark,
   sameMarkSet,
   resolveInsertion,
 } from './marks.js'
-export { type Command, type CommandIds, run } from './command.js'
+export { type Command, type CommandIds, type RunOptions, run } from './command.js'
 export {
   History,
   type CommitOptions,
