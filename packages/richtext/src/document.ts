@@ -60,6 +60,36 @@ export const Position = Schema.Struct({
 })
 export type Position = typeof Position.Type
 
+/** A reusable identity resolved against an explicit document, without owning its content. */
+export interface NodeReference {
+  readonly id: NodeId
+  /** Returns the current node, or undefined if this document does not contain it. */
+  readonly read: (document: Document) => Block | Text | undefined
+  /** Describes a text position; application of an edit checks the target and bounds. */
+  readonly at: (offset: number, affinity: Position['affinity']) => Position
+}
+
+export const Node = {
+  /** Declares an immutable reference. Does not insert a node or reserve its ID. */
+  make: (id: string): NodeReference => {
+    const nodeId = NodeId.make(id)
+    return Object.freeze({
+      id: nodeId,
+      read: (document: Document): Block | Text | undefined => {
+        for (const block of document.children) {
+          if (block.id === nodeId) return block
+          for (const text of block.children) {
+            if (text.id === nodeId) return text
+          }
+        }
+        return undefined
+      },
+      at: (offset: number, affinity: Position['affinity']): Position =>
+        Position.make({ node: nodeId, offset, affinity }),
+    })
+  },
+}
+
 export const Selection = Schema.Union([
   Schema.Struct({ type: Schema.Literal('Range'), anchor: Position, focus: Position }),
   Schema.Struct({ type: Schema.Literal('Node'), node: NodeId }),

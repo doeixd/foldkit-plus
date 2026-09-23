@@ -1,5 +1,7 @@
 export {
   NodeId,
+  Node,
+  type NodeReference,
   Mark,
   Text,
   Paragraph,

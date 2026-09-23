@@ -30,3 +30,23 @@ const position: RichText.Position = { node: id, offset: 0 }
 // @ts-expect-error Insertion cannot target a bare offset.
 const operation: RichText.Operation = { type: 'InsertText', at: 0, text: 'x' }
 void [rawId, position, operation]
+
+const reference = RichText.Node.make('text')
+const referenceId: RichText.NodeId = reference.id
+const referencePosition: RichText.Position = reference.at(0, 'after')
+const current = reference.read(document)
+if (current?.type === 'Text') {
+  const value: string = current.text
+  void value
+}
+// @ts-expect-error A reference requires a string identity.
+RichText.Node.make(42)
+// @ts-expect-error A reference's identity cannot be reassigned.
+reference.id = id
+// @ts-expect-error Affinity is explicit, as it is for a Position.
+reference.at(0)
+// @ts-expect-error Offsets are numbers.
+reference.at('0', 'after')
+// @ts-expect-error A reference may resolve to a block, text, or no node.
+const textValue: string = current.text
+void [referenceId, referencePosition, textValue]

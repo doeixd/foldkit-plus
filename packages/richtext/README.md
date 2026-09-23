@@ -20,12 +20,13 @@ Within this workspace, import the package as follows:
 ```ts
 import * as RichText from 'foldkit-richtext'
 
+const Text = RichText.Node.make('text-1')
 const paragraph = RichText.Paragraph.make({
   type: 'Paragraph',
   id: RichText.NodeId.make('paragraph-1'),
   children: [RichText.Text.make({
     type: 'Text',
-    id: RichText.NodeId.make('text-1'),
+    id: Text.id,
     text: 'Hello',
     marks: ['Bold'],
   })],
@@ -33,7 +34,7 @@ const paragraph = RichText.Paragraph.make({
 const document = RichText.Document.make({ version: 1, children: [paragraph] })
 const result = RichText.apply({ document, selection: null }, [{
   type: 'InsertText',
-  at: { node: RichText.NodeId.make('text-1'), offset: 5, affinity: 'after' },
+  at: Text.at(5, 'after'),
   text: '!',
 }])
 
@@ -49,6 +50,27 @@ be unique across blocks and text runs. `apply` validates state and operations,
 then applies operations in array order. A later invalid operation rejects the
 whole transaction. No partially edited state is returned, and inputs are not
 mutated. `result.error` is a stable diagnostic code, without raw validation internals.
+
+## Named node references
+
+`Node.make('text-1')` declares a reusable identity. Its `.id` is a validated
+`NodeId`, `.at(offset, affinity)` constructs a Position, and `.read(document)`
+returns the node from that document or `undefined`. Narrow the returned node's
+`type` before reading text or block-specific fields.
+
+Keep references in application definitions; persist IDs and content, not reference
+methods. The reference is immutable and holds no content. Read it against the next
+document to see an edit, or against an older snapshot to inspect that version.
+Two references with the same ID address the same node within a document; neither
+reserves the ID or inserts anything. Document validation still rejects duplicate
+content IDs. IDs are document-local: using a reference with another document
+looks up that same ID there, without an ownership or authorization guarantee.
+
+`at` validates offset shape and affinity, but cannot prove the node exists, is
+text, or is long enough. `apply` checks those conditions against the current
+document. A Position remains a resolved offset and must still be mapped through
+edits; a Node reference does not turn it into a collaborative anchor. `read`
+performs a linear lookup, intended for application reads rather than bulk editing.
 
 ## Current semantics
 

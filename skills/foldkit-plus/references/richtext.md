@@ -16,6 +16,15 @@ input. Offsets are UTF-16 units. Position maps use sequential edit coordinates;
 the returned selection is already mapped. ChangeSet tracks touched nodes, not
 net authored-content change or a durable replication packet.
 
+`Node.make(id)` gives an immutable identity reference with `.id`, `.at(offset,
+affinity)`, and `.read(document)`. It holds no content and performs no insertion.
+Reads return the current block/text node or `undefined`; narrow by `type`.
+Positions validate shape at construction and resolve against the document during
+`apply`. References are document-local identities, not authorization capabilities
+or stable collaborative anchors. Keep references in application definitions,
+not serialized Models. Reuse the ID across edits rather than holding a
+stale content snapshot. `read` performs a linear lookup.
+
 Custom Kits, lossless unknown-extension loading, structural operations,
 normalization, Form/Bundle integration, DOM editing, and collaboration remain
 unfinished. Unknown data is rejected rather than silently stripped. Preserve the

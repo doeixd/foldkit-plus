@@ -389,6 +389,15 @@ Atom / Embed
 
 Applications should be able to define new Node kinds.
 
+The initial implementation also provides `Node.make(id)`: an immutable identity
+reference exposing `id`, `read(document)`, and `at(offset, affinity)`. It creates
+no content or registry entry. Reads resolve against the supplied document and
+return a block, text run, or absence. Position construction validates shape;
+transactions check existence, node kind, and bounds. References are document-local
+and carry no authorization. This separates a reusable identity from a snapshot
+of node content without adding a state owner. It does not replace future Kit
+node-kind definitions or the collaboration engine's stable position anchors.
+
 ---
 
 # 8. Node definitions
@@ -3577,7 +3586,7 @@ DOM reconciliation
 
 Implemented first slice: `packages/richtext` has a fixed initial vocabulary
 (paragraphs, headings, text, Bold/Italic/Code), versioned document validation,
-explicit NodeIds, range/node selections, inspection, and atomic
+explicit NodeIds and named Node references, range/node selections, inspection, and atomic
 InsertText/DeleteText/SetSelection transactions with UTF-16 position maps.
 Unknown extensions are currently rejected, not losslessly loaded. ChangeSet
 currently summarizes touched text nodes and their parent blocks; structural
