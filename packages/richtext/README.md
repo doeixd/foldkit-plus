@@ -32,11 +32,9 @@ const paragraph = RichText.Paragraph.make({
   })],
 })
 const document = RichText.Document.make({ version: 1, children: [paragraph] })
-const result = RichText.apply({ document, selection: null }, [{
-  type: 'InsertText',
-  at: Text.at(5, 'after'),
-  text: '!',
-}])
+const result = RichText.apply({ document, selection: null }, [
+  RichText.Edit.insertText(Text.at(5, 'after'), '!'),
+])
 
 if (result.ok) {
   // The parent reducer installs result.state in its Model.
@@ -71,6 +69,26 @@ text, or is long enough. `apply` checks those conditions against the current
 document. A Position remains a resolved offset and must still be mapped through
 edits; a Node reference does not turn it into a collaborative anchor. `read`
 performs a linear lookup, intended for application reads rather than bulk editing.
+
+## Building operations
+
+Prefer `Edit.*` over hand-written literals; the builder fills `type` and the
+return type is narrowed to that variant:
+
+```ts
+const result = RichText.apply(state, [
+  RichText.Edit.insertText(Text.at(5, 'after'), '!'),
+  RichText.Edit.addMark(Text, 'Bold'),
+])
+```
+
+Builders accept a `NodeId` or a `Node.make` reference interchangeably and
+validate shape immediately: a bad mark, offset, or `from > to` throws at the
+call site. Document-dependent failures — missing nodes, block targets,
+out-of-bounds ranges, unresolvable selections — still return `apply`
+diagnostics (`MissingText`, `InvalidRange`, `InvalidSelection`), and raw wire
+input still decodes to `InvalidInput`. `Edit` builds values only; it reads no
+document and owns no state.
 
 ## Current semantics
 

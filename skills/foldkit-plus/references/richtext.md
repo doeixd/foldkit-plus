@@ -12,7 +12,10 @@ Available now: version-1 documents, explicit branded NodeIds, paragraphs,
 headings, text runs, Bold/Italic/Code marks, range and node selections,
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection, text position mapping,
 and inspection. Mark edits are idempotent per run: redundant adds and removes
-are no-ops without position steps.
+are no-ops without position steps. Build operations with `Edit.*`, which fills
+`type`, accepts a NodeId or `Node.make` reference, and returns a narrowed
+variant; shape misuse throws at the call site while document mismatches stay
+`apply` diagnostics.
 Schema constructors build values; `decodeDocument` strictly validates persisted
 input. Offsets are UTF-16 units. Position maps use sequential edit coordinates;
 the returned selection is already mapped. ChangeSet tracks touched nodes, not

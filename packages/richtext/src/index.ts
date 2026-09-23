@@ -18,6 +18,8 @@ export {
 export {
   Operation,
   Transaction,
+  Edit,
+  type TextTarget,
   apply,
   mapPosition,
   type ChangeSet,

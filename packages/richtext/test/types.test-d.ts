@@ -58,3 +58,20 @@ reference.at('0', 'after')
 // @ts-expect-error A reference may resolve to a block, text, or no node.
 const textValue: string = current.text
 void [referenceId, referencePosition, textValue]
+
+const built = RichText.Edit.addMark(reference, 'Italic')
+const builtMark: RichText.Mark = built.mark
+const builtOperation: RichText.Operation = built
+RichText.apply({ document, selection: null }, [
+  RichText.Edit.insertText(reference.at(0, 'after'), '!'),
+  RichText.Edit.deleteText(text.id, 0, 1),
+  built,
+  RichText.Edit.removeMark(text.id, 'Bold'),
+  RichText.Edit.setSelection(null),
+])
+// @ts-expect-error AddMark operations carry no text.
+void built.text
+// @ts-expect-error Targets are ids or references.
+RichText.Edit.removeMark(42, 'Bold')
+void builtMark
+void builtOperation

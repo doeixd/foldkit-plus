@@ -3588,7 +3588,9 @@ Implemented first slice: `packages/richtext` has a fixed initial vocabulary
 (paragraphs, headings, text, Bold/Italic/Code), versioned document validation,
 explicit NodeIds and named Node references, range/node selections, inspection, and atomic
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection transactions with UTF-16
-position maps. Mark edits are idempotent per run and emit no position steps.
+position maps. Operations are built with `Edit.*` constructors that accept ids
+or `Node` references, fill `type`, and throw on malformed shapes. Mark edits
+are idempotent per run and emit no position steps.
 Unknown extensions are currently rejected, not losslessly loaded. ChangeSet
 currently summarizes touched text nodes and their parent blocks; structural
 fields arrive with structural operations. This is not completion of Phase 1.

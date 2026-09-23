@@ -15,11 +15,7 @@ const paragraph = RichText.Paragraph.make({
 })
 const document = RichText.Document.make({ version: 1, children: [paragraph] })
 const result = RichText.apply({ document, selection: null }, [
-  {
-    type: 'InsertText',
-    at: Text.at(5, 'after'),
-    text: '!',
-  },
+  RichText.Edit.insertText(Text.at(5, 'after'), '!'),
 ])
 
 if (result.ok) {

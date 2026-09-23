@@ -7,20 +7,84 @@ import {
   Selection,
   selectionIsValid,
   type Document,
+  type NodeReference,
 } from './document.js'
 
 const Offset = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
 
+const InsertTextOperation = Schema.Struct({
+  type: Schema.Literal('InsertText'),
+  at: Position,
+  text: Schema.String,
+})
+const DeleteTextOperation = Schema.Struct({
+  type: Schema.Literal('DeleteText'),
+  node: NodeId,
+  from: Offset,
+  to: Offset,
+})
+const AddMarkOperation = Schema.Struct({
+  type: Schema.Literal('AddMark'),
+  node: NodeId,
+  mark: Mark,
+})
+const RemoveMarkOperation = Schema.Struct({
+  type: Schema.Literal('RemoveMark'),
+  node: NodeId,
+  mark: Mark,
+})
+const SetSelectionOperation = Schema.Struct({
+  type: Schema.Literal('SetSelection'),
+  selection: Schema.NullOr(Selection),
+})
+
 export const Operation = Schema.Union([
-  Schema.Struct({ type: Schema.Literal('InsertText'), at: Position, text: Schema.String }),
-  Schema.Struct({ type: Schema.Literal('DeleteText'), node: NodeId, from: Offset, to: Offset }),
-  Schema.Struct({ type: Schema.Literal('AddMark'), node: NodeId, mark: Mark }),
-  Schema.Struct({ type: Schema.Literal('RemoveMark'), node: NodeId, mark: Mark }),
-  Schema.Struct({ type: Schema.Literal('SetSelection'), selection: Schema.NullOr(Selection) }),
+  InsertTextOperation,
+  DeleteTextOperation,
+  AddMarkOperation,
+  RemoveMarkOperation,
+  SetSelectionOperation,
 ])
 export type Operation = typeof Operation.Type
 export const Transaction = Schema.Array(Operation)
 export type Transaction = typeof Transaction.Type
+
+/** A text-run target: a validated id or a reusable node reference. */
+export type TextTarget = NodeId | NodeReference
+
+const targetId = (target: TextTarget): NodeId => (typeof target === 'string' ? target : target.id)
+
+/**
+ * Typesafe constructors for transaction operations. Each builder accepts a
+ * `NodeId` or a `Node.make` reference and validates shape immediately
+ * (misuse throws), while document-dependent checks — node kind, existence,
+ * bounds, selection resolution — remain `apply` diagnostics. Compose with
+ * `Node.at` for positions: `Edit.insertText(Text.at(5, 'after'), '!')`.
+ */
+export const Edit = {
+  insertText: (at: Position, text: string): Extract<Operation, { readonly type: 'InsertText' }> =>
+    InsertTextOperation.make({ type: 'InsertText', at, text }),
+
+  deleteText: (
+    node: TextTarget,
+    from: number,
+    to: number,
+  ): Extract<Operation, { readonly type: 'DeleteText' }> => {
+    if (from > to) throw new Error(`Edit.deleteText: from (${from}) must not exceed to (${to})`)
+    return DeleteTextOperation.make({ type: 'DeleteText', node: targetId(node), from, to })
+  },
+
+  addMark: (node: TextTarget, mark: Mark): Extract<Operation, { readonly type: 'AddMark' }> =>
+    AddMarkOperation.make({ type: 'AddMark', node: targetId(node), mark }),
+
+  removeMark: (node: TextTarget, mark: Mark): Extract<Operation, { readonly type: 'RemoveMark' }> =>
+    RemoveMarkOperation.make({ type: 'RemoveMark', node: targetId(node), mark }),
+
+  setSelection: (
+    selection: Selection | null,
+  ): Extract<Operation, { readonly type: 'SetSelection' }> =>
+    SetSelectionOperation.make({ type: 'SetSelection', selection }),
+}
 
 export interface ChangeSet {
   readonly dirtyNodes: ReadonlySet<NodeId>
