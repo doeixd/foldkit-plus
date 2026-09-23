@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 and 1 done; Phase 2 next. Written 2026-09-22 against `foldkit`
+**Status:** Phases 0, 1 and 2 done; Phase 3 next. Written 2026-09-22 against `foldkit`
 0.158.2 and this repository at 0.10.0, then revised the same day after an
 independent review (see [What review changed](#what-review-changed)).
 
@@ -77,12 +77,18 @@ it.
 1. **Startup Commands are declared, never dropped silently.** On the server
    Foldkit already drops `init`'s Commands. On the client the adapted `init`
    returns the resumed Model and the Commands of `boot(model)`.
-   - For an application assembled with `foldkit-bundle`, `boot` defaults to its
-     wirings' startup Commands. That is where `Mirror.kv` restores what a user
-     saved (`packages/mirror/src/index.ts:801`), and dropping it would lose it.
-   - For any other application, if the server's `init` returned Commands and the
-     plan names no `boot`, rendering is refused, naming the Commands. A startup
-     Command nobody declared is not quietly skipped.
+   - If the server's `init` returned Commands and the plan names no `boot`,
+     rendering is refused, naming the Commands. A startup Command nobody
+     declared is not quietly skipped.
+   - An application assembled with `foldkit-bundle` names its assembly's
+     startup Commands: `boot: model => assembly.init(model).commands ?? []`.
+     That is where `Mirror.kv` restores what a user saved.
+     *Revised in Phase 2.* This first said `boot` defaults to the wirings'
+     startup Commands for a bundle application. `SSR.plan` takes the Surface
+     application, which knows nothing of an assembly, so a default would need a
+     second way to make a plan. The refusal above already stops a bundle
+     application that forgets, naming `Mirror.restore(...)`, so the default
+     would save one line and cost an entry point.
    - Subscriptions and managed resources need nothing: the runtime starts them
      from the Model.
 2. **Flags never cross.** A handoff config has no `Flags` key at all: it is
@@ -201,6 +207,26 @@ decision 3 belongs with hydration, and is in Phase 2.
   - a config with `Flags: undefined` is refused, pinning the trap in decision 2.
 - Gate: Phase 1.
 
+**Done.** `SSR.render`, `SSR.page` and `SSR.hydrate`, with a test file for each
+case: the handover (init runs once, on the server; the nodes are adopted; the
+page works), Flags that never reach the page, the `Flags: undefined` trap,
+`boot`, `Mirror.kv` restoring through `boot`, each `ResumeUnsafe` refusal, a
+tampered envelope, a page from another build, a route resumed and a route or
+query refused, and a page with no server render. Nine of twelve mutations
+turned a test red at first. Two survivors needed tests: a route check that
+compared only the path, and the client render of an unstamped page. The third
+removed a copy of the options without `flags`, which was redundant, since a
+config with no `Flags` key makes Foldkit write no Flags script. The copy came
+out. Learned:
+
+- The route the page was rendered for travels in the envelope, and the browser
+  compares it with its own path and query (decision 8). The client parses no
+  route of its own, which keeps the check free of the application's router.
+- Foldkit logs nothing through `console.error` when it refuses a page from
+  another build, so the tests check containment, not a log.
+- A `Mirror.kv` restore arrives after the storage layer is built, later than
+  one tick, so its test waits for the value rather than for a fixed delay.
+
 ### Phase 3: check that the plan covers what the client reads
 
 - `SSR.plan(App, { …, local, surfaces })`: `local` names the fields allowed to
@@ -287,7 +313,8 @@ These wait on something outside this repository, and are not scheduled:
   day it happens.
 - **Refusal relies on an empty build id being refused.** Decision 3 contains a
   page by asking Foldkit to hydrate with a build id it rejects. That is
-  Foldkit's documented behaviour for a mismatch, and a Phase 1 test pins it.
+  Foldkit's documented behaviour for a mismatch, and Phase 2's refusal tests
+  pin it.
 - **Development is not production.** With hot reloading, Foldkit keeps the
   previous Model and skips adoption, so a resumed page behaves differently in
   development. Phase 2's tests run the production path.
