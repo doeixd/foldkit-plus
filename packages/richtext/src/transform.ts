@@ -1,6 +1,6 @@
 import { NodeId, type Block, type Document, type Text } from './document.js'
 import { sameMarkSet } from './marks.js'
-import type { PositionStep, RelocateStep } from './transaction.js'
+import type { CollapseStep, PositionStep, RelocateStep, SplitStep } from './transaction.js'
 
 /**
  * Transforms normalize or derive semantic structure after edits (§23). A
@@ -23,11 +23,15 @@ export interface TransformContext {
 
 export interface TransformReport {
   readonly document: Document
-  readonly steps: ReadonlyArray<PositionStep | RelocateStep>
+  /** The same step vocabulary a transaction uses, so `apply` can fold either. */
+  readonly steps: ReadonlyArray<PositionStep | SplitStep | RelocateStep | CollapseStep>
+  readonly insertedNodes: ReadonlySet<NodeId>
   readonly removedNodes: ReadonlySet<NodeId>
   readonly dirtyNodes: ReadonlySet<NodeId>
   /** Runs whose text a transform rewrote, such as a merge's accumulator. */
   readonly textChanged: ReadonlySet<NodeId>
+  /** Whether the block list changed shape, not just the runs inside a block. */
+  readonly structureChanged: boolean
 }
 
 export interface Transform {
@@ -39,9 +43,11 @@ export interface Transform {
 export const unchanged = (document: Document): TransformReport => ({
   document,
   steps: [],
+  insertedNodes: new Set(),
   removedNodes: new Set(),
   dirtyNodes: new Set(),
   textChanged: new Set(),
+  structureChanged: false,
 })
 
 const mergeRunInto = (accumulator: Text, run: Text): Text => ({
@@ -96,7 +102,15 @@ export const mergeAdjacentRuns: Transform = {
       blocks[blockIndex] = { ...block, children: kept }
       next = { ...next, children: blocks }
     }
-    return { document: next, steps, removedNodes, dirtyNodes, textChanged }
+    return {
+      document: next,
+      steps,
+      insertedNodes: new Set(),
+      removedNodes,
+      dirtyNodes,
+      textChanged,
+      structureChanged: false,
+    }
   },
 }
 

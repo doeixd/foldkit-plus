@@ -130,7 +130,7 @@ describe('kit validation of application nodes', () => {
     expect(diagnostics[0]?.code).toBe('InvalidProps')
     expect(diagnostics[0]?.node).toBe('c')
     expect(diagnostics[0]?.detail).toBe('Callout')
-    expect(diagnostics[0]?.message).toContain('"Callout" props are invalid')
+    expect(diagnostics[0]?.message).toContain('"Callout" props do not match its declared schema')
   })
 
   it('accepts any JSON for a node that declares no Props schema', () => {

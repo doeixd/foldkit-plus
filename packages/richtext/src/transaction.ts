@@ -272,6 +272,27 @@ export const mapPosition = (
     return offset === current.offset ? current : { ...current, offset }
   }, position)
 
+/**
+ * Maps a whole selection through steps: both range endpoints, or a node target
+ * whose identity a step relocated. Steps that only replace text have no `into`,
+ * so a node selection is unaffected by them.
+ */
+export const mapThrough = (
+  selection: Selection | null,
+  steps: ReadonlyArray<PositionStep | SplitStep | RelocateStep | CollapseStep>,
+): Selection | null => {
+  if (selection === null) return null
+  if (selection.type === 'Node') {
+    const step = steps.find(candidate => 'into' in candidate && candidate.node === selection.node)
+    return step === undefined || !('into' in step) ? selection : { ...selection, node: step.into }
+  }
+  return {
+    ...selection,
+    anchor: mapPosition(selection.anchor, steps),
+    focus: mapPosition(selection.focus, steps),
+  }
+}
+
 export type TransactionResult =
   | {
       readonly ok: true
@@ -638,17 +659,13 @@ export const apply = (
       if (report.document === document) continue
       changed = true
       document = report.document
+      for (const id of report.insertedNodes) insertedNodes.add(id)
       for (const id of report.removedNodes) removedNodes.add(id)
       for (const id of report.dirtyNodes) dirtyNodes.add(id)
       for (const id of report.textChanged) textChanged.add(id)
       for (const step of report.steps) positionMap.push(step)
-      if (report.steps.length > 0 && selection?.type === 'Range') {
-        selection = {
-          ...selection,
-          anchor: mapPosition(selection.anchor, report.steps),
-          focus: mapPosition(selection.focus, report.steps),
-        }
-      }
+      if (report.structureChanged) structureChanged = true
+      if (report.steps.length > 0) selection = mapThrough(selection, report.steps)
       reindex()
     }
     if (!changed) break

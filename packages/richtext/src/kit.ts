@@ -21,6 +21,18 @@ export type NodeDefinition =
       readonly props?: PropsSchema | undefined
     }
 
+/**
+ * A declared application node, with the caller's name and prop schema kept in
+ * the type: the erasure to `any` happens only where heterogeneous definitions
+ * are collected, not at the authoring call.
+ */
+export interface NodeDefinitionOf<Name extends string, Props extends PropsSchema | undefined> {
+  readonly name: Name
+  readonly kind: 'node'
+  readonly children: 'text'
+  readonly props: Props
+}
+
 /** Declares a block node kind: a top-level node containing text runs. */
 export const block = (name: string): NodeDefinition => ({
   name,
@@ -36,10 +48,15 @@ export const atom = (name: string): NodeDefinition => ({ name, kind: 'atom', chi
  * validates. The document codec keeps those props as JSON; the Kit is where an
  * application's types meet them.
  */
-export const node = (
-  name: string,
-  options: { readonly Props?: PropsSchema | undefined } = {},
-): NodeDefinition => ({ name, kind: 'node', children: 'text', props: options.Props })
+export const node = <const Name extends string, Props extends PropsSchema | undefined = undefined>(
+  name: Name,
+  options: { readonly Props?: Props } = {},
+): NodeDefinitionOf<Name, Props> => ({
+  name,
+  kind: 'node',
+  children: 'text',
+  props: options.Props as Props,
+})
 
 /**
  * The vocabulary one editor accepts: which node kinds and marks are available.
@@ -58,20 +75,42 @@ export const kit = (definition: {
 }): Kit => Object.freeze({ nodes: [...definition.nodes], marks: [...definition.marks] })
 
 export interface Diagnostic {
-  readonly code: 'UnknownNode' | 'UnsupportedNode' | 'UnknownMark' | 'InvalidProps'
+  readonly code:
+    'UnknownNode' | 'UnsupportedNode' | 'UnknownMark' | 'InvalidProps' | 'MismatchedDefinition'
   readonly message: string
   readonly node?: NodeId
   readonly detail?: string
 }
 
-/** Whether a node's props decode against its declared schema, and why not. */
-const propsFailure = (props: PropsSchema | undefined, node: NodeBlock): string | undefined => {
-  if (props === undefined) return undefined
+/**
+ * Whether a declared definition agrees with the block it is declared for: a
+ * paragraph is a `block`, an application node is a `node`, and an `atom` says
+ * the kind has no children at all.
+ */
+const definitionMismatch = (
+  definition: NodeDefinition,
+  shape: 'block' | 'node',
+): string | undefined => {
+  const declared = definition.kind === 'atom' ? 'atom' : definition.kind
+  return declared === shape
+    ? undefined
+    : `"${definition.name}" is declared as ${declared}, but the document holds it as ${shape}`
+}
+
+/**
+ * Whether a node's props decode against its declared schema, and why not. The
+ * diagnostic is deliberately stable: a schema's own message can name internals
+ * an API boundary should not leak, so only the verdict travels.
+ */
+const propsFailure = (props: PropsSchema | undefined, node: NodeBlock): boolean => {
+  if (props === undefined) return false
   try {
-    Schema.decodeUnknownSync(props)(node.props)
-    return undefined
-  } catch (error) {
-    return error instanceof Error ? error.message : 'props do not match the schema'
+    // Strict, like the persisted-content boundary: a field the schema does not
+    // declare is a failure, not something silently kept beside the props.
+    Schema.decodeUnknownSync(props, { onExcessProperty: 'error' })(node.props)
+    return false
+  } catch {
+    return true
   }
 }
 
@@ -104,31 +143,50 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
       })
     } else if (node.type === 'Node') {
       const declared = byName.get(node.kind)
-      if (declared?.kind !== 'node') {
+      if (declared === undefined) {
         diagnostics.push({
           code: 'UnsupportedNode',
           node: node.id,
           detail: node.kind,
           message: `The Kit does not declare node "${node.kind}"`,
         })
+      } else if (declared.kind !== 'node') {
+        diagnostics.push({
+          code: 'MismatchedDefinition',
+          node: node.id,
+          detail: node.kind,
+          message: `"${node.kind}" is declared as ${declared.kind}, but the document holds it as node`,
+        })
+      } else if (propsFailure(declared.props, node)) {
+        diagnostics.push({
+          code: 'InvalidProps',
+          node: node.id,
+          detail: node.kind,
+          message: `"${node.kind}" props do not match its declared schema`,
+        })
+      }
+    } else {
+      const declared = byName.get(node.type)
+      if (declared === undefined) {
+        diagnostics.push({
+          code: 'UnsupportedNode',
+          node: node.id,
+          detail: node.type,
+          message: `The Kit does not declare "${node.type}"`,
+        })
       } else {
-        const failure = propsFailure(declared.props, node)
-        if (failure !== undefined) {
+        // A declaration is a constraint, so it has to agree with what the
+        // document holds: an atom says the kind has no children at all.
+        const mismatch = definitionMismatch(declared, 'block')
+        if (mismatch !== undefined) {
           diagnostics.push({
-            code: 'InvalidProps',
+            code: 'MismatchedDefinition',
             node: node.id,
-            detail: node.kind,
-            message: `"${node.kind}" props are invalid: ${failure}`,
+            detail: node.type,
+            message: mismatch,
           })
         }
       }
-    } else if (!byName.has(node.type)) {
-      diagnostics.push({
-        code: 'UnsupportedNode',
-        node: node.id,
-        detail: node.type,
-        message: `The Kit does not declare "${node.type}"`,
-      })
     }
     for (const run of node.children) {
       for (const mark of run.marks) {

@@ -63,20 +63,29 @@ const dropEmptyRuns: RichText.Transform = {
       blocks[index] = { ...block, children: kept }
       next = { ...next, children: blocks }
     }
-    return { document: next, steps, removedNodes, dirtyNodes, textChanged: new Set() }
+    return {
+      document: next,
+      steps,
+      insertedNodes: new Set(),
+      removedNodes,
+      dirtyNodes,
+      textChanged: new Set(),
+      structureChanged: false,
+    }
   },
 }
 
 /** A transform that always reports a change, so the loop never settles. */
 const neverSettles: RichText.Transform = {
   name: 'neverSettles',
-  apply: (current, context) => ({
+  apply: current => ({
     document: { ...current, children: current.children.map(block => ({ ...block })) },
     steps: [],
+    insertedNodes: new Set(),
     removedNodes: new Set(),
     dirtyNodes: new Set(),
     textChanged: new Set(),
-    ...(context.pass >= 0 ? {} : {}),
+    structureChanged: false,
   }),
 }
 
