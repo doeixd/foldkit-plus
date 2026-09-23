@@ -1,0 +1,28 @@
+# RichText — semantic document foundation
+
+`foldkit-richtext` is an unpublished workspace package. The application Model
+owns the document and local selection; the package supplies pure data validation
+and text transitions. It has no DOM editor, persistence runtime, or hidden store.
+
+The current loop is `EditorState + Transaction → next state + ChangeSet + positionMap`,
+or a diagnostic with no partial result. Call `apply` inside the application's
+`update`, and install its successful state there.
+
+Available now: version-1 documents, explicit branded NodeIds, paragraphs,
+headings, text runs, Bold/Italic/Code marks, range and node selections,
+InsertText/DeleteText/SetSelection, text position mapping, and inspection.
+Schema constructors build values; `decodeDocument` strictly validates persisted
+input. Offsets are UTF-16 units. Position maps use sequential edit coordinates;
+the returned selection is already mapped. ChangeSet tracks touched nodes, not
+net authored-content change or a durable replication packet.
+
+Custom Kits, lossless unknown-extension loading, structural operations,
+normalization, Form/Bundle integration, DOM editing, and collaboration remain
+unfinished. Unknown data is rejected rather than silently stripped. Preserve the
+original input for recovery. Do not present the design's API sketches as shipped APIs.
+
+The planned integrations reuse Bundle lifecycle, Form controls, CMS drafts,
+metadata keys, and Sync presence; they must not add another document owner.
+
+See the [package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/richtext/README.md)
+and [phase plan](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/richtext-DESIGN.md).

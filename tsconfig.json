@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./packages/richtext" },
     { "path": "./packages/agent" },
     { "path": "./packages/agent-webmcp" },
     { "path": "./packages/agent-mcp" },

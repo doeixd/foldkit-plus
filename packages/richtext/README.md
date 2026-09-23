@@ -1,0 +1,93 @@
+# foldkit-richtext
+
+Pure semantic documents and text transactions for Foldkit. Content is versioned
+data with stable node IDs; edits return a new document, mapped selection, and an
+invalidation summary. This package is **in development and unpublished**.
+
+The application Model owns the document and local selection. Call `apply` from
+the application's `update`; it performs no I/O and holds no editor store. Form/CMS
+integration, DOM editing, and Sync replication are not implemented yet.
+
+```text
+EditorState + Transaction → next EditorState + ChangeSet + positionMap
+                         ↘ diagnostic, with no partial result
+```
+
+## A small edit
+
+Within this workspace, import the package as follows:
+
+```ts
+import * as RichText from 'foldkit-richtext'
+
+const paragraph = RichText.Paragraph.make({
+  type: 'Paragraph',
+  id: RichText.NodeId.make('paragraph-1'),
+  children: [RichText.Text.make({
+    type: 'Text',
+    id: RichText.NodeId.make('text-1'),
+    text: 'Hello',
+    marks: ['Bold'],
+  })],
+})
+const document = RichText.Document.make({ version: 1, children: [paragraph] })
+const result = RichText.apply({ document, selection: null }, [{
+  type: 'InsertText',
+  at: { node: RichText.NodeId.make('text-1'), offset: 5, affinity: 'after' },
+  text: '!',
+}])
+
+if (result.ok) {
+  // The parent reducer installs result.state in its Model.
+  const editedDocument = result.state.document
+  void editedDocument
+}
+```
+
+Schema constructors validate the value; IDs are supplied by the caller and must
+be unique across blocks and text runs. `apply` validates state and operations,
+then applies operations in array order. A later invalid operation rejects the
+whole transaction. No partially edited state is returned, and inputs are not
+mutated. `result.error` is a stable diagnostic code, without raw validation internals.
+
+## Current semantics
+
+- Documents contain paragraphs and headings (levels 1–6), each containing text
+  runs. The initial marks are `Bold`, `Italic`, and `Code`, with no duplicates.
+- Empty documents, empty blocks, and empty text runs are valid. No normalization
+  creates nodes or merges text runs yet.
+- `InsertText` targets one run and inherits that run's marks. Boundary mark
+  expansion and formatting operations await the Kit/mark semantics work.
+- `DeleteText` removes a half-open range `[from, to)` within one run.
+- Positions count **UTF-16 code units**. Low-level edits may split a surrogate
+  pair; grapheme-aware user commands are not implemented.
+- `SetSelection` resolves against the document at that point in the transaction.
+  Ranges retain anchor/focus direction; node selections may target a block or run.
+- Insertion at a range endpoint keeps `before` affinity on the left and moves
+  `after` affinity past the insertion. Deletion collapses covered positions to
+  its start. Other nodes' positions are unchanged.
+
+`positionMap` records text replacements in sequential coordinates. Use
+`mapPosition(position, result.positionMap)` for another position from the original
+document. The returned selection is already mapped. `ChangeSet` names touched
+text runs and their blocks; it is neither a replication packet nor proof of a net
+content change (insert-then-delete can cancel). `selectionChanged` compares the
+final selection with the original. Empty edits preserve state identity.
+
+## Loading and limits
+
+Use `decodeDocument(unknown)` at a persistence boundary. It rejects excess fields,
+duplicate IDs, invalid structure, unknown extensions, and unsupported versions.
+The exported Schemas also compose into an application's Model; when decoding
+them directly, pass `{ onExcessProperty: 'error' }` for the same strict policy.
+
+Unknown-extension preservation, migrations, configurable document limits, custom
+Kits, structural operations, transforms, history, rendering, and collaboration
+are still pending. Retain rejected source content for recovery; do not replace it
+with an empty document. Apply request-size limits before decoding untrusted payloads.
+
+Each transaction currently validates the whole input and indexes its text runs.
+Edits copy the affected arrays and preserve untouched nodes. Large-document
+performance remains to be measured in the Phase 1 feasibility work.
+
+See the [design and phase status](../../docs/design/richtext-DESIGN.md#101-phase-1--pure-semantics-and-integration-feasibility).

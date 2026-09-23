@@ -1,0 +1,24 @@
+export {
+  NodeId,
+  Mark,
+  Text,
+  Paragraph,
+  Heading,
+  Block,
+  Document,
+  Position,
+  Selection,
+  EditorState,
+  decodeDocument,
+  selectionIsValid,
+  inspect,
+} from './document.js'
+export {
+  Operation,
+  Transaction,
+  apply,
+  mapPosition,
+  type ChangeSet,
+  type PositionStep,
+  type TransactionResult,
+} from './transaction.js'

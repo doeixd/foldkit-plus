@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Proposed architecture; reviewed against existing package contracts. Implementation not started.
+**Status:** Phase 1 in progress: unpublished document and text-transaction foundation implemented. Kits, structural edits, transforms, and the three integration proofs remain unfinished. Phases 2–12 are not started.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -3574,6 +3574,20 @@ DOM reconciliation
 ---
 
 # 101. Phase 1 — pure semantics and integration feasibility
+
+Implemented first slice: `packages/richtext` has a fixed initial vocabulary
+(paragraphs, headings, text, Bold/Italic/Code), versioned document validation,
+explicit NodeIds, range/node selections, inspection, and atomic
+InsertText/DeleteText/SetSelection transactions with UTF-16 position maps.
+Unknown extensions are currently rejected, not losslessly loaded. ChangeSet
+currently summarizes touched text nodes and their parent blocks; structural
+fields arrive with structural operations. This is not completion of Phase 1.
+
+Remaining: extensible Kits and metadata, mark definitions and boundary semantics,
+structural operations and their position maps, transforms/normalization, bounded
+validation and unknown-extension preservation, followed by all three feasibility
+proofs below. The current implementation is private/unpublished and APIs may change
+as those proofs establish the final contracts.
 
 Implement only:
 
