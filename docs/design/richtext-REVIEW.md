@@ -194,6 +194,33 @@ explicitly document an open-props contract. Schema failures are also copied
 verbatim into public diagnostics; define a deliberate redaction policy before
 these diagnostics cross a server/API boundary.
 
+## Disposition
+
+Addressed in the working tree after this review, one commit per group:
+
+| Finding | Fix | Commit |
+| --- | --- | --- |
+| R1 | `deleteRange` joins the blocks a range spanned; the boundary goes with the text | `199a323` |
+| R2 | `previousBoundary`/`nextBoundary` step over a surrogate pair and its combining marks, in-run and into a neighbor run | `199a323` |
+| R3 | `patch` places every block relative to the previous block's element, so a move lands in document order | `365edd8` |
+| R4 | the harness commits history only when the document changed, so a caret move keeps redo | `365edd8` |
+| R5 | §3 status and §101/§102/§103 remainder lists reconciled; spike completion is distinguished from promotion | `cf00c0e` |
+| R6 | composition start retains the semantic selection; the commit uses it, not the browser's temporary caret | `365edd8` |
+| R7 | normalization maps Node selections through its steps (`mapThrough`) | `765432b` |
+| R8 | `isKnownMark` is an array lookup, not `in`; prototype names are refused with a diagnostic | `765432b` |
+| R9 | the merge transform carries a block index; `bench/operations.bench.ts` records the edit costs, and the remaining per-operation copying is stated rather than claimed fixed | `cf00c0e` |
+| R10 | a dirty block whose run list is unchanged keeps its element; only its dirty runs are re-rendered | `365edd8` |
+| R11 | a declaration must agree with the block's shape (`MismatchedDefinition`) | `765432b` |
+| R12 | `TransformReport` carries `insertedNodes`, `structureChanged`, and the full step vocabulary, accumulated by `apply` | `765432b` |
+| R13 | `node(name, { Props })` returns `NodeDefinitionOf<Name, Props>`; erasure happens only in the Kit registry | `765432b` |
+| R14 | prop validation is strict about excess properties, and diagnostics carry a stable verdict rather than a schema's message | `765432b` |
+
+Every fix has a regression test, and each was mutation-checked (the fix reverted,
+the test confirmed red, then restored). Two findings are partly deferred by
+design and say so in place: R9's per-operation copying, and the DOM adapter's
+real-browser behaviour, which this review could not exercise.
+
+
 ## Validation results
 
 Follow-up runtime probes reproduced R8, R11, R12, and R14. R13's invalid
