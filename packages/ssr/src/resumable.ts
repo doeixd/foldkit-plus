@@ -100,8 +100,28 @@ export interface KeyHole<Message> {
   ): Attribute<Message>
 }
 
-export type ResumableBuilder<Message> = Omit<
-  HtmlBuilder<Message>,
+/**
+ * A builder a view is given: Foldkit's `HtmlBuilder`, or a Surface renderer's,
+ * which leaves out Foldkit's phantom key. Its Message is what `OnClick` takes.
+ */
+export type AnyBuilder = {
+  readonly OnClick: (message: never, ...rest: ReadonlyArray<never>) => unknown
+}
+
+/** The Message a builder's handlers make. */
+export type MessageOf<Builder> = Builder extends {
+  readonly OnClick: (message: infer Message, ...rest: ReadonlyArray<never>) => unknown
+}
+  ? Message
+  : never
+
+/**
+ * The resumable form of a builder: the same elements and attributes, and the
+ * hole forms of the four value events. `Builder` is the builder it wraps, a
+ * view's `HtmlBuilder` unless it says otherwise.
+ */
+export type ResumableBuilder<Message, Builder = HtmlBuilder<Message>> = Omit<
+  Builder,
   'OnInput' | 'OnChange' | 'OnKeyDown' | 'OnKeyUp'
 > & {
   readonly OnInput: TextHole<Message>
@@ -150,9 +170,11 @@ const builders = new WeakMap<object, unknown>()
  * The resumable builder for a view's `h`. Use it in place of `h`; it has the
  * same elements and attributes, and the hole forms of the four value events.
  */
-export const builder = <Message>(h: HtmlBuilder<Message>): ResumableBuilder<Message> => {
+export const builder = <Builder extends AnyBuilder>(
+  h: Builder,
+): ResumableBuilder<MessageOf<Builder>, Builder> => {
   const cached = builders.get(h)
-  if (cached !== undefined) return cached as ResumableBuilder<Message>
+  if (cached !== undefined) return cached as ResumableBuilder<MessageOf<Builder>, Builder>
   const source = h as unknown as Record<string, unknown>
   const attribute = source.Attribute as (name: string, value: string) => unknown
 
@@ -247,5 +269,17 @@ export const builder = <Message>(h: HtmlBuilder<Message>): ResumableBuilder<Mess
     } else wrapped[name] = value
   }
   builders.set(h, wrapped)
-  return wrapped as unknown as ResumableBuilder<Message>
+  return wrapped as unknown as ResumableBuilder<MessageOf<Builder>, Builder>
 }
+
+/**
+ * A view or renderer written against the resumable builder, as one that takes
+ * the builder it is given: `Surface.rootView(Page, params, Resume.view(render))`,
+ * `SurfaceView.define`, or an application's own view.
+ */
+export const view =
+  <Model, Builder extends AnyBuilder, Out>(
+    render: (model: Model, rh: ResumableBuilder<MessageOf<Builder>, Builder>) => Out,
+  ) =>
+  (model: Model, h: Builder): Out =>
+    render(model, builder(h))

@@ -5,8 +5,9 @@
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { Surface } from 'foldkit-surface'
 import { Resume } from 'foldkit-ssr'
-import { Message } from './bindingsFixture.js'
+import { App, Message } from './bindingsFixture.js'
 
 const Other = defineMessageUnion({ Elsewhere: { value: Schema.String } })
 
@@ -33,4 +34,35 @@ export const view = (h: HtmlBuilder<Message>) => {
     ],
     [],
   )
+}
+
+/** A Surface that may send only Liked and ChangedSearch. */
+const Like = App.surface('Like', {
+  model: ({ model }) => ({ id: model.id }),
+  messages: [Message.Liked, Message.ChangedSearch],
+})
+
+export const surfaceViews = (): number => {
+  // A Surface renderer takes the resumable builder through Resume.view.
+  const likeView = Surface.rootView(
+    Like,
+    undefined,
+    Resume.view((like, rh) =>
+      rh.div(
+        [
+          rh.OnClick(Message.Liked({ id: like.id })),
+          rh.OnInput(Message.ChangedSearch),
+          // @ts-expect-error: Renamed is not one of this Surface's Messages
+          rh.OnChange(Message.Renamed, { id: like.id }),
+        ],
+        [],
+      ),
+    ),
+  )
+
+  // Or wraps the builder it is given itself.
+  const plainView = Surface.rootView(Like, undefined, (like, h) =>
+    Resume.builder(h).button([Resume.builder(h).OnClick(Message.Liked({ id: like.id }))], []),
+  )
+  return [likeView, plainView].length
 }

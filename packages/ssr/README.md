@@ -309,6 +309,17 @@ view's Messages and leave exactly one string field, or exactly `key` and
 `modifiers`, after the fixed ones. A closure still works; it is simply not
 data, so nothing can name what it would do.
 
+A Surface renderer takes the resumable builder through `Resume.view`, which
+goes wherever a renderer goes. Its `rh` makes only the Surface's own Messages:
+
+```ts
+const LikeView = Surface.rootView(
+  Like,
+  undefined,
+  Resume.view((like, rh) => rh.button([rh.OnClick(Message.Liked({ id: like.id }))], ['Like'])),
+)
+```
+
 During the server's render each binding gets an ordinal, its element a
 `data-foldkit-plus-on-<event>` attribute naming it, and the envelope the
 Message encoded through the application's Message Schema. In the browser the

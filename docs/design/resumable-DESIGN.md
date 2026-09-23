@@ -185,10 +185,13 @@ manifest is meaningless without a resume plan.
 
 ### 1. The resumable builder
 
-Views built for a Surface receive `h` from `Surface.rootView`
-(`foldkit-surface`) or `SurfaceView.define` (`foldkit-mixins-surface`). Those
-wrappers already own the builder handed to the view, so that is where a derived
-builder is installed, in both packages. Nothing changes in Foldkit core.
+A view uses the resumable builder by wrapping the `h` it is given:
+`Resume.builder(h)`, or, for a renderer handed to `Surface.rootView`,
+`SurfaceView.define` or an application's view, `Resume.view((model, rh) =>
+...)`. Nothing changes in Foldkit core or in the Surface packages. (An
+earlier draft installed the builder inside `Surface.rootView` and
+`SurfaceView.define`; neither package may depend on `foldkit-ssr`, so the
+adapter took its place. See ssr-PLAN Phase A.)
 
 ```ts
 const rh = Resume.builder(h) // HtmlBuilder<Message>, same type, same behavior in the browser

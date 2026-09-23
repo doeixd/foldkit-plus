@@ -33,7 +33,7 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
-import { builder } from './resumable.js'
+import { builder, view } from './resumable.js'
 
 /** The attribute on the script that carries a page's resume envelope. */
 export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
@@ -997,7 +997,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
 }
 
 /** The resumable track: bindings the server's markup names, so a page can answer before it boots. */
-export const Resume = { builder }
+export const Resume = { builder, view }
 
 export const SSR = {
   plan,

@@ -6,7 +6,8 @@ Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
 without rerunning `init`, a plan is checked against the Surfaces the browser
 reads, `SSR.static` regions belong to the server alone, and Remote's data
 crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
-marks bindings; nothing dispatches them before boot yet.
+and `Resume.view(render)` mark bindings; nothing dispatches them before boot
+yet.
 
 ## What it owns
 
@@ -65,6 +66,9 @@ SSR.hydrate(config, Editor, { buildId })
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
   `Invalid`, `Route`), is contained with the reason logged, never re-rendered.
+- A Surface renderer: `Surface.rootView(S, params, Resume.view((m, rh) => ...))`;
+  `rh` makes only the Surface's Messages. No cast: the builder is generic over
+  the `h` it is given.
 - `const rh = Resume.builder(h)` in a view: `h` plus hole forms,
   `rh.OnInput(Message.ChangedSearch)`, `rh.OnChange(Message.Renamed, { id })`,
   `rh.OnKeyDown(Message.Pressed)`; the member must leave one string field (or

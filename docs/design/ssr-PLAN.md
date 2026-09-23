@@ -1,7 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U and R done, and Phase A's builder. Next: the
-Surface hook that finishes Phase A, then Phases B to F. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R and A done. Next: Phases B to F. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -622,11 +621,27 @@ this plan's next track, in its order, and it is the source for their detail:
   check compares the two renders' manifests (decision 11); test that a
   Message built from an unsent field is refused.
 
-  **Builder done; the Surface hook is next.** `Resume.builder(h)`, the
-  bindings in the envelope, and their comparison between the two renders,
-  with twelve mutations each turning a test red once a keyed element had a
-  binding, and each of the three hole checks in the types shown to fail
-  `tsc` when removed. Decided and found on the way:
+  **Done.** `Resume.builder(h)`, `Resume.view(render)`, the bindings in the
+  envelope, and their comparison between the two renders, with thirteen
+  mutations each turning a test red once a keyed element had a binding, and
+  each of the three hole checks in the types shown to fail `tsc` when
+  removed. Decided and found on the way:
+
+  - **No hook in the Surface packages.** The bullet above had
+    `Surface.rootView` and `SurfaceView.define` install the builder. Neither
+    may depend on `foldkit-ssr`, so a hook would need a seam of its own, for
+    one line of saving. Instead `Resume.view(render)` adapts a renderer that
+    takes the resumable builder into one that takes the builder it is given,
+    and goes wherever a renderer goes: `Surface.rootView`,
+    `SurfaceView.define`, `Surface.embed`, or an application's own view.
+    Neither Surface package changed.
+  - **A Surface renderer's builder is not an `HtmlBuilder`.** It is
+    `ViewBuilder`, which leaves out Foldkit's phantom Message key, so the
+    first `Resume.builder(h: HtmlBuilder<M>)` did not accept it without a
+    cast. `Resume.builder` is now generic over the builder it is given, reads
+    the Message from its `OnClick`, and returns that builder's own shape with
+    the hole forms added, so in a Surface renderer `rh` takes only the
+    Surface's Messages and a member outside them fails to compile.
 
   - **Foldkit's attributes are tagged data** (`{ _tag: 'OnClick', message,
     options }`), so a Message-valued binding is read off the attribute and
