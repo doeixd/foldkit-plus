@@ -1,8 +1,13 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 5 done; Phase R next. Written 2026-09-22 against `foldkit`
-0.158.2 and this repository at 0.10.0, then revised the same day after an
-independent review (see [What review changed](#what-review-changed)).
+**Status:** Phases 0 to 5 done. Next, in order: the Foldkit 0.163 upgrade
+(Phase U), Remote's resume (Phase R), delivery through Foldkit's fetch handler
+(Phase 6), then the resumable track (Phases A to F). Written 2026-09-22 against
+`foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
+independent review (see [What review changed](#what-review-changed)), and
+revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
+changed](#what-changed-upstream-foldkit-0159-to-0163) and for
+[resumable-DESIGN.md](./resumable-DESIGN.md).
 
 **Source:** [SSR-DESIGN.txt](./SSR-DESIGN.txt), the 3,000-line design. This plan
 does not restate it. It records what checking the design against the code found,
@@ -68,6 +73,48 @@ deprecated for `App.model`, `Surface.at` needs its params argument, and
 `Surface.when` now gives a plan an activation it can read without running a
 callback.
 
+## What changed upstream (Foldkit 0.159 to 0.163)
+
+Foldkit 0.163.0 was published on 2026-09-20; this repository still pins
+0.158.2. [foldkit-0.158-to-0.163.md](../foldkit-0.158-to-0.163.md) lists every
+change and an upgrade guide. What matters to this plan, with the server API
+claims checked against the published 0.163.0 declarations:
+
+- **Foldkit's server is a Web `fetch` handler** (0.159). `handleRequest(request,
+  { renderPage, template, containerId? })` classifies the request and calls
+  `renderPage(request): Promise<EntryResult>`, where `EntryResult` is
+  `Rendered` (a `RenderedApplication` to put in the template) or `Responded` (a
+  whole `Response`). `vite build` emits `dist/server/fetch.js`, which a
+  Cloudflare Worker can export directly. None of the phases below had a
+  delivery step; Phase 6 adds it.
+- **A `Rendered` result cannot carry the envelope.** It holds only the
+  `RenderedApplication`, and `handleRequest` injects it into one fixed
+  template, where `injectIntoTemplate` accepts only the root and Foldkit's own
+  payload (Phase 2's finding). `SSR.page` puts the envelope in the template per
+  request, which that path has no place for. Phase 6 decides between answering
+  with `Responded` and asking upstream for a slot.
+- **`canonical` has no default** (0.163). Neither the client nor
+  `renderToString` derives it from the URL any more. An application derives it
+  from the route in its Model, as it does `title`, or the page has none.
+  Decision 9.
+- **Hot reloading is now "model preservation"** (0.159): a full reload with the
+  Model restored, which skips adoption. Same behaviour, new name; the risk
+  below uses it.
+- **Messages buffered during boot now reach Subscriptions and Managed
+  Resources** (0.163). The resumable track's `EagerStartRequired` may have been
+  working around this bug rather than boot order; Phase C finds out.
+- **The hydrate-without-`init` workaround is unchanged.** The runtime only
+  renamed `hmrModel` to `preservedModel`. `flagsTrap.test.ts` pins the Flags
+  half and must stay green through the upgrade.
+- **`FOLDKIT_APP_ATTRIBUTE` and `FOLDKIT_FLAGS_ATTRIBUTE` are exported** from
+  the server module; `data-foldkit-build` still is not. Decision 5.
+- **New event attributes** (`OnBeforeInput`, `OnKeyDownSelf`, and others), and
+  `OnInput`/`OnChange` now read a contenteditable host's text. The resumable
+  builder's projection table (resumable-DESIGN) accounts for both.
+- **`Runtime.adopt` did not ship**, nor did any other change this plan or the
+  design asks for. See [Beyond this plan](#beyond-this-plan) for how the ask is
+  reframed.
+
 ## Decisions
 
 The design leaves these open, or the review found the first answer wrong. Each
@@ -115,8 +162,12 @@ it.
    also escapes U+2028 and U+2029, which only matter if the text is ever read
    as JavaScript rather than JSON; it costs nothing.
 5. **Attributes use their own namespace.** `data-foldkit-plus-resume` and
-   `data-foldkit-plus-static`. Foldkit reserves a fixed set of `data-foldkit-*`
-   names today, and nothing strips others, but a later release may reserve more.
+   `data-foldkit-plus-static`, and the resumable track's
+   `data-foldkit-plus-on-*`. Foldkit reserves a fixed set of `data-foldkit-*`
+   names (unchanged through 0.163), and nothing strips others, but a later
+   release may reserve more. Foldkit's own names are read from its exported
+   constants where it exports them, so a rename upstream is a type error here;
+   `data-foldkit-build` is not exported and stays pinned by a test.
 6. **Rendering stays synchronous.** `init` is synchronous on the server, so
    data is loaded before rendering, with `Data.prefetch` for Remote. SSR adds no
    async render path.
@@ -126,7 +177,13 @@ it.
    `onUrlChange` at boot, so the route the client starts on is whatever the
    server parsed. The client parses its own URL and refuses (decision 3) if the
    route differs from the one resumed. Static generation has the same check
-   against the URL it was built for.
+   against the URL it was built for. (Phase 5 revised it for generated pages,
+   which compare the path alone.)
+9. **Head fields come from the Model.** Since 0.163 nothing derives `canonical`
+   from the URL, so a resumed page states it in its view, from the route in its
+   Model, like `title`. Phase 2's view check compares only the body, so a head
+   field read from a field the plan leaves out would change in the browser
+   unnoticed. Phase U extends the check to the head.
 
 ## Phases
 
@@ -351,18 +408,110 @@ Then `Remote.resume(Data, { surfaces })` as a part.
   what was resumed.
 - Gate: Phase 3.
 
+### Phase U: move to Foldkit 0.163
+
+Before the phases below, because each would otherwise be built on 0.158
+internals and checked again. The repository-wide upgrade is the guide's steps
+1 to 3; this phase is its part for `packages/ssr`:
+
+- Read `FOLDKIT_APP_ATTRIBUTE` and `FOLDKIT_FLAGS_ATTRIBUTE` from Foldkit, in
+  the source and the tests that spell them (decision 5).
+- Every existing test stays green unchanged, the Flags trap and the build-id
+  refusal above all; a test that needs changing is a finding for this plan.
+- Extend Phase 2's view check to the head: `renderToString` returns `title`,
+  `canonical`, `ogUrl`, `lang` and `dir` beside the body, and each must be the
+  same from the browser's Model as from the server's, or `SSR.render` refuses
+  with `ViewDependsOnUnsentState` (decision 9). Test: a title read from an
+  unsent field is refused.
+- Say in the README that `canonical` comes from the Model, and word the
+  development risk in model-preservation terms.
+- Gate: Phase 5, and the repository's own upgrade commits.
+
+### Phase 6: deliver a page through Foldkit's fetch handler
+
+- `SSR.entry(config, plan, { buildId, template, flags? })` returns the
+  `renderPage` a Foldkit server entry exports, so `handleRequest` and the
+  emitted `fetch.js` serve a resumed page on Node and on Workers alike.
+- The envelope is the question (see [what changed
+  upstream](#what-changed-upstream-foldkit-0159-to-0163)). The first cut
+  answers with `Responded`: the page `SSR.page` builds, as an HTML `Response`,
+  keeping `handleRequest`'s request classification and giving up only its
+  template injection. The upstream ask is a way for a `Rendered` result to
+  carry one more trusted payload script, which would let the envelope go back
+  to `Rendered`.
+- The design's sketched `foldkit-ssr/vite` plugin, if it is built, extends
+  `@foldkit/vite-plugin@0.24`'s `ssr.serverEntry` rather than owning a build
+  entry.
+- Tests: `handleRequest` with a page `Request` returns a `Response` that
+  resumes; a hashed-asset miss is not answered with the page; a `RenderError`
+  or `ResumeUnsafe` becomes an error response, not a page that cannot resume.
+- Gate: Phase U.
+
+### Phases A to F: resumable pages
+
+Binding-level resumability was parked as research. [resumable-DESIGN.md](./resumable-DESIGN.md)
+argues it is not, for Foldkit: a handler is a Message, a value that already
+round-trips through the Message Schema, so the page can say which Message each
+element causes, and the view need not run until the first one. Its phases are
+this plan's next track, in its order, and it is the source for their detail:
+
+- **A. The resumable builder.** `Resume.builder(h)` marks each binding with an
+  ordinal and writes the encoded Message, or a member with a hole, into a
+  manifest inside the envelope. Built on Phase 4's render context, which gains
+  the manifest as a fourth concern.
+- **B. Delegated dispatch.** `Resume.listen`, one capture-phase listener per
+  event type at the root, honouring each binding's propagation and default
+  action as the eager page does. The manifest is decoded once, through the
+  application's Message union restricted to what the plan allows.
+- **C. Deferred boot.** `SSR.hydrate`'s `start: 'now' | 'idle' |
+  'on-interaction'`, default `'now'`, with Messages queued before boot and
+  replayed after Foldkit's first committed patch. `EagerStartRequired` refuses
+  deferral while a Subscription or Managed Resource is active for the sent
+  Model; re-check on 0.163 whether the boot-buffer fix makes it unnecessary.
+- **D. Coverage and static refusal.** Phase 3's check gains the Message side: a
+  binding whose Message no active Surface lists in `messages` is `Uncovered`,
+  and a binding inside `SSR.static` is refused.
+- **E. Server fallback.** `fallback: 'server'` on forms, and `SSR.handle`,
+  called from Phase 6's `renderPage` for a posted Message: the server runs
+  `init`, `boot`, `update` and its Commands, and renders the result.
+- **F. Bundle boundaries**, then `Bundle.lazy`.
+
+Gates: A to D on Phase U, since three of their claims rest on Foldkit internals
+(`seedAdoptedState`, a control's value mismatch, and when the root's app
+attribute is removed), checked against 0.158.2 and 0.163.0 alike, which tests
+pin. E on Phase 6. F on E and a real application that shows the boot chunk is
+dominated by Bundle bodies.
+
+The order puts Phase R before this track. A Surface that reads Remote is
+refused today (Phase 3), and a resumable page still needs its data in the
+browser before its first Message arrives.
+
 ### Beyond this plan
 
 These wait on something outside this repository, and are not scheduled:
 
 - **Opaque boundaries** (design Phase 4) wait on Foldkit's "externally owned
-  children" primitive.
+  children" primitive, still unshipped in 0.163.
 - **`Runtime.adopt`** would replace the adapted-`init` workaround and let the
-  runtime handle startup Commands. It is an upstream change.
+  runtime handle startup Commands. It is an upstream change, and since 0.159 it
+  can be asked for in Foldkit's own words: model preservation already starts a
+  runtime from a Model, but takes no Commands. `adopt` is the missing third
+  boot mode beside `run` (fresh), `hydrate` (Flags into `init`, then adopt)
+  and preservation (a Model, then a fresh patch): a Model and its Commands,
+  then adopt. With it, Subscriptions could start eagerly while the view waits,
+  which is what the resumable track's `EagerStartRequired` works around.
+- **Rendering a Model on the server** (`renderModelToString`) is a smaller ask
+  than when the design proposed it: since 0.163 a server render depends only on
+  config, URL and build id, with no request-derived `canonical` to thread
+  through.
+- **A payload slot in a `Rendered` result**, so Phase 6 can return `Rendered`.
+  New with 0.159.
 - **Removing static code from the client bundle** (design Phase 5) needs a Vite
-  plugin, and is worth building only after Phase 4 shows the regions are used.
-- **Surfaces as the unit of hydration and binding-level resumability** (design
-  Phases 6 and 7) need a different runtime and are research.
+  plugin on `@foldkit/vite-plugin`'s `ssr.serverEntry`, and is worth building
+  only once static regions are used.
+- **Surfaces as the unit of hydration** (design Phase 6) needs a renderer per
+  subtree, an upstream change. Binding-level resumability, the design's Phase
+  7, is no longer here: it is Phases A to F above.
 
 ## Risks
 
@@ -374,9 +523,18 @@ These wait on something outside this repository, and are not scheduled:
   page by asking Foldkit to hydrate with a build id it rejects. That is
   Foldkit's documented behaviour for a mismatch, and Phase 2's refusal tests
   pin it.
-- **Development is not production.** With hot reloading, Foldkit keeps the
-  previous Model and skips adoption, so a resumed page behaves differently in
-  development. Phase 2's tests run the production path.
+- **Development is not production.** Under Vite's dev server, Foldkit's model
+  preservation restores the previous Model after a reload and skips adoption,
+  giving the stamped root a fresh patch, so a resumed page behaves differently
+  in development. Phase 2's tests run the production path.
+- **The resumable track leans on three Foldkit internals**: that the first
+  patch removes attributes the browser's view does not assert, that a
+  control's value differing from the vnode is patched to the Model's, and that
+  the root's app attribute is removed just before the first committed patch.
+  None is an API. Each gets a test that fails the day it changes.
+- **Foldkit's server module is experimental**, and `handleRequest`,
+  `EntryResult` and `toResponse` say so. Phase 6 wraps as little of them as it
+  can.
 - **Clocks.** Remote's `updatedAt` is the server's clock. A `maxAge` policy on
   the client can refetch data the server just sent if the clocks disagree.
 
@@ -393,7 +551,8 @@ Foldkit's code or by running it:
   Foldkit's order, with Foldkit's containment.
 - Dropping `init`'s Commands by default would have lost `Mirror.kv`'s restore.
   Decision 1 now defaults `boot` to the wirings' startup Commands, and refuses
-  undeclared ones otherwise.
+  undeclared ones otherwise. (Phase 2 kept the refusal and dropped the default;
+  see decision 1.)
 - Routing and static generation, both in the design's first release, were
   missing. Decision 8, Phase 2's routing test and Phase 5 add them.
 - The coverage check could never fail, since the baseline is a whole Model. It
@@ -405,6 +564,8 @@ Foldkit's code or by running it:
   `Snapshot`.
 - The first version said Foldkit's markers would survive inside a static region.
   Foldkit's server refuses them there, so regions are rendered without them.
+  (Phase 4 found a simpler way: a region is rendered as ordinary children, and
+  the markers, which Foldkit puts only on keyed elements, are harmless there.)
 - Decision 4's escape reasoning was wrong: `<` alone is sufficient, and was
   tested.
 - `baseline`, the design's central "nothing else crosses" test, the resume
