@@ -3,11 +3,11 @@
  * active projections read, each connection with its boundaries, and the live
  * cursors those entities follow; nothing else of the store.
  */
-import { Result, Schema } from 'effect'
+import { Effect, Layer, Result, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Entity, Query, Remote } from '../src/index.js'
+import { Entity, Query, Remote, RemoteClient, tombstone } from '../src/index.js'
 import { captureRemote, restoreRemote } from '../src/resume.js'
 
 const User = Entity.make(
@@ -113,6 +113,15 @@ describe('captureRemote', () => {
     expect(listed.entities['Project:p1']?.values).toEqual({ name: 'Atlas' })
   })
 
+  it('takes an entity the server knows is gone, so the browser does not fetch it', () => {
+    const gone = { ...served.remote, entities: tombstone(served.remote.entities, 'Project:p1') }
+    const capture = captureRemote(gone, [detail])
+    expect(capture.entities['Project:p1']).toMatchObject({ tombstone: true, values: {} })
+    const resumed = { ...initial, remote: restoreRemote(initial.remote, capture) }
+    expect(detail.read(resumed)).toEqual(detail.read({ ...served, remote: gone }))
+    expect(Data.plan(resumed, detail)).toEqual([])
+  })
+
   it('keeps a field marked stale, so the browser revalidates it', () => {
     const entry = served.remote.entities['Project:p1']
     if (entry === undefined) throw new Error('the server read no Project:p1')
@@ -142,21 +151,28 @@ describe('restoreRemote', () => {
     expect(restored.remote.live).toEqual({ 'Project:p1:name': { cursor: 7, boundary: {} } })
   })
 
-  it("hands the live subscription the server's cursor, so it asks from there", () => {
-    // The stream is keyed by what the page's live entry asks, merged per entity.
+  it("hands the live subscription the server's cursor, so it asks from there", async () => {
+    // The server's live subscription receives one event, keyed by the library.
     const entry = subscriptions['page.live']
-    const stream = entry
-      .modelToDependencies(served)
-      .requirements.map(
-        (requirement: { entity: string; id: string; fields: ReadonlyArray<string> }) =>
-          `${requirement.entity}:${requirement.id}:${[...requirement.fields].sort().join(',')}`,
-      )
-      .sort()
-      .join('|')
-    const watching = {
-      ...served,
-      remote: { ...served.remote, live: { [stream]: { cursor: 9, boundary: {} } } },
-    }
+    const publishing = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('unused'),
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: () =>
+        Stream.make({
+          _tag: 'EntityPatched' as const,
+          ref: { entity: 'Project', id: 'p1' },
+          values: { name: 'Atlas' },
+          changed: ['name'],
+          cursor: 1,
+        }),
+    })
+    const received = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(served))).pipe(
+        Effect.provide(publishing),
+      ),
+    )
+    const watching = [...received].reduce((model, message) => Data.reduce(model, message), served)
     const resumed = {
       ...initial,
       remote: restoreRemote(
@@ -164,7 +180,7 @@ describe('restoreRemote', () => {
         captureRemote(watching.remote, [detail, list, watched]),
       ),
     }
-    expect(entry.modelToDependencies(resumed).cursor).toBe(9)
+    expect(entry.modelToDependencies(resumed).cursor).toBe(1)
     expect(entry.modelToDependencies(initial).cursor).toBe(0)
   })
 

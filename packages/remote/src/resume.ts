@@ -127,7 +127,6 @@ export const captureRemote = (
       updatedAt: stored.updatedAt,
     }
     entries.set(key, entry)
-    if (stored.tombstone) return
     for (const field of requirement.fields) {
       if (!stored.present.has(field)) continue
       entry.values[field] = stored.values[field]
