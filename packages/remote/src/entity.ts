@@ -57,9 +57,16 @@ export interface EntityDescriptor<Name extends string, F extends Schema.Struct.F
  * target schema is not inlined, recursive relations cannot arise through the
  * schema graph.
  */
+/**
+ * A ref as the wire carries it: the target's name, a colon, and its id. Typed
+ * with the name, so a relation to `User` takes `'User:u1'` and not a ref to
+ * some other entity, which would read as a row that does not exist.
+ */
+export type RefKey<Name extends string> = `${Name}:${string}`
+
 const refCodec = <Name extends string, F extends Schema.Struct.Fields>(
   entity: Name,
-): Schema.Codec<EntityRef<Name, F>, string> =>
+): Schema.Codec<EntityRef<Name, F>, RefKey<Name>> =>
   Schema.Struct({ entity: Schema.String, id: Schema.String })
     .pipe(
       Schema.encodeTo(Schema.String, {
@@ -70,7 +77,7 @@ const refCodec = <Name extends string, F extends Schema.Struct.Fields>(
     .annotate({
       [RelationAnnotation]: 'one',
       [RelationEntityAnnotation]: entity,
-    }) as unknown as Schema.Codec<EntityRef<Name, F>, string>
+    }) as unknown as Schema.Codec<EntityRef<Name, F>, RefKey<Name>>
 
 /**
  * A patch in wire shape: the values the store holds, so a relation is its ref
@@ -126,10 +133,10 @@ const refPageCodec = <Name extends string, F extends Schema.Struct.Fields>(
 type RelationField<Spec> =
   Spec extends Domain.RelationSpec<infer Target, infer Cardinality, infer Optional>
     ? Cardinality extends 'many'
-      ? Schema.$Array<Schema.Codec<EntityRef<Target['name']>, string>>
+      ? Schema.$Array<Schema.Codec<EntityRef<Target['name']>, RefKey<Target['name']>>>
       : Optional extends true
-        ? Schema.NullOr<Schema.Codec<EntityRef<Target['name']>, string>>
-        : Schema.Codec<EntityRef<Target['name']>, string>
+        ? Schema.NullOr<Schema.Codec<EntityRef<Target['name']>, RefKey<Target['name']>>>
+        : Schema.Codec<EntityRef<Target['name']>, RefKey<Target['name']>>
     : never
 
 /**
@@ -209,10 +216,10 @@ export const Entity = {
   /** A relation to a known entity, decoded as a reference. */
   ref: <Name extends string, F extends Schema.Struct.Fields>(
     entity: EntityDescriptor<Name, F>,
-  ): Schema.Codec<EntityRef<Name, F>, string> => refCodec<Name, F>(entity.name),
+  ): Schema.Codec<EntityRef<Name, F>, RefKey<Name>> => refCodec<Name, F>(entity.name),
 
   /** A relation by name, for recursive or forward references. */
-  refTo: <Name extends string>(name: Name): Schema.Codec<EntityRef<Name>, string> =>
+  refTo: <Name extends string>(name: Name): Schema.Codec<EntityRef<Name>, RefKey<Name>> =>
     refCodec<Name, Schema.Struct.Fields>(name),
 
   /**

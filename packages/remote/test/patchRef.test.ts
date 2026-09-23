@@ -48,6 +48,8 @@ describe('Remote.patch', () => {
     Remote.patch(Project, 'p1', { title: 'x' })
     // @ts-expect-error `body` is text
     Remote.patch(Comment, 'c1', { body: 7 })
+    // @ts-expect-error `owner` is a User, so a ref to a Project names a row that does not exist
+    Remote.patch(Project, 'p1', { owner: 'Project:p9' })
   })
 })
 

@@ -31,6 +31,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-remote`: a relation's wire value names its entity in the type.**
+  A relation to `User` was typed as any `string`, so `owner: 'Project:p9'`
+  typechecked in a patch and read as a row that does not exist. It is now
+  `RefKey<'User'>`, which is `` `User:${string}` ``. Runtime is unchanged. Code
+  that passed a plain `string` variable to a relation field now needs the key
+  typed, for example `` `User:${id}` ``.
 - **`foldkit-crud`: an editor opens on the last good value when its refresh
   failed.** An editor opened on a value whose latest refresh had failed read
   `Failed { previous }` and stayed in `LoadFailed` with an empty form, though

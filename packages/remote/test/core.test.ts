@@ -75,7 +75,8 @@ describe('Remote core', () => {
   })
 
   it('decodes a reference with no separator to an empty id', () => {
-    expect(Schema.decodeSync(Entity.ref(User))('User')).toEqual({ entity: 'User', id: '' })
+    // Malformed on purpose, so the type (a `User:…` key) is set aside to test it.
+    expect(Schema.decodeSync(Entity.ref(User))('User' as never)).toEqual({ entity: 'User', id: '' })
   })
 
   it('stringifies a non-string id', () => {
