@@ -113,6 +113,26 @@ Nothing mints identity unless the caller's `mint` does, and replay applies
 transactions rather than commands. A collapsed `ToggleMark` is a no-op until
 stored marks exist, and adding an unknown mark is rejected.
 
+## Undo history
+
+`History` is interaction state: snapshots of `EditorState` (document plus
+selection), kept beside the selection in the application Model, never in
+published content.
+
+```ts
+let history = RichText.emptyHistory
+history = RichText.commit(history, previousState, { group: RichText.groupFor(command) })
+const back = RichText.undo(history, currentState) // → { history, state } | undefined
+const forward = RichText.redo(back.history, back.state)
+```
+
+Grouping is explicit and clock-free: `groupFor` returns `'typing'` for text
+insertion and deletion, so a typing burst collapses into one undo step, while
+every other command stands alone. `undo`/`redo` return `undefined` when there is
+nothing to do, and a new commit after an undo clears the redo stack. History is
+bounded (200 steps by default). Collaborative undo is a different operation and
+is not implemented.
+
 ## Kits
 
 A `Kit` declares the vocabulary one editor accepts — node kinds and marks — as
@@ -228,7 +248,7 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Migrations, prop schemas, nested children,
-transforms, history, rendering, and collaboration are still pending. Retain
+further transforms, rendering, and collaboration are still pending. Retain
 rejected source content for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.

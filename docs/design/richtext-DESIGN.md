@@ -2792,6 +2792,16 @@ stack. It owns `past`, `present`, and `future`; use it only if `present` is the
 authoritative document, rather than mirroring an independently owned document.
 Transaction grouping and selection restoration still need explicit semantics.
 
+**Implemented (single-user only).** `RichText.History` is snapshot undo over
+`EditorState` — document plus selection, so undo restores the caret too. It
+lives in the application Model as interaction state, not in published content.
+Grouping is explicit and clock-free: `groupFor(command)` marks text insertion
+and deletion `'typing'`, so a burst collapses into one step while every other
+command stands alone; the primitive-state history was not reused because the
+document is owned by the application, not by a history cell. `undo`/`redo`
+return `undefined` rather than throwing, a commit after an undo clears the redo
+stack, and the stack is bounded (200 steps by default).
+
 Collaborative undo is different.
 
 Do not implement collaborative undo as:
@@ -3792,7 +3802,8 @@ without touching run identities, and `SetNodeProps` retypes heading levels.
 Kits declare a vocabulary (`RichText.kit`, `validate`) without yet driving
 parsing or `apply`. `run(state, command, ids)` resolves intents (typing,
 delete, split, toggle mark, set selection) into transactions, taking identity
-from the caller's `mint`.
+from the caller's `mint`. `History` gives snapshot undo over `EditorState` with
+explicit, clock-free grouping.
 `SplitRun` divides one run so each side can carry
 different marks (a bare split is normalized away).
 `InsertNode` splices caller-built blocks at explicit indexes; `DeleteNode`
@@ -3806,7 +3817,8 @@ relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
 Remaining: node prop schemas and nested children, the mark registry and custom
-definitions, metadata keys, migrations, further transforms, alongside
+definitions, metadata keys, migrations, further transforms, rendering, and
+collaboration (including collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.
