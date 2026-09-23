@@ -13,8 +13,8 @@ headings, text runs, Bold/Italic/Code marks, range and node selections,
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNode/SetNodeProps/InsertNode/DeleteNode,
 text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion,
-bounded decode limits, and inspection. Unknown mark strings load
-verbatim and
+unknown node preservation, bounded decode limits, and inspection. Unknown mark
+strings load verbatim and
 round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
 `Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
 are no-ops without position steps. Build operations with `Edit.*`, which fills
@@ -37,9 +37,10 @@ or stable collaborative anchors. Keep references in application definitions,
 not serialized Models. Reuse the ID across edits rather than holding a
 stale content snapshot. `read` performs a linear lookup.
 
-Custom Kits, unknown node preservation, normalization, Form/Bundle integration,
-DOM editing, and collaboration remain unfinished. Unknown nodes are rejected
-rather than silently stripped. Preserve the
+Custom Kits, migrations, further transforms, Form/Bundle integration, DOM
+editing, and collaboration remain unfinished. Unknown nodes and marks are
+preserved verbatim (listed by `findUnknownNodes`/`findUnknownMarks`) rather
+than stripped; everything else is rejected. Preserve the
 original input for recovery. Do not present the design's API sketches as shipped APIs.
 
 The planned integrations reuse Bundle lifecycle, Form controls, CMS drafts,

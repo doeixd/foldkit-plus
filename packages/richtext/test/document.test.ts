@@ -42,7 +42,6 @@ describe('semantic documents', () => {
   it.each([
     ['unsupported version', { version: 2, children: [] }],
     ['unknown root data', { version: 1, children: [], focus: true }],
-    ['unknown node', { version: 1, children: [{ type: 'Embed', id: 'x' }] }],
     ['empty id', { version: 1, children: [{ type: 'Paragraph', id: '', children: [] }] }],
     [
       'duplicate block id',

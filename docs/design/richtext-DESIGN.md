@@ -2975,6 +2975,15 @@ The read-only renderer can show a diagnostic placeholder.
 
 The editor can preserve the data until migration becomes available.
 
+Implemented: `decodeDocument` converts blocks whose type this version does not
+implement into `Unknown` nodes before structural decoding — original type,
+remaining JSON fields verbatim, and no text runs (the raw subtree is preserved
+inside the JSON props). Unknown nodes are structurally addressable (move,
+delete) but never text-edited, and `findUnknownNodes` reports them for the
+publishing gate alongside `findUnknownMarks`. Non-JSON payloads, missing ids,
+unknown top-level fields, and unsupported document versions are rejected rather
+than silently transformed.
+
 Separate lossless loading from editability and publish validation. Validate the
 versioned envelope, identities, bounded structure, and JSON-safe opaque payloads
 before preserving unknown extensions. Unavailable nodes/marks retain their type,
@@ -3752,7 +3761,9 @@ are idempotent per run and emit no position steps. `decodeDocument` enforces
 bounded `DocumentLimits` with generous defaults; violations throw a named error.
 Unknown mark strings load verbatim and round-trip; `findUnknownMarks` lists them
 per run for a publishing gate, while `Edit.addMark` accepts only known marks.
-Unknown nodes are still rejected, not preserved. `SplitNode` divides one text
+`decodeDocument` preserves unknown blocks as `Unknown` nodes (original type,
+JSON fields, no runs) and reports them via `findUnknownNodes`; unknown blocks
+are structurally addressable but never text-edited. `SplitNode` divides one text
 block at a run offset with caller-supplied identities; `JoinNode` moves runs
 into the surviving previous sibling without merging. `MoveNode` reorders blocks
 without touching run identities, and `SetNodeProps` retypes heading levels.
@@ -3767,7 +3778,7 @@ relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
 Remaining: extensible Kits and metadata (including the mark registry and
-custom definitions), further transforms, unknown node preservation, alongside
+custom definitions), migrations, further transforms, alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.

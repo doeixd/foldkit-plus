@@ -35,7 +35,25 @@ export const Heading = Schema.Struct({
   level: Schema.Literals([1, 2, 3, 4, 5, 6]),
   children: Schema.Array(Text),
 })
-export const Block = Schema.Union([Paragraph, Heading])
+
+/**
+ * A block whose `type` this version does not implement, retained verbatim for
+ * recovery and migration: the original type, its remaining JSON fields, and no
+ * text runs (its subtree lives in `props`, opaque). Unknown blocks are
+ * read-only content: address them structurally, never edit their text.
+ */
+export const UnknownBlock = Schema.Struct({
+  type: Schema.Literal('Unknown'),
+  id: NodeId,
+  originalType: Schema.NonEmptyString,
+  props: Schema.JsonObject,
+  children: Schema.Array(Text).check(
+    Schema.makeFilter(runs => runs.length === 0 || 'Unknown blocks keep no text runs'),
+  ),
+})
+export type UnknownBlock = typeof UnknownBlock.Type
+
+export const Block = Schema.Union([Paragraph, Heading, UnknownBlock])
 export type Block = typeof Block.Type
 
 /** Version 1's initial block vocabulary, with document-wide identity validation. */
@@ -55,6 +73,30 @@ export const Document = Schema.Struct({
   }),
 )
 export type Document = typeof Document.Type
+
+const isKnownBlockType = (type: unknown): boolean => type === 'Paragraph' || type === 'Heading'
+
+/**
+ * Converts blocks whose type this version does not implement into `Unknown`
+ * nodes before structural decoding, so persisted content survives a deploy
+ * that lost a node implementation. Everything except `type` and `id` becomes
+ * opaque JSON props; the raw subtree is preserved there verbatim.
+ */
+const preserveUnknownBlocks = (input: unknown): unknown => {
+  if (typeof input !== 'object' || input === null) return input
+  const document = input as { children?: unknown }
+  if (!Array.isArray(document.children)) return input
+  return {
+    ...document,
+    children: document.children.map(block => {
+      if (typeof block !== 'object' || block === null) return block
+      const candidate = block as { type?: unknown; id?: unknown }
+      if (isKnownBlockType(candidate.type) || candidate.type === 'Unknown') return block
+      const { type, id, ...props } = block as Record<string, unknown>
+      return { type: 'Unknown', id, originalType: type, props, children: [] }
+    }),
+  }
+}
 
 /** Strict boundary for persisted content. Throws a Schema error on invalid input. */
 const decodeStructure = Schema.decodeUnknownSync(Document, { onExcessProperty: 'error' })
@@ -85,7 +127,7 @@ export const decodeDocument = (
   input: unknown,
   limits: DocumentLimits = DefaultDocumentLimits,
 ): Document => {
-  const document = decodeStructure(input)
+  const document = decodeStructure(preserveUnknownBlocks(input))
   const summary = inspect(document)
   const blocks = document.children.length
   const runs = summary.nodeCount - blocks
@@ -114,6 +156,18 @@ export const findUnknownMarks = (document: Document): ReadonlyArray<UnknownMark>
     block.children.flatMap(text =>
       text.marks.filter(mark => !isKnownMark(mark)).map(mark => ({ node: text.id, mark })),
     ),
+  )
+
+/** A block this vocabulary does not implement, retained for migration. */
+export interface UnknownNode {
+  readonly node: NodeId
+  readonly originalType: string
+}
+
+/** Lists preserved unknown blocks; empty means the document publishes cleanly. */
+export const findUnknownNodes = (document: Document): ReadonlyArray<UnknownNode> =>
+  document.children.flatMap(block =>
+    block.type === 'Unknown' ? [{ node: block.id, originalType: block.originalType }] : [],
   )
 
 /** UTF-16 offset in one text run, with insertion affinity at that offset. */

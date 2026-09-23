@@ -54,7 +54,7 @@ describe('document limits', () => {
   it('checks structure before limits and accepts widened bounds', () => {
     expect(() =>
       RichText.decodeDocument(
-        { version: 1, children: [{ type: 'Embed', id: 'x' }] },
+        { version: 2, children: [] },
         { maxBlocks: 1, maxTextRuns: 1, maxTextLength: 1 },
       ),
     ).toThrow()

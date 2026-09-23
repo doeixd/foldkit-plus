@@ -132,6 +132,12 @@ document and owns no state.
   selection when no text remains. Node selections on the removed subtree remap
   to the collapse target. Collapse steps in the position map carry the same
   rule to external positions.
+- `decodeDocument` preserves blocks whose type this version does not implement
+  as `Unknown` nodes: original type, remaining JSON fields, and no text runs.
+  Unknown nodes are addressable structurally (move, delete) but never
+  text-editable; `findUnknownNodes` lists them. Non-JSON payloads, missing ids,
+  unknown top-level fields, and unsupported versions are rejected rather than
+  dropped.
 - Marks carry boundary expansion (`Bold`/`Italic`: `after`, `Code`: `none`).
   `resolveInsertion(document, position)` retargets edge insertions whose marks
   forbid the edge to the neighbor carrying exactly the remaining marks; mixed
@@ -176,10 +182,9 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Unknown-extension preservation, migrations, custom
-Kits, mark boundary expansion, transforms, history, rendering, and collaboration
-are still pending. Retain rejected source content for recovery; do not replace
-it with an empty document.
+decoding untrusted payloads. Migrations, custom Kits, further transforms,
+history, rendering, and collaboration are still pending. Retain rejected source
+content for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document
