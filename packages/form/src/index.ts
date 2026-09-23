@@ -12,7 +12,7 @@ import { Duration, Effect, Pipeable, Result, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import type { AnyEntity, EntityInput, InputMember, NestedInput } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
-import type { Command } from 'foldkit/command'
+import { type Command, mapMessages } from 'foldkit/command'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -745,16 +745,16 @@ const Core = {
       return Object.fromEntries(entries)
     }
 
-    /** A nested form's Commands as this form's: their Messages arrive wrapped for the row. */
+    /**
+     * A nested form's Commands as this form's: their Messages arrive wrapped for
+     * the row. `mapMessages` records the wrap on each Command, so a Story or
+     * Scene that resolves the row's check sees the `Nested` Message this update
+     * handles, not the inner form's bare answer.
+     */
     const lift = (key: string, row: string, commands: ReadonlyArray<AnyCommand>): Commands =>
-      commands.map(
-        command =>
-          ({
-            name: command.name,
-            args: { ...(command.args as object), at: key, row },
-            effect: Effect.map(command.effect, message => Message.Nested({ key, row, message })),
-          }) as Command<Message, never, R>,
-      )
+      mapMessages(commands, message => Message.Nested({ key, row, message })) as ReadonlyArray<
+        Command<Message, never, R>
+      >
 
     /**
      * Validates the draft of one key. A key with a check that passes its schema is

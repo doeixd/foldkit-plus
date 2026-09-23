@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
+import { Story } from 'foldkit/test'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Form, Input } from '../src/index.js'
 
@@ -259,6 +260,30 @@ describe('a form with nested keys', () => {
         key: 'author',
         row: 'r0',
         message: AuthorForm.Message.Blurred({ key: 'name' }),
+      }),
+    )
+  })
+
+  it("lifts a row's check so Story resolves it as this form's Message", () => {
+    // The author form asks whether "Root" is taken; the row lifts that Command.
+    const asked = step(PostForm.initial, named('r0', 'Root'))
+    expect(asked.commands?.map(command => command.name)).toEqual(['PostForm.author.check'])
+    // Story replays the recorded lift: the inner answer lands as `Nested`, and
+    // this form's update reduces it into the row.
+    Story.story(
+      step,
+      Story.given(PostForm.initial),
+      Story.message(named('r0', 'Root')),
+      Story.Command.resolve(
+        asked.commands![0]!,
+        AuthorForm.Message.Checked({ key: 'name', draft: 'Root', error: 'Root is taken' }),
+      ),
+      Story.model(model => {
+        expect(model.rows.author[0]!.model.fields.name).toEqual({
+          _tag: 'Invalid',
+          value: 'Root',
+          errors: ['Root is taken'],
+        })
       }),
     )
   })
