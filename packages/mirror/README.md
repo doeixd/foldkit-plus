@@ -443,7 +443,7 @@ popstate
 
 ## How state changes here
 
-Ordinary edits use Message/`update`/`evo` like anywhere else; the mirror
+Ordinary edits use Message/`update`/`modifyFields` like anywhere else; the mirror
 observes and represents. Restoration runs the other direction: the
 declared writable projection installs the URL/KV value into the Model on
 startup. The projection is declared up front, so restoration can only ever

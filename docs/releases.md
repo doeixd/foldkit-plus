@@ -71,10 +71,10 @@ that still needs to stay off npm sets `"private": true` in its manifest, and
 ## Dependency expectations
 
 Every package except `foldkit-react-codegen` peer-depends on
-`effect@^4.0.0-rc.112`. Every package except the server and storage four —
+`effect@^4.0.0-rc.116`. Every package except the server and storage four —
 `foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-durable`, and
 `foldkit-sync` — and `foldkit-react-codegen` also peer-depends on
-`foldkit@^0.158.2`. `foldkit-react` additionally peer-depends on
+`foldkit@^0.163.0`. `foldkit-react` additionally peer-depends on
 `react@^19.0.0` and `react-dom@^19.0.0`. `foldkit-react-codegen` is a build
 tool that reads source text: its only peer is `typescript@^5.7.2`, and it ships
 a `foldkit-react-codegen` bin.
@@ -87,7 +87,7 @@ publish:
 - `foldkit-mixins-surface` → `foldkit-mixins`, `foldkit-surface`;
 - `foldkit-mixins-ui` → `foldkit-mixins`;
 - `foldkit-agent-native` additionally → `@agent-native/core@0.177.1`;
-- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.158.2`.
+- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.163.0`.
 
 Regular `dependencies` between workspace packages, declared as `workspace:*`
 and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-entity` depend on
@@ -97,5 +97,5 @@ and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-en
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
 `foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle`; `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.
-`foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.112` and requires
+`foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.116` and requires
 Node 22 (`engines.node`).

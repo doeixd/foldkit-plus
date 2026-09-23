@@ -956,7 +956,7 @@ Sync does **not** own:
 ## How state changes here
 
 Durable Messages replay the normal application `update` — which is where
-`evo` lives — so deterministic replay and optimistic application are the
+`modifyFields` lives — so deterministic replay and optimistic application are the
 same code path, not two reducers. Checkpoints and adopted server state
 arrive the other way: structurally installed through the declared writable
 projection. Sync already verifies that durable Messages touch only the

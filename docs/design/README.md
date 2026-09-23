@@ -54,7 +54,7 @@ reader can tell a gate from an oversight.
 | [richtext-DESIGN.md](./richtext-DESIGN.md) | `foldkit-richtext`: a Lexical-class editor whose document model, operations, collaboration and CMS integration fit Model/Message/update rather than bringing a second runtime. Prior art from Lexical, Peritext, Loro and Yjs. |
 | [reactivity-DESIGN.md](./reactivity-DESIGN.md) | Fine-grained propagation without mutable signals. Mostly `foldkit/foldkit`: the Plus packages are defined as interpreters of three core primitives that do not exist yet, so this one cannot start here. |
 | [effect-reuse-sync-durable-DESIGN.md](./effect-reuse-sync-durable-DESIGN.md) | Why Sync and Durable keep their own protocol semantics while reusing Effect's persistence, SQL, RPC and socket layers — plus four upstream PRs, which wait on Effect's review queue. |
-| [evo-DESIGN.md](./evo-DESIGN.md) | The semantic-vs-structural write rule (`Message → update → evo` against `ModelRef.set`) carried across every package. Done, bar a lint rule that would mean standing up ESLint for the monorepo. |
+| [evo-DESIGN.md](./evo-DESIGN.md) | The semantic-vs-structural write rule (`Message → update → modifyFields` against `ModelRef.set`) carried across every package. Done, bar a lint rule; Foldkit's Oxlint plugin is where it would live now. Written when the helper was still called `evo`. |
 
 ## Provenance and earlier exploration
 

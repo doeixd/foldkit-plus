@@ -519,7 +519,7 @@ needs it, and adding it early would fix semantics nothing has asked for.
 
 ## Why the API looks like this
 
-**Why `bind` and a host, rather than a runtime option.** Foldkit `0.158.2`
+**Why `bind` and a host, rather than a runtime option.** Foldkit `0.163.0`
 accepts no `agent` option on `makeApplication`, and its runtime handle exposes
 neither the current Model nor a dispatch function, so an agent seam cannot be
 installed from outside Foldkit. `Agent.bind({ definition, host })` is that seam,
@@ -540,7 +540,7 @@ snippets written against Effect 3 need translating: `Schema.OptionFromSelf` is
 
 **Why capabilities expose Messages, never setters.** An agent changes the
 application exactly the way a person does: by causing a Message the
-application already handles, which `update` (normally via `evo`) reduces.
+application already handles, which `update` (normally via `modifyFields`) reduces.
 There is no agent-side Model write, so nothing the agent does can bypass
 transition semantics or diverge from what replay shows.
 

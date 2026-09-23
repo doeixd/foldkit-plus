@@ -10,7 +10,7 @@ Four questions answer every state change in a Foldkit Plus application:
 
 ## The two write paths
 
-Ordinary application changes travel `Message → update → evo`:
+Ordinary application changes travel `Message → update → modifyFields`:
 
 ```text
 user / agent / behavior / external fact
@@ -22,7 +22,7 @@ user / agent / behavior / external fact
       update
         │
         ▼
-       evo
+   modifyFields
         │
         ▼
     next Model
@@ -50,10 +50,10 @@ ref's own `set`, so container-aware `.at`/`.index` insertion keeps working.
 
 | Situation | Owner | Change mechanism |
 | --- | --- | --- |
-| Local UI/domain state | application | Message → update → `evo` |
-| Submodel state | Submodel | child Message → child update → `evo` |
+| Local UI/domain state | application | Message → update → `modifyFields` |
+| Submodel state | Submodel | child Message → child update → `modifyFields` |
 | Server fact | server | Remote Message → `Data.reduce` |
-| Replicated user operation | application/durable history | Message → application update → `evo` |
+| Replicated user operation | application/durable history | Message → application update → `modifyFields` |
 | Sync checkpoint | authoritative replica | `WritableProjection.set` |
 | URL/KV restoration | local application | Mirror → `WritableProjection.set` |
 | Agent action | application | Agent → Message → update |

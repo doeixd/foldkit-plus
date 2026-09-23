@@ -78,7 +78,7 @@ if (modelContext !== undefined) {
   })
 
   await registration.refresh()
-  window.addEventListener('beforeunload', () => registration.unregister())
+  window.addEventListener('pagehide', () => registration.unregister())
 }
 ```
 

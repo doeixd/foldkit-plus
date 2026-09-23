@@ -22,7 +22,7 @@ Every package keeps that rule:
 - the URL and storage mirror a slice of the Model, never own it;
 - views are extended from outside without forking them.
 
-Targets Foldkit `0.158.x` and Effect 4 (`effect@4.0.0-rc.112`); see the peer
+Targets Foldkit `0.163.x` and Effect 4 (`effect@4.0.0-rc.116`); see the peer
 list under the rules below. APIs are `0.x` and may break between minors.
 
 ## Pick the package by who owns the data

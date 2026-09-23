@@ -189,7 +189,7 @@ const modelContext = AgentWebMcp.documentModelContext() // undefined in SSR or w
 if (modelContext !== undefined) {
   const registration = AgentWebMcp.register({ agent: agentRuntime, modelContext })
   await registration.refresh() // wait until the browser accepts the current tool set
-  addEventListener('beforeunload', () => registration.unregister())
+  addEventListener('pagehide', () => registration.unregister())
 }
 ```
 WebMCP is experimental and no stable browser ships it, so always feature-detect it. `register` throws when there is no model context. Only **currently available** capabilities are registered. With `followModel: true` (the default) and `host.subscribe`, the tools are reconciled when the Model changes. For tests, pass a fake `{ registerTool }` as `modelContext`.

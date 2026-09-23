@@ -13,8 +13,9 @@ Verified against the installed `foldkit/dist/runtime` declarations.
   `Runtime.embed(program)` returns `{ ports, dispose }`. There is no Model getter
   and no `dispatch` on the handle; inbound Ports are the only way in.
 - `config.update` is synchronous: `(model, message) => { model, commands? }`.
-- The container element must have an `id`; without one the runtime never starts
-  and reports nothing. `Sync.mount` throws up front instead.
+- The container element must have an `id`; without one the runtime never starts.
+  Since Foldkit 0.159 `embed` logs the failure; the DOM still shows only an empty
+  element. `Sync.mount` throws up front instead.
 
 ## Why the wrapper is enough
 

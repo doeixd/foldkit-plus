@@ -167,7 +167,7 @@ must make that visible.
   not as two unrelated API snippets.
 - State what the package **does not own** when that boundary is important.
 - Ordinary application Model changes happen in `update`, normally using
-  `evo`; `ModelRef.set`/`modify` and `WritableProjection.set` are
+  `modifyFields`; `ModelRef.set`/`modify` and `WritableProjection.set` are
   infrastructure seams for installing already-derived values (checkpoints,
   restoration, reconciliation) — never a shortcut around a Message. See
   `docs/state-model.md`.
@@ -415,11 +415,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Effect 4, not 3**
 
-foldkit pins `effect@4.0.0-rc.112`. Names that moved, each found the slow way:
+foldkit pins `effect@4.0.0-rc.116`. Names that moved, each found the slow way:
 `Effect.either` -> `Effect.result`, `Effect.async` -> `Effect.callback`,
 `Effect.timeoutFail` -> `Effect.timeoutOrElse`, `Duration.decodeUnknown` ->
-`Duration.fromInputUnsafe`, `Schema.OptionFromSelf` -> `Schema.Option`. Check the
-installed `.d.ts` before reaching for a remembered API.
+`Duration.fromInputUnsafe`, `Schema.OptionFromSelf` -> `Schema.Option`,
+`Stream.mapBoth`'s callbacks -> `onElement`/`onError`. Since rc.116 `Stream.scan`
+and `Stream.mapAccum` take their seed as a thunk; a plain value type-checks
+against `LazyArg<unknown>` and fails at runtime with "initial is not a
+function". Check the installed `.d.ts` before reaching for a remembered API.
 
 **Types**
 
