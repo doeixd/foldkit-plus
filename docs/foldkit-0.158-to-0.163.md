@@ -1022,3 +1022,99 @@ gets a version bump and an "Upgrading from" note stating the new pins
 4.0.0-rc.116`, `@foldkit/ui ^0.163.0` for `mixins-ui`). The 0.10.0 entry is the
 precedent for republishing packages "only so their pinned dependencies are the
 current ones".
+
+## The proposed upstream PRs, re-checked against 0.163.0
+
+The design docs propose or wish for changes to upstream Foldkit in thirteen
+places. None has been filed: no doc cites a `foldkit/foldkit` PR or issue, and
+a search of that repo finds nothing from this account and nothing mentioning
+`Runtime.adopt`. The `#42`, `#59`, and `#60` references in the sync docs are
+this repo's own tracker. Every proposal was checked against the 0.163.0
+declarations and the `@foldkit/ui` 0.163.0 tarball.
+
+**Nothing was pre-empted.** No proposal shipped upstream in another form.
+Three proposals are strengthened by what did ship, two need rewording, and
+one is mildly weakened. The rest are unaffected.
+
+### SSR (SSR-DESIGN.txt, ssr-PLAN.md, resumable-DESIGN.md)
+
+| Proposal | Status in 0.163.0 | Effect on the plan |
+| --- | --- | --- |
+| `h.UnmanagedChildren()` (PR 1, "the PR I'd actually start with", :2958) | Not shipped. `nativeInnerHtml` and the hydration markers are unchanged. | Unchanged. Still first in the sequence at :3050. |
+| `Server.renderModelToString` (PR 2, :2626) | Not shipped. `renderToString` still takes a config and runs `init`. | Unchanged, but the pitch improves: 0.163.0 removed the `Request.url` canonical default, so the server render now depends on nothing but config, url, and buildId. A "render this Model" entry is a smaller ask than before because there is no request-derived metadata to thread through. |
+| `Runtime.adopt(app, { buildId, boot })` (RFC, :2725) | Not shipped. `hydrationHandoff` only renamed its `hmrModel` parameter to `preservedModel`. | **Reframe.** Foldkit now names the "start from a Model you already have" path: model preservation. `MakeRuntimeReturn.start(preservedModel?)` is the runtime's own entry for it, and the doc comment says a preserved Model "skips adoption and gets a fresh patch against the stamped root". The RFC should present `adopt` as the missing third boot mode beside `run` (fresh), `hydrate` (Flags to `init` to adopt), and preservation (Model to replace). That framing uses upstream's vocabulary and shows the gap exactly: preservation takes a Model but not Commands, which is the objection the doc already raises against `hydrateModel` at :2800. |
+| "What I would upstream" table, build-skew checks (:2937) | Already in core and unchanged. | Drop the row; it was never a gap. |
+| Surface as unit of hydration, §26; binding-level resumability, §27 | Nothing relevant shipped. | Unchanged. |
+| resumable-DESIGN: `EagerStartRequired` would go away with adopt (:420) | Partly affected. 0.163.0 fixed Subscriptions and ManagedResources missing Model changes from Messages buffered during boot. | Re-run the Phase A to D tests that pin 0.158.2 internals (`seedAdoptedState`, control `value` mismatch, `pendingHydrationRoot` stripping). If `EagerStartRequired` exists to work around the boot-buffer bug rather than the adoption ordering, it may be removable without an upstream change. |
+
+The delivery layer is a new item, not a proposal: `handleRequest` and
+`dist/server/fetch.js` (0.159.0) define how a rendered page becomes a
+`Response`. The sequence at :3050 should add "foldkit-ssr `renderPage` for
+`handleRequest`" between the prototype and the benchmarks, and the sketched
+`foldkit-ssr/vite` plugin should extend `@foldkit/vite-plugin`'s
+`ssr.serverEntry` rather than own a build entry.
+
+### reactivity-DESIGN (three core PR candidates)
+
+| Proposal | Status | Effect |
+| --- | --- | --- |
+| #1 committed Model transition observation (:1414) | Not public. But DevTools now records `(message, modelBefore, modelAfter, commands)` per dispatch and attributes each Command to its resolved Submodel path (0.161.0). | Strengthened. The runtime already computes exactly the `ModelTransition` the PR asks for, for DevTools. The PR becomes "expose the seam DevTools uses", which is smaller than "add a seam". The gate at :1414 ("do not open until the prototype shows why") still holds. |
+| #2 persistent render region (:1465) | Nothing shipped. | Unchanged. |
+| #3 managed renderer leaf (:1541) | Nothing shipped. | Unchanged. |
+
+### docs/rfc.md (what Foldkit might want from foldkit-plus)
+
+| Rank | Item | Effect |
+| --- | --- | --- |
+| 1 | Message subsets (`Message.only`) | Weakened as a pitch. `defineTaggedUnion` already had `subset(tags)` at 0.158 and now adds `matchOrElse` (0.159.0). Core owns partial handling of a union. The RFC should say what `Message.only` adds beyond `subset` plus `matchOrElse`, or fold the item into rank 3. |
+| 2, 3, 4 | Projection, Surface, Application | Unchanged. `foldChildInit` and `foldChildInits` show core investing in Submodel composition helpers, not application identity. Cite them as evidence that composition is a core concern. |
+| 6 | DevTools manifest | Slightly strengthened. The protocol now carries per-Command Submodel paths, so DevTools already has a partial static-architecture view. |
+| 7, 8, 9 | Agent, Mirror as official packages | Unchanged. |
+| 10 | `Attribute.compose` | Unchanged. |
+
+### agent-DESIGN: `agent` option on `Runtime.makeApplication`
+
+Unchanged. `MakeRuntimeReturn` still exposes neither the Model nor a dispatch
+function. The workaround in `Agent.bind` stands. One new fact for the pitch:
+`Runtime.embed` now reports startup failures (0.159.0), so an embedded agent
+host can rely on the console for a failed bind.
+
+### bundle-DESIGN: deferred items
+
+- Dependency-change Stream beside `readDependencies` (:52): not shipped.
+  `@foldkit/ui` drag-and-drop still polls per animation frame. Unchanged.
+- Keyed `ManagedResource` (:59): not shipped. Unchanged.
+- Not a proposal, but relevant: `Subscription.EntryGates` is now exported
+  (0.163.0). bundle-DESIGN:34 relies on `Subscription.lift`'s per-entry gate;
+  the type can now be named instead of derived.
+
+### REVISION_PLAN and mixins-DESIGN: the `HtmlBuilder` seam
+
+`__htmlBuilder<Message>()` is still declared in `foldkit/html`'s internal
+module and still not exported from the public entry. The cast in
+`Surface.view` stands. Unchanged.
+
+### mixins-ui: Menu, Listbox, ComboBox, DatePicker
+
+Their public surfaces are identical between `@foldkit/ui` 0.158.2 and 0.163.0
+except one new ComboBox message (`SuppressedEmptyItemNavigation`) and
+DatePicker forwarding the Calendar label fields. No `toView` or `RenderInfo`
+seam appeared. The limitation at README:275 stands, and no request has been
+drafted. If one is, note that Calendar and DatePicker gained overridable label
+inputs in 0.161.0, so upstream is already accepting per-component render
+inputs.
+
+### evo-DESIGN: a `prefer-evo-model-update` lint rule
+
+The rule name and premise both need updating. The core rule is now
+`no-spread-in-modify-fields`, and the plugin gained five convention rules in
+0.160.0 (`no-switch-on-message-tag`, `prefer-option-over-nullable-in-model`,
+`prefer-command-mapmessage`, and two more). None covers "root Model spread
+inside `update`", so the proposal is still open, and it is more plausible now
+that the plugin clearly accepts convention rules with unit tests, integration
+fixtures, and website docs (the 0.160.0 notes describe that bar).
+
+### Sync: transition driver / admission hook
+
+Unchanged. Resolved locally by `Sync.mount` without an upstream hook, and
+nothing shipped that would make the upstream version cheaper.
