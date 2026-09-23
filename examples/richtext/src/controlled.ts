@@ -19,6 +19,8 @@ export const EditorState = Schema.Struct({
   nextId: Schema.Number,
   /** Local undo history: snapshots of document plus selection. */
   history: RichText.History,
+  /** The marks the caret carries, so the next typed text lands with them. */
+  storedMarks: Schema.Array(Schema.String),
 })
 export type EditorState = typeof EditorState.Type
 
@@ -34,6 +36,7 @@ export const EditorView = Schema.Struct({
   selection: Schema.NullOr(RichText.Selection),
   nextId: Schema.Number,
   history: RichText.History,
+  storedMarks: Schema.Array(Schema.String),
 })
 export type EditorView = typeof EditorView.Type
 
@@ -115,6 +118,7 @@ export const Editor = Bundle.make({
       selection: null,
       nextId: 0,
       history: RichText.emptyHistory,
+      storedMarks: [],
     },
   }),
   update: (model, message): { readonly model: EditorView; readonly outMessage: OutMessage } => {
@@ -147,7 +151,29 @@ export const Editor = Bundle.make({
       }
     }
     let nextId = model.nextId
-    const command = toCommand(message)
+    // With nothing selected, a mark toggle is the caret's own state: the next
+    // typed text lands with it. A caret move ends the format it was carrying.
+    const collapsed =
+      model.selection?.type === 'Range' &&
+      model.selection.anchor.node === model.selection.focus.node &&
+      model.selection.anchor.offset === model.selection.focus.offset
+    // The caret never carries a mark the vocabulary cannot type, so an unknown
+    // one is refused here rather than at the first keystroke after it.
+    if (message._tag === 'ToggledMark' && collapsed && !RichText.isKnownMark(message.mark)) {
+      return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
+    }
+    const storedMarks =
+      message._tag === 'ToggledMark' && collapsed
+        ? model.storedMarks.includes(message.mark)
+          ? model.storedMarks.filter(mark => mark !== message.mark)
+          : [...model.storedMarks, message.mark]
+        : message._tag === 'Selected'
+          ? []
+          : model.storedMarks
+    const command =
+      message._tag === 'Typed' && storedMarks.length > 0
+        ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
+        : toCommand(message)
     const result = RichText.run(state, command, { mint: () => `e${nextId++}` })
     if (!result.ok) {
       // A refused command changes nothing, so it does not burn identities.
@@ -161,6 +187,7 @@ export const Editor = Bundle.make({
         ...model,
         selection: result.state.selection,
         nextId,
+        storedMarks,
         history: contentChanged
           ? RichText.commit(model.history, state, { group: RichText.groupFor(command) })
           : model.history,
@@ -188,11 +215,17 @@ const editorLink: Link<
       selection: parent.editor.selection,
       nextId: parent.editor.nextId,
       history: parent.editor.history,
+      storedMarks: parent.editor.storedMarks,
     }),
   // Only interaction state is written back: the document is not the child's.
   write: (parent, child) => ({
     ...parent,
-    editor: { selection: child.selection, nextId: child.nextId, history: child.history },
+    editor: {
+      selection: child.selection,
+      nextId: child.nextId,
+      history: child.history,
+      storedMarks: child.storedMarks,
+    },
   }),
   wrapper: GotEditor,
   path: ['editor'],

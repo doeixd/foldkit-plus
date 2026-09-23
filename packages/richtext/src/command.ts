@@ -3,6 +3,7 @@ import {
   type Block,
   type Document,
   type EditorState,
+  type Mark,
   type Position,
   type Selection,
 } from './document.js'
@@ -17,7 +18,7 @@ import { Edit, apply, type Operation, type TransactionResult } from './transacti
  * the caller's `mint`; nothing here reads a clock or a hidden counter.
  */
 export type Command =
-  | { readonly type: 'InsertText'; readonly text: string }
+  | { readonly type: 'InsertText'; readonly text: string; readonly marks?: ReadonlyArray<string> }
   | { readonly type: 'DeleteBackward' }
   | { readonly type: 'DeleteForward' }
   | { readonly type: 'SplitBlock' }
@@ -231,22 +232,60 @@ export const run = (
   if (selection === null || selection.type === 'Node') return failure('InvalidSelection')
 
   if (command.type === 'InsertText') {
+    // Stored marks are explicit: when the command carries them, the inserted
+    // text must end up with exactly that set, whatever run it lands in. Without
+    // them, the boundary rule decides (typing after bold continues bold).
+    const stored = command.marks
     const target = isCollapsed(selection)
-      ? resolveInsertion(state.document, selection.anchor, options.marks)
+      ? stored === undefined
+        ? resolveInsertion(state.document, selection.anchor, options.marks)
+        : selection.anchor
       : ordered(state.document, selection)?.start
     if (target === undefined) return failure('InvalidSelection')
     const at = locate(state.document, target.node)
     if (at === undefined) return failure('MissingText')
+    const marks: Array<Mark> = []
+    if (stored !== undefined) {
+      for (const mark of stored) {
+        if (!isKnownMark(mark)) return failure('InvalidInput')
+        marks.push(mark)
+      }
+    }
     const deletions = isCollapsed(selection)
       ? []
       : deleteRange(state.document, target, ordered(state.document, selection)!.end)
-    return apply(state, [
-      ...deletions,
-      Edit.insertText(target, command.text),
-      Edit.setSelection(
-        caretAt({ ...target, offset: target.offset + command.text.length, affinity: 'after' }),
-      ),
-    ])
+    if (stored === undefined) {
+      return apply(state, [
+        ...deletions,
+        Edit.insertText(target, command.text),
+        Edit.setSelection(
+          caretAt({ ...target, offset: target.offset + command.text.length, affinity: 'after' }),
+        ),
+      ])
+    }
+    // Split the inserted span out of its run — at the end first, so the start
+    // offset stays valid — then give the span exactly these marks.
+    const span = isCollapsed(selection) ? undefined : ordered(state.document, selection)
+    // Where the text that survives the range deletion begins in the original
+    // run. A range that runs past this run takes its whole tail with it.
+    const tailFrom =
+      span === undefined
+        ? target.offset
+        : span.end.node === target.node
+          ? span.end.offset
+          : at.text.length
+    const operations: Array<Operation> = [...deletions, Edit.insertText(target, command.text)]
+    const end = target.offset + command.text.length
+    if (tailFrom < at.text.length) operations.push(Edit.splitRun(target.node, end, ids.mint()))
+    const piece = target.offset > 0 ? NodeId.make(ids.mint()) : target.node
+    if (target.offset > 0) operations.push(Edit.splitRun(target.node, target.offset, piece))
+    for (const mark of marks) {
+      if (!at.marks.includes(mark)) operations.push(Edit.addMark(piece, mark))
+    }
+    for (const mark of at.marks) {
+      if (!marks.some(kept => kept === mark)) operations.push(Edit.removeMark(piece, mark))
+    }
+    return apply(state, operations)
   }
 
   if (command.type === 'DeleteBackward' || command.type === 'DeleteForward') {

@@ -110,8 +110,15 @@ RichText.run(state, { type: 'SplitBlock' }, ids)
 and `SetSelection` read the current selection, emit a Transaction, and apply it
 in one step; the returned `ChangeSet` and `positionMap` describe the effect.
 Nothing mints identity unless the caller's `mint` does, and replay applies
-transactions rather than commands. A collapsed `ToggleMark` is a no-op until
-stored marks exist, and adding an unknown mark is rejected.
+transactions rather than commands.
+
+`InsertText` takes an optional `marks`. With it, the inserted text carries
+exactly that set wherever it lands; without it, the boundary rule decides and the
+text inherits the marks of the run it joins. Unknown marks are rejected. That is
+how *stored marks* stay the application's state: the caret's format belongs to
+the caller, and the command layer reads no hidden cursor state. A collapsed
+`ToggleMark` is likewise a no-op — the application decides what the caret carries
+and passes it back on the next `InsertText`.
 
 ## Mark definitions
 
@@ -373,8 +380,9 @@ not yet drive parsing or `apply`.
   `Edit.addMark`, and can be removed by name via `Edit.removeMark`.
 - Empty documents, empty blocks, and empty text runs are valid. No normalization
   creates nodes or merges text runs yet.
-- `InsertText` targets one run and inherits that run's marks. Boundary mark
-  expansion awaits the Kit/mark semantics work.
+- `InsertText` targets one run and inherits that run's marks. When the command
+  carries `marks`, the inserted span is split out of its run and given exactly
+  that set instead — that is how a caller's stored marks reach the document.
 - `DeleteText` removes a half-open range `[from, to)` within one run.
 - `AddMark` appends a missing mark to one run; `RemoveMark` filters a present
   mark away. Redundant mark edits are no-ops that preserve state identity.

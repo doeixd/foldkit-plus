@@ -77,7 +77,11 @@ paste as slice → HTML → text.
 `run(state, command, ids)` resolves editor intent (typing, backward/forward
 delete, split block, toggle mark over a range, set selection) into a
 transaction and applies it; identity comes from the caller's `mint`, never a
-clock. A collapsed toggle is a no-op until stored marks exist.
+clock. `InsertText` takes an optional `marks`: with it the inserted span carries
+exactly that set, without it the boundary rule decides and the text inherits the
+run it joins; an unknown mark is refused. That keeps stored marks in the
+application: a collapsed toggle is a no-op in the command layer, and the caller
+hands the caret's format back on the next insertion.
 
 Normalization is a transform registry: `Transform` is a pure function of the
 document plus the touched nodes, returning the new document with its position

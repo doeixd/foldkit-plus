@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for nested children beyond runs, marks with props, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted.
+**Status:** Phase 1 is implemented except for nested children beyond runs, marks with props, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4015,8 +4015,10 @@ Every transaction normalizes touched blocks by merging adjacent same-mark runs
 transactions stay untouched.
 `ChangeSet` carries
 `insertedNodes`/`removedNodes`/`structureChanged`, and the position map
-relocates split runs with affinity at the split point. This is not completion
-of Phase 1.
+relocates split runs with affinity at the split point. `InsertText` takes an
+optional `marks` set, so an application can hand the caret's stored marks to the
+insertion and get a span carrying exactly them; unknown marks are refused. This
+is not completion of Phase 1.
 
 Remaining: nested children beyond runs, marks with props and custom mark
 authoring, metadata keys, and collaboration (including
@@ -4187,6 +4189,18 @@ committed IME and a cancelled one both leave text the document never had) and
 restores the semantic selection afterwards, because a repair detaches the live
 one. Only then does a commit become one `InsertText` at the semantic caret.
 
+**Stored marks.** A collapsed mark toggle belongs to the caret, not the document.
+The harness keeps `storedMarks` in its interaction state: a collapsed
+`ToggledMark` flips that set without touching the document (so history gains no
+step), a caret move clears it, and the next `Typed` passes it to the command
+layer. The package gained the other half — `InsertText` takes an optional
+`marks`, and when it is present the inserted span is split out of its run and
+given exactly that set, with an unknown mark refused at the toggle rather than at
+the first keystroke after it. Without `marks`, the boundary rule still decides.
+That keeps the caret's format caller-owned: `run` reads no hidden cursor state,
+which is the same reason a collapsed `ToggleMark` stays a no-op in the command
+layer.
+
 No collaboration. No Form. No CMS.
 
 ---
@@ -4210,6 +4224,11 @@ mobile virtual keyboards
 toolbar integration
 slash commands
 ```
+
+The Phase 3 spike already carries the first five to varying degrees — selection
+state, stored marks, history, copy/paste over DOM clipboard events, and part of
+the keymaps. Promotion replaces their ownership with the Bundle's; it does not
+reimplement the behavior.
 
 Prove editor interaction remains ordinary Foldkit Messages and Model.
 

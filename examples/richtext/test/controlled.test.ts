@@ -64,7 +64,12 @@ describe('one transition commits document and interaction state', () => {
     expect(after.editor.selection).toEqual(caret('a', 3))
     // The parent holds exactly one document; the editor field is interaction only.
     expect(Object.keys(after).sort()).toEqual(['document', 'editor'])
-    expect(Object.keys(after.editor).sort()).toEqual(['history', 'nextId', 'selection'])
+    expect(Object.keys(after.editor).sort()).toEqual([
+      'history',
+      'nextId',
+      'selection',
+      'storedMarks',
+    ])
   })
 
   it('carries no document copy between transitions', () => {
@@ -212,10 +217,71 @@ describe('rejection and external replacement', () => {
         selection: caret('a', 1),
         nextId: before.editor.nextId,
         history: RichText.emptyHistory,
+        storedMarks: [],
       },
     }
     const after = step(replaced, typed('!'))
     expect(after.document.children[0]?.children[0]?.text).toBe('Z!')
     expect(after.editor.selection).toEqual(caret('a', 2))
+  })
+})
+
+describe('stored marks', () => {
+  const runs = (model: Model) =>
+    model.document.children[0]?.children.map(run => [run.text, run.marks] as const)
+
+  it('stores a mark toggled with nothing selected, without touching the document', () => {
+    const before = start(caret('a', 1))
+    const after = step(before, toggled('Bold'))
+    expect(after.editor.storedMarks).toEqual(['Bold'])
+    expect(after.document).toBe(before.document)
+    // A format toggle is not an edit: it adds nothing to undo.
+    expect(RichText.inspectHistory(after.editor.history).past).toBe(0)
+  })
+
+  it('lands the next typed text with the stored marks', () => {
+    let model = start(caret('a', 1))
+    model = step(model, toggled('Bold'))
+    model = step(model, typed('X'))
+    expect(runs(model)).toEqual([
+      ['a', []],
+      ['X', ['Bold']],
+      ['b', []],
+    ])
+    // The stored set survives typing, so the next character continues it.
+    expect(model.editor.storedMarks).toEqual(['Bold'])
+  })
+
+  it('unstores a mark toggled a second time', () => {
+    let model = start(caret('a', 1))
+    model = step(model, toggled('Bold'))
+    model = step(model, toggled('Bold'))
+    expect(model.editor.storedMarks).toEqual([])
+    model = step(model, typed('X'))
+    expect(runs(model)).toEqual([['aXb', []]])
+  })
+
+  it('drops the stored marks when the caret moves', () => {
+    let model = start(caret('a', 1))
+    model = step(model, toggled('Bold'))
+    model = step(model, selected(caret('a', 0)))
+    expect(model.editor.storedMarks).toEqual([])
+    model = step(model, typed('X'))
+    expect(runs(model)).toEqual([['Xab', []]])
+  })
+
+  it('leaves a range toggle to the document, not the caret', () => {
+    let model = start(range(['a', 0], ['a', 2]))
+    model = step(model, toggled('Italic'))
+    expect(model.editor.storedMarks).toEqual([])
+    expect(runs(model)).toEqual([['ab', ['Italic']]])
+  })
+
+  it('refuses a mark the vocabulary does not define, at the toggle itself', () => {
+    const before = start(caret('a', 1))
+    const after = step(before, toggled('Link'))
+    // Nothing is stored and nothing is typed, so the document and caret hold.
+    expect(after).toEqual(before)
+    expect(after.document).toBe(before.document)
   })
 })
