@@ -141,7 +141,7 @@ package.
 Start from a normal Surface application:
 
 ```ts
-import { Schema } from 'effect'
+import { Match, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Url } from 'foldkit/url'
 import { Surface } from 'foldkit-surface'
@@ -205,12 +205,10 @@ Navigation comes back through the application's normal URL Message:
 
 ```ts
 function update(model: Model, message: Message) {
-  switch (message._tag) {
-    case 'UrlChanged':
-      return {
-        model: Filters.reduce(model, message.url),
-      }
-  }
+  return Match.value(message).pipe(
+    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
+    Match.orElse(() => ({ model })),
+  )
 }
 ```
 
@@ -286,12 +284,10 @@ function update(model: Model, message: Message): Return {
     }
   }
 
-  switch (message._tag) {
-    case 'UrlChanged':
-      return {
-        model: Filters.reduce(model, message.url),
-      }
-  }
+  return Match.value(message).pipe(
+    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
+    Match.orElse(() => ({ model })),
+  )
 }
 ```
 

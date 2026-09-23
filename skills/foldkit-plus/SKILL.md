@@ -83,6 +83,7 @@ Surface is where almost every integration starts:
 ```ts
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Surface } from 'foldkit-surface'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
@@ -97,14 +98,13 @@ const App = Surface.application({
   Model,
   Message,
   initial: { todos: [], filter: 'all' },
-  update: (model, message) => {
-    switch (message._tag) {
-      case 'CreatedTodo':
-        return { model: { ...model, todos: [...model.todos, { id: message.id, title: message.title }] } }
-      case 'ChangedFilter':
-        return { model: { ...model, filter: message.filter } }
-    }
-  },
+  update: (model, message) =>
+    Message.match(message, {
+      CreatedTodo: ({ id, title }) => ({
+        model: modifyFields(model, { todos: todos => [...todos, { id, title }] }),
+      }),
+      ChangedFilter: ({ filter }) => ({ model: modifyFields(model, { filter: () => filter }) }),
+    }),
 })
 
 // A named boundary: what this feature reads and the Messages it may send.

@@ -114,7 +114,7 @@ package.
 Start with an ordinary Foldkit application:
 
 ```ts
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
@@ -124,8 +124,8 @@ const Model = Schema.Struct({
   todos: Schema.Array(
     Schema.Struct({ id: Schema.String, title: Schema.String }),
   ),
-  selectedTodoId: Schema.NullOr(Schema.String),
-  lastError: Schema.NullOr(Schema.String),
+  selectedTodoId: Schema.Option(Schema.String),
+  lastError: Schema.Option(Schema.String),
 })
 type Model = typeof Model.Type
 
@@ -138,8 +138,8 @@ type Message = typeof Message.Type
 
 const initial: Model = {
   todos: [],
-  selectedTodoId: null,
-  lastError: null,
+  selectedTodoId: Option.none(),
+  lastError: Option.none(),
 }
 
 type Return = Update.Return<Model, Message>
@@ -159,7 +159,7 @@ const update = (model: Model, message: Message): Return =>
       },
     }),
     SelectedTodo: ({ id }) => ({
-      model: { ...model, selectedTodoId: id },
+      model: { ...model, selectedTodoId: Option.some(id) },
     }),
   })
 
@@ -558,7 +558,7 @@ const mounted = Sync.mount(App, TodoSync, {
   }),
   onPersistenceFailure: (model, error) => ({
     ...model,
-    lastError: error.message,
+    lastError: Option.some(error.message),
   }),
 })
 

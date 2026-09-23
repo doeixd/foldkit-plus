@@ -54,7 +54,7 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 ## Minimal client
 
 ```ts
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -78,7 +78,7 @@ const ProjectSummary = Entity.select(Project, {
   owner: Entity.select(User, { id: true, name: true }),
 })
 
-const Model = Schema.Struct({ projectId: Schema.NullOr(Schema.String), remote: Remote.Model })
+const Model = Schema.Struct({ projectId: Schema.Option(Schema.String), remote: Remote.Model })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Remote.messages })
 type Message = typeof Message.Type
@@ -89,7 +89,7 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
   return { model }
 }
 
-const App = Surface.application({ Model, Message, initial: { projectId: null, remote: Remote.initial }, update })
+const App = Surface.application({ Model, Message, initial: { projectId: Option.none(), remote: Remote.initial }, update })
 
 const Data = Remote.make({ model: App.model.remote, entities: [User, Project] })
 
@@ -120,7 +120,7 @@ const drawn = (data: RemoteData<{ readonly name: string }>) =>
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   Data.subscriptions({
     // `undefined` params = Surface inactive = no reads.
-    page: Surface.at(ProjectPage, m => (m.projectId === null ? undefined : { projectId: m.projectId })),
+    page: Surface.at(ProjectPage, m => Option.getOrUndefined(Option.map(m.projectId, projectId => ({ projectId })))),
   }),
 )
 
@@ -131,7 +131,7 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(
   Data.wiring({
-    page: Surface.at(ProjectPage, m => (m.projectId === null ? undefined : { projectId: m.projectId })),
+    page: Surface.at(ProjectPage, m => Option.getOrUndefined(Option.map(m.projectId, projectId => ({ projectId })))),
   }),
 )
 const wiredUpdate = wiring.update(model => ({ model }))
@@ -177,10 +177,10 @@ case 'ClickedMore': {
   return { model, commands: next === undefined ? [] : [Data.fetch(next)] }
 }
 case 'ClickedRefresh': {
-  if (model.projectId === null) return { model }
+  if (Option.isNone(model.projectId)) return { model }
   // Mark-only, no I/O: fields read Refreshing, a NotFound is forgotten (reads Loading, asked for again),
   // connections invalidated, refresh generation bumped.
-  return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.projectId })) }
+  return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.projectId.value })) }
 }
 ```
 

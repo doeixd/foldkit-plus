@@ -335,7 +335,10 @@ placed per key; the type says why.
 
 `@foldkit/ui` components export `Model`, `Message`, and an `init` that returns
 only the Model, and `create()` returns their `{ update, view }` pair.
-`Bundle.fromParts` takes them as they are:
+`Bundle.fromParts` takes them as they are. A bundle's `init` returns a Model and
+Commands and never an OutMessage; a component whose open state needs Commands,
+such as `Dialog.boot` since `@foldkit/ui` 0.161, runs `boot` inside `init` and
+returns its Model and Commands from there.
 
 ```ts
 import * as Tabs from '@foldkit/ui/tabs'

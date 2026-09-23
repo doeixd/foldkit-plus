@@ -56,7 +56,7 @@ Schema field -> ModelRef/FieldRef (optic + codec + path + app owner + get/set)
 ## Minimal example
 
 ```ts
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
 
@@ -64,7 +64,7 @@ const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Sche
 const Model = Schema.Struct({
   todos: Schema.Array(Todo),
   todosById: Schema.Record(Schema.String, Todo),
-  selectedTodoId: Schema.NullOr(Schema.String),
+  selectedTodoId: Schema.Option(Schema.String),
 })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({
@@ -87,7 +87,7 @@ TodoList.projection().read(model)      // same thing, via the projection
 
 // A writable slice (schema, dependencies, get, set) for a replicator.
 const Shared = Projection.pick(App.model.todos, App.model.selectedTodoId)
-Shared.set(model, { todos: [], selectedTodoId: null })
+Shared.set(model, { todos: [], selectedTodoId: Option.none() })
 ```
 
 Nothing here fetches, subscribes, or stores. `TodoList` is plain data of type
@@ -111,7 +111,7 @@ Surface.read(TodoDetail, model, { id: 't1' })   // { todo: Option<Todo> }
 
 // Params computed from the Model; `undefined` means the Surface is inactive.
 const Active = Surface.at(TodoDetail, m =>
-  m.selectedTodoId === null ? undefined : { id: m.selectedTodoId },
+  Option.match(m.selectedTodoId, { onNone: () => undefined, onSome: id => ({ id }) }),
 )
 Active.projectionOf(model)   // Projection | undefined (Remote's Data.subscriptions takes a record of these)
 ```

@@ -30,7 +30,7 @@ does have one. Cold-load precedence is: URL value, then KV restore, then initial
 ## Minimal example
 
 ```ts
-import { Schema } from 'effect'
+import { Match, Schema } from 'effect'
 import type { KeyValueStore } from 'effect/unstable/persistence'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -73,10 +73,10 @@ const Prefs = Mirror.kv(App, {
 
 function update(model: Model, message: Message): Return {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
-  switch (message._tag) {
-    case 'UrlChanged':
-      return { model: Filters.reduce(model, message.url) }
-  }
+  return Match.value(message).pipe(
+    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
+    Match.orElse(() => ({ model })),
+  )
 }
 
 const init = (url: Url): Return => ({

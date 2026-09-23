@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Behavior, Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
 import { SurfaceView } from '../src/index.js'
@@ -6,7 +6,7 @@ import { Surface } from 'foldkit-surface'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
-  selectedId: Schema.NullOr(Schema.String),
+  selectedId: Schema.Option(Schema.String),
   secret: Schema.String,
 })
 
@@ -34,7 +34,7 @@ const TodoStyle = Style.forSlots(TodoSlots)({ root: Style.class('todo-list') })
 /** What the Surface projects — the input every attachment sees. */
 type ProjectedTodos = {
   readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }>
-  readonly selectedId: string | null
+  readonly selectedId: Option.Option<string>
 }
 
 // `input` is the projection, so `input.secret` does not type-check; `h` builds
@@ -46,7 +46,10 @@ const TodoBehavior = Behavior.forSlots(TodoSlots)<
   archive: Behavior.slot({
     requires: { events: [Event.Click] },
     attributes: ({ input, h }) =>
-      input.selectedId === null ? [] : [h.OnClick(Message.ArchivedTodo({ id: input.selectedId }))],
+      Option.match(input.selectedId, {
+        onNone: () => [],
+        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
+      }),
   }),
 })
 
@@ -56,7 +59,9 @@ const TodoListView = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) =
       [],
       model.todos.map(todo => h.li([], [todo.title])),
     ),
-    h.button(slots.archive.attrs([h.Disabled(model.selectedId === null)]), ['Archive selected']),
+    h.button(slots.archive.attrs([h.Disabled(Option.isNone(model.selectedId))]), [
+      'Archive selected',
+    ]),
   ]),
 ).pipe(Style.attach(TodoStyle), Behavior.attach(TodoBehavior))
 

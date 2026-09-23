@@ -3,7 +3,7 @@
  * type-checked so the documentation cannot drift from the API. `todosById`
  * is added to the Model for the dynamic-lookup example.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from '../src/index.js'
 
@@ -11,7 +11,7 @@ const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Sche
 const Model = Schema.Struct({
   todos: Schema.Array(Todo),
   todosById: Schema.Record(Schema.String, Todo),
-  selectedTodoId: Schema.NullOr(Schema.String),
+  selectedTodoId: Schema.Option(Schema.String),
 })
 const Message = defineMessageUnion({
   CreatedTodo: { id: Schema.String, title: Schema.String },
@@ -28,13 +28,16 @@ const TodoList = App.surface('TodoList', {
 const model: typeof Model.Type = {
   todos: [{ id: 't1', title: 'Read the guide', done: false }],
   todosById: {},
-  selectedTodoId: 't1',
+  selectedTodoId: Option.some('t1'),
 }
 Surface.read(TodoList, model)
 
 const _todoList: Surface<
   typeof Model.Type,
-  { readonly todos: ReadonlyArray<typeof Todo.Type>; readonly selectedTodoId: string | null },
+  {
+    readonly todos: ReadonlyArray<typeof Todo.Type>
+    readonly selectedTodoId: Option.Option<string>
+  },
   typeof Message.ToggledTodo.Type | typeof Message.SelectedTodo.Type,
   void
 > = TodoList
@@ -55,7 +58,7 @@ declare const root: typeof Model.Type
 Surface.read(TodoDetail, root)
 Surface.read(ById, root, { id: 't1' })
 Surface.at(ById, model =>
-  model.selectedTodoId === null ? undefined : { id: model.selectedTodoId },
+  Option.match(model.selectedTodoId, { onNone: () => undefined, onSome: id => ({ id }) }),
 )
 
 // The explicit form

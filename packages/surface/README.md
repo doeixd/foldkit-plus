@@ -38,7 +38,7 @@ pnpm add foldkit-surface
 ## Quick start
 
 ```ts
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
 
@@ -46,7 +46,7 @@ const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Sche
 const Model = Schema.Struct({
   todos: Schema.Array(Todo),
   todosById: Schema.Record(Schema.String, Todo),
-  selectedTodoId: Schema.NullOr(Schema.String),
+  selectedTodoId: Schema.Option(Schema.String),
 })
 const Message = defineMessageUnion({
   CreatedTodo: { id: Schema.String, title: Schema.String },
@@ -64,10 +64,10 @@ const TodoList = App.surface('TodoList', {
 const model: typeof Model.Type = {
   todos: [{ id: 't1', title: 'Read the guide', done: false }],
   todosById: {},
-  selectedTodoId: 't1',
+  selectedTodoId: Option.some('t1'),
 }
 Surface.read(TodoList, model)
-// { todos: [{ id: 't1', title: 'Read the guide', done: false }], selectedTodoId: 't1' }
+// { todos: [{ id: 't1', title: 'Read the guide', done: false }], selectedTodoId: Option.some('t1') }
 ```
 
 `TodoList` is a named contract: the projection a feature reads (here the two
@@ -89,7 +89,7 @@ without a parallel field registry.
 
 ```ts
 App.model.todos                 // FieldRef<Model, Todo[], 'todos'>
-App.model.selectedTodoId        // FieldRef<Model, string | null, 'selectedTodoId'>
+App.model.selectedTodoId        // FieldRef<Model, Option<string>, 'selectedTodoId'>
 App.model.todosById.at('t1')    // OptionalRef<Model, Option<Todo>> (dynamic key)
 App.model.todos.index(0)        // OptionalRef<Model, Option<Todo>> (dynamic index)
 ```

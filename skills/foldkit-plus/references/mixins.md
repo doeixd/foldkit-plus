@@ -54,7 +54,7 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
 ## 3. Minimal example (`foldkit-mixins` alone)
 
 ```ts
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 
@@ -117,7 +117,7 @@ exposed subset, so no annotations are needed and Behaviors cannot read unproject
 unexposed Messages. It adds no state and no renderer.
 
 ```ts
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Behavior, Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
@@ -125,7 +125,7 @@ import { Surface } from 'foldkit-surface'
 
 const Model = Schema.Struct({
   todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
-  selectedId: Schema.NullOr(Schema.String),
+  selectedId: Schema.Option(Schema.String),
   secret: Schema.String,
 })
 const Message = defineMessageUnion({
@@ -147,7 +147,7 @@ const TodoSlots = Slots.define({
 
 type Projected = {
   readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }>
-  readonly selectedId: string | null
+  readonly selectedId: Option.Option<string>
 }
 
 const ArchiveSelected = Behavior.forSlots(TodoSlots)<
@@ -157,7 +157,10 @@ const ArchiveSelected = Behavior.forSlots(TodoSlots)<
   archive: Behavior.slot({
     requires: { events: [Event.Click] },
     attributes: ({ input, h }) =>
-      input.selectedId === null ? [] : [h.OnClick(Message.ArchivedTodo({ id: input.selectedId }))],
+      Option.match(input.selectedId, {
+        onNone: () => [],
+        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
+      }),
   }),
 })
 
