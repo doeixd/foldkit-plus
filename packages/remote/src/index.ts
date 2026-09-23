@@ -9,7 +9,9 @@ import { Effect, Layer, Option, Result, Schema, Stream } from 'effect'
 import { Entity as DomainEntity, Query as Relational, SelectionTypeId } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { Duration } from 'effect'
-import type { Command } from 'foldkit/command'
+import { mapMessage, type Command } from 'foldkit/command'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import {
@@ -517,6 +519,60 @@ export interface RemoteDomain<
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
 }
+
+/** What `Remote.fold(Data, …).mutate` starts: `Data.mutate`'s result with its Command lifted. */
+export type FoldedMutationStarted<AppModel, ParentMessage> = Omit<
+  MutationStarted<AppModel>,
+  'command'
+> & {
+  readonly command: Command<ParentMessage, never, RemoteClient>
+}
+
+/**
+ * A bound domain folded under one of the application's own Message variants,
+ * from `Remote.fold`. Calling it reduces a Remote Message into the Model; the
+ * members that produce Messages, `fetch`, `mutate`, and `subscriptions`,
+ * yield the wrapper Message instead of `RemoteMessage`, with the lift recorded
+ * so Story and Scene can resolve a fetch or a mutation by Remote's own answer.
+ * Members that only read or write the Model (`get`, `refresh`, `next`,
+ * `overlay`, and the rest) stay on the domain itself.
+ */
+export interface RemoteFold<
+  AppModel,
+  ParentMessage,
+  Domain extends RemoteDomain<AppModel, any, any, any, any>,
+> {
+  (
+    model: AppModel,
+    message: RemoteMessage | RemoteMessageInput,
+  ): Update.Return<AppModel, ParentMessage>
+  /** `Data.fetch`, lifted. */
+  readonly fetch: (ref: QueryRef<string, unknown>) => Command<ParentMessage, never, RemoteClient>
+  /** `Data.mutate`, its Command lifted. */
+  readonly mutate: (
+    ...args: Parameters<Domain['mutate']>
+  ) => FoldedMutationStarted<AppModel, ParentMessage>
+  /** `Data.subscriptions`, every entry lifted to the wrapper Message. */
+  readonly subscriptions: <
+    const Active extends Readonly<
+      Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
+    >,
+  >(
+    active: Active,
+    options?: SubscriptionsOptions,
+  ) => {
+    readonly [K in keyof SubscriptionEntries<AppModel, Active>]: EntryWithoutKeepAlive<
+      AppModel,
+      ParentMessage,
+      any,
+      RemoteClient
+    >
+  }
+}
+
+/** The application Model a bound domain is over. */
+export type ModelOfDomain<Domain> =
+  Domain extends RemoteDomain<infer AppModel, any, any, any, any> ? AppModel : never
 
 /** A projection's connection requirement with the `QueryRef` that runs it. */
 export interface QueryRequirement extends ConnectionRequirement {
@@ -1281,6 +1337,63 @@ export const Remote = {
   messages: remoteMessageCases,
   /** Whether a Message is one of Remote's, by tag. */
   reduces: isRemoteMessage,
+  /**
+   * Remote's Messages as one Schema, for a wrapper variant in the
+   * application's union: `GotRemoteMessage: { message: Remote.Message }`. With
+   * a wrapper, `update` matches the application's union exhaustively and
+   * `Remote.fold` reduces what arrives inside it.
+   */
+  Message: defineMessageUnion(remoteMessageCases),
+  /**
+   * A bound domain under one wrapper variant of the application's union, the
+   * same shape Foldkit gives a Submodel: `toParentMessage` wraps Remote's
+   * Messages, the fold reduces them, and its `fetch`, `mutate`, and
+   * `subscriptions` yield the wrapper. Spreading `Remote.messages` and
+   * narrowing with `Remote.reduces` remains the shorter path for an
+   * application whose `update` only reduces.
+   *
+   * @example
+   * ```ts
+   * const Message = defineMessageUnion({ GotRemoteMessage: { message: Remote.Message } })
+   * const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
+   *
+   * const update = (model: Model, message: Message): Return =>
+   *   Message.match(message, {
+   *     GotRemoteMessage: ({ message }) => foldData(model, message),
+   *   })
+   * const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
+   *   foldData.subscriptions({ page: Surface.at(ProjectPage, …) }),
+   * )
+   * ```
+   */
+  fold: <Domain extends RemoteDomain<any, any, any, any, any>, ParentMessage>(
+    domain: Domain,
+    toParentMessage: (message: RemoteMessage) => ParentMessage,
+  ): RemoteFold<ModelOfDomain<Domain>, ParentMessage, Domain> => {
+    type AppModel = ModelOfDomain<Domain>
+    const fold = (model: AppModel, message: RemoteMessage | RemoteMessageInput) => ({
+      model: domain.reduce(model, message),
+    })
+    return Object.assign(fold, {
+      fetch: (ref: QueryRef<string, unknown>) => mapMessage(domain.fetch(ref), toParentMessage),
+      mutate: (...args: Parameters<Domain['mutate']>) => {
+        const started = domain.mutate(
+          ...(args as Parameters<RemoteDomain<AppModel, any, any, any, any>['mutate']>),
+        )
+        return { ...started, command: mapMessage(started.command, toParentMessage) }
+      },
+      subscriptions: (
+        active: Readonly<
+          Record<string, ActiveSurface<AppModel> | Surface<AppModel, any, any, void>>
+        >,
+        options?: SubscriptionsOptions,
+      ) =>
+        Subscription.lift(brandEntries(domain.subscriptions(active, options)))({
+          toChildModel: (model: AppModel) => model,
+          toParentMessage,
+        }) as never,
+    })
+  },
 
   /**
    * A patch of one entity's values, for a mutation's `optimistic` list or an

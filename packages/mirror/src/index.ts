@@ -11,7 +11,8 @@
  */
 import { Duration, Effect, Option, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
-import type { Command } from 'foldkit/command'
+import { mapMessage, type Command } from 'foldkit/command'
+import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import * as Subscription from 'foldkit/subscription'
 import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
@@ -475,6 +476,21 @@ export type KvMirrorWiring<AppModel> = Wiring<
   readonly init: Update.Step<AppModel, MirrorRestored, KeyValueStore.KeyValueStore>
 }
 
+/**
+ * A key-value mirror folded under one of the application's own Message
+ * variants, from `Mirror.fold`. Calling it reduces the mirror's
+ * `MirrorRestored` into the Model; `restore` and `init` yield the wrapper
+ * Message instead of `MirrorRestored`, with the lift recorded so Story and
+ * Scene can resolve `restore` by the answer the store gives.
+ */
+export interface MirrorFold<AppModel, ParentMessage> {
+  (model: AppModel, message: MirrorRestored): Update.Return<AppModel, ParentMessage>
+  /** `restore`, lifted: yields the wrapper Message for this mirror's answer. */
+  readonly restore: Command<ParentMessage, never, KeyValueStore.KeyValueStore>
+  /** A Step for `init`: the Model unchanged, and `restore` to run. */
+  readonly init: Update.Step<AppModel, ParentMessage, KeyValueStore.KeyValueStore>
+}
+
 /** A slice kept in Effect's `KeyValueStore`. */
 export interface KvMirror<
   AppModel,
@@ -715,6 +731,47 @@ const brandEntries = <AppModel, R>(
 export const Mirror = {
   /** Mirror's Message cases, to spread into the application's union. */
   messages: mirrorMessageCases,
+
+  /**
+   * Mirror's Messages as one Schema, for a wrapper variant in the
+   * application's union: `GotPrefsMessage: { message: Mirror.Message }`. With
+   * a wrapper, `update` matches the application's union exhaustively and
+   * `Mirror.fold` reduces what arrives inside it.
+   */
+  Message: defineMessageUnion(mirrorMessageCases),
+
+  /**
+   * A key-value mirror under one wrapper variant of the application's union,
+   * the same shape Foldkit gives a Submodel: `toParentMessage` wraps the
+   * mirror's `MirrorRestored`, the fold reduces it, and `fold.init` runs the
+   * lifted `restore` at startup. One wrapper per mirror: two mirrors that
+   * share a variant would each have to reduce the other's answer.
+   *
+   * @example
+   * ```ts
+   * const Message = defineMessageUnion({ GotPrefsMessage: { message: Mirror.Message } })
+   * const foldPrefs = Mirror.fold(Prefs, message => Message.GotPrefsMessage({ message }))
+   *
+   * const init = (): Return => foldPrefs.init(initial)
+   * const update = (model: Model, message: Message): Return =>
+   *   Message.match(message, {
+   *     GotPrefsMessage: ({ message }) => foldPrefs(model, message),
+   *   })
+   * ```
+   */
+  fold: <AppModel, Value extends Record<string, unknown>, Name extends string, ParentMessage>(
+    mirror: KvMirror<AppModel, Value, Name>,
+    toParentMessage: (message: MirrorRestored) => ParentMessage,
+  ): MirrorFold<AppModel, ParentMessage> => {
+    const restore = mapMessage(mirror.restore, toParentMessage)
+    const fold = (model: AppModel, message: MirrorRestored) => ({
+      model: mirror.reduce(model, message),
+    })
+    return Object.assign(fold, {
+      restore,
+      init: (model: AppModel) => ({ model, commands: [restore] }),
+    })
+  },
 
   /** Narrows the application's union to Mirror's cases, by tag. */
   reduces: <M extends { readonly _tag: string }>(
