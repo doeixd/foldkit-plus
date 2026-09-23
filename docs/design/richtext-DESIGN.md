@@ -1971,6 +1971,43 @@ or another representation that preserves current compatibility.
 
 The exact shape needs a spike.
 
+**Spike result (track 2, `examples/form`).** A non-RichText stateful control
+(a colour picker with a popover, a palette-lookup Command, a keyboard
+Subscription, and a Managed Resource) works as a Bundle and under a plain
+parent: `Bundle.at` carries its Model, Messages, Commands, Subscriptions, and
+Resources, which is exactly the mechanism Form would have to use. What the
+current Form API cannot carry, with the evidence recorded in that harness:
+
+```text
+a draft that is a child Model   Draft is string | boolean | string[]; a key's
+                                field is { _tag, value } and nothing else
+the control's Messages          the form's Message union is fixed; nothing
+                                routes a control's own intents
+the control's Commands          lifted only for validation and submit today
+the control's Subscriptions     the form's bundle declares none
+the control's Resources         the form's bundle declares none
+placement per key               a key's state is plain data in `fields`
+fill / partial / settled        expressed over drafts, not over a child Model
+```
+
+The shape it points at:
+
+```ts
+const ColorInput = Input.bundle('ColorPicker', {
+  bundle: ColorPicker,
+  value: model => model.hex,                 // what the key holds and submits
+  fill: (model, hex) => ({ ...model, hex }), // a value the form was given
+  settled: model => ({ ...model, open: false }), // in-flight work cleared
+})
+```
+
+Constraints already known: `Bundle.each` refuses Managed Resources, so a
+stateful control inside a repeated row needs no Resource or per-row keying that
+Bundle does not yet support; validation still runs on `value(model)`, so the
+key's schema and checks keep their meaning; and a resumed draft would restore
+the control's state through the encoded Form Model, which needs an explicit
+decision about what is worth keeping and what is cleared.
+
 In the existing Form API, `settled(model)` returns a resumable Model with abandoned
 in-flight validation and submission cleared; it is not a readiness predicate.
 Preserve that meaning for custom controls. Define fill/reset as distinct from
@@ -3934,10 +3971,11 @@ that gate promotion, not discovery:
 1. Controlled Bundle (gates Phase 4): **done** — `examples/richtext` proves one
    parent transition commits document and interaction state, including rejection
    and external document replacement (§27). The browser half remains Phase 3.
-2. Stateful Form (gates Phase 5): one non-RichText control proves child
-   Commands, subscriptions, outputs, validation, repeated placement/removal,
-   resource restrictions, and save/resume semantics (§41–45). Establish
-   content-change reporting here.
+2. Stateful Form (gates Phase 5): **spiked** — `examples/form` shows a
+   non-RichText stateful control working as a Bundle (Commands, a Subscription,
+   a Resource) and pins exactly what the Form API cannot carry yet (§44).
+   Content-change reporting is implemented (§45). The Form-side shape is still
+   to build.
 3. Collaboration (gates Phase 8): synchronous replay over reconstructible
    state, checkpoint plus pending replay, and retained cold/warm benchmarks
    (§58). Do not implement a production adapter yet.
