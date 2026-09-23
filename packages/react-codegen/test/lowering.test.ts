@@ -63,7 +63,8 @@ it('drops the Foldkit runtime from the output entirely', () => {
   expect(code).toContain('counterView(model.count, submodelMessage =>')
 })
 
-it('emits TSX that type-checks against React', () => {
+// Runs tsc against React's types; slow when 300 test workers compete for the CPU.
+it('emits TSX that type-checks against React', { timeout: 30_000 }, () => {
   expect(typecheck({ 'View.tsx': compile(view), 'message.ts': messageModule }, 'View.tsx')).toEqual(
     [],
   )

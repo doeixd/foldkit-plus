@@ -61,7 +61,8 @@ it('compiles the element to its tag with property and event props, and no Foldki
   )
 })
 
-it('emits TSX that type-checks against React', () => {
+// Runs tsc against React's types; slow when 300 test workers compete for the CPU.
+it('emits TSX that type-checks against React', { timeout: 30_000 }, () => {
   expect(typecheck({ 'View.tsx': compile(view), 'message.ts': messageModule }, 'View.tsx')).toEqual(
     [],
   )

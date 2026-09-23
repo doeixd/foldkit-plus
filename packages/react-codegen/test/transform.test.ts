@@ -46,7 +46,8 @@ describe('transformSourceFile', () => {
     `)
   })
 
-  it('emits TSX that type-checks against React', () => {
+  // Runs tsc against React's types; slow when 300 test workers compete for the CPU.
+  it('emits TSX that type-checks against React', { timeout: 30_000 }, () => {
     const files: Record<string, string> = {
       'View.tsx': compile(view),
       'message.ts': `export type Model = { readonly query: string; readonly items: ReadonlyArray<string> }

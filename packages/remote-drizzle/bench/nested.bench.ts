@@ -2,8 +2,14 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import { bench, describe } from 'vitest'
+import { describe, test } from 'vitest'
 import { databaseLayer, entity, many, source } from '../src/index.js'
+
+// Vitest 5 hands `bench` to a test as a context fixture; this keeps each case one line.
+const benchmark = (name: string, run: () => unknown) =>
+  test(name, async ({ bench }) => {
+    await bench(name, run).run()
+  })
 
 const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
@@ -56,15 +62,15 @@ const run = (fields: ReadonlyArray<string>, windows?: Parameters<typeof read.rea
   )
 
 describe(`remote-drizzle reads (${PARENTS} parents x ${CHILDREN} children)`, () => {
-  bench('flat: 2 scalar fields', async () => {
+  benchmark('flat: 2 scalar fields', async () => {
     await run(['id', 'name'])
   })
 
-  bench('batched many: all children in one IN (...)', async () => {
+  benchmark('batched many: all children in one IN (...)', async () => {
     await run(['id', 'comments'])
   })
 
-  bench('nested pagination: first 5 children per parent', async () => {
+  benchmark('nested pagination: first 5 children per parent', async () => {
     await run(['id', 'comments'], { comments: { first: 5 } })
   })
 })

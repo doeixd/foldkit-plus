@@ -1,5 +1,5 @@
 import { Effect, Schema } from 'effect'
-import { bench, describe } from 'vitest'
+import { describe, test } from 'vitest'
 import {
   defineSync,
   documentId,
@@ -14,6 +14,12 @@ import {
   type ReplicaState,
   type Storage,
 } from '../src/index.js'
+
+// Vitest 5 hands `bench` to a test as a context fixture; this keeps each case one line.
+const benchmark = (name: string, run: () => unknown) =>
+  test(name, async ({ bench }) => {
+    await bench(name, run).run()
+  })
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
 const Shared = Schema.Struct({ todos: Schema.Array(Todo) })
@@ -82,7 +88,7 @@ const open = (state: ReplicaState<Shared>): Replica<Message, Shared> =>
 
 describe('openReplica with a committed model of 100', () => {
   for (const pending of [0, 100, 1000, 5000])
-    bench(`startup, outbox ${pending}`, () => {
+    benchmark(`startup, outbox ${pending}`, () => {
       open(stateWith(pending, 100))
     })
 })
@@ -90,7 +96,7 @@ describe('openReplica with a committed model of 100', () => {
 describe('shared read with a committed model of 100', () => {
   for (const pending of [0, 100, 1000, 5000]) {
     const replica = open(stateWith(pending, 100))
-    bench(`read, outbox ${pending}`, () => {
+    benchmark(`read, outbox ${pending}`, () => {
       Effect.runSync(replica.shared)
     })
   }
@@ -101,7 +107,7 @@ describe('reconnect: reconcile a committed batch onto a 100-op outbox', () => {
     const operations = Array.from({ length: batch }, (_, index) =>
       committed(index + 1, `s${index}`),
     )
-    bench(`reconcile ${batch} commits`, async () => {
+    benchmark(`reconcile ${batch} commits`, async () => {
       const replica = open(stateWith(100, 100))
       await Effect.runPromise(
         Effect.provide(

@@ -589,12 +589,11 @@ installed `.d.ts` before reaching for a remembered API.
 
 **Tooling**
 
-- **Vite 5 does not recognize `node:sqlite` as a builtin.** A static import
-  under Vitest is rewritten to a bare `sqlite` and fails to load;
-  `test.server.deps.external` does not help because resolution happens first.
-  `vitest.config.ts` aliases `node:sqlite` to `test-support/sqlite.ts`, so a
-  normal static import works in Vitest and tsx. Do not reinstate per-file
-  `createRequire`.
+- **`node:sqlite` needs Vite 6 or newer under Vitest.** Vite 5 rewrote a
+  static import to a bare `sqlite` that failed to load, and the workspace once
+  aliased it to a `createRequire` shim. The root runs Vitest 5 on Vite 8,
+  which reads Node's own builtin list, so a plain static import works in
+  Vitest and tsx. Do not reinstate the alias or per-file `createRequire`.
 
 - **Writing a file can turn `\u0000` into a raw NUL.** Moving Remote's
   requirement code by rewriting it whole emitted literal NUL bytes for the

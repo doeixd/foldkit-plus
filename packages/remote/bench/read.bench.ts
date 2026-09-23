@@ -18,8 +18,14 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
-import { bench, describe } from 'vitest'
+import { describe, test } from 'vitest'
 import { Query, Remote } from '../src/index.js'
+
+// Vitest 5 hands `bench` to a test as a context fixture; this keeps each case one line.
+const benchmark = (name: string, run: () => unknown) =>
+  test(name, async ({ bench }) => {
+    await bench(name, run).run()
+  })
 
 const User = DomainEntity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const ProjectBase = DomainEntity.define(
@@ -123,23 +129,23 @@ for (const size of [25, 100, 400]) {
   const { projects, loaded } = scenario(size)
 
   describe(`a page of ${size} rows`, () => {
-    bench('Data.query — build one projection', () => {
+    benchmark('Data.query — build one projection', () => {
       Data.query(ByOwner, { ownerId: 'u1' }, { select: Summary, first: size })
     })
 
-    bench('read, same Model — the memo hit', () => {
+    benchmark('read, same Model — the memo hit', () => {
       projects.read(loaded)
     })
 
-    bench('read, after a write to one unrelated entity', () => {
+    benchmark('read, after a write to one unrelated entity', () => {
       projects.read(write(loaded))
     })
 
-    bench('the same write, without the read', () => {
+    benchmark('the same write, without the read', () => {
       write(loaded)
     })
 
-    bench('Remote.plan — what a subscription asks', () => {
+    benchmark('Remote.plan — what a subscription asks', () => {
       Remote.plan(Data, loaded, projects)
     })
   })
