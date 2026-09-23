@@ -155,6 +155,10 @@ PostEditor.pageId(model) // the row's id, or the entry's until there is a row: w
   one second by default), and the edit that is still the last one when its rest
   ends saves the form as it stands, valid or not. There is no Save button to
   forget, and a validation error never costs an author their work.
+- **What counts as an edit is the form's answer, not a Message tag.** The editor
+  asks `form.authoredChanged(before, after)`, so a blur, a refusal, or a repeated
+  value starts no rest, while a control the editor has never heard of — a
+  stateful or Bundle-backed one — autosaves exactly like a text field.
 - **`Editing` means there are edits that are not saved yet**, and `Opened` means
   the form is as it was found. A draft the editor filled the form from is on the
   server already, so it reads `Saved`.

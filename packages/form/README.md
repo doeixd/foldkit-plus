@@ -469,6 +469,25 @@ A relation is loaded as a ref and read back as the id the form holds. See
 [`foldkit-entity`](../entity/README.md#showing-what-is-there).
 [`foldkit-crud`](../crud/README.md) does this, the save, and its status for you.
 
+## Did an edit change anything?
+
+`authoredChanged(before, after)` answers whether a completed transition changed
+what the author wrote:
+
+```ts
+const next = RenameForm.bundle.update(model, message, undefined)
+if (RenameForm.authoredChanged(model, next.model)) scheduleAutosave()
+```
+
+It compares the two Models, not the Message: validation state, search text, the
+edited subject, and row bookkeeping are not authored content, so a blur, a
+refused edit, or a repeated value reports `false` while a changed draft, an
+added or removed row, or a changed row reports `true`. Nested rows recurse
+through their own forms, and a control whose output is written back into the
+Model composes for the same reason — which is what lets a consumer such as
+[`foldkit-cms`](../cms/README.md) autosave without knowing the form's Message
+tags.
+
 ## Limits
 
 - Headless: no view here (see `foldkit-mixins-form`), and no relation picker data. `RelationOne` and

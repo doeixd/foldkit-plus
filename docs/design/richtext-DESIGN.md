@@ -2017,6 +2017,27 @@ normalization or a child output. Define reset/fill behavior explicitly.
 
 This is a useful architectural improvement independent of RichText.
 
+**Implemented as a model comparison, not a result field.**
+`Form.authoredChanged(before, after)` compares the two Models: the draft value
+inside each field's validation state, the row sequence by id, and each nested
+row through that form's own `authoredChanged`. Validation state, search text,
+the edited subject, and row bookkeeping are not authored content, so a blur, a
+refusal, or a repeated value reports `false` and a changed draft, an added or
+removed row, or a changed row reports `true`.
+
+A result field on the update return was rejected because Foldkit's
+`Update.ReturnWithOutMessage` is a fixed shape: widening it for one package
+would change every Submodel fold. Comparing the two Models needs no such change,
+composes with nested forms by recursion, and composes with a Bundle-backed
+control for the same reason it works at all — the child is written back into the
+Model before the question is asked.
+
+`Cms.editor` now asks the form instead of recognizing tags: `isEdit(message)`
+is gone, and a test pins both directions (a blur or a repeated value starts no
+save; a real edit does). What remains from this section is the *stateful control
+itself* — a Bundle-backed `Input` kind with Commands, subscriptions, resources,
+validation, and save/resume — which is track 2 and still unbuilt.
+
 ---
 
 # 46. CMS integration

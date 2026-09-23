@@ -115,6 +115,40 @@ describe('a server’s word about one key', () => {
   })
 })
 
+describe('what starts a save', () => {
+  const rests = (
+    commands: ReadonlyArray<{ readonly name: string }> | undefined,
+  ): ReadonlyArray<string> =>
+    (commands ?? [])
+      .filter(command => command.name === 'PostEditor.rest')
+      .map(command => command.name)
+
+  it('starts a rest for an edit, and not for a blur or a no-op', () => {
+    const { root } = world(undefined)
+    const typed = Editor.bundle.update(
+      root.editor,
+      PostForm.Message.Changed({ key: 'title', value: 'New' }),
+      undefined,
+    )
+    expect(rests(typed.commands)).toEqual(['PostEditor.rest'])
+
+    const blurred = Editor.bundle.update(
+      typed.model,
+      PostForm.Message.Blurred({ key: 'title' }),
+      undefined,
+    )
+    expect(rests(blurred.commands)).toEqual([])
+
+    // The same draft again is not an edit, so it does not start another rest.
+    const repeated = Editor.bundle.update(
+      blurred.model,
+      PostForm.Message.Changed({ key: 'title', value: 'New' }),
+      undefined,
+    )
+    expect(rests(repeated.commands)).toEqual([])
+  })
+})
+
 describe('telling the form which row it is editing', () => {
   it('gives it the row id, so a check can pass over the row’s own address', () => {
     const { root } = world(undefined)

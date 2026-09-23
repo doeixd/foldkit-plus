@@ -195,8 +195,12 @@ export interface FormFor<
     }
     readonly isValidating: (model: any) => boolean
     readonly value: (model: any) => unknown
+    /** Whether a transition changed authored content, so a nesting form recurses. */
+    readonly authoredChanged: (before: any, after: any) => boolean
   }
   readonly settled: (model: any) => any
+  /** Whether a completed transition changed authored content. */
+  readonly authoredChanged: (before: any, after: any) => boolean
 }
 
 /** The forms a form may be given for its nested keys: each one made from that key's nested input. */
@@ -297,8 +301,11 @@ interface AnyForm extends NestedForm {
     }
     readonly isValidating: (model: any) => boolean
     readonly value: (model: any) => unknown
+    readonly authoredChanged: (before: any, after: any) => boolean
   }
   readonly settled: (model: any) => any
+  /** Whether a completed transition changed authored content. */
+  readonly authoredChanged: (before: any, after: any) => boolean
 }
 
 /** Assigned once `Form` exists: a form builds the forms of its nested keys with itself. */
@@ -1099,6 +1106,32 @@ const Core = {
       helpers: { fill },
     })
 
+    /**
+     * Whether a completed transition changed what the author wrote. Validation
+     * state, search text, the edited subject, and row bookkeeping are not
+     * authored content, so a blur, a refused edit, or a no-op is not a change.
+     * Nested rows recurse through their own forms, and a Bundle-backed control
+     * composes because its output is written back before this is asked.
+     */
+    const authoredChanged = (before: Model, after: Model): boolean => {
+      const beforeDrafts = drafts(before)
+      const afterDrafts = drafts(after)
+      for (const key of keys) {
+        if (!sameDraft(beforeDrafts[key].value, afterDrafts[key].value)) return true
+      }
+      for (const key of rowsKeys) {
+        const beforeRows = rowsOf(before)[key]!
+        const afterRows = rowsOf(after)[key]!
+        if (beforeRows.length !== afterRows.length) return true
+        for (const [index, row] of beforeRows.entries()) {
+          const other = afterRows[index]!
+          if (row.id !== other.id) return true
+          if (nestedPlans[key].form.engine.authoredChanged(row.model, other.model)) return true
+        }
+      }
+      return false
+    }
+
     return {
       /** The name, input and options the form was made from: what a pipe step makes the next form from. */
       name,
@@ -1122,6 +1155,8 @@ const Core = {
       Message,
       /** The reading the form was made from, for `Entity.selectFor` and `Entity.valuesFor`. */
       input,
+      /** Whether a completed transition changed authored content. See the note above. */
+      authoredChanged,
       /** The `fill` helper as a plain function of the form's Model, for a package that wraps the form. */
       fill,
       /** The Model the form starts from and resets to: every key empty and not validated. */
@@ -1250,6 +1285,8 @@ const Core = {
           return { model: next, commands }
         },
         isValidating,
+        /** Whether a transition changed authored content, so a nesting form recurses. */
+        authoredChanged,
         /** The decoded input when every key and row is valid as it stands; validates nothing. */
         value: (model: Model): Value | undefined => finish(model).value,
       },

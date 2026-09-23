@@ -133,6 +133,13 @@ export interface EditorForm<FormModel, FormMessage, Value> {
   readonly settled: (model: FormModel) => FormModel
   /** What the form is editing; `{}` while it creates. See `Form.FormModel.subject`. */
   readonly subject: (model: FormModel) => Readonly<Record<string, string>>
+  /**
+   * Whether a completed transition changed authored content (§45). The editor
+   * asks this instead of recognizing the form's Message tags, so a control it
+   * does not know about — a Bundle-backed one, a stateful one — autosaves the
+   * same way a text field does, and a blur or a refused edit does not.
+   */
+  authoredChanged(before: FormModel, after: FormModel): boolean
   readonly field: (
     model: FormModel,
     key: never,
@@ -170,11 +177,6 @@ export interface EditorContent<FormModel, FormMessage, Value> {
   readonly preview?:
     ((value: Partial<Value>, id: string) => ReadonlyArray<OptimisticOperation>) | undefined
 }
-
-const isEdit = (message: { readonly _tag: string; readonly message?: unknown }): boolean =>
-  message._tag === 'Nested'
-    ? isEdit(message.message as { readonly _tag: string })
-    : ['Changed', 'RowAdded', 'RowRemoved', 'Reset'].includes(message._tag)
 
 const held = <A>(read: RemoteData<A> | undefined): A | undefined =>
   read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value : undefined
@@ -354,7 +356,9 @@ export const makeEditor =
 
     const viaForm = (model: Model, message: FormMessage): Returned => {
       const next = form.bundle.update(model.form, message, undefined)
-      const edited = isEdit(message)
+      // Authored content, not Message tags: a blur, a refusal, or a no-op does
+      // not start a save, and a control the editor does not know about does.
+      const edited = form.authoredChanged(model.form, next.model)
       const edits = edited ? model.edits + 1 : model.edits
       const commands: ReadonlyArray<Command<Message, never, any>> = [
         ...((next.commands ?? []) as ReadonlyArray<Command<Message, never, any>>),
