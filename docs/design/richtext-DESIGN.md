@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 in progress: unpublished document and text-transaction foundation implemented. Kits, structural edits, transforms, and the three integration proofs remain unfinished. Phases 2–12 are not started.
+**Status:** Phase 1 in progress: unpublished document and text-transaction foundation implemented. Kits, structural edits, transforms, and unknown nodes remain unfinished. Integration proofs run as parallel tracks gating Phases 4/5/8 rather than gating the first editing slice. Phases 2–12 are not started.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -11,10 +11,15 @@
 ## Implementation entry point
 
 Start with Phase 1 (§101): semantic documents, atomic transactions, and position
-mapping. Before committing to the representation, prove controlled Bundle
-ownership, a non-RichText stateful Form control, and the collaboration replay
-boundary in small feasibility spikes. These are prerequisites for the DOM editor,
-not early delivery of the full Form or collaboration integrations.
+mapping, then prove the model against a private vertical editing slice as early
+as possible (Phase 3): typing, selection, bold boundaries, split/join, IME, and
+local undo over two paragraphs. The browser teaches things about the semantic
+model that diagrams do not, so the slice must not wait for the integration
+proofs. Those proofs run in parallel and gate promotion, not discovery: the
+controlled-Bundle proof gates the supported editor (Phase 4), the stateful Form
+control proof gates Form integration (Phase 5), and the collaboration replay
+proof gates the Loro adapter (Phase 8). Keep every API private until its gate
+is met.
 
 Existing machinery to reuse explicitly:
 
@@ -398,6 +403,18 @@ and carry no authorization. This separates a reusable identity from a snapshot
 of node content without adding a state owner. It does not replace future Kit
 node-kind definitions or the collaboration engine's stable position anchors.
 
+Text-run identities are document-local and representational, not durable
+entities. Splitting `Text("hello world")` for bold and merging it back on
+unbold necessarily retires one run's identity; nothing semantic is lost because
+positions map through the merge (§22). The rules are: normalization merge keeps
+the first run's id and retires the second; position maps cover every endpoint
+in a retired run; and a reference to a retired run id resolves to absence. Hold
+block ids for durable addressing. Stable cross-version anchors — the thing a
+comment or a collaborator's cursor needs — belong to the replica backend
+(§51), not to run ids. `NodeId` stays a single brand for blocks and runs so
+that positions remain uniform; split it only when Annotation definitions demand
+distinctly-typed anchors.
+
 ---
 
 # 8. Node definitions
@@ -563,14 +580,35 @@ comment
 
 cannot represent overlapping independent comments.
 
-The mark system should therefore support semantic mark identity:
+The deeper point is that these are not all the same kind of thing. There are
+three kinds with different lifetimes:
+
+```text
+Mark        content formatting (Bold, Italic, Code, Link)
+            persists as document content
+
+Annotation  persistent anchored metadata (Comment, Suggestion,
+            Citation, Entity) with identity, stable range anchors,
+            and lifecycle (resolve, reply, delete)
+
+Decoration  ephemeral derived presentation (search matches,
+            remote selections, spellcheck, lint, AI suggestions)
+            computed from state, never persisted
+```
+
+Comments especially are not formatting that happens to occupy a range; they are
+anchored metadata with their own lifecycle. Under collaboration an annotation
+needs identity plus stable range anchors plus metadata, while Bold needs only
+formatting semantics. Folding all three into Mark turns it into an
+everything-bagel abstraction.
+
+Until Kit-era Annotation definitions exist, overlapping comments may use
+semantic mark identity as the interim representation:
 
 ```text
 comment:123
 comment:456
 ```
-
-or a first-class annotation id.
 
 This lets:
 
@@ -582,7 +620,9 @@ comment A
        comment B
 ```
 
-coexist over overlapping text.
+coexist over overlapping text. The interim representation must not grow
+lifecycle features (resolve/reply); those wait for first-class Annotations
+anchored to stable positions (§17), resolved by the replica backend (§51).
 
 ---
 
@@ -949,6 +989,12 @@ depending on semantic context.
 
 This keeps durable history meaningful.
 
+Terminology for the rest of the document: an *intent* is the UI-level event
+(`PressedEnter`); a *command* is the resolved semantic operation (`SplitBlock`,
+`ToggleBold`, `DeleteRange`). Commands are what backends execute (§51): the
+local backend compiles them to positional Transactions, the replica backend to
+convergent changes. Validation lives with the command, not the backend.
+
 ---
 
 # 20. Transactions
@@ -1004,6 +1050,10 @@ or non-terminating normalization return a diagnostic and leave the prior state
 intact. Selection, stored marks, and history bookkeeping must correspond to the
 same resulting document. IDs needed by operations are explicit inputs; replay
 must not generate fresh IDs or read clocks.
+
+This section describes the local backend's execution language. Commands reach
+it as §51 describes; the replica backend executes the same commands
+differently.
 
 ---
 
@@ -1126,6 +1176,9 @@ turn "- " into a list
 
 ensure an empty Document has a Paragraph
 ```
+
+Merging adjacent equivalent Text nodes keeps the first run's identity and
+retires the second (§7); the merge step maps accordingly.
 
 API concept:
 
@@ -1287,7 +1340,8 @@ shared documents
 
 The architecture should support both without two separate editor implementations.
 
-Prove this before the DOM implementation. A parent reducer must apply the
+Prove this before promoting the DOM spike to a supported editor (Phase 4), not
+before building the spike itself. A parent reducer must apply the
 transaction to its authoritative document and install the corresponding editor
 interaction state in one transition. Use existing Bundle helpers and `OutMessage`
 routing where they fit; the spike must show how the child reads the current
@@ -1450,6 +1504,11 @@ Composing {
 ```
 
 Only when the composition commits should the editor convert the resulting interaction into normal semantic changes.
+
+This is an exit criterion for the Phase 3 vertical slice, not a later
+hardening step: IME is the sharpest test of the DOM ownership boundary
+(§§28–29), because it forces the architecture to answer what happens while the
+browser temporarily knows something the semantic model does not.
 
 This requires targeted browser tests, particularly on:
 
@@ -2087,7 +2146,7 @@ This information belongs below normal editor intent.
 
 # 51. Two levels of replicated API
 
-Applications should usually interact with semantic intent:
+Applications should usually interact with semantic commands:
 
 ```text
 InsertText
@@ -2096,13 +2155,28 @@ SplitParagraph
 MoveBlock
 ```
 
-The collaboration engine produces the lower-level convergent change:
+A command's observable semantics and validation rules are shared. Its execution
+is not: each command runs against one of two backends.
 
 ```text
-RichTextChange
+semantic command
+      ├── local backend → positional operations
+      │
+      └── replica backend → convergent operations (RichTextChange)
 ```
 
-That packet is what Sync/Durable needs to preserve exactly.
+Both backends return the same shape:
+
+```text
+Document + ChangeSet
+```
+
+The convergent packet is what Sync/Durable needs to preserve exactly. The
+positional Transaction is the local backend's execution language, not an
+interchange format: positional operations cannot retain their meaning under
+concurrent edits (§49), so a replica backend must execute the command directly
+against stable anchors rather than convert a positional Transaction after the
+fact.
 
 Thus:
 
@@ -2110,17 +2184,14 @@ Thus:
 local editor Message
       │
       ▼
-semantic transaction
+semantic command
+      ├── local backend → positional operations → Model
       │
-      ▼
-collaboration engine
-      │
-      ▼
-RichTextChange
-      │
-      ▼
-durable Foldkit Message
+      └── replica backend → RichTextChange → durable Foldkit Message
 ```
+
+Single-user and collaborative editing share one semantic command API. They do
+not share one low-level execution representation.
 
 ---
 
@@ -2157,6 +2228,10 @@ idempotent by internal change identity
 ```
 
 and therefore fits Sync's durable boundary much better than a browser intent Message does.
+
+The change packet originates in the replica backend's execution of the command,
+never by converting a positional Transaction. Validation of the command's
+semantics is shared between backends; only the execution representation differs.
 
 ---
 
@@ -2377,7 +2452,8 @@ The requirement is:
 
 A mutable hidden singleton must not become the actual source of truth.
 
-Move a minimal feasibility spike into Phase 1. Sync's replay callback is
+Run a minimal feasibility spike on the Phase 8 track, in parallel with the
+vertical editing slice rather than inside Phase 1. Sync's replay callback is
 synchronous and is reused for admission, committed replay, and optimistic pending
 replay. Prove cold restoration, duplicate integration, checkpoint adoption with
 pending changes, and projection without relying on a surviving runtime cache.
@@ -2385,7 +2461,8 @@ Benchmark restoration, integration, export, projection, and pending-queue replay
 at explicit document/queue sizes. Resolve engine initialization and deterministic
 actor/change identity before calling this a compatible replay implementation.
 Retain the benchmark in the repository's benchmark infrastructure. Full
-collaboration remains Phase 8; this spike gates the representation choice.
+collaboration remains Phase 8; this spike gates the representation choice and
+the Loro adapter, not the local editing slice.
 
 ---
 
@@ -2596,9 +2673,16 @@ comment highlights
 temporary composition ranges
 ```
 
-A Decoration is not content.
+A Decoration is not content. It is the ephemeral third kind beside Marks and
+Annotations (§11): computed from current state (document, presence, spellcheck,
+queries), rendered by the DOM adapter, and discarded on every state change.
+It never serializes with the Document.
 
-It should not serialize with the Document unless explicitly converted into a semantic annotation.
+An Annotation may project into Decorations for display (a comment's highlight),
+but the Annotation itself — identity, anchor, metadata, lifecycle — persists as
+document metadata. Converting a Decoration back into document state (accepting
+an AI suggestion, turning a search match into a Citation) is always an explicit
+semantic command, never an automatic round trip.
 
 ---
 
@@ -2699,11 +2783,14 @@ Agent
 semantic editor intent
    │
    ▼
-Transaction
+semantic command
    │
    ▼
-same change generation path
-used by a human
+owning backend (local or replica)
+   │
+   ▼
+same observable result
+a human's edit produces
 ```
 
 The collaboration packet remains infrastructure.
@@ -3540,27 +3627,29 @@ DOM input
 Editor intent
     │
     ▼
-RichText semantic transaction
-    │
-    ▼
-Loro adapter
+RichText semantic command, executed here by the Loro adapter
+(replica backend; the local backend path is §51)
     │
     ├── next ReplicaState
     │
     └── encoded Loro change
-              │
-              ▼
-     Message.RichTextChanged
-              │
-              ▼
-         foldkit-sync
-              │
-              ▼
+            │
+            ▼
+    Message.RichTextChanged
+            │
+            ▼
+        foldkit-sync
+            │
+            ▼
         foldkit-durable
-              │
-              ▼
-       other replicas
+            │
+            ▼
+        other replicas
 ```
+
+The adapter executes the command; it never converts a positional Transaction.
+Human, agent, and slash-command producers share the command and its validation,
+and differ only in which backend owns the document they target.
 
 Remote integration:
 
@@ -3628,22 +3717,28 @@ No DOM editor yet.
 
 Semantic tests operate entirely on values. Include transaction rollback,
 normalization termination/idempotence, position mapping through splits/joins/
-deletions/merges, selection direction, codec round trips, and unknown-extension
+deletions/merges, selection direction, codec round trips, and unknown-mark
 preservation versus edit/publish validation.
 
-Before Phase 2, complete three bounded feasibility proofs:
+Do not gate the Phase 3 editing slice on the integration proofs. The slice
+needs the Operations and position-mapping work from the list above, and
+nothing else below. Run three bounded feasibility proofs as parallel tracks
+that gate promotion, not discovery:
 
-1. Controlled Bundle: one parent transition commits document and interaction
-   state, including rejection and external document replacement (§27).
-2. Stateful Form: one non-RichText control proves child Commands, subscriptions,
-   outputs, validation, repeated placement/removal, resource restrictions, and
-   save/resume semantics (§41–45). Establish content-change reporting here.
-3. Collaboration: synchronous replay over reconstructible state, checkpoint plus
-   pending replay, and retained cold/warm benchmarks (§58). Do not implement a
-   production adapter yet.
+1. Controlled Bundle (gates Phase 4): one parent transition commits document
+   and interaction state, including rejection and external document
+   replacement (§27).
+2. Stateful Form (gates Phase 5): one non-RichText control proves child
+   Commands, subscriptions, outputs, validation, repeated placement/removal,
+   resource restrictions, and save/resume semantics (§41–45). Establish
+   content-change reporting here.
+3. Collaboration (gates Phase 8): synchronous replay over reconstructible
+   state, checkpoint plus pending replay, and retained cold/warm benchmarks
+   (§58). Do not implement a production adapter yet.
 
 Record results and unresolved constraints before freezing public APIs. Phase 1
-is complete only when these ownership and representation questions have answers.
+is complete when the semantic core above has answers; each proof completes on
+its own track when its gate opens.
 
 ---
 
@@ -3665,9 +3760,30 @@ Add HTML/plain-text serialization.
 
 ---
 
-# 103. Phase 3 — basic DOM editor
+# 103. Phase 3 — vertical editing slice
 
-Add `foldkit-richtext-dom`.
+Add `foldkit-richtext-dom` as a private spike, not a supported editor.
+
+Prove the nastiest tiny loop end to end over two paragraphs and no fancy
+blocks:
+
+```text
+Document
+  ▼
+semantic command (local backend)
+  ▼
+owned contenteditable subtree
+  ▼
+type text
+selection
+Enter (split)
+Backspace/Delete (join)
+bold at a boundary
+IME commit/cancel
+local undo
+  ▼
+patch dirty DOM only, restore/map selection
+```
 
 Support:
 
@@ -3677,21 +3793,31 @@ selection
 Enter
 Backspace/Delete
 basic bold/italic
-copy/paste
+IME composition events
+local undo history
 focus
 ```
 
-Use a specialized owned DOM subtree.
+Defer clipboard, drag/drop, and mobile virtual keyboards to Phase 4. Keep the
+API private and throwaway-tolerant: the slice exists to let the browser
+challenge the semantic model (normalization id retention, mark boundaries at
+insertion points, position mapping under IME, undo grouping). Use a minimal
+standalone harness; do not build the Bundle editor around unproven editing.
 
-Use the controlled/standalone Bundle transition path proven in Phase 1 and its
-position maps. The minimal Bundle is a prerequisite here; Phase 4 adds editor
-features rather than introducing ownership after browser editing already works.
+Exit criteria: typing "hello" feels correct, IME commits land as single
+transactions, bold-boundary typing follows mark semantics, split/join preserve
+selection direction, and undo restores document and selection. Record every
+place the semantic model had to change.
 
-No collaboration.
+No collaboration. No Form. No CMS.
 
 ---
 
 # 104. Phase 4 — editor Bundle features
+
+Promotion gate: the controlled-Bundle proof (§27, Phase 1 track 1) must pass
+before any of this becomes supported API. The spike's editing behavior is kept;
+only its ownership is replaced — no second implementation.
 
 Add:
 
@@ -3700,6 +3826,9 @@ selection state
 stored marks
 history
 keymaps
+copy/paste
+drag/drop
+mobile virtual keyboards
 toolbar integration
 slash commands
 ```
@@ -3712,7 +3841,8 @@ Prove editor interaction remains ordinary Foldkit Messages and Model.
 
 Generalize `foldkit-form`.
 
-Build on the non-RichText control proof from Phase 1 and complete its public API,
+Build on the non-RichText control proof from the parallel Phase 1 track and
+complete its public API,
 renderer integration, lifecycle support, and persistence/resume coverage.
 
 Then integrate RichText.
@@ -3782,7 +3912,7 @@ without changing core document semantics.
 
 # 108. Phase 8 — Loro collaboration spike
 
-Extend the Phase 1 feasibility proof into an editor adapter; retain its cold-state
+Extend the parallel feasibility proof into an editor adapter; retain its cold-state
 replay and checkpoint tests. Revisit the backend choice if that proof failed.
 
 Implement a minimal adapter for:
@@ -3870,7 +4000,7 @@ Keep it explicitly outside Durable.
 
 Expose semantic editor intents to Agent.
 
-Prove AI and human editing use the same transaction path.
+Prove AI and human editing use the same semantic command path.
 
 Example:
 
@@ -3914,7 +4044,9 @@ Agents operate semantic editor capabilities.
 
 Custom nodes remain ordinary application integrations.
 
-Single-user and collaborative editing share one semantic editor API.
+Single-user and collaborative editing share one semantic command API:
+commands, validation, and observable semantics. Execution differs by
+backend; positional Transactions are the local backend's language only.
 ```
 
 ---
@@ -3929,16 +4061,24 @@ Single-user and collaborative editing share one semantic editor API.
                        RichText Document
                               │
                               ▼
-                     semantic Transactions
+                      semantic commands
+              (shared validation + semantics)
                               │
               ┌───────────────┼─────────────────┐
               │               │                 │
               ▼               ▼                 ▼
-          local editor     AI editor       collaboration
+          human edit       agent edit      API / slash
               │               │                 │
               └───────────────┼─────────────────┘
                               ▼
-                        document changes
+                    ┌─────────────────────┐
+                    │ local backend       │
+                    │   positional ops    │
+                    │ replica backend     │
+                    │   convergent ops    │
+                    └─────────┬───────────┘
+                              ▼
+                    Document + ChangeSet
                               │
                   ┌───────────┼────────────┐
                   │           │            │
@@ -3963,6 +4103,6 @@ Single-user and collaborative editing share one semantic editor API.
 
 Or in one sentence:
 
-> **Foldkit Rich Text is a typed semantic document edited through explicit Messages and Transactions, rendered through interpreters, composed through Bundle and Mixins, authored through Form/CMS, and made collaborative by strengthening durable changes with convergent identity and causal semantics.**
+> **Foldkit Rich Text is a typed semantic document edited through explicit Messages and semantic commands — executed by a local or replica backend — rendered through interpreters, composed through Bundle and Mixins, authored through Form/CMS, and made collaborative by strengthening durable changes with convergent identity and causal semantics.**
 
 That should be the constraint against which every API decision is evaluated.
