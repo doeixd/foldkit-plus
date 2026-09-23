@@ -72,9 +72,23 @@ whole-document ChangeSet so the patch cannot leave stale elements behind.
 Clipboard events are wired too. `copy` and `cut` write three payloads — the
 slice under `application/x-foldkit-richtext+json`, its HTML, and its plain text
 — and `cut` additionally emits the same delete intent a Backspace would (a
-collapsed caret cuts nothing). `paste` prefers a slice payload and falls back to
-plain text when the payload is absent or unreadable; importing the HTML payload
-waits on a kit-constrained parser, so paste does not read it yet.
+collapsed caret cuts nothing). `paste` resolves in the documented priority:
+slice, then HTML, then plain text.
+
+## HTML import
+
+`src/html.ts` parses pasted HTML with a whitelist rather than trusting it.
+Known block tags become blocks, known inline tags become marks (`strong`/`b` →
+Bold, `em`/`i` → Italic, `code` → Code), our own `data-marks` and
+`data-unknown` attributes round-trip, and every other element is either
+unwrapped or dropped with a diagnostic. No attribute is ever interpreted, so a
+pasted `style`, `href`, or `onclick` cannot survive as anything executable, and
+`script`/`style`/`iframe` and friends are dropped *with their content*. With a
+`kit` passed to `attach`, a node kind the Kit does not declare is degraded to a
+paragraph instead of kept.
+
+Import lives in the harness because it needs a `DOMParser`; the package stays
+DOM-free and owns only the string serializer.
 
 `repair(dom, content)` is recovery, not domain state (§31): it re-renders only
 blocks whose rendered text drifted, drops elements the document does not know,
@@ -96,8 +110,9 @@ needs a text node for the caret to be addressable, a removed identity that is
 also dirty must still lose its element, and repairing detaches the live
 selection unless it is captured and restored.
 
-Not built yet: HTML import (a kit-constrained parser) and mobile virtual
-keyboards. The adapter is still private and throwaway-tolerant.
+Not built yet: mobile virtual keyboards and an HTML *renderer* for the
+read-only Foldkit view (the string serializer exists). The adapter is still
+private and throwaway-tolerant.
 
 ## Running it
 

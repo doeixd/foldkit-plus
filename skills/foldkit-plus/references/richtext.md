@@ -58,12 +58,17 @@ ids)` places a slice at the caret — above the block at its start, below at its
 end, and mid-block by splitting the block so trailing text stays below. `toHtml(blocks)` / `documentToHtml(document)` export HTML (marks as
 `strong`/`em`/`code`, unknown marks as `data-marks`, unknown blocks as a
 placeholder, everything escaped) and `toText`/`documentToText` give plain text.
-Import needs a kit-constrained parser and does not exist yet, so paste reads the
-slice or plain text only.
+
+HTML import is a whitelist walk over a `DOMParser` tree, in the harness
+(`examples/richtext/src/html.ts`) because the package stays DOM-free: known
+tags map to blocks and marks, `data-marks`/`data-unknown` round-trip, other
+elements are unwrapped or dropped with a diagnostic, attributes are never
+interpreted, and `script`/`style`/`iframe` are dropped with their content. A
+Kit passed to `attach` degrades undeclared node kinds.
 
 The harness adapter carries slices over the clipboard
-(`application/x-foldkit-richtext+json`, HTML, and plain text), preferring a
-slice payload on paste and falling back to text.
+(`application/x-foldkit-richtext+json`, HTML, and plain text) and resolves a
+paste as slice → HTML → text.
 
 `run(state, command, ids)` resolves editor intent (typing, backward/forward
 delete, split block, toggle mark over a range, set selection) into a

@@ -126,9 +126,10 @@ RichText.documentToHtml(document)
 Known marks become `strong`/`em`/`code` in a deterministic nesting order (not
 the order they were added), unknown marks survive as `data-marks` on a span,
 unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
-attribute values are escaped, so content cannot become markup. HTML is an
-interchange format: importing it needs a kit-constrained parser, which does not
-exist yet, so nothing parses HTML back into authority.
+attribute values are escaped, so content cannot become markup. Importing HTML
+is a whitelist walk over a `DOMParser` tree, which lives in the harness adapter
+because the package stays DOM-free; nothing parses HTML back into authority
+without that walk.
 
 ## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with
@@ -300,9 +301,8 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Migrations, prop schemas, nested children,
-further transforms, rendering, HTML import, and collaboration are still
-pending. Retain rejected source content for recovery; do not replace it with an
-empty document.
+further transforms, rendering, and collaboration are still pending. Retain
+rejected source content for recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
 Edits copy the affected arrays and preserve untouched nodes. Large-document

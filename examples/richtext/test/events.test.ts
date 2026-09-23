@@ -372,11 +372,44 @@ describe('clipboard events', () => {
       [SLICE_CLIPBOARD_TYPE]: RichText.serializeSlice(
         RichText.sliceOf(source, { type: 'Node', node: RichText.NodeId.make('x') })!,
       ),
+      'text/html': '<p>from html</p>',
       'text/plain': 'from text',
     })
     attachment.current().root.dispatchEvent(clipboardEvent('paste', clipboard))
     expect(intents).toHaveLength(1)
     expect(RichText.plainTextOf((intents[0] as { slice: RichText.Slice }).slice)).toBe('from slice')
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  })
+
+  it('imports HTML when there is no slice payload, before falling back to text', () => {
+    const { attachment, intents } = setup(['a', 2])
+    const clipboard = fakeClipboard({
+      'text/html': '<p>rich <strong>markup</strong></p><script>alert(1)</script>',
+      'text/plain': 'plain fallback',
+    })
+    attachment.current().root.dispatchEvent(clipboardEvent('paste', clipboard))
+    const slice = (intents[0] as { slice: RichText.Slice }).slice
+    expect(RichText.toText(slice.blocks)).toBe('rich markup')
+    expect(slice.blocks[0]?.children[1]?.marks).toEqual(['Bold'])
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  })
+
+  it('constrains imported HTML to the Kit when one is given', () => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    restoreSelection(dom, caretAt(['a', 2]))
+    const intents: RichText.Command[] = []
+    const attachment = attach(dom, {
+      onIntent: command => intents.push(command),
+      kit: RichText.kit({ nodes: [RichText.block('Paragraph')], marks: ['Bold'] }),
+    })
+    attachment
+      .current()
+      .root.dispatchEvent(clipboardEvent('paste', fakeClipboard({ 'text/html': '<h1>Title</h1>' })))
+    const slice = (intents[0] as { slice: RichText.Slice }).slice
+    expect(slice.blocks.map(block => block.type)).toEqual(['Paragraph'])
     attachment.detach()
     document.body.removeChild(attachment.current().root)
   })

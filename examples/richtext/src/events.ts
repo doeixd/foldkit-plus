@@ -14,6 +14,7 @@ import {
   repair,
   type EditorDom,
 } from './dom.js'
+import { parseHtml } from './html.js'
 
 export interface Intent {
   /** The semantic command to run, when the event maps to one. */
@@ -154,6 +155,11 @@ export interface AttachOptions {
   readonly onIntent: (command: RichText.Command) => void
   /** Called for undo and redo, which are editor intents rather than commands. */
   readonly onHistory?: (direction: 'undo' | 'redo') => void
+  /**
+   * When given, imported HTML is constrained to this vocabulary: a node kind
+   * the Kit does not declare is degraded to a paragraph, never kept.
+   */
+  readonly kit?: RichText.Kit | undefined
 }
 
 export interface Attachment {
@@ -230,19 +236,24 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     const clipboard = (event as Event & { readonly clipboardData?: ClipboardLike }).clipboardData
     if (clipboard === undefined) return
     const payload = clipboard.getData(SLICE_CLIPBOARD_TYPE)
+    const html = clipboard.getData('text/html')
     const text = clipboard.getData('text/plain')
-    // Slice first, then plain text: a payload this version cannot read falls
-    // back rather than pasting nothing. An empty clipboard pastes nothing at
-    // all, so the browser's default is left alone.
+    const placeholders = () => `clipboard-${++placeholderIds}`
+    // Slice first, then HTML, then plain text (§69). A payload this version
+    // cannot read falls through rather than pasting nothing, and the Paste
+    // command remints every identity, so these placeholders never reach the
+    // document.
     const slice =
       (payload.length > 0 ? RichText.deserializeSlice(payload) : undefined) ??
-      (text.length > 0
-        ? RichText.sliceFromText(text, () => `clipboard-${++placeholderIds}`)
-        : undefined)
+      (html.length > 0
+        ? {
+            version: 1 as const,
+            blocks: parseHtml(html, { kit: options.kit, mint: placeholders }).blocks,
+          }
+        : undefined) ??
+      (text.length > 0 ? RichText.sliceFromText(text, placeholders) : undefined)
     if (slice === undefined || slice.blocks.length === 0) return
     event.preventDefault()
-    // The placeholder identities above are discarded: the Paste command remints
-    // every identity it inserts.
     options.onIntent({ type: 'Paste', slice })
   }
   const target = dom.root

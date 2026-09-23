@@ -3000,14 +3000,21 @@ fromHtml
 
 or use centralized interpreters.
 
-**Export implemented; import not.** `toHtml(blocks)` (and `documentToHtml`)
-serializes a document or a slice: known marks become `strong`/`em`/`code` in a
-deterministic nesting order, unknown marks survive as `data-marks` on a span,
-unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
-attribute values are escaped so content cannot become markup. `toText` /
-`documentToText` give the plain-text projection. Import still needs a
-kit-constrained parser that refuses anything the vocabulary does not declare;
-until it exists, paste reads the slice or plain text and never the HTML payload.
+**Export implemented; import implemented in the adapter.** `toHtml(blocks)` (and
+`documentToHtml`) serializes a document or a slice: known marks become
+`strong`/`em`/`code` in a deterministic nesting order, unknown marks survive as
+`data-marks` on a span, unknown blocks as a `<div data-unknown="Type">`
+placeholder, and text and attribute values are escaped so content cannot become
+markup. `toText` / `documentToText` give the plain-text projection.
+
+Import is a whitelist walk over a `DOMParser` tree (in `examples/richtext`,
+because the package stays DOM-free): known block and inline tags map to
+semantic blocks and marks, our own `data-*` attributes round-trip, every other
+element is unwrapped or dropped with a diagnostic, no attribute is ever
+interpreted, and `script`/`style`/`iframe` and friends are dropped with their
+content. A Kit passed to the adapter degrades any node kind the vocabulary does
+not declare. Paste resolves slice → HTML → plain text; nothing parses HTML into
+authority without that walk.
 
 Import must be constrained by the Kit.
 
