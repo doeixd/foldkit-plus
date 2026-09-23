@@ -602,6 +602,14 @@ installed `.d.ts` before reaching for a remembered API.
   the escape as an invisible character in `replace('\u0000', ' ')`. After
   writing code that contains control-character escapes, check
   `git diff --stat` for `Bin` and grep for the escape.
+- **A `\u` escape written into source by a script can become the character.**
+  Writing `.replaceAll('<', '\\u003c')` through a heredoc left one backslash in
+  the file, and `'<'` in TypeScript is `<` itself: the escape replaced `<`
+  with `<`, silently. The same route turned a ` ` regex into a literal line
+  separator, which ends the regex. Build such characters with
+  `String.fromCharCode`, and check the bytes with `repr` before trusting the
+  file. (The commit that met this, `9d395e1`, says a test caught it; reading the
+  bytes did, and the test was shown to catch it afterwards by mutation.)
 - **Python's text mode writes CRLF on Windows.** Scripted edits with
   `open(p, 'w')` turned `tsconfig.json` and `vitest.config.ts` into CRLF files
   that failed `format:check`. Pass `newline=''` when reading and writing.
