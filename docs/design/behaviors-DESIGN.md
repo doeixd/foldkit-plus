@@ -259,7 +259,9 @@ disabled })` describes it and a Behavior writes ids and `aria-posinset`.
   Tab does not commit, blur closes (the pointer-over-content exception is the
   `AttachComboboxPreventBlur` Mount, outside a Scene). Rows it does not meet
   are pinned as what it does today, prefixed `upstream:`, so a fix upstream
-  fails here and turns the row around. Notes for upstream: the keydown
+  fails here and turns the row around. The notes for upstream are written
+  up in [upstream-combobox-keyboard.md](../upstream-combobox-keyboard.md);
+  in short: the keydown
   handler ignores modifiers, so Alt+ArrowDown opens with a highlight and
   Alt+ArrowUp moves the highlight instead of closing, and Ctrl+Home only
   works because plain Home does the same; Home and End while open move the
