@@ -127,17 +127,17 @@ version has that ours must not repeat, each of which becomes a test.
 | --- | --- | --- | --- | --- |
 | `Collection` | Bundle + Behavior | `items: Collection` | Stable ids per item, DOM order via a `Mutation()` Mount, disabled tracking, `aria-posinset` and `aria-setsize` on request. The Bundle is what `RovingTabindex`, `Typeahead`, and `Selection` read. | **DOM order, not insertion order**; **ids exist** |
 | `Selection` | Bundle + Behavior | `items: Collection` | `mode: 'single' \| 'multiple' \| 'none'`, Shift range with an anchor index, `aria-selected`. Reuse `foldkit-primitives/state/selection` for the set. | single mode cannot deselect to empty unless `allowEmpty` |
-| `Disclosure` | Attributes over input | `trigger`, `content` | `aria-expanded`, `aria-controls` with a real id, `hidden` on content. The open flag is the parent's. The floor is `<details>`. | **`aria-controls` and ids** |
-| `ToggleState` | Attributes over input | `control: Interactive` | `aria-checked` or `aria-pressed`, including `indeterminate`. | none |
+| `Disclosure` | Attributes over input (built) | `trigger`, `content` | `aria-expanded`, `aria-controls` with a real id, `hidden` on content. The open flag is the parent's. The floor is `<details>`. | **`aria-controls` and ids** |
+| `ToggleState` | Attributes over input (built) | `control: Interactive` | `aria-checked` or `aria-pressed`, including `indeterminate`. | none |
 | `Pagination` | Reuse `foldkit-primitives/state/pagination` | none | Add a test: **changing `perPage` re-clamps `page`**. | their known defect |
 
 ### Forms and announcements
 
 | Entry | Shape | Slots | What it does | Fix |
 | --- | --- | --- | --- | --- |
-| `FieldAssociation` | Attributes over input | `label`, `control`, `description`, `error` | Stable ids generated once; `aria-labelledby`, `aria-describedby` listing description and error, `aria-invalid`. Ids are part of the Model so they survive resume. | none |
+| `FieldAssociation` | Attributes over input (built, in `foldkit-mixins`) | `label`, `control`, `description`, `error` | Stable ids generated once; `aria-labelledby`, `aria-describedby` listing description and error, `aria-invalid`. Ids are part of the Model so they survive resume. | none |
 | `FormControl` | Attributes over input | `control`, `hiddenInput` | A hidden native `<input name value required disabled>` following the field's encoded draft, so a custom widget submits without JavaScript. Lives in `foldkit-mixins-form` as `Form.native` (effect-atom-jsx-LESSONS.md item 3); listed here for completeness. | **project `disabled`**; test: the form posts the value with scripts off |
-| `SpinValue` | Bundle + Behavior | `input: Focusable` | Up and Down, PageUp and PageDown, wheel, press-and-hold repeat as an interruptible Command; clamps to `min`, `max`, `step`. Floor `<input type=number>`. | none built there |
+| `SpinValue` | Attributes over input (built, in `foldkit-mixins`; revised from Bundle: the value is the parent's, so a key only yields the next value's Message; wheel and press-and-hold repeat not handled, since Foldkit's wheel attribute carries no delta and a repeat is a timer the Model would own) | `input: Focusable` | Up and Down, PageUp and PageDown, Home and End; clamps to `min`, `max`, `step`. Floor `<input type=number>`. | none built there |
 | `LiveAnnounce` | Bundle (placed once) + Command | none | `announce(message, politeness)` is a Command; the region is rendered by the Bundle's view with one node per politeness; debounce and dedupe are options on the placement. | **debounce and dedupe**; timers on Effect's clock |
 | `Presence` | Reuse `foldkit-primitives/motion/presence` | `root` | Add the `Motion` service (effect-atom-jsx-LESSONS.md item 2) and `data-state`. Keep the timeout fallback they lack. Add `transitionend`. | none |
 

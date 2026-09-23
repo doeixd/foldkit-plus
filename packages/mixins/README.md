@@ -325,6 +325,31 @@ and with `posInSet` `aria-posinset` and `aria-setsize`, reading the item context
 it contributes nothing to a slot resolved without one. Behaviors that need state, such as a
 roving tab stop or a press, live in `foldkit-primitives` as a Bundle plus its Behavior.
 
+Four more stateless Behaviors say a parent's state in ARIA, so a custom view
+gets it right without hand-writing it. Each takes slot names and functions of
+the view's input; none owns anything.
+
+- `Behaviors.Disclosure.behavior(Slots)<Input, Message>({ trigger, content, open, id })`
+  writes `aria-expanded` and `aria-controls` on the trigger, `id` and `hidden`
+  on the content. The floor is `<details>`.
+- `Behaviors.ToggleState.behavior(Slots)({ control, state, as: 'checked' | 'pressed' })`
+  writes `aria-checked` (checkbox, switch, radio, option) or `aria-pressed` (a
+  toggle button) from a `boolean | 'mixed'`.
+- `Behaviors.FieldAssociation.behavior(Slots)({ control, label, description?, error?, id, invalid?, required? })`
+  derives `<id>`, `<id>-label`, `<id>-description`, `<id>-error` from one base
+  id (`FieldAssociation.ids(id)` for a view that renders them itself) and
+  writes `id`, `for`, `aria-labelledby`, `aria-describedby` (the error joins
+  while `invalid`), `aria-invalid`, `aria-required`. Derived, not minted, so a
+  resumed page and a test agree.
+- `Behaviors.SpinValue.behavior(Slots)({ control, value, onChange, min?, max?, step?, page?, text? })`
+  writes the `spinbutton` role and `aria-value*`, and steps the parent's number
+  with ArrowUp and ArrowDown by `step`, PageUp and PageDown by `page` (default
+  ten steps), Home and End to the bounds, clamped and default-prevented;
+  `SpinValue.spin(value, key, modifiers, bounds)` is the pure step. A
+  press-and-hold repeat and the wheel are not handled: Foldkit's wheel
+  attribute carries no delta, and a repeat is a timer the Model would own.
+
+
 ## SlotView
 
 `SlotView.define(slots, render)` is a pure view that publishes slots. Attach with
