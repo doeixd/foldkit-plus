@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for nested children beyond runs, marks with props, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted.
+**Status:** Phase 1 is implemented except for nested children beyond runs, marks with props, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4513,3 +4513,156 @@ Or in one sentence:
 > **Foldkit Rich Text is a typed semantic document edited through explicit Messages and semantic commands — executed by a local or replica backend — rendered through interpreters, composed through Bundle and Mixins, authored through Form/CMS, and made collaborative by strengthening durable changes with convergent identity and causal semantics.**
 
 That should be the constraint against which every API decision is evaluated.
+
+---
+
+# 115. Remaining work
+
+A verified inventory of what is not done, by phase. In this section:
+
+- **package** means `packages/richtext` (private, unpublished);
+- **harness** means the private `examples/richtext` spike, which has no
+  `package.json` and is not supported API;
+- **published** means usable by another workspace package.
+
+Verified against source and tests at commit `0f2c7cc`; see the verification note
+at the end. Re-check this list when a phase lands, because a stale inventory
+reads as current.
+
+## Phase 1 — semantic core
+
+Done and tested: version-1 documents, text runs, paragraphs and headings,
+Bold/Italic/Code, branded NodeIds, range and node selections, position mapping,
+atomic transactions with ChangeSets, merge normalization, mark definitions with
+boundary expansion, bounded decode limits, unknown node and mark preservation,
+application node kinds with Kit-validated props, migrations, the command layer
+(including stored marks through `InsertText.marks`), snapshot history, clipboard
+slices, HTML export, and inspection.
+
+Not done:
+
+- **Nested children (`blockContent`).** Blocks hold runs only. Lists, quotes, and
+  nested callouts need blocks containing blocks, which reaches the `Block` type,
+  position mapping, `locate`, every operation, normalization, HTML export and
+  import, and both renderers. §13 defines the child-constraint vocabulary
+  (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide.
+- **Mark props and custom mark authoring.** A run's marks are names from a fixed
+  union. `Edit.addMark` accepts only `Bold`/`Italic`/`Code`, so a Kit tunes
+  expansion policy but cannot declare a mark, and a mark cannot carry data. `Link`
+  with an `href` needs a mark *value* (`{ name, props }`), a prop schema on
+  `MarkDef`, a Kit-declared mark vocabulary, and HTML export/import for it. Every
+  consumer of `Text.marks` and every fixture is in scope.
+- **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
+  (§12) are not wired: no interpreter owns a metadata key yet. The package does
+  not depend on `foldkit-metadata`. They must stay outside the document codec.
+- **Kit-driven semantics.** A Kit can validate a document (`validate`) and the
+  harness HTML parser degrades undeclared *node* kinds, but `apply` never
+  consults a Kit, and a Kit cannot declare marks or mark props. Where a Kit
+  should constrain `apply` is an open design question.
+- **Collaboration.** Convergent representation, collaborative undo, and the
+  replica backend belong to Phase 8 and later; nothing exists here.
+
+## Phase 2 — read-only renderer
+
+Exists as harness code (`examples/richtext/src/view.ts`): a `Document` or `Slice`
+becomes ordinary Foldkit `Html` through `inertHtml`, with no dispatch and no DOM
+ownership. Not published; promotion is part of Phase 4.
+
+## Phase 3 — vertical editing slice
+
+Done in the harness: rendering into an owned `contenteditable` subtree, both-way
+position mapping, ChangeSet patching that preserves untouched element identity,
+`beforeinput`/`keydown` translation, IME composition commit and cancellation with
+`repair`, local undo, and copy/cut/paste over DOM clipboard events with a
+slice → HTML → text fallback.
+
+Not done:
+
+- **Mobile virtual keyboards.** Not attempted.
+- **Real-browser verification.** Every DOM test runs in jsdom, so the adapter's
+  behavior under a real browser (native selection, IME, clipboard permissions) is
+  unverified. The design review deferred this explicitly.
+- **The slice and the Bundle editor are separate proofs.** `events.ts` produces
+  commands while `controlled.ts` consumes Messages; nothing wires the DOM adapter
+  to the Bundle, and the design keeps them apart until Phase 4.
+
+## Phase 4 — editor Bundle features
+
+The controlled-Bundle proof passed (§27), so the gate is met; nothing is
+published. Per item:
+
+```text
+selection state           harness: in the Bundle's interaction state
+stored marks              harness: interaction state plus InsertText.marks
+history                   harness: snapshot History committed in the child
+keymaps                   adapter only (Mod-b/i/e, Mod-z/y, Enter, Backspace,
+                          Delete); no Bundle keymap layer
+copy/paste                adapter only; not routed through the Bundle
+drag/drop                 not started
+mobile virtual keyboards  not started (Phase 3)
+toolbar integration       not started
+slash commands            not started
+```
+
+Also not done: promoting any of this into a package with a supported API, and the
+keymap and toolbar layers that turn intents into Messages rather than commands.
+
+## Phase 5 — stateful Form controls
+
+Spiked in `examples/form`: a non-RichText stateful control works as a Bundle with
+Commands, a Subscription, and a Resource, and §44 records what the Form API cannot
+carry yet. Content-change reporting is implemented (`authoredChanged`), and
+`packages/cms/src/editor.ts` consumes it.
+
+Not done: the public Form API for stateful controls, renderer integration,
+lifecycle, persistence and resume coverage, the RichText integration, and the CMS
+autosave switch to the Form transition's authored-content result.
+
+## Phase 6 — CMS example
+
+Not started: a rich-text article in `examples/cms` covering type, autosave,
+reload, resume, preview, publish, visitor rendering, restore revision, and
+scheduled publication.
+
+## Phase 7 — richer Nodes
+
+Not started: lists, links, quotes, code, image, callout, mentions, custom embeds,
+and the Surface-backed and React-backed node proofs. Links, quotes, and code
+depend on Phase 1's mark props and nested children.
+
+## Phases 8–12
+
+All unstarted:
+
+- **Phase 8, Loro collaboration spike.** Needs the parallel replay and checkpoint
+  feasibility proof, a CRDT engine dependency, and an adapter for plain text,
+  bold, link, and stable selections, tested with two offline replicas, concurrent
+  insertions, concurrent formatting, reconnect, and convergence.
+- **Phase 9, Sync/Durable integration.** Convergent change packets as a durable
+  application Message over the existing outbox, journal, checkpoint, and replay,
+  then a decision on whether Sync needs custom op identity, dependencies, or
+  cascading rejection.
+- **Phase 10, collaborative structured nodes.** CRDT lists, maps, and movable
+  trees beyond one text sequence.
+- **Phase 11, presence.** Ephemeral remote presence, stable remote selections,
+  cursor decorations, and user names and colors, kept outside Durable.
+- **Phase 12, AI editor capabilities.** Semantic editor intents exposed to Agent,
+  with human and agent edits sharing one command path.
+
+## Known non-goals
+
+- Sync whole documents per keystroke (§95).
+- Assume sequential replay is sufficient for collaboration (§96).
+- Make CMS revisions the CRDT log (§97).
+
+## Verification note
+
+Absence claims were checked as follows: keyword search over
+`examples/richtext/src/*.ts` found no keymap, toolbar, slash, or drag/drop
+handling (the `drop` matches are DOM element and attribute cleanup); listing
+`packages/richtext/src/index.ts` gave the exported surface above; grep over
+`packages/richtext/src` and `examples/richtext/src` found no caller of
+`validate(` or `inspectKit(`, both application-facing; `packages/` contains only
+`richtext` (no renderer package); and `foldkit-metadata` appears in six package
+manifests, none of them richtext. Tests stand at 28 vitest files plus 2 type-test
+files in the package, and 5 in the harness.
