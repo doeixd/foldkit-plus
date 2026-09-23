@@ -150,19 +150,26 @@ Document
 Node
 Text
 Mark
+Annotation
 Selection
 Position
 Range
 Kit
 Transaction
+Command
 Edit
 Transform
 ChangeSet
+Decoration contracts
 validation
 normalization
 serialization abstractions
 document inspection
 ```
+
+The DOM adapter owns decoration *rendering*; the abstract Decoration contracts
+(project, display, discard — never persist) belong here so other interpreters
+can reuse them.
 
 It should not own:
 
@@ -479,9 +486,10 @@ Underline
 Code
 Link
 Highlight
-Comment
-Suggestion
 ```
+
+Comments, suggestions, citations, and entities are not marks; they are
+Annotations with identity and lifecycle (§11) and do not belong in this list.
 
 A text span conceptually becomes:
 
@@ -650,7 +658,12 @@ const ArticleKit = RichText.kit({
     Code,
     Link,
     Highlight,
+  ],
+
+  // Future API: first-class annotations with identity, anchors, lifecycle.
+  annotations: [
     Comment,
+    Suggestion,
   ],
 
   transforms: [
@@ -2155,7 +2168,7 @@ SplitParagraph
 MoveBlock
 ```
 
-A command's observable semantics and validation rules are shared. Its execution
+A command's observable semantics and semantic validation rules are shared. Its execution
 is not: each command runs against one of two backends.
 
 ```text
@@ -2165,11 +2178,58 @@ semantic command
       └── replica backend → convergent operations (RichTextChange)
 ```
 
-Both backends return the same shape:
+Both backends project the same observable result, but they do not return the
+same thing. The semantic projection is common; the authoritative backend state
+and the emitted artifacts are backend-specific:
+
+```ts
+interface EditResult {
+  readonly document: Document
+  readonly changeSet: ChangeSet
+}
+
+interface LocalEditResult extends EditResult {
+  readonly state: EditorState
+}
+
+interface ReplicaEditResult extends EditResult {
+  readonly replica: ReplicaState
+  readonly change: RichTextChange
+}
+```
 
 ```text
-Document + ChangeSet
+               shared observable result
+                 Document + ChangeSet
+                           ▲
+                 ┌─────────┴─────────┐
+                 │                   │
+           local result        replica result
+           EditorState         ReplicaState
+                               RichTextChange
 ```
+
+Do not force one generic result type to hide this: a collaborative edit that
+produces no `RichTextChange` has produced nothing durable, and a local edit
+has no replica state to return.
+
+Validation likewise splits in two, and only the first half is shared:
+
+```text
+Semantic validation (command layer, shared)
+    "Can Heading exist here?"
+    "Can Bold apply to this selection?"
+    "Is this node allowed by the Kit?"
+
+Backend/admission validation (backend-specific)
+    "Does this stable anchor still resolve?"
+    "Have these causal dependencies been integrated?"
+    "Is this CRDT change already known?"
+```
+
+Keep anchor resolution, dependency checks, and idempotency below the backend
+boundary. A later implementer must never try to answer "does this anchor still
+resolve?" at the command layer, where convergent state is invisible.
 
 The convergent packet is what Sync/Durable needs to preserve exactly. The
 positional Transaction is the local backend's execution language, not an
@@ -2674,9 +2734,9 @@ temporary composition ranges
 ```
 
 A Decoration is not content. It is the ephemeral third kind beside Marks and
-Annotations (§11): computed from current state (document, presence, spellcheck,
-queries), rendered by the DOM adapter, and discarded on every state change.
-It never serializes with the Document.
+Annotations (§11). A Decoration is computed from current state (document,
+presence, spellcheck, queries), rendered by the DOM adapter, and discarded on
+every state change. It never serializes with the Document.
 
 An Annotation may project into Decorations for display (a comment's highlight),
 but the Annotation itself — identity, anchor, metadata, lifecycle — persists as
@@ -3380,7 +3440,7 @@ Lexical-like concept      Foldkit-native expression
 
 editor state              typed Model/data
 
-command                   Message / editor intent
+command                   Message / semantic command
 
 plugin state              Bundle / explicit integration
 
@@ -4055,10 +4115,20 @@ backend; positional Transactions are the local backend's language only.
 
 ```text
                           RichText Kit
-                     semantic vocabulary
+                    rules and vocabulary
                               │
                               ▼
-                       RichText Document
+                    Document + Selection
+                              │
+              ┌───────────────┼─────────────────┐
+              │               │                 │
+              ▼               ▼                 ▼
+        Human intent    Agent intent        API intent
+              │               │                 │
+              └───────────────┼─────────────────┘
+                              ▼
+                    resolve against Kit,
+                   Document and Selection
                               │
                               ▼
                       semantic commands
