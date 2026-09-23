@@ -3744,13 +3744,14 @@ bounded `DocumentLimits` with generous defaults; violations throw a named error.
 Unknown mark strings load verbatim and round-trip; `findUnknownMarks` lists them
 per run for a publishing gate, while `Edit.addMark` accepts only known marks.
 Unknown nodes are still rejected, not preserved. `SplitNode` divides one text
-block at a run offset with caller-supplied identities; `ChangeSet` carries
+block at a run offset with caller-supplied identities; `JoinNode` moves runs
+into the surviving previous sibling without merging. `ChangeSet` carries
 `insertedNodes`/`removedNodes`/`structureChanged`, and the position map
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
 Remaining: extensible Kits and metadata, mark boundary semantics, remaining
-structural operations (join/insert/delete/move/set-props) and their position
+structural operations (insert/delete/move/set-props) and their position
 maps, transforms/normalization, unknown node preservation, alongside the
 parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final

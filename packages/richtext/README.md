@@ -113,6 +113,11 @@ document and owns no state.
   caller-supplied block id of the same block type. Splitting an empty block is
   rejected; split that via node insertion once it exists. New identities must be
   fresh within the transaction.
+- `JoinNode` moves every run of the removed block into the surviving previous
+  sibling, preserving run identities, marks, and range selections without
+  emitting position steps. No runs merge (that is future normalization's job);
+  the survivor keeps its block type. Node selections on the removed block
+  remap to the survivor. Only adjacent pairs join.
 - Positions count **UTF-16 code units**. Low-level edits may split a surrogate
   pair; grapheme-aware user commands are not implemented.
 - `SetSelection` resolves against the document at that point in the transaction.
@@ -148,7 +153,7 @@ into an application's Model; when decoding them directly, pass
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
 decoding untrusted payloads. Unknown-extension preservation, migrations, custom
-Kits, remaining structural operations (join/insert/delete/move/set-props), mark
+Kits, remaining structural operations (insert/delete/move/set-props), mark
 boundary expansion, transforms, history, rendering, and collaboration are still
 pending. Retain rejected source content for recovery; do not replace it
 with an empty document.

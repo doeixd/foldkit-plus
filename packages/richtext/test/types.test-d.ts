@@ -87,3 +87,10 @@ RichText.apply({ document, selection: null }, [split])
 // @ts-expect-error Split ids cannot be numbers.
 RichText.Edit.splitBlock(reference, reference, 0, 7, 'run')
 void splitBlock
+
+const joined = RichText.Edit.joinBlocks(reference, reference)
+const joinedInto: RichText.NodeId = joined.into
+RichText.apply({ document, selection: null }, [joined])
+// @ts-expect-error Join targets are ids or references.
+RichText.Edit.joinBlocks('a', 'b')
+void joinedInto

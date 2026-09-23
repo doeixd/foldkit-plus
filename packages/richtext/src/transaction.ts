@@ -45,6 +45,11 @@ const SplitNodeOperation = Schema.Struct({
   blockId: NodeId,
   textId: NodeId,
 })
+const JoinNodeOperation = Schema.Struct({
+  type: Schema.Literal('JoinNode'),
+  into: NodeId,
+  removed: NodeId,
+})
 
 export const Operation = Schema.Union([
   InsertTextOperation,
@@ -53,6 +58,7 @@ export const Operation = Schema.Union([
   RemoveMarkOperation,
   SetSelectionOperation,
   SplitNodeOperation,
+  JoinNodeOperation,
 ])
 export type Operation = typeof Operation.Type
 export const Transaction = Schema.Array(Operation)
@@ -114,6 +120,16 @@ export const Edit = {
       offset,
       blockId: freshId(newBlock),
       textId: freshId(newRun),
+    }),
+
+  joinBlocks: (
+    survivor: TextTarget,
+    removed: TextTarget,
+  ): Extract<Operation, { readonly type: 'JoinNode' }> =>
+    JoinNodeOperation.make({
+      type: 'JoinNode',
+      into: targetId(survivor),
+      removed: targetId(removed),
     }),
 }
 
@@ -306,6 +322,29 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
       textChanged.add(operation.textId)
       insertedNodes.add(operation.blockId)
       insertedNodes.add(operation.textId)
+      structureChanged = true
+      continue
+    }
+    if (operation.type === 'JoinNode') {
+      const intoIndex = blockIndexes.get(operation.into)
+      if (intoIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const removedIndex = blockIndexes.get(operation.removed)
+      if (removedIndex === undefined) return { ok: false, error: 'MissingNode' }
+      if (removedIndex !== intoIndex + 1) return { ok: false, error: 'InvalidRange' }
+      const survivor = document.children[intoIndex]!
+      const removed = document.children[removedIndex]!
+      const blocks = [...document.children]
+      blocks[intoIndex] = { ...survivor, children: [...survivor.children, ...removed.children] }
+      blocks.splice(removedIndex, 1)
+      document = { ...document, children: blocks }
+      reindex()
+      if (selection?.type === 'Node' && selection.node === operation.removed) {
+        selection = { ...selection, node: operation.into }
+      }
+      dirtyNodes.add(operation.into)
+      dirtyNodes.add(operation.removed)
+      for (const moved of removed.children) dirtyNodes.add(moved.id)
+      removedNodes.add(operation.removed)
       structureChanged = true
       continue
     }
