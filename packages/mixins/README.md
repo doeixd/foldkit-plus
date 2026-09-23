@@ -277,6 +277,10 @@ Beyond `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces ar
 - `Style.enter({ opacity: '0' })`, a `@starting-style` rule the element animates from, with
   `Style.allowDiscrete` when `display` takes part;
 - `Style.vars({ '--gap': '1rem' })` and `Style.viewTransitionName('hero')`, declarations;
+- `Style.grid({ areas: [['header', 'header'], ['nav', 'main']], columns, rows, gap })`, a grid
+  template with typed areas: `.style` for the container and `.area('main')` for a child, where
+  a name the template lacks is a type error and a ragged template raises
+  `mixins:ragged-grid-areas`;
 - `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
   strings `pseudo` and `nest` take.
 

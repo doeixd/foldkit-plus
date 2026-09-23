@@ -205,6 +205,63 @@ export const responsive = <Breakpoints extends Readonly<Record<string, string>>>
 /** Custom properties on the slot: `Style.vars({ '--gap': '1rem' })`. */
 export const vars = (values: Readonly<Record<`--${string}`, string>>): StyleValue => inline(values)
 
+export interface GridConfig<Area extends string> {
+  /** Rows of area names; `'.'` is an empty cell. Every row has the same length. */
+  readonly areas: ReadonlyArray<ReadonlyArray<Area>>
+  readonly columns?: string
+  readonly rows?: string
+  readonly gap?: string
+}
+
+export interface Grid<Area extends string> {
+  /** The container's declarations: `display: grid` and the template. */
+  readonly style: StyleValue
+  /** A child's `grid-area`; only the names the template declares are accepted. */
+  readonly area: (name: Area) => StyleValue
+  /** The declared names, in first-appearance order. */
+  readonly areas: ReadonlyArray<Area>
+}
+
+/**
+ * A grid template with typed areas, so a child cannot name an area the
+ * parent lacks: `const Page = Style.grid({ areas: [['header', 'header'],
+ * ['nav', 'main']] })`, then `Page.area('main')` on the child and
+ * `Page.area('footer')` is a type error. A ragged template raises
+ * `mixins:ragged-grid-areas`.
+ */
+export const grid = <const Area extends string>(
+  config: GridConfig<Area>,
+): Grid<Exclude<Area, '.'>> => {
+  const width = config.areas[0]?.length ?? 0
+  if (config.areas.some(row => row.length !== width)) {
+    throw new DiagnosticError({
+      source: 'mixins',
+      code: 'mixins:ragged-grid-areas',
+      severity: 'error',
+      message: `Style.grid areas must be rectangular; rows have lengths ${config.areas.map(row => row.length).join(', ')}`,
+    })
+  }
+  const names: Array<Exclude<Area, '.'>> = []
+  for (const row of config.areas) {
+    for (const cell of row) {
+      if (cell !== '.' && !names.includes(cell as Exclude<Area, '.'>)) {
+        names.push(cell as Exclude<Area, '.'>)
+      }
+    }
+  }
+  return Object.freeze({
+    style: inline({
+      display: 'grid',
+      gridTemplateAreas: config.areas.map(row => `"${row.join(' ')}"`).join(' '),
+      ...(config.columns === undefined ? {} : { gridTemplateColumns: config.columns }),
+      ...(config.rows === undefined ? {} : { gridTemplateRows: config.rows }),
+      ...(config.gap === undefined ? {} : { gap: config.gap }),
+    }),
+    area: (name: Exclude<Area, '.'>) => inline({ gridArea: name }),
+    areas: Object.freeze(names),
+  })
+}
+
 /**
  * The declarations an element starts from when it enters, as a
  * `@starting-style` rule. With a `transition` on the base, the browser
@@ -724,6 +781,7 @@ export const Style = {
   enter,
   allowDiscrete,
   viewTransitionName,
+  grid,
   keyframes,
   global,
   empty,

@@ -115,3 +115,33 @@ describe('new pieces', () => {
     expect(piece.rules?.[0]?.selector).toBe('&:not([aria-disabled="true"])')
   })
 })
+
+describe('grid with typed areas', () => {
+  it('declares the template on the container and grid-area on a child', () => {
+    const Page = Style.grid({
+      areas: [
+        ['header', 'header'],
+        ['nav', 'main'],
+        ['.', 'main'],
+      ],
+      columns: '12rem 1fr',
+      gap: '1rem',
+    })
+    expect(Page.style.style).toEqual({
+      display: 'grid',
+      gridTemplateAreas: '"header header" "nav main" ". main"',
+      gridTemplateColumns: '12rem 1fr',
+      gap: '1rem',
+    })
+    expect(Page.areas).toEqual(['header', 'nav', 'main'])
+    expect(Page.area('main').style).toEqual({ gridArea: 'main' })
+    // @ts-expect-error footer is not an area of this template
+    Page.area('footer')
+  })
+
+  it('refuses a ragged template', () => {
+    expect(() => Style.grid({ areas: [['a', 'b'], ['c']] })).toThrow(
+      /ragged-grid-areas|rectangular/,
+    )
+  })
+})

@@ -261,7 +261,9 @@ adapter.
 - A rule piece inside `Style.whenInput` compiles to a static class whose presence follows the
   input; its CSS is always in the stylesheet. Also: `Style.states({ open: {...} })` (`[data-state]`
   rules), `Style.responsive(breakpoints, map)`, `Style.enter(decl)` (`@starting-style`) with
-  `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, and `Selector.*` builders.
+  `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, `Style.grid({ areas, columns?,
+  rows?, gap? })` (typed areas: `.style` on the container, `.area(name)` on a child; ragged rows
+  raise `mixins:ragged-grid-areas`), and `Selector.*` builders.
 - Multi-slot recipes: `Style.recipeFor(Slots)({ base, variants, defaults, compound })` returns
   `selection => StylePieces` (`null` unsets a defaulted axis) with `.extend(patch)` merging per
   slot (`mixins:unknown-slot` for a slot the contract lacks). `Style.perItem(item => piece)` and
