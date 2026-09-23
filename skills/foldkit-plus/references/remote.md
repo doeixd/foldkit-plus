@@ -187,7 +187,9 @@ case 'ClickedRefresh': {
 - Optimistic patches are **layers** over the base store (recomputed base +
   pending layers), released on settle by `requestId`; settlement is idempotent.
   Optimistic list edits: `optimistic: ({ tempId }) => [Remote.patch(Project, tempId, {...}), ConnectionChange.prepend(projects.ref, Remote.ref(Project, tempId))]`,
-  where `projects` is the `Data.query(...)` Projection above.
+  where `projects` is the `Data.query(...)` Projection above. `Remote.patch`
+  values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
+  (`` `User:${string}` ``), so a ref to the wrong entity is a type error.
 - `Query.define(name, Input, ({ input }) => body, options?)` declares a query by
   what it *means*: `Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.ownerId,
   input.ownerId)), Query.orderBy(Order.asc(Task.fields.id)))`. Returns an ordinary
