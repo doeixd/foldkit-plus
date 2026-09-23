@@ -543,6 +543,57 @@ export const apply = (state: EditorState, transaction: Transaction): Transaction
     dirtyNodes.add(id)
     textChanged.add(id)
   }
+  // Normalization, first rule: merge adjacent equivalent runs within touched
+  // blocks. One left-to-right pass per block; merging strictly reduces the run
+  // count, so this terminates, and the output holds no mergeable pair, so it
+  // is idempotent. Only same-mark sets merge, so unknown marks never drop.
+  const sameMarks = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
+    left.length === right.length && left.every(mark => right.includes(mark))
+  const mergeSteps: Array<RelocateStep> = []
+  for (const blockId of [...dirtyNodes]) {
+    const blockIndex = blockIndexes.get(blockId)
+    if (blockIndex === undefined) continue
+    const block = document.children[blockIndex]!
+    const first = block.children[0]
+    if (first === undefined) continue
+    let accumulator = first
+    let changed = false
+    const kept = [accumulator]
+    for (const run of block.children.slice(1)) {
+      if (sameMarks(accumulator.marks, run.marks)) {
+        mergeSteps.push({
+          node: run.id,
+          into: accumulator.id,
+          at: 0,
+          base: accumulator.text.length,
+        })
+        accumulator = { ...accumulator, text: accumulator.text + run.text }
+        kept[kept.length - 1] = accumulator
+        removedNodes.add(run.id)
+        dirtyNodes.add(accumulator.id)
+        textChanged.add(accumulator.id)
+        changed = true
+      } else {
+        accumulator = run
+        kept.push(run)
+      }
+    }
+    if (!changed) continue
+    const blocks = [...document.children]
+    blocks[blockIndex] = { ...block, children: kept }
+    document = { ...document, children: blocks }
+  }
+  if (mergeSteps.length > 0) {
+    reindex()
+    for (const step of mergeSteps) positionMap.push(step)
+    if (selection?.type === 'Range') {
+      selection = {
+        ...selection,
+        anchor: mapPosition(selection.anchor, mergeSteps),
+        focus: mapPosition(selection.focus, mergeSteps),
+      }
+    }
+  }
   return {
     ok: true,
     state:

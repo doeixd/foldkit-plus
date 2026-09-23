@@ -161,23 +161,20 @@ describe('text transactions', () => {
     })
   })
 
-  it('adds and removes marks without moving text positions', () => {
+  it('adds marks, then normalizes the newly adjacent equivalents', () => {
     const state = initial()
     const added = success(
       RichText.apply(state, [{ type: 'AddMark', node: id('other'), mark: 'Bold' }]),
     )
-    expect(added.state.document.children[0]?.children[1]).toEqual({
-      type: 'Text',
-      id: 'other',
-      text: 'unchanged',
-      marks: ['Bold'],
-    })
-    expect(added.positionMap).toEqual([])
+    expect(added.state.document.children[0]?.children).toEqual([
+      { type: 'Text', id: 't', text: 'abcdunchanged', marks: ['Bold'] },
+    ])
+    expect(added.positionMap).toEqual([{ node: 'other', into: 't', at: 0, base: 4 }])
     expect(added.changeSet).toEqual({
-      dirtyNodes: new Set(['p', 'other']),
+      dirtyNodes: new Set(['p', 'other', 't']),
       insertedNodes: new Set(),
-      removedNodes: new Set(),
-      textChanged: new Set(['other']),
+      removedNodes: new Set(['other']),
+      textChanged: new Set(['other', 't']),
       structureChanged: false,
       selectionChanged: false,
     })

@@ -14,7 +14,7 @@ const document = RichText.Document.make({
           type: 'Text',
           id: RichText.NodeId.make('decoy'),
           text: 'other',
-          marks: [],
+          marks: ['Bold'],
         }),
         RichText.Text.make({ type: 'Text', id: Text.id, text: 'Hello', marks: [] }),
       ],

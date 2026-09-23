@@ -1194,7 +1194,9 @@ ensure an empty Document has a Paragraph
 ```
 
 Merging adjacent equivalent Text nodes keeps the first run's identity and
-retires the second (§7); the merge step maps accordingly.
+retires the second (§7); the merge step maps accordingly. This rule is
+implemented as `apply`'s closing pass over touched blocks; the general
+transform registry is still pending.
 
 API concept:
 
@@ -3752,13 +3754,16 @@ into the surviving previous sibling without merging. `MoveNode` reorders blocks
 without touching run identities, and `SetNodeProps` retypes heading levels.
 `InsertNode` splices caller-built blocks at explicit indexes; `DeleteNode`
 removes one block and collapses its positions to the surviving text start.
+Every transaction normalizes touched blocks by merging adjacent same-mark runs
+(first identity wins, later ids retire); loading stays verbatim and empty
+transactions stay untouched.
 `ChangeSet` carries
 `insertedNodes`/`removedNodes`/`structureChanged`, and the position map
 relocates split runs with affinity at the split point. This is not completion
 of Phase 1.
 
 Remaining: extensible Kits and metadata, mark boundary semantics,
-transforms/normalization, unknown node preservation, alongside the
+further transforms, unknown node preservation, alongside the
 parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
 contracts.

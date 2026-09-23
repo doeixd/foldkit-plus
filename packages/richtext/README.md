@@ -132,6 +132,11 @@ document and owns no state.
   selection when no text remains. Node selections on the removed subtree remap
   to the collapse target. Collapse steps in the position map carry the same
   rule to external positions.
+- Every transaction ends by merging adjacent same-mark runs within touched
+  blocks: the first run keeps its identity and text, later equivalents retire
+  (reported in `removedNodes` with `RelocateStep`s). Loading never normalizes,
+  so decoded documents stay verbatim until first edited; empty transactions
+  stay untouched to preserve state identity.
 - Positions count **UTF-16 code units**. Low-level edits may split a surrogate
   pair; grapheme-aware user commands are not implemented.
 - `SetSelection` resolves against the document at that point in the transaction.

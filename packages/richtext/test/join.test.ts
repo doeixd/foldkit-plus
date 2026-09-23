@@ -137,7 +137,7 @@ describe('join blocks', () => {
     expect(emptyRemoved.changeSet.textChanged).toEqual(new Set())
   })
 
-  it('round-trips split then join, proving fresh indexes mid-transaction', () => {
+  it('round-trips split then join and normalizes adjacent runs', () => {
     const result = success(
       RichText.apply(initial(), [
         RichText.Edit.splitBlock(id('p'), id('t'), 1, 'px', 'tx'),
@@ -147,8 +147,7 @@ describe('join blocks', () => {
     )
     expect(result.state.document.children.map(block => block.id)).toEqual(['p', 'p2', 'h'])
     expect(result.state.document.children[0]?.children).toEqual([
-      { type: 'Text', id: 't', text: 'a', marks: ['Bold'] },
-      { type: 'Text', id: 'tx', text: 'b', marks: ['Bold'] },
+      { type: 'Text', id: 't', text: 'ab', marks: ['Bold'] },
       { type: 'Text', id: 'u', text: 'cd', marks: [] },
     ])
     expect(result.state.document.children[1]?.children[0]).toEqual({
@@ -158,7 +157,12 @@ describe('join blocks', () => {
       marks: ['Italic'],
     })
     expect(result.changeSet.structureChanged).toBe(true)
-    expect(result.changeSet.removedNodes).toEqual(new Set(['px']))
+    expect(result.changeSet.removedNodes).toEqual(new Set(['px', 'tx']))
+    expect(result.positionMap).toEqual([
+      { node: 't', into: 'tx', at: 1 },
+      { node: 'v', from: 2, to: 2, inserted: 1 },
+      { node: 'tx', into: 't', at: 0, base: 1 },
+    ])
   })
 
   it('builds the documented wire shape from ids or references', () => {
