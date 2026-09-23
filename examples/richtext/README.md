@@ -31,6 +31,26 @@ run identities from the parent-owned counter; a refused command changes nothing
 and does not burn identities; and a document replaced from outside is what the
 next command resolves against.
 
+## The DOM half (first increment)
+
+`src/dom.ts` is a minimal DOM interpreter for the editable subtree. It renders a
+Document into an owned `contenteditable` root (one element per block, one
+`span[data-run]` per run, marks as `data-marks`, preserved unknown blocks as
+read-only placeholders), maps positions both ways (`positionToRange` /
+`rangeToPosition`), and patches a ChangeSet in place: removed identities lose
+their elements, dirty identities are re-rendered, and every untouched element
+keeps its object identity so a keystroke does not rebuild the tree.
+
+`test/dom.test.ts` runs under jsdom and covers rendering, both-way position
+mapping (including what a DOM caret cannot recover: affinity is derived, not
+round-tripped), in-place patching, retired identities after normalization, and
+one end-to-end editing loop: DOM selection → `RichText.run` → patch → restored
+selection.
+
+Not built yet: `beforeinput`/`keydown` wiring, the IME composition state
+machine, undo grouping, clipboard, and mobile virtual keyboards. The adapter is
+still private and throwaway-tolerant.
+
 ## Running it
 
 ```bash
@@ -50,6 +70,8 @@ demo entry point.
 ## Results
 
 Recorded in the design doc (§27): controlled ownership works without a second
-synchronized document copy or a delayed Command. What it does **not** yet prove
-is the browser half — that a real `contenteditable` can be patched from the
-same transition — which is the Phase 3 slice.
+synchronized document copy or a delayed Command. The DOM half has its first
+increment (`src/dom.ts`): rendering, both-way position mapping, and in-place
+patching, exercised by the editing loop in `test/dom.test.ts`. What neither
+proves yet is the browser's transient state — IME composition, autocorrect,
+undo, and mobile keyboards — which is the rest of the Phase 3 slice.

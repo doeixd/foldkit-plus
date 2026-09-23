@@ -3927,6 +3927,17 @@ transactions, bold-boundary typing follows mark semantics, split/join preserve
 selection direction, and undo restores document and selection. Record every
 place the semantic model had to change.
 
+**Built so far (first increment, `examples/richtext/src/dom.ts`).** Rendering
+into an owned `contenteditable` subtree, both-way position mapping, and
+in-place ChangeSet patching, with jsdom tests including one end-to-end loop
+(DOM selection → command → patch → restored selection). Two findings worth
+keeping: a DOM caret carries no affinity, so mapping back must derive it (run
+end → `after`, elsewhere → `before`) rather than pretend to round-trip it; and
+untouched elements must keep object identity, which is the property that makes
+patching cheaper than re-rendering. Still to build: `beforeinput`/`keydown`
+wiring, the IME composition state machine, undo grouping, clipboard, and
+mobile keyboards.
+
 No collaboration. No Form. No CMS.
 
 ---
