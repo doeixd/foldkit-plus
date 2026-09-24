@@ -20,7 +20,7 @@ const Wired: unique symbol = Symbol.for('foldkit-bundle/Wired')
 export type WiredRecord<Record> = Record & { readonly [Wired]: true }
 
 /** A single placement, a collection, or an integration's wiring, in this parent. */
-type PlacedIn<Model, Message> =
+export type PlacedIn<Model, Message> =
   | Placed<string, Model, Message, any, any, any, any, any, any, any>
   | PlacedCollection<string, Model, Message, any, any, any, any, any, any, any, any>
   | Wiring<Model, Message, any>

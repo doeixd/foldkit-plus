@@ -110,6 +110,18 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 
 ## Common tasks
 
+- **A parent in one declaration:** `const App = Bundle.compose({ greeting:
+  Schema.String }).pipe(Bundle.withMessages({ ClickedReset: {} }),
+  Bundle.withChild('hello', HelloForm, { onOut: out => model => ({ model: {
+  ...model, greeting: out.name } }) }), Bundle.withEach('rows', Row))` derives
+  `App.Model`, `App.Message` (wrappers `Got<Field>Message`), `App.children.hello`
+  (the placement) and `App.placements` (the assembly). Each step is typed by the
+  parent so far, so `onOut` knows the Model; spread it, so later children's
+  fields survive. `Bundle.withWiring(Data.wiring(...))` in a second `pipe`, once
+  `Data` exists; `Bundle.withServices<S>()` for the own update's services. Use
+  `declare`/`parent`/`at` instead when Model and Message already exist or a
+  placement needs a custom Link.
+
 - **Initial Model:** `placements.initial(rest)` takes exactly the fields no
   placement owns; each placement's `init` writes its own slice, and collections
   start empty.

@@ -62,34 +62,97 @@ const Count = Bundle.make('Count', {
   update: model => ({ model: { count: model.count + 1 } }),
 })
 
-const Clicks = Bundle.declare(Count, 'clicks')
-const Model = Schema.Struct({ ...Clicks.fields })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Clicks.cases })
-type Message = typeof Message.Type
-const Page = Bundle.parent({ Model, Message })
-const placements = Page.assemble(Page.at(Clicks))
+const Page = Bundle.compose({ greeting: Schema.String }).pipe(Bundle.withChild('clicks', Count))
+type Model = typeof Page.Model.Type
+type Message = typeof Page.Message.Type
+const { placements } = Page
 
 const config = placements.complete({
-  init: () => placements.initial({}),
+  init: () => placements.initial({ greeting: 'Hello' }),
   update: placements.update(model => ({ model })),
   subscriptions: placements.subscriptions(),
   view: (model: Model, h: HtmlBuilder<Message>) =>
     h.button(
-      [h.OnClick(Message.GotClicksMessage({ message: CountMessage.Incremented() }))],
-      [String(model.clicks.count)],
+      [h.OnClick(Page.Message.GotClicksMessage({ message: CountMessage.Incremented() }))],
+      [`${model.greeting}: ${model.clicks.count}`],
     ),
 })
 ```
 
-`Count` describes a child machine. `Clicks` contributes its Model field and
-wrapper Message to the parent. The assembly routes `GotClicksMessage` to the
-child and writes its next value back into `model.clicks`. A click changes 0 to 1
-through the parent's update; no additional store is created.
+`Count` describes a child machine. `Page` is the parent: its own field,
+`greeting`, and `Count` placed under `clicks`. From that one declaration it
+derives the parent's Model, `{ greeting, clicks }`, its Message union, with the
+wrapper `GotClicksMessage`, and the assembly that routes that wrapper to the
+child and writes its next value back into `model.clicks`. A click changes 0 to
+1 through the parent's update; no additional store is created.
 
 `config` supplies `init`, `update`, and `view` to your Foldkit runtime. These
 declarations do not mount anything. For a runnable assembly, see
 [the settings example](../../examples/bundle/README.md).
+
+## Composing a parent
+
+`Bundle.compose` states a parent once: its own fields, as `Schema.Struct`
+takes them, and then, through `pipe`, its own Messages and the bundles it
+places.
+
+```ts
+const App = Bundle.compose({ greeting: Schema.String }).pipe(
+  Bundle.withMessages({ ClickedReset: {} }),
+  Bundle.withChild('hello', HelloForm, {
+    onOut: out => model => ({ model: { ...model, greeting: `Hello, ${out.name}!` } }),
+  }),
+)
+```
+
+| Step | What it adds |
+| --- | --- |
+| `Bundle.compose(fields)` | the parent's own Model fields |
+| `Bundle.withMessages(cases)` | the parent's own Message cases, as `defineMessageUnion` takes them |
+| `Bundle.withChild(field, bundle, config?)` | the bundle under `field`, and its wrapper `Got<Field>Message` |
+| `Bundle.withEach(field, bundle, config?)` | the bundle once per key of a record under `field` |
+| `Bundle.withWiring(...wirings)` | an integration's wiring (Remote, Mirror, Sync, Agent) |
+| `Bundle.withServices<S>()` | the services the parent's own `update` may require |
+
+The result has `App.Model` and `App.Message`, the Schemas to give
+`Surface.application` or the runtime; `App.children.hello`, the placement, with
+its `view` and `helpers`; and `App.placements`, the assembly, with `initial`,
+`update`, `subscriptions` and `complete`. The config of `withChild` and
+`withEach` is what `Page.at` and `Page.each` take below: `args` when the bundle
+has them, `onOut` when it has an OutMessage, and `key` or `when`.
+
+Each step is typed by the parent as it is at that step. An `onOut` sees the
+parent's own fields and every child placed so far, so a mistake is reported
+where it is written, and a child can read an earlier one. Write its result from
+the Model it is given, spreading it or through `modifyFields`, so the fields of
+children placed later are kept. A field or a Message case given twice is
+refused: in the types for a field, and when the composition is built for both.
+
+A wiring is usually made from the parent's own Model, through a Surface
+application and a Remote domain built from `App.Model`, so it joins in a
+second `pipe` once those exist:
+
+```ts
+const Wired = App.pipe(Bundle.withWiring(Data.wiring({ board: BoardSurface })))
+```
+
+### What it builds, and when to build it by hand
+
+`compose` is sugar over the primitives below, and produces the same values.
+The counter above, by hand:
+
+```ts
+const Clicks = Bundle.declare(Count, 'clicks')
+const Model = Schema.Struct({ greeting: Schema.String, ...Clicks.fields })
+const Message = defineMessageUnion({ ...Clicks.cases })
+const Page = Bundle.parent({ Model, Message })
+const placements = Page.assemble(Page.at(Clicks))
+```
+
+Use the primitives when the parent's Model and Message already exist
+elsewhere, when a placement needs a custom Link (a nested path, an `Option`
+field, a gate on the Link), or when a declaration is shared between modules.
+The rest of this README uses them, because each step there is one idea.
 
 ## Adding subscriptions: one media query, placed twice
 
@@ -163,6 +226,8 @@ rest of your options.
 
 - **`Bundle.make(name, spec)`** only collects the parts. It runs nothing and
   holds no state. `Bundle.make({ name, ...spec })` is the same.
+- **`Bundle.compose(fields).pipe(...)`** does the next four steps from one
+  declaration; see [Composing a parent](#composing-a-parent).
 - **`Bundle.declare(bundle, field)`** names where a placement will live: `fields`
   for the parent `Schema.Struct`, `cases` for its `defineMessageUnion`.
 - **`Bundle.parent({ Model, Message })`** states the parent once, as the Schemas

@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-bundle`: `Bundle.compose`, a parent in one declaration.** A
+  parent's own fields, then through `pipe` its own Messages
+  (`Bundle.withMessages`), the bundles it places (`Bundle.withChild`,
+  `Bundle.withEach`), integration wiring (`Bundle.withWiring`) and its
+  services (`Bundle.withServices`). It derives the Model, the Message union
+  with each child's `Got<Field>Message`, each placement under
+  `children.<field>`, and the assembly, so a parent no longer spreads
+  `declare(...).fields` and `.cases` into Schemas it writes by hand. Each step
+  is typed by the parent so far, so an `onOut` knows the Model. It builds the
+  same values `declare`, `parent`, `at` and `assemble` do, and those stay for
+  a parent whose Model already exists or a placement with a custom Link.
 - **`foldkit-bundle`: `Bundle.lazy`, a bundle whose `update` and `view` load
   on demand.** The declaration (`Model`, `Message`, `args`, `init`,
   `subscriptions`, `resources`, `helpers`) stays in the boot chunk; the bodies

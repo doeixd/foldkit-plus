@@ -38,7 +38,7 @@ type VariantCheck<Variant, Message> = [Variant] extends [Message]
   ? unknown
   : Invalid<"The parent Message does not include this placement's wrapper variant; spread its cases into defineMessageUnion">
 
-type PlacedBy<
+export type PlacedBy<
   B extends AnyBundle,
   Model,
   LinkMessage,
@@ -59,7 +59,7 @@ type PlacedBy<
   Field
 >
 
-type CollectionBy<
+export type CollectionBy<
   B extends AnyBundle,
   Model,
   LinkMessage,
