@@ -317,6 +317,33 @@ query); `{ contain: false }` uses `@media` on the viewport instead. Its breakpoi
 `stack`'s `split` index are in the rule text, because a query cannot read a variable, so each
 distinct value is its own class. `sidebar` and `switcher` are flex math and need no query.
 
+### Defaults and prose
+
+`foldkit-mixins/defaults` is the baseline plain HTML gets before any slot is styled: `Defaults.reset`
+(box model, media, form-control fonts, reduced motion) and `body`, `headings`, `links`, `code`,
+`controls`, composed as `Defaults.all` (everything except `reset`). Each is element-selector CSS
+under `:where()` over `--fk-*` tokens with a fallback, so a class rule always beats it and it reads
+with or without a theme. `foldkit-mixins/prose` is the longform contract: `Prose.style({ measure?,
+rhythm? })` is one class for every caller (the rhythm between unlike elements: heading to
+paragraph, list to paragraph, around figures) whose options are `--fk-prose-*` variables on the
+element. Both are unlayered; the page places them:
+
+```ts
+import { Layers, Style } from 'foldkit-mixins'
+import { Defaults } from 'foldkit-mixins/defaults'
+import { Prose } from 'foldkit-mixins/prose'
+
+const L = Layers.standard
+const Article = Style.forSlots(ArticleSlots)({ body: L.in('components', Prose.style({ measure: '60ch' })) })
+
+export const sheet = Style.stylesheet(
+  L.declare,
+  L.in('reset', Defaults.reset),
+  L.in('defaults', Defaults.all),
+  Article,
+)
+```
+
 ## Behavior: reusable element-level interaction
 
 A Behavior is a reusable bundle of element-level interaction that does **not** own application

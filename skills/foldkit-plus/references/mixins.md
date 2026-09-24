@@ -276,6 +276,12 @@ adapter.
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
   `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. `Layers.define(names)`
   makes another order. There is no `Style.foundation`; the page composes its sheet.
+- Defaults and prose: `Defaults.reset` and `Defaults.all` (`body`, `headings`, `links`, `code`,
+  `controls`; `all` excludes `reset`) from `foldkit-mixins/defaults` are `:where()` element CSS over
+  `--fk-*` tokens with fallbacks, unlayered: place them with `L.in('reset', …)` / `L.in('defaults',
+  …)`. `Prose.style({ measure?, rhythm?: { paragraph, heading, list, figure } })` from
+  `foldkit-mixins/prose` is one class for every caller; options are `--fk-prose-*` variables on
+  the element. Put it in `components`.
 - Layout: `foldkit-mixins/layout` exports `Layout.stack/cluster/split/sidebar/switcher/reel/center/
   frame/pad/autoGrid(options)` and the child pieces `Layout.intrinsic` (a stack child keeping its
   width) and `Layout.aside` (the sidebar child). Options write `--fk-l-*` inline variables; the
