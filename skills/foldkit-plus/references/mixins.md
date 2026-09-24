@@ -284,8 +284,8 @@ component's own `aria-checked` / `aria-selected` / `aria-disabled`.
   `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. `Layers.define(names)`
   makes another order. There is no `Style.foundation`; the page composes its sheet.
 - Theme pieces (`foldkit-mixins/theme`): `Theme.root(theme, { omit?, colorScheme? })` is the
-  tokens as `:root` custom properties and `Theme.scoped(selector, overrides)` is overrides under a
-  selector, both unlayered global pieces (`L.in('theme', …)`). `Theme.tokens` is the shared
+  tokens as `:root` custom properties and `Theme.scoped(theme, selector, overrides)` is overrides under a
+  selector, typed by `theme`'s own groups and names so a misspelled knob is a type error, both unlayered global pieces (`L.in('theme', …)`). `Theme.tokens` is the shared
   scales (`knob` density/radius-factor, `space`, `radius`, `font`, `size`, `leading`, `weight`,
   `motion`, `border`, `breakpoint`). `Theme.oklch({ accent: { h, c, l }, … })` derives the
   palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,

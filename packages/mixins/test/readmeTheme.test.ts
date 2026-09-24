@@ -21,7 +21,7 @@ const sheet = Style.stylesheet(
   L.declare,
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-  L.in('theme', Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+  L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
   PageStyle,
 )
 

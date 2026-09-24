@@ -44,9 +44,10 @@ describe('Theme.root', () => {
 
 describe('Theme.scoped', () => {
   it('writes the overrides under the selector, unlayered', () => {
-    expect(cssOf(Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } }))).toBe(
-      ':root[data-theme="ocean"]{--fk-knob-accent-h:215}',
-    )
+    const palette = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+    expect(
+      cssOf(Theme.scoped(palette, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+    ).toBe(':root[data-theme="ocean"]{--fk-knob-accent-h:215}')
   })
 })
 
@@ -240,7 +241,10 @@ describe('the page sheet', () => {
       L.declare,
       L.in('tokens', Theme.root(Theme.tokens)),
       L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-      L.in('theme', Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+      L.in(
+        'theme',
+        Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } }),
+      ),
       page,
     )
     expect(

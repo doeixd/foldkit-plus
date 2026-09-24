@@ -32,11 +32,32 @@ export const root = (theme: ThemeTokens, options?: RootOptions): StyleValue =>
     `:root{${[...declarations(theme, options?.omit), `color-scheme:${options?.colorScheme ?? 'light dark'}`].join(';')}}`,
   )
 
+/** Some of a theme's tokens, by the theme's own group and token names. */
+export type Overrides<T extends ThemeTokens> = {
+  readonly [G in keyof T]?: { readonly [N in keyof T[G]]?: string }
+}
+
 /**
  * Token overrides under `selector`: a named theme the Model selects with a
  * root attribute (`:root[data-theme="ocean"]`), a scheme the user chose
  * (`:root[data-color-scheme="dark"]`), or a subtree (`.marketing`). Which
  * one is active is the Model's fact; this only says what it means.
+ *
+ * `theme` is the theme being overridden and is read only for its type, so a
+ * group or token it lacks is a type error rather than a variable nothing reads.
  */
-export const scoped = (selector: string, overrides: ThemeTokens): StyleValue =>
-  global(`${selector}{${declarations(overrides).join(';')}}`)
+export const scoped = <T extends ThemeTokens>(
+  _theme: T,
+  selector: string,
+  overrides: Overrides<T>,
+): StyleValue => {
+  const tokens: Record<string, Record<string, string>> = {}
+  for (const [group, names] of Object.entries(overrides)) {
+    const defined: Record<string, string> = {}
+    for (const [name, value] of Object.entries(names ?? {})) {
+      if (typeof value === 'string') defined[name] = value
+    }
+    tokens[group] = defined
+  }
+  return global(`${selector}{${declarations(tokens).join(';')}}`)
+}

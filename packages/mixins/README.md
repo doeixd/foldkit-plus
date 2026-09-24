@@ -249,7 +249,7 @@ Style is pure data. It never touches the DOM.
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `variable` / `variables` | typed tokens and CSS custom properties |
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
-| `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
+| `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
 | `Theme.tokens` / `Theme.oklch(knobs)` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, border and breakpoint scales; a whole palette derived from an accent and a few knobs; the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece) and `in(name, piece)` (the piece's rules and global CSS inside that layer; a name outside the order is a type error). `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated |
@@ -322,7 +322,7 @@ export const sheet = Style.stylesheet(
   L.declare,
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-  L.in('theme', Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+  L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
   PageStyle,
 )
 ```
