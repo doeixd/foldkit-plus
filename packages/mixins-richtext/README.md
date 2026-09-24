@@ -59,3 +59,13 @@ contract: a mixin cannot take them over.
 pnpm --filter foldkit-mixins-richtext typecheck
 pnpm vitest run packages/mixins-richtext/test
 ```
+
+`smoke/` checks the *built* richtext packages the way a consumer meets them —
+through each package's `exports` map, from `dist`. Everything inside this workspace
+resolves them from source, so nothing else catches a wrong `exports` path, a
+missing file, or a wrong `types` condition. Build first, then:
+
+```bash
+pnpm build
+pnpm --filter foldkit-mixins-richtext smoke
+```

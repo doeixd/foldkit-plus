@@ -19,7 +19,8 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "smoke": "node smoke/build.mjs"
   },
   "dependencies": {
     "foldkit-mixins": "workspace:*",
