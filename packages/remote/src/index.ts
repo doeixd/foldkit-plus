@@ -86,7 +86,7 @@ import {
   type OptimisticState,
   type OptimisticOperation,
 } from './optimistic.js'
-import { plan, type PlanOptions } from './plan.js'
+import { deadlineOf, plan, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
 import type { ConnectionSpec, LivePolicy, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
@@ -942,6 +942,8 @@ const covers = (outer: Asked, inner: Asked): boolean => {
 interface Planned {
   readonly requirements: ReadonlyArray<Requirement>
   readonly queries: ReadonlyArray<QueryRequirement>
+  /** Under a freshness, when what is held next goes stale; `null` when nothing held will. */
+  readonly expires: Deadline | null
 }
 
 /**
@@ -981,14 +983,16 @@ const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Pla
       ),
     )
   }
-  const planned = plan(
-    visibleStoreOf(remote.entities, remote.optimistic),
-    [...asked.requirements, ...items],
-    options,
-  )
+  const visible = visibleStoreOf(remote.entities, remote.optimistic)
+  const read = [...asked.requirements, ...items]
+  const planned = plan(visible, read, options)
   return {
     requirements: options.force === true ? planned : withoutFailedFields(remote, planned),
     queries,
+    expires:
+      options.freshness === undefined
+        ? null
+        : (deadlineOf(visible, read, options.freshness) ?? null),
   }
 }
 
@@ -1197,6 +1201,14 @@ export interface ReadDependencies {
    * leaves it running.
    */
   readonly refresh: number
+  /**
+   * Under a refreshing policy, when a value the entry holds next ages out and
+   * what is due then. Time reaches Remote only as a Message: the entry sleeps
+   * until then and emits `RefreshStarted`, which marks the fields stale, and
+   * the plan that follows fetches them. A Model that does not change past its
+   * `maxAge` is otherwise never looked at again.
+   */
+  readonly expires: Deadline | null
 }
 
 /**
@@ -1224,6 +1236,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       requirements: Schema.Array(ReadRequest),
       queries: Schema.Array(PlannedQuery),
       refresh: Schema.Number,
+      expires: Schema.NullOr(Schema.Struct({ at: Schema.Number, due: Schema.Array(ReadRequest) })),
     }),
     modelToDependencies: model => {
       const remote = bound.store.get(model)
@@ -1240,9 +1253,10 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
           window,
           select,
         })),
+        expires: planned.expires,
       }
     },
-    dependenciesToStream: ({ requirements, queries, refresh }) =>
+    dependenciesToStream: ({ requirements, queries, refresh, expires }) =>
       Stream.concat(
         Stream.fromIterable([
           ...(requirements.length === 0
@@ -1265,12 +1279,24 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
                 }),
               ]),
         ]),
-        Stream.mergeAll(
-          [
-            ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
-            ...queries.map(query => Stream.fromEffect(run(query))),
-          ],
-          { concurrency: 'unbounded' },
+        Stream.merge(
+          Stream.mergeAll(
+            [
+              ...(requirements.length === 0 ? [] : [Stream.fromEffect(read(requirements))]),
+              ...queries.map(query => Stream.fromEffect(run(query))),
+            ],
+            { concurrency: 'unbounded' },
+          ),
+          // The clock's say, as a Message. Under the Effect clock, so a test
+          // can move it; against `now`, so the same clock sets and fires it.
+          expires === null
+            ? Stream.empty
+            : Stream.fromEffect(
+                Effect.as(
+                  Effect.sleep(Math.max(0, expires.at - now())),
+                  toMessage({ _tag: 'RefreshStarted', requests: expires.due }),
+                ),
+              ),
         ),
       ),
   }

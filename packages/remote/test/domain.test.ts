@@ -488,16 +488,19 @@ describe('Data.live and Data.subscriptions', () => {
       ],
       queries: [],
       refresh: 0,
+      expires: null,
     })
     expect(subscriptions['page.read'].modelToDependencies(at(''))).toEqual({
       requirements: [],
       queries: [],
       refresh: 0,
+      expires: null,
     })
     expect(subscriptions['home.read'].modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
       refresh: 0,
+      expires: null,
     })
   })
 
@@ -542,7 +545,12 @@ describe('Data.live and Data.subscriptions', () => {
       _tag: 'Ready',
       value: { name: 'name of p7' },
     })
-    expect(read.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [], refresh: 0 })
+    expect(read.modelToDependencies(loaded)).toEqual({
+      requirements: [],
+      queries: [],
+      refresh: 0,
+      expires: null,
+    })
 
     const collected = await Effect.runPromise(
       Stream.runCollect(
@@ -593,11 +601,13 @@ describe('Data.live and Data.subscriptions', () => {
       requirements: [],
       queries: [],
       refresh: 0,
+      expires: null,
     })
     expect(tuned['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
       refresh: 0,
+      expires: null,
     })
   })
 })
@@ -1321,6 +1331,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         { identity, window: { first: 2 }, select: { entity: 'Project', fields: ['name'] } },
       ],
       refresh: 0,
+      expires: null,
     })
     // The connection is a retention root by itself, with what the page selects of each item.
     expect(subscriptions.retain.modelToDependencies(initial)).toEqual({
@@ -1366,6 +1377,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ],
       queries: [],
       refresh: 0,
+      expires: null,
     })
     const reads = await Effect.runPromise(
       Stream.runCollect(entry.dependenciesToStream(entry.modelToDependencies(paged))).pipe(
@@ -1383,7 +1395,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
         hasPrevious: false,
       },
     })
-    expect(entry.modelToDependencies(loaded)).toEqual({ requirements: [], queries: [], refresh: 0 })
+    expect(entry.modelToDependencies(loaded)).toEqual({
+      requirements: [],
+      queries: [],
+      refresh: 0,
+      expires: null,
+    })
   })
 
   it('a refreshing policy announces only the fields it refetches, never a bare query', async () => {
@@ -1496,7 +1513,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
       _tag: 'Ready',
       value: { items: [], hasNext: false, hasPrevious: false },
     })
-    expect(entry.modelToDependencies(empty)).toEqual({ requirements: [], queries: [], refresh: 0 })
+    expect(entry.modelToDependencies(empty)).toEqual({
+      requirements: [],
+      queries: [],
+      refresh: 0,
+      expires: null,
+    })
     const foreign = Data.reduce(initial, {
       _tag: 'ConnectionMerged',
       connection: identity,

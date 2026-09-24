@@ -48,6 +48,51 @@ const followRelation = (
 ): ReadonlyArray<Requirement> =>
   targetsOf(value, relation).map(ref => ({ ...relation, id: ref.id }))
 
+/** When present values next go stale, and the requirements of the entities that do. */
+export interface Deadline {
+  readonly at: number
+  readonly due: ReadonlyArray<Requirement>
+}
+
+/**
+ * The earliest moment a value `requirements` read, following the relations the
+ * store holds as `plan` does, goes stale under `freshness`, with the
+ * requirements of the entities that go stale then. Nothing when no value is
+ * both present and still fresh: what is already expired or stale is planned,
+ * not awaited, which is what keeps a timer from firing on what it already
+ * fired on.
+ */
+export const deadlineOf = (
+  store: EntityStore,
+  requirements: readonly Requirement[],
+  freshness: PlanFreshness,
+): Deadline | undefined => {
+  let at: number | undefined
+  let due: Requirement[] = []
+  const walk = (group: Requirement): void => {
+    const key = entityKey(group.entity, group.id)
+    const entry = store[key]
+    if (entry === undefined || entry.tombstone) return
+    const fresh = group.fields.some(field => entry.present.has(field) && !entry.stale.has(field))
+    if (fresh) {
+      const expires = entry.updatedAt + freshness.freshness
+      if (expires > freshness.now) {
+        if (at === undefined || expires < at) {
+          at = expires
+          due = [group]
+        } else if (expires === at) due.push(group)
+      }
+    }
+    for (const [field, relation] of Object.entries(group.relations ?? {})) {
+      const value = readField(store, key, field)
+      if (value._tag === 'Some')
+        for (const next of followRelation(value.value, relation)) walk(next)
+    }
+  }
+  for (const group of Requirement.merge(requirements)) walk(group)
+  return at === undefined ? undefined : { at, due: Requirement.merge(due) }
+}
+
 export const plan = (
   store: EntityStore,
   requirements: readonly Requirement[],

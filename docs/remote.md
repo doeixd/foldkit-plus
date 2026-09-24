@@ -89,6 +89,11 @@ ProjectsByOwner(u7)   Project:p9  Project:p7  Project:p4  [gap]  Project:p1
   fields and list membership are what the server told this session.
   `Data.forget`, called from `update` on a login, a logout or a switch of
   organization, drops all of it and restarts every active read and stream.
+- **Local execution is not a second authority.** `Remote.matching` and
+  `Data.filtered` derive conclusions from the facts held (`p1` matches this
+  query) and never promote them into knowledge of the whole dataset (this
+  query is `[p1]`) unless a connection's terminal boundaries prove it. A new
+  list is a server query.
 - **A connection is an ordered structure with boundaries.** If page 1 is
   `A B C D` and page 3 is `I J K L`, a flat array would falsely claim they are
   adjacent. Segments with explicit boundaries make the unloaded middle an honest
@@ -144,6 +149,12 @@ What a field the store already holds means is a `RemotePolicy` on `observe` and
 `networkOnly` fetches every selected field. A policy compiles to planner options;
 it is not a second cache. A refreshing policy emits `RefreshStarted` with the
 read's `ReadStarted`, which marks the refetched fields stale.
+
+Time reaches Remote only as a Message. The read entry knows, from the Model and
+`now`, when the earliest value it holds ages out under `maxAge`; it sleeps until
+then under the Effect clock and emits `RefreshStarted` for what is due, and the
+plan that follows fetches it. A Projection never reads the clock, so a Model
+reads the same twice and a recorded one replays.
 
 To revalidate on demand — a refresh button, a regained focus — `update` returns
 `Data.refresh(model, projection)` (or a Surface without params). It performs no

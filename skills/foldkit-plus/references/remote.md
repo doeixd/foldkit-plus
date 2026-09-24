@@ -172,6 +172,9 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
 // Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
+// Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value
+// ages out and emits RefreshStarted for it: time reaches Remote only as a Message, and a
+// Projection never reads the clock. The deadline is a dependency (`expires`), so a write moves it.
 
 // In update (Message cases ClickedRename {id,name}, ClickedMore {}, ClickedRefresh {}):
 case 'ClickedRename': {
@@ -368,6 +371,10 @@ decidable. `complete` requires every edge judged, every match showable, and the
 list terminal at both ends — so empty-and-complete and empty-and-partial stay
 different answers. It creates no connection, so nothing new is retained or
 fetched.
+
+Local execution is not a second authority: `matching` and `filtered` conclude
+from held facts (this row matches) and never claim the whole dataset (the list
+is these rows) unless the connection is terminal at both ends (`complete`).
 
 `Remote.matching` and `Remote.belongsEncoded` are the two entry points, and the
 asymmetry is deliberate: `matching` takes the input **decoded** (an application

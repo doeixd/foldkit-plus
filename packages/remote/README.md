@@ -732,6 +732,16 @@ A refreshing policy emits `RefreshStarted` before the read, so the Projection
 becomes `Refreshing` without discarding the old value. Planning accepts `now`
 (default `Date.now`) as an input, so tests can control time.
 
+**Time reaches Remote only as a Message.** The plan is a function of the Model
+and `now`, and it runs when the Model changes; a page that sits still past its
+`maxAge` would otherwise never be looked at again. So a read entry under
+`staleWhileRevalidate` knows when the earliest value it holds ages out, sleeps
+until then under the Effect clock, and emits `RefreshStarted` for what is due.
+That marks the fields stale in the Model, and the plan that follows fetches
+them, the same path a refresh button takes. Nothing reads the clock while a
+Projection is read, so a Model reads the same twice, and a recorded one
+replays.
+
 For SSR, route prefetch, hover prefetch, and tests, run the same plan explicitly:
 
 ```ts
@@ -966,6 +976,15 @@ It is **not authorization**. On the server a compiled `where` is conjoined with
 the binding's `visible` rule; there is no `visible` here. This is safe only
 because the client holds only rows the server already released to it, and a
 local filter is not an access decision.
+
+**Local execution is not a second authority.** `matching` and `filtered` derive
+conclusions from facts the server gave; they never promote those conclusions
+into knowledge of the server's whole dataset. Knowing `p1.ownerId = u7` says
+that `p1` matches `ProjectsByOwner(u7)`; it does not say that
+`ProjectsByOwner(u7)` is `[p1]`, and nothing here will say so unless a
+connection's boundaries, terminal at both ends, independently prove it. That
+line is what keeps Remote a cache of what the server owns rather than a local
+database with opinions of its own.
 
 ### An input that changes as fast as someone types
 
