@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for nested children beyond runs (the model and codec landed; representation and addressing decided in §116), mark overlap rules and metadata, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -471,19 +471,20 @@ const ProductCard = RichText.embed(
 
 Effect Schema remains the validity source for node attributes.
 
-**Implemented (first slice).** A `Node` block carries `kind`, JSON `props`, and
-text-run `children`; a Kit declares the kind with `RichText.node(name, { Props })`
-and `validate` reports `UnsupportedNode` for an undeclared kind and
-`InvalidProps` when the schema refuses the props — so the codec stays
-application-agnostic and the Kit is where an application's types meet persisted
-data. Because children are runs, positions, every operation, selection,
-clipboard slices, history, and both interpreters work on a node block
-unchanged, and a split keeps its kind and props on both halves. `data-node` is
-the default rendering until a Kit renderer replaces it.
+**Implemented.** A `Node` block carries `kind`, JSON `props`, and `children`; a
+Kit declares the kind with `RichText.node(name, { Props, children })` and
+`validate` reports `UnsupportedNode` for an undeclared kind and `InvalidProps`
+when the schema refuses the props — so the codec stays application-agnostic and
+the Kit is where an application's types meet persisted data. `children` is the
+declared content mode: a node block holds runs (`textContent`) or nested blocks
+(`blockContent`, §116), so lists, quotes, and nested callouts are ordinary node
+blocks. Positions, every operation, selection, clipboard slices, history, both
+interpreters, and HTML import/export work at any depth, and a split keeps its
+kind and props on both halves. `data-node` is the default rendering until a Kit
+renderer replaces it.
 
-Not yet: nested children beyond runs (`blockContent`, specified in §116),
-`atom`'s no-children enforcement at the operation level, renderers per kind, and
-metadata.
+Not yet: `atom`'s no-children enforcement at the operation level, renderers per
+kind, and metadata.
 
 ---
 
@@ -4030,8 +4031,7 @@ optional `marks` set, so an application can hand the caret's stored marks to the
 insertion and get a span carrying exactly them; unknown marks are refused. This
 is not completion of Phase 1.
 
-Remaining: nested children beyond runs, mark overlap rules, metadata keys,
-and collaboration (including
+Remaining: mark overlap rules, metadata keys, and collaboration (including
 collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
@@ -4549,27 +4549,14 @@ atomic transactions with ChangeSets, merge normalization, mark definitions with
 boundary expansion, prop schemas, and Kit-declared vocabulary, bounded decode
 limits, unknown node and mark preservation, application node kinds with
 Kit-validated props, migrations, the command layer (including stored marks
-through `InsertText.marks`), snapshot history, clipboard slices, HTML export, and
-inspection.
+through `InsertText.marks`), snapshot history, clipboard slices, HTML export,
+inspection, and nested children beyond runs (`blockContent`, §116): a node block
+may carry nested blocks, and content at any depth decodes, round-trips, survives
+unknowns, and is reached by commands, structural placement, both interpreters,
+and HTML import/export.
 
 Not done:
 
-- **Nested children (`blockContent`).** Blocks hold runs only. Lists, quotes, and
-  nested callouts need blocks containing blocks, which reaches the `Block` type,
-  position mapping, `locate`, every operation, normalization, HTML export and
-  import, and both renderers. §13 defines the child-constraint vocabulary
-  (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide,
-  and §116 decides the representation, the addressing, and the slice order. Slices
-  1 and 2 are complete: a node block may carry nested blocks, nested content
-  decodes, round-trips, is counted, and is preserved when unknown; commands reach
-  a run inside one — typing, grapheme deletion, marks, and clipboard work at
-  depth, with a copy across a container's children carrying the container; and
-  every interpreter renders one, with HTML import reading a container back.
-  Structural placement works at any depth: a split keeps its halves in the block's
-  container, siblings join within theirs, and `InsertNode`/`MoveNode` take an
-  optional parent, so a block enters or leaves a container. A range that would
-  merge across containers, and a parent that cannot hold blocks, stay refused with
-  `InvalidParent`.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4580,10 +4567,12 @@ Not done:
 - **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
   (§12) are not wired: no interpreter owns a metadata key yet. The package does
   not depend on `foldkit-metadata`. They must stay outside the document codec.
-- **Kit-driven `apply`.** A Kit validates a document (`validate`) and constrains
-  what `run` may add, and the harness HTML parser degrades undeclared *node*
-  kinds, but `apply` never consults a Kit. Where a Kit should constrain `apply`
-  is an open design question.
+- **Kit-driven `apply` — settled, no change.** A Kit validates a document
+  (`validate`) and constrains what `run` may add, and the harness HTML parser
+  degrades undeclared *node* kinds, but `apply` never consults a Kit. §117 settles
+  that it should not: the Kit resolves at the command layer, the backend applies
+  structure, and a durable transaction must not depend on a vocabulary that may
+  have moved.
 - **Collaboration.** Convergent representation, collaborative undo, and the
   replica backend belong to Phase 8 and later; nothing exists here.
 
@@ -4656,7 +4645,8 @@ scheduled publication.
 
 Not started: lists, links, quotes, code, image, callout, mentions, custom embeds,
 and the Surface-backed and React-backed node proofs. Links need the mark-props
-work, which now exists; lists, quotes, and code need nested children.
+work, which now exists; lists, quotes, and code needed nested children, which now
+exist (§116), so what remains is declaring the kinds and rendering them.
 
 ## Phases 8–12
 
@@ -4793,19 +4783,20 @@ recursive now (slice 4 did `kit.ts`, slice 5 `migration.ts`).
 
 ## Kits: declaring the content a kind accepts
 
-§8's declaration spelling is the target. Today `block(name)` takes only a name;
-the implementation adds an options object:
+A kind declares the content it accepts:
 
 ```ts
-RichText.block('Paragraph')                                   // runs
-RichText.block('Callout', { Props: Tone, children: RichText.blockContent })
-RichText.atom('Image', { Props: Asset })
+RichText.block('Paragraph')                                  // built-in text block: runs
+RichText.node('List', { children: RichText.blockContent })   // holds nested blocks
+RichText.node('Callout', { Props: Tone, children: RichText.blockContent })
+RichText.atom('Image')                                       // no children
 ```
 
-`block(name, { children })` defaults to runs; `blockContent` says the kind accepts
-blocks; `atom` still says no children. `validate` reports `MismatchedDefinition`
-when a declaration and the document disagree about the mode, reusing the mechanism
-that already catches an atom held as a block.
+`node(name, { children })` defaults to `textContent` (runs); `blockContent` says the
+kind accepts blocks; `block` and `atom` are the fixed shapes for a built-in text
+block and an addressable node with no content. `validate` reports
+`MismatchedDefinition` when a declaration and the document disagree about the mode,
+reusing the mechanism that already catches an atom held as a block.
 
 ## Slices
 
@@ -4820,10 +4811,9 @@ Landing order, each keeping the suite green:
    `deleteRange`), `apply`'s tree index — blocks addressed by path, each touched
    container copied once - and the clipboard (`sliceOf` keeps the container a
    range crosses, `withFreshIds` remints nested identities, `plainTextOf` walks
-   the tree). **Remaining**: the Kit child constraints (slice 4) and migrations
-   plus a demo (slice 5). Structural placement works at any depth now; only a
-   range that would merge across containers, and a parent that cannot hold blocks,
-   are refused with `InvalidParent`.
+   the tree). Structural placement works at any depth; only a range that would
+   merge across containers, and a parent that cannot hold blocks, are refused with
+   `InvalidParent`.
 2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
    adapter. **Complete.** `toHtml` renders a container's nested blocks inside its
    element and `toText` gives one line per text block; the read-only view does the
@@ -4833,7 +4823,7 @@ Landing order, each keeping the suite green:
    holder, an undeclared kind degrades to its content, and props start empty
    because HTML does not carry them. Nested structural *patching* is deliberately
    absent: with placement refused, only run-level changes can occur inside a kept
-   container, and those patch directly. It arrives with slice 3.
+   container, and those patch directly.
 3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,
    `DeleteNode`, `SplitNode`/`JoinNode` within a parent, and paste into a
    container. **Complete.** A split keeps its halves in the block's own container;
@@ -4852,8 +4842,8 @@ Landing order, each keeping the suite green:
 4. Kit child constraints: `children` declarations, the mismatch diagnostic, and
    `atom`'s no-children enforcement at the operation level. **Complete**, with one
    correction: the document codec, not `apply`, is where a Kit's content contract
-   is enforced, because `apply` takes no Kit (that stays the open question in
-   §115). `node(name, { children })` declares `textContent` or `blockContent`,
+   is enforced, because `apply` takes no Kit — which §117 settles it should not.
+   `node(name, { children })` declares `textContent` or `blockContent`,
    `validate` walks nested blocks and reports `MismatchedDefinition` when a
    declaration and the document disagree about shape or content, and the
    declaration settles the importer's one ambiguous case. That also fixed a false
@@ -4875,3 +4865,62 @@ Landing order, each keeping the suite green:
 
 Mark overlap rules (§10), inline atoms (`inlineContent`, Phase 7), collaborative
 structure (Phase 10), and slot-based node renderers (§34–§35) are not part of this.
+
+---
+
+# 117. Where a Kit constrains the pipeline
+
+§115 carried "Kit-driven `apply`" as an open question. It is answered here so the
+remaining Phase 1 items have a boundary to build against: **the Kit resolves at the
+command layer; the backend applies structure.** `apply` takes no Kit and does not
+gain one.
+
+The pipeline has three seams, and each owns a different question:
+
+```text
+run(state, command, ids, options)      intent + vocabulary   does this vocabulary
+                                       the Kit is here       allow this edit?
+apply(state, transaction, transforms)  structure             does this leave a
+                                       no Kit                valid document?
+validate(document, definition)         content + declarations does this document
+                                       the Kit is here       match the vocabulary?
+```
+
+Why the backend stays Kit-free:
+
+- **The mental model already says so (§114).** The Kit is in *resolution* —
+  "resolve against Kit, Document and Selection" — and the local or replica backend
+  sits after the semantic commands, applying positional or convergent operations.
+  A backend that re-resolved vocabulary would be a second resolver.
+- **A transaction is durable, and the vocabulary is not.** A transaction is
+  persisted and replayed, possibly long after, possibly by a build whose Kit has
+  changed. If replay consulted the current Kit, an old transaction could fail — or
+  worse, mean something else — because a declaration moved. A transaction has to be
+  self-contained: it says what to do, not what was allowed at the time.
+- **Collaboration makes this sharper (Phase 8).** A replica backend applies
+  convergent operations from other peers, whose vocabulary may differ from this
+  one's. The vocabulary check belongs at the local intent boundary, where a person
+  or an agent asked for something; it cannot be a property of the replicated
+  operation.
+- **What `apply` must still refuse is structural, not semantic.** It already does:
+  an operation that would give a block runs its kind cannot hold, merge opaque
+  content, or retire an identity still selected is refused, because those make the
+  document invalid on its own terms (§116, R21). That is the whole of its contract.
+
+What the command layer constrains, and what the remaining items add there:
+
+- **Today.** Which marks `run` may add (`MarkRegistry.declares`), and the stored
+  mark set an insertion may carry.
+- **Mark overlap rules (§115).** A definition saying a mark may carry several
+  values is a *vocabulary* fact, so `run` reads it from the registry: an operation
+  that sets a value for a name, or appends another, is the command layer's choice,
+  and `apply` keeps the positional meaning of both without knowing which applies.
+  `validate` then reports a document holding two values of a mark declared single,
+  which is where a persisted document is checked.
+- **Anything else a Kit could forbid an operation.** The same split holds: the
+  command layer refuses before emitting, and the backend keeps only what would
+  corrupt the document.
+
+So the three seams are deliberate, not an omission. A Kit constrains what an
+application may *ask for* and what a document may *publish*; it does not constrain
+what a transaction may *mean*.

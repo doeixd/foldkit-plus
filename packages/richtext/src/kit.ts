@@ -79,7 +79,7 @@ export const node = <
 /**
  * The vocabulary one editor accepts: which node kinds and marks are available.
  * A Kit is a definition, never document state, and it never holds renderers or
- * executable code. Nested children, transforms, and metadata arrive later.
+ * executable code. Transforms and metadata arrive later.
  */
 export interface Kit {
   readonly nodes: ReadonlyArray<NodeDefinition>
