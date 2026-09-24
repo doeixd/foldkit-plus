@@ -37,7 +37,7 @@ foldkit-richtext-dom/html     parseHtml
 ## The loop
 
 ```ts
-import { mount, patch, repair, restoreSelection } from 'foldkit-richtext-dom'
+import { mount } from 'foldkit-richtext-dom'
 import { attach } from 'foldkit-richtext-dom/events'
 import * as RichText from 'foldkit-richtext'
 
@@ -45,12 +45,18 @@ let dom = mount(ownerDocument, content) // render once
 host.append(dom.root) // the host element is yours
 
 // Events become intent; your update decides and commits.
-attach(dom, { onIntent: command => dispatch({ type: 'Edited', command }) })
+const attachment = attach(dom, {
+  onIntent: command => dispatch({ type: 'Edited', command }),
+})
 
-// In that transition, after RichText.run succeeds:
-dom = patch(dom, next.document, result.changeSet)
-restoreSelection(dom, next.selection)
+// In the resulting transition, after RichText.run returns a new state:
+attachment.sync(next, result.changeSet)
+dom = attachment.current()
 ```
+
+This is the shape, not a copyable module: `ownerDocument`, `content`, `host`,
+`dispatch`, `next`, and `result` come from the surrounding application, and `next`
+is the `EditorState` that transition committed.
 
 Read the calls literally:
 
