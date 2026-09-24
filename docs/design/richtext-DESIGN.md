@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, the adapter half of mark rendering (§121 slices 1–2 ship the serializer and the read-only view), metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, registering an application's renderer with the editor Bundle (§121: the serializer, the read-only view, and the adapter all render through the registry), metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4575,8 +4575,9 @@ Not done:
   and fall back to *names*, so a declared mark with props renders as `data-marks`
   rather than a real `<a href>`. §121 decides the registry that replaces that;
   `rendering(...)` and `toHtml(blocks, renderer?)` have shipped in
-  `foldkit-richtext`, and the read-only view has adopted them (§121 slice 2); the
-  adapter is slice 3.
+  `foldkit-richtext`, and the read-only view and the editable adapter both render
+  through it (§121 slices 2–3); registering an application's renderer with the
+  editor Bundle is what remains of slice 3.
 - **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
   (§12) are not wired: no interpreter owns a metadata key yet. The package does
   not depend on `foldkit-metadata`. They must stay outside the document codec.
@@ -5268,6 +5269,12 @@ editing loop through a *prop-carrying* mark, not a snapshot of its markup.
    view looks the name up and *reports* one it cannot build; the serializer and the
    adapter take any tag, and that asymmetry is Foldkit's, not the registry's.
 3. The adapter: marks nested inside the run element, `mount`/`patch`/`repair`
-   through the renderer, and the selection tests that prove nothing moved.
+   through the renderer, and the selection tests that prove nothing moved. — **done,
+   with one piece left.** `EditorDom` carries the registry, `patch` and `repair`
+   reuse it, `textNodeOf` descends to the text node, and `repair` now compares a
+   run's mark structure (and its `data-marks`) so a browser that splits a mark
+   element is repaired rather than believed. What is left is registration: the
+   editor Bundle's mount does not yet take an application's renderer, so the
+   editable area renders with the default registry until `events`' args carry one.
 4. Node kinds in the registry, once Phase 7 declares a kind that needs more than a
    `div`.

@@ -65,9 +65,14 @@ is the `EditorState` that transition committed.
 
 Read the calls literally:
 
-- `mount(ownerDocument, content)` builds the subtree and the identity index it is
-  patched through: `data-block` on a block, `data-run` on a run. It listens to
-  nothing and runs nothing.
+- `mount(ownerDocument, content, renderer?)` builds the subtree and the identity
+  index it is patched through: `data-block` on a block, `data-run` on a run. It
+  listens to nothing and runs nothing. A renderer (§121) nests each mark as an
+  element *inside* its run element, exactly as the read-only renderer nests them,
+  so the run element stays outermost and the text node stays deepest, and a
+  selection still maps; a mark name no entry renders stays on `data-marks`. The
+  registry is kept on the `EditorDom`, and every later patch uses that one, so a
+  run cannot come back rendered differently.
 - `attach(dom, { onIntent })` listens for `beforeinput`, `keydown`, composition,
   copy, cut, and paste, and reports each one it understands as intent. Everything
   it understands it `preventDefault`s, so the browser never mutates the DOM behind
@@ -196,8 +201,9 @@ renderer that draws its own buttons.
 
 - It does not run commands or resolve domain state. A caller runs `RichText.run`
   and hands the result here; `attach` reports intent and stops.
-- It does not render mark props. A run's marks become sorted names in
-  `data-marks`; the semantic document is the lossless store.
+- Its editor mount does not yet take an application's renderer. `mount`, `patch`,
+  and `repair` do, and the Bundle's mount renders with the default registry until
+  the renderer is threaded through the editor's args.
 - It does not patch nested structural changes item by item: a container whose item
   list changed is re-rendered where it stood, so its surviving items are rebuilt
   rather than patched individually. Correct, and a follow-up for identity
