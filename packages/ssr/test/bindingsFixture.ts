@@ -4,7 +4,7 @@
  * whose Messages have a hole the event fills, a key handler, and one closure
  * handler, which no marker can name.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
@@ -46,7 +46,7 @@ export const config = {
       ChangedSearch: ({ value }) => ({ model: { ...model, search: value } }),
       Renamed: () => ({ model }),
       Pressed: ({ key }) => ({ model: { ...model, pressed: key } }),
-      Counted: () => ({ model }),
+      Counted: ({ count }) => ({ model: { ...model, likes: model.likes + count } }),
     }),
   view: (model: Model, h: HtmlBuilder<Message>) => {
     const rh = Resume.builder(h)
@@ -67,6 +67,13 @@ export const config = {
             rh.Id('closure'),
             rh.OnInput(value => Message.ChangedSearch({ value: value.toUpperCase() })),
           ]),
+          // Bubbles, unlike #like: the live page would answer it too.
+          rh.button([rh.Id('plain'), rh.OnClick(Message.Liked({ id: model.id }))], ['Like']),
+          // A handler no marker can name: the live page alone answers it.
+          rh.button(
+            [rh.Id('point'), rh.OnPointerDown(() => Option.some(Message.Counted({ count: 1 })))],
+            [],
+          ),
           rh.keyed('button')(
             'item',
             [rh.Id('item'), rh.OnClick(Message.Liked({ id: model.id }))],

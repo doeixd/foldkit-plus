@@ -122,12 +122,21 @@ interface ClickOptions {
   readonly focusSelector?: string
 }
 
+/**
+ * What the markers make of one event: the Messages its bindings dispatch, in
+ * the order the live page would, and, when the walk met a handler the page
+ * could not name, that element. An answer with `unnamed` is incomplete: the
+ * live page would do more than its Messages say.
+ */
+export interface Answer {
+  readonly event: Event
+  readonly messages: ReadonlyArray<unknown>
+  readonly unnamed?: Element | undefined
+}
+
 export interface ListenOptions {
   readonly bindings: ReadonlyArray<DecodedBinding>
-  /** A binding's Message, as the live page would dispatch it. */
-  readonly onMessage: (message: unknown, binding: DecodedBinding) => void
-  /** An event reached a handler the page could not name; the walk has stopped. */
-  readonly onUnnamed: (event: Event, element: Element) => void
+  readonly onAnswer: (answer: Answer) => void
 }
 
 /**
@@ -135,10 +144,18 @@ export interface ListenOptions {
  * the markers. Returns what removes the listeners.
  */
 export const listen = (root: Element, options: ListenOptions): (() => void) => {
+  // The bindings name most events; a marker whose handlers the page could not
+  // name is `*` alone, so the markers themselves say the rest.
   const events = new Set(options.bindings.map(binding => binding.event))
+  for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
+    for (const { name } of Array.from(element.attributes)) {
+      if (name.startsWith(BINDING_ATTRIBUTE)) events.add(name.slice(BINDING_ATTRIBUTE.length))
+    }
+  }
   const handler = (event: Event) => {
     const type = event.type
     const attribute = `${BINDING_ATTRIBUTE}${type}`
+    const messages: Array<unknown> = []
     for (const node of event.composedPath()) {
       if (!(node instanceof Element)) continue
       const tokens = node.getAttribute(attribute)
@@ -148,7 +165,7 @@ export const listen = (root: Element, options: ListenOptions): (() => void) => {
       if (tokens !== null) {
         for (const token of tokens.split(' ')) {
           if (token === UNNAMED_HANDLER) {
-            options.onUnnamed(event, node)
+            options.onAnswer({ event, messages, unnamed: node })
             return
           }
           const binding = options.bindings[Number(token)]
@@ -164,11 +181,12 @@ export const listen = (root: Element, options: ListenOptions): (() => void) => {
             }
             if (click.propagation === 'Stop') stopped = true
           }
-          options.onMessage(messageFor(binding, event), binding)
+          messages.push(messageFor(binding, event))
         }
       }
-      if (stopped || node === root) return
+      if (stopped || node === root) break
     }
+    options.onAnswer({ event, messages })
   }
   for (const type of events) root.addEventListener(type, handler, true)
   return () => {

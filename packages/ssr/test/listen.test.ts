@@ -37,8 +37,10 @@ const served = async (
   const unnamed: Array<Element> = []
   const stop = Resume.listen(root, {
     bindings,
-    onMessage: message => messages.push(message),
-    onUnnamed: (_event, element) => unnamed.push(element),
+    onAnswer: answer => {
+      messages.push(...answer.messages)
+      if (answer.unnamed !== undefined) unnamed.push(answer.unnamed)
+    },
   })
   return { root, bindings, messages, unnamed, stop }
 }

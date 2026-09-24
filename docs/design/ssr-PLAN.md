@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A and B done. Next: Phases C to F. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A, B and C done. Next: Phases D to F. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -100,8 +100,10 @@ claims checked against the published 0.163.0 declarations:
   Model restored, which skips adoption. Same behaviour, new name; the risk
   below uses it.
 - **Messages buffered during boot now reach Subscriptions and Managed
-  Resources** (0.163). The resumable track's `EagerStartRequired` may have been
-  working around this bug rather than boot order; Phase C finds out.
+  Resources** (0.163). Phase C found `EagerStartRequired` is about boot
+  order, not buffering: a Subscription that ticks from its start, or a
+  resource that opens at boot, does so late on a deferred page whatever the
+  runtime buffers, so the rule stands as decision 10 has it.
 - **The hydrate-without-`init` workaround is unchanged.** The runtime only
   renamed `hmrModel` to `preservedModel`. `flagsTrap.test.ts` pins the Flags
   half and must stay green through the upgrade.
@@ -721,6 +723,40 @@ this plan's next track, in its order, and it is the source for their detail:
   boot-buffer fix narrows the rule further. The plan's `boot` Commands run at
   boot, so with deferral a `Mirror.kv` restore waits for the first
   interaction; that is the application's choice to make with `start`.
+
+  **Done.** `start` and `deferrable` on `SSR.plan`, not on `SSR.hydrate`: the
+  server's refusal reads them, and a page is served for one start. `deferBoot`
+  in `src/index.ts`, `EagerStartRequired` in `SSR.render`, six test files (one
+  document each) and twelve mutations each turning one red. Found on the way:
+  - **Foldkit's hydrate commits within the booting event's dispatch.** It
+    runs the first render before returning, adopting the page and attaching
+    its listeners, so the event still in flight reaches the live page. The
+    first cut waited for the first patch with a `MutationObserver` and
+    dispatched an unanswered event again; both were unobservable, and the
+    probe showed why. Now a completed answer is queued and the event stopped,
+    so the live page does not count it twice, and an answer that met a `*`
+    queues nothing and lets the event through. A test with a bubbling button
+    fails if either half goes. This leans on the render being synchronous,
+    which `deferredUnnamedOnly.test.ts` pins.
+  - **Every Subscription entry counts as active.** Foldkit starts each
+    entry's stream at boot whatever its dependencies, so no Model can make one
+    inactive; only a Managed Resource has a Model-dependent activation
+    (`modelToMaybeRequirements`).
+  - **Replay is a Subscription entry**, `foldkit-ssr.replay`, added to the
+    program at boot, so the queued Messages go through Foldkit's own queue in
+    order after its first render, with no second dispatch path.
+  - **Remote marks its entries deferrable itself**, with a symbol on each
+    entry `Data.subscriptions` and the fold produce, and its part's
+    `deferrable(key, entry)` reads it: the declaration travels with the
+    package that knows its entries are safe to start late.
+  - **`Resume.listen` answers per event, not per binding**: `onAnswer({ event,
+    messages, unnamed? })`. A boot decision needs the whole answer, and a
+    parent's Messages must not be queued when a child's `*` sends the event to
+    the live page. It also listens for events only a `*` names, which the
+    bindings cannot tell it; the markers do.
+  - A control typed into before boot needs no reset: hydration patches its
+    value to the Model's and the replay brings the text back, and the test
+    that types first pins that the input is adopted, not rebuilt.
 - **D. Coverage and static refusal.** Phase 3's check gains the Message side: a
   binding whose Message no active Surface lists in `messages` is `Uncovered`,
   a page with bindings and no `surfaces` is refused, and a binding inside
@@ -785,13 +821,13 @@ These wait on something outside this repository, and are not scheduled:
 - **The resumable track leans on three Foldkit internals**: that the first
   patch removes attributes the browser's view does not assert, that a
   control's value differing from the vnode is patched to the Model's, and that
-  the root's app attribute is removed just before the first committed patch.
-  None is an API. Each gets a test that fails the day it changes.
-- **The pre-boot window.** Between the first Message and Foldkit's first
-  committed patch, events are queued by the delegated listeners, which are
-  removed in that commit. A double dispatch or a lost event there is the
-  resumable track's likeliest bug, and effect-atom-jsx's first audit found
-  exactly that. Phase C tests fire during the window and count dispatches.
+  `Runtime.hydrate` commits its first render, listeners included, before it
+  returns. None is an API. Each gets a test that fails the day it changes.
+- **The pre-boot window.** The event that boots the page is still in dispatch
+  when the live page's listeners attach. A double dispatch or a lost event
+  there is the resumable track's likeliest bug, and effect-atom-jsx's first
+  audit found exactly that. Phase C's tests fire that event and count what
+  the Model saw.
 - **Foldkit's server module is experimental**, and `handleRequest`,
   `EntryResult` and `toResponse` say so. Phase 6 wraps as little of them as it
   can.

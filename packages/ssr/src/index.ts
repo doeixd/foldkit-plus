@@ -11,7 +11,7 @@
  * Rendering and hydrating stay Foldkit's own: this package adds only the
  * handover.
  */
-import { Cause, Effect, Exit, Result, Schema } from 'effect'
+import { Cause, Effect, Exit, Option, Result, Schema, Stream } from 'effect'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
@@ -78,7 +78,18 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly parts: ReadonlyArray<ResumePart<Model>>
   /** The application's Message Schema, which encodes the page's bindings. */
   readonly Message?: Schema.Top | undefined
+  /**
+   * When the browser boots the runtime: `now` on load, `idle` when the browser
+   * is idle or on the first interaction, `on-interaction` on the first only.
+   * Until then the page answers events from its bindings and queues the
+   * Messages, which replay once the runtime has adopted the page.
+   */
+  readonly start: Start
+  /** Subscription and Managed Resource keys that may start late (decision 10). */
+  readonly deferrable: ReadonlyArray<string>
 }
+
+export type Start = 'now' | 'idle' | 'on-interaction'
 
 /**
  * A package's contribution to the envelope, for state the plan's slice cannot
@@ -98,6 +109,12 @@ export interface ResumePart<Model> {
     projections: ReadonlyArray<{ readonly metadata: Metadata }>,
   ) => unknown
   readonly restore: (model: Model, value: unknown) => Result.Result<Model, string>
+  /**
+   * Whether a Subscription or Managed Resource entry of this part's package
+   * may start late, when a deferred boot is asked for. A part knows its own
+   * entries; nothing is deferrable by default.
+   */
+  readonly deferrable?: ((key: string, entry: unknown) => boolean) | undefined
 }
 
 /** Why a page's resume envelope was refused. */
@@ -150,6 +167,8 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     readonly local?: ReadonlyArray<{ readonly dependency: ReadonlyArray<string> }> | undefined
     readonly surfaces?: ReadonlyArray<ActiveSurface<Model>> | undefined
     readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
+    readonly start?: Start | undefined
+    readonly deferrable?: ReadonlyArray<string> | undefined
   },
 ): ResumePlan<Model, Fields, Commands> => {
   const surfaces = config.surfaces ?? []
@@ -177,6 +196,8 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     surfaces,
     parts,
     ...(application.Message === undefined ? {} : { Message: application.Message }),
+    start: config.start ?? 'now',
+    deferrable: config.deferrable ?? [],
   }
 }
 
@@ -517,6 +538,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UngeneratablePath',
     'UnrestorablePart',
     'UnencodableBinding',
+    'EagerStartRequired',
   ]),
   message: Schema.String,
 }) {}
@@ -590,6 +612,8 @@ export interface ResumableConfig<Model> {
   readonly container: HTMLElement | null
   readonly Flags?: unknown
   readonly routing?: unknown
+  readonly subscriptions?: Readonly<Record<string, unknown>> | undefined
+  readonly managedResources?: Readonly<Record<string, unknown>> | undefined
 }
 
 /**
@@ -695,6 +719,36 @@ const changedBindings = (
   )
 
 /**
+ * The Subscription and Managed Resource entries that would start late under a
+ * deferred boot and are not declared deferrable, by the plan or by a part.
+ * Foldkit starts every Subscription's stream at boot, so every entry counts; a
+ * Managed Resource counts when the Model asks for it.
+ */
+const eagerEntries = <Model, Fields extends Schema.Struct.Fields>(
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+): ReadonlyArray<string> => {
+  if (plan.start === 'now') return []
+  const declared = (key: string, entry: unknown) =>
+    plan.deferrable.includes(key) || plan.parts.some(part => part.deferrable?.(key, entry) === true)
+  const subscriptions = Object.entries(config.subscriptions ?? {}).filter(
+    ([key, entry]) => !declared(key, entry),
+  )
+  const resources = Object.entries(config.managedResources ?? {}).filter(([key, entry]) => {
+    const asks = (
+      entry as { modelToMaybeRequirements?: (model: Model) => unknown }
+    ).modelToMaybeRequirements?.(model)
+    const active = Option.isOption(asks) ? Option.isSome(asks) : asks !== undefined
+    return active && !declared(key, entry)
+  })
+  return [
+    ...subscriptions.map(([key]) => `subscription "${key}"`),
+    ...resources.map(([key]) => `resource "${key}"`),
+  ]
+}
+
+/**
  * Renders a page on the server against a resume plan.
  *
  * The application's `init` runs once. Its Model's slice is round-tripped
@@ -772,6 +826,14 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       return yield* new ResumeUnsafe({ reason: 'UnrestorablePart', message: resumed.failure })
     }
     const browser = resumed.success
+
+    const eager = eagerEntries(config, plan, started.model)
+    if (eager.length > 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'EagerStartRequired',
+        message: `the plan starts ${plan.start}, and these would start late: ${eager.join(', ')}. Name each in the plan's deferrable, or start now`,
+      })
+    }
 
     const uncovered = shortfalls(coverage(plan, started.model, browser))
     if (uncovered.length > 0) {
@@ -1027,13 +1089,82 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     snapshots: snapshotsOf(root),
     reported: new Set(),
   }
-  adopt(
-    makeApplication({
-      ...withContext(startingFrom(config, { model, commands }), resuming),
-      container: root,
-    } as never),
-    { buildId: options.buildId },
-  )
+  const boot = (subscriptions: Readonly<Record<string, unknown>> = {}) =>
+    adopt(
+      makeApplication({
+        ...withContext(startingFrom(config, { model, commands }), resuming),
+        container: root,
+        subscriptions: { ...config.subscriptions, ...subscriptions },
+      } as never),
+      { buildId: options.buildId },
+    )
+  if (plan.start === 'now') {
+    boot()
+    return
+  }
+  const decoded = bindings(plan, document, root)
+  if (Result.isFailure(decoded)) {
+    console.error(`[foldkit-ssr] the page cannot resume: ${decoded.failure.message}`)
+    adopt(program({ model: plan.baseline }), { buildId: '' })
+    return
+  }
+  deferBoot(root, decoded.success, plan.start, boot)
+}
+
+/**
+ * Lets the page answer from its bindings until something asks for the
+ * runtime, then boots it with the answers queued for replay.
+ *
+ * The queued Messages reach the runtime through one Subscription entry added
+ * for the purpose, which waits for Foldkit's first committed patch: the
+ * renderer removes the root's app stamp just before that patch, so an
+ * observer of the attribute fires once the patch, and with it Foldkit's own
+ * listeners, are in place. Then the delegated listeners come off, an event the
+ * page could not answer is dispatched again for the live page, and the
+ * Messages replay in order, so the Model ends where an eager boot would have
+ * taken it.
+ */
+const deferBoot = (
+  root: HTMLElement,
+  decoded: ReadonlyArray<DecodedBinding>,
+  start: Exclude<Start, 'now'>,
+  boot: (subscriptions: Readonly<Record<string, unknown>>) => void,
+): void => {
+  const queue: Array<unknown> = []
+  let booted = false
+  // Foldkit's hydrate runs its first render before returning: it adopts the
+  // page and attaches its listeners. So the event that boots the page, still
+  // in dispatch, reaches the live page afterwards.
+  const stop = listen(root, {
+    bindings: decoded,
+    onAnswer: ({ event, messages, unnamed }) => {
+      // An answer the markers could not complete is left to the live page.
+      if (unnamed !== undefined) {
+        startNow()
+        return
+      }
+      // Answered here and replayed after boot: the live page must not answer
+      // this one as well.
+      queue.push(...messages)
+      startNow()
+      event.stopPropagation()
+    },
+  })
+  const replay = {
+    dependenciesSchema: Schema.Null,
+    modelToDependencies: () => null,
+    dependenciesToStream: () => Stream.fromIterable(queue),
+  }
+  const startNow = () => {
+    if (booted) return
+    booted = true
+    boot({ 'foldkit-ssr.replay': replay })
+    stop()
+  }
+  if (start === 'idle') {
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(startNow)
+    else setTimeout(startNow, 0)
+  }
 }
 
 /**

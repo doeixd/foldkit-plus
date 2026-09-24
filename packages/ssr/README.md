@@ -10,9 +10,10 @@ done: a page renders on the server or at build time and is served through
 Foldkit's fetch handler, the browser takes it over from the handed-over Model,
 a plan is checked against the Surfaces the browser reads, parts of the page can
 belong to the server alone, and Remote's data crosses with the page. Resumable
-pages, whose view waits for the first interaction, are being built: the first
-two steps, bindings the server's markup names and a listener that answers
-them before boot, are done.
+pages, whose view waits for the first interaction, are being built: bindings
+the server's markup names, a listener that answers them before boot, and the
+deferred boot itself are done; what remains is the coverage of their Messages
+and a server fallback.
 
 ## What it owns
 
@@ -282,7 +283,7 @@ resumes the page generated for `/about`, and `/other` is refused. A path with a
 query or fragment, or two paths that would be one file, are refused with
 `UngeneratablePath`.
 
-## Bindings: what each element causes (in progress)
+## Bindings: what each element causes
 
 A resumable page answers an interaction before its view has run. For that the
 page must say, in the server's markup, which Message each element causes. A
@@ -349,16 +350,62 @@ In the browser, `Resume.bindings(plan, document, root)` decodes the page's
 bindings through the application's Message Schema and checks every marker
 against them; a page whose entries are not the application's Messages, or
 whose markers name a binding it does not carry, is refused whole. Then
-`Resume.listen(root, { bindings, onMessage, onUnnamed })` answers events from
-the markers with one capture-phase listener per event type at the root, so
-`focus` and `blur` are caught too. It walks from the target to the root and
-dispatches each binding on the way, in the order Foldkit chains them, filling
-a hole from the event as the closure would, honouring `OnClick`'s
-`defaultAction`, `propagation` and `focusSelector`, and preventing a submit's
-default as `OnSubmit` does. At a `*` it stops and calls `onUnnamed`, because
-the live page does something there the page cannot describe. What the
-Messages do before the runtime exists, and when to boot, is deferred boot,
-the next phase.
+`Resume.listen(root, { bindings, onAnswer })` answers events from the markers
+with one capture-phase listener per event type at the root, so `focus` and
+`blur` are caught too. It walks from the target to the root and collects each
+binding's Message on the way, in the order Foldkit chains them, filling a hole
+from the event as the closure would, honouring `OnClick`'s `defaultAction`,
+`propagation` and `focusSelector`, and preventing a submit's default as
+`OnSubmit` does. Each event gets one answer, `{ event, messages, unnamed? }`;
+at a `*` the walk stops and the answer names that element as `unnamed`,
+because the live page does something there the page cannot describe. Both
+are what `SSR.hydrate` uses when the plan defers its boot.
+
+## Deferred boot: the page answers until the runtime is needed
+
+A plan says when the runtime starts:
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.post),
+  start: 'on-interaction', // or 'idle'; 'now' is the default
+})
+```
+
+With `'now'`, `SSR.hydrate` boots as before. Otherwise it decodes the page's
+bindings, listens, and boots on the first event they answer, or when the
+browser is idle. Foldkit's hydrate adopts the page during that event's
+dispatch, so the event that woke the page is not lost: an answer the markers
+completed is queued and replayed after boot, in order, through the same
+`update`, and the event stops there so the live page does not answer it
+again; an answer they could not complete, one that met a `*`, queues nothing
+and goes on to the live page, which alone can answer it. Either way the Model
+ends where an eager boot would have taken it. A page whose bindings are
+refused is contained, as any refused page is.
+
+What deferral cannot do is start a Subscription or a Managed Resource late
+without changing what the application does, so on the server `SSR.render`
+refuses a deferred plan while one of them would be active for the sent Model,
+naming each (`EagerStartRequired`). The plan declares by key the entries that
+may start late, and a part vouches for its own package's, as `Remote.resume`
+does for Remote's:
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.post),
+  parts: [Remote.resume(Data)], // Remote's entries start whenever the page does
+  start: 'idle',
+  deferrable: ['tick'], // this application's own clock may start late
+})
+```
+
+For the check to see them, the configuration passed to `SSR.render` carries
+the application's `subscriptions` and `managedResources`, as Foldkit's does.
+The plan's `boot` Commands run at boot, so with deferral a `Mirror.kv` restore
+waits for the first interaction; that is the application's choice to make with
+`start`.
 
 ## When a page is refused
 
@@ -504,3 +551,13 @@ const Message = defineMessageUnion({
   reported, so a parent is not answered alone; the listeners can be removed;
   and a marker naming no binding, an entry that is not a Message, or an
   entry for no event attribute each refuse the page.
+- **Phase C, deferred boot:** a page planned to start on interaction has no
+  runtime until the first event; what was typed before boot is in the Model
+  after it and the input it was typed into is adopted, not rebuilt; the click
+  that boots the page counts once, though the live page would have answered
+  it too; an event at a handler the page could not name boots it and is
+  answered by the live page alone, once, including an event no binding names;
+  after boot the live page answers, not the markers; `'idle'` boots without an
+  event. On the server a deferred plan is refused naming each Subscription,
+  and each Managed Resource the sent Model asks for, that would start late,
+  unless the plan declares it or Remote's part vouches for it.

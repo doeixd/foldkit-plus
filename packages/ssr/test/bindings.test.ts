@@ -25,8 +25,9 @@ describe('the resumable builder on the server', () => {
     expect(tag('search')).toContain(`${BINDING_ATTRIBUTE}input="1"`)
     expect(tag('title')).toContain(`${BINDING_ATTRIBUTE}change="2"`)
     expect(tag('keys')).toContain(`${BINDING_ATTRIBUTE}keydown="3"`)
+    expect(tag('plain')).toContain(`${BINDING_ATTRIBUTE}click="4"`)
     // A keyed element is marked like any other.
-    expect(tag('item')).toContain(`${BINDING_ATTRIBUTE}click="4"`)
+    expect(tag('item')).toContain(`${BINDING_ATTRIBUTE}click="5"`)
     // A closure is not data: the page marks that it does something it cannot name.
     expect(tag('closure')).toContain(`${BINDING_ATTRIBUTE}input="*"`)
   })
@@ -55,6 +56,7 @@ describe('the resumable builder on the server', () => {
         hole: ['key', 'modifiers'],
       },
       { attribute: 'OnClick', message: { _tag: 'Liked', id: 'p1' } },
+      { attribute: 'OnClick', message: { _tag: 'Liked', id: 'p1' } },
     ])
     for (const binding of bindingsOf(envelope)) {
       expect(() => Schema.decodeUnknownSync(Message)(binding.message)).not.toThrow()
@@ -71,7 +73,7 @@ describe('the resumable builder on the server', () => {
     )
     expect(refused).toMatchObject({ _tag: 'ResumeUnsafe', reason: 'ViewDependsOnUnsentState' })
     expect(refused.message).toContain(
-      'the view differs in its click binding on button#like, change binding on input#title, click binding on button#item when rendered',
+      'the view differs in its click binding on button#like, change binding on input#title, click binding on button#plain, click binding on button#item when rendered',
     )
   })
 

@@ -6,8 +6,9 @@ Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
 without rerunning `init`, a plan is checked against the Surfaces the browser
 reads, `SSR.static` regions belong to the server alone, and Remote's data
 crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
-and `Resume.view(render)` mark bindings, and `Resume.listen` answers them
-before boot; deferred boot itself is not built yet.
+and `Resume.view(render)` mark bindings, `Resume.listen` answers them before
+boot, and a plan's `start` defers the boot; Message coverage and a server
+fallback are not built yet.
 
 ## What it owns
 
@@ -82,9 +83,20 @@ SSR.hydrate(config, Editor, { buildId })
   the app's Message Schema (make it from `App`), else `UnencodableBinding`.
 - In the browser, `Resume.bindings(plan, document, root)` decodes the page's
   bindings and checks its markers (a `ResumeRefused` otherwise), then
-  `Resume.listen(root, { bindings, onMessage, onUnnamed })` dispatches each
-  binding an event reaches as Foldkit would, and calls `onUnnamed` at a `*`.
-  It returns the function that removes the listeners.
+  `Resume.listen(root, { bindings, onAnswer })` gives each event one answer,
+  `{ event, messages, unnamed? }`: the Messages its bindings dispatch in
+  Foldkit's order, and at a `*` the element it stopped at. It returns the
+  function that removes the listeners. `SSR.hydrate` uses both itself.
+- `start: 'idle' | 'on-interaction'` on the plan (default `'now'`) makes
+  `SSR.hydrate` answer from the markers and boot on the first event or when
+  idle. The booting event counts once: a completed answer is queued, replayed
+  after boot and stopped; one that met a `*` goes on to the live page. On the
+  server such a plan is refused (`EagerStartRequired`) naming each
+  Subscription, and each Managed Resource the sent Model asks for, that would
+  start late, unless `deferrable: ['key']` names it or a part vouches for it
+  (`Remote.resume` does for Remote's entries). Pass the app's `subscriptions`
+  and `managedResources` in the config given to `SSR.render` so the check sees
+  them.
   A helper that takes the builder is typed `ResumableBuilder<Message>`
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
