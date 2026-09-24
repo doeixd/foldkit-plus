@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM half — interpreter, event translation, HTML import — to `packages/richtext-dom`, and §118's first slice landed: the editor Bundle's view owns the host and the patch Command its `update` returns moves the DOM); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -1428,7 +1428,8 @@ document and how the parent handles the result without a second synchronized
 document copy or a delayed Command to commit half the transition. Cover parent
 document replacement and rejected edits as well as ordinary typing.
 
-**Proof result (track 1, `examples/richtext`).** The controlled mode works with
+**Proof result (track 1, proved in the harness, now `packages/richtext-dom`).** The
+controlled mode works with
 the current Bundle machinery, and the shape that makes it work is:
 
 ```text
@@ -1650,7 +1651,7 @@ email generation
 React codegen where supported
 ```
 
-**Implemented in the harness (`examples/richtext/src/view.ts`).**
+**Implemented (`packages/richtext-dom/src/view.ts`).**
 `renderDocument(document)` and `renderBlocks(blocks)` build ordinary Foldkit
 `Html` through `inertHtml`, so the read-only path dispatches nothing and owns no
 DOM: blocks become `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the same
@@ -3135,8 +3136,8 @@ or use centralized interpreters.
 placeholder, and text and attribute values are escaped so content cannot become
 markup. `toText` / `documentToText` give the plain-text projection.
 
-Import is a whitelist walk over a `DOMParser` tree (in `examples/richtext`,
-because the package stays DOM-free): known block and inline tags map to
+Import is a whitelist walk over a `DOMParser` tree (in `packages/richtext-dom`,
+because the core package stays DOM-free): known block and inline tags map to
 semantic blocks and marks, our own `data-*` attributes round-trip, every other
 element is unwrapped or dropped with a diagnostic, no attribute is ever
 interpreted, and `script`/`style`/`iframe` and friends are dropped with their
@@ -4072,9 +4073,11 @@ needs the Operations and position-mapping work from the list above, and
 nothing else below. Run three bounded feasibility proofs as parallel tracks
 that gate promotion, not discovery:
 
-1. Controlled Bundle (gates Phase 4): **done** — `examples/richtext` proves one
+1. Controlled Bundle (gates Phase 4): **done** — the editor Bundle proves one
    parent transition commits document and interaction state, including rejection
-   and external document replacement (§27). The browser half remains Phase 3.
+   and external document replacement (§27). §118's slices followed it: the view
+   renders the host and the patch Command moves the DOM, which was the browser
+   half Phase 3 left open.
 2. Stateful Form (gates Phase 5): **spiked** — `examples/form` shows a
    non-RichText stateful control working as a Bundle (Commands, a Subscription,
    a Resource) and pins exactly what the Form API cannot carry yet (§44).
@@ -4106,7 +4109,7 @@ with custom Nodes and Marks.
 
 Add HTML/plain-text serialization.
 
-**Built (private).** `examples/richtext/src/view.ts` renders a document or a
+**Built (private).** `packages/richtext-dom/src/view.ts` renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml`; `packages/richtext/src/html.ts`
 serializes HTML and plain text with escaping, unknown marks on `data-marks`, and
 unknown blocks as placeholders; `packages/richtext-dom/src/html.ts` imports HTML
@@ -4537,7 +4540,9 @@ That should be the constraint against which every API decision is evaluated.
 
 A verified inventory of what is not done, by phase. In this section:
 
-- **package** means `packages/richtext` (private, unpublished);
+- **package** means the core `packages/richtext` (private, unpublished); the DOM
+  package `packages/richtext-dom` and the Mixins family `packages/mixins-richtext`
+  are named where they matter;
 - **harness** means the private `examples/richtext` spike, which has no
   `package.json` and is not supported API;
 - **published** means usable by another workspace package.
@@ -4583,9 +4588,9 @@ Not done:
 
 ## Phase 2 — read-only renderer
 
-Exists as harness code (`examples/richtext/src/view.ts`): a `Document` or `Slice`
+In `packages/richtext-dom` (`foldkit-richtext-dom/view`): a `Document` or `Slice`
 becomes ordinary Foldkit `Html` through `inertHtml`, with no dispatch and no DOM
-ownership. Not published; promotion is part of Phase 4.
+ownership. Not published.
 
 ## Phase 3 — vertical editing slice
 
@@ -4594,8 +4599,8 @@ mapping, ChangeSet patching that preserves untouched element identity,
 `beforeinput`/`keydown` translation, IME composition commit and cancellation with
 `repair`, local undo, and copy/cut/paste over DOM clipboard events with a
 slice → HTML → text fallback. The DOM half — interpreter, event translation, and
-HTML import — is in `packages/richtext-dom`; the read-only view and the editable
-Bundle are still harness code.
+HTML import — is in `packages/richtext-dom`, and the read-only view and the
+editable Bundle followed it there.
 
 Not done:
 
@@ -4627,13 +4632,13 @@ keymap layers remain.
 Per item:
 
 ```text
-selection state           harness: in the Bundle's interaction state
-stored marks              harness: interaction state plus InsertText.marks
-history                   harness: snapshot History committed in the child
+selection state           the Bundle's interaction state
+stored marks              interaction state plus InsertText.marks
+history                   snapshot History committed in the child
 keymaps                   the adapter's built-ins, plus a `keymap` table an
                           application adds to or overrides; the editor's own
                           binding layer waits for a binding that needs it (§119)
-copy/paste                adapter only; not routed through the Bundle
+copy/paste                routed through the view's Messages (§118 slice 2)
 drag/drop                 not started
 mobile virtual keyboards  not started (Phase 3)
 toolbar integration       the mark buttons and their active rule
@@ -4696,15 +4701,17 @@ All unstarted:
 
 ## Verification note
 
-Absence claims were checked as follows: keyword search over
-`examples/richtext/src/*.ts` found no keymap, toolbar, slash, or drag/drop
-handling (the `drop` matches are DOM element and attribute cleanup); listing
-`packages/richtext/src/index.ts` gave the exported surface above; grep over
-`packages/richtext/src` and `examples/richtext/src` found no caller of
-`validate(` or `inspectKit(`, both application-facing; `packages/` contains only
-`richtext` (no renderer package); and `foldkit-metadata` appears in six package
-manifests, none of them richtext. Tests stand at 28 vitest files plus 2 type-test
-files in the package, and 5 in the harness.
+The absence claims above were checked when §115 was written, and several facts have
+moved since; the inventory above is the current one. Then: keyword search over the
+harness source (`examples/richtext/src/*.ts`, now `packages/richtext-dom`) found no
+keymap, toolbar, slash, or drag/drop handling; listing
+`packages/richtext/src/index.ts` gave the exported surface; grep over
+`packages/richtext/src` and the harness found no caller of `validate(` or
+`inspectKit(`, both application-facing; `packages/` held only `richtext` (no
+renderer package); and `foldkit-metadata` appeared in six package manifests, none of
+them richtext. Since then the DOM package and the Mixins family exist, the adapter
+gained a keymap table (§119) and a toolbar (§120), and `marksInRange` joined the
+core.
 
 ---
 
@@ -4794,9 +4801,9 @@ transform.ts    the touched-node walk that feeds mergeAdjacentRuns
 html.ts         renderBlock, toText
 kit.ts          validate's block loop
 migration.ts    migrate's walk
-harness         view.ts, controlled.ts
-richtext-dom    the interpreter, event translation, and HTML import
-                (moved out of the harness for Phase 4)
+harness         harness.ts (the browser page)
+richtext-dom    the interpreter, event translation, HTML import, the view, and the
+                editor (moved out of the harness for Phase 4)
 ```
 
 What does not change is anything that reads a single block's runs: position
@@ -4953,7 +4960,7 @@ what a transaction may *mean*.
 # 118. The editor as a Bundle with a view
 
 §115 kept the Phase 3 slice and the Bundle proof apart: `events.ts` produced
-commands, `controlled.ts` consumed Messages, and nothing owned the DOM from a
+commands, `editor-bundle.ts` consumed Messages, and nothing owned the DOM from a
 view. This decides how they meet, before the work of meeting them.
 
 ## What Foldkit gives a view
@@ -5010,7 +5017,7 @@ Command are identical, which is §27's requirement.
   `WeakMap` keyed by the element; `attachmentIn(host)` hands a patch Command the
   attachment, and `releaseMount` detaches and removes the subtree.
 - **A Message union covering the intent vocabulary — landed.** The proof's union
-  predated paste and selection. `examples/richtext/src/editor.ts` is now that
+  predated paste and selection. `packages/richtext-dom/src/editor.ts` is now that
   vocabulary and the `toMessage` translation into it, with a test over each intent
   and over the refusals; the proof imports the union instead of keeping a second.
 
@@ -5019,13 +5026,14 @@ Command are identical, which is §27's requirement.
 1. **Complete.** The editor Bundle carries a view: it renders the host element the
    patch Command finds, with `events` as its mount, and `update` returns the
    `RichText.patch` Command carrying the `ChangeSet` — §27's proof, now with a
-   browser half. `examples/richtext/test/editorView.test.ts` proves both ends:
+   browser half. `packages/richtext-dom/test/editorView.test.ts` proves both ends:
    `Scene` renders the host at its id, and running the Command the transition
    returned is what moves the DOM. The vocabulary, `attachEditor`, `events`,
    `mountInto`, `attachmentIn`, and `patchEditor` are the tests underneath.
 2. **Complete.** Paste and the undo/redo chords travel the same path as typing: the
    adapter reports them, `toMessage` maps them, `update` runs them, and the
-   Command renders the result. `test/editorView.test.ts` drives a real `paste`
+   Command renders the result. `packages/richtext-dom/test/editorView.test.ts` drives
+   a real `paste`
    event and the history chords through the view's own mount.
 3. **Complete.** The editor moved into `foldkit-richtext-dom`: the vocabulary and
    mount (`/editor`), the Bundle and its placement (`/editor-bundle`, which is why
