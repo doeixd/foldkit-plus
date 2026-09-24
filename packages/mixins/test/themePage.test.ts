@@ -91,14 +91,18 @@ describe('Theme.breakpointWidths', () => {
     expect(() =>
       Theme.breakpointWidths({ breakpoint: { print: '(orientation: landscape)' } }),
     ).toThrow(Diagnostics.DiagnosticError)
-    try {
-      Theme.breakpointWidths({ breakpoint: { print: 'print' } })
-    } catch (error) {
-      expect(error).toBeInstanceOf(Diagnostics.DiagnosticError)
-      if (error instanceof Diagnostics.DiagnosticError) {
-        expect(error.diagnostic.code).toBe('theme:unparseable-breakpoint')
-        expect(error.diagnostic.details).toEqual({ name: 'print', query: 'print' })
+    const thrown = (() => {
+      try {
+        Theme.breakpointWidths({ breakpoint: { print: 'print' } })
+        return undefined
+      } catch (error) {
+        return error
       }
+    })()
+    expect(thrown).toBeInstanceOf(Diagnostics.DiagnosticError)
+    if (thrown instanceof Diagnostics.DiagnosticError) {
+      expect(thrown.diagnostic.code).toBe('theme:unparseable-breakpoint')
+      expect(thrown.diagnostic.details).toEqual({ name: 'print', query: 'print' })
     }
   })
 })
@@ -136,6 +140,13 @@ describe('Theme.oklch', () => {
     expect(brand.knob['accent-c-dark']).toBe('0.18')
     expect(brand.knob['surface-contrast']).toBe('65%')
     expect(brand.knob['success-h']).toBe('145')
+  })
+
+  it('writes computed knobs without float noise', () => {
+    expect(brand.knob['surface-c-dark']).toBe('0.02')
+    const loud = Theme.oklch({ accent: { h: 0, c: 0.27, l: '60%' }, surfaceSaturation: 0.02 })
+    expect(loud.knob['accent-c-dark']).toBe('0.3')
+    expect(loud.knob['surface-c-dark']).toBe('0.0267')
   })
 
   it('every value outside knob is a reference expression over tokens that exist', () => {

@@ -2,7 +2,7 @@
  * A theme's tokens as `:root` custom properties, for the page stylesheet.
  * Unlayered: the page decides which layer with `Layers.in`.
  */
-import type { StyleValue } from '../styleValue.js'
+import { global, type StyleValue } from '../styleValue.js'
 import { VAR_PREFIX, type ThemeTokens } from './core.js'
 
 export interface RootOptions {
@@ -12,20 +12,13 @@ export interface RootOptions {
   readonly colorScheme?: 'light dark' | 'light' | 'dark'
 }
 
-const globalPiece = (css: string): StyleValue =>
-  Object.freeze({
-    classes: Object.freeze([]),
-    style: Object.freeze({}),
-    globalCss: Object.freeze([css]),
-  })
-
 /**
  * Every token as `--fk-group-name:value`, in authored order. `omit` is
  * matched token by token, not group by group: two themes can both carry a
  * `knob` group (the scales' density beside a palette's hues) and only the
  * names `omit` has are skipped.
  */
-export const declarations = (theme: ThemeTokens, omit?: ThemeTokens): ReadonlyArray<string> =>
+const declarations = (theme: ThemeTokens, omit?: ThemeTokens): ReadonlyArray<string> =>
   Object.entries(theme).flatMap(([group, names]) =>
     Object.entries(names).flatMap(([name, value]) =>
       omit !== undefined && Object.hasOwn(omit[group] ?? {}, name)
@@ -35,7 +28,7 @@ export const declarations = (theme: ThemeTokens, omit?: ThemeTokens): ReadonlyAr
   )
 
 export const root = (theme: ThemeTokens, options?: RootOptions): StyleValue =>
-  globalPiece(
+  global(
     `:root{${[...declarations(theme, options?.omit), `color-scheme:${options?.colorScheme ?? 'light dark'}`].join(';')}}`,
   )
 
@@ -46,4 +39,4 @@ export const root = (theme: ThemeTokens, options?: RootOptions): StyleValue =>
  * one is active is the Model's fact; this only says what it means.
  */
 export const scoped = (selector: string, overrides: ThemeTokens): StyleValue =>
-  globalPiece(`${selector}{${declarations(overrides).join(';')}}`)
+  global(`${selector}{${declarations(overrides).join(';')}}`)

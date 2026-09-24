@@ -36,6 +36,8 @@ export interface OklchKnobs {
 }
 
 const v = (group: string, name: string) => `var(--fk-${group}-${name})`
+/** A computed knob without float noise: `0.02`, not `0.019999999999999997`. */
+const num = (value: number) => String(Number(value.toFixed(4)))
 const ld = (light: string, dark: string) => `light-dark(${light}, ${dark})`
 const offset = (amount: number) => `${amount < 0 ? '-' : '+'} ${Math.abs(amount)}`
 /** `oklch(from <color> …)` with the hue kept. */
@@ -104,12 +106,12 @@ export const oklch = (knobs: OklchKnobs) => {
       'accent-h': String(knobs.accent.h),
       'accent-c': String(knobs.accent.c),
       'accent-l': knobs.accent.l,
-      'accent-c-dark': String(knobs.accent.dark?.c ?? Math.min(0.4, knobs.accent.c + 0.03)),
+      'accent-c-dark': num(knobs.accent.dark?.c ?? Math.min(0.4, knobs.accent.c + 0.03)),
       'accent-l-dark': knobs.accent.dark?.l ?? '70%',
       'secondary-shift': String(knobs.secondaryHueShift ?? 60),
       'tertiary-shift': String(knobs.tertiaryHueShift ?? -90),
       'surface-c': String(surfaceSaturation),
-      'surface-c-dark': String(surfaceSaturation * (4 / 3)),
+      'surface-c-dark': num(surfaceSaturation * (4 / 3)),
       'surface-contrast': knobs.surfaceContrast ?? '65%',
       'contrast-factor': String(knobs.contrastFactor ?? 1),
       'base-l': '97.5%',
