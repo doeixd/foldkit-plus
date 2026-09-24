@@ -223,6 +223,8 @@ export const Crud = {
         active: {
           name,
           owner: where.data.contract.owner ?? {},
+          // A requirement, not a sender: the page's own Surfaces list its Messages.
+          messages: [],
           projectionOf,
         } satisfies ActiveSurface<Root>,
         value: (root: Root): RemoteData<Row> =>
@@ -404,6 +406,7 @@ export const Crud = {
           active: {
             name,
             owner: data.contract.owner ?? {},
+            messages: [],
             projectionOf,
           } satisfies ActiveSurface<Root>,
 
@@ -576,6 +579,7 @@ export const Crud = {
                 Object.fromEntries(rows.map(([key, list, id]) => [`${key}:${id}`, list.row(id)])),
               )
         },
+        messages: [],
       } satisfies ActiveSurface<Root>,
     })
   },
@@ -740,6 +744,7 @@ export const Crud = {
           active: {
             name,
             owner: data.contract.owner ?? {},
+            messages: [],
             projectionOf: root => {
               const { mode, target } = slice.get(root)
               return mode === 'edit' && target !== null ? data.get(current, target) : undefined

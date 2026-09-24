@@ -651,6 +651,12 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.
+- **`pnpm typecheck` goes quiet downstream of a red project.** `tsc -b` skips
+  every project that depends on one that failed, so while another package is
+  red (someone else's work in progress, say) a break your change causes in
+  `crud` or `cms` never prints. A field added to `ActiveSurface` shipped that
+  way and failed CI, which runs `typecheck:force`. When any project is red,
+  run `pnpm typecheck:force` and read past the errors that are not yours.
 - **Package and root typechecks can use different TypeScript versions.**
   `packages/bundles` resolves TS 5.7.2 while the root resolves 5.9.3, whose
   tighter match-arm inference failed `Idle`/`Interval` updates the package

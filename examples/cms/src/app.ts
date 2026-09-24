@@ -100,11 +100,13 @@ export const actives = {
   history: {
     name: 'History',
     owner: Data.contract.owner ?? {},
+    messages: [],
     projectionOf: history,
   },
   page: {
     name: 'PostPage',
     owner: Data.contract.owner ?? {},
+    messages: [],
     projectionOf: (model: Model) => {
       const id = PostEditor.pageId(model)
       return id === null ? undefined : postPage(id)

@@ -806,6 +806,8 @@ export const makeEditor =
         const active = (part: keyof typeof projections): ActiveSurface<Root> => ({
           name: `${name}.${part}`,
           owner: data.contract.owner ?? {},
+          // A requirement, not a sender: the page's own Surfaces list its Messages.
+          messages: [],
           projectionOf: projections[part],
         })
 
