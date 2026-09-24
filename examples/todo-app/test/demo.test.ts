@@ -108,4 +108,13 @@ describe('the todo app', () => {
     expect(stylesheet).toContain('@media (max-width: 30rem)')
     expect(stylesheet).toBe(stylesheet.trim())
   })
+
+  it('ships the layer order, the scales, and the palette in one sheet', () => {
+    expect(stylesheet.startsWith('@layer reset, tokens, theme, defaults,')).toBe(true)
+    expect(stylesheet).toContain('@layer tokens{:root{')
+    expect(stylesheet).toContain('@layer theme{:root{--fk-knob-accent-h:277;')
+    expect(stylesheet).toContain('--fk-text-done:')
+    // Each scale is declared once, in the tokens layer, not again with the palette.
+    expect(stylesheet.match(/--fk-space-md:/g)).toHaveLength(1)
+  })
 })

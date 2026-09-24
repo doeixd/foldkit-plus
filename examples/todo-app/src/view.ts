@@ -15,7 +15,8 @@
 import * as UiButton from '@foldkit/ui/button'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import type { Document, HtmlBuilder } from 'foldkit/html'
-import { Behavior, SlotView, Style } from 'foldkit-mixins'
+import { Behavior, Layers, SlotView, Style, Theme } from 'foldkit-mixins'
+import { Layout } from 'foldkit-mixins/layout'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Button as ButtonAdapter, Checkbox as CheckboxAdapter } from 'foldkit-mixins-ui'
 import { Surface } from 'foldkit-surface'
@@ -46,6 +47,7 @@ import {
   PageSlots,
   PageStyle,
   ToggleStyle,
+  theme,
   type ItemInput,
 } from './style.js'
 import { Board, Composer, Footer, Header } from './surface.js'
@@ -109,9 +111,12 @@ const BoardSlots = Slots.define({
 
 const BoardStyle = Style.forSlots(BoardSlots)(
   {
-    filters: Style.inline({ display: 'flex', gap: '0.35rem', margin: '1.25rem 0 0.5rem' }),
+    filters: Style.compose(
+      Layers.standard.in('layouts', Layout.cluster({ gap: '0.35rem' })),
+      Style.inline({ marginBottom: '0.5rem' }),
+    ),
     list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }),
-    empty: Style.inline({ margin: '0.5rem 0', color: 'var(--fk-color-muted)' }),
+    empty: Style.inline({ margin: '0.5rem 0', color: Theme.variable(theme, 'text', 'muted') }),
   },
   { name: 'BoardStyle' },
 )

@@ -12,6 +12,11 @@
  * - **Behavior**: interaction attached to a slot, built from the view's input
  *   and its builder, so it can only emit Messages the view may emit.
  *
+ * - **Theme and layout**: the palette is derived from one accent color by
+ *   `Theme.oklch`, and rows, toolbars and the page are `Layout` pieces. Both
+ *   ship in the page stylesheet at the bottom of this file, in cascade layers,
+ *   so every rule here (unlayered) wins over them.
+ *
  * None of this owns state. The views in `view.ts` publish the slots; this file
  * never sees markup.
  */
@@ -21,36 +26,44 @@ import {
   Behavior,
   Capability,
   Event,
+  Layers,
   Slot,
   Slots,
   Style,
   Theme,
   type StyleValue,
 } from 'foldkit-mixins'
-import { ButtonSlots, CheckboxSlots } from 'foldkit-mixins-ui'
+import { Defaults } from 'foldkit-mixins/defaults'
+import { Layout } from 'foldkit-mixins/layout'
+import { Theme as ThemePieces } from 'foldkit-mixins/theme'
+import { ButtonSlots, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
 import { Message, type Filter, type Priority, type Todo } from './app.js'
 import type { BoardMessage } from './surface.js'
 
-// --- theme: typed tokens that compile to CSS custom properties ----------------
+// --- theme: a palette from one accent color --------------------------------------
 
-export const theme = Theme.define({
-  color: {
-    bg: '#f6f7f9',
-    card: '#ffffff',
-    ink: '#1c2430',
-    muted: '#6b7686',
-    line: '#e3e7ee',
-    accent: '#4f46e5',
-    accentInk: '#ffffff',
-    danger: '#e5484d',
-    done: '#9aa4b2',
-    high: '#d97706',
-    low: '#0891b2',
-  },
-  radius: { card: '16px', control: '10px', pill: '999px' },
+/**
+ * Every color is derived in the browser from these knobs with relative color
+ * syntax and `light-dark()`, so the dark scheme needs no override of its own.
+ */
+const palette = ThemePieces.oklch({
+  accent: { h: 277, c: 0.23, l: '51%', dark: { l: '68%', c: 0.18 } },
+  feedback: { info: 220 },
+  // Near-neutral surfaces, as the hand-picked grays were.
+  surfaceSaturation: 0.006,
 })
 
-/** `var(--fk-color-accent)`: a token reference, checked against the theme. */
+/** What only this app names, derived from the palette so it follows the scheme too. */
+const own = Theme.define({
+  radius: { card: '16px', control: '10px' },
+  text: {
+    done: `color-mix(in oklch, ${Theme.variable(palette, 'text', 'muted')} 60%, ${Theme.variable(palette, 'surface', 'base')})`,
+  },
+})
+
+export const theme = Theme.compose(Theme.compose(ThemePieces.tokens, palette), own)
+
+/** `var(--fk-accent-default)`: a token reference, checked against the theme. */
 const v = <G extends keyof typeof theme & string>(
   group: G,
   name: keyof (typeof theme)[G] & string,
@@ -70,16 +83,13 @@ export const PageSlots = Slots.define({
 export const PageStyle = Style.forSlots(PageSlots)(
   {
     root: Style.compose(
-      // The theme's tokens become custom properties on the root, so everything
-      // below reads them and a stylesheet can override them (dark mode lives in
-      // styles.css, as an override of these variables).
-      Theme.variables(theme),
       Style.class('app'),
+      Layers.standard.in('layouts', Layout.stack({ gap: '1.25rem' })),
       Style.inline({
         width: 'min(40rem, 100%)',
-        background: v('color', 'card'),
-        color: v('color', 'ink'),
-        border: `1px solid ${v('color', 'line')}`,
+        background: v('surface', 'base'),
+        color: v('text', 'default'),
+        border: `1px solid ${v('outline', 'subtle')}`,
         borderRadius: v('radius', 'card'),
         padding: '1.75rem',
         boxShadow: '0 12px 40px rgb(0 0 0 / 8%)',
@@ -104,12 +114,10 @@ export const HeaderSlots = Slots.define({
 
 export const HeaderStyle = Style.forSlots(HeaderSlots)(
   {
-    root: Style.inline({
-      display: 'flex',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
-      gap: '1rem',
-    }),
+    root: Layers.standard.in(
+      'layouts',
+      Layout.cluster({ justify: 'space-between', align: 'baseline', gap: '1rem' }),
+    ),
     title: Style.compose(
       control,
       Style.inline({
@@ -124,11 +132,11 @@ export const HeaderStyle = Style.forSlots(HeaderSlots)(
         minWidth: '0',
       }),
       Style.pseudo(':focus-visible', {
-        outline: `2px solid ${v('color', 'accent')}`,
+        outline: `2px solid ${v('outline', 'focus')}`,
         outlineOffset: '2px',
       }),
     ),
-    tally: Style.inline({ margin: '0', color: v('color', 'muted'), fontSize: '0.85rem' }),
+    tally: Style.inline({ margin: '0', color: v('text', 'muted'), fontSize: '0.85rem' }),
   },
   { name: 'HeaderStyle' },
 )
@@ -146,18 +154,18 @@ export const ComposerSlots = Slots.define({
 
 export const ComposerStyle = Style.forSlots(ComposerSlots)(
   {
-    root: Style.inline({ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }),
+    root: Layers.standard.in('layouts', Layout.cluster({ gap: '0.5rem', align: 'stretch' })),
     input: Style.compose(
       control,
       Style.inline({
         flex: '1',
         padding: '0.7rem 0.85rem',
-        border: `1px solid ${v('color', 'line')}`,
+        border: `1px solid ${v('outline', 'default')}`,
         background: 'transparent',
         color: 'inherit',
       }),
       Style.pseudo(':focus', {
-        outline: `2px solid ${v('color', 'accent')}`,
+        outline: `2px solid ${v('outline', 'focus')}`,
         outlineOffset: '1px',
       }),
     ),
@@ -166,28 +174,22 @@ export const ComposerStyle = Style.forSlots(ComposerSlots)(
 )
 
 /**
- * The Add button is a `@foldkit/ui` Button. The component builds the
- * accessible attribute bundle and owns the click; this style attaches to the
- * contract `foldkit-mixins-ui` publishes for it, so the component is never
- * copied to restyle it.
+ * The Add button is a `@foldkit/ui` Button drawn with the shipped Button
+ * recipe. The component builds the accessible attribute bundle and owns the
+ * click; the recipe attaches to the contract `foldkit-mixins-ui` publishes for
+ * it, and `extend` adjusts it here instead of forking it.
  */
-export const AddButtonStyle = Style.forSlots(ButtonSlots)(
-  {
-    button: Style.compose(
-      control,
-      Style.inline({
-        padding: '0.7rem 1.1rem',
-        border: '0',
-        background: v('color', 'accent'),
-        color: v('color', 'accentInk'),
-        fontWeight: '600',
-        cursor: 'pointer',
-      }),
-      Style.pseudo(':disabled', { opacity: '0.45', cursor: 'default' }),
-    ),
+const AddButton = Recipes.Button.extend({
+  base: {
+    button: Style.inline({
+      borderRadius: v('radius', 'control'),
+      padding: '0.7rem 1.1rem',
+      fontWeight: '600',
+    }),
   },
-  { name: 'AddButtonStyle' },
-)
+})
+
+export const AddButtonStyle = Style.forSlots(ButtonSlots)(AddButton(), { name: 'AddButtonStyle' })
 
 // --- filters: one slot, resolved once per filter with the filter as input --------
 
@@ -211,9 +213,9 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
       Style.inline({
         padding: '0.3rem 0.75rem',
         border: '1px solid transparent',
-        borderRadius: v('radius', 'pill'),
+        borderRadius: v('radius', 'full'),
         background: 'transparent',
-        color: v('color', 'muted'),
+        color: v('text', 'muted'),
         font: 'inherit',
         textTransform: 'capitalize',
         cursor: 'pointer',
@@ -223,12 +225,12 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
       Style.whenInput<FilterInput>(
         input => input.active,
         Style.inline({
-          borderColor: v('color', 'line'),
-          background: `color-mix(in srgb, ${v('color', 'accent')} 12%, transparent)`,
-          color: v('color', 'accent'),
+          borderColor: v('outline', 'subtle'),
+          background: v('accent', 'subtle'),
+          color: v('text', 'link'),
         }),
       ),
-      Style.pseudo(':hover', { color: v('color', 'ink') }),
+      Style.pseudo(':hover', { color: v('text', 'default') }),
     ),
   },
   { name: 'FilterStyle' },
@@ -279,7 +281,7 @@ const badge = Style.recipe({
     Style.class('badge'),
     Style.inline({
       border: '0',
-      borderRadius: v('radius', 'pill'),
+      borderRadius: v('radius', 'full'),
       padding: '0.1rem 0.55rem',
       font: 'inherit',
       fontSize: '0.75rem',
@@ -289,9 +291,9 @@ const badge = Style.recipe({
   ),
   variants: {
     priority: {
-      high: Style.inline({ color: v('color', 'high') }),
-      normal: Style.inline({ color: v('color', 'muted') }),
-      low: Style.inline({ color: v('color', 'low') }),
+      high: Style.inline({ color: v('warning', 'default') }),
+      normal: Style.inline({ color: v('text', 'muted') }),
+      low: Style.inline({ color: v('info', 'default') }),
     },
   },
   defaults: { priority: 'normal' },
@@ -303,23 +305,22 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
   {
     root: Style.compose(
       Style.class('item'),
+      Layers.standard.in('layouts', Layout.cluster({ gap: '0.75rem' })),
       Style.inline({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
+        flexWrap: 'nowrap',
         padding: '0.6rem 0',
-        borderTop: `1px solid ${v('color', 'line')}`,
+        borderTop: `1px solid ${v('outline', 'subtle')}`,
       }),
       // `nest` styles a descendant from the row's own class, so hovering the
       // row reveals its delete button without the view knowing.
       Style.nest(' .item-remove', { opacity: '0' }),
-      Style.nest(':hover .item-remove, :focus-within .item-remove', { opacity: '1' }),
+      Style.pseudo(':is(:hover, :focus-within) .item-remove', { opacity: '1' }),
     ),
     title: Style.compose(
       Style.inline({ flex: '1', cursor: 'text' }),
       Style.whenInput<ItemInput>(
         input => input.todo.completed,
-        Style.inline({ color: v('color', 'done'), textDecoration: 'line-through' }),
+        Style.inline({ color: v('text', 'done'), textDecoration: 'line-through' }),
       ),
     ),
     // The recipe picks the variant from the input, one piece per priority.
@@ -333,19 +334,19 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.inline({
         border: '0',
         background: 'transparent',
-        color: v('color', 'muted'),
+        color: v('text', 'muted'),
         fontSize: '1.2rem',
         lineHeight: '1',
         cursor: 'pointer',
       }),
-      Style.pseudo(':hover', { color: v('color', 'danger') }),
+      Style.pseudo(':hover', { color: v('error', 'default') }),
     ),
     editor: Style.compose(
       control,
       Style.inline({
         flex: '1',
         padding: '0.3rem 0.5rem',
-        border: `1px solid ${v('color', 'accent')}`,
+        border: `1px solid ${v('accent', 'default')}`,
         background: 'transparent',
         color: 'inherit',
       }),
@@ -383,19 +384,19 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
         height: '1.5rem',
         display: 'grid',
         placeItems: 'center',
-        border: `1px solid ${v('color', 'line')}`,
+        border: `1px solid color-mix(in oklch, ${v('text', 'muted')} 45%, transparent)`,
         borderRadius: '50%',
         background: 'transparent',
-        color: v('color', 'accent'),
+        color: v('accent', 'default'),
         cursor: 'pointer',
         padding: '0',
       }),
       Style.whenInput<ItemInput>(
         input => input.todo.completed,
-        Style.inline({ borderColor: v('color', 'accent') }),
+        Style.inline({ borderColor: v('accent', 'default') }),
       ),
       Style.pseudo(':focus-visible', {
-        outline: `2px solid ${v('color', 'accent')}`,
+        outline: `2px solid ${v('outline', 'focus')}`,
         outlineOffset: '2px',
       }),
     ),
@@ -412,17 +413,15 @@ export const FooterSlots = Slots.define({
 
 export const FooterStyle = Style.forSlots(FooterSlots)(
   {
-    root: Style.inline({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '1rem',
-      marginTop: '1rem',
-      paddingTop: '1rem',
-      borderTop: `1px solid ${v('color', 'line')}`,
-      color: v('color', 'muted'),
-      fontSize: '0.85rem',
-    }),
+    root: Style.compose(
+      Layers.standard.in('layouts', Layout.cluster({ justify: 'space-between', gap: '1rem' })),
+      Style.inline({
+        paddingTop: '1rem',
+        borderTop: `1px solid ${v('outline', 'subtle')}`,
+        color: v('text', 'muted'),
+        fontSize: '0.85rem',
+      }),
+    ),
     status: Style.inline({ margin: '0' }),
   },
   { name: 'FooterStyle' },
@@ -434,12 +433,12 @@ export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
       Style.inline({
         border: '0',
         background: 'transparent',
-        color: v('color', 'muted'),
+        color: v('text', 'muted'),
         font: 'inherit',
         cursor: 'pointer',
       }),
       Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
-      Style.pseudo(':not(:disabled):hover', { color: v('color', 'danger') }),
+      Style.pseudo(':not(:disabled):hover', { color: v('error', 'default') }),
     ),
   },
   { name: 'ClearButtonStyle' },
@@ -448,12 +447,20 @@ export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
 // --- the stylesheet ----------------------------------------------------------------
 
 /**
- * Every rule-based piece above (`pseudo`, `media`, `nest`) compiles to a class
- * named by a hash of its rule, so the same Style yields the same class on the
- * server and in the browser. This is the CSS those classes need; `client.ts`
- * injects it once.
+ * The page's one stylesheet, composed rather than configured: the layer order
+ * first, then the scales, the palette, the element defaults, and every rule
+ * piece above (`pseudo`, `media`, `nest`, layouts, the recipe), each compiled to
+ * a class named by a hash of its rule, so the server and the browser agree.
+ * `client.ts` injects it once.
  */
+const L = Layers.standard
+
 export const stylesheet = Style.stylesheet(
+  L.declare,
+  L.in('reset', Defaults.reset),
+  L.in('tokens', ThemePieces.root(ThemePieces.tokens)),
+  L.in('theme', ThemePieces.root(theme, { omit: ThemePieces.tokens })),
+  L.in('defaults', Defaults.body),
   PageStyle,
   HeaderStyle,
   ComposerStyle,

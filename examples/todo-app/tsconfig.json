@@ -13,6 +13,7 @@
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mirror": ["../../packages/mirror/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-mixins/*": ["../../packages/mixins/src/*.ts"],
       "foldkit-mixins-surface": ["../../packages/mixins-surface/src/index.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],

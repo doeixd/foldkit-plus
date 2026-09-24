@@ -85,9 +85,13 @@ describe('the mounted app', () => {
       expect(document.querySelector('[role="checkbox"]')).not.toBeNull()
       expect(document.querySelectorAll('[aria-selected="true"]')).toHaveLength(1)
 
-      // Theme tokens landed on the root as custom properties.
+      // The theme ships in the stylesheet on `:root`, not inline on the page, so
+      // a scheme or theme override in a later rule can still reach it.
       const root = container.querySelector<HTMLElement>('.app') ?? document.querySelector('.app')
-      expect(root?.getAttribute('style')).toContain('--fk-color-accent')
+      expect(root).not.toBeNull()
+      expect(root?.getAttribute('style') ?? '').not.toMatch(
+        /--fk-(knob|surface|text|accent)-[a-z-]+:/,
+      )
     } finally {
       await mounted.dispose()
       await Effect.runPromise(replica.close)

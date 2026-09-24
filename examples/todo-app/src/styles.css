@@ -1,45 +1,14 @@
 /*
- * Only what a component style cannot own: the page around the app, and the
- * dark-mode override of the theme's tokens. Everything inside `.app` is styled
- * by `style.ts`, whose `Theme.variables` puts these `--fk-*` properties on the
- * root element and whose rule-based pieces `client.ts` injects as a stylesheet.
+ * Only what a component style cannot own: where the app sits on the page.
+ * Colors, fonts, and the dark scheme come from the stylesheet `client.ts`
+ * injects (`style.ts`): the palette is `light-dark()` values on `:root`, so
+ * the scheme follows the browser with no override here.
  */
-:root {
-  color-scheme: light dark;
-}
-
-* {
-  box-sizing: border-box;
-}
-
 body {
   margin: 0;
   min-height: 100vh;
   display: grid;
   place-items: start center;
   padding: 4rem 1rem;
-  background: #f6f7f9;
-  font:
-    16px/1.5 ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #0e1116;
-  }
-
-  /* Theme tokens are custom properties, so a mode is an override, not a fork. */
-  .app {
-    --fk-color-bg: #0e1116;
-    --fk-color-card: #171b22;
-    --fk-color-ink: #e7ebf0;
-    --fk-color-muted: #97a1b0;
-    --fk-color-line: #262c36;
-    --fk-color-accent: #7c7bf5;
-    --fk-color-done: #6b7686;
-  }
+  background: var(--fk-surface-muted, Canvas);
 }
