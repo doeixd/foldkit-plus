@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
   application,
+  patched,
   pressed,
   redone,
   replaceChangeSet,
@@ -62,10 +63,12 @@ describe('one transition commits document and interaction state', () => {
     const after = step(before, typed('!'))
     expect(after.document.children[0]?.children[0]?.text).toBe('ab!')
     expect(after.editor.selection).toEqual(caret('a', 3))
-    // The parent holds exactly one document; the editor field is interaction only.
+    // The parent holds exactly one document; the editor field is the state the
+    // child cannot own: interaction, its identity counter, and its host binding.
     expect(Object.keys(after).sort()).toEqual(['document', 'editor'])
     expect(Object.keys(after.editor).sort()).toEqual([
       'history',
+      'hostId',
       'nextId',
       'selection',
       'storedMarks',
@@ -218,6 +221,7 @@ describe('rejection and external replacement', () => {
         nextId: before.editor.nextId,
         history: RichText.emptyHistory,
         storedMarks: null,
+        hostId: before.editor.hostId,
       },
     }
     const after = step(replaced, typed('!'))
@@ -315,5 +319,19 @@ describe('stored marks', () => {
     // Nothing is stored and nothing is typed, so the document and caret hold.
     expect(after).toEqual(before)
     expect(after.document).toBe(before.document)
+  })
+})
+
+describe('the patch acknowledgement', () => {
+  it('settles without another command or a change', () => {
+    const before = start(caret('a', 2))
+    const after = update(before, patched())
+    expect(after.model).toEqual(before)
+    expect(after.commands ?? []).toEqual([])
+  })
+
+  it('renders an undo too, which replaces the document wholesale', () => {
+    const after = update(step(start(caret('a', 2)), typed('!')), undone())
+    expect(after.commands?.[0]?.name).toBe('RichText.patch')
   })
 })

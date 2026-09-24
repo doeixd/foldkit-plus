@@ -7,11 +7,13 @@
  * ownership can hold a rich-text editor without a second synchronized document
  * copy or a Command that commits half the transition.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
-import { Message } from './editor.js'
+import * as Submodel from 'foldkit/submodel'
+import type * as Update from 'foldkit/update'
+import { events, Message, patchEditor } from './editor.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -22,6 +24,12 @@ export const EditorState = Schema.Struct({
   history: RichText.History,
   /** Null inherits neighboring marks; an array explicitly sets them, even when empty. */
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
+  /**
+   * The host element the view renders and the patch Command finds (§118). It is
+   * per-placement, so it arrives as the Bundle's args and is carried here
+   * because `read` re-projects the whole child from the parent.
+   */
+  hostId: Schema.String,
 })
 export type EditorState = typeof EditorState.Type
 
@@ -38,6 +46,7 @@ export const EditorView = Schema.Struct({
   nextId: Schema.Number,
   history: RichText.History,
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
+  hostId: Schema.String,
 })
 export type EditorView = typeof EditorView.Type
 
@@ -76,7 +85,7 @@ export const replaceChangeSet = (
   }
 }
 
-type CommandMessage = Exclude<Message, { readonly _tag: 'Undone' | 'Redone' }>
+type CommandMessage = Exclude<Message, { readonly _tag: 'Undone' | 'Redone' | 'Patched' }>
 
 const toCommand = (message: CommandMessage): RichText.Command => {
   switch (message._tag) {
@@ -97,23 +106,44 @@ const toCommand = (message: CommandMessage): RichText.Command => {
   }
 }
 
+/**
+ * The rendering effect (§118): patch the host the view rendered, once the
+ * parent's transition has committed. It commits nothing, so the one-transition
+ * property the proof established is untouched.
+ */
+const patch = (hostId: string, state: RichText.EditorState, changeSet: RichText.ChangeSet) => ({
+  name: 'RichText.patch',
+  effect: Effect.as(
+    Effect.sync(() => {
+      patchEditor(hostId, state, changeSet)
+    }),
+    Message.Patched(),
+  ),
+})
+
 export const Editor = Bundle.make({
   name: 'RichTextEditor',
   Model: EditorView,
   Message,
+  args: Schema.Struct({ hostId: Schema.String }),
   // A read-only projection has no initial content of its own; the placement
   // writes only the interaction fields back, so this never becomes the document.
-  init: () => ({
+  // The host id is the one thing the child seeds: it is per-placement, and `read`
+  // re-projects everything else.
+  init: args => ({
     model: {
       document: RichText.Document.make({ version: 1, children: [] }),
       selection: null,
       nextId: 0,
       history: RichText.emptyHistory,
       storedMarks: null,
+      hostId: args.hostId,
     },
   }),
-  update: (model, message): { readonly model: EditorView; readonly outMessage: OutMessage } => {
+  update: (model, message): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
     const state: RichText.EditorState = { document: model.document, selection: model.selection }
+    // The patch Command's own completion: the render already happened.
+    if (message._tag === 'Patched') return { model }
     if (message._tag === 'Undone' || message._tag === 'Redone') {
       const restored =
         message._tag === 'Undone'
@@ -128,17 +158,15 @@ export const Editor = Bundle.make({
           },
         }
       }
+      const changeSet = replaceChangeSet(model.document, restored.state.document)
       return {
         model: {
           ...model,
           selection: restored.state.selection,
           history: restored.history,
         },
-        outMessage: {
-          _tag: 'Replaced',
-          state: restored.state,
-          changeSet: replaceChangeSet(model.document, restored.state.document),
-        },
+        outMessage: { _tag: 'Replaced', state: restored.state, changeSet },
+        commands: [patch(model.hostId, restored.state, changeSet)],
       }
     }
     let nextId = model.nextId
@@ -188,8 +216,14 @@ export const Editor = Bundle.make({
           : model.history,
       },
       outMessage: { _tag: 'Edited', state: result.state, changeSet: result.changeSet },
+      commands: [patch(model.hostId, result.state, result.changeSet)],
     }
   },
+  // The host element belongs to the view; everything below it belongs to the
+  // interpreter the mount attaches there.
+  view: Submodel.defineView<EditorView, Message>((model, h) =>
+    h.div([h.Id(model.hostId), h.OnMount(events({ content: model.document }))], []),
+  ),
 })
 
 const GotEditor = Link.wrapper('GotEditorMessage', Message)
@@ -211,6 +245,7 @@ const editorLink: Link<
       nextId: parent.editor.nextId,
       history: parent.editor.history,
       storedMarks: parent.editor.storedMarks,
+      hostId: parent.editor.hostId,
     }),
   // Only interaction state is written back: the document is not the child's.
   write: (parent, child) => ({
@@ -220,25 +255,34 @@ const editorLink: Link<
       nextId: child.nextId,
       history: child.history,
       storedMarks: child.storedMarks,
+      hostId: child.hostId,
     },
   }),
   wrapper: GotEditor,
   path: ['editor'],
 })
 
-export const editor = Editor.at(editorLink, {
-  // Runs with the child already written back, in the same parent transition.
-  onOut: (out: OutMessage) => (parent: Model) =>
-    out._tag === 'Edited' || out._tag === 'Replaced'
-      ? {
-          model: {
-            ...parent,
-            document: out.state.document,
-            editor: { ...parent.editor, selection: out.state.selection },
-          },
-        }
-      : { model: parent },
-})
+/**
+ * Places one editor, bound to the host element the view renders and the patch
+ * Command finds. Each placement picks its own id.
+ */
+export const editorAt = (hostId: string) =>
+  Editor.at(editorLink, {
+    args: { hostId },
+    // Runs with the child already written back, in the same parent transition.
+    onOut: (out: OutMessage) => (parent: Model) =>
+      out._tag === 'Edited' || out._tag === 'Replaced'
+        ? {
+            model: {
+              ...parent,
+              document: out.state.document,
+              editor: { ...parent.editor, selection: out.state.selection },
+            },
+          }
+        : { model: parent },
+  })
+
+export const editor = editorAt('richtext-editor')
 
 export const application = Bundle.assemble<Model, ParentMessage>()([editor])
 
@@ -254,3 +298,4 @@ export const selected = (selection: RichText.Selection | null): ParentMessage =>
   GotEditor.make(Message.Selected({ selection }))
 export const undone = (): ParentMessage => GotEditor.make(Message.Undone())
 export const redone = (): ParentMessage => GotEditor.make(Message.Redone())
+export const patched = (): ParentMessage => GotEditor.make(Message.Patched())

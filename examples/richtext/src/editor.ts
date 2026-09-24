@@ -23,8 +23,18 @@ export const Message = defineMessageUnion({
   Pasted: { slice: RichText.Slice },
   Undone: {},
   Redone: {},
+  /** The patch Command's completion: Foldkit Commands report a Message, and a
+   *  render has nothing to say beyond that it happened. */
+  Patched: {},
 })
 export type Message = typeof Message.Type
+
+/**
+ * What the DOM can ask for: the vocabulary without the patch acknowledgement,
+ * which only the Command produces. The adapter's stream is typed by this, so a
+ * mount's result union names every Message it can actually emit.
+ */
+export type EditorEvent = Exclude<Message, { readonly _tag: 'Patched' }>
 
 /**
  * What a browser intent means to an editor. The adapter reports only plain
@@ -32,7 +42,7 @@ export type Message = typeof Message.Type
  * losing them: what a marked insertion means is the editor's decision, not the
  * adapter's, and the adapter never has one to report.
  */
-export const toMessage = (command: RichText.Command): Message | undefined => {
+export const toMessage = (command: RichText.Command): EditorEvent | undefined => {
   switch (command.type) {
     case 'InsertText':
       return command.marks === undefined ? Message.Typed({ text: command.text }) : undefined
@@ -63,7 +73,7 @@ export const toMessage = (command: RichText.Command): Message | undefined => {
 export const attachEditor = (
   host: Element,
   content: RichText.Document,
-  emit: (message: Message) => void,
+  emit: (message: EditorEvent) => void,
 ) =>
   mountInto(host, content, {
     onIntent: command => {
@@ -107,7 +117,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.Redone,
   ],
   execute: ({ element, content }) =>
-    Stream.callback<Message>(queue =>
+    Stream.callback<EditorEvent>(queue =>
       Effect.acquireRelease(
         Effect.sync(() =>
           attachEditor(element, content, message => Queue.offerUnsafe(queue, message)),
