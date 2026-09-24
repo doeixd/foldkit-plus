@@ -4989,10 +4989,11 @@ Command are identical, which is §27's requirement.
 
 ## What the adapter still needs
 
-- **A selection channel.** §30 lists `selectionchange`, and the adapter does not
-  listen to it, so a caret move is never reported and the editor cannot follow the
-  caret. `intentFor` gains a `Selected` intent (and `intentFor` is where a
-  `selectionchange` becomes `{ preventDefault: false, command: SetSelection }`).
+- **A selection channel — landed.** §30 lists `selectionchange`, and the adapter
+  did not listen, so a caret move was never reported and the editor could not
+  follow the caret. `attach` now takes `onSelection` and reports a position the
+  application did not just commit, staying quiet while an IME owns the caret and
+  after `detach`. The editor Message that consumes it still has to exist.
 - **A host-element mount.** `mount(ownerDocument, content)` builds a detached
   root. A view needs the host: the mount appends the root into it and registers
   the handle for the patch Command.

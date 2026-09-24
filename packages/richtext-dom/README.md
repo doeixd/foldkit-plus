@@ -67,8 +67,11 @@ Read the calls literally:
   copy, cut, and paste, and reports each one it understands as intent. Everything
   it understands it `preventDefault`s, so the browser never mutates the DOM behind
   the document; an event it cannot honor yet is prevented with no intent rather
-  than allowed to drift. `attachment.sync(state, changeSet)` does the patch and
-  selection restore below in one call, and `detach()` removes the listeners.
+  than allowed to drift. `onSelection` reports a caret or range the application
+  did not just commit, so the editor can follow it; a position it did commit is
+  not reported back, and neither is anything while an IME owns the caret.
+  `attachment.sync(state, changeSet)` does the patch and selection restore below
+  in one call, and `detach()` removes the listeners.
 - `patch(dom, content, changeSet)` removes the identities the change set removed,
   re-renders the ones it marked dirty, and places inserted or moved elements in
   document order. Every other element is left alone.

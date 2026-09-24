@@ -156,6 +156,12 @@ export interface AttachOptions {
   /** Called for undo and redo, which are editor intents rather than commands. */
   readonly onHistory?: (direction: 'undo' | 'redo') => void
   /**
+   * Called when the caret or range moves to a position the application did not
+   * just commit. Without it the editor never learns where the caret is; the
+   * adapter cannot follow a selection it is not told about.
+   */
+  readonly onSelection?: (selection: RichText.Selection | null) => void
+  /**
    * When given, imported HTML is constrained to this vocabulary: a node kind
    * the Kit does not declare is degraded to a paragraph, never kept.
    */
@@ -172,6 +178,20 @@ export interface Attachment {
   readonly detach: () => void
 }
 
+const samePosition = (left: RichText.Position, right: RichText.Position): boolean =>
+  left.node === right.node && left.offset === right.offset
+
+const sameSelection = (
+  left: RichText.Selection | null,
+  right: RichText.Selection | null,
+): boolean => {
+  if (left === null || right === null) return left === right
+  if (left.type === 'Node' || right.type === 'Node') {
+    return left.type === 'Node' && right.type === 'Node' && left.node === right.node
+  }
+  return samePosition(left.anchor, right.anchor) && samePosition(left.focus, right.focus)
+}
+
 /**
  * Wires the owned subtree to an application. The adapter never decides what an
  * edit means: it translates events into commands, hands them to `onIntent`, and
@@ -180,6 +200,21 @@ export interface Attachment {
 export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let current = dom
   let composing = false
+  /**
+   * The selection the application last committed, or the adapter last reported.
+   * Restoring it fires `selectionchange`, so without this the adapter would
+   * report the position it had just been told as if a person had moved there.
+   * Affinity is ignored: it is derived from the range, not carried by it.
+   */
+  let lastSelection: RichText.Selection | null = null
+  const reportSelection = (): void => {
+    // While composing, the caret points into text the document does not have.
+    if (composing) return
+    const selection = readSelection(current)
+    if (sameSelection(selection, lastSelection)) return
+    lastSelection = selection
+    options.onSelection?.(selection)
+  }
   /**
    * The semantic selection as it was before the browser took over. The live
    * caret during composition points into text the document does not have, so
@@ -264,6 +299,10 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     options.onIntent({ type: 'Paste', slice })
   }
   const target = dom.root
+  // The caret belongs to the document, not the subtree: a click elsewhere on the
+  // page, or an arrow key, moves it without an event the root would see.
+  const ownerDocument = target.ownerDocument
+  ownerDocument.addEventListener('selectionchange', reportSelection)
   target.addEventListener('beforeinput', onEvent)
   target.addEventListener('keydown', onEvent)
   target.addEventListener('compositionstart', onCompositionStart)
@@ -276,9 +315,11 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     composing: () => composing,
     sync: (state, changeSet) => {
       current = patchInto(current, state.document, changeSet)
+      lastSelection = state.selection
       restoreSelection(current, state.selection)
     },
     detach: () => {
+      ownerDocument.removeEventListener('selectionchange', reportSelection)
       target.removeEventListener('beforeinput', onEvent)
       target.removeEventListener('keydown', onEvent)
       target.removeEventListener('compositionstart', onCompositionStart)

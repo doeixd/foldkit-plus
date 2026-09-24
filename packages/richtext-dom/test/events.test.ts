@@ -13,7 +13,7 @@ import {
   restoreSelection,
   SLICE_CLIPBOARD_TYPE,
 } from '../src/events.js'
-import { mount, repair, toText } from '../src/index.js'
+import { mount, positionToRange, repair, toText, type EditorDom } from '../src/index.js'
 
 const id = RichText.NodeId.make
 const at = (node: string, offset: number): RichText.Position => ({
@@ -553,5 +553,83 @@ describe('clipboard events', () => {
     expect(intents).toEqual([])
     attachment.detach()
     document.body.removeChild(attachment.current().root)
+  })
+})
+
+describe('reporting a caret move', () => {
+  const setup = () => {
+    const dom = mount(document, content())
+    document.body.append(dom.root)
+    const moves: Array<RichText.Selection | null> = []
+    const attachment = attach(dom, {
+      onIntent: () => {},
+      onSelection: selection => moves.push(selection),
+    })
+    return { dom, attachment, moves }
+  }
+  /** Node and offset only: affinity is derived from the range, not carried. */
+  const places = (moves: ReadonlyArray<RichText.Selection | null>) =>
+    moves.map(move =>
+      move !== null && move.type === 'Range'
+        ? [move.anchor.node, move.anchor.offset, move.focus.node, move.focus.offset]
+        : move,
+    )
+  /** What the browser does after a click or an arrow key. */
+  const moveCaret = (dom: EditorDom, node: string, offset: number): void => {
+    const range = positionToRange(dom, at(node, offset))
+    if (range === undefined) throw new Error('expected a range')
+    const live = window.getSelection()
+    if (live === null) throw new Error('expected a selection')
+    live.removeAllRanges()
+    live.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  }
+  const close = (attachment: ReturnType<typeof attach>): void => {
+    attachment.detach()
+    document.body.removeChild(attachment.current().root)
+  }
+  const noChange: RichText.ChangeSet = {
+    dirtyNodes: new Set(),
+    insertedNodes: new Set(),
+    removedNodes: new Set(),
+    textChanged: new Set(),
+    structureChanged: false,
+    selectionChanged: false,
+  }
+
+  it('reports every caret the application did not place', () => {
+    const { dom, attachment, moves } = setup()
+    moveCaret(dom, 'a', 1)
+    moveCaret(dom, 'b', 1)
+    expect(places(moves)).toEqual([
+      ['a', 1, 'a', 1],
+      ['b', 1, 'b', 1],
+    ])
+    close(attachment)
+  })
+
+  it('does not report the selection the application just committed', () => {
+    const { dom, attachment, moves } = setup()
+    attachment.sync({ document: dom.content, selection: caretAt(['a', 1]) }, noChange)
+    // The browser reports a programmatic restore too, and it is not news.
+    moveCaret(dom, 'a', 1)
+    expect(moves).toEqual([])
+    close(attachment)
+  })
+
+  it('stays quiet while an IME owns the caret', () => {
+    const { dom, attachment, moves } = setup()
+    dom.root.dispatchEvent(composition('compositionstart'))
+    moveCaret(dom, 'a', 1)
+    expect(moves).toEqual([])
+    close(attachment)
+  })
+
+  it('stops reporting once detached', () => {
+    const { dom, attachment, moves } = setup()
+    attachment.detach()
+    moveCaret(dom, 'a', 1)
+    expect(moves).toEqual([])
+    document.body.removeChild(dom.root)
   })
 })
