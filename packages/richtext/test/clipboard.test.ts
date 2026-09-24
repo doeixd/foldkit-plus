@@ -101,6 +101,112 @@ describe('copying a slice', () => {
   })
 })
 
+describe('copying from a nested block', () => {
+  const nested = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [{ type: 'Text', id: 'a', text: 'one', marks: [] }],
+            },
+            {
+              type: 'Paragraph',
+              id: 'li2',
+              children: [{ type: 'Text', id: 'b', text: 'two', marks: ['Bold'] }],
+            },
+          ],
+        },
+        {
+          type: 'Paragraph',
+          id: 'tail',
+          children: [{ type: 'Text', id: 't', text: 'tail', marks: [] }],
+        },
+      ],
+    })
+  const list = (slice: RichText.Slice) => {
+    const block = slice.blocks[0]
+    if (block?.type !== 'Node') throw new Error('expected a container')
+    return block
+  }
+
+  it('trims a range inside one nested run', () => {
+    const slice = RichText.sliceOf(nested(), range(['a', 1], ['a', 3]))!
+    expect(slice.blocks.map(block => block.id)).toEqual(['li1'])
+    expect(RichText.plainTextOf(slice)).toBe('ne')
+  })
+
+  it('takes a whole nested block for a node selection', () => {
+    const slice = RichText.sliceOf(nested(), { type: 'Node', node: id('li2') })!
+    expect(slice.blocks.map(block => block.id)).toEqual(['li2'])
+    expect(RichText.plainTextOf(slice)).toBe('two')
+  })
+
+  it('carries the container when a range crosses its children', () => {
+    const slice = RichText.sliceOf(nested(), range(['a', 1], ['b', 2]))!
+    // The list survives as the wrapper, with both items trimmed to the range.
+    expect(slice.blocks.map(block => block.id)).toEqual(['list'])
+    expect(list(slice).blocks?.map(block => block.id)).toEqual(['li1', 'li2'])
+    expect(list(slice).blocks?.[0]?.children[0]?.text).toBe('ne')
+    expect(list(slice).blocks?.[1]?.children[0]?.text).toBe('tw')
+    expect(list(slice).blocks?.[1]?.children[0]?.marks).toEqual(['Bold'])
+    expect(RichText.plainTextOf(slice)).toBe('ne\ntw')
+  })
+
+  it('leaves a container out when the range never reaches it', () => {
+    const slice = RichText.sliceOf(nested(), range(['t', 0], ['t', 4]))!
+    expect(slice.blocks.map(block => block.id)).toEqual(['tail'])
+    expect(RichText.plainTextOf(slice)).toBe('tail')
+  })
+
+  it('remints nested identities, so a paste cannot collide', () => {
+    const slice = RichText.sliceOf(nested(), range(['a', 0], ['b', 3]))!
+    const fresh = RichText.withFreshIds(slice, minted())
+    // Pre-order: container, its runs (none), then each child and its runs.
+    expect(list(fresh).id).toBe('c1')
+    expect(list(fresh).blocks?.map(block => [block.id, block.children.map(run => run.id)])).toEqual(
+      [
+        ['c2', ['c3']],
+        ['c4', ['c5']],
+      ],
+    )
+    // Every identity differs from the source, and the slice still decodes.
+    expect(RichText.deserializeSlice(RichText.serializeSlice(fresh))).toEqual(fresh)
+    expect(RichText.plainTextOf(fresh)).toBe('one\ntwo')
+  })
+
+  it('refuses a slice whose nested identities collide', () => {
+    expect(
+      RichText.deserializeSlice(
+        JSON.stringify({
+          version: 1,
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'List',
+              id: 'l',
+              props: {},
+              children: [],
+              blocks: [
+                { type: 'Paragraph', id: 'x', children: [] },
+                { type: 'Paragraph', id: 'x', children: [] },
+              ],
+            },
+          ],
+        }),
+      ),
+    ).toBeUndefined()
+  })
+})
+
 describe('slice identity', () => {
   it('remaps every identity so two pastes cannot collide', () => {
     const slice = RichText.sliceOf(document(), { type: 'Node', node: id('p') })!

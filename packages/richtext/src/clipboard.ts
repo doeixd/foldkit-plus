@@ -2,8 +2,15 @@ import { Schema } from 'effect'
 import {
   Block,
   NodeId,
+  blockAtPath,
+  compareRunPlaces,
+  eachBlock,
+  locateBlock,
+  locateRun,
+  pathKey,
+  type BlockPath,
   type Document,
-  type Position,
+  type RunPlace,
   type Selection,
   type Text,
 } from './document.js'
@@ -21,13 +28,14 @@ export const Slice = Schema.Struct({
 }).check(
   Schema.makeFilter(slice => {
     const ids = new Set<NodeId>()
-    for (const block of slice.blocks) {
-      for (const node of [block, ...block.children]) {
-        if (ids.has(node.id)) return 'Duplicate slice identity'
-        ids.add(node.id)
+    let duplicate = false
+    eachBlock(slice.blocks, block => {
+      for (const id of [block.id, ...block.children.map(run => run.id)]) {
+        if (ids.has(id)) duplicate = true
+        ids.add(id)
       }
-    }
-    return true
+    })
+    return !duplicate || 'Duplicate slice identity'
   }),
 )
 export type Slice = typeof Slice.Type
@@ -37,92 +45,135 @@ export const emptySlice: Slice = Object.freeze({ version: 1, blocks: [] })
 const decodeSlice = Schema.decodeUnknownSync(Slice, { onExcessProperty: 'error' })
 const encodeSlice = Schema.encodeSync(Slice)
 
-interface Located {
-  readonly block: Block
-  readonly index: number
-}
-
-const locate = (document: Document, node: NodeId): Located | undefined => {
-  for (const [index, block] of document.children.entries()) {
-    if (block.id === node) return { block, index }
-    if (block.children.some(run => run.id === node)) return { block, index }
-  }
-  return undefined
-}
-
-/** Orders a range's endpoints without losing the selection's direction. */
-const ordered = (
-  document: Document,
-  selection: Extract<Selection, { readonly type: 'Range' }>,
-): { readonly start: Position; readonly end: Position } | undefined => {
-  const anchor = locate(document, selection.anchor.node)
-  const focus = locate(document, selection.focus.node)
-  if (anchor === undefined || focus === undefined) return undefined
-  const after =
-    anchor.index !== focus.index
-      ? anchor.index > focus.index
-      : selection.anchor.offset > selection.focus.offset
-  return after
-    ? { start: selection.focus, end: selection.anchor }
-    : { start: selection.anchor, end: selection.focus }
-}
-
 const trim = (run: Text, from: number, to: number): Text => ({
   ...run,
   text: run.text.slice(from, to),
 })
 
+/** A covered span: the two endpoints, ordered, each with its offset in its run. */
+interface CoveredSpan {
+  readonly start: RunPlace & { readonly offset: number }
+  readonly end: RunPlace & { readonly offset: number }
+}
+
+/** Whether a block's subtree contains an endpoint, or sits between the two. */
+const inRange = (blockPath: BlockPath, span: CoveredSpan): boolean => {
+  const contains = (place: RunPlace): boolean =>
+    blockPath.length <= place.path.length &&
+    blockPath.every((index, depth) => place.path[depth] === index)
+  if (contains(span.start) || contains(span.end)) return true
+  const first = { path: blockPath, index: 0 }
+  return compareRunPlaces(first, span.start) > 0 && compareRunPlaces(first, span.end) < 0
+}
+
+/** The runs of one block that the span covers, trimmed to it. */
+const coveredRuns = (
+  block: Block,
+  blockPath: BlockPath,
+  span: CoveredSpan,
+): ReadonlyArray<Text> => {
+  const atStart = pathKey(blockPath) === pathKey(span.start.path)
+  const atEnd = pathKey(blockPath) === pathKey(span.end.path)
+  if (!atStart && !atEnd) return block.children
+  const from = atStart ? span.start.index : 0
+  const to = atEnd ? span.end.index : block.children.length - 1
+  const children: Array<Text> = []
+  for (const [index, run] of block.children.entries()) {
+    if (index < from || index > to) continue
+    const trimFrom = index === from && atStart ? span.start.offset : 0
+    const trimTo = index === to && atEnd ? span.end.offset : run.text.length
+    if (trimFrom >= trimTo) continue
+    children.push(trim(run, trimFrom, trimTo))
+  }
+  return children
+}
+
 /**
- * The semantic content a copy would take: whole blocks for a node selection,
- * and for a range only the covered part of each touched block, with runs
- * trimmed to the selection. Blocks the range never enters are left out, so a
- * partial copy never drags a paragraph along.
+ * The covered part of a block list: the blocks the span reaches, each trimmed to
+ * it. A container is kept with the children the span reaches, so copying across
+ * two list items carries the list rather than two loose paragraphs.
+ */
+const coveredBlocks = (
+  blocks: ReadonlyArray<Block>,
+  prefix: BlockPath,
+  span: CoveredSpan,
+): ReadonlyArray<Block> => {
+  const covered: Array<Block> = []
+  for (const [index, block] of blocks.entries()) {
+    const path = [...prefix, index]
+    if (!inRange(path, span)) continue
+    if (block.type === 'Unknown') {
+      covered.push(block)
+      continue
+    }
+    const children = coveredRuns(block, path, span)
+    if (block.type === 'Node' && block.blocks !== undefined) {
+      const nested = coveredBlocks(block.blocks, path, span)
+      if (children.length === 0 && nested.length === 0) continue
+      covered.push({ ...block, children, blocks: nested })
+      continue
+    }
+    if (children.length === 0) continue
+    covered.push({ ...block, children })
+  }
+  return covered
+}
+
+/**
+ * The semantic content a copy would take: a whole block for a node selection,
+ * and for a range only the covered part of what it reaches, with runs trimmed to
+ * the selection. Blocks the range never enters are left out, so a partial copy
+ * never drags a paragraph along.
  */
 export const sliceOf = (document: Document, selection: Selection | null): Slice | undefined => {
   if (selection === null) return undefined
   if (selection.type === 'Node') {
-    const located = locate(document, selection.node)
+    const located = locateBlock(document, selection.node)
     return located === undefined ? undefined : { version: 1, blocks: [located.block] }
   }
-  const span = ordered(document, selection)
-  if (span === undefined) return undefined
-  const startAt = locate(document, span.start.node)
-  const endAt = locate(document, span.end.node)
-  if (startAt === undefined || endAt === undefined) return undefined
-  const blocks: Array<Block> = []
-  for (const [index, block] of document.children.entries()) {
-    if (index < startAt.index || index > endAt.index) continue
-    if (block.type === 'Unknown') {
-      blocks.push(block)
-      continue
-    }
-    const firstRun =
-      index === startAt.index ? block.children.findIndex(run => run.id === span.start.node) : -1
-    const lastRun =
-      index === endAt.index ? block.children.findIndex(run => run.id === span.end.node) : -1
-    const children: Array<Text> = []
-    for (const [runIndex, run] of block.children.entries()) {
-      if (firstRun >= 0 && runIndex < firstRun) continue
-      if (lastRun >= 0 && runIndex > lastRun) continue
-      const from = runIndex === firstRun ? span.start.offset : 0
-      const to = runIndex === lastRun ? span.end.offset : run.text.length
-      if (from >= to) continue
-      children.push(trim(run, from, to))
-    }
-    if (children.length > 0) blocks.push({ ...block, children })
+  const anchor = locateRun(document, selection.anchor.node)
+  const focus = locateRun(document, selection.focus.node)
+  if (anchor === undefined || focus === undefined) return undefined
+  const anchorPlace = { ...anchor, offset: selection.anchor.offset }
+  const focusPlace = { ...focus, offset: selection.focus.offset }
+  const span: CoveredSpan =
+    compareRunPlaces(anchor, focus) <= 0
+      ? { start: anchorPlace, end: focusPlace }
+      : { start: focusPlace, end: anchorPlace }
+  // A span inside one block copies that block, as it does at the top level; a
+  // span across blocks keeps the containers that hold them, so copying across
+  // two list items carries the list.
+  if (pathKey(span.start.path) === pathKey(span.end.path)) {
+    const block = blockAtPath(document, span.start.path)
+    if (block === undefined || block.type === 'Unknown') return { version: 1, blocks: [] }
+    const children = coveredRuns(block, span.start.path, span)
+    return { version: 1, blocks: children.length === 0 ? [] : [{ ...block, children }] }
   }
-  return { version: 1, blocks }
+  return { version: 1, blocks: coveredBlocks(document.children, [], span) }
 }
 
-/** Plain text of a slice, one line per block; unknown blocks keep a placeholder. */
-export const plainTextOf = (slice: Slice): string =>
-  slice.blocks
-    .map(block =>
-      block.type === 'Unknown'
-        ? `[${block.originalType}]`
-        : block.children.map(run => run.text).join(''),
-    )
-    .join('\n')
+/**
+ * Plain text of a slice, one line per text block; unknown blocks keep a
+ * placeholder and a container contributes its children's lines.
+ */
+export const plainTextOf = (slice: Slice): string => {
+  const lines: Array<string> = []
+  const walk = (blocks: ReadonlyArray<Block>): void => {
+    for (const block of blocks) {
+      if (block.type === 'Unknown') {
+        lines.push(`[${block.originalType}]`)
+        continue
+      }
+      if (block.type === 'Node' && block.blocks !== undefined) {
+        walk(block.blocks)
+        continue
+      }
+      lines.push(block.children.map(run => run.text).join(''))
+    }
+  }
+  walk(slice.blocks)
+  return lines.join('\n')
+}
 
 /**
  * A slice from pasted plain text: one paragraph per line. Identities come from
@@ -145,14 +196,18 @@ export const sliceFromText = (text: string, mint: () => string): Slice => ({
 })
 
 /** The same content under fresh identities, so a paste can never collide. */
-export const withFreshIds = (slice: Slice, mint: () => string): Slice => ({
-  version: 1,
-  blocks: slice.blocks.map(block => ({
-    ...block,
-    id: NodeId.make(mint()),
-    children: block.children.map(run => ({ ...run, id: NodeId.make(mint()) })),
-  })),
-})
+export const withFreshIds = (slice: Slice, mint: () => string): Slice => {
+  // Pre-order: a block's identity, then its runs, then its nested blocks.
+  const freshBlock = (block: Block): Block => {
+    const id = NodeId.make(mint())
+    const children = block.children.map(run => ({ ...run, id: NodeId.make(mint()) }))
+    if (block.type === 'Node' && block.blocks !== undefined) {
+      return { ...block, id, children, blocks: block.blocks.map(freshBlock) }
+    }
+    return { ...block, id, children }
+  }
+  return { version: 1, blocks: slice.blocks.map(freshBlock) }
+}
 
 /** Encodes a slice for the clipboard. */
 export const serializeSlice = (slice: Slice): string => JSON.stringify(encodeSlice(slice))

@@ -4559,13 +4559,13 @@ Not done:
   position mapping, `locate`, every operation, normalization, HTML export and
   import, and both renderers. §13 defines the child-constraint vocabulary
   (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide,
-  and §116 decides the representation, the addressing, and the slice order. Its
-  model and codec have landed: a node block may carry nested blocks, nested
-  content decodes, round-trips, is counted, and is preserved when unknown, and
-  commands reach a run inside one — typing, grapheme deletion, and marks all work
-  at depth, while a join or placement inside a container is refused with
-  `InvalidParent` until slice 3. The clipboard and the interpreters that reach
-  into it are still to come.
+  and §116 decides the representation, the addressing, and the slice order. Slice
+  1 is complete: a node block may carry nested blocks, nested content decodes,
+  round-trips, is counted, and is preserved when unknown, commands reach a run
+  inside one — typing, grapheme deletion, marks, and clipboard all work at depth,
+  with a copy across a container's children carrying the container — and a join
+  or placement inside a container is refused with `InvalidParent` until slice 3.
+  The interpreters are still to come.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4805,15 +4805,16 @@ Landing order, each keeping the suite green:
 
 1. Model, codec, and reads: `blocks` on a node block, the recursive codec, limits,
    `inspect`, id uniqueness, the recursive walk for order, `locate`, and
-   `selectionIsValid`. **Landed**: the model, the codec, `preserveUnknownBlocks`,
-   `inspect`, the limits, id uniqueness, `findUnknownNodes`/`findUnknownMarks`,
-   `selectionIsValid`, `Node.read`, and the commands that reach a run wherever it
-   sits — `locate`, `ordered`, `covered`, `deleteRange`, and `apply`'s tree index,
-   which addresses blocks by path and copies each touched container once.
-   **Remaining**: `clipboard.ts`'s `sliceOf` and `plainTextOf`, the interpreters
-   (slice 2), and structural placement at depth (slice 3). Until slice 3, a
-   command that would join or place blocks inside a container is refused with
-   `InvalidParent` rather than half-applied.
+   `selectionIsValid`. **Complete.** The model, the codec,
+   `preserveUnknownBlocks`, `inspect`, the limits, id uniqueness,
+   `findUnknownNodes`/`findUnknownMarks`, `selectionIsValid`, `Node.read`, the
+   commands that reach a run wherever it sits (`locate`, `ordered`, `covered`,
+   `deleteRange`), `apply`'s tree index — blocks addressed by path, each touched
+   container copied once — and the clipboard (`sliceOf` keeps the container a
+   range crosses, `withFreshIds` remints nested identities, `plainTextOf` walks
+   the tree). **Remaining**: the interpreters (slice 2) and structural placement
+   at depth (slice 3). Until slice 3, a command that would join or place blocks
+   inside a container is refused with `InvalidParent` rather than half-applied.
 2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
    adapter.
 3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,

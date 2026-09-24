@@ -422,9 +422,10 @@ not yet drive parsing or `apply`.
   Nested content decodes, round-trips byte-equal, is counted by `inspect` and the
   decode limits, survives a deploy that lost its kind, and a selection or
   reference inside it resolves. Commands reach a run wherever it sits, so typing,
-  grapheme deletion, marks, stored marks, and undo work inside a container;
-  structural placement inside one is refused with `InvalidParent`, and the
-  interpreters do not render nested blocks yet.
+  grapheme deletion, marks, stored marks, undo, and the clipboard work inside a
+  container — a copy across its children carries the container — while structural
+  placement inside one is refused with `InvalidParent`, and the interpreters do
+  not render nested blocks yet.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.

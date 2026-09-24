@@ -275,6 +275,62 @@ export const eachBlock = (
   }
 }
 
+/** A run's place in document order: its block's path, then its index in that block. */
+export interface RunPlace {
+  readonly path: BlockPath
+  readonly index: number
+}
+
+/** A run with the identity it was found by. */
+export interface LocatedRun extends RunPlace {
+  readonly run: Text
+}
+
+/** Document order over run places: path first, then the run's index. */
+export const compareRunPlaces = (left: RunPlace, right: RunPlace): number => {
+  const shared = Math.min(left.path.length, right.path.length)
+  for (let index = 0; index < shared; index++) {
+    if (left.path[index] !== right.path[index]) return left.path[index]! - right.path[index]!
+  }
+  if (left.path.length !== right.path.length) return left.path.length - right.path.length
+  return left.index - right.index
+}
+
+/** The block a path addresses, or undefined when the path does not resolve. */
+export const blockAtPath = (document: Document, path: BlockPath): Block | undefined => {
+  let blocks: ReadonlyArray<Block> = document.children
+  let found: Block | undefined
+  for (const index of path) {
+    found = blocks[index]
+    if (found === undefined) return undefined
+    blocks = found.type === 'Node' && found.blocks !== undefined ? found.blocks : []
+  }
+  return found
+}
+
+/** The block with this identity, wherever it sits. */
+export const locateBlock = (
+  document: Document,
+  node: NodeId,
+): { readonly path: BlockPath; readonly block: Block } | undefined => {
+  let found: { readonly path: BlockPath; readonly block: Block } | undefined
+  eachBlock(document.children, (block, path) => {
+    if (found === undefined && block.id === node) found = { path, block }
+  })
+  return found
+}
+
+/** The run with this identity, wherever it sits. */
+export const locateRun = (document: Document, node: NodeId): LocatedRun | undefined => {
+  let found: LocatedRun | undefined
+  eachBlock(document.children, (block, path) => {
+    if (found !== undefined) return
+    const index = block.children.findIndex(run => run.id === node)
+    if (index >= 0) found = { path, index, run: block.children[index]! }
+  })
+  return found
+}
+
 /** Every node a block subtree owns, block and run alike, keyed by identity. */
 const indexNodes = (blocks: ReadonlyArray<Block>, nodes: Map<NodeId, Block | Text>): void => {
   eachBlock(blocks, block => {

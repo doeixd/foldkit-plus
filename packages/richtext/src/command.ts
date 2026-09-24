@@ -1,6 +1,9 @@
 import {
   NodeId,
+  blockAtPath,
+  compareRunPlaces,
   eachBlock,
+  locateRun,
   pathKey,
   type Block,
   type BlockPath,
@@ -64,48 +67,29 @@ interface Located {
   readonly marks: ReadonlyArray<RunMark>
 }
 
-/** Document order over a located run: path first, then the run's index. */
+/** Document order over a located run, by the shared place rule. */
 const locatedOrder = (
   left: { readonly path: BlockPath; readonly runIndex: number },
   right: { readonly path: BlockPath; readonly runIndex: number },
-): number => {
-  const shared = Math.min(left.path.length, right.path.length)
-  for (let index = 0; index < shared; index++) {
-    if (left.path[index] !== right.path[index]) return left.path[index]! - right.path[index]!
-  }
-  if (left.path.length !== right.path.length) return left.path.length - right.path.length
-  return left.runIndex - right.runIndex
-}
-
-/** The block at a path, or undefined when the path does not resolve. */
-const blockAtPath = (document: Document, path: BlockPath): Block | undefined => {
-  let blocks: ReadonlyArray<Block> = document.children
-  let found: Block | undefined
-  for (const index of path) {
-    found = blocks[index]
-    if (found === undefined) return undefined
-    blocks = found.type === 'Node' && found.blocks !== undefined ? found.blocks : []
-  }
-  return found
-}
+): number =>
+  compareRunPlaces(
+    { path: left.path, index: left.runIndex },
+    { path: right.path, index: right.runIndex },
+  )
 
 const locate = (document: Document, node: NodeId): Located | undefined => {
-  let found: Located | undefined
-  eachBlock(document.children, (block, path) => {
-    if (found !== undefined) return
-    const runIndex = block.children.findIndex(run => run.id === node)
-    if (runIndex < 0) return
-    const run = block.children[runIndex]!
-    found = {
-      path,
-      runIndex,
-      blockId: block.id,
-      id: run.id,
-      text: run.text,
-      marks: run.marks,
-    }
-  })
-  return found
+  const found = locateRun(document, node)
+  if (found === undefined) return undefined
+  const block = blockAtPath(document, found.path)
+  if (block === undefined) return undefined
+  return {
+    path: found.path,
+    runIndex: found.index,
+    blockId: block.id,
+    id: found.run.id,
+    text: found.run.text,
+    marks: found.run.marks,
+  }
 }
 
 const isCollapsed = (selection: Extract<Selection, { readonly type: 'Range' }>): boolean =>
