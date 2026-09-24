@@ -733,8 +733,9 @@ this plan's next track, in its order, and it is the source for their detail:
   'on-interaction'`, default `'now'`, with Messages queued before boot and
   replayed after Foldkit's first committed patch. `EagerStartRequired` refuses
   deferral while an entry active for the sent Model is not declared
-  deferrable (decision 10), naming it. Re-check on 0.163 whether the
-  boot-buffer fix narrows the rule further. The plan's `boot` Commands run at
+  deferrable (decision 10), naming it. The 0.163 boot-buffer fix does not
+  narrow the rule; see [what changed upstream](#what-changed-upstream-foldkit-0159-to-0163).
+  The plan's `boot` Commands run at
   boot, so with deferral a `Mirror.kv` restore waits for the first
   interaction; that is the application's choice to make with `start`.
 
