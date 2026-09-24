@@ -533,6 +533,14 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
 
 **Tests**
 
+- **A mutation killed by a red test proves nothing.** A test added between
+  two mutation runs was already failing, so the second run "killed" its
+  mutation for free. Confirm the suite is green before each run; the mutation
+  scripts now assert it.
+- **Read a library's handler table before describing its semantics.** A
+  comment said Foldkit keeps the last of two `OnClick`s on an element; its
+  `addDataOn` chains them all, so the resumable builder dropped bindings. Cite
+  the source line, or test it.
 - **A surviving mutation usually means redundancy, not missing coverage.** This
   has now happened three times: overlapping disposal guards, then a `release()`
   duplicating an `Effect.ensuring`. The fix is to delete the redundant guard, not
