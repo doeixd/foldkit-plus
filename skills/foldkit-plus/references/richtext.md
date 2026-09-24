@@ -95,7 +95,7 @@ vocabulary (`Typed`, `Entered`, `ToggledMark`, `Selected`, `Pasted`, `Undone`,
 element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
 element that host names.
 
-The read-only view (`examples/richtext/src/view.ts`) renders a document or a
+The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
 ownership — with the same element and attribute names the editable adapter uses.
 

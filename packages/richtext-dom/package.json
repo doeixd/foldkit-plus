@@ -26,6 +26,10 @@
     "./html": {
       "types": "./dist/html.d.mts",
       "import": "./dist/html.mjs"
+    },
+    "./view": {
+      "types": "./dist/view.d.mts",
+      "import": "./dist/view.mjs"
     }
   },
   "files": [

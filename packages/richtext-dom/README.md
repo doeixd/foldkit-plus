@@ -33,6 +33,7 @@ foldkit-richtext-dom          the interpreter: mount, patch, repair, position ma
 foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
+foldkit-richtext-dom/view     renderDocument, renderBlocks
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 ```
 
@@ -135,6 +136,23 @@ syncs the attachment it holds, and reports whether it patched — a missing host
 an editor that went away while the transition was in flight, not an error.
 `Patched` is that Command's own completion, because a Foldkit Command must return
 a Message.
+
+## The read-only renderer
+
+`view` renders a document or a slice as ordinary Foldkit `Html` through
+`inertHtml`, so it dispatches nothing and owns no DOM — the counterpart to the
+editable adapter, not a second editor:
+
+```ts
+const html = renderDocument(document) // a div of block elements
+renderBlocks(slice.blocks) // one element per block
+```
+
+Blocks become `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the same order
+the HTML serializer uses, unknown marks ride on a `span` with `data-marks`, and
+unknown blocks render as an inert `div data-unknown="Type"` placeholder. One
+caveat worth knowing: `h.DataAttribute` prefixes `data-` itself, so it takes the
+bare name (`DataAttribute('unknown', …)` → `data-unknown`).
 
 ## What it does not do
 
