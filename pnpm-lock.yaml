@@ -1047,6 +1047,34 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/mixins-richtext:
+    dependencies:
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../mixins
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../richtext
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../richtext-dom
+    devDependencies:
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+      foldkit:
+        specifier: 0.163.0
+        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/mixins-surface:
     devDependencies:
       '@effect/platform-browser':

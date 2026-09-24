@@ -94,6 +94,9 @@ undeclared node kinds, and its `keymap` adds or overrides chord bindings
 `foldkit-richtext-dom/toolbar` renders the marks as buttons (`marksToolbar`) that
 dispatch their Messages, each active when the caret carries it or every run the
 selection covers does (`markActive` is that rule on its own).
+`foldkit-mixins-richtext` draws that toolbar through Mixins slots instead
+(`MarkToolbarSlots`, `markToolbar<Message>()`), for an application that restyles or
+extends its parts.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `Selected`, `Pasted`, `Undone`,

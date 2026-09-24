@@ -5171,8 +5171,11 @@ real render, and falls back to a constructor input only if a placement rejects i
 
 ## Slices
 
-1. The mark toolbar family: the three slots, the input above, and tests through a
-   Scene render plus `SlotView.inertBuilder` for the resolved attributes.
+1. **Complete.** The mark toolbar family: `foldkit-mixins-richtext` publishes
+   `MarkToolbarSlots` (root, toolbar, button) and `markToolbar<Message>()`, with the
+   mark as each button's slot item `id`. The function input works — a plain SlotView
+   holds one — which answers the question above; a Style, a Behavior reading the
+   item, and a Scene click are all tested.
 2. The rest of §35's chrome — floating toolbar, link popover, block handle,
    placeholder, status — as slots, when a view needs them.
 3. The content slots (§35's content node rendering) once the adapter can accept

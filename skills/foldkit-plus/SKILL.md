@@ -47,6 +47,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 | A semantic rich-text document and pure text edits | the local Model | `foldkit-richtext` (foundation only, unpublished) | [richtext.md](references/richtext.md) |
 | An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (private spike) | [richtext.md](references/richtext.md) |
+| Rich-text editor chrome — the marks toolbar — drawn through slots | the view contract | `foldkit-mixins-richtext` (private spike) | [richtext.md](references/richtext.md) |
 
 Install the peers with the packages you pick, for example
 `pnpm add effect foldkit foldkit-surface foldkit-sync`. `foldkit-durable` needs

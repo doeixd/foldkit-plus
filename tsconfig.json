@@ -29,6 +29,7 @@
     { "path": "./packages/mixins-ui" },
     { "path": "./packages/mixins-surface" },
     { "path": "./packages/mixins-form" },
+    { "path": "./packages/mixins-richtext" },
     { "path": "./packages/mixins-crud" },
     { "path": "./packages/cms" },
     { "path": "./packages/cms-drizzle" },

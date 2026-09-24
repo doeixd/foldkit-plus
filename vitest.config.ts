@@ -117,6 +117,9 @@ export default defineConfig({
       'foldkit-mixins-form': fileURLToPath(
         new URL('./packages/mixins-form/src/index.ts', import.meta.url),
       ),
+      'foldkit-mixins-richtext': fileURLToPath(
+        new URL('./packages/mixins-richtext/src/index.ts', import.meta.url),
+      ),
       'foldkit-mixins-ui': fileURLToPath(
         new URL('./packages/mixins-ui/src/index.ts', import.meta.url),
       ),
