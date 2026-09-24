@@ -3,8 +3,8 @@
 `foldkit-richtext` is an unpublished workspace package. The application Model
 owns the document and local selection; the package supplies pure data validation
 and text transitions. It has no DOM editor, persistence runtime, or hidden store;
-the editable DOM interpreter is the separate private `foldkit-richtext-dom`
-package, and it too is a spike.
+the editable DOM adapter is the separate private `foldkit-richtext-dom` package,
+and it too is a spike.
 
 The current loop is `EditorState + Transaction → next state + ChangeSet + positionMap`,
 or a diagnostic with no partial result. Call `apply` inside the application's
@@ -55,8 +55,8 @@ container. An empty application node is accepted either way, because a document
 cannot say whether it is an atom or a run holder with no runs. The Kit is what
 `run` may add marks from; `apply` still takes no Kit, so a content contract is
 enforced at validation rather than at the operation. Parsing stays with the
-caller, and the harness parser maps `<ul>`/`<ol>`/`<li>` to a `List`/`ListItem`
-the Kit declares.
+caller, and `foldkit-richtext-dom`'s parser maps `<ul>`/`<ol>`/`<li>` to a
+`List`/`ListItem` the Kit declares.
 
 `History` is snapshot undo over `EditorState`, kept in the application Model:
 `commit(history, previous, { group })`, `undo`, `redo`, with `groupFor(command)`
@@ -72,18 +72,19 @@ end, and mid-block by splitting the block so trailing text stays below. `toHtml(
 `strong`/`em`/`code`, unknown marks as `data-marks`, unknown blocks as a
 placeholder, everything escaped) and `toText`/`documentToText` give plain text.
 
-HTML import is a whitelist walk over a `DOMParser` tree, in the harness
-(`examples/richtext/src/html.ts`) because the package stays DOM-free: known
-tags map to blocks and marks, `data-marks`/`data-unknown` round-trip, other
-elements are unwrapped or dropped with a diagnostic, attributes are never
-interpreted, and `script`/`style`/`iframe` are dropped with their content. A
-Kit passed to `attach` degrades undeclared node kinds.
-
-The editable DOM interpreter lives in `packages/richtext-dom` (private): `mount`
-builds an owned `contenteditable` subtree, `patch` applies a `ChangeSet` in place
-and keeps untouched element identity, `repair` recovers after an IME or an
-outside mutation, and `positionToRange`/`rangeToPosition` map a semantic
-`Position` to and from a DOM `Range`.
+HTML import and the editable adapter live in `packages/richtext-dom` (private),
+because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
+`DOMParser` tree: known tags map to blocks and marks, `data-marks`/`data-unknown`
+round-trip, other elements are unwrapped or dropped with a diagnostic, attributes
+are never interpreted, and `script`/`style`/`iframe` are dropped with their
+content. The adapter's `mount` builds an owned `contenteditable` subtree, `patch`
+applies a `ChangeSet` in place and keeps untouched element identity, `repair`
+recovers after an IME or an outside mutation,
+`positionToRange`/`rangeToPosition` map a semantic `Position` to and from a DOM
+`Range`, and `attach(dom, { onIntent })` turns `beforeinput`/`keydown`/composition
+and clipboard events into editor intent while preventing the browser from mutating
+the subtree behind the document. A Kit passed to `attach` degrades undeclared node
+kinds.
 
 The read-only view (`examples/richtext/src/view.ts`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM

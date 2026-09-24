@@ -13,7 +13,7 @@ import {
   rangeToPosition,
   repair,
   type EditorDom,
-} from 'foldkit-richtext-dom'
+} from './index.js'
 import { parseHtml } from './html.js'
 
 export interface Intent {

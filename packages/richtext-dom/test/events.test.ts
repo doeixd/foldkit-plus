@@ -6,7 +6,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { mount, repair, toText } from 'foldkit-richtext-dom'
 import {
   attach,
   intentFor,
@@ -14,6 +13,7 @@ import {
   restoreSelection,
   SLICE_CLIPBOARD_TYPE,
 } from '../src/events.js'
+import { mount, repair, toText } from '../src/index.js'
 
 const id = RichText.NodeId.make
 const at = (node: string, offset: number): RichText.Position => ({

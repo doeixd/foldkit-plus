@@ -5,7 +5,7 @@
  */
 import * as RichText from 'foldkit-richtext'
 import { mount, toText } from 'foldkit-richtext-dom'
-import { attach, readSelection, restoreSelection } from './events.js'
+import { attach, readSelection, restoreSelection } from 'foldkit-richtext-dom/events'
 
 const id = RichText.NodeId.make
 const at = (node: string, offset: number): RichText.Position => ({

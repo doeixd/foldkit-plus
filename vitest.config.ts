@@ -7,6 +7,13 @@ export default defineConfig({
       'foldkit-richtext': fileURLToPath(
         new URL('./packages/richtext/src/index.ts', import.meta.url),
       ),
+      // The subpaths before the bare package, so the more specific entry wins.
+      'foldkit-richtext-dom/events': fileURLToPath(
+        new URL('./packages/richtext-dom/src/events.ts', import.meta.url),
+      ),
+      'foldkit-richtext-dom/html': fileURLToPath(
+        new URL('./packages/richtext-dom/src/html.ts', import.meta.url),
+      ),
       'foldkit-richtext-dom': fileURLToPath(
         new URL('./packages/richtext-dom/src/index.ts', import.meta.url),
       ),

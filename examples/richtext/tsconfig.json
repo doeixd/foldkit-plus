@@ -9,7 +9,9 @@
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
-      "foldkit-richtext-dom": ["../../packages/richtext-dom/src/index.ts"]
+      "foldkit-richtext-dom": ["../../packages/richtext-dom/src/index.ts"],
+      "foldkit-richtext-dom/events": ["../../packages/richtext-dom/src/events.ts"],
+      "foldkit-richtext-dom/html": ["../../packages/richtext-dom/src/html.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
