@@ -5087,11 +5087,11 @@ editor's own state, and the button reads them first (a caret carrying Bold with
 nothing selected lights the button).
 
 The buttons themselves are small enough to land before the slot family, and they
-are what a family would wrap: `foldkit-richtext-dom/toolbar` exports `marksToolbar`,
-one button per mark over `marksInRange`, each with its active state and Message. The
-Mixins family (§35) then adds slots around those buttons rather than a second
-renderer, so an application that does not need to restyle parts gets a toolbar
-without adopting Mixins at all.
+are the part a family would build on: `foldkit-richtext-dom/toolbar` exports
+`marksToolbar`, one button per mark over `marksInRange`, each carrying its active
+state (`markActive`) and its Message. An application that does not need to restyle
+parts gets a toolbar without adopting Mixins at all; §120 decides the family, which
+cannot wrap these buttons and re-renders them instead.
 
 ## Slash commands are a menu over the editor's Messages
 
@@ -5116,6 +5116,65 @@ real block vocabulary, so it comes last.
 3. The editor's keymap layer in `events`, when a binding needs a Message no browser
    event produces.
 4. **In progress.** The buttons and their active rule landed
-   (`foldkit-richtext-dom/toolbar`, `marksToolbar`). The Mixins slot family
-   (`foldkit-mixins-richtext`), which wraps them, is next.
+   (`foldkit-richtext-dom/toolbar`: `marksToolbar`, `markActive`). The Mixins slot
+   family is next, and §120 corrects §119 on it: a slot view owns its elements, so
+   the family re-renders the buttons rather than wrapping them.
 5. Slash commands, over 1 and 3.
+
+---
+
+# 120. The Mixins family
+
+§119 put the toolbar's slot family in `foldkit-mixins-richtext` and expected it to
+wrap `marksToolbar`. That expectation is wrong, and the Mixins contract is why: a
+slot's contributions resolve into attributes *at the element the view creates*
+(`slots.button.attrs([...])`), so a slot view owns its elements. A helper that makes
+its own `h.button` calls cannot take resolved attributes. So the family re-renders
+the buttons, and `marksToolbar` stays the path for an application that does not
+adopt Mixins at all — the same split `foldkit-mixins-ui` has with `@foldkit/ui`.
+
+## What the family publishes
+
+§35's list is the target; the first slice is the mark toolbar:
+
+```text
+root      the toolbar's wrapper        Container
+toolbar   the row of buttons           Container, Collection
+button    one mark's button, per mark  Interactive, Click
+```
+
+Each button renders with its mark as the slot item, `slots.button.attrs(base, { mark })`,
+so a Behavior styles or annotates one mark without the family knowing which marks
+exist. `Attr.AriaPressed` is deliberately not in the contract: the view owns the
+button's pressed state (through `markActive`), and a mixin that wants to override it
+should conflict rather than silently win.
+
+## What the view reads
+
+```ts
+interface MarkToolbarInput<Message> {
+  readonly state: ToolbarState
+  readonly marks?: ReadonlyArray<string> | undefined
+  /** A mark to the Message that toggles it for this caller. */
+  readonly toggled: (mark: string) => Message
+}
+```
+
+The function is the open question. `foldkit-mixins-form` avoids functions in inputs
+— "Foldkit admits no function nested in a placed view's inputs" — and passes the
+form's Message constructors as data instead. Here the caller's Message is usually
+the editor's wrapped (`edited(...)`), and a wrapper is a function, so the
+constructor-as-data route does not reach it. A plain `SlotView` is not placed or
+serialized, so a function input should be fine; a view used as a *placed* view's
+view may refuse it. Slice 1 therefore keeps the function and proves it through a
+real render, and falls back to a constructor input only if a placement rejects it.
+
+## Slices
+
+1. The mark toolbar family: the three slots, the input above, and tests through a
+   Scene render plus `SlotView.inertBuilder` for the resolved attributes.
+2. The rest of §35's chrome — floating toolbar, link popover, block handle,
+   placeholder, status — as slots, when a view needs them.
+3. The content slots (§35's content node rendering) once the adapter can accept
+   per-kind attributes: today it makes its own elements, and §36 keeps Mixins out
+   of the editable subtree.

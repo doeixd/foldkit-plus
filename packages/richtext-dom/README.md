@@ -180,7 +180,8 @@ so the application places this beside the editor's host rather than the Bundle
 rendering it. `state` is what the editor projects (`document`, `selection`,
 `storedMarks`), and `marks` defaults to the three the package ships. A mark is
 active when the caret carries it, or — with no stored format — when every run the
-selection covers does.
+selection covers does. `markActive(state, mark)` is that rule on its own, for a
+renderer that draws its own buttons.
 
 ## What it does not do
 

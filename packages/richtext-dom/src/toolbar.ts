@@ -26,9 +26,10 @@ export interface ToolbarOptions<Message> {
 
 /**
  * A mark is active when the caret carries it, or — with no stored format — when
- * every run the selection covers does (§119).
+ * every run the selection covers does (§119). Exported because a Mixins slot view
+ * renders its own buttons and needs the same rule.
  */
-const active = (state: ToolbarState, mark: string): boolean =>
+export const markActive = (state: ToolbarState, mark: string): boolean =>
   state.storedMarks !== null
     ? state.storedMarks.includes(mark)
     : RichText.marksInRange(state.document, state.selection).has(mark)
@@ -46,7 +47,7 @@ export const marksToolbar =
             h.Type('button'),
             h.DataAttribute('mark', mark),
             h.AriaLabel(mark),
-            h.AriaPressed(active(options.state, mark) ? 'true' : 'false'),
+            h.AriaPressed(markActive(options.state, mark) ? 'true' : 'false'),
             h.OnClick(options.toMessage(mark)),
           ],
           [mark],
