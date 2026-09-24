@@ -78,6 +78,34 @@ check(
 )
 check('marksInRange through the build', richtext.marksInRange(document, null).size === 0)
 
+// The rendering registry is the newest public surface, so exercise it rather than
+// just importing it.
+const linked = richtext.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Paragraph',
+      id: 'p2',
+      children: [
+        { type: 'Text', id: 'b', text: 'docs', marks: [{ name: 'Link', props: { href: '/x?a=1&b=2' } }] },
+      ],
+    },
+  ],
+})
+const renderer = richtext.rendering({
+  marks: {
+    Link: mark => ({ tag: 'a', attributes: { href: String(richtext.markProps(mark)?.href ?? '') } }),
+  },
+})
+check(
+  'a declared mark renders through the build',
+  richtext.documentToHtml(linked, renderer) === '<p><a href="/x?a=1&amp;b=2">docs</a></p>',
+)
+check(
+  'the name fallback survives the build',
+  richtext.documentToHtml(linked) === '<p><span data-marks="Link">docs</span></p>',
+)
+
 const consumer = fileURLToPath(new URL('./consumer.ts', import.meta.url))
 let types = true
 try {

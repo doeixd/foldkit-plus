@@ -17,6 +17,12 @@ import { MarkToolbarSlots, markToolbar } from 'foldkit-mixins-richtext'
 
 export type Surface = [
   typeof RichText.marksInRange,
+  typeof RichText.rendering,
+  typeof RichText.noRendering,
+  typeof RichText.runRendering,
+  typeof RichText.nodeRendering,
+  RichText.Rendering,
+  RichText.ElementRendering,
   typeof mount,
   EditorDom,
   typeof attachmentIn,
