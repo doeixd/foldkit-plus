@@ -1007,11 +1007,11 @@ the query reads** — which is ordinary application state, and
 import { debounce } from 'foldkit-primitives/time'
 
 const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
-const SearchBox = Bundle.declare(SearchInput, 'search')
 
 // `latest` is what the box shows, so typing stays immediate.
 // The settled OutMessage is what moves the field the query reads.
-Page.at(SearchBox, {
+// A step of the page's Bundle.compose(...).pipe(...):
+Bundle.withChild('search', SearchInput, {
   args: { delayMs: 250 },
   onOut: out => model => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
 })

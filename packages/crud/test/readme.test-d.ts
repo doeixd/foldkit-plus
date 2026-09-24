@@ -37,22 +37,43 @@ const EditPostForm = Form.make(
 
 const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
-const Slot = Bundle.declare(Editor.bundle, 'editor')
-const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
-const Message = defineMessageUnion({ ...Remote.messages, ...Slot.cases })
+const DeletePostMutation = Mutation.make('DeletePost', {
+  Input: { id: Schema.String },
+  Output: { id: Schema.String },
+})
+const Remover = Crud.remover('PostRemover', {
+  mutation: DeletePostMutation,
+  input: id => ({ id }),
+})
 
-const App = Surface.application({ Model, Message })
+// The page: its own field and Messages, and the editor under `editor`.
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle),
+  Bundle.withChild('remover', Remover.bundle),
+)
+
+const App = Surface.application(Base)
 const Data = Remote.make({
   model: App.model.remote,
   entities: Object.values(Blog),
-  mutations: [EditPostMutation],
+  mutations: [EditPostMutation, DeletePostMutation],
 })
 
+// Where it lives: its slice of the Model, and the domain it saves through.
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+const PostRemover = Remover.at({ data: Data, model: App.model.remover })
 
-const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
-const placements = Page.assemble(Placed)
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', { onOut: PostEditor.onOut }),
+  Bundle.configure('remover', { onOut: PostRemover.onOut }),
+)
+const Placed = Page.children.editor
+const RemoveForm = Page.children.remover
+const { placements } = Page
+const Model = Page.Model
+void RemoveForm.helpers.ask('p1')
 
 const update = PostEditor.after(
   placements.update((model, message) =>

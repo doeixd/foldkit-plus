@@ -10,15 +10,16 @@ import { Bundle } from 'foldkit-bundle'
 import { MediaQuery, PrefersDark, PrefersReducedMotion } from '../src/media/index.js'
 import { history } from '../src/state/index.js'
 
+const Page = Bundle.compose({ theme: Schema.String }).pipe(
+  Bundle.withMessages({ ThemeSet: { theme: Schema.String } }),
+  Bundle.withChild('dark', MediaQuery, { args: { query: '(prefers-color-scheme: dark)' } }),
+)
+type Model = typeof Page.Model.Type
+type Message = typeof Page.Message.Type
+const { placements } = Page
+
+// The declaration the later sections place by hand.
 const Dark = Bundle.declare(MediaQuery, 'dark')
-
-const Model = Schema.Struct({ ...Dark.fields, theme: Schema.String })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Dark.cases, ThemeSet: { theme: Schema.String } })
-type Message = typeof Message.Type
-
-const Page = Bundle.parent({ Model, Message })
-const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }))
 
 const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   h.div([], [model.dark.matches ? 'Dark mode' : 'Light mode'])
@@ -41,8 +42,10 @@ const preset = WidePage.assemble(
   WidePage.place(PrefersReducedMotion, 'motion'),
 )
 
-// The README's preset line, on the sixty-second scope above.
-const darkOnly = Page.assemble(Page.place(PrefersDark, 'dark'))
+// The README's preset line: a preset places with no config.
+const darkOnly = Bundle.compose({ theme: Schema.String }).pipe(
+  Bundle.withChild('dark', PrefersDark),
+).placements
 
 void config
 void preset

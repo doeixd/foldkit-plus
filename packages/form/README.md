@@ -56,7 +56,6 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { defineMessageUnion } from 'foldkit/message'
 
 const Post = Entity.define(
   'Post',
@@ -72,17 +71,15 @@ const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.
 const Rename = Form.make('Rename', Entity.input(Post, RenameInput))
 
 // Place it: a Model field and a Message variant of the page.
-const Slot = Bundle.declare(Rename.bundle, 'rename')
-const Model = Schema.Struct({ ...Slot.fields, saved: Schema.Array(RenameInput) })
-const Message = defineMessageUnion({ ...Slot.cases })
-
-const Page = Bundle.parent({ Model, Message })
-const RenameForm = Page.at(Slot, {
-  // `submitted.value` is a decoded RenameInput. What it means is the page's.
-  onOut: submitted => model => ({
-    model: { ...model, saved: [...model.saved, submitted.value] },
+const Page = Bundle.compose({ saved: Schema.Array(RenameInput) }).pipe(
+  Bundle.withChild('rename', Rename.bundle, {
+    // `submitted.value` is a decoded RenameInput. What it means is the page's.
+    onOut: submitted => model => ({
+      model: { ...model, saved: [...model.saved, submitted.value] },
+    }),
   }),
-})
+)
+const RenameForm = Page.children.rename
 ```
 
 - `Form.make` takes the name and an `Entity.input`. It resolves a control per
@@ -104,13 +101,13 @@ Continuing the example above, an assembly initializes the slice and routes its
 wrapped Messages. This reducer-level example needs no renderer:
 
 ```ts
-const placements = Page.assemble(RenameForm)
+const { placements } = Page
 const update = placements.update(model => ({ model }))
 let model = placements.initial({ saved: [] }).model
-model = update(model, Message.GotRenameMessage({
+model = update(model, Page.Message.GotRenameMessage({
   message: Rename.Message.Changed({ key: 'title', value: 'Hello' }),
 })).model
-model = update(model, Message.GotRenameMessage({
+model = update(model, Page.Message.GotRenameMessage({
   message: Rename.Message.Submitted(),
 })).model
 // model.saved contains the decoded input, with title "Hello" and id "".

@@ -2,7 +2,6 @@
 import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
-import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { expectTypeOf } from 'vitest'
 import { Form, Input } from '../src/index.js'
@@ -19,16 +18,15 @@ const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.
 
 const Rename = Form.make('Rename', Entity.input(Post, RenameInput))
 
-const Slot = Bundle.declare(Rename.bundle, 'rename')
-const Model = Schema.Struct({ ...Slot.fields, saved: Schema.Array(RenameInput) })
-const Message = defineMessageUnion({ ...Slot.cases })
-
-const Page = Bundle.parent({ Model, Message })
-const RenameForm = Page.at(Slot, {
-  onOut: submitted => model => ({
-    model: { ...model, saved: [...model.saved, submitted.value] },
+const Page = Bundle.compose({ saved: Schema.Array(RenameInput) }).pipe(
+  Bundle.withChild('rename', Rename.bundle, {
+    onOut: submitted => model => ({
+      model: { ...model, saved: [...model.saved, submitted.value] },
+    }),
   }),
-})
+)
+const { Model, Message } = Page
+const RenameForm = Page.children.rename
 
 expectTypeOf(Rename.controls[0]!.key).toEqualTypeOf<'id' | 'title'>()
 Rename.Message.Changed({ key: 'title', value: 'Hello' })
@@ -149,18 +147,18 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
 }
 
 {
-  const placements = Page.assemble(RenameForm)
+  const { placements } = Page
   const update = placements.update(model => ({ model }))
   let model = placements.initial({ saved: [] }).model
   model = update(
     model,
-    Message.GotRenameMessage({
+    Page.Message.GotRenameMessage({
       message: Rename.Message.Changed({ key: 'title', value: 'Hello' }),
     }),
   ).model
   model = update(
     model,
-    Message.GotRenameMessage({
+    Page.Message.GotRenameMessage({
       message: Rename.Message.Submitted(),
     }),
   ).model

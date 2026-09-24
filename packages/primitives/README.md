@@ -99,30 +99,28 @@ Each subpath is one concern, one import:
 
 ## Sixty seconds: follow the color scheme
 
-**Declare where it lives.** A declaration names the Model field and the
-Message variant, by Foldkit's `Got<Field>Message` convention:
+**Place it in a parent.** `Bundle.compose` states the parent's own field and
+Message, and places the primitive under `dark`, with the wrapper Message
+`GotDarkMessage` by Foldkit's `Got<Field>Message` convention:
 
 ```ts
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { MediaQuery } from 'foldkit-primitives/media'
 
-const Dark = Bundle.declare(MediaQuery, 'dark')
-
-const Model = Schema.Struct({ ...Dark.fields, theme: Schema.String })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Dark.cases, ThemeSet: { theme: Schema.String } })
-type Message = typeof Message.Type
+const Page = Bundle.compose({ theme: Schema.String }).pipe(
+  Bundle.withMessages({ ThemeSet: { theme: Schema.String } }),
+  Bundle.withChild('dark', MediaQuery, { args: { query: '(prefers-color-scheme: dark)' } }),
+)
+type Model = typeof Page.Model.Type
+type Message = typeof Page.Message.Type
 ```
 
-**Place it.** The scope types everything from the parent's Schemas; the
-assembly derives the update and the Subscriptions:
+**Run it.** The parent's assembly derives the update and the Subscriptions:
 
 ```ts
-const Page = Bundle.parent({ Model, Message })
-const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-scheme: dark)' } }))
+const { placements } = Page
 
 const config = placements.complete({
   init: () => placements.initial({ theme: 'light' }),
@@ -135,10 +133,10 @@ const config = placements.complete({
 
 `update` routes `GotDarkMessage` to the bundle; `subscriptions` runs the
 `matchMedia` stream; `initial` starts `matches` at `false` and the stream
-corrects it on subscribe. None of the placement calls perform I/O:
-`declare` names a slot, `at` binds config to it, `assemble` derives the
-folding and the streams — the browser is touched only when the runtime
-subscribes. The Solid equivalent this replaces:
+corrects it on subscribe. None of these calls perform I/O: `compose` states
+the parent, `withChild` places the primitive with its config, and the
+assembly derives the folding and the streams. The browser is touched only
+when the runtime subscribes. The Solid equivalent this replaces:
 
 ```ts
 // solid-primitives: const dark = createMediaQuery('(prefers-color-scheme: dark)')
@@ -172,7 +170,7 @@ Bound presets place with no args:
 ```ts
 import { PrefersDark, PrefersReducedMotion } from 'foldkit-primitives/media'
 
-const placements = Page.assemble(Page.place(PrefersDark, 'dark'))
+const Page = Bundle.compose({ theme: Schema.String }).pipe(Bundle.withChild('dark', PrefersDark))
 ```
 
 `Breakpoints` derives names from one `resize` listener: args

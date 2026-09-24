@@ -133,11 +133,19 @@ like any other; the view is the form's own.
 
 ```ts
 const Editor = Cms.editor('PostEditor', { content: Posts })
-const Slot = Bundle.declare(Editor.bundle, 'editor') // its Model and its Messages, in yours
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle), // its Model and its Messages, in yours
+)
+// App = Surface.application(Base), and Data = Remote.make({ model: App.model.remote, ... })
 
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
-const update = PostEditor.after(Page.assemble(Placed).update(yourUpdate))
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', { onOut: PostEditor.onOut }), // made from Data, so given now
+)
+const Placed = Page.children.editor
+const update = PostEditor.after(Page.placements.update(yourUpdate))
 
 Data.subscriptions({ ...yourSurfaces, ...PostEditor.actives })
 

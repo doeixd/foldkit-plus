@@ -152,21 +152,20 @@ mutation over the same input struct, as in
 domain.
 
 ```ts
-import { Schema } from 'effect'
 import { Crud } from 'foldkit-crud'
 import { Bundle } from 'foldkit-bundle'
-import { defineMessageUnion } from 'foldkit/message'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
 const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
 // The editor is a Submodel of the page: a Model field and a Message variant.
-const Slot = Bundle.declare(Editor.bundle, 'editor')
-const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
-const Message = defineMessageUnion({ ...Remote.messages, ...Slot.cases })
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle),
+)
 
-const App = Surface.application({ Model, Message })
+const App = Surface.application(Base)
 const Data = Remote.make({
   model: App.model.remote,
   entities: Object.values(Blog),
@@ -176,9 +175,13 @@ const Data = Remote.make({
 // Where it lives: its slice of the Model, and the domain it saves through.
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 
-const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
-const placements = Page.assemble(Placed)
+// Its onOut needs the domain, so it is given once the domain exists.
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', { onOut: PostEditor.onOut }),
+)
+const Placed = Page.children.editor
+const { placements } = Page
 
 const update = PostEditor.after(
   placements.update((model, message) =>
@@ -194,6 +197,11 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   what makes that true.
 - **`Editor.bundle`** wraps the form's Bundle. Its Messages are the form's own,
   so a view dispatches `EditPostForm.Message.Changed(...)` exactly as before.
+- **`Bundle.compose`** states the page once, with the editor under `editor`.
+  The editor's `onOut` is made from the Remote domain, which is made from the
+  page's own Model, so it is given afterwards with `Bundle.configure`; until
+  then the page's `placements` are a type error that names the editor. See
+  [composing a parent](../bundle/README.md#composing-a-parent).
 - **`Editor.at`** takes the editor's slice as a `ModelRef` (`App.model.editor`)
   and the bound Remote domain, and returns what needs the parent:
   - `onOut` for the placement: a valid submit becomes `Data.mutate`, and the
@@ -207,8 +215,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
     `refresh(model)` to ask for the value again while it is `LoadFailed`, and
     `target(model)`, the id being edited (`null` for a new one, or when
     closed).
-- The save is a Command that needs `RemoteClient`, so the parent names it with
-  `withServices<RemoteClient>()`.
+- The save is a Command that needs `RemoteClient`, so the page names it with
+  `Bundle.withServices<RemoteClient>()`.
 
 ### What starts the work
 
@@ -273,12 +281,10 @@ The editor wraps the form's Model, so it takes the form's view, lifted:
 ```ts
 import { FormView } from 'foldkit-mixins-form'
 
-const Slot = Bundle.declare(
-  Editor.bundle.pipe(
-    Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, FormView.define(EditPostForm)))),
-  ),
-  'editor',
+const DrawnEditor = Editor.bundle.pipe(
+  Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, FormView.define(EditPostForm)))),
 )
+// Place it as before: Bundle.withChild('editor', DrawnEditor)
 
 // where the page draws it:
 Placed.view(model, h, { options: pickers(model), words: { submit: 'Save' } })
@@ -297,11 +303,11 @@ const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
   input: id => ({ id }), // the mutation's input for an id
 })
-const RemoveSlot = Bundle.declare(Remover.bundle, 'remover')
-// ...spread RemoveSlot.fields and RemoveSlot.cases into the page's Model and Message...
+// In the page: Bundle.withChild('remover', Remover.bundle), beside the editor.
 
 const PostRemover = Remover.at({ data: Data, model: App.model.remover })
-const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
+// With the editor's: Bundle.configure('remover', { onOut: PostRemover.onOut })
+const RemoveForm = Page.children.remover
 ```
 
 - `RemoveForm.helpers.ask(id)` asks; nothing is deleted yet. `dismiss()`

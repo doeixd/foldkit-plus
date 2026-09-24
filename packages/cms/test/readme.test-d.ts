@@ -5,7 +5,6 @@ import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
-import { defineMessageUnion } from 'foldkit/message'
 import { expectTypeOf } from 'vitest'
 import { Cms, type EditorStatus, type State } from '../src/index.js'
 
@@ -70,22 +69,26 @@ expectTypeOf(
 // ---- The editor ----
 
 const Editor = Cms.editor('PostEditor', { content: Posts })
-const Slot = Bundle.declare(Editor.bundle, 'editor') // its Model and its Messages, in yours
-
-const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
-const Message = defineMessageUnion({ ...Remote.messages, ...Slot.cases })
-const App = Surface.application({ Model, Message })
+const Base = Bundle.compose({ remote: Remote.Model }).pipe(
+  Bundle.withMessages(Remote.messages),
+  Bundle.withChild('editor', Editor.bundle), // its Model and its Messages, in yours
+)
+const Model = Base.Model
+const App = Surface.application(Base)
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Post, ...Object.values(Cms.Entities)],
   mutations: [...Cms.operations],
 })
-const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
-const Placed = Page.at(Slot, { onOut: PostEditor.onOut })
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editor', { onOut: PostEditor.onOut }),
+)
+const Placed = Page.children.editor
 export const update = PostEditor.after(
-  Page.assemble(Placed).update((model: typeof Model.Type, message: typeof Message.Type) =>
+  Page.placements.update((model, message) =>
     Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
   ),
 )
