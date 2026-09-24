@@ -111,6 +111,31 @@ minutes to keep the review bounded: no completed workspace-test or demo result
 is claimed for this pass. The focused baseline and diagnostic reproductions
 above completed before the concurrent RichText edit.
 
+### Disposition
+
+Addressed after this review, from the `fix/richtext-review-20260924` worktree,
+finished and verified in `d442415`:
+
+| Finding | Fix | Commit |
+| --- | --- | --- |
+| R15 | `graphemeDeletion` segments the block's runs with `Intl.Segmenter`, so a surrogate pair with a combining mark, and ZWJ sequences, delete whole | `d442415` |
+| R16 | `migrate` validates the assembled `Document`, refusing identities duplicated across blocks | `d442415` |
+| R17 | `MarkDef.of` encodes decoded props through the declared schema and decodes the result against JSON | `d442415` |
+| R18 | an empty `InsertText` applies only its deletions, never stored marks to a span it does not insert | `d442415` |
+| R19 | the read-only renderer reads marks through `markName`, so both stored forms render | `d442415` |
+| R20 | harness `storedMarks` is `null` for inherit and an array for an explicit override, `[]` included | `d442415` |
+| R21 | `JoinNode` refuses opaque or incompatible merges, and a Node selection follows a retired identity to the survivor | `d442415` |
+| R9 remainder | a contiguous run of joins is consumed as one structural edit, so deleting across B paragraphs copies the block array and reindexes once | `d442415` |
+
+Each fix has a regression test, and each was mutation-checked (the fix reverted,
+the test confirmed red, then restored). Every finding was also reproduced against
+the scenario recorded above. The benchmark cases are kept as the structural
+checks; no new timing claim is made, because this machine's runs are too noisy to
+support one. Three defects in the worktree's fixes were finished here: `of`
+computed its encoder but never called it, the Node-selection relocation lost its
+discriminant, and a forward deletion at a run edge moved the caret into the next
+run, breaking an existing expectation.
+
 ## Previous review — 2026-09-23
 
 Review date: 2026-09-23. Scope: the current working tree of
