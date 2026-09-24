@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done: the plan is built. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done. Next: [Phase G](#phase-g-close-what-the-resumable-design-asks-and-phases-a-to-f-left-out), the resumable design's remaining asks. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -859,6 +859,103 @@ The order puts Phase R before this track. A Surface that reads Remote is
 refused today (Phase 3), a resumable page still needs its data in the browser
 before its first Message arrives, and Phase R's deferrable declarations are
 what let a Remote page defer its boot at all.
+
+### Phase G: close what the resumable design asks and Phases A to F left out
+
+A check of [resumable-DESIGN.md](./resumable-DESIGN.md) against what was built
+found four gaps. Its six phases are this plan's A to F, but two of its rules,
+its Phase E test, and one of its risks ask for more than those phases did.
+Phase F's gate stays waived, as recorded there. Each step below ends in a test
+that can fail, or, for G4, a recorded measurement.
+
+- **G1. Name the handler that makes a page wait for the live runtime.** Rule 1
+  says a closure handler still works "with a diagnostic naming the element".
+  Today the server marks it `*` and says nothing, so nobody learns which
+  element keeps a page from answering before boot.
+
+  - `SSR.render`'s result gains `unnamed`, one entry per element and event
+    marked `*`: `{ element: 'button#point', event: 'pointerdown' }`. The
+    collect render already knows each one; it records them beside the
+    bindings.
+  - `SSR.entry` and `SSR.generate` warn about each entry once per process,
+    naming the element, the event, and the fix: give the handler a Message,
+    or one of the hole forms. Once per process, because a server renders the
+    same page for every request.
+  - No refusal and no option. The rule says the handler still works, and an
+    option to refuse would be one nobody has asked for.
+  - The design says a closure "makes the page eager". Phase C chose instead
+    to keep answering and boot on that handler's event, so the rest of the
+    page still answers before boot. Record that choice in the design's rule 1,
+    so the two documents agree.
+  - Tests: the result names the closure input and the pointer button of the
+    bindings fixture and nothing else; the entry warns once across two
+    requests. Mutations: drop the record; warn on every request.
+
+- **G2. Test rule 6 directly: the resumed page reaches the eager page's
+  Model.** Rule 6 is the invariant the other rules serve, and the design says
+  to test it by running both pages through one recorded event sequence and
+  comparing Models. Today each test checks one outcome at a time.
+
+  - A harness, `test/equivalence.ts`: given a config, a plan and a sequence
+    of DOM actions (click an id, type into an id, press a key on an id,
+    submit a form, focus and blur), it runs the sequence twice in one
+    document and returns both final Models.
+  - The eager run: `Runtime.embed` of the application started from the Model
+    the browser resumes, so both runs begin from the same place, with the
+    actions dispatched after boot. `embed` returns a handle, so the run is
+    disposed and the container cleared before the resumed run. `hydrate`
+    cannot be disposed, so the resumed run always goes second.
+  - The resumed run: the served page, `SSR.hydrate` with `start:
+    'on-interaction'`, the same actions dispatched before and across the
+    boot.
+  - Both runs record the Model by wrapping `update`, which leaves the
+    application untouched.
+  - Sequences, one test file each, because each needs its own document:
+    typing then a click; a click that bubbles through a parent with `Stop`
+    on the child; a submit; a key press with modifiers; a closure's event in
+    the middle of named ones; a placement's input and click under a lazy
+    bundle. The first event of each sequence is what boots the page, so the
+    boot window is inside every run.
+  - First, check that `embed`'s `dispose` removes the runtime's listeners
+    and that a second runtime can then hydrate the same document. If it
+    cannot, fall back to two test files per sequence and compare against a
+    Model the eager file writes to a fixture.
+  - Mutations: drop the `stopPropagation` after a queued answer; replay the
+    queue in reverse; skip the re-dispatch of an unanswered event. Each must
+    make a sequence's Models differ.
+
+- **G3. Test Phase E the way the design states it.** The design's test is
+  that a form posted without JavaScript "returns the page a browser click
+  would have produced". Today's test checks the page's contents.
+
+  - With G2's harness: type into the todo form and submit it in the browser,
+    and post the same form to `SSR.handle`. Decode the response's envelope
+    with `SSR.resume` and compare it, through the plan's `state`, with the
+    browser's final Model through the same projection.
+  - The same comparison for a form inside a placement, which covers the
+    depth field the review added.
+  - Mutations: drop the field override; skip the plan's `boot` in the fold.
+
+- **G4. Measure the manifest before optimising it.** The design's risk section
+  asks for a measurement at a thousand rows before anything is done about
+  manifest size, and names the fix if one is needed: one entry per
+  placement, plus the key.
+
+  - A script, `bench/manifest.ts`, run with `tsx` as
+    `packages/durable/bench/storage.ts` is: a keyed list of 10, 100 and 1,000
+    rows with three bindings each. It prints, per size, the page's bytes, the
+    envelope's bytes, both gzipped, and the time `Resume.bindings` and
+    `Resume.listen` take on the page under jsdom.
+  - Record the table in this plan.
+  - Act only if, at a thousand rows, the gzipped bindings are more than a
+    tenth of the gzipped page, or decoding and listening take more than one
+    frame, 16 ms. Acting then means the design's fix, planned as its own
+    step. Otherwise the risk is closed with the numbers.
+
+Order: G1, then G2, then G3, which reuses G2's harness. G4 can run at any
+point. Each step updates the README's test list, and G1 also the README's
+bindings section and the skill reference, since `SSR.render`'s result and the
+server's logging change.
 
 ### Beyond this plan
 
