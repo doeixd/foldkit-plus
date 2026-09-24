@@ -50,15 +50,7 @@ describe('Layers', () => {
   })
 
   it('define refuses a duplicate name', () => {
-    expect(() => Layers.define(['a', 'b', 'a'])).toThrow(Diagnostics.DiagnosticError)
-    try {
-      Layers.define(['a', 'a'])
-    } catch (error) {
-      expect(error).toBeInstanceOf(Diagnostics.DiagnosticError)
-      if (error instanceof Diagnostics.DiagnosticError) {
-        expect(error.diagnostic.code).toBe('style:duplicate-layer')
-      }
-    }
+    expect(diagnosticOf(() => Layers.define(['a', 'b', 'a'])).code).toBe('style:duplicate-layer')
   })
 
   it('in emits the rule inside the layer and keeps declarations as they are', () => {
@@ -110,7 +102,9 @@ describe('Style.stylesheet with layers', () => {
 
   it('refuses two different layer orders', () => {
     const other = Layers.define(['x', 'y'])
-    expect(() => Style.stylesheet(L.declare, other.declare)).toThrow(Diagnostics.DiagnosticError)
+    expect(diagnosticOf(() => Style.stylesheet(L.declare, other.declare)).code).toBe(
+      'style:conflicting-layer-order',
+    )
   })
 
   it('puts a theme root in a layer', () => {
