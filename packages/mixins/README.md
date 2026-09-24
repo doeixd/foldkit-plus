@@ -257,7 +257,7 @@ error; the compiler writes the kebab-case name. Values are not checked, so
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
 | `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
 | `Theme.tokens` / `Theme.oklch(knobs)` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, border and breakpoint scales; a whole palette derived from an accent and a few knobs; the breakpoints as pixel widths for `foldkit-primitives/media` |
-| `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece) and `in(name, pieceOrNamedStyle)` (the unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a name outside the order is a type error; a bare piece wholly in another layer is `style:relayered`). `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
+| `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
 
 Rule-based Style compiles to one deterministic class (an FNV-1a hash of canonical rule text) plus
@@ -320,15 +320,10 @@ const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.1
 const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a missing name is a type error
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
-// Layered where it is defined: the view attaches this same value, so its classes are the sheet's.
-const PageStyle = L.in(
-  'app',
-  Style.forSlots(PageSlots)({
-    root: Style.self({
-      background: t.surface.base,
-      color: t.text.default,
-    }),
-  }),
+// Born in the app layer: the view attaches this same value, so its classes are the sheet's.
+const PageStyle = Style.forSlots(PageSlots)(
+  { root: Style.self({ background: t.surface.base, color: t.text.default }) },
+  { layer: L.layer('app') },
 )
 
 export const sheet = Style.stylesheet(
@@ -342,10 +337,10 @@ export const sheet = Style.stylesheet(
 
 Once the sheet declares an order, every rule in it must sit in one of its layers: an unlayered
 rule would beat all of them, `app` included, so `Style.stylesheet` refuses it with
-`style:unlayered-rule`. `L.in('app', style)` places a whole `NamedStyle`; a layout or recipe
-it composes keeps the layer it was already given. Layer a style where it is defined, never
-only in the sheet: a layer is part of a rule's identity, so the layered copy has new class
-names, and a view still attaching the original would render classes the sheet lacks.
+`style:unlayered-rule`. A slot style takes its layer when it is compiled, with the `layer`
+option; a layout or recipe it composes keeps the layer it was already given. `L.in` takes only
+bare pieces: a layer is part of a rule's identity, so layering a finished style would copy it
+under new class names that no view attaches.
 
 `omit` leaves out the tokens another theme already declared, so the scales go out once in
 `tokens` and the palette once in `theme`. Which theme is active is a Model fact: the view writes

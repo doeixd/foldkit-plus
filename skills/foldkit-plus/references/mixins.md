@@ -251,7 +251,7 @@ adapter.
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
 `components` layer and variants in `variants` of `Layers.standard`, and style state from the
 component's own `aria-checked` / `aria-selected` / `aria-disabled`. No recipe declaration is inline
-style, so `L.in('app', Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }))` overrides any of
+style, so `Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }, { layer: L.layer('app') })` overrides any of
 them by layer order alone.
 
 ## 6. Testing helpers
@@ -288,13 +288,12 @@ them by layer order alone.
   `foldkit-mixins/layers`) is the order `reset, tokens, theme, defaults, components, layouts,
   variants, utilities, app`; `L.in(name, piece)` puts a piece's rules and global CSS in that layer
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
-  `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. Layer a slot style
-  where it is defined (`const PageStyle = L.in('app', Style.forSlots(S)({…}))`), never only in the
-  sheet: the layered copy has new class names, so a view attaching the original renders classes
-  the sheet lacks.
+  `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. A slot style is
+  layered when it is compiled: `Style.forSlots(S)({…}, { layer: L.layer('app') })` (also
+  `forCapability`), so views and the sheet share one value and one set of classes.
   Once a sheet declares an order, an unlayered rule throws `style:unlayered-rule` (it would beat
-  every layer, `app` included); keyframes, font faces and `@property` pass. `L.in` takes a piece
-  or a whole `NamedStyle` and places only what is unlayered: a composed layout or recipe keeps its
+  every layer, `app` included); keyframes, font faces and `@property` pass. `L.in` takes a bare
+  piece (never a `NamedStyle`) and places only what is unlayered: a composed layout or recipe keeps its
   layer, and a bare piece wholly in another layer throws `style:relayered`. `Layers.define(names)`
   makes another order. There is no `Style.foundation`; the page composes its sheet.
 - Theme pieces (`foldkit-mixins/theme`): `Theme.root(theme, { omit?, colorScheme? })` is the

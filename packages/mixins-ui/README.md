@@ -315,7 +315,10 @@ What a recipe assumes and does:
   style beats every layer and could not be overridden this way:
 
   ```ts
-  const Red = L.in('app', Style.forSlots(ButtonSlots)({ button: Style.self({ background: 'red' }) }))
+  const Red = Style.forSlots(ButtonSlots)(
+    { button: Style.self({ background: 'red' }) },
+    { layer: L.layer('app') },
+  )
   // Style.stylesheet(L.declare, …, DeleteStyle, Red): Red's background wins.
   ```
 - **State comes from the component's own attributes.** Checked, selected, and
