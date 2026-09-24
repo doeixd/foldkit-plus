@@ -20,7 +20,22 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-surface`: an active Surface carries `messages`.** `Surface.at`
   and `Surface.when` now give the tags of the Messages the Surface lists, so a
   tool holding a plan's Surfaces knows what each may send; `foldkit-ssr` reads
-  it to keep a page's bindings to them.
+  it to keep a page's bindings to them. **Breaking** for code that builds an
+  `ActiveSurface` by hand rather than through `Surface.at` or `Surface.when`:
+  add `messages`, an empty list for a Remote requirement that sends nothing,
+  as `foldkit-crud` and `foldkit-cms` now do.
+- **`foldkit-ssr` (in development, not published): resumable pages.** On top
+  of rendering on the server and handing the browser its slice of the Model,
+  a page can now answer before its runtime boots. `Resume.builder(h)` writes
+  in the server's markup which Message each element causes, and the browser
+  answers events from those markers until a plan's `start: 'idle' |
+  'on-interaction'` boots it, replaying what was answered. A page may only
+  dispatch Messages its active Surfaces list. With `fallback: 'server'` a form
+  posts its Message and `SSR.handle` runs `update` and its Commands on the
+  server, so the form works with scripts off. The configuration's `lazy` list
+  loads each `Bundle.lazy` before a page renders or boots. A tampered envelope
+  is refused rather than thrown on, and a post whose Commands never settle is
+  stopped after 100 steps. See the package README.
 - **`Remote.resume(Data)`: Remote's state for a server-rendered page.** A
   resume part for `foldkit-ssr` (in development) that sends what the page's
   active Surfaces read, field by field through relations, each connection
