@@ -657,6 +657,14 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   A whole phase of `foldkit-ssr` shipped under a Remote docs commit that way.
   Stage only in the command that commits, and commit with explicit paths
   (`git commit -- <paths>`) so nothing staged by someone else rides along.
+- **But a pathspec that names only the new half of a rename ships both files.**
+  `git mv old new` stages a rename; `git commit -- new` then commits the addition
+  while the deletion of `old` stays in the index, so HEAD holds two copies and a
+  later `git status` shows the bare deletion. Vitest reads the worktree (which has
+  only `new`), so the suite stays green and proves nothing. Name both sides, or
+  check `git show --stat -M HEAD` for the rename before committing; the same trap
+  bit the `richtext-dom` move, and the fix was to amend so the commit matched the
+  staged rename that was actually reviewed.
 - **`pnpm typecheck` goes quiet downstream of a red project.** `tsc -b` skips
   every project that depends on one that failed, so while another package is
   red (someone else's work in progress, say) a break your change causes in
