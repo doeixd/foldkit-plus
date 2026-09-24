@@ -4559,13 +4559,14 @@ Not done:
   position mapping, `locate`, every operation, normalization, HTML export and
   import, and both renderers. §13 defines the child-constraint vocabulary
   (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide,
-  and §116 decides the representation, the addressing, and the slice order. Slice
-  1 is complete: a node block may carry nested blocks, nested content decodes,
-  round-trips, is counted, and is preserved when unknown, commands reach a run
-  inside one — typing, grapheme deletion, marks, and clipboard all work at depth,
-  with a copy across a container's children carrying the container — and a join
-  or placement inside a container is refused with `InvalidParent` until slice 3.
-  The interpreters are still to come.
+  and §116 decides the representation, the addressing, and the slice order. Slices
+  1 and 2 are complete: a node block may carry nested blocks, nested content
+  decodes, round-trips, is counted, and is preserved when unknown; commands reach
+  a run inside one — typing, grapheme deletion, marks, and clipboard work at
+  depth, with a copy across a container's children carrying the container; and
+  every interpreter renders one, with HTML import reading a container back. A join
+  or placement inside a container is refused with `InvalidParent` until slice 3,
+  and nested structural patching arrives with it.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4816,7 +4817,15 @@ Landing order, each keeping the suite green:
    at depth (slice 3). Until slice 3, a command that would join or place blocks
    inside a container is refused with `InvalidParent` rather than half-applied.
 2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
-   adapter.
+   adapter. **Complete.** `toHtml` renders a container's nested blocks inside its
+   element and `toText` gives one line per text block; the read-only view does the
+   same; the editable adapter mounts and patches nested blocks, with a container
+   that keeps its shape keeping its element. The harness importer reads
+   `data-node` back: block children become a container, inline content a run
+   holder, an undeclared kind degrades to its content, and props start empty
+   because HTML does not carry them. Nested structural *patching* is deliberately
+   absent: with placement refused, only run-level changes can occur inside a kept
+   container, and those patch directly. It arrives with slice 3.
 3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,
    `DeleteNode`, `SplitNode`/`JoinNode` within a parent, and paste into a
    container.

@@ -98,10 +98,12 @@ Nested children, Form/Bundle integration, DOM editing, and collaboration remain
 unfinished; a node block may now carry nested `blocks`, which decode, round-trip,
 count, and survive an unknown kind, and commands reach a run inside one — typing,
 grapheme deletion, marks, and the clipboard work at depth, with a copy across a
-container's children carrying the container — while a join or placement inside a
-container is refused with `InvalidParent`. The interpreters do not render nested
-blocks yet. Marks are definitions with a boundary policy and, when they carry
-data, a prop schema:
+container's children carrying the container. The HTML serializer, the read-only
+view, and the editable adapter all render a container with its nested blocks, and
+HTML import reads `data-node` back (props start empty; the slice keeps them). A
+join or placement inside a container is refused with `InvalidParent` until slice
+3. Marks are definitions with a boundary policy and, when they carry data, a prop
+schema:
 
 ```ts
 const Link = RichText.mark('Link', {

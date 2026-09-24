@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { toText } from './html.js'
 import {
   Block,
   NodeId,
@@ -153,27 +154,10 @@ export const sliceOf = (document: Document, selection: Selection | null): Slice 
 }
 
 /**
- * Plain text of a slice, one line per text block; unknown blocks keep a
- * placeholder and a container contributes its children's lines.
+ * Plain text of a slice, one line per text block. A slice and a block list have
+ * the same shape, so the serializer's walk serves both.
  */
-export const plainTextOf = (slice: Slice): string => {
-  const lines: Array<string> = []
-  const walk = (blocks: ReadonlyArray<Block>): void => {
-    for (const block of blocks) {
-      if (block.type === 'Unknown') {
-        lines.push(`[${block.originalType}]`)
-        continue
-      }
-      if (block.type === 'Node' && block.blocks !== undefined) {
-        walk(block.blocks)
-        continue
-      }
-      lines.push(block.children.map(run => run.text).join(''))
-    }
-  }
-  walk(slice.blocks)
-  return lines.join('\n')
-}
+export const plainTextOf = (slice: Slice): string => toText(slice.blocks)
 
 /**
  * A slice from pasted plain text: one paragraph per line. Identities come from

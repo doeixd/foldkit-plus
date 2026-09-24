@@ -54,23 +54,39 @@ const renderBlock = (block: Block): string => {
     return `<div data-unknown="${escapeAttribute(block.originalType)}"></div>`
   const tag = blockTag(block)
   // An application node carries its kind so a stylesheet can reach it; a Kit
-  // renderer may replace this default element later.
+  // renderer may replace this default element later. A node that accepts nested
+  // blocks renders them inside it, so a list keeps its items.
   const attributes = block.type === 'Node' ? ` data-node="${escapeAttribute(block.kind)}"` : ''
-  return `<${tag}${attributes}>${block.children.map(renderRun).join('')}</${tag}>`
+  const runs = block.children.map(renderRun).join('')
+  const nested = block.type === 'Node' && block.blocks !== undefined ? toHtml(block.blocks) : ''
+  return `<${tag}${attributes}>${runs}${nested}</${tag}>`
 }
 
 /** Serializes blocks as HTML, with text and attributes escaped. */
 export const toHtml = (blocks: BlockList): string => blocks.map(renderBlock).join('')
 
-/** Plain text of blocks, one line each; unknown blocks keep a placeholder. */
-export const toText = (blocks: BlockList): string =>
-  blocks
-    .map(block =>
-      block.type === 'Unknown'
-        ? `[${block.originalType}]`
-        : block.children.map(run => run.text).join(''),
-    )
-    .join('\n')
+/**
+ * Plain text of blocks, one line per text block; unknown blocks keep a
+ * placeholder and a container contributes its children's lines.
+ */
+export const toText = (blocks: BlockList): string => {
+  const lines: Array<string> = []
+  const walk = (current: BlockList): void => {
+    for (const block of current) {
+      if (block.type === 'Unknown') {
+        lines.push(`[${block.originalType}]`)
+        continue
+      }
+      if (block.type === 'Node' && block.blocks !== undefined) {
+        walk(block.blocks)
+        continue
+      }
+      lines.push(block.children.map(run => run.text).join(''))
+    }
+  }
+  walk(blocks)
+  return lines.join('\n')
+}
 
 /** Convenience for a whole document, whose blocks are its children. */
 export const documentToHtml = (document: Document): string => toHtml(document.children)

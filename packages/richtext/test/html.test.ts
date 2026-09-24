@@ -72,6 +72,58 @@ describe('html serialization', () => {
     )
   })
 
+  it('renders a container with its nested blocks inside it', () => {
+    const list = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [{ type: 'Text', id: 'a', text: 'one', marks: [] }],
+            },
+            {
+              type: 'Paragraph',
+              id: 'li2',
+              children: [{ type: 'Text', id: 'b', text: 'two', marks: ['Bold'] }],
+            },
+          ],
+        },
+      ],
+    })
+    expect(RichText.documentToHtml(list)).toBe(
+      '<div data-node="List"><p>one</p><p><strong>two</strong></p></div>',
+    )
+    // One line per text block, not one per top-level block.
+    expect(RichText.documentToText(list)).toBe('one\ntwo')
+  })
+
+  it('keeps a nested unknown block visible inside its container', () => {
+    const list = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [{ type: 'Embed', id: 'e', src: 'x' }],
+        },
+      ],
+    })
+    expect(RichText.documentToHtml(list)).toBe(
+      '<div data-node="List"><div data-unknown="Embed"></div></div>',
+    )
+    expect(RichText.documentToText(list)).toBe('[Embed]')
+  })
+
   it('carries a mark name but not its props, which the slice format keeps', () => {
     const linked = RichText.decodeDocument({
       version: 1,

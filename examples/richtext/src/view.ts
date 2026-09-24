@@ -35,7 +35,12 @@ const renderBlock = (block: RichText.Block): Html => {
     // Preserved content renders as a diagnostic placeholder, never executed.
     return h.div([h.DataAttribute('unknown', block.originalType)], [`[${block.originalType}]`])
   }
-  const children: ReadonlyArray<Child> = block.children.map(renderRun)
+  // A node that accepts nested blocks renders them inside it, so a list keeps
+  // its items; a text block holds only its runs.
+  const children: ReadonlyArray<Child> = [
+    ...block.children.map(renderRun),
+    ...(block.type === 'Node' && block.blocks !== undefined ? renderBlocks(block.blocks) : []),
+  ]
   if (block.type === 'Node') {
     // The kind is addressable so a stylesheet or a renderer can reach it.
     return h.div([h.DataAttribute('node', block.kind)], children)

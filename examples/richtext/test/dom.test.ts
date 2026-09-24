@@ -280,6 +280,141 @@ describe('repairing a subtree the browser touched', () => {
   })
 })
 
+describe('rendering and patching nested blocks', () => {
+  const nested = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [
+                { type: 'Text', id: 'a', text: 'one', marks: [] },
+                { type: 'Text', id: 'b', text: 'bold', marks: ['Bold'] },
+              ],
+            },
+            {
+              type: 'Paragraph',
+              id: 'li2',
+              children: [{ type: 'Text', id: 'c', text: 'two', marks: [] }],
+            },
+          ],
+        },
+        {
+          type: 'Paragraph',
+          id: 'tail',
+          children: [{ type: 'Text', id: 't', text: 'tail', marks: [] }],
+        },
+      ],
+    })
+
+  it('renders the items inside their container, each addressable', () => {
+    const dom = mount(document, nested())
+    const container = dom.root.children[0] as HTMLElement
+    expect(container.getAttribute('data-block')).toBe('list')
+    expect(Array.from(container.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'li1',
+      'li2',
+    ])
+    expect(
+      Array.from(container.children[0]!.children).map(child => child.getAttribute('data-run')),
+    ).toEqual(['a', 'b'])
+    // Every nested identity is in the index, so positions resolve at depth.
+    expect(dom.elements.get(id('li2'))).toBe(container.children[1])
+    expect(dom.elements.get(id('c'))).toBe(container.children[1]!.children[0])
+    expect(toText(dom)).toBe('onebold\ntwo\ntail')
+  })
+
+  it('keeps the container and sibling runs when a nested run is edited', () => {
+    const before = mount(document, nested())
+    const container = before.elements.get(id('list'))
+    const untouchedRun = before.elements.get(id('b'))
+    const result = success(
+      RichText.apply({ document: nested(), selection: null }, [
+        RichText.Edit.insertText(RichText.Node.make('a').at(3, 'after'), '!'),
+      ]),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    expect(after.elements.get(id('list'))).toBe(container)
+    expect(after.elements.get(id('li1'))).toBe(before.elements.get(id('li1')))
+    expect(after.elements.get(id('b'))).toBe(untouchedRun)
+    expect(after.elements.get(id('a'))?.textContent).toBe('one!')
+    expect(toText(after)).toBe('one!bold\ntwo\ntail')
+  })
+
+  it('places nested items in order when the document is replaced', () => {
+    const before = mount(document, nested())
+    const list = nested().children[0]
+    if (list?.type !== 'Node') throw new Error('expected a container')
+    const reversed = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [...(list.blocks ?? [])].reverse(),
+        },
+        nested().children[1]!,
+      ],
+    })
+    const after = patch(before, reversed, {
+      dirtyNodes: new Set([
+        id('list'),
+        id('li1'),
+        id('li2'),
+        id('a'),
+        id('b'),
+        id('c'),
+        id('tail'),
+        id('t'),
+      ]),
+      insertedNodes: new Set(),
+      removedNodes: new Set(),
+      textChanged: new Set(),
+      structureChanged: true,
+      selectionChanged: false,
+    })
+    const container = after.root.children[0] as HTMLElement
+    expect(Array.from(container.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'li2',
+      'li1',
+    ])
+    expect(toText(after)).toBe('two\nonebold\ntail')
+  })
+
+  it('repairs a nested run the browser touched, and nothing else', () => {
+    const before = mount(document, nested())
+    expect(repair(before, before.content)).toBe(before)
+    const drifted = before.elements.get(id('c'))!
+    drifted.append(document.createTextNode('drift'))
+    const after = repair(before, before.content)
+    expect(after).not.toBe(before)
+    expect(toText(after)).toBe('onebold\ntwo\ntail')
+    expect(after.elements.get(id('tail'))).toBe(before.elements.get(id('tail')))
+    expect(after.elements.get(id('c'))).not.toBe(drifted)
+  })
+
+  it('maps a position inside a nested run both ways', () => {
+    const dom = mount(document, nested())
+    const range = positionToRange(dom, at('b', 4))
+    expect(range).toBeDefined()
+    expect(rangeToPosition(dom, range!.startContainer, range!.startOffset)).toEqual(
+      at('b', 4, 'after'),
+    )
+    expect(rangeToPosition(dom, range!.startContainer, 2)).toEqual(at('b', 2, 'before'))
+  })
+})
+
 describe('the editing loop', () => {
   it('drives one command from a DOM selection to a patched subtree', () => {
     const before = mount(document, content())

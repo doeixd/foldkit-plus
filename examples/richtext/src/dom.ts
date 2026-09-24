@@ -45,7 +45,11 @@ const renderRun = (owner: Document, run: RichText.Text): HTMLElement => {
   return element
 }
 
-const renderBlock = (owner: Document, block: RichText.Block): HTMLElement => {
+const renderBlock = (
+  owner: Document,
+  block: RichText.Block,
+  elements: Map<RichText.NodeId, HTMLElement>,
+): HTMLElement => {
   const element = owner.createElement(blockTag(block))
   element.setAttribute('data-block', block.id)
   if (block.type === 'Unknown') {
@@ -53,9 +57,22 @@ const renderBlock = (owner: Document, block: RichText.Block): HTMLElement => {
     element.setAttribute('data-unknown', block.originalType)
     element.setAttribute('contenteditable', 'false')
     element.textContent = `[${block.originalType}]`
+    elements.set(block.id, element)
     return element
   }
-  for (const run of block.children) element.append(renderRun(owner, run))
+  // Always a text node, even when empty: a caret inside an empty run has to be
+  // addressable, and an element container has no semantic offset.
+  for (const run of block.children) {
+    const runElement = renderRun(owner, run)
+    element.append(runElement)
+    elements.set(run.id, runElement)
+  }
+  // A node that accepts nested blocks renders them inside it, so a list keeps
+  // its items and each nested block stays addressable by identity.
+  if (block.type === 'Node' && block.blocks !== undefined) {
+    for (const nested of block.blocks) element.append(renderBlock(owner, nested, elements))
+  }
+  elements.set(block.id, element)
   return element
 }
 
@@ -64,29 +81,8 @@ export const mount = (owner: Document, content: RichText.Document): EditorDom =>
   const root = owner.createElement('div')
   root.setAttribute('contenteditable', 'true')
   const elements = new Map<RichText.NodeId, HTMLElement>()
-  for (const block of content.children) {
-    const blockElement = renderBlock(owner, block)
-    elements.set(block.id, blockElement)
-    for (const [index, run] of block.children.entries()) {
-      elements.set(run.id, blockElement.children[index] as HTMLElement)
-    }
-    root.append(blockElement)
-  }
+  for (const block of content.children) root.append(renderBlock(owner, block, elements))
   return { root, elements, content }
-}
-
-const findRun = (
-  content: RichText.Document,
-  id: RichText.NodeId,
-):
-  | { readonly block: RichText.Block; readonly run: RichText.Text; readonly index: number }
-  | undefined => {
-  for (const block of content.children) {
-    const index = block.children.findIndex(candidate => candidate.id === id)
-    if (index < 0) continue
-    return { block, run: block.children[index]!, index }
-  }
-  return undefined
 }
 
 /**
@@ -95,8 +91,13 @@ const findRun = (
  * untouched element keeps its object identity, so the browser is not handed a
  * rebuilt tree on each keystroke.
  */
-const runIdsOf = (element: HTMLElement): ReadonlyArray<string | null> =>
-  Array.from(element.children).map(child => child.getAttribute('data-run'))
+const childIds = (element: HTMLElement, attribute: string): ReadonlyArray<string> =>
+  Array.from(element.children)
+    .map(child => child.getAttribute(attribute))
+    .filter((id): id is string => id !== null)
+
+const sameIds = (present: ReadonlyArray<string | null>, wanted: ReadonlyArray<string>): boolean =>
+  present.length === wanted.length && present.every((id, at) => id === wanted[at])
 
 export const patch = (
   dom: EditorDom,
@@ -114,60 +115,79 @@ export const patch = (
     elements.delete(id)
   }
   const rebuilt = new Set<RichText.NodeId>()
-  // A block is rebuilt only when its run list actually changed, or it is new.
-  // Otherwise its element stays, which keeps every sibling run's identity — and
-  // a block that merely moved is moved, not re-rendered.
-  let previousElement: HTMLElement | undefined
-  for (const [index, block] of content.children.entries()) {
-    const existing = elements.get(block.id)
-    const nextId = content.children[index + 1]?.id
-    const wanted = block.children.map(run => run.id)
-    const present = existing === undefined ? [] : runIdsOf(existing)
-    const sameStructure =
-      existing !== undefined &&
-      present.length === wanted.length &&
-      present.every((id, position) => id === wanted[position])
-    // Placement is relative to the previous block's element, which this loop
-    // has already put in place, so an insert or a move lands in document order
-    // whatever the surrounding elements are doing.
-    const place = (element: HTMLElement): void => {
-      if (previousElement !== undefined) previousElement.after(element)
-      else {
-        const next = nextId === undefined ? undefined : elements.get(nextId)
-        if (next !== undefined) next.before(element)
-        else root.append(element)
-      }
-    }
-    if (existing !== undefined && sameStructure) {
-      if (root.children[index] !== existing) place(existing)
-      previousElement = existing
-      continue
-    }
-    const fresh = renderBlock(root.ownerDocument, block)
-    existing?.remove()
-    place(fresh)
-    elements.set(block.id, fresh)
-    for (const [runIndex, run] of block.children.entries()) {
-      elements.set(run.id, fresh.children[runIndex] as HTMLElement)
-    }
-    rebuilt.add(block.id)
-    previousElement = fresh
-  }
+  patchBlocks(root.ownerDocument, root, content.children, elements, rebuilt)
   for (const id of changeSet.dirtyNodes) {
-    const located = findRun(content, id)
-    if (located === undefined || rebuilt.has(located.block.id)) continue
-    const parent = elements.get(located.block.id)
+    const located = RichText.locateRun(content, id)
+    if (located === undefined) continue
+    const block = RichText.blockAtPath(content, located.path)
+    if (block === undefined || rebuilt.has(block.id)) continue
+    const parent = elements.get(block.id)
     if (parent === undefined) continue
     const fresh = renderRun(root.ownerDocument, located.run)
     elements.get(id)?.remove()
     elements.set(id, fresh)
     // A run belongs where the document says it does inside its block.
-    const next = located.block.children[located.index + 1]
+    const next = block.children[located.index + 1]
     const nextElement = next === undefined ? undefined : elements.get(next.id)
     if (nextElement !== undefined) nextElement.before(fresh)
     else parent.append(fresh)
   }
   return { root, elements, content }
+}
+
+/**
+ * Patches one block list into its container. A block is rebuilt only when its
+ * run list and its nested blocks are unchanged in shape, or it is new;
+ * otherwise its element stays, which keeps every sibling's identity — and a
+ * block that merely moved is moved, not re-rendered. A kept container needs no
+ * recursion: its nested identities are unchanged, so any change inside them is a
+ * run-level change the caller patches directly. Nested structural patching
+ * arrives with the operations that can produce it (§116 slice 3).
+ */
+const patchBlocks = (
+  owner: Document,
+  container: HTMLElement,
+  blocks: ReadonlyArray<RichText.Block>,
+  elements: Map<RichText.NodeId, HTMLElement>,
+  rebuilt: Set<RichText.NodeId>,
+): void => {
+  let previousElement: HTMLElement | undefined
+  for (const [index, block] of blocks.entries()) {
+    const existing = elements.get(block.id)
+    const nested = block.type === 'Node' && block.blocks !== undefined ? block.blocks : []
+    const sameStructure =
+      existing !== undefined &&
+      sameIds(
+        childIds(existing, 'data-run'),
+        block.children.map(run => run.id),
+      ) &&
+      sameIds(
+        childIds(existing, 'data-block'),
+        nested.map(child => child.id),
+      )
+    // Placement is relative to the previous block's element, which this loop has
+    // already put in place, so an insert or a move lands in document order
+    // whatever the surrounding elements are doing.
+    const place = (element: HTMLElement): void => {
+      if (previousElement !== undefined) previousElement.after(element)
+      else {
+        const nextId = blocks[index + 1]?.id
+        const next = nextId === undefined ? undefined : elements.get(nextId)
+        if (next !== undefined) next.before(element)
+        else container.append(element)
+      }
+    }
+    if (existing !== undefined && sameStructure) {
+      if (container.children[index] !== existing) place(existing)
+      previousElement = existing
+      continue
+    }
+    const fresh = renderBlock(owner, block, elements)
+    existing?.remove()
+    place(fresh)
+    rebuilt.add(block.id)
+    previousElement = fresh
+  }
 }
 
 const textNodeOf = (element: HTMLElement): Text | undefined =>
@@ -212,22 +232,39 @@ export const rangeToPosition = (
   if (!(node instanceof Text)) return undefined
   const id = runIdFor(dom, node)
   if (id === undefined) return undefined
-  const located = findRun(dom.content, id)
+  const located = RichText.locateRun(dom.content, id)
   if (located === undefined) return undefined
   return { node: id, offset, affinity: offset === located.run.text.length ? 'after' : 'before' }
 }
 
-/** Plain text of the subtree, one line per block: for assertions and fallback copy. */
-export const toText = (dom: EditorDom): string =>
-  Array.from(dom.root.children)
-    .map(child => (child.textContent ?? '').trim())
-    .filter(line => line.length > 0)
-    .join('\n')
+/** Plain text of the subtree, one line per text block: for assertions and fallback copy. */
+export const toText = (dom: EditorDom): string => {
+  const lines: Array<string> = []
+  const walk = (container: Element): void => {
+    for (const element of Array.from(container.children)) {
+      if (!element.hasAttribute('data-block')) continue
+      // A container contributes its nested blocks' lines, not one long line.
+      if (Array.from(element.children).some(child => child.hasAttribute('data-block'))) {
+        walk(element)
+        continue
+      }
+      const line = (element.textContent ?? '').trim()
+      if (line.length > 0) lines.push(line)
+    }
+  }
+  walk(dom.root)
+  return lines.join('\n')
+}
 
-const renderedText = (block: RichText.Block): string =>
-  block.type === 'Unknown'
-    ? `[${block.originalType}]`
-    : block.children.map(run => run.text).join('')
+const renderedText = (block: RichText.Block): string => {
+  if (block.type === 'Unknown') return `[${block.originalType}]`
+  const runs = block.children.map(run => run.text).join('')
+  const nested =
+    block.type === 'Node' && block.blocks !== undefined
+      ? block.blocks.map(renderedText).join('')
+      : ''
+  return runs + nested
+}
 
 /**
  * Recovery, not domain state (§31): makes the subtree match the document again
@@ -241,27 +278,37 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
   const present = new Set<RichText.NodeId>()
   const dirtyNodes = new Set<RichText.NodeId>()
   const removedNodes = new Set<RichText.NodeId>()
-  // A block the browser touched — stray text, a changed run list — is dropped
-  // from the map as well as the DOM, so `patch` renders it fresh rather than
-  // placing a stale element back where it was.
+  // A block the browser touched — stray text, a changed run or child list — is
+  // dropped from the map as well as the DOM, so `patch` renders it fresh rather
+  // than placing a stale element back where it was.
   const elements = new Map(dom.elements)
-  for (const block of content.children) {
-    present.add(block.id)
-    for (const run of block.children) present.add(run.id)
-    const element = elements.get(block.id)
-    const runs = block.type === 'Unknown' ? [] : block.children.map(run => run.id)
-    const shapeMatches =
-      element !== undefined &&
-      element.textContent === renderedText(block) &&
-      runIdsOf(element).length === runs.length &&
-      runIdsOf(element).every((id, position) => id === runs[position])
-    if (shapeMatches) continue
-    element?.remove()
-    elements.delete(block.id)
-    for (const run of runs) elements.delete(run)
-    dirtyNodes.add(block.id)
-    for (const run of runs) dirtyNodes.add(run)
+  const inspect = (blocks: ReadonlyArray<RichText.Block>): void => {
+    for (const block of blocks) {
+      present.add(block.id)
+      for (const run of block.children) present.add(run.id)
+      const nested = block.type === 'Node' && block.blocks !== undefined ? block.blocks : []
+      for (const child of nested) present.add(child.id)
+      const element = elements.get(block.id)
+      const runs = block.type === 'Unknown' ? [] : block.children.map(run => run.id)
+      const shapeMatches =
+        element !== undefined &&
+        element.textContent === renderedText(block) &&
+        sameIds(childIds(element, 'data-run'), runs) &&
+        sameIds(
+          childIds(element, 'data-block'),
+          nested.map(child => child.id),
+        )
+      if (!shapeMatches) {
+        element?.remove()
+        elements.delete(block.id)
+        for (const run of runs) elements.delete(run)
+        dirtyNodes.add(block.id)
+        for (const run of runs) dirtyNodes.add(run)
+      }
+      inspect(nested)
+    }
   }
+  inspect(content.children)
   for (const id of elements.keys()) if (!present.has(id)) removedNodes.add(id)
   // A browser or extension can insert elements the map never knew about; sweep
   // the subtree for identities the document does not have.

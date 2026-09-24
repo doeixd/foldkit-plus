@@ -163,4 +163,58 @@ describe('the read-only renderer', () => {
     expect(rendered.map(block => block.sel)).toEqual(['p'])
     expect(text(rendered[0]!)).toBe('bold')
   })
+
+  it('renders a container with its nested blocks inside it', () => {
+    const list = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [{ type: 'Text', id: 'a', text: 'one', marks: [] }],
+            },
+            {
+              type: 'Heading',
+              id: 'li2',
+              level: 3,
+              children: [{ type: 'Text', id: 'b', text: 'two', marks: ['Bold'] }],
+            },
+          ],
+        },
+      ],
+    })
+    const rendered = renderDocument(list) as unknown as VNode
+    const container = rendered.children?.[0] as VNode
+    expect(attr(container, 'data-node')).toBe('List')
+    // The items are inside the container, in order, each addressable.
+    expect(tags(container)).toEqual(['div', 'p', 'h3', 'strong'])
+    expect(text(container)).toBe('onetwo')
+  })
+
+  it('renders a nested unknown block as an inert placeholder inside its container', () => {
+    const list = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [{ type: 'Embed', id: 'e', src: 'x' }],
+        },
+      ],
+    })
+    const container = (renderDocument(list) as unknown as VNode).children?.[0] as VNode
+    const placeholder = container.children?.[0] as VNode
+    expect(attr(placeholder, 'data-unknown')).toBe('Embed')
+    expect(text(placeholder)).toBe('[Embed]')
+  })
 })

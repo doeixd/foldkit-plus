@@ -198,8 +198,16 @@ RichText.validate(document, ArticleKit)
 A node block's children are text runs, so positions, operations, selection,
 clipboard slices, history, and the interpreters all work on it unchanged — a
 split keeps its kind and props on both halves. `data-node="Kind"` is the default
-rendering in HTML and in the view until a Kit renderer replaces it. Nesting
-children beyond runs remains unfinished.
+rendering in HTML and in the view until a Kit renderer replaces it.
+
+A node block may also accept **nested blocks** in `blocks` (§116), which is how a
+List holds ListItems. The HTML serializer renders them inside the node's element
+and `toText` gives one line per text block; the read-only view and the editable
+adapter do the same, so a list keeps its items in every interpreter. HTML import
+reads `data-node` back: an element holding block children becomes a container, an
+element holding inline content becomes a run holder, and a kind the Kit does not
+declare degrades to its content with a diagnostic. Props are not carried by HTML —
+the slice format keeps them — so an imported node starts with `{}` props.
 
 ## Transforms
 
@@ -423,9 +431,9 @@ not yet drive parsing or `apply`.
   decode limits, survives a deploy that lost its kind, and a selection or
   reference inside it resolves. Commands reach a run wherever it sits, so typing,
   grapheme deletion, marks, stored marks, undo, and the clipboard work inside a
-  container — a copy across its children carries the container — while structural
-  placement inside one is refused with `InvalidParent`, and the interpreters do
-  not render nested blocks yet.
+  container — a copy across its children carries the container — and every
+  interpreter renders one, with the HTML importer reading a container back.
+  Structural placement inside one is still refused with `InvalidParent`.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.

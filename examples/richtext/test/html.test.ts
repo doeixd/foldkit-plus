@@ -154,6 +154,103 @@ describe('what import refuses', () => {
     expect(parsed.diagnostics).toEqual([{ code: 'Undeclared', detail: 'Heading' }])
   })
 
+  it('reads an application node with block children as a container', () => {
+    const parsed = parse('<div data-node="List"><p>one</p><p>two</p></div>')
+    const block = parsed.blocks[0]
+    expect(block?.type).toBe('Node')
+    if (block?.type !== 'Node') throw new Error('expected a node block')
+    expect(block.kind).toBe('List')
+    expect(block.children).toEqual([])
+    expect(block.blocks?.map(child => child.children[0]?.text)).toEqual(['one', 'two'])
+    expect(parsed.diagnostics).toEqual([])
+  })
+
+  it('reads an application node with inline content as a run holder', () => {
+    const parsed = parse('<div data-node="Callout">careful <strong>now</strong></div>')
+    const block = parsed.blocks[0]
+    expect(block?.type).toBe('Node')
+    if (block?.type !== 'Node') throw new Error('expected a node block')
+    expect(block.kind).toBe('Callout')
+    expect(block.blocks).toBeUndefined()
+    expect(block.children.map(run => [run.text, run.marks])).toEqual([
+      ['careful ', []],
+      ['now', ['Bold']],
+    ])
+    expect(block.props).toEqual({})
+  })
+
+  it('degrades a node kind the Kit does not declare, keeping its content', () => {
+    const kit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [RichText.Bold] })
+    const parsed = parse('<div data-node="Callout"><p>kept</p></div>', kit)
+    expect(shape(parsed.blocks)).toEqual([{ type: 'Paragraph', text: 'kept', marks: [[]] }])
+    expect(parsed.diagnostics).toEqual([{ code: 'Undeclared', detail: 'Callout' }])
+  })
+
+  it('round-trips a list through the serializer', () => {
+    const list = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [{ type: 'Text', id: 'a', text: 'one', marks: [] }],
+            },
+            {
+              type: 'Paragraph',
+              id: 'li2',
+              children: [{ type: 'Text', id: 'b', text: 'two', marks: ['Bold'] }],
+            },
+          ],
+        },
+        {
+          type: 'Paragraph',
+          id: 'tail',
+          children: [{ type: 'Text', id: 't', text: 'tail', marks: [] }],
+        },
+      ],
+    })
+    const parsed = parse(RichText.documentToHtml(list))
+    const container = parsed.blocks[0]
+    expect(container?.type).toBe('Node')
+    if (container?.type !== 'Node') throw new Error('expected a node block')
+    expect(container.kind).toBe('List')
+    expect(container.blocks?.map(child => child.children[0]?.text)).toEqual(['one', 'two'])
+    expect(container.blocks?.[1]?.children[0]?.marks).toEqual(['Bold'])
+    expect(parsed.blocks[1]?.children[0]?.text).toBe('tail')
+    expect(parsed.diagnostics).toEqual([])
+    // The semantic text survives the trip through HTML.
+    expect(RichText.documentToText(list)).toBe('one\ntwo\ntail')
+  })
+
+  it('round-trips an application node that holds runs', () => {
+    const callout = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'c',
+          props: {},
+          children: [{ type: 'Text', id: 't', text: 'careful', marks: [] }],
+        },
+      ],
+    })
+    const parsed = parse(RichText.documentToHtml(callout))
+    const block = parsed.blocks[0]
+    expect(block?.type).toBe('Node')
+    if (block?.type !== 'Node') throw new Error('expected a node block')
+    expect(block.kind).toBe('Callout')
+    expect(block.blocks).toBeUndefined()
+    expect(block.children.map(run => run.text)).toEqual(['careful'])
+  })
+
   it('survives tag soup without throwing', () => {
     const parsed = parse('<p>unclosed<div><p>nested</p></p><strong>stray')
     expect(shape(parsed.blocks).map(block => block.text)).toEqual(['unclosed', 'nested', 'stray'])

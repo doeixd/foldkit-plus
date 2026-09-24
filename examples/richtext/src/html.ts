@@ -75,6 +75,10 @@ const headingLevel = (tag: string): number | undefined => {
   return match === null ? undefined : Number(match[1])
 }
 
+/** Whether a tag starts a block of its own rather than inline content. */
+const isBlockElement = (tag: string): boolean =>
+  BLOCK_TAGS.has(tag) || headingLevel(tag) !== undefined || DROPPED.has(tag)
+
 interface Piece {
   readonly text: string
   readonly marks: ReadonlyArray<string>
@@ -193,27 +197,13 @@ const headingBlock = (
   ]
 }
 
-/** Blocks of one element: inline runs group into paragraphs, block children recurse. */
-const blocksFrom = (
+/** Blocks of one element's children: inline runs group into paragraphs, block children recurse. */
+const childBlocks = (
   element: Element,
   mint: () => string,
   diagnostics: Array<HtmlDiagnostic>,
   kit: RichText.Kit | undefined,
 ): ReadonlyArray<RichText.Block> => {
-  const tag = element.tagName.toLowerCase()
-  const declared = element.getAttribute('data-unknown')
-  if (tag === 'div' && declared !== null && declared.trim().length > 0) {
-    // Our own preserved-node placeholder: the payload stays opaque.
-    return [
-      {
-        type: 'Unknown' as const,
-        id: RichText.NodeId.make(mint()),
-        originalType: declared.trim(),
-        props: {},
-        children: [],
-      },
-    ]
-  }
   const blocks: Array<RichText.Block> = []
   let lines: Array<ReadonlyArray<Piece>> = [[]]
   const flush = (): void => {
@@ -225,7 +215,7 @@ const blocksFrom = (
       const childElement = child as Element
       const childTag = childElement.tagName.toLowerCase()
       const level = headingLevel(childTag)
-      const isBlock = BLOCK_TAGS.has(childTag) || level !== undefined || DROPPED.has(childTag)
+      const isBlock = isBlockElement(childTag)
       if (isBlock) {
         flush()
         if (DROPPED.has(childTag)) {
@@ -244,6 +234,62 @@ const blocksFrom = (
   }
   flush()
   return blocks
+}
+
+/** Blocks of one element, including our own preserved and application-node elements. */
+const blocksFrom = (
+  element: Element,
+  mint: () => string,
+  diagnostics: Array<HtmlDiagnostic>,
+  kit: RichText.Kit | undefined,
+): ReadonlyArray<RichText.Block> => {
+  const tag = element.tagName.toLowerCase()
+  const preserved = element.getAttribute('data-unknown')
+  if (tag === 'div' && preserved !== null && preserved.trim().length > 0) {
+    // Our own preserved-node placeholder: the payload stays opaque.
+    return [
+      {
+        type: 'Unknown' as const,
+        id: RichText.NodeId.make(mint()),
+        originalType: preserved.trim(),
+        props: {},
+        children: [],
+      },
+    ]
+  }
+  const nodeKind = element.getAttribute('data-node')?.trim()
+  if (nodeKind !== undefined && nodeKind.length > 0) {
+    const declared = kit === undefined || kit.nodes.some(node => node.name === nodeKind)
+    if (declared) {
+      // A kind whose element holds block children is a container, so a list
+      // keeps its items; otherwise the kind holds runs directly. Props are not
+      // carried by HTML, so the value starts empty.
+      const holdsBlocks = Array.from(element.children).some(child =>
+        isBlockElement(child.tagName.toLowerCase()),
+      )
+      return [
+        holdsBlocks
+          ? {
+              type: 'Node' as const,
+              kind: nodeKind,
+              id: RichText.NodeId.make(mint()),
+              props: {},
+              children: [],
+              blocks: childBlocks(element, mint, diagnostics, kit),
+            }
+          : {
+              type: 'Node' as const,
+              kind: nodeKind,
+              id: RichText.NodeId.make(mint()),
+              props: {},
+              children: runsFrom(linesOf(element, diagnostics).flat(), mint),
+            },
+      ]
+    }
+    diagnostics.push({ code: 'Undeclared', detail: nodeKind })
+    // Degrade to its content rather than keeping a kind the Kit refuses.
+  }
+  return childBlocks(element, mint, diagnostics, kit)
 }
 
 const linesOf = (element: Element, diagnostics: Array<HtmlDiagnostic>): Lines => {
