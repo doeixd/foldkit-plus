@@ -460,7 +460,8 @@ result: Foldkit's loop, once, on the server.
 A post the server cannot use, one with no Message, one that is not JSON or
 does not decode, or one no active Surface lists, is answered `400` with the
 reason (`FallbackRefused`). A Command that fails is answered `500`, as a
-render that fails is. `SSR.handle(request, config, plan, { buildId, flags? })`
+render that fails is; one that yields no Message, fired and forgotten, folds
+nothing in and the page is answered as usual. `SSR.handle(request, config, plan, { buildId, flags? })`
 is also callable on its own, for an entry that is not `SSR.entry`.
 
 ## Bundles whose bodies load on demand
@@ -674,8 +675,9 @@ const Message = defineMessageUnion({
   overriding the Message's, then the Command that follows under the config's
   `resources`, and answers with the resumable page that results; a Message no
   active Surface lists, a missing Message, one that is not JSON and one that
-  does not decode are each `400`; `POST` is `405` for a plan with no fallback,
-  and named among the allowed methods for one with.
+  does not decode are each `400`; a Command that yields no Message folds
+  nothing in and the page is still answered; `POST` is `405` for a plan with
+  no fallback, and named among the allowed methods for one with.
 - **Phase F, bodies on demand:** the server waits for a lazy bundle's bodies
   and renders the real view, once per bundle; the placement root is stamped
   with its slot; a binding inside the placement is the parent's Message with

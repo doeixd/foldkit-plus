@@ -76,6 +76,12 @@ describe('SSR.handle through handleRequest', () => {
     expect(body).toContain('"todos":["Served","Milk"]')
   })
 
+  it('folds nothing for a Command that yields no Message, and still answers the page', async () => {
+    const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Pinged()) }))
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('<li>Served</li>')
+  })
+
   it('refuses a Message no active Surface lists', async () => {
     const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Cleared()) }))
     expect(response.status).toBe(400)

@@ -23,6 +23,7 @@ export const Message = defineMessageUnion({
   Noted: { count: Schema.Number },
   Booted: {},
   Cleared: {},
+  Pinged: {},
 })
 export type Message = typeof Message.Type
 
@@ -36,7 +37,7 @@ export const App = Surface.application({ Model, Message, initial, update: model 
 
 export const Todos = App.surface('Todos', {
   model: ({ model }) => ({ draft: model.draft, todos: model.todos, noted: model.noted }),
-  messages: [Message.Typed, Message.Added, Message.Noted, Message.Booted],
+  messages: [Message.Typed, Message.Added, Message.Noted, Message.Booted, Message.Pinged],
 })
 
 const note = (of: number) => ({
@@ -48,6 +49,9 @@ const note = (of: number) => ({
 })
 
 const booted = { name: 'Booted', effect: Effect.succeed(Message.Booted()) }
+
+/** Fired and forgotten: it yields no Message. */
+const ping = { name: 'Ping', effect: Effect.void }
 
 export const config = {
   Model,
@@ -62,6 +66,7 @@ export const config = {
       Noted: ({ count }) => ({ model: { ...model, noted: count } }),
       Booted: () => ({ model: { ...model, booted: true } }),
       Cleared: () => ({ model: { ...model, todos: [] } }),
+      Pinged: () => ({ model, commands: [ping] }),
     }),
   view: (model: Model, h: HtmlBuilder<Message>) => {
     const rh = Resume.builder(h)

@@ -1359,9 +1359,8 @@ const fold = <Model>(
     const pending = [...messages]
     const queue = [...commands]
     while (pending.length > 0 || queue.length > 0) {
-      const message = pending.shift()
-      if (message !== undefined) {
-        const next = config.update(current, message) as {
+      if (pending.length > 0) {
+        const next = config.update(current, pending.shift()) as {
           readonly model: Model
           readonly commands?: ReadonlyArray<unknown> | undefined
         }
@@ -1385,7 +1384,9 @@ const fold = <Model>(
               unknown,
               never
             >)
-      pending.push(yield* Effect.orDie(provided))
+      const result = yield* Effect.orDie(provided)
+      // A Command fired and forgotten yields no Message, and folds nothing in.
+      if (result !== undefined && result !== null) pending.push(result)
     }
     return current
   })
