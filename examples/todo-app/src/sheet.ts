@@ -4,11 +4,12 @@
  * style in `style.ts`, each compiled to a class named by a hash of its rule so
  * the server and the browser agree. `client.ts` injects it once.
  *
- * Every slot style goes in `app`, the last layer, so it wins over the design
- * system beneath it. The `Layout` pieces and the Button recipe those styles
- * compose were already placed in `layouts`, `components`, and `variants`, and
- * keep those layers; `L.in` only places what is still unlayered. Leaving a slot style out of a layer is refused: an
- * unlayered rule would beat every layer, `app` included.
+ * Every slot style is already in `app`, the last layer, placed where
+ * `style.ts` defines it: layering changes a rule's class, so the sheet must
+ * ship the same value the views attach, not a copy layered here. The `Layout`
+ * pieces and the Button recipe those styles compose keep their own layers.
+ * An unlayered rule would be refused: it would beat every layer, `app`
+ * included.
  */
 import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
@@ -34,13 +35,13 @@ export const stylesheet = Style.stylesheet(
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
   L.in('defaults', Defaults.body),
-  L.in('app', PageStyle),
-  L.in('app', HeaderStyle),
-  L.in('app', ComposerStyle),
-  L.in('app', AddButtonStyle),
-  L.in('app', FilterStyle),
-  L.in('app', ItemStyle),
-  L.in('app', ToggleStyle),
-  L.in('app', FooterStyle),
-  L.in('app', ClearButtonStyle),
+  PageStyle,
+  HeaderStyle,
+  ComposerStyle,
+  AddButtonStyle,
+  FilterStyle,
+  ItemStyle,
+  ToggleStyle,
+  FooterStyle,
+  ClearButtonStyle,
 )

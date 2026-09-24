@@ -320,26 +320,32 @@ const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.1
 const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a missing name is a type error
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
-const PageStyle = Style.forSlots(PageSlots)({
-  root: Style.inline({
-    background: t.surface.base,
-    color: t.text.default,
+// Layered where it is defined: the view attaches this same value, so its classes are the sheet's.
+const PageStyle = L.in(
+  'app',
+  Style.forSlots(PageSlots)({
+    root: Style.self({
+      background: t.surface.base,
+      color: t.text.default,
+    }),
   }),
-})
+)
 
 export const sheet = Style.stylesheet(
   L.declare,
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
   L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
-  L.in('app', PageStyle),
+  PageStyle,
 )
 ```
 
 Once the sheet declares an order, every rule in it must sit in one of its layers: an unlayered
 rule would beat all of them, `app` included, so `Style.stylesheet` refuses it with
-`style:unlayered-rule`. `L.in('app', PageStyle)` places a whole `NamedStyle`; a layout or recipe
-it composes keeps the layer it was already given.
+`style:unlayered-rule`. `L.in('app', style)` places a whole `NamedStyle`; a layout or recipe
+it composes keeps the layer it was already given. Layer a style where it is defined, never
+only in the sheet: a layer is part of a rule's identity, so the layered copy has new class
+names, and a view still attaching the original would render classes the sheet lacks.
 
 `omit` leaves out the tokens another theme already declared, so the scales go out once in
 `tokens` and the palette once in `theme`. Which theme is active is a Model fact: the view writes

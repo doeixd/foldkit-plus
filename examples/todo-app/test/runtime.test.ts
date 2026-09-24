@@ -4,6 +4,7 @@ import { ReplicaId, type Storage } from 'foldkit-sync'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Message } from '../src/app.js'
 import { mountApp } from '../src/runtime.js'
+import { stylesheet } from '../src/sheet.js'
 import { TodoSync } from '../src/sync.js'
 
 /** A storage double, so the runtime can be mounted without IndexedDB. */
@@ -92,6 +93,17 @@ describe('the mounted app', () => {
       expect(root?.getAttribute('style') ?? '').not.toMatch(
         /--fk-(knob|surface|text|accent)-[a-z-]+:/,
       )
+
+      // Every generated class the views render is one the sheet defines. A
+      // style layered only in the sheet would carry a different class than the
+      // one its view attached, and this would name the stranded class.
+      const rendered = new Set(
+        [...document.querySelectorAll('[class]')].flatMap(element =>
+          [...element.classList].filter(name => name.startsWith('style-')),
+        ),
+      )
+      expect(rendered.size).toBeGreaterThan(0)
+      expect([...rendered].filter(name => !stylesheet.includes(`.${name}`))).toEqual([])
     } finally {
       await mounted.dispose()
       await Effect.runPromise(replica.close)

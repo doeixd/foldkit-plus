@@ -11,19 +11,23 @@ const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.1
 const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a missing name is a type error
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
-const PageStyle = Style.forSlots(PageSlots)({
-  root: Style.inline({
-    background: t.surface.base,
-    color: t.text.default,
+// Layered where it is defined: the view attaches this same value, so its classes are the sheet's.
+const PageStyle = L.in(
+  'app',
+  Style.forSlots(PageSlots)({
+    root: Style.self({
+      background: t.surface.base,
+      color: t.text.default,
+    }),
   }),
-})
+)
 
 const sheet = Style.stylesheet(
   L.declare,
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
   L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
-  L.in('app', PageStyle),
+  PageStyle,
 )
 
 describe('README: Theme from a few knobs', () => {
@@ -32,6 +36,12 @@ describe('README: Theme from a few knobs', () => {
     expect(sheet.match(/--fk-space-md:/g)).toHaveLength(1)
     expect(sheet).toContain('@layer theme{:root{--fk-knob-accent-h:280;')
     expect(sheet).toContain('@layer theme{:root[data-theme="ocean"]{--fk-knob-accent-h:215}}')
+  })
+
+  it('ships the class the page view renders, in the app layer', () => {
+    const className = PageStyle.rules[0]?.className ?? ''
+    expect(className).not.toBe('')
+    expect(sheet).toContain(`@layer app{.${className}{`)
   })
 
   it('the page style reads tokens the sheet declares', () => {

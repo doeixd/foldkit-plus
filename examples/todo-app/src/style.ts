@@ -30,6 +30,7 @@ import {
   Slot,
   Slots,
   Style,
+  type NamedStyle,
   type StyleValue,
 } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
@@ -69,30 +70,39 @@ const control: StyleValue = Style.inline({
   borderRadius: t.radius.control,
 })
 
+/**
+ * Places a slot style in the `app` layer where it is defined, so the value a
+ * view attaches is the one the sheet ships. Layering changes a rule's class,
+ * so a copy layered later in the sheet would carry classes no view renders.
+ */
+const app = <S>(style: NamedStyle<S>): NamedStyle<S> => Layers.standard.in('app', style)
+
 // --- the page ------------------------------------------------------------------
 
 export const PageSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
 })
 
-export const PageStyle = Style.forSlots(PageSlots)(
-  {
-    root: Style.compose(
-      Style.class('app'),
-      Layers.standard.in('layouts', Layout.stack({ gap: '1.25rem' })),
-      Style.inline({
-        width: 'min(40rem, 100%)',
-        background: t.surface.base,
-        color: t.text.default,
-        border: `1px solid ${t.outline.subtle}`,
-        borderRadius: t.radius.card,
-        padding: '1.75rem',
-        boxShadow: '0 12px 40px rgb(0 0 0 / 8%)',
-      }),
-      Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0' }),
-    ),
-  },
-  { name: 'PageStyle' },
+export const PageStyle = app(
+  Style.forSlots(PageSlots)(
+    {
+      root: Style.compose(
+        Style.class('app'),
+        Layers.standard.in('layouts', Layout.stack({ gap: '1.25rem' })),
+        Style.inline({
+          width: 'min(40rem, 100%)',
+          background: t.surface.base,
+          color: t.text.default,
+          border: `1px solid ${t.outline.subtle}`,
+          borderRadius: t.radius.card,
+          padding: '1.75rem',
+          boxShadow: '0 12px 40px rgb(0 0 0 / 8%)',
+        }),
+        Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0' }),
+      ),
+    },
+    { name: 'PageStyle' },
+  ),
 )
 
 // --- header --------------------------------------------------------------------
@@ -107,33 +117,35 @@ export const HeaderSlots = Slots.define({
   tally: Slot.make({ capability: Capability.Container }),
 })
 
-export const HeaderStyle = Style.forSlots(HeaderSlots)(
-  {
-    root: Layers.standard.in(
-      'layouts',
-      Layout.cluster({ justify: 'space-between', align: 'baseline', gap: '1rem' }),
-    ),
-    title: Style.compose(
-      control,
-      Style.inline({
-        border: '0',
-        background: 'transparent',
-        color: 'inherit',
-        fontSize: '1.6rem',
-        fontWeight: '700',
-        letterSpacing: '-0.02em',
-        padding: '0.1rem 0.25rem',
-        margin: '0 -0.25rem',
-        minWidth: '0',
-      }),
-      Style.pseudo(':focus-visible', {
-        outline: `2px solid ${t.outline.focus}`,
-        outlineOffset: '2px',
-      }),
-    ),
-    tally: Style.inline({ margin: '0', color: t.text.muted, fontSize: '0.85rem' }),
-  },
-  { name: 'HeaderStyle' },
+export const HeaderStyle = app(
+  Style.forSlots(HeaderSlots)(
+    {
+      root: Layers.standard.in(
+        'layouts',
+        Layout.cluster({ justify: 'space-between', align: 'baseline', gap: '1rem' }),
+      ),
+      title: Style.compose(
+        control,
+        Style.inline({
+          border: '0',
+          background: 'transparent',
+          color: 'inherit',
+          fontSize: '1.6rem',
+          fontWeight: '700',
+          letterSpacing: '-0.02em',
+          padding: '0.1rem 0.25rem',
+          margin: '0 -0.25rem',
+          minWidth: '0',
+        }),
+        Style.pseudo(':focus-visible', {
+          outline: `2px solid ${t.outline.focus}`,
+          outlineOffset: '2px',
+        }),
+      ),
+      tally: Style.inline({ margin: '0', color: t.text.muted, fontSize: '0.85rem' }),
+    },
+    { name: 'HeaderStyle' },
+  ),
 )
 
 // --- composer --------------------------------------------------------------------
@@ -147,25 +159,27 @@ export const ComposerSlots = Slots.define({
   }),
 })
 
-export const ComposerStyle = Style.forSlots(ComposerSlots)(
-  {
-    root: Layers.standard.in('layouts', Layout.cluster({ gap: '0.5rem', align: 'stretch' })),
-    input: Style.compose(
-      control,
-      Style.inline({
-        flex: '1',
-        padding: '0.7rem 0.85rem',
-        border: `1px solid ${t.outline.default}`,
-        background: 'transparent',
-        color: 'inherit',
-      }),
-      Style.pseudo(':focus', {
-        outline: `2px solid ${t.outline.focus}`,
-        outlineOffset: '1px',
-      }),
-    ),
-  },
-  { name: 'ComposerStyle' },
+export const ComposerStyle = app(
+  Style.forSlots(ComposerSlots)(
+    {
+      root: Layers.standard.in('layouts', Layout.cluster({ gap: '0.5rem', align: 'stretch' })),
+      input: Style.compose(
+        control,
+        Style.inline({
+          flex: '1',
+          padding: '0.7rem 0.85rem',
+          border: `1px solid ${t.outline.default}`,
+          background: 'transparent',
+          color: 'inherit',
+        }),
+        Style.pseudo(':focus', {
+          outline: `2px solid ${t.outline.focus}`,
+          outlineOffset: '1px',
+        }),
+      ),
+    },
+    { name: 'ComposerStyle' },
+  ),
 )
 
 /**
@@ -184,7 +198,9 @@ const AddButton = Recipes.Button.extend({
   },
 })
 
-export const AddButtonStyle = Style.forSlots(ButtonSlots)(AddButton(), { name: 'AddButtonStyle' })
+export const AddButtonStyle = app(
+  Style.forSlots(ButtonSlots)(AddButton(), { name: 'AddButtonStyle' }),
+)
 
 // --- filters: one slot, resolved once per filter with the filter as input --------
 
@@ -201,34 +217,36 @@ export const FilterSlots = Slots.define({
   }),
 })
 
-export const FilterStyle = Style.forSlots(FilterSlots)(
-  {
-    button: Style.compose(
-      Style.class('filter'),
-      Style.inline({
-        padding: '0.3rem 0.75rem',
-        border: '1px solid transparent',
-        borderRadius: t.radius.full,
-        background: 'transparent',
-        color: t.text.muted,
-        font: 'inherit',
-        textTransform: 'capitalize',
-        cursor: 'pointer',
-      }),
-      // A condition read from the input at render time: the same slot, styled
-      // per filter without a class per state in the view.
-      Style.whenInput<FilterInput>(
-        input => input.active,
+export const FilterStyle = app(
+  Style.forSlots(FilterSlots)(
+    {
+      button: Style.compose(
+        Style.class('filter'),
         Style.inline({
-          borderColor: t.outline.subtle,
-          background: t.accent.subtle,
-          color: t.text.link,
+          padding: '0.3rem 0.75rem',
+          border: '1px solid transparent',
+          borderRadius: t.radius.full,
+          background: 'transparent',
+          color: t.text.muted,
+          font: 'inherit',
+          textTransform: 'capitalize',
+          cursor: 'pointer',
         }),
+        // A condition read from the input at render time: the same slot, styled
+        // per filter without a class per state in the view.
+        Style.whenInput<FilterInput>(
+          input => input.active,
+          Style.inline({
+            borderColor: t.outline.subtle,
+            background: t.accent.subtle,
+            color: t.text.link,
+          }),
+        ),
+        Style.pseudo(':hover', { color: t.text.default }),
       ),
-      Style.pseudo(':hover', { color: t.text.default }),
-    ),
-  },
-  { name: 'FilterStyle' },
+    },
+    { name: 'FilterStyle' },
+  ),
 )
 
 /** Interaction for the same slot: the selected filter announces itself. */
@@ -296,58 +314,63 @@ const badge = Style.recipe({
 
 const priorities: ReadonlyArray<Priority> = ['high', 'normal', 'low']
 
-export const ItemStyle = Style.forSlots(ItemSlots)(
-  {
-    root: Style.compose(
-      Style.class('item'),
-      Layers.standard.in('layouts', Layout.cluster({ gap: '0.75rem' })),
-      Style.inline({
-        flexWrap: 'nowrap',
-        padding: '0.6rem 0',
-        borderTop: `1px solid ${t.outline.subtle}`,
-      }),
-      // `nest` styles a descendant from the row's own class, so hovering the
-      // row reveals its delete button without the view knowing.
-      Style.nest(' .item-remove', { opacity: '0' }),
-      Style.pseudo(':is(:hover, :focus-within) .item-remove', { opacity: '1' }),
-    ),
-    title: Style.compose(
-      Style.inline({ flex: '1', cursor: 'text' }),
-      Style.whenInput<ItemInput>(
-        input => input.todo.completed,
-        Style.inline({ color: t.text.done, textDecoration: 'line-through' }),
+export const ItemStyle = app(
+  Style.forSlots(ItemSlots)(
+    {
+      root: Style.compose(
+        Style.class('item'),
+        Layers.standard.in('layouts', Layout.cluster({ gap: '0.75rem' })),
+        Style.inline({
+          flexWrap: 'nowrap',
+          padding: '0.6rem 0',
+          borderTop: `1px solid ${t.outline.subtle}`,
+        }),
+        // `nest` styles a descendant from the row's own class, so hovering the
+        // row reveals its delete button without the view knowing.
+        Style.nest(' .item-remove', { opacity: '0' }),
+        Style.pseudo(':is(:hover, :focus-within) .item-remove', { opacity: '1' }),
       ),
-    ),
-    // The recipe picks the variant from the input, one piece per priority.
-    priority: Style.compose(
-      ...priorities.map(priority =>
-        Style.whenInput<ItemInput>(input => input.todo.priority === priority, badge({ priority })),
+      title: Style.compose(
+        Style.inline({ flex: '1', cursor: 'text' }),
+        Style.whenInput<ItemInput>(
+          input => input.todo.completed,
+          Style.inline({ color: t.text.done, textDecoration: 'line-through' }),
+        ),
       ),
-    ),
-    remove: Style.compose(
-      Style.class('item-remove'),
-      Style.inline({
-        border: '0',
-        background: 'transparent',
-        color: t.text.muted,
-        fontSize: '1.2rem',
-        lineHeight: '1',
-        cursor: 'pointer',
-      }),
-      Style.pseudo(':hover', { color: t.error.default }),
-    ),
-    editor: Style.compose(
-      control,
-      Style.inline({
-        flex: '1',
-        padding: '0.3rem 0.5rem',
-        border: `1px solid ${t.accent.default}`,
-        background: 'transparent',
-        color: 'inherit',
-      }),
-    ),
-  },
-  { name: 'ItemStyle' },
+      // The recipe picks the variant from the input, one piece per priority.
+      priority: Style.compose(
+        ...priorities.map(priority =>
+          Style.whenInput<ItemInput>(
+            input => input.todo.priority === priority,
+            badge({ priority }),
+          ),
+        ),
+      ),
+      remove: Style.compose(
+        Style.class('item-remove'),
+        Style.inline({
+          border: '0',
+          background: 'transparent',
+          color: t.text.muted,
+          fontSize: '1.2rem',
+          lineHeight: '1',
+          cursor: 'pointer',
+        }),
+        Style.pseudo(':hover', { color: t.error.default }),
+      ),
+      editor: Style.compose(
+        control,
+        Style.inline({
+          flex: '1',
+          padding: '0.3rem 0.5rem',
+          border: `1px solid ${t.accent.default}`,
+          background: 'transparent',
+          color: 'inherit',
+        }),
+      ),
+    },
+    { name: 'ItemStyle' },
+  ),
 )
 
 /**
@@ -371,32 +394,34 @@ export const EditorBehavior = Behavior.forSlots(ItemSlots)<ItemInput, BoardMessa
 )
 
 /** The row's checkbox is a `@foldkit/ui` Checkbox; its contract has the slots. */
-export const ToggleStyle = Style.forSlots(CheckboxSlots)(
-  {
-    checkbox: Style.compose(
-      Style.inline({
-        width: '1.5rem',
-        height: '1.5rem',
-        display: 'grid',
-        placeItems: 'center',
-        border: `1px solid ${t.outline.overt}`,
-        borderRadius: '50%',
-        background: 'transparent',
-        color: t.accent.default,
-        cursor: 'pointer',
-        padding: '0',
-      }),
-      Style.whenInput<ItemInput>(
-        input => input.todo.completed,
-        Style.inline({ borderColor: t.accent.default }),
+export const ToggleStyle = app(
+  Style.forSlots(CheckboxSlots)(
+    {
+      checkbox: Style.compose(
+        Style.inline({
+          width: '1.5rem',
+          height: '1.5rem',
+          display: 'grid',
+          placeItems: 'center',
+          border: `1px solid ${t.outline.overt}`,
+          borderRadius: '50%',
+          background: 'transparent',
+          color: t.accent.default,
+          cursor: 'pointer',
+          padding: '0',
+        }),
+        Style.whenInput<ItemInput>(
+          input => input.todo.completed,
+          Style.inline({ borderColor: t.accent.default }),
+        ),
+        Style.pseudo(':focus-visible', {
+          outline: `2px solid ${t.outline.focus}`,
+          outlineOffset: '2px',
+        }),
       ),
-      Style.pseudo(':focus-visible', {
-        outline: `2px solid ${t.outline.focus}`,
-        outlineOffset: '2px',
-      }),
-    ),
-  },
-  { name: 'ToggleStyle' },
+    },
+    { name: 'ToggleStyle' },
+  ),
 )
 
 // --- footer ----------------------------------------------------------------------
@@ -406,35 +431,39 @@ export const FooterSlots = Slots.define({
   status: Slot.make({ capability: Capability.Container }),
 })
 
-export const FooterStyle = Style.forSlots(FooterSlots)(
-  {
-    root: Style.compose(
-      Layers.standard.in('layouts', Layout.cluster({ justify: 'space-between', gap: '1rem' })),
-      Style.inline({
-        paddingTop: '1rem',
-        borderTop: `1px solid ${t.outline.subtle}`,
-        color: t.text.muted,
-        fontSize: '0.85rem',
-      }),
-    ),
-    status: Style.inline({ margin: '0' }),
-  },
-  { name: 'FooterStyle' },
+export const FooterStyle = app(
+  Style.forSlots(FooterSlots)(
+    {
+      root: Style.compose(
+        Layers.standard.in('layouts', Layout.cluster({ justify: 'space-between', gap: '1rem' })),
+        Style.inline({
+          paddingTop: '1rem',
+          borderTop: `1px solid ${t.outline.subtle}`,
+          color: t.text.muted,
+          fontSize: '0.85rem',
+        }),
+      ),
+      status: Style.inline({ margin: '0' }),
+    },
+    { name: 'FooterStyle' },
+  ),
 )
 
-export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
-  {
-    button: Style.compose(
-      Style.inline({
-        border: '0',
-        background: 'transparent',
-        color: t.text.muted,
-        font: 'inherit',
-        cursor: 'pointer',
-      }),
-      Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
-      Style.pseudo(':not(:disabled):hover', { color: t.error.default }),
-    ),
-  },
-  { name: 'ClearButtonStyle' },
+export const ClearButtonStyle = app(
+  Style.forSlots(ButtonSlots)(
+    {
+      button: Style.compose(
+        Style.inline({
+          border: '0',
+          background: 'transparent',
+          color: t.text.muted,
+          font: 'inherit',
+          cursor: 'pointer',
+        }),
+        Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
+        Style.pseudo(':not(:disabled):hover', { color: t.error.default }),
+      ),
+    },
+    { name: 'ClearButtonStyle' },
+  ),
 )

@@ -286,7 +286,10 @@ component's own `aria-checked` / `aria-selected` / `aria-disabled`.
   `foldkit-mixins/layers`) is the order `reset, tokens, theme, defaults, components, layouts,
   variants, utilities, app`; `L.in(name, piece)` puts a piece's rules and global CSS in that layer
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
-  `Style.stylesheet(L.declare, L.in('theme', …), L.in('app', PageStyle))` hoists it first.
+  `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. Layer a slot style
+  where it is defined (`const PageStyle = L.in('app', Style.forSlots(S)({…}))`), never only in the
+  sheet: the layered copy has new class names, so a view attaching the original renders classes
+  the sheet lacks.
   Once a sheet declares an order, an unlayered rule throws `style:unlayered-rule` (it would beat
   every layer, `app` included); keyframes, font faces and `@property` pass. `L.in` takes a piece
   or a whole `NamedStyle` and places only what is unlayered: a composed layout or recipe keeps its
