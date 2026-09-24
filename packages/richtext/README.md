@@ -179,7 +179,8 @@ declared mark with props gets real attributes once a Kit-aware renderer exists.
 
 A `Node` block is an application's own kind — a Callout, an Image, an embed. Its
 `props` are JSON at the codec level, because the document codec cannot know an
-application's schemas; a Kit's node definition validates them at that boundary:
+application's schemas; a Kit's node definition validates them at that boundary,
+and it also declares what content the kind holds:
 
 ```ts
 const ArticleKit = RichText.kit({
@@ -187,13 +188,25 @@ const ArticleKit = RichText.kit({
     RichText.block('Paragraph'),
     RichText.node('Callout', { Props: Schema.Struct({ tone: Schema.Literals(['info', 'warning']) }) }),
     RichText.node('Image'),
+    RichText.node('List', { children: RichText.blockContent }),
   ],
   marks: [RichText.Bold],
 })
 
 RichText.validate(document, ArticleKit)
 // → [] | UnsupportedNode (kind not declared) | InvalidProps (schema refused them)
+//   | MismatchedDefinition (declaration and document disagree)
 ```
+
+`children` defaults to `RichText.textContent`, so a node holds runs; `blockContent`
+says it holds nested blocks (§116). `RichText.block(name)` declares one of the
+built-in blocks and `RichText.atom(name)` declares a kind holding nothing, so an
+atom is exactly an application node with no content. `validate` walks nested blocks
+and reports `MismatchedDefinition` when a declaration and the document disagree
+about the shape or the content — an atom holding runs, a `blockContent` kind held
+as a run holder, or a `textContent` kind held as a container. An *empty*
+application node is the one case it accepts either way, because the document
+cannot say whether it is an atom or a run holder with no runs.
 
 A node block's children are text runs, so positions, operations, selection,
 clipboard slices, history, and the interpreters all work on it unchanged — a
@@ -206,8 +219,10 @@ and `toText` gives one line per text block; the read-only view and the editable
 adapter do the same, so a list keeps its items in every interpreter. HTML import
 reads `data-node` back: an element holding block children becomes a container, an
 element holding inline content becomes a run holder, and a kind the Kit does not
-declare degrades to its content with a diagnostic. Props are not carried by HTML —
-the slice format keeps them — so an imported node starts with `{}` props.
+declare degrades to its content with a diagnostic. A `blockContent` declaration
+settles the one ambiguous case — a container whose element holds only inline
+content — because the declaration says what the content is. Props are not carried
+by HTML; the slice format keeps them, so an imported node starts with `{}` props.
 
 ## Transforms
 

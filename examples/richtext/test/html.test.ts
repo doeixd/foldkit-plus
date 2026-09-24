@@ -186,6 +186,24 @@ describe('what import refuses', () => {
     expect(parsed.diagnostics).toEqual([{ code: 'Undeclared', detail: 'Callout' }])
   })
 
+  it('uses a declaration to settle whether a kind holds blocks', () => {
+    // The element holds only inline content, so the content alone would read as
+    // a run holder; the declaration says the kind holds blocks.
+    const List = RichText.node('List', { children: RichText.blockContent })
+    const kit = RichText.kit({ nodes: [List, RichText.block('Paragraph')], marks: [] })
+    const parsed = parse('<div data-node="List">one</div>', kit)
+    const block = parsed.blocks[0]
+    if (block?.type !== 'Node') throw new Error('expected a node block')
+    expect(block.blocks?.map(child => child.children[0]?.text)).toEqual(['one'])
+    expect(parsed.diagnostics).toEqual([])
+    // Without the declaration the same markup reads as a run holder.
+    const loose = parse('<div data-node="List">one</div>')
+    const asRuns = loose.blocks[0]
+    if (asRuns?.type !== 'Node') throw new Error('expected a node block')
+    expect(asRuns.blocks).toBeUndefined()
+    expect(asRuns.children.map(run => run.text)).toEqual(['one'])
+  })
+
   it('round-trips a list through the serializer', () => {
     const list = RichText.decodeDocument({
       version: 1,

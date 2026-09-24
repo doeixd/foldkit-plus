@@ -50,10 +50,122 @@ describe('a declaration is a constraint', () => {
     expect(RichText.validate(callout({ tone: 'info' }), declared)).toEqual([])
   })
 
-  it('reports an application node declared as an atom', () => {
+  it('reports an atom declaration only when the node actually holds content', () => {
     const asAtom = RichText.kit({ nodes: [RichText.atom('Callout')], marks: [] })
-    expect(RichText.validate(callout({ tone: 'info' }), asAtom).map(d => d.code)).toEqual([
-      'MismatchedDefinition',
+    // An empty application node is exactly what an atom looks like in a
+    // document, so it agrees; one holding runs does not.
+    expect(RichText.validate(callout({ tone: 'info' }), asAtom)).toEqual([])
+    const holding = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'c',
+          props: { tone: 'info' },
+          children: [{ type: 'Text', id: 't', text: 'x', marks: [] }],
+        },
+      ],
+    })
+    expect(RichText.validate(holding, asAtom)).toEqual([
+      {
+        code: 'MismatchedDefinition',
+        node: 'c',
+        detail: 'Callout',
+        message: '"Callout" is declared to hold none, but the document holds text',
+      },
+    ])
+  })
+
+  it('reports a content mode the document contradicts', () => {
+    const List = RichText.node('List', { children: RichText.blockContent })
+    const listKit = RichText.kit({
+      nodes: [List, RichText.block('Paragraph')],
+      marks: [],
+    })
+    const asRuns = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [{ type: 'Text', id: 't', text: 'x', marks: [] }],
+        },
+      ],
+    })
+    expect(RichText.validate(asRuns, listKit)).toEqual([
+      {
+        code: 'MismatchedDefinition',
+        node: 'l',
+        detail: 'List',
+        message: '"List" is declared to hold blocks, but the document holds text',
+      },
+    ])
+    const asBlocks = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [{ type: 'Paragraph', id: 'p', children: [] }],
+        },
+      ],
+    })
+    expect(RichText.validate(asBlocks, listKit)).toEqual([])
+    // A declaration that holds runs refuses a container.
+    const containerCallout = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'c',
+          props: { tone: 'info' },
+          children: [],
+          blocks: [{ type: 'Paragraph', id: 'p', children: [] }],
+        },
+      ],
+    })
+    expect(
+      RichText.validate(
+        containerCallout,
+        RichText.kit({ nodes: [Callout, RichText.block('Paragraph')], marks: [] }),
+      ).map(diagnostic => diagnostic.code),
+    ).toEqual(['MismatchedDefinition'])
+  })
+
+  it('checks nested blocks and their marks, not only the top level', () => {
+    const List = RichText.node('List', { children: RichText.blockContent })
+    const listKit = RichText.kit({ nodes: [List], marks: [] })
+    const nested = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'p',
+              children: [{ type: 'Text', id: 't', text: 'x', marks: ['Highlight'] }],
+            },
+            { type: 'Embed', id: 'e', src: 'x' },
+          ],
+        },
+      ],
+    })
+    expect(RichText.validate(nested, listKit).map(diagnostic => diagnostic.code)).toEqual([
+      'UnsupportedNode',
+      'UnknownMark',
+      'UnknownNode',
     ])
   })
 })

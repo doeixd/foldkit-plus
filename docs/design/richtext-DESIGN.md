@@ -4846,7 +4846,15 @@ Landing order, each keeping the suite green:
    re-rendered where it stood, so its surviving items are rebuilt rather than
    patched individually — correct, and a follow-up for identity preservation.
 4. Kit child constraints: `children` declarations, the mismatch diagnostic, and
-   `atom`'s no-children enforcement at the operation level.
+   `atom`'s no-children enforcement at the operation level. **Complete**, with one
+   correction: the document codec, not `apply`, is where a Kit's content contract
+   is enforced, because `apply` takes no Kit (that stays the open question in
+   §115). `node(name, { children })` declares `textContent` or `blockContent`,
+   `validate` walks nested blocks and reports `MismatchedDefinition` when a
+   declaration and the document disagree about shape or content, and the
+   declaration settles the importer's one ambiguous case. That also fixed a false
+   positive: an `atom` declaration reported a mismatch for exactly the empty
+   application node an atom is held as.
 5. Migrations and a demo: `promoteUnknown` into a nested kind, HTML import for
    lists, and a list in the Phase 3 slice.
 

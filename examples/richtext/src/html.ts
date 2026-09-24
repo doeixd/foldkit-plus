@@ -259,14 +259,16 @@ const blocksFrom = (
   }
   const nodeKind = element.getAttribute('data-node')?.trim()
   if (nodeKind !== undefined && nodeKind.length > 0) {
-    const declared = kit === undefined || kit.nodes.some(node => node.name === nodeKind)
+    const declaredNode = kit?.nodes.find(candidate => candidate.name === nodeKind)
+    const declared = kit === undefined || declaredNode !== undefined
     if (declared) {
       // A kind whose element holds block children is a container, so a list
-      // keeps its items; otherwise the kind holds runs directly. Props are not
-      // carried by HTML, so the value starts empty.
-      const holdsBlocks = Array.from(element.children).some(child =>
-        isBlockElement(child.tagName.toLowerCase()),
-      )
+      // keeps its items; a declaration that says `blocks` settles it even when
+      // the element holds only inline content. Otherwise the kind holds runs
+      // directly. Props are not carried by HTML, so the value starts empty.
+      const holdsBlocks =
+        (declaredNode?.kind === 'node' && declaredNode.children === 'blocks') ||
+        Array.from(element.children).some(child => isBlockElement(child.tagName.toLowerCase()))
       return [
         holdsBlocks
           ? {

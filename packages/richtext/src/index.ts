@@ -75,8 +75,12 @@ export {
 } from './clipboard.js'
 export {
   type NodeDefinition,
+  type NodeDefinitionOf,
+  type ContentMode,
   type Kit,
   type Diagnostic,
+  textContent,
+  blockContent,
   block,
   atom,
   node,

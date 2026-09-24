@@ -43,9 +43,17 @@ stale content snapshot. `read` performs a linear lookup.
 
 `RichText.kit({ nodes, marks })` declares an editor's vocabulary as data;
 `validate(document, kit)` reports `UnknownNode` / `UnsupportedNode` /
-`UnknownMark` / `InvalidProps` diagnostics without changing the document. The Kit
-is what `run` may add marks from, and `validate` enforces a mark's declared prop
-schema; parsing stays with the caller, and nested children are pending.
+`UnknownMark` / `InvalidProps` / `MismatchedDefinition` diagnostics without
+changing the document, walking nested blocks as it goes. A node declaration says
+what content its kind holds — `RichText.node(name, { Props, children })` with
+`RichText.textContent` (the default) or `RichText.blockContent` — and `validate`
+reports a declaration the document contradicts: an atom holding runs, a
+`blockContent` kind held as a run holder, a `textContent` kind held as a
+container. An empty application node is accepted either way, because a document
+cannot say whether it is an atom or a run holder with no runs. The Kit is what
+`run` may add marks from; `apply` still takes no Kit, so a content contract is
+enforced at validation rather than at the operation. Parsing stays with the
+caller.
 
 `History` is snapshot undo over `EditorState`, kept in the application Model:
 `commit(history, previous, { group })`, `undo`, `redo`, with `groupFor(command)`
@@ -103,10 +111,10 @@ view, and the editable adapter all render a container with its nested blocks, an
 HTML import reads `data-node` back (props start empty; the slice keeps them).
 Structural placement works at depth too: a split keeps its halves in the block's
 container, siblings join within theirs, and `insertBlock`/`moveBlock` take an
-optional parent to enter or leave a container. A range that would merge across
-containers, and a parent that cannot hold blocks, are refused with
-`InvalidParent`. Marks are definitions with a boundary policy and, when they carry
-data, a prop schema:
+optional parent to enter or leave a container. A Kit declares what content a kind
+holds (`textContent` or `blockContent`), and `validate` reports a declaration the
+document contradicts. Marks are definitions with a boundary policy and, when they
+carry data, a prop schema:
 
 ```ts
 const Link = RichText.mark('Link', {
