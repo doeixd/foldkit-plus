@@ -257,24 +257,25 @@ export const assemble =
     }
 
     // Routing takes the first item that handles a Message, so two claimants of one
-    // tag would send one's Messages to the other, unless a wiring declares the tag
-    // shared and routes only its own values.
-    const shared = new Set(wirings.flatMap(wiring => wiring.shared ?? []))
-    const claims = new Map<string, string>()
-    const claim = (tag: string, owner: string, sharable: boolean) => {
+    // tag would send one's Messages to the other, unless every claimant is a
+    // wiring that declares the tag shared and routes only its own values. A
+    // placement takes every Message of its wrapper, so it never shares.
+    const claims = new Map<string, { readonly owner: string; readonly shares: boolean }>()
+    const claim = (tag: string, owner: string, shares: boolean) => {
       const other = claims.get(tag)
-      if (other !== undefined && !(sharable && shared.has(tag))) {
+      if (other !== undefined && !(other.shares && shares)) {
         throw new Error(
-          `Bundle.assemble: ${other} and ${owner} both handle "${tag}", so its Messages would reach only one. Give each its own wrapper or Message.`,
+          `Bundle.assemble: ${other.owner} and ${owner} both handle "${tag}", so its Messages would reach only one. Give each its own wrapper or Message.`,
         )
       }
-      claims.set(tag, owner)
+      claims.set(tag, { owner, shares })
     }
     for (const placed of [...singles, ...collections]) {
       claim(placed.link.messages.join(' > '), placed.key, false)
     }
     for (const wiring of wirings) {
-      for (const tag of wiring.handles) claim(tag, wiring.key, true)
+      const shared = new Set(wiring.shared ?? [])
+      for (const tag of wiring.handles) claim(tag, wiring.key, shared.has(tag))
     }
 
     const resourceUsers = [
@@ -286,10 +287,19 @@ export const assemble =
     ]
     assertDistinctResources(resourceUsers)
 
+    // A nested placement's Messages travel inside its outer placement's wrapper,
+    // which the outer one would take as its own; so the deepest placements are
+    // asked first, whatever the list order. Wirings claim tags of their own.
+    const byMessageDepth = [
+      ...[...singles, ...collections].sort(
+        (a, b) => b.link.messages.length - a.link.messages.length,
+      ),
+      ...wirings,
+    ]
     // Each item's own types were checked where it was built; the list holds them erased.
     const route = (model: Model, message: Message) =>
       pipe(
-        items,
+        byMessageDepth,
         Array.findFirst(item =>
           isPlacement(item)
             ? item.update(model, message)

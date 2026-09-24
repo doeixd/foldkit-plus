@@ -396,7 +396,9 @@ Rows.remove('b')
 Pass a key Schema, such as a branded id, and the key type follows through `add`,
 `remove`, helpers, views, and `onOut`. Store items in an array when order
 matters: a record puts integer-like keys such as `"2"` first. Ids in an array
-must be unique.
+must be unique, and an item is stored under its own id: give `add` a `prepare`
+that sets the id to the key, as below, and keep it through `update`. Writing an
+item whose id is not its key throws, since it could never be read back.
 
 ```ts
 const RowId = Schema.String.pipe(Schema.brand('RowId'))
@@ -406,6 +408,7 @@ const GotOrderedRowMessage = Link.keyedWrapper('GotOrderedRowMessage', RowMessag
 const OrderedRows = OrderedRow.each(
   OrderedPage.link.collectionById('rows', GotOrderedRowMessage, { id: row => row.id }),
 )
+OrderedRows.add(RowId.make('first'), row => ({ ...row, id: RowId.make('first') }))
 OrderedRows.remove(RowId.make('first')) // a RowId, not a string
 ```
 
@@ -487,8 +490,18 @@ Until the bodies load, a Message reaching `update` leaves the Model as it is
 and returns one Command, which loads them and yields the same Message again,
 so nothing is lost and the Model ends where an eager bundle's would; the view
 renders `while`, or nothing. `Upload.load()` loads them ahead of time, once,
-and `Upload.isLoaded()` says whether they have. Placed, extended or preset
-with `with`, the bundle stays lazy. `subscriptions`, `resources` and
+and `Upload.isLoaded()` says whether they have. A load that fails is
+forgotten, so the next Message or `load()` tries again. Placed, extended or
+preset with `with`, the bundle stays lazy.
+
+A Message that arrives before the bodies load passes through `update` twice:
+once as the no-op that starts the load, and again when the load re-yields it.
+The bundle's own Model ends where an eager bundle's would. Two things see both
+passes: a `Bundle.mapUpdate` wrapper around the bundle, and anything that
+replays recorded Messages through `update` after the load, such as Foldkit
+DevTools time travel, which then applies that Message twice. Load the bodies
+before the first interaction, as `foldkit-ssr` does before boot, or with
+`load()` when the page is idle, and no Message arrives early. `subscriptions`, `resources` and
 `helpers` stay in the declaration because Foldkit starts the first two at
 boot and a helper runs synchronously; none can wait for a chunk.
 [`test/lazy.test.ts`](test/lazy.test.ts) runs this on the Foldkit runtime.

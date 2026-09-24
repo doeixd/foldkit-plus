@@ -285,8 +285,12 @@ const placeErased = (bundle: ErasedSpec, link: ErasedLink, config: ErasedConfig 
     link,
     init: (parent: unknown) => {
       const initial = bundle.init(args)
+      const model = link.write(parent, initial.model)
+      // A nested child under an absent outer child has nowhere to live, so its
+      // startup Commands would run for nothing and their Messages reach nothing.
+      if (Option.isNone(link.read(model))) return { model: parent }
       return {
-        model: link.write(parent, initial.model),
+        model,
         commands: Command.mapMessages(initial.commands, link.toParentMessage),
       }
     },

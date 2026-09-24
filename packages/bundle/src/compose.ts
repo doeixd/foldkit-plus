@@ -163,7 +163,7 @@ const build = (spec: Spec): AnyComposition => {
   const fields: { [key: string]: Schema.Struct.Fields[string] } = { ...spec.fields }
   const cases: Record<string, Schema.Struct.Fields> = { ...spec.cases }
   const declared = spec.children.map(child => {
-    if (child.field in fields) {
+    if (Object.hasOwn(fields, child.field)) {
       throw new Error(`Bundle.compose: the field "${child.field}" is declared twice`)
     }
     const declaration =
@@ -172,7 +172,7 @@ const build = (spec: Spec): AnyComposition => {
         : declareEach(child.bundle as never, child.field)
     Object.assign(fields, declaration.fields)
     for (const [tag, value] of Object.entries(declaration.cases)) {
-      if (tag in cases) {
+      if (Object.hasOwn(cases, tag)) {
         throw new Error(`Bundle.compose: the Message case "${tag}" is declared twice`)
       }
       cases[tag] = value as Schema.Struct.Fields
@@ -249,7 +249,7 @@ export const withMessages =
     self: Composition<Fields, C, Children, Services, Ws>,
   ): Composition<Fields, C & Own, Children, Services, Ws> =>
     extend(self, spec => {
-      const repeated = Object.keys(own).find(tag => tag in spec.cases)
+      const repeated = Object.keys(own).find(tag => Object.hasOwn(spec.cases, tag))
       if (repeated !== undefined) {
         throw new Error(`Bundle.withMessages: the Message case "${repeated}" is declared twice`)
       }

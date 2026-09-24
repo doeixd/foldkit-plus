@@ -148,6 +148,10 @@ const OrderedPage = Bundle.parent({
 export const OrderedRows = OrderedRow.each(
   OrderedPage.link.collectionById('rows', GotOrderedRowMessage, { id: row => row.id }),
 )
+export const addFirst = OrderedRows.add(RowId.make('first'), row => ({
+  ...row,
+  id: RowId.make('first'),
+}))
 export const removeFirst = OrderedRows.remove(RowId.make('first')) // a RowId, not a string
 
 // --- Components with separate parts ---

@@ -399,10 +399,18 @@ const collectionById =
         const current = items(parent)
         const next = Option.match(child, {
           onNone: () => current.filter(item => options.id(item) !== key),
-          onSome: value =>
-            current.some(item => options.id(item) === key)
+          onSome: value => {
+            // Stored under its id, so an item whose id is not its key could never
+            // be read back under that key, and its Messages would reach nothing.
+            if (options.id(value) !== key) {
+              throw new Error(
+                `Link.collectionById: the item written under "${key}" has the id "${options.id(value)}"; give \`add\` a prepare that sets it, and keep it through update`,
+              )
+            }
+            return current.some(item => options.id(item) === key)
               ? current.map(item => (options.id(item) === key ? value : item))
-              : [...current, value],
+              : [...current, value]
+          },
         })
         return { ...parent, [field]: next }
       },

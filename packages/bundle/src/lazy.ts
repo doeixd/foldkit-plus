@@ -76,7 +76,9 @@ export interface Loadable {
  * `update` leaves the Model as it is and returns one Command, which loads
  * the bodies and yields the same Message again, so nothing is lost and the
  * Model ends where an eager bundle's would; the view renders `while`, or
- * nothing. `subscriptions`, `resources` and `helpers` stay in the
+ * nothing. That early Message passes through `update` twice, which a
+ * `mapUpdate` wrapper and a replay of recorded Messages after the load both
+ * see: load the bodies before the first interaction to avoid it. `subscriptions`, `resources` and `helpers` stay in the
  * declaration: Foldkit starts the first two at boot, and a helper runs
  * synchronously, so none can wait for a chunk.
  */
@@ -98,10 +100,18 @@ export const lazy = <
   const { while: placeholder, ...declaration } = spec
   let body: Body<Model, Message, Args, OutMessage, R, ViewInputs> | undefined
   let loading: Promise<void> | undefined
+  // A load that fails is forgotten, so the next Message or `load()` tries again
+  // rather than awaiting the same rejection for the rest of the session.
   const start = () =>
-    (loading ??= load().then(loaded => {
-      body = loaded
-    }))
+    (loading ??= load().then(
+      loaded => {
+        body = loaded
+      },
+      (error: unknown) => {
+        loading = undefined
+        throw error
+      },
+    ))
   const view = Submodel.defineView<Model, Message, ViewInputs>(((
     ...args: ReadonlyArray<unknown>
   ) => {
