@@ -31,18 +31,16 @@ export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
 export const variant = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('variants', Style.compose(...pieces))
 
-const disabledSelector = ':is([aria-disabled="true"], :disabled)'
-
-/** Hover and active rules that skip a disabled element. */
-export const whenEnabled = (state: ':hover' | ':active', declarations: Declarations) =>
-  Style.pseudo(`${state}:not([aria-disabled="true"], :disabled)`, declarations)
+/** A hover rule that skips a disabled element. */
+export const hover = (declarations: Declarations): StyleValue =>
+  Style.pseudo(':hover:not([aria-disabled="true"], :disabled)', declarations)
 
 export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
   outline: `${token('border', 'thick')} solid ${token('outline', 'focus')}`,
   outlineOffset: '2px',
 })
 
-export const disabled: StyleValue = Style.pseudo(disabledSelector, {
+export const disabled: StyleValue = Style.pseudo(':is([aria-disabled="true"], :disabled)', {
   opacity: '0.5',
   cursor: 'not-allowed',
 })
@@ -54,11 +52,12 @@ export const transition = (properties: string): Declarations => ({
 })
 
 /**
- * A tone is four private custom properties that the variants read: the fill,
- * its hover, the text on it, and the ink used where nothing is filled. Tone
- * and fill style are then independent axes with no compound per pair.
+ * A tone is five private custom properties that the variants read: the fill,
+ * its hover, the text on it, the ink where nothing is filled, and the wash
+ * behind an unfilled control on hover. Tone and variant are then independent
+ * axes with no compound per pair.
  */
-export interface Tone {
+interface Tone {
   readonly fill: string
   readonly fillHover: string
   readonly onFill: string
@@ -66,7 +65,7 @@ export interface Tone {
   readonly wash: string
 }
 
-export const tone = (value: Tone): StyleValue =>
+const tone = (value: Tone): StyleValue =>
   variant(
     self({
       '--_fk-tone-fill': value.fill,

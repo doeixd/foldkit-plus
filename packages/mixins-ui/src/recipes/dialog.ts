@@ -4,7 +4,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
-import { component, focusRing, self, token, variant, whenEnabled } from './design.js'
+import { component, focusRing, self, token, variant, hover } from './design.js'
 
 const width = (max: string) => variant(self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
 
@@ -65,7 +65,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         color: token('text', 'muted'),
         cursor: 'pointer',
       }),
-      whenEnabled(':hover', {
+      hover({
         background: token('surface', 'muted'),
         color: token('text', 'overt'),
       }),

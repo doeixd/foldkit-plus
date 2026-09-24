@@ -15,7 +15,7 @@ import {
   toneVar,
   transition,
   variant,
-  whenEnabled,
+  hover,
 } from './design.js'
 
 const size = (block: string, inline: string, font: string) =>
@@ -51,19 +51,19 @@ export const Button = Style.recipeFor(ButtonSlots)({
       solid: {
         button: variant(
           self({ background: toneVar('fill'), color: toneVar('on-fill') }),
-          whenEnabled(':hover', { background: toneVar('fill-hover') }),
+          hover({ background: toneVar('fill-hover') }),
         ),
       },
       outline: {
         button: variant(
           self({ background: 'transparent', color: toneVar('ink'), borderColor: toneVar('fill') }),
-          whenEnabled(':hover', { background: toneVar('wash') }),
+          hover({ background: toneVar('wash') }),
         ),
       },
       ghost: {
         button: variant(
           self({ background: 'transparent', color: toneVar('ink') }),
-          whenEnabled(':hover', { background: toneVar('wash') }),
+          hover({ background: toneVar('wash') }),
         ),
       },
     },

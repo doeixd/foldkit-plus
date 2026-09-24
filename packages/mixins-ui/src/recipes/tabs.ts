@@ -13,7 +13,7 @@ import {
   token,
   transition,
   variant,
-  whenEnabled,
+  hover,
 } from './design.js'
 
 const selected = '[aria-selected="true"]'
@@ -34,7 +34,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         cursor: 'pointer',
         ...transition('background-color, color, box-shadow'),
       }),
-      whenEnabled(':hover', { color: token('text', 'overt') }),
+      hover({ color: token('text', 'overt') }),
       Style.pseudo(selected, { color: token('text', 'overt') }),
       focusRing,
       disabled,
