@@ -240,6 +240,13 @@ Popover, Tooltip, Slider, Tabs, RadioGroup, Calendar (namespace + flat `XSlots`)
 `style.mixin` / `behavior.mixin`. Other components (Menu, Listbox, ComboBox, Toast, ...) have no
 adapter.
 
+`Recipes.Button | Input | Textarea | Checkbox | Switch | Dialog | Tabs` are shipped
+`Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
+'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
+`Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
+`components` layer and variants in `variants` of `Layers.standard`, and style state from the
+component's own `aria-checked` / `aria-selected` / `aria-disabled`.
+
 ## 6. Testing helpers
 
 - `SlotView.inertBuilder<Message>()` is an `HtmlBuilder` with no runtime: call `View(input, h)`

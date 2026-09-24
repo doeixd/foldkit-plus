@@ -274,6 +274,59 @@ adapter.
 | Anchor | a Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id |
 | Calendar | `root`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton` |
 
+## Recipes
+
+The adapters only name slots. `Recipes` gives those slots a look: one
+`Style.recipeFor` per contract (`Button`, `Input`, `Textarea`, `Checkbox`,
+`Switch`, `Dialog`, `Tabs`), built on the tokens of `foldkit-mixins/theme`.
+Select variants, hand the pieces to `Style.forSlots`, and attach the result
+like any other Style:
+
+```ts
+import { Layers, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
+import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+
+const DeleteStyle = Style.forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'danger', variant: 'outline', size: 'sm' }),
+)
+
+const L = Layers.standard
+const palette = Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })
+
+export const sheet = Style.stylesheet(
+  L.declare,
+  L.in('tokens', Theme.root(Theme.tokens)),
+  L.in('theme', Theme.root(palette)),
+  DeleteStyle,
+)
+```
+
+`DeleteStyle.mixin` then goes to `Button.resolve` as in the first example.
+
+What a recipe assumes and does:
+
+- **The page ships the tokens.** Every value is a `var(--fk-…)` reference to
+  `Theme.tokens` or a `Theme.oklch` palette, so a scoped theme or a knob
+  override restyles every recipe with no new CSS.
+- **Bases sit in `components`, variants in `variants`** of `Layers.standard`,
+  so an application's `app` layer overrides both without specificity fights.
+- **State comes from the component's own attributes.** Checked, selected, and
+  disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
+  which `@foldkit/ui` already writes; no `whenInput` is needed.
+- **Tone and variant are independent.** A tone sets a few private custom
+  properties that `solid`, `outline`, and `ghost` read.
+
+Adjust a recipe with `extend` instead of forking it. Base pieces compose per
+slot, a variant's pieces compose over the shipped ones, and compounds append:
+
+```ts
+const BrandButton = Recipes.Button.extend({
+  base: { button: Style.class('brand-button') },
+  variants: { size: { lg: { button: Style.class('brand-button-lg') } } },
+})
+```
+
 ## Accessibility patterns
 
 Every adapter has an `A11y.pattern` beside its Slots, under `Patterns`: the
