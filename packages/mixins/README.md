@@ -103,8 +103,8 @@ pnpm add foldkit-mixins
 projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
 The design-system pieces are subpaths, so an application that only attaches classes pays for
-none of them: `foldkit-mixins/layers` and `foldkit-mixins/theme` today, with `/layout`,
-`/defaults`, and `/prose` reserved (see
+none of them: `foldkit-mixins/layers`, `foldkit-mixins/theme`, and `foldkit-mixins/layout`
+today, with `/defaults` and `/prose` reserved (see
 [styleImprovements-DESIGN.md](../../docs/design/styleImprovements-DESIGN.md)).
 
 ## Quick start
@@ -289,6 +289,33 @@ Beyond `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces ar
   `mixins:ragged-grid-areas`;
 - `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
   strings `pseudo` and `nest` take.
+
+### Layout
+
+`foldkit-mixins/layout` ships the common arrangements as pieces: `Layout.stack`, `cluster`,
+`split`, `sidebar`, `switcher`, `reel`, `center`, `frame`, `pad`, and `autoGrid`, plus
+`Layout.intrinsic` (a stack child that keeps its own width) and `Layout.aside` (the sidebar
+child). Each compiles to rule text that is the same for every caller and reads `--fk-l-*`
+variables with token fallbacks; the options only write those variables inline, so ten stacks
+with ten gaps are one rule and ten inline declarations. The pieces are unlayered; put them in
+`layouts`:
+
+```ts
+import { Layers, Style } from 'foldkit-mixins'
+import { Layout } from 'foldkit-mixins/layout'
+
+const L = Layers.standard
+
+const CardStyle = Style.forSlots(CardSlots)({
+  root: L.in('layouts', Layout.stack({ gap: 'var(--fk-space-sm)' })),
+  actions: L.in('layouts', Layout.cluster({ justify: 'end' })),
+})
+```
+
+`split` adapts to its container by default (`container-type: inline-size` and a `@container`
+query); `{ contain: false }` uses `@media` on the viewport instead. Its breakpoint and
+`stack`'s `split` index are in the rule text, because a query cannot read a variable, so each
+distinct value is its own class. `sidebar` and `switcher` are flex math and need no query.
 
 ## Behavior: reusable element-level interaction
 

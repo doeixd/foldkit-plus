@@ -276,6 +276,11 @@ adapter.
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
   `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. `Layers.define(names)`
   makes another order. There is no `Style.foundation`; the page composes its sheet.
+- Layout: `foldkit-mixins/layout` exports `Layout.stack/cluster/split/sidebar/switcher/reel/center/
+  frame/pad/autoGrid(options)` and the child pieces `Layout.intrinsic` (a stack child keeping its
+  width) and `Layout.aside` (the sidebar child). Options write `--fk-l-*` inline variables; the
+  rule text is shared, except `split`'s breakpoint and `stack`'s `split` index. Pieces are
+  unlayered: wrap with `L.in('layouts', Layout.stack({ gap }))`.
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
   (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`).
