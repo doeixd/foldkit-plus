@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, registering an application's renderer with the editor Bundle (§121: the serializer, the read-only view, and the adapter all render through the registry), metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, registering an application's renderer with the editor Bundle (§121 ships the serializer, view, and adapter; §122 decides the Bundle registration), metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4576,8 +4576,8 @@ Not done:
   rather than a real `<a href>`. §121 decides the registry that replaces that;
   `rendering(...)` and `toHtml(blocks, renderer?)` have shipped in
   `foldkit-richtext`, and the read-only view and the editable adapter both render
-  through it (§121 slices 2–3); registering an application's renderer with the
-  editor Bundle is what remains of slice 3.
+  through it (§121 slices 2–3); §122 decides how a registry reaches the editor
+  Bundle, which is the last piece.
 - **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
   (§12) are not wired: no interpreter owns a metadata key yet. The package does
   not depend on `foldkit-metadata`. They must stay outside the document codec.
@@ -5273,8 +5273,56 @@ editing loop through a *prop-carrying* mark, not a snapshot of its markup.
    with one piece left.** `EditorDom` carries the registry, `patch` and `repair`
    reuse it, `textNodeOf` descends to the text node, and `repair` now compares a
    run's mark structure (and its `data-marks`) so a browser that splits a mark
-   element is repaired rather than believed. What is left is registration: the
-   editor Bundle's mount does not yet take an application's renderer, so the
-   editable area renders with the default registry until `events`' args carry one.
+   element is repaired rather than believed. `mountInto` and `attachEditor` take the
+   registry too. What is left is registration with the editor Bundle — decided in
+   §122.
 4. Node kinds in the registry, once Phase 7 declares a kind that needs more than a
    `div`.
+
+---
+
+# 122. Getting a renderer to the editor Bundle
+
+§121 left one thing undone, and it is a decision rather than a parameter: `mount`,
+`mountInto`, and `attachEditor` take a registry, and the editor Bundle — the only
+bundled way an application mounts an editor — does not, so an application's Link
+still renders as `data-marks` in the editable area.
+
+The reason it is a decision is that both paths into the Bundle are schema-decoded:
+
+```ts
+args: Schema.Struct({ hostId: Schema.String })          // Bundle.make
+args: { content: RichText.Document }                    // Mount.defineStream
+```
+
+and a registry holds *functions*. Probed, not assumed: `Schema.Unknown` round-trips a
+function through both `decodeUnknownSync` and `encodeUnknownSync` unchanged, so an
+`Unknown` field could carry one.
+
+That is still the wrong place to put it, for the reason the package already states:
+a Model holds state, and this is a vocabulary — a definition, like the Kit. A registry
+in `EditorView` would travel through devtools and time travel as a bag of closures,
+and `editorAt(hostId, registry)` would make every placement's *args* carry a value
+the schema cannot describe, typed `unknown` and cast at the boundary.
+
+So the registry registers where the package already keeps per-placement state: the
+host. `editorAt(hostId, registry?)` records it for that id, the mount looks it up when
+`events` executes, and `releaseMount` forgets it — the shape `host.ts` already uses
+for attachments, with the id standing in for the element because the placement happens
+before the element exists. Nothing enters the Model or the args, the mount keeps its
+default when no registry was placed, and a re-placement of the same id replaces the
+entry rather than accumulating one.
+
+The one risk to keep visible: an entry whose placement never mounts is not released,
+so the map is keyed by host id and is only as bounded as placements are. That is
+acceptable for a per-id registry written by the view's own author, and it is the
+reason this does not become a general-purpose service location.
+
+Slices:
+
+1. `host.ts` gains `placeRendering(hostId, rendering)` and `renderingFor(hostId)`,
+   and `releaseMount` forgets the entry for the element's id.
+2. `events` reads the registry for `element.id` and hands it to `attachEditor`;
+   `editorAt(hostId, registry?)` places it.
+3. A test that a Link placed through `editorAt` renders as `<a href>` in the editable
+   subtree, and that a mount with no placement keeps the default.

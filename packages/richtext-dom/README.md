@@ -205,8 +205,7 @@ renderer that draws its own buttons.
   and hands the result here; `attach` reports intent and stops.
 - Its editor mount does not yet take an application's renderer. `mount`,
   `mountInto`, `attachEditor`, `patch`, and `repair` do, and the Bundle's mount
-  renders with the default registry until the renderer is threaded through the
-  editor's args.
+  renders with the default registry until a placement registers one (§122).
 - It does not patch nested structural changes item by item: a container whose item
   list changed is re-rendered where it stood, so its surviving items are rebuilt
   rather than patched individually. Correct, and a follow-up for identity
