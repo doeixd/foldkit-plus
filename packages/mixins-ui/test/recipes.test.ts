@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { view as buttonView } from '@foldkit/ui/button'
-import { Style, type SlotAttributes, type StylePieces } from 'foldkit-mixins'
+import { Layers, Style, type SlotAttributes, type StylePieces } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import {
   Button,
@@ -51,6 +51,17 @@ const blocks = (css: string): ReadonlyArray<string> => {
   return found
 }
 
+/** Every slot piece of every selection of every recipe. */
+const allPieces = [
+  ...selections(Recipes.Button.def.variants).map(selection => Recipes.Button(selection)),
+  ...selections(Recipes.Input.def.variants).map(selection => Recipes.Input(selection)),
+  ...selections(Recipes.Textarea.def.variants).map(selection => Recipes.Textarea(selection)),
+  ...selections(Recipes.Checkbox.def.variants).map(selection => Recipes.Checkbox(selection)),
+  ...selections(Recipes.Switch.def.variants).map(selection => Recipes.Switch(selection)),
+  ...selections(Recipes.Dialog.def.variants).map(selection => Recipes.Dialog(selection)),
+  ...selections(Recipes.Tabs.def.variants).map(selection => Recipes.Tabs(selection)),
+].flatMap(pieces => Object.values(pieces))
+
 const compiled = {
   Button: selections(Recipes.Button.def.variants).map(
     selection => Style.forSlots(ButtonSlots)(Recipes.Button(selection)).css,
@@ -94,6 +105,58 @@ describe('Recipes', () => {
         expect(block).toMatch(/^@layer (components|variants)\{/)
       }
     }
+  })
+
+  it('writes no inline declarations, so a later layer can override any of them', () => {
+    expect(allPieces.length).toBeGreaterThan(0)
+    for (const piece of allPieces) {
+      expect(piece.style).toEqual({})
+      expect(piece.conditions ?? []).toEqual([])
+      expect(piece.items ?? []).toEqual([])
+    }
+  })
+
+  it('yields to an application rule in the app layer', () => {
+    const L = Layers.standard
+    const Danger = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
+    const Override = L.in(
+      'app',
+      Style.forSlots(ButtonSlots)({ button: Style.self({ background: 'red' }) }),
+    )
+    const sheet = Style.stylesheet(L.declare, Danger, Override)
+
+    // The order is declared once, first, with app after components and variants.
+    const order = sheet.slice(0, sheet.indexOf(';'))
+    expect(order).toBe(`@layer ${L.names.join(', ')}`)
+    expect(L.names.indexOf('app')).toBeGreaterThan(L.names.indexOf('variants'))
+
+    // The recipe's background is a layered rule; the override's is in app.
+    const layered = blocks(sheet.slice(order.length + 1))
+    expect(
+      layered.some(block => /^@layer variants\{.*background:var\(--_fk-tone-fill\)/.test(block)),
+    ).toBe(true)
+    expect(layered.some(block => /^@layer app\{.*background:red/.test(block))).toBe(true)
+
+    // Both classes land on the element and nothing is inline, so the cascade decides.
+    let resolved: SlotAttributes<TestMessage> = []
+    buttonView<TestMessage>(
+      {
+        onClick: message('Clicked'),
+        toView: attributes => {
+          resolved = Button.resolve(attributes, [Danger.mixin, Override.mixin], {
+            input: undefined,
+            h,
+          }).button
+          return h.button(resolved, [])
+        },
+      },
+      h,
+    )
+    const classes = attributeOf(resolved, 'Class')?.value.split(' ') ?? []
+    for (const rule of [...Danger.rules, ...Override.rules]) {
+      expect(classes).toContain(rule.className)
+    }
+    expect(attributeOf(resolved, 'Style')).toBeUndefined()
   })
 
   it('puts the base in components and a selected variant in variants', () => {

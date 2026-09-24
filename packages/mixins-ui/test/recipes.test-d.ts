@@ -36,6 +36,9 @@ const _sheet: string = Style.stylesheet(
   DeleteStyle,
 )
 void _sheet
+const Red = L.in('app', Style.forSlots(ButtonSlots)({ button: Style.self({ background: 'red' }) }))
+const _overridden: string = Style.stylesheet(L.declare, DeleteStyle, Red)
+void _overridden
 const _brand = Recipes.Button.extend({
   base: { button: Style.class('brand-button') },
   variants: { size: { lg: { button: Style.class('brand-button-lg') } } },

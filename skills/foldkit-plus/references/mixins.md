@@ -250,7 +250,9 @@ adapter.
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 `Theme.tokens` and `Theme.oklch` tokens (ship both with `Theme.root`), put bases in the
 `components` layer and variants in `variants` of `Layers.standard`, and style state from the
-component's own `aria-checked` / `aria-selected` / `aria-disabled`.
+component's own `aria-checked` / `aria-selected` / `aria-disabled`. No recipe declaration is inline
+style, so `L.in('app', Style.forSlots(ButtonSlots)({ button: Style.self({ … }) }))` overrides any of
+them by layer order alone.
 
 ## 6. Testing helpers
 

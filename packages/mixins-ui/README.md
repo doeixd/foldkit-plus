@@ -311,6 +311,13 @@ What a recipe assumes and does:
   override restyles every recipe with no new CSS.
 - **Bases sit in `components`, variants in `variants`** of `Layers.standard`,
   so an application's `app` layer overrides both without specificity fights.
+  Every declaration is a layered rule and none is inline style, since inline
+  style beats every layer and could not be overridden this way:
+
+  ```ts
+  const Red = L.in('app', Style.forSlots(ButtonSlots)({ button: Style.self({ background: 'red' }) }))
+  // Style.stylesheet(L.declare, …, DeleteStyle, Red): Red's background wins.
+  ```
 - **State comes from the component's own attributes.** Checked, selected, and
   disabled looks read `aria-checked`, `aria-selected`, and `aria-disabled`,
   which `@foldkit/ui` already writes; no `whenInput` is needed.
