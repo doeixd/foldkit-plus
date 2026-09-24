@@ -97,7 +97,10 @@ silently losing the marks would be worse. `attachEditor(host, content, emit)`
 attaches the translation to a host element and reports each Message;
 `events({ content })` wraps the same thing in a `Mount.defineStream`, so a view can
 render a host element whose mount produces these Messages and releases the subtree
-when the element goes.
+when the element goes. `patchEditor(hostId, state, changeSet)` is what the patch
+Command runs: it finds the element by id, syncs the attachment it holds, and
+reports whether it patched — a missing host is an editor that went away while the
+transition was in flight, not an error.
 
 The proof's union moved here: `controlled.ts` imports it instead of declaring a
 second one, which also gave the proof paste.

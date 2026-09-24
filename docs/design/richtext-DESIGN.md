@@ -5011,9 +5011,10 @@ Command are identical, which is §27's requirement.
 1. **In progress.** The translation and the mount are done
    (`examples/richtext/src/editor.ts`): `toMessage` maps each intent, `events` is
    a `Mount.defineStream` that attaches on subscribe and releases when the element
-   goes, and the tests drive `attachEditor` and the stream directly. Still to
-   build: the Bundle whose view renders the host and whose patch Command syncs the
-   attachment, proved through `foldkit/test`'s `Scene`.
+   goes, the patch Command's work is `patchEditor(hostId, state, changeSet)`, and
+   the tests drive `attachEditor`, the stream, and the patch directly. Still to
+   build: the Bundle whose view renders the host and whose update emits that
+   Command, proved through `foldkit/test`'s `Scene`.
 2. Paste and the history chords through Messages, on the same view.
 3. Promote the editor into `foldkit-richtext-dom` with the interpreter as its
    internals, and the read-only renderer alongside it.

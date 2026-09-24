@@ -11,7 +11,7 @@ import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
-import { mountInto, releaseMount } from 'foldkit-richtext-dom/host'
+import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
 
 export const Message = defineMessageUnion({
   Typed: { text: Schema.String },
@@ -73,6 +73,24 @@ export const attachEditor = (
     onHistory: direction => emit(direction === 'undo' ? Message.Undone() : Message.Redone()),
     onSelection: selection => emit(Message.Selected({ selection })),
   })
+
+/**
+ * The patch Command's work: find the element the view gave an id to and sync the
+ * attachment it holds. A missing host is not an error — the editor went away
+ * while the transition was in flight — so it reports whether it patched.
+ */
+export const patchEditor = (
+  hostId: string,
+  state: RichText.EditorState,
+  changeSet: RichText.ChangeSet,
+): boolean => {
+  const host = document.getElementById(hostId)
+  if (host === null) return false
+  const attachment = attachmentIn(host)
+  if (attachment === undefined) return false
+  attachment.sync(state, changeSet)
+  return true
+}
 
 /** The editor's events as a mount: one attachment per element, released with it. */
 export const events = Mount.defineStream('RichTextDomEvents', {

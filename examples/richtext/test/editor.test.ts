@@ -9,7 +9,7 @@ import * as RichText from 'foldkit-richtext'
 import { positionToRange } from 'foldkit-richtext-dom'
 import { attachmentIn, releaseMount } from 'foldkit-richtext-dom/host'
 import { describe, expect, it } from 'vitest'
-import { attachEditor, events, toMessage, Message } from '../src/editor.js'
+import { attachEditor, events, patchEditor, toMessage, Message } from '../src/editor.js'
 
 const at = (node: string, offset: number): RichText.Position => ({
   node: RichText.NodeId.make(node),
@@ -136,6 +136,27 @@ describe('the mount that produces them', () => {
     document.dispatchEvent(new Event('selectionchange'))
     expect(messages).toHaveLength(1)
     expect(messages[0]?._tag).toBe('Selected')
+    releaseMount(element)
+  })
+
+  it('patches the editor the view mounted, found by its id', () => {
+    const element = host()
+    element.id = 'editor-1'
+    attachEditor(element, content(), () => {})
+    const result = RichText.run(
+      { document: content(), selection: { type: 'Range', anchor: at('a', 1), focus: at('a', 1) } },
+      { type: 'InsertText', text: 'X' },
+      { mint: () => 'p1' },
+    )
+    if (!result.ok) throw new Error(result.error)
+    expect(patchEditor('editor-1', result.state, result.changeSet)).toBe(true)
+    expect(element.textContent).toContain('aXb')
+    // No such element, and an element nothing mounted into, both patch nothing.
+    expect(patchEditor('editor-missing', result.state, result.changeSet)).toBe(false)
+    const bare = document.createElement('div')
+    bare.id = 'editor-bare'
+    document.body.append(bare)
+    expect(patchEditor('editor-bare', result.state, result.changeSet)).toBe(false)
     releaseMount(element)
   })
 
