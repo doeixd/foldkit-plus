@@ -954,7 +954,7 @@ importers:
   packages/mixins:
     dependencies:
       csstype:
-        specifier: 3.2.3
+        specifier: ^3.2.3
         version: 3.2.3
     devDependencies:
       '@effect/platform-browser':
