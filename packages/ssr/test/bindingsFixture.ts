@@ -37,6 +37,23 @@ export type Message = typeof Message.Type
 export const initial: Model = { id: '', likes: 0, search: '', pressed: '' }
 export const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
 
+/** The one Surface of this page, which may send every Message the view binds. */
+export const Post = App.surface('Post', {
+  model: ({ model }) => ({
+    id: model.id,
+    likes: model.likes,
+    search: model.search,
+    pressed: model.pressed,
+  }),
+  messages: [
+    Message.Liked,
+    Message.ChangedSearch,
+    Message.Renamed,
+    Message.Pressed,
+    Message.Counted,
+  ],
+})
+
 export const config = {
   Model,
   init: () => ({ model: { id: 'p1', likes: 0, search: '', pressed: '' } }),
@@ -90,6 +107,7 @@ export const config = {
 export const plan = SSR.plan(App, {
   id: 'post',
   state: Projection.pick(App.model.id, App.model.likes, App.model.search, App.model.pressed),
+  surfaces: [Surface.at(Post, undefined)],
 })
 
 export const template =

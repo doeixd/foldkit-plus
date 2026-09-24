@@ -11,9 +11,9 @@ Foldkit's fetch handler, the browser takes it over from the handed-over Model,
 a plan is checked against the Surfaces the browser reads, parts of the page can
 belong to the server alone, and Remote's data crosses with the page. Resumable
 pages, whose view waits for the first interaction, are being built: bindings
-the server's markup names, a listener that answers them before boot, and the
-deferred boot itself are done; what remains is the coverage of their Messages
-and a server fallback.
+the server's markup names, a listener that answers them before boot, the
+deferred boot itself, and the check that a page dispatches only what its
+Surfaces may send are done; what remains is a server fallback for forms.
 
 ## What it owns
 
@@ -346,10 +346,21 @@ a Message built from a field the plan does not send
 (`Liked({ id: model.post.id })` with `post.id` unsent) would be one Message before the
 view runs and another after, so it is refused, naming the element.
 
-In the browser, `Resume.bindings(plan, document, root)` decodes the page's
-bindings through the application's Message Schema and checks every marker
+A Surface's `messages` list is the allow list for what a page may dispatch
+before boot. On the server a binding whose Message no Surface active for the
+served Model lists is `Uncovered`, naming the element and the tag, and a page
+with bindings whose plan declares no `surfaces` is refused
+(`UndeclaredSurfaces`), since nothing says what it may dispatch. A handler
+inside an `SSR.static` region, which only a nested resumable builder can put
+there, is refused too (`BindingInStaticRegion`): a static region is the
+server's alone.
+
+In the browser, `Resume.bindings(plan, document, root, model)` decodes the
+page's bindings through the application's Message Schema, keeps them to what
+the Surfaces active for the resumed Model may send, and checks every marker
 against them; a page whose entries are not the application's Messages, or
-whose markers name a binding it does not carry, is refused whole. Then
+not ones an active Surface lists, or whose markers name a binding it does not
+carry, is refused whole. Then
 `Resume.listen(root, { bindings, onAnswer })` answers events from the markers
 with one capture-phase listener per event type at the root, so `focus` and
 `blur` are caught too. It walks from the target to the root and collects each
@@ -413,8 +424,11 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
 
 - `UndeclaredStartup`: `init` returned Commands and the plan has no `boot`.
 - `Uncovered`: a Surface in `surfaces` reads or is activated by something the
-  plan neither sends nor names `local`, as above.
+  plan neither sends nor names `local`, as above; or a binding dispatches a
+  Message no active Surface lists in `messages`.
+- `UndeclaredSurfaces`: the page has bindings and the plan has no `surfaces`.
 - `DuplicateStaticRegion`: two `SSR.static` regions share an id.
+- `BindingInStaticRegion`: a handler inside an `SSR.static` region.
 - `UngeneratablePath`: `SSR.generate` was given a path no file can be served at.
 - `UnrestorablePart`: a part cannot restore its own capture.
 - `UnencodableBinding`: the page has bindings and the plan has no Message
@@ -434,9 +448,10 @@ with no server render at all starts on the client as usual.
 
 The envelope's reasons, which `SSR.resume` returns as `ResumeRefused`:
 `Missing` or `Duplicate` envelope, `Unreadable` JSON, another `Protocol`
-version, another `Plan`, state or a part that is `Invalid` (a part missing,
-unknown to the plan, or not restoring), and a `Route` other than the one the
-page was rendered for (path and query, or the path alone for a generated
+version, another `Plan`, state, a part or the bindings that are `Invalid` (a
+part missing, unknown to the plan, or not restoring; a binding that is not a
+Message or not one an active Surface lists, or a marker naming none), and a
+`Route` other than the one the page was rendered for (path and query, or the path alone for a generated
 page). A page is never half-restored.
 
 ## The pieces underneath
@@ -561,3 +576,11 @@ const Message = defineMessageUnion({
   event. On the server a deferred plan is refused naming each Subscription,
   and each Managed Resource the sent Model asks for, that would start late,
   unless the plan declares it or Remote's part vouches for it.
+- **Phase D, what a page may dispatch:** a binding whose Message no active
+  Surface lists is refused naming the element and the tag, and one a listed
+  Surface would send is not; a Surface inactive for the served Model lists
+  nothing; a page with bindings and no `surfaces` is refused, on the server
+  and in the browser; the browser refuses an entry an active Surface does not
+  list even though it is one of the application's Messages; a handler inside
+  a static region is refused naming the region and the element, and one after
+  a region is not.

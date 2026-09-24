@@ -32,7 +32,8 @@ const served = async (
   load(SSR.page(template, await Effect.runPromise(SSR.render(page, plan, { buildId: 'b' }))))
   const root = document.querySelector(`[${FOLDKIT_APP_ATTRIBUTE}]`)
   if (root === null) throw new Error('the page has no application root')
-  const bindings = Result.getOrThrow(Resume.bindings(plan, document, root))
+  const model = Result.getOrThrow(SSR.resume(plan, document))
+  const bindings = Result.getOrThrow(Resume.bindings(plan, document, root, model))
   const messages: Array<unknown> = []
   const unnamed: Array<Element> = []
   const stop = Resume.listen(root, {
@@ -158,7 +159,8 @@ describe('Resume.bindings refuses a page that does not add up', () => {
     script.textContent = JSON.stringify(body)
     const root = document.querySelector(`[${FOLDKIT_APP_ATTRIBUTE}]`)
     if (root === null) throw new Error('no root')
-    const refused = Resume.bindings(plan, document, root)
+    const model = Result.getOrThrow(SSR.resume(plan, document))
+    const refused = Resume.bindings(plan, document, root, model)
     if (!Result.isFailure(refused)) throw new Error('the page was not refused')
     return refused.failure
   }

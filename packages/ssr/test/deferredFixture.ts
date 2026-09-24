@@ -5,7 +5,8 @@ import { App, plan } from './bindingsFixture.js'
 
 export { config, load, template } from './bindingsFixture.js'
 
-export const planned = (start: Start) => SSR.plan(App, { id: 'post', state: plan.state, start })
+export const planned = (start: Start) =>
+  SSR.plan(App, { id: 'post', state: plan.state, surfaces: plan.surfaces, start })
 
 /** The element the server rendered with this id. */
 export const byId = (id: string): HTMLElement => {

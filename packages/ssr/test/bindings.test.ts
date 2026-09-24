@@ -7,7 +7,7 @@
  */
 import { Effect, Option, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { Projection } from 'foldkit-surface'
+import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { BINDING_ATTRIBUTE, Resume, SSR } from 'foldkit-ssr'
 import { App, Message, config, initial, plan, type Model } from './bindingsFixture.js'
@@ -64,9 +64,15 @@ describe('the resumable builder on the server', () => {
   })
 
   it('refuses a binding whose Message reads a field the plan does not send', async () => {
+    // A Surface that reads no `id`, so the plan covers it and only the binding is at fault.
+    const Blind = App.surface('Blind', {
+      model: ({ model }) => ({ likes: model.likes }),
+      messages: [Message.Liked, Message.ChangedSearch, Message.Renamed, Message.Pressed],
+    })
     const unsent = SSR.plan(App, {
       id: 'post',
       state: Projection.pick(App.model.likes, App.model.search, App.model.pressed),
+      surfaces: [Surface.at(Blind, undefined)],
     })
     const refused = await Effect.runPromise(
       Effect.flip(SSR.render(config, unsent, { buildId: 'b' })),
@@ -80,7 +86,11 @@ describe('the resumable builder on the server', () => {
   it('refuses bindings a plan without the Message Schema cannot encode', async () => {
     const schemaless = SSR.plan(
       { initial },
-      { id: 'post', state: Projection.pick(App.model.id, App.model.likes) },
+      {
+        id: 'post',
+        state: plan.state,
+        surfaces: plan.surfaces,
+      },
     )
     const refused = await Effect.runPromise(
       Effect.flip(SSR.render(config, schemaless, { buildId: 'b' })),

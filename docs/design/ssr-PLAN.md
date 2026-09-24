@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B and C done. Next: Phases D to F. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A, B, C and D done. Next: Phases E and F. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -761,6 +761,26 @@ this plan's next track, in its order, and it is the source for their detail:
   binding whose Message no active Surface lists in `messages` is `Uncovered`,
   a page with bindings and no `surfaces` is refused, and a binding inside
   `SSR.static` is refused.
+
+  **Done.** `ActiveSurface` in `foldkit-surface` now carries `messages`, the
+  tags its Surface lists, from `Surface.at` and `Surface.when` alike, so the
+  plan's `surfaces` are the allow list on both sides. On the server
+  `unlistedBindings` joins the coverage shortfalls under `Uncovered`,
+  `UndeclaredSurfaces` refuses bindings with no `surfaces`, and
+  `BindingInStaticRegion` refuses a handler met while a static region
+  renders, which the collect context tracks (`region`, `inStatic`). In the
+  browser `Resume.bindings` takes the resumed Model and refuses an entry no
+  active Surface lists. Two test files, nine mutations each turning one red.
+  Found on the way:
+  - **A Surface without params is active whatever its callback returns.**
+    `Surface.at(S, () => undefined)` activates a paramless Surface, by
+    `Surface.at`'s own rule; a test that wants an inactive Surface gives it
+    params. Worth remembering when a plan's Surface seems always active.
+  - **The order of refusals moved two tests.** `UndeclaredSurfaces` and
+    `Uncovered` come before the second render, so a test that expected
+    `ViewDependsOnUnsentState` or `UnencodableBinding` from a plan with no
+    `surfaces`, or one whose Surface read the unsent field, now names a
+    Surface that covers everything but the binding under test.
 - **E. Server fallback.** `fallback: 'server'` on forms, and `SSR.handle`,
   called from Phase 6's `renderPage` for a posted Message: the server runs
   `init`, `boot`, `update` and its Commands, and renders the result.

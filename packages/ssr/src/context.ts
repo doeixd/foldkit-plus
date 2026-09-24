@@ -40,6 +40,14 @@ export type RenderContext =
       readonly regions: Map<string, Region>
       readonly duplicates: Set<string>
       readonly bindings: Array<Binding>
+      /** The static region whose render is in progress, if any. */
+      region: string | undefined
+      /** Handlers met inside a static region, which the server alone renders. */
+      readonly inStatic: Array<{
+        readonly region: string
+        readonly element: string
+        readonly event: string
+      }>
     }
   | {
       readonly mode: 'replay'

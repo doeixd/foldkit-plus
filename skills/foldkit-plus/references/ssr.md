@@ -7,8 +7,8 @@ without rerunning `init`, a plan is checked against the Surfaces the browser
 reads, `SSR.static` regions belong to the server alone, and Remote's data
 crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
 and `Resume.view(render)` mark bindings, `Resume.listen` answers them before
-boot, and a plan's `start` defers the boot; Message coverage and a server
-fallback are not built yet.
+boot, a plan's `start` defers the boot, and a page dispatches only what its
+Surfaces list; a server fallback for forms is not built yet.
 
 ## What it owns
 
@@ -81,8 +81,14 @@ SSR.hydrate(config, Editor, { buildId })
   Foldkit attribute and encoded Message into the envelope. A binding built
   from an unsent field fails with `ViewDependsOnUnsentState`; the plan needs
   the app's Message Schema (make it from `App`), else `UnencodableBinding`.
-- In the browser, `Resume.bindings(plan, document, root)` decodes the page's
-  bindings and checks its markers (a `ResumeRefused` otherwise), then
+- A Surface's `messages` is the allow list for the page's bindings. A binding
+  whose Message no Surface active for the served Model lists is `Uncovered`
+  (naming element and tag); bindings with no `surfaces` in the plan are
+  `UndeclaredSurfaces`; a handler inside `SSR.static` (only a nested `rh` can
+  put one there) is `BindingInStaticRegion`.
+- In the browser, `Resume.bindings(plan, document, root, model)` decodes the
+  page's bindings, keeps them to what the active Surfaces list, and checks
+  its markers (a `ResumeRefused` otherwise), then
   `Resume.listen(root, { bindings, onAnswer })` gives each event one answer,
   `{ event, messages, unnamed? }`: the Messages its bindings dispatch in
   Foldkit's order, and at a `*` the element it stopped at. It returns the

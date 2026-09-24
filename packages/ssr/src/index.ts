@@ -539,9 +539,49 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UnrestorablePart',
     'UnencodableBinding',
     'EagerStartRequired',
+    'UndeclaredSurfaces',
+    'BindingInStaticRegion',
   ]),
   message: Schema.String,
 }) {}
+
+/** The tag a Message value carries, for naming it. */
+const tagOf = (message: unknown): string =>
+  typeof message === 'object' &&
+  message !== null &&
+  '_tag' in message &&
+  typeof message._tag === 'string'
+    ? message._tag
+    : 'an untagged Message'
+
+/**
+ * The Message tags the plan's Surfaces active for `model` may send, which is
+ * what a page's bindings may dispatch (the design's rule 3).
+ */
+const allowedTags = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+): ReadonlySet<string> =>
+  new Set(
+    plan.surfaces.flatMap(surface =>
+      surface.projectionOf(model) === undefined ? [] : surface.messages,
+    ),
+  )
+
+/** Each binding whose Message no active Surface lists, one line each. */
+const unlistedBindings = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+  bindings: ReadonlyArray<Binding>,
+): ReadonlyArray<string> => {
+  const allowed = allowedTags(plan, model)
+  return bindings
+    .filter(binding => !allowed.has(tagOf(binding.message)))
+    .map(
+      binding =>
+        `the ${binding.event} binding on ${binding.element} dispatches ${tagOf(binding.message)}, which no active Surface lists in its messages`,
+    )
+}
 
 /** The attribute on a static region's element, naming the region. */
 export const STATIC_ATTRIBUTE = 'data-foldkit-plus-static'
@@ -580,12 +620,17 @@ const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Region): H
   }
   const replayed = now?.mode === 'replay' ? now.regions.get(id) : undefined
   if (replayed !== undefined) return boundary(id, undefined, replayed)
-  const children = render(inertHtml)
-  if (now?.mode === 'collect') {
+  if (now?.mode !== 'collect') return boundary(id, undefined, render(inertHtml))
+  const outer = now.region
+  now.region = id
+  try {
+    const children = render(inertHtml)
     if (now.regions.has(id)) now.duplicates.add(id)
     else now.regions.set(id, children)
+    return boundary(id, undefined, children)
+  } finally {
+    now.region = outer
   }
-  return boundary(id, undefined, children)
 }
 
 /** Each static region's markup in the page, read before hydration touches it. */
@@ -799,15 +844,32 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const duplicates = new Set<string>()
     const servedBindings: Array<Binding> = []
     const browserBindings: Array<Binding> = []
+    const inStatic: Array<{ region: string; element: string; event: string }> = []
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
-      { mode: 'collect', regions, duplicates, bindings: servedBindings },
+      {
+        mode: 'collect',
+        regions,
+        duplicates,
+        bindings: servedBindings,
+        region: undefined,
+        inStatic,
+      },
     )
     const full = yield* renderToString(capturing as never, options as never)
     if (duplicates.size > 0) {
       return yield* new ResumeUnsafe({
         reason: 'DuplicateStaticRegion',
         message: `two static regions share the id ${[...duplicates].map(id => `"${id}"`).join(', ')}: the browser could adopt only one`,
+      })
+    }
+    if (inStatic.length > 0) {
+      const found = inStatic.map(
+        ({ region, element, event }) => `a ${event} handler on ${element} in "${region}"`,
+      )
+      return yield* new ResumeUnsafe({
+        reason: 'BindingInStaticRegion',
+        message: `a static region is the server's alone, and these would never run: ${found.join(', ')}. What a Message changes belongs in a Surface`,
       })
     }
     const started = served!
@@ -835,7 +897,16 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       })
     }
 
-    const uncovered = shortfalls(coverage(plan, started.model, browser))
+    if (servedBindings.length > 0 && plan.surfaces.length === 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'UndeclaredSurfaces',
+        message: `the page has ${servedBindings.length} binding${servedBindings.length === 1 ? '' : 's'} and the plan declares no surfaces, so nothing says which Messages it may dispatch: name them in the plan's surfaces`,
+      })
+    }
+    const uncovered = [
+      ...shortfalls(coverage(plan, started.model, browser)),
+      ...unlistedBindings(plan, started.model, servedBindings),
+    ]
     if (uncovered.length > 0) {
       return yield* new ResumeUnsafe({
         reason: 'Uncovered',
@@ -1102,7 +1173,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     boot()
     return
   }
-  const decoded = bindings(plan, document, root)
+  const decoded = bindings(plan, document, root, model)
   if (Result.isFailure(decoded)) {
     console.error(`[foldkit-ssr] the page cannot resume: ${decoded.failure.message}`)
     adopt(program({ model: plan.baseline }), { buildId: '' })
@@ -1168,21 +1239,29 @@ const deferBoot = (
 }
 
 /**
- * The page's bindings, decoded through the plan's Message Schema and checked
- * against every marker in `root`. Refused, with the reason, when the page
- * carries none, an entry is not one of the application's Messages, or a marker
- * names a binding the page does not carry: a page is answered whole or not at
- * all.
+ * The page's bindings, decoded through the plan's Message Schema, kept to the
+ * Messages the Surfaces active for `model` may send, and checked against
+ * every marker in `root`. Refused, with the reason, when the page carries
+ * none, an entry is not one of the application's Messages or one no active
+ * Surface lists, or a marker names a binding the page does not carry: a page
+ * is answered whole or not at all.
  */
 const bindings = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   page: ParentNode,
   root: Element,
+  model: Model,
 ): Result.Result<ReadonlyArray<DecodedBinding>, ResumeRefused> => {
   const parsed = readEnvelope(page)
   if (Result.isFailure(parsed)) return Result.fail(parsed.failure)
   const encoded = (parsed.success.bindings ?? []) as ReadonlyArray<EncodedBinding>
-  const decoded = decodeBindings(plan.Message, encoded, root)
+  if (encoded.length > 0 && plan.surfaces.length === 0) {
+    return refuse(
+      'Invalid',
+      'the page has bindings and the plan declares no surfaces to allow them',
+    )
+  }
+  const decoded = decodeBindings(plan.Message, encoded, root, allowedTags(plan, model))
   return Result.isFailure(decoded)
     ? refuse('Invalid', decoded.failure)
     : Result.succeed(decoded.success)

@@ -281,6 +281,10 @@ export const builder = <Builder extends AnyBuilder>(
           ? item.name
           : EVENT_OF[item._tag]
       if (event === undefined) continue
+      // Recorded for the refusal; the render does not survive it.
+      if (now.mode === 'collect' && now.region !== undefined) {
+        now.inStatic.push({ region: now.region, element, event })
+      }
       const recorded = holes.get(item)
       const binding: Binding | undefined = !MARKABLE.has(item._tag)
         ? undefined

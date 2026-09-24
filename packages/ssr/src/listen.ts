@@ -37,6 +37,7 @@ export const decodeBindings = (
   Message: Schema.Top | undefined,
   encoded: ReadonlyArray<EncodedBinding>,
   root: ParentNode,
+  allowed: ReadonlySet<string>,
 ): Result.Result<ReadonlyArray<DecodedBinding>, string> => {
   if (encoded.length > 0 && Message === undefined) {
     return Result.fail(
@@ -59,6 +60,12 @@ export const decodeBindings = (
     if (Result.isFailure(message)) {
       return Result.fail(
         `binding ${index} does not decode as a Message: ${message.failure.message}`,
+      )
+    }
+    const tag = (message.success as { readonly _tag?: unknown })._tag
+    if (typeof tag !== 'string' || !allowed.has(tag)) {
+      return Result.fail(
+        `binding ${index} dispatches ${typeof tag === 'string' ? tag : 'an untagged Message'}, which no active Surface lists in its messages`,
       )
     }
     bindings.push({

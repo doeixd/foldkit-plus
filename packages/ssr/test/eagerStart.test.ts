@@ -25,14 +25,24 @@ const refusal = <Model, Fields extends Schema.Struct.Fields>(
 
 describe('EagerStartRequired', () => {
   it('names each entry that would start late', async () => {
-    const deferred = SSR.plan(App, { id: 'post', state: plan.state, start: 'on-interaction' })
+    const deferred = SSR.plan(App, {
+      id: 'post',
+      state: plan.state,
+      surfaces: plan.surfaces,
+      start: 'on-interaction',
+    })
     const refused = await refusal(withTicking, deferred)
     expect(refused).toMatchObject({ _tag: 'ResumeUnsafe', reason: 'EagerStartRequired' })
     expect(refused.message).toContain('these would start late: subscription "tick"')
   })
 
   it('counts a Managed Resource the Model asks for, and not one it does not', async () => {
-    const deferred = SSR.plan(App, { id: 'post', state: plan.state, start: 'idle' })
+    const deferred = SSR.plan(App, {
+      id: 'post',
+      state: plan.state,
+      surfaces: plan.surfaces,
+      start: 'idle',
+    })
     const socket = (asks: boolean) => ({
       modelToMaybeRequirements: () => (asks ? Option.some({ url: 'wss://x' }) : Option.none()),
     })
@@ -58,6 +68,7 @@ describe('EagerStartRequired', () => {
     const declared = SSR.plan(App, {
       id: 'post',
       state: plan.state,
+      surfaces: plan.surfaces,
       start: 'idle',
       deferrable: ['tick'],
     })
