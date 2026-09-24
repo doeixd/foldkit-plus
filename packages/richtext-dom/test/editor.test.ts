@@ -174,3 +174,44 @@ describe('the mount that produces them', () => {
     await waitFor(() => attachmentIn(element) === undefined)
   })
 })
+
+describe('attaching an editor with a rendering registry', () => {
+  it('renders a declared mark in the editable subtree, not just its name', () => {
+    const element = document.createElement('div')
+    document.body.append(element)
+    const linked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 'a',
+              text: 'docs',
+              marks: [{ name: 'Link', props: { href: '/x' } }],
+            },
+          ],
+        },
+      ],
+    })
+    attachEditor(
+      element,
+      linked,
+      () => {},
+      RichText.rendering({
+        marks: {
+          Link: mark => ({
+            tag: 'a',
+            attributes: { href: String(RichText.markProps(mark)?.href ?? '') },
+          }),
+        },
+      }),
+    )
+    const run = element.querySelector('[data-run]') as HTMLElement
+    expect(run.firstChild).toBeInstanceOf(HTMLAnchorElement)
+    expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
+    releaseMount(element)
+  })
+})

@@ -103,13 +103,15 @@ Read the calls literally:
 
 A Foldkit view owns the host element; the interpreter owns what goes inside it.
 `mountInto` renders into the host and records the attachment there, so a patch
-Command that has only the element can find it (§118):
+Command that has only the element can find it (§118). It takes the same
+`rendering(...)` registry as `mount`, so the subtree a *view* mounts can carry a
+declared mark's props too:
 
 ```ts
 import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
 
-// The mount: once, when the host element enters the DOM.
-const attachment = mountInto(host, content, { onIntent, onSelection })
+// The mount: once, when the host element enters the DOM. The registry is optional.
+const attachment = mountInto(host, content, { onIntent, onSelection }, renderer)
 
 // The patch Command: after the transition committed, given the host element.
 attachmentIn(host)?.sync(state, changeSet)
@@ -135,7 +137,7 @@ const Message = defineMessageUnion({
 a detail: the adapter reports only plain insertions and toggles by name, so an
 insertion carrying marks and a mark value with props come back `undefined` — the
 vocabulary has no shape for them yet, and silently losing the marks would be
-worse. `attachEditor(host, content, emit)` attaches the translation to a host
+worse. `attachEditor(host, content, emit, renderer?)` attaches the translation to a host
 element and reports each Message; `events({ content })` wraps the same thing in a
 `Mount.defineStream`, so a view renders a host element whose mount produces these
 Messages and releases the subtree when the element goes. `patchEditor(hostId,
@@ -201,9 +203,10 @@ renderer that draws its own buttons.
 
 - It does not run commands or resolve domain state. A caller runs `RichText.run`
   and hands the result here; `attach` reports intent and stops.
-- Its editor mount does not yet take an application's renderer. `mount`, `patch`,
-  and `repair` do, and the Bundle's mount renders with the default registry until
-  the renderer is threaded through the editor's args.
+- Its editor mount does not yet take an application's renderer. `mount`,
+  `mountInto`, `attachEditor`, `patch`, and `repair` do, and the Bundle's mount
+  renders with the default registry until the renderer is threaded through the
+  editor's args.
 - It does not patch nested structural changes item by item: a container whose item
   list changed is re-rendered where it stood, so its surviving items are rebuilt
   rather than patched individually. Correct, and a follow-up for identity

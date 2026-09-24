@@ -86,7 +86,8 @@ because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
 round-trip, other elements are unwrapped or dropped with a diagnostic, attributes
 are never interpreted, and `script`/`style`/`iframe` are dropped with their
 content. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
-`contenteditable` subtree and takes the same `rendering(...)` registry, so each mark
+`contenteditable` subtree and takes the same `rendering(...)` registry — as do
+`mountInto` and `attachEditor` — so each mark
 nests as an element inside its run element exactly as the read-only view nests it,
 while a name no entry renders stays on `data-marks`; the registry lives on the
 `EditorDom` and every later patch reuses it. `patch`

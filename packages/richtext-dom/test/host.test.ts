@@ -55,6 +55,46 @@ describe('mounting into a host element', () => {
     releaseMount(element)
   })
 
+  it('renders declared marks through a registry the caller supplies', () => {
+    const element = host()
+    const linked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 'a',
+              text: 'docs',
+              marks: [{ name: 'Link', props: { href: '/x' } }],
+            },
+          ],
+        },
+      ],
+    })
+    mountInto(
+      element,
+      linked,
+      { onIntent: () => {} },
+      RichText.rendering({
+        marks: {
+          Link: mark => ({
+            tag: 'a',
+            attributes: { href: String(RichText.markProps(mark)?.href ?? '') },
+          }),
+        },
+      }),
+    )
+    const run = element.querySelector('[data-run]') as HTMLElement
+    expect(run.getAttribute('data-run')).toBe('a')
+    expect(run.firstChild).toBeInstanceOf(HTMLAnchorElement)
+    expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
+    expect(run.hasAttribute('data-marks')).toBe(false)
+    releaseMount(element)
+  })
+
   it('patches through the attachment the element holds, touching only the dirty block', () => {
     const element = host()
     mountInto(element, content(), { onIntent: () => {} })

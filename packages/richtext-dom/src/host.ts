@@ -4,7 +4,7 @@
  * a patch Command later finds the attachment through that element, so a DOM
  * reference never has to enter a Model.
  */
-import type * as RichText from 'foldkit-richtext'
+import * as RichText from 'foldkit-richtext'
 import { mount } from './index.js'
 import { attach, type AttachOptions, type Attachment } from './events.js'
 
@@ -13,17 +13,19 @@ const attachments = new WeakMap<Element, Attachment>()
 /**
  * Renders `content` into `host` and records the attachment. The host is the
  * view's element; the subtree the interpreter creates goes inside it, and the
- * interpreter owns everything below.
+ * interpreter owns everything below. A rendering registry decides how a declared
+ * mark or node kind renders, and the same one is kept for later patches.
  */
 export const mountInto = (
   host: Element,
   content: RichText.Document,
   options: AttachOptions,
+  rendering: RichText.Rendering = RichText.noRendering,
 ): Attachment => {
   // A mount runs once per element, so this is defensive: a remount replaces the
   // subtree rather than leaving two.
   releaseMount(host)
-  const dom = mount(host.ownerDocument, content)
+  const dom = mount(host.ownerDocument, content, rendering)
   host.append(dom.root)
   const attachment = attach(dom, options)
   attachments.set(host, attachment)
