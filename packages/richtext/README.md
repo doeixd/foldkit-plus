@@ -362,10 +362,50 @@ the order they were added), unknown marks survive as `data-marks` on a span,
 unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
 attribute values are escaped, so content cannot become markup. Importing HTML
 is a whitelist walk over a `DOMParser` tree, and the read-only Foldkit view is
-built with `inertHtml`; both live outside this package — the importer and view in
-the `examples/richtext` harness, and the editable DOM interpreter in
-`foldkit-richtext-dom` — because the package stays DOM-free and framework-free.
-Nothing parses HTML back into authority without that walk.
+built with `inertHtml`; the importer, the view, and the editable DOM interpreter
+all live in `foldkit-richtext-dom`, because this package stays DOM-free and
+framework-free. Nothing parses HTML back into authority without that walk.
+
+## Rendering a declared mark or node kind
+
+Three interpreters need to know which element a declared mark or node kind
+produces — this serializer, the read-only view, and the editable DOM interpreter —
+and they must not answer that three different ways (design §121). `rendering(...)`
+is that answer: a vocabulary built *over* a Kit, never inside one, holding per-name
+entries that are either fixed data or a function of the mark or block.
+
+```ts
+const renderer = RichText.rendering({
+  marks: {
+    Link: mark => ({
+      tag: 'a',
+      attributes: { href: String(RichText.markProps(mark)?.href ?? '') },
+    }),
+  },
+  nodes: {
+    Callout: block => ({
+      tag: 'aside',
+      attributes: { 'data-tone': String(block.props.tone ?? '') },
+    }),
+  },
+})
+
+RichText.documentToHtml(document, renderer)
+// → '<p><a href="https://example.test/x">docs</a></p>'
+```
+
+An entry yields `{ tag, attributes }` — data about an element, not a view — so
+this package gains neither a DOM nor a Foldkit dependency. Attribute *values* are
+escaped. A tag or attribute *name* that would end the markup (one holding a quote,
+a space, or `>`) is refused rather than written, because a name cannot be escaped;
+a well-formed but unwise name is the application's decision. A name with no entry
+renders the shipped way, and that is also the default (`noRendering`):
+`strong`/`em`/`code` for the shipped marks, `p`/`h1`–`h6` and
+`<div data-node="Kind">` for blocks, `data-marks` for anything else. Entries nest
+outside the shipped marks and in alphabetical order, so the same set of marks
+serializes the same way however it was assembled. `runRendering(renderer, run)` and
+`nodeRendering(renderer, block)` are the lookups, exported so the view and the
+interpreter share this one answer.
 
 ## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with

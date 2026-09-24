@@ -73,6 +73,12 @@ ids)` places a slice at the caret — above the block at its start, below at its
 end, and mid-block by splitting the block so trailing text stays below. `toHtml(blocks)` / `documentToHtml(document)` export HTML (marks as
 `strong`/`em`/`code`, unknown marks as `data-marks`, unknown blocks as a
 placeholder, everything escaped) and `toText`/`documentToText` give plain text.
+`toHtml(blocks, renderer?)` takes a `rendering({ marks, nodes })` vocabulary — built
+over a Kit, never inside one — mapping a declared mark or node kind to
+`{ tag, attributes }`, so a Link with an `href` prop exports as `<a href>` instead
+of `data-marks`. A name with no entry keeps the shipped rendering, entries nest
+outside the shipped marks and in alphabetical order, attribute values are escaped,
+and a tag or attribute name that would end the markup is refused.
 
 HTML import and the editable adapter live in `packages/richtext-dom` (private),
 because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
