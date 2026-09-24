@@ -20,6 +20,7 @@ export interface EditorDom {
 
 const MARK_ATTRIBUTE = 'data-marks'
 
+/** The element a block's own type implies; a declared node kind is elsewhere. */
 const blockTag = (block: RichText.Block): string => {
   if (block.type === 'Heading') return `h${block.level}`
   if (block.type === 'Unknown' || block.type === 'Node') return 'div'
@@ -68,7 +69,12 @@ const renderBlock = (
   elements: Map<RichText.NodeId, HTMLElement>,
   rendering: RichText.Rendering,
 ): HTMLElement => {
-  const element = owner.createElement(blockTag(block))
+  // A declared node kind renders as its entry (§121); every other block keeps the
+  // tag its own type implies. The id attribute is the interpreter's, so it wins
+  // over an entry that names it.
+  const entry = block.type === 'Node' ? RichText.nodeRendering(rendering, block) : undefined
+  const element =
+    entry === undefined ? owner.createElement(blockTag(block)) : renderElement(owner, entry)
   element.setAttribute('data-block', block.id)
   if (block.type === 'Unknown') {
     // Preserved content is shown as a diagnostic placeholder, never executed.

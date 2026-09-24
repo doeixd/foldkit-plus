@@ -70,9 +70,11 @@ Read the calls literally:
   listens to nothing and runs nothing. A renderer (§121) nests each mark as an
   element *inside* its run element, exactly as the read-only renderer nests them,
   so the run element stays outermost and the text node stays deepest, and a
-  selection still maps; a mark name no entry renders stays on `data-marks`. The
-  registry is kept on the `EditorDom`, and every later patch uses that one, so a
-  run cannot come back rendered differently.
+  selection still maps; a mark name no entry renders stays on `data-marks`. A node
+  entry renders a node block as its element — attributes included, its nested blocks
+  inside — and `data-block` stays the interpreter's identity; a kind no entry renders
+  keeps a `div`. The registry is kept on the `EditorDom`, and every later patch uses
+  that one, so a run or a container cannot come back rendered differently.
 - `attach(dom, { onIntent })` listens for `beforeinput`, `keydown`, composition,
   copy, cut, and paste, and reports each one it understands as intent. Everything
   it understands it `preventDefault`s, so the browser never mutates the DOM behind

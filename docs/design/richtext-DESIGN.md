@@ -4675,7 +4675,8 @@ scheduled publication.
 Not started: lists, links, quotes, code, image, callout, mentions, custom embeds,
 and the Surface-backed and React-backed node proofs. Links need the mark-props
 work, which now exists; lists, quotes, and code needed nested children, which now
-exist (§116), so what remains is declaring the kinds and rendering them.
+exist (§116), so what remains is declaring the kinds — all three interpreters render
+a declared kind through one registry (§121 slices 1–4).
 
 ## Phases 8–12
 
@@ -5275,7 +5276,10 @@ editing loop through a *prop-carrying* mark, not a snapshot of its markup.
    believed. `mountInto` and `attachEditor` take the registry too, and §122 carries it
    the last step into the editor Bundle, whose mount reads it by host id.
 4. Node kinds in the registry, once Phase 7 declares a kind that needs more than a
-   `div`.
+   `div`. — **done**, in the adapter, because nothing else read `nodes` unevenly:
+   the serializer and the read-only view already rendered a declared kind as its
+   element, while the editable adapter created a `div` and ignored the entry. All
+   three now agree, so a kind is declared once and rendered the same way in each.
 
 ---
 

@@ -88,6 +88,31 @@ const linked = () =>
     ],
   })
 
+const quoted = () =>
+  RichText.decodeDocument({
+    version: 1,
+    children: [
+      {
+        type: 'Node',
+        kind: 'Quote',
+        id: 'q',
+        props: {},
+        children: [],
+        blocks: [
+          {
+            type: 'Paragraph',
+            id: 'p1',
+            children: [{ type: 'Text', id: 't', text: 'quoted', marks: [] }],
+          },
+        ],
+      },
+    ],
+  })
+
+const quotes = RichText.rendering({
+  nodes: { Quote: { tag: 'blockquote', attributes: { cite: '/source' } } },
+})
+
 describe('rendering the owned subtree', () => {
   it('renders blocks, runs, marks, and heading levels', () => {
     const dom = mount(document, content())
@@ -596,5 +621,65 @@ describe('the editable subtree with a rendering registry', () => {
     const restored = repaired.elements.get(id('a')) as HTMLElement
     expect(restored.getAttribute('data-marks')).toBe('Highlight')
     expect(tagsWithin(restored)).toEqual(['strong'])
+  })
+
+  it('renders a declared node kind as its element, with its blocks inside', () => {
+    const dom = mount(document, quoted(), quotes)
+    const container = dom.elements.get(id('q')) as HTMLElement
+    expect(container.tagName.toLowerCase()).toBe('blockquote')
+    expect(container.getAttribute('cite')).toBe('/source')
+    // `data-block` is the interpreter's identity, not an entry's to choose.
+    expect(container.getAttribute('data-block')).toBe('q')
+    expect((container.children[0] as HTMLElement).getAttribute('data-block')).toBe('p1')
+    expect(toText(dom)).toBe('quoted')
+  })
+
+  it('keeps a div for a kind no entry renders', () => {
+    const dom = mount(document, quoted())
+    const container = dom.elements.get(id('q')) as HTMLElement
+    expect(container.tagName.toLowerCase()).toBe('div')
+    expect(container.hasAttribute('cite')).toBe(false)
+    expect(toText(dom)).toBe('quoted')
+  })
+
+  it('re-renders a declared container as its element when a patch rebuilds it', () => {
+    const before = mount(document, quoted(), quotes)
+    const grown = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            ...(quoted().children[0] as { blocks: ReadonlyArray<RichText.Block> }).blocks,
+            {
+              type: 'Paragraph',
+              id: 'p2',
+              children: [{ type: 'Text', id: 'u', text: 'more', marks: [] }],
+            },
+          ],
+        },
+      ],
+    })
+    // The item list changed, so the container is rebuilt rather than kept.
+    const after = patch(before, grown, {
+      dirtyNodes: new Set([id('q')]),
+      insertedNodes: new Set([id('p2'), id('u')]),
+      removedNodes: new Set(),
+      textChanged: new Set(),
+      structureChanged: true,
+      selectionChanged: false,
+    })
+    const container = after.elements.get(id('q')) as HTMLElement
+    expect(container).not.toBe(before.elements.get(id('q')))
+    expect(container.tagName.toLowerCase()).toBe('blockquote')
+    expect(container.getAttribute('cite')).toBe('/source')
+    expect(Array.from(container.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'p1',
+      'p2',
+    ])
   })
 })

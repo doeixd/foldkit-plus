@@ -90,7 +90,9 @@ content. The adapter's `mount(ownerDocument, content, renderer?)` builds an owne
 `mountInto` and `attachEditor` — so each mark
 nests as an element inside its run element exactly as the read-only view nests it,
 while a name no entry renders stays on `data-marks`; the registry lives on the
-`EditorDom` and every later patch reuses it. `patch`
+`EditorDom` and every later patch reuses it. A declared node kind renders as its
+element too, with its nested blocks inside and `data-block` still the interpreter's
+own identity. `patch`
 applies a `ChangeSet` in place and keeps untouched element identity, `repair`
 recovers after an IME or an outside mutation,
 `positionToRange`/`rangeToPosition` map a semantic `Position` to and from a DOM
