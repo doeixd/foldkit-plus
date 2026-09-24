@@ -1,5 +1,11 @@
 import type { Block, Document, Text } from './document.js'
-import { markName } from './marks.js'
+import {
+  noRendering,
+  nodeRendering,
+  runRendering,
+  type ElementRendering,
+  type Rendering,
+} from './rendering.js'
 
 /**
  * HTML is an interchange format, not the document model (§70). This serializer
@@ -7,9 +13,12 @@ import { markName } from './marks.js'
  * read by anything; nothing here is ever parsed back into authority. Unknown
  * marks survive as `data-marks` on a span and unknown blocks as a placeholder
  * carrying their original type, so a round trip through HTML cannot silently
- * invent formatting the document never had. This fallback carries mark *names*;
- * a mark's props travel in the slice format, and a declared mark with props gets
- * real attributes once a Kit-aware renderer exists.
+ * invent formatting the document never had.
+ *
+ * A renderer (§121) decides which element a declared mark or node kind produces,
+ * which is how a Link's `href` becomes a real attribute. Without one, this
+ * fallback still carries mark *names*, and a mark's props travel in the slice
+ * format, which is the lossless path.
  */
 export type BlockList = ReadonlyArray<Block>
 
@@ -19,29 +28,35 @@ const escapeText = (text: string): string =>
 const escapeAttribute = (value: string): string =>
   escapeText(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 
+const TAG = /^[A-Za-z][-A-Za-z0-9]*$/
+const ATTRIBUTE = /^[A-Za-z_:][-A-Za-z0-9_:.]*$/
+
 /**
- * Deterministic mark nesting: vocabulary order, so `Bold` ends up innermost and
- * `Code` outermost regardless of the order marks were added to the run.
+ * Writes an element. An attribute *value* is content and is escaped; a tag or
+ * attribute *name* is refused rather than written when malformed, because a name
+ * cannot be escaped — one holding a quote, a space, or `>` would end the attribute
+ * and inject markup. A well-formed but unwise name (an event handler built from a
+ * mark's props, say) is the application's own decision to make.
  */
-const MARK_TAGS: ReadonlyArray<readonly [string, string]> = [
-  ['Bold', 'strong'],
-  ['Italic', 'em'],
-  ['Code', 'code'],
-]
+const renderElement = (element: ElementRendering, inner: string): string => {
+  if (!TAG.test(element.tag)) throw new Error(`RichText.toHtml: invalid tag "${element.tag}"`)
+  const attributes = Object.entries(element.attributes)
+    .map(([name, value]) => {
+      if (!ATTRIBUTE.test(name))
+        throw new Error(`RichText.toHtml: invalid attribute name "${name}"`)
+      return ` ${name}="${escapeAttribute(value)}"`
+    })
+    .join('')
+  return `<${element.tag}${attributes}>${inner}</${element.tag}>`
+}
 
-const markTag = (mark: string): string | undefined => MARK_TAGS.find(([name]) => name === mark)?.[1]
-
-const renderRun = (run: Text): string => {
+const renderRun = (run: Text, renderer: Rendering): string => {
+  const { nest, unrendered } = runRendering(renderer, run)
   let html = escapeText(run.text)
-  for (const [name, tag] of MARK_TAGS) {
-    if (run.marks.some(mark => markName(mark) === name)) html = `<${tag}>${html}</${tag}>`
-  }
-  const unknown = run.marks
-    .filter(mark => markTag(markName(mark)) === undefined)
-    .map(mark => markName(mark))
-  return unknown.length === 0
+  for (const element of nest) html = renderElement(element, html)
+  return unrendered.length === 0
     ? html
-    : `<span data-marks="${escapeAttribute(unknown.join(' '))}">${html}</span>`
+    : `<span data-marks="${escapeAttribute(unrendered.join(' '))}">${html}</span>`
 }
 
 const blockTag = (block: Block): string => {
@@ -49,21 +64,26 @@ const blockTag = (block: Block): string => {
   return block.type === 'Node' ? 'div' : 'p'
 }
 
-const renderBlock = (block: Block): string => {
+const renderBlock = (block: Block, renderer: Rendering): string => {
   if (block.type === 'Unknown')
     return `<div data-unknown="${escapeAttribute(block.originalType)}"></div>`
-  const tag = blockTag(block)
-  // An application node carries its kind so a stylesheet can reach it; a Kit
-  // renderer may replace this default element later. A node that accepts nested
-  // blocks renders them inside it, so a list keeps its items.
-  const attributes = block.type === 'Node' ? ` data-node="${escapeAttribute(block.kind)}"` : ''
-  const runs = block.children.map(renderRun).join('')
-  const nested = block.type === 'Node' && block.blocks !== undefined ? toHtml(block.blocks) : ''
-  return `<${tag}${attributes}>${runs}${nested}</${tag}>`
+  const runs = block.children.map(run => renderRun(run, renderer)).join('')
+  // A node that accepts nested blocks renders them inside it, so a list keeps
+  // its items.
+  const nested =
+    block.type === 'Node' && block.blocks !== undefined ? toHtml(block.blocks, renderer) : ''
+  // An application node carries its kind so a stylesheet can reach it; a renderer
+  // entry replaces this default element entirely.
+  const element = (block.type === 'Node' ? nodeRendering(renderer, block) : undefined) ?? {
+    tag: blockTag(block),
+    attributes: block.type === 'Node' ? { 'data-node': block.kind } : {},
+  }
+  return renderElement(element, `${runs}${nested}`)
 }
 
 /** Serializes blocks as HTML, with text and attributes escaped. */
-export const toHtml = (blocks: BlockList): string => blocks.map(renderBlock).join('')
+export const toHtml = (blocks: BlockList, renderer: Rendering = noRendering): string =>
+  blocks.map(block => renderBlock(block, renderer)).join('')
 
 /**
  * Plain text of blocks, one line per text block; unknown blocks keep a
@@ -89,5 +109,6 @@ export const toText = (blocks: BlockList): string => {
 }
 
 /** Convenience for a whole document, whose blocks are its children. */
-export const documentToHtml = (document: Document): string => toHtml(document.children)
+export const documentToHtml = (document: Document, renderer?: Rendering): string =>
+  toHtml(document.children, renderer)
 export const documentToText = (document: Document): string => toText(document.children)

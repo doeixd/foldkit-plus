@@ -67,6 +67,16 @@ export {
 } from './history.js'
 export { type BlockList, toHtml, toText, documentToHtml, documentToText } from './html.js'
 export {
+  type ElementRendering,
+  type Rendering,
+  type RenderingEntry,
+  type RunRendering,
+  rendering,
+  noRendering,
+  runRendering,
+  nodeRendering,
+} from './rendering.js'
+export {
   Slice,
   emptySlice,
   sliceOf,
