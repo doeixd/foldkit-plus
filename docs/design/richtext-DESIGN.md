@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM half — interpreter, event translation, HTML import — to `packages/richtext-dom`); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM half — interpreter, event translation, HTML import — to `packages/richtext-dom`, and §118 decides how a view owns that subtree); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4605,7 +4605,8 @@ Not done:
   environment did not have.
 - **The slice and the Bundle editor are separate proofs.** `events.ts` produces
   commands while `controlled.ts` consumes Messages; nothing wires the DOM adapter
-  to the Bundle, and the design keeps them apart until Phase 4.
+  to the Bundle yet. §118 decides how they meet — the DOM patch is a Command from
+  `update`, not a Subscription — and its slices land in Phase 4.
 
 ## Phase 4 — editor Bundle features
 
@@ -4613,8 +4614,9 @@ The controlled-Bundle proof passed (§27), so the gate is met; nothing is
 published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
 event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
 `examples/richtext` to `packages/richtext-dom`, a private package with its own
-tests, build, and README. The read-only view and the Bundle still live in the
-harness and move next.
+tests, build, and README. §118 decides how the view owns the subtree (a mount for
+events, a Command from `update` for the patch) so the editor can be built on it.
+The read-only view and the editor Bundle still live in the harness and move next.
 
 Per item:
 
@@ -4936,3 +4938,75 @@ What the command layer constrains, and what the remaining items add there:
 So the three seams are deliberate, not an omission. A Kit constrains what an
 application may *ask for* and what a document may *publish*; it does not constrain
 what a transaction may *mean*.
+
+---
+
+# 118. The editor as a Bundle with a view
+
+§115 kept the Phase 3 slice and the Bundle proof apart: `events.ts` produced
+commands, `controlled.ts` consumed Messages, and nothing owned the DOM from a
+view. This decides how they meet, before the work of meeting them.
+
+## What Foldkit gives a view
+
+A mount runs once, when its element enters the DOM. `Mount.defineStream`'s
+`execute` receives the live element and returns a `Stream` of Messages whose scope
+is the element's lifetime, so unmounting interrupts it. Args are captured at mount
+and not refreshed across renders, and `viewStateChanges` carries `Live | Paused`,
+not the Model. Foldkit's own guidance follows from that: *"If you need Model
+changes to drive ongoing DOM behavior post-mount ... dispatch a Command from
+`update`'s handler for that Message. The Command can find the element and do the
+imperative work."*
+
+So the patch is a **Command**, not a Subscription. That does not reopen §27's
+objection: the objection was to a Command that *commits half the transition*, and
+this one commits nothing. The parent's `onOut` still installs the document and
+the interaction state in one transition; the Command only renders what that
+transition committed.
+
+## The shape
+
+```text
+view     host element: an id, and OnMount(RichTextDom.events())
+mount    creates the interpreter over the host, attaches listeners, and emits
+         one editor Message per intent
+update   RichText.run (or undo/redo) — the proof's work exactly — returning the
+         state and a Command carrying the ChangeSet
+patch    finds the host by id, patches in place, restores the selection
+```
+
+The adapter handle is recovered through the element: the mount registers the
+`EditorDom` in a `WeakMap` keyed by the host element, and the patch Command looks
+it up. No DOM reference enters the Model (Models are schemas), and no Context
+service has to carry one.
+
+## One editor, two placements
+
+Standalone and controlled differ only in the Link: standalone writes the document
+into the child and reads it back, controlled projects the parent's document in
+`read` and drops it in `write`. The Bundle, the view, the mount, and the patch
+Command are identical, which is §27's requirement.
+
+## What the adapter still needs
+
+- **A selection channel.** §30 lists `selectionchange`, and the adapter does not
+  listen to it, so a caret move is never reported and the editor cannot follow the
+  caret. `intentFor` gains a `Selected` intent (and `intentFor` is where a
+  `selectionchange` becomes `{ preventDefault: false, command: SetSelection }`).
+- **A host-element mount.** `mount(ownerDocument, content)` builds a detached
+  root. A view needs the host: the mount appends the root into it and registers
+  the handle for the patch Command.
+- **A Message union covering the intent vocabulary.** The proof's union predates
+  paste and selection. Every intent `intentFor` and the clipboard handlers can
+  produce must map to a Message, and a test should hold that total.
+
+## Slices
+
+1. The Bundle with the view and the mount, in the harness, proved in jsdom through
+   `foldkit/test`'s `Scene` plus direct `MountAction.f` calls: typing patches
+   incrementally, a caret move reports, a committed and a cancelled composition
+   both repair, and unmounting detaches.
+2. Paste and the history chords through Messages, on the same view.
+3. Promote the editor into `foldkit-richtext-dom` with the interpreter as its
+   internals, and the read-only renderer alongside it.
+4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).
