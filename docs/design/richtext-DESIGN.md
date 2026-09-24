@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, mark-props rendering (decided in §121), metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4570,10 +4570,10 @@ Not done:
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
-- **Kit-aware rendering of mark props.** The HTML fallback and the harness DOM
-  adapter carry mark *names*, so a declared mark with props renders as
-  `data-marks` rather than a real `<a href>`. The slice format is the lossless
-  path.
+- **Kit-aware rendering of mark props — decided in §121.** The HTML serializer, the
+  read-only view, and the editable adapter each hard-code the three shipped marks
+  and fall back to *names*, so a declared mark with props renders as `data-marks`
+  rather than a real `<a href>`. §121 decides the registry that replaces that.
 - **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
   (§12) are not wired: no interpreter owns a metadata key yet. The package does
   not depend on `foldkit-metadata`. They must stay outside the document codec.
@@ -5189,3 +5189,77 @@ real render, and falls back to a constructor input only if a placement rejects i
 3. The content slots (§35's content node rendering) once the adapter can accept
    per-kind attributes: today it makes its own elements, and §36 keeps Mixins out
    of the editable subtree.
+
+---
+
+# 121. Mark and node rendering
+
+§115 left one rendering gap: a mark definition may carry props, and nothing renders
+them. A Link mark — the design's own example — exports and displays as
+`data-marks="Link"` rather than `<a href="…">`, in all three interpreters, because
+each hard-codes the three shipped marks and falls back to names on a span.
+
+§34 already decided where the mapping lives: not in the Kit, which is data and never
+holds renderers, but in a value built over one. It did not decide the entry's shape,
+and that is the whole question, because three interpreters consume it:
+
+```text
+toHtml(blocks)            the core serializer, DOM-free   → a tag and attributes
+renderDocument(document)  the read-only view              → the same, as Html
+mount(ownerDocument, …)   the editable adapter            → the same, as DOM
+```
+
+So an entry is data about an element, not a view:
+
+```ts
+interface Rendering {
+  /** The element the runs carrying this mark nest in. */
+  readonly tag: string
+  readonly attributes: Readonly<Record<string, string>>
+}
+
+const renderer = rendering({
+  marks: {
+    // A function because a mark's attributes come from its props (the core's
+    // `markProps`), and an expression language for that would be a language to
+    // maintain.
+    Link: mark => ({ tag: 'a', attributes: { href: String(markProps(mark)?.href ?? '') } }),
+    Highlight: mark => ({ tag: 'mark', attributes: { 'data-tone': String(markProps(mark)?.tone ?? '') } }),
+  },
+  nodes: {
+    Callout: { tag: 'aside', attributes: { 'data-callout': '' } },
+  },
+})
+```
+
+`{ tag, attributes }` is the smallest shape all three can use: the serializer writes
+it, the view maps it to `h[tag]`, and the adapter creates it. The core gains neither
+a Foldkit nor a DOM dependency, and a function only *computes* the data.
+
+A name with no entry keeps today's behaviour: the shipped three nest in
+`strong`/`em`/`code`, and anything else rides on `data-marks`. That is also what
+keeps the slice format and the HTML fallback lossless rather than lossy.
+
+## The adapter changes shape, and that is the risk
+
+The read-only view already nests marks as elements. The adapter instead writes their
+names into one `data-marks` attribute on the run's own element, because its
+selection mapping reads a run's text node. Nesting mark elements *inside* the run
+element keeps both: `data-run` stays on the outer element, the text stays deepest,
+and `rangeToPosition`'s `closest('[data-run]')` still finds the run, so the offset
+maths is untouched. What does change is `patch`, which re-renders a run element, and
+the nested-render recursion it shares with a block's children.
+
+That is why the adapter slice is the one to prove: position mapping and a whole
+editing loop through a *prop-carrying* mark, not a snapshot of its markup.
+
+## Slices
+
+1. `rendering(...)` and `toHtml(blocks, renderer?)` in `foldkit-richtext`: a Link
+   exports as `<a href>`, and a name with no entry still exports as `data-marks`.
+2. `renderDocument(document, renderer?)` / `renderBlocks(blocks, renderer?)` in
+   `foldkit-richtext-dom/view`, against the same renderer.
+3. The adapter: marks nested inside the run element, `mount`/`patch`/`repair`
+   through the renderer, and the selection tests that prove nothing moved.
+4. Node kinds in the registry, once Phase 7 declares a kind that needs more than a
+   `div`.
