@@ -2,12 +2,14 @@ import { Equal, Schema } from 'effect'
 import { markName, resolveInsertion, sameMark } from './marks.js'
 import {
   Block,
+  eachBlock,
   EditorState,
   NodeId,
   Position,
   RunMark,
   Selection,
   selectionIsValid,
+  type BlockPath,
   type Document,
   type NodeReference,
   type Text,
@@ -309,6 +311,7 @@ export type TransactionResult =
         | 'MissingNode'
         | 'InvalidRange'
         | 'InvalidSelection'
+        | 'InvalidParent'
         | 'UnstableNormalization'
     }
 
@@ -327,6 +330,14 @@ const sameSelection = (left: Selection | null, right: Selection | null): boolean
 }
 
 /**
+ * A block's address: root-first container indices. `[2]` is the third top-level
+ * block; `[2, 0]` is the first block nested inside it (§116). The document's own
+ * block list is the container at `[]`.
+ */
+const pathKey = (path: BlockPath): string => path.join('.')
+const keyToPath = (key: string): BlockPath => (key === '' ? [] : key.split('.').map(Number))
+
+/**
  * Pure, atomic text transaction. Rejection returns no partially edited state.
  * `transforms` defaults to the registry's shipped rules; a Kit's transforms
  * arrive here when Kit support lands.
@@ -343,53 +354,93 @@ export const apply = (
     return { ok: false, error: 'InvalidInput' }
   }
   const indexDocument = (current: Document) => {
-    const runLocations = new Map<NodeId, readonly [number, number]>()
-    const blockIndexes = new Map<NodeId, number>()
-    current.children.forEach((block, blockIndex) => {
-      blockIndexes.set(block.id, blockIndex)
-      block.children.forEach((text, textIndex) =>
-        runLocations.set(text.id, [blockIndex, textIndex]),
-      )
+    const blockPaths = new Map<NodeId, BlockPath>()
+    const runPaths = new Map<NodeId, { readonly path: BlockPath; readonly index: number }>()
+    eachBlock(current.children, (block, path) => {
+      blockPaths.set(block.id, path)
+      for (const [runIndex, run] of block.children.entries()) {
+        runPaths.set(run.id, { path, index: runIndex })
+      }
     })
-    return { runLocations, blockIndexes }
+    return { blockPaths, runPaths }
   }
-  let { runLocations: locations, blockIndexes } = indexDocument(state.document)
+  let { blockPaths, runPaths } = indexDocument(state.document)
   const reindex = () => {
-    ;({ runLocations: locations, blockIndexes } = indexDocument(document))
+    ;({ blockPaths, runPaths } = indexDocument(document))
   }
-  // Identities stay reserved for the whole transaction so a reused id can
-  // never silently address two nodes across structural edits.
-  const usedIds = new Set<NodeId>([...locations.keys(), ...blockIndexes.keys()])
+  // Identities stay reserved for the whole transaction so a reused id can never
+  // silently address two nodes across structural edits.
+  const usedIds = new Set<NodeId>([...runPaths.keys(), ...blockPaths.keys()])
   let document: Document = state.document
-  // Working copies: a block's run array is copied once per transaction, however
-  // many operations touch it, so N edits in one paragraph cost O(N) rather than
-  // N copies of the same array. Structural operations materialize first, since
-  // they rebuild the block list itself.
-  let workingBlocks: Array<Block> | undefined
-  const workingRuns = new Map<number, Array<Text>>()
-  const materialize = (): void => {
-    if (workingBlocks === undefined && workingRuns.size === 0) return
-    const next = workingBlocks ?? [...document.children]
-    for (const [index, children] of workingRuns) next[index] = { ...next[index]!, children }
-    workingRuns.clear()
-    workingBlocks = undefined
-    document = { ...document, children: next }
+  // Working copies: each touched container is copied once per transaction, so N
+  // edits in one paragraph cost O(N) rather than N copies of the same array. A
+  // container is a block list — the document's, or a node block's nested blocks —
+  // and a block's runs are copied separately, keyed by that block's path.
+  const workingBlocks = new Map<string, Array<Block>>()
+  const workingRuns = new Map<string, Array<Text>>()
+  const blockAt = (path: BlockPath): Block | undefined =>
+    blocksAt(path.slice(0, -1))[path[path.length - 1]!]
+  /** The block list at a container path, reading through any pending copy. */
+  function blocksAt(containerPath: BlockPath): ReadonlyArray<Block> {
+    const pending = workingBlocks.get(pathKey(containerPath))
+    if (pending !== undefined) return pending
+    if (containerPath.length === 0) return document.children
+    const parent = blockAt(containerPath)
+    return parent?.type === 'Node' && parent.blocks !== undefined ? parent.blocks : []
   }
-  const blockAt = (index: number): Block => workingBlocks?.[index] ?? document.children[index]!
-  /** The block's runs as they stand: a pending copy if one exists, else the document's. */
-  const runsAt = (index: number): ReadonlyArray<Text> =>
-    workingRuns.get(index) ?? document.children[index]!.children
-  /** The block's run array, copied on first write and mutated in place after. */
-  const runArray = (index: number): Array<Text> => {
-    const existing = workingRuns.get(index)
+  /** Copies a container, and its ancestors, once: writes never touch the input. */
+  const ensureContainer = (containerPath: BlockPath): Array<Block> => {
+    const key = pathKey(containerPath)
+    const existing = workingBlocks.get(key)
     if (existing !== undefined) return existing
-    const copy = [...document.children[index]!.children]
-    workingRuns.set(index, copy)
+    if (containerPath.length > 0) ensureContainer(containerPath.slice(0, -1))
+    const copy = [...blocksAt(containerPath)]
+    workingBlocks.set(key, copy)
     return copy
   }
-  const writeBlock = (index: number, block: Block): void => {
-    workingBlocks ??= [...document.children]
-    workingBlocks[index] = block
+  /** The block's runs as they stand: a pending copy if one exists, else the document's. */
+  const runsAt = (path: BlockPath): ReadonlyArray<Text> =>
+    workingRuns.get(pathKey(path)) ?? blockAt(path)?.children ?? []
+  /** The block's run array, copied on first write and mutated in place after. */
+  const runArray = (path: BlockPath): Array<Text> => {
+    const key = pathKey(path)
+    const existing = workingRuns.get(key)
+    if (existing !== undefined) return existing
+    ensureContainer(path.slice(0, -1))
+    const copy = [...(blockAt(path)?.children ?? [])]
+    workingRuns.set(key, copy)
+    return copy
+  }
+  const writeBlock = (path: BlockPath, block: Block): void => {
+    const container = ensureContainer(path.slice(0, -1))
+    container[path[path.length - 1]!] = block
+  }
+  const materialize = (): void => {
+    if (workingBlocks.size === 0 && workingRuns.size === 0) return
+    // Runs fold into their block, then each container folds into its parent. A
+    // container's copy already holds its child's final value, so the order of
+    // the second pass does not matter; only touched containers are visited.
+    for (const [key, runs] of workingRuns) {
+      const path = keyToPath(key)
+      const container = workingBlocks.get(pathKey(path.slice(0, -1)))!
+      const index = path[path.length - 1]!
+      container[index] = { ...container[index]!, children: runs }
+    }
+    workingRuns.clear()
+    for (const [key, blocks] of workingBlocks) {
+      const path = keyToPath(key)
+      if (path.length === 0) {
+        document = { ...document, children: blocks }
+        continue
+      }
+      const parent = workingBlocks.get(pathKey(path.slice(0, -1)))!
+      const index = path[path.length - 1]!
+      const parentBlock = parent[index]!
+      // Only a node block holds nested blocks, and only its path can be a
+      // container, so this narrowing always holds.
+      if (parentBlock.type === 'Node') parent[index] = { ...parentBlock, blocks }
+    }
+    workingBlocks.clear()
   }
   let selection = state.selection
   const dirtyNodes = new Set<NodeId>()
@@ -410,11 +461,12 @@ export const apply = (
       continue
     }
     if (operation.type === 'SplitRun') {
-      const location = locations.get(operation.node)
+      const location = runPaths.get(operation.node)
       if (location === undefined) return { ok: false, error: 'MissingText' }
-      const [blockIndex, textIndex] = location
-      const target = blockAt(blockIndex)
-      const run = runsAt(blockIndex)[textIndex]!
+      const { path, index: textIndex } = location
+      const target = blockAt(path)
+      if (target === undefined) return { ok: false, error: 'MissingText' }
+      const run = runsAt(path)[textIndex]!
       if (operation.offset > run.text.length) return { ok: false, error: 'InvalidRange' }
       if (usedIds.has(operation.textId)) return { ok: false, error: 'InvalidInput' }
       if (operation.offset === 0) {
@@ -422,7 +474,7 @@ export const apply = (
         // at 0 is the caller's no-op, not a silent identity change.
         continue
       }
-      const children = runArray(blockIndex)
+      const children = runArray(path)
       children[textIndex] = { ...run, text: run.text.slice(0, operation.offset) }
       children.splice(textIndex + 1, 0, {
         ...run,
@@ -455,12 +507,14 @@ export const apply = (
     }
     if (operation.type === 'SplitNode') {
       materialize()
-      const blockIndex = blockIndexes.get(operation.block)
-      if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
-      const runLocation = locations.get(operation.node)
+      const blockPath = blockPaths.get(operation.block)
+      if (blockPath === undefined) return { ok: false, error: 'MissingNode' }
+      if (blockPath.length !== 1) return { ok: false, error: 'InvalidParent' }
+      const runLocation = runPaths.get(operation.node)
       if (runLocation === undefined) return { ok: false, error: 'MissingText' }
-      const [runBlockIndex, textIndex] = runLocation
-      if (runBlockIndex !== blockIndex) return { ok: false, error: 'InvalidRange' }
+      const { path: runBlockPath, index: textIndex } = runLocation
+      if (pathKey(runBlockPath) !== pathKey(blockPath)) return { ok: false, error: 'InvalidRange' }
+      const blockIndex = blockPath[0]!
       const target = document.children[blockIndex]!
       const run = target.children[textIndex]!
       if (operation.offset > run.text.length) return { ok: false, error: 'InvalidRange' }
@@ -516,10 +570,17 @@ export const apply = (
     }
     if (operation.type === 'JoinNode') {
       materialize()
-      const intoIndex = blockIndexes.get(operation.into)
-      if (intoIndex === undefined) return { ok: false, error: 'MissingNode' }
-      const removedIndex = blockIndexes.get(operation.removed)
-      if (removedIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const intoPath = blockPaths.get(operation.into)
+      if (intoPath === undefined) return { ok: false, error: 'MissingNode' }
+      const removedPath = blockPaths.get(operation.removed)
+      if (removedPath === undefined) return { ok: false, error: 'MissingNode' }
+      // Joining is structural placement: nested blocks wait for the addressing
+      // that lets a container's children move (§116).
+      if (intoPath.length !== 1 || removedPath.length !== 1) {
+        return { ok: false, error: 'InvalidParent' }
+      }
+      const intoIndex = intoPath[0]!
+      const removedIndex = removedPath[0]!
       if (removedIndex !== intoIndex + 1) return { ok: false, error: 'InvalidRange' }
       const survivor = document.children[intoIndex]!
       const removedBlocks: Array<Block> = []
@@ -570,8 +631,10 @@ export const apply = (
     }
     if (operation.type === 'MoveNode') {
       materialize()
-      const fromIndex = blockIndexes.get(operation.node)
-      if (fromIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const fromPath = blockPaths.get(operation.node)
+      if (fromPath === undefined) return { ok: false, error: 'MissingNode' }
+      if (fromPath.length !== 1) return { ok: false, error: 'InvalidParent' }
+      const fromIndex = fromPath[0]!
       if (operation.to > document.children.length - 1) return { ok: false, error: 'InvalidRange' }
       if (operation.to === fromIndex) continue
       const blocks = [...document.children]
@@ -584,12 +647,14 @@ export const apply = (
       continue
     }
     if (operation.type === 'SetNodeProps') {
-      const blockIndex = blockIndexes.get(operation.node)
-      if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
-      const target = blockAt(blockIndex)
-      if (target.type !== 'Heading') return { ok: false, error: 'InvalidRange' }
+      const path = blockPaths.get(operation.node)
+      if (path === undefined) return { ok: false, error: 'MissingNode' }
+      const target = blockAt(path)
+      if (target === undefined || target.type !== 'Heading') {
+        return { ok: false, error: 'InvalidRange' }
+      }
       if (target.level === operation.level) continue
-      writeBlock(blockIndex, { ...target, level: operation.level })
+      writeBlock(path, { ...target, level: operation.level })
       dirtyNodes.add(target.id)
       structureChanged = true
       continue
@@ -617,8 +682,10 @@ export const apply = (
     }
     if (operation.type === 'DeleteNode') {
       materialize()
-      const blockIndex = blockIndexes.get(operation.node)
-      if (blockIndex === undefined) return { ok: false, error: 'MissingNode' }
+      const path = blockPaths.get(operation.node)
+      if (path === undefined) return { ok: false, error: 'MissingNode' }
+      if (path.length !== 1) return { ok: false, error: 'InvalidParent' }
+      const blockIndex = path[0]!
       const target = document.children[blockIndex]!
       const blocks = [...document.children]
       blocks.splice(blockIndex, 1)
@@ -662,18 +729,19 @@ export const apply = (
       continue
     }
     const id = operation.type === 'InsertText' ? operation.at.node : operation.node
-    const location = locations.get(id)
+    const location = runPaths.get(id)
     if (location === undefined) return { ok: false, error: 'MissingText' }
-    const [blockIndex, textIndex] = location
-    const block = blockAt(blockIndex)
-    const text = runsAt(blockIndex)[textIndex]!
+    const { path, index: textIndex } = location
+    const block = blockAt(path)
+    if (block === undefined) return { ok: false, error: 'MissingText' }
+    const text = runsAt(path)[textIndex]!
     if (operation.type === 'AddMark') {
       // A run carries a mark name at most once, so adding is a *set*: append
       // when the name is absent, replace when its props differ, and no-op when
       // the mark is already exactly this one (which keeps state identity).
       const existing = text.marks.find(mark => markName(mark) === markName(operation.mark))
       if (existing !== undefined && sameMark(existing, operation.mark)) continue
-      const children = runArray(blockIndex)
+      const children = runArray(path)
       children[textIndex] = {
         ...text,
         marks:
@@ -690,7 +758,7 @@ export const apply = (
     }
     if (operation.type === 'RemoveMark') {
       if (!text.marks.some(mark => markName(mark) === operation.mark)) continue
-      const children = runArray(blockIndex)
+      const children = runArray(path)
       children[textIndex] = {
         ...text,
         marks: text.marks.filter(mark => markName(mark) !== operation.mark),
@@ -705,7 +773,7 @@ export const apply = (
     const inserted = operation.type === 'InsertText' ? operation.text : ''
     if (from > to || to > text.text.length) return { ok: false, error: 'InvalidRange' }
     if (from === to && inserted.length === 0) continue
-    const children = runArray(blockIndex)
+    const children = runArray(path)
     children[textIndex] = {
       ...text,
       text: text.text.slice(0, from) + inserted + text.text.slice(to),

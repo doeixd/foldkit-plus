@@ -266,12 +266,14 @@ run-to-run noise, not a claim either way.
 Two costs remain. A structural operation still rebuilds the document index, though
 a contiguous run of joins is now batched: deleting a range across B paragraphs
 emits B joins but `apply` consumes them as one structural edit, so the block array
-is copied once and the index rebuilt once instead of B times. The cross-paragraph
-deletion case in the benchmark is that change's check. Normalization also walks
-the whole dirty set — including run identities, which cannot match a block — so a
-transaction that touches every run of a block does O(dirty) lookups in the merge
-pass. Neither is measured as a problem at these sizes; the benchmark exists so a
-claim about them can be checked rather than asserted.
+is copied once and the index rebuilt once instead of B times. That case measured
+3.06 ms before the batching and 1.77 ms after, on this machine in one session
+(where runs vary by roughly a fifth), and it stays in the benchmark as its check.
+Normalization also walks the whole dirty set — including run identities, which
+cannot match a block — so a transaction that touches every run of a block does
+O(dirty) lookups in the merge pass. Neither is measured as a problem at these
+sizes; the benchmark exists so a claim about them can be checked rather than
+asserted.
 
 ## Migrations
 
@@ -419,8 +421,10 @@ not yet drive parsing or `apply`.
   says the kind accepts them (§116): a List holds ListItems, a Quote paragraphs.
   Nested content decodes, round-trips byte-equal, is counted by `inspect` and the
   decode limits, survives a deploy that lost its kind, and a selection or
-  reference inside it resolves. Commands and the interpreters do not reach nested
-  blocks yet, so structural operations inside a container are not wired.
+  reference inside it resolves. Commands reach a run wherever it sits, so typing,
+  grapheme deletion, marks, stored marks, and undo work inside a container;
+  structural placement inside one is refused with `InvalidParent`, and the
+  interpreters do not render nested blocks yet.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.

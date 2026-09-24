@@ -252,16 +252,26 @@ export const decodeDocument = (
   return document
 }
 
-/** Walks every block subtree in document order. */
-const eachBlock = (
+/**
+ * A block's address: root-first container indices. `[2]` is the third top-level
+ * block, `[2, 0]` is the first block nested inside it (§116). A block's depth is
+ * its path's length.
+ */
+export type BlockPath = ReadonlyArray<number>
+
+/** A stable key for a block path, so paths can key maps and compare cheaply. */
+export const pathKey = (path: BlockPath): string => path.join('.')
+
+/** Walks every block subtree in document order, visiting each with its path. */
+export const eachBlock = (
   blocks: ReadonlyArray<Block>,
-  visit: (block: Block, depth: number) => void,
-  depth = 1,
+  visit: (block: Block, path: BlockPath) => void,
+  prefix: BlockPath = [],
 ): void => {
-  for (const block of blocks) {
-    visit(block, depth)
-    if (block.type === 'Node' && block.blocks !== undefined)
-      eachBlock(block.blocks, visit, depth + 1)
+  for (const [index, block] of blocks.entries()) {
+    const path = [...prefix, index]
+    visit(block, path)
+    if (block.type === 'Node' && block.blocks !== undefined) eachBlock(block.blocks, visit, path)
   }
 }
 
@@ -389,10 +399,10 @@ export const inspect = (document: Document) => {
   let nodeCount = 0
   let textLength = 0
   let depth = 0
-  eachBlock(document.children, (block, level) => {
+  eachBlock(document.children, (block, path) => {
     nodeCount += 1 + block.children.length
     for (const text of block.children) textLength += text.text.length
-    depth = Math.max(depth, level + (block.children.length > 0 ? 1 : 0))
+    depth = Math.max(depth, path.length + (block.children.length > 0 ? 1 : 0))
   })
   return { nodeCount, textLength, depth }
 }

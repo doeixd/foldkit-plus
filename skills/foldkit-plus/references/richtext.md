@@ -96,8 +96,10 @@ refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
 Nested children, Form/Bundle integration, DOM editing, and collaboration remain
 unfinished; a node block may now carry nested `blocks`, which decode, round-trip,
-count, and survive an unknown kind, but commands and interpreters do not reach
-inside them yet. Marks are definitions with a boundary policy and, when they carry
+count, and survive an unknown kind, and commands reach a run inside one — typing,
+grapheme deletion, and marks work at depth, while a join or placement inside a
+container is refused with `InvalidParent`. Interpreters and the clipboard do not
+reach inside yet. Marks are definitions with a boundary policy and, when they carry
 data, a prop schema:
 
 ```ts

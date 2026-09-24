@@ -1,6 +1,9 @@
 import {
   NodeId,
+  eachBlock,
+  pathKey,
   type Block,
+  type BlockPath,
   type Document,
   type EditorState,
   type Mark,
@@ -49,11 +52,11 @@ export interface RunOptions {
   readonly marks?: MarkRegistry | undefined
 }
 
-type Failure = 'InvalidSelection' | 'MissingText' | 'InvalidInput'
+type Failure = 'InvalidSelection' | 'MissingText' | 'InvalidInput' | 'InvalidParent'
 const failure = (error: Failure): TransactionResult => ({ ok: false, error })
 
 interface Located {
-  readonly blockIndex: number
+  readonly path: BlockPath
   readonly runIndex: number
   readonly blockId: NodeId
   readonly id: NodeId
@@ -61,22 +64,48 @@ interface Located {
   readonly marks: ReadonlyArray<RunMark>
 }
 
-const locate = (document: Document, node: NodeId): Located | undefined => {
-  for (const [blockIndex, block] of document.children.entries()) {
-    for (const [runIndex, run] of block.children.entries()) {
-      if (run.id === node) {
-        return {
-          blockIndex,
-          runIndex,
-          blockId: block.id,
-          id: run.id,
-          text: run.text,
-          marks: run.marks,
-        }
-      }
-    }
+/** Document order over a located run: path first, then the run's index. */
+const locatedOrder = (
+  left: { readonly path: BlockPath; readonly runIndex: number },
+  right: { readonly path: BlockPath; readonly runIndex: number },
+): number => {
+  const shared = Math.min(left.path.length, right.path.length)
+  for (let index = 0; index < shared; index++) {
+    if (left.path[index] !== right.path[index]) return left.path[index]! - right.path[index]!
   }
-  return undefined
+  if (left.path.length !== right.path.length) return left.path.length - right.path.length
+  return left.runIndex - right.runIndex
+}
+
+/** The block at a path, or undefined when the path does not resolve. */
+const blockAtPath = (document: Document, path: BlockPath): Block | undefined => {
+  let blocks: ReadonlyArray<Block> = document.children
+  let found: Block | undefined
+  for (const index of path) {
+    found = blocks[index]
+    if (found === undefined) return undefined
+    blocks = found.type === 'Node' && found.blocks !== undefined ? found.blocks : []
+  }
+  return found
+}
+
+const locate = (document: Document, node: NodeId): Located | undefined => {
+  let found: Located | undefined
+  eachBlock(document.children, (block, path) => {
+    if (found !== undefined) return
+    const runIndex = block.children.findIndex(run => run.id === node)
+    if (runIndex < 0) return
+    const run = block.children[runIndex]!
+    found = {
+      path,
+      runIndex,
+      blockId: block.id,
+      id: run.id,
+      text: run.text,
+      marks: run.marks,
+    }
+  })
+  return found
 }
 
 const isCollapsed = (selection: Extract<Selection, { readonly type: 'Range' }>): boolean =>
@@ -98,12 +127,8 @@ const ordered = (
   const anchor = locate(document, selection.anchor.node)
   const focus = locate(document, selection.focus.node)
   if (anchor === undefined || focus === undefined) return undefined
-  const after =
-    anchor.blockIndex !== focus.blockIndex
-      ? anchor.blockIndex > focus.blockIndex
-      : anchor.runIndex !== focus.runIndex
-        ? anchor.runIndex > focus.runIndex
-        : selection.anchor.offset > selection.focus.offset
+  const byPlace = locatedOrder(anchor, focus)
+  const after = byPlace !== 0 ? byPlace > 0 : selection.anchor.offset > selection.focus.offset
   return after
     ? { start: selection.focus, end: selection.anchor }
     : { start: selection.anchor, end: selection.focus }
@@ -121,25 +146,18 @@ const covered = (document: Document, start: Position, end: Position): ReadonlyAr
   const endAt = locate(document, end.node)
   if (startAt === undefined || endAt === undefined) return []
   const spans: Array<Span> = []
-  for (const [blockIndex, block] of document.children.entries()) {
+  // The walk is document order, so comparing each run's place against the
+  // endpoints' places picks out the covered span however deep it sits.
+  eachBlock(document.children, (block, path) => {
     for (const [runIndex, run] of block.children.entries()) {
-      const atOrAfterStart =
-        blockIndex > startAt.blockIndex ||
-        (blockIndex === startAt.blockIndex && runIndex >= startAt.runIndex)
-      const atOrBeforeEnd =
-        blockIndex < endAt.blockIndex ||
-        (blockIndex === endAt.blockIndex && runIndex <= endAt.runIndex)
-      if (!atOrAfterStart || !atOrBeforeEnd) continue
-      const from =
-        blockIndex === startAt.blockIndex && runIndex === startAt.runIndex ? start.offset : 0
-      const to =
-        blockIndex === endAt.blockIndex && runIndex === endAt.runIndex
-          ? end.offset
-          : run.text.length
+      const place = { path, runIndex }
+      if (locatedOrder(place, startAt) < 0 || locatedOrder(place, endAt) > 0) continue
+      const from = locatedOrder(place, startAt) === 0 ? start.offset : 0
+      const to = locatedOrder(place, endAt) === 0 ? end.offset : run.text.length
       if (from >= to) continue
       spans.push({
         run: {
-          blockIndex,
+          path,
           runIndex,
           blockId: block.id,
           id: run.id,
@@ -150,7 +168,7 @@ const covered = (document: Document, start: Position, end: Position): ReadonlyAr
         to,
       })
     }
-  }
+  })
   return spans
 }
 
@@ -158,23 +176,27 @@ const covered = (document: Document, start: Position, end: Position): ReadonlyAr
  * Deletes an ordered [start, end): one operation per covered run, then the
  * blocks the range spanned are joined, so selecting across a paragraph boundary
  * and deleting removes the boundary too. The first block survives, which is
- * where the caret already is.
+ * where the caret already is. Returns undefined when the range needs a join this
+ * version cannot express — a merge inside a container, whose addressing arrives
+ * with nested structural placement (§116) — so the caller refuses rather than
+ * deleting half of what was selected.
  */
 const deleteRange = (
   document: Document,
   start: Position,
   end: Position,
-): ReadonlyArray<Operation> => {
+): ReadonlyArray<Operation> | undefined => {
   const startAt = locate(document, start.node)
   const endAt = locate(document, end.node)
   const deletions: Array<Operation> = covered(document, start, end).map(span =>
     Edit.deleteText(span.run.id, span.from, span.to),
   )
-  if (startAt === undefined || endAt === undefined || endAt.blockIndex <= startAt.blockIndex) {
-    return deletions
-  }
-  const survivor = document.children[startAt.blockIndex]!.id
-  for (let index = startAt.blockIndex + 1; index <= endAt.blockIndex; index++) {
+  if (startAt === undefined || endAt === undefined) return deletions
+  // Within one block there is no boundary to remove.
+  if (pathKey(startAt.path) === pathKey(endAt.path)) return deletions
+  if (startAt.path.length !== 1 || endAt.path.length !== 1) return undefined
+  const survivor = document.children[startAt.path[0]!]!.id
+  for (let index = startAt.path[0]! + 1; index <= endAt.path[0]!; index++) {
     const block = document.children[index]
     if (block !== undefined) deletions.push(Edit.joinBlocks(survivor, block.id))
   }
@@ -268,6 +290,7 @@ export const run = (
     const deletions = isCollapsed(selection)
       ? []
       : deleteRange(state.document, target, ordered(state.document, selection)!.end)
+    if (deletions === undefined) return failure('InvalidParent')
     if (command.text.length === 0) {
       return apply(
         state,
@@ -316,24 +339,28 @@ export const run = (
     if (!isCollapsed(selection)) {
       const span = ordered(state.document, selection)
       if (span === undefined) return failure('InvalidSelection')
-      return apply(state, [
-        ...deleteRange(state.document, span.start, span.end),
-        Edit.setSelection(caretAt(span.start)),
-      ])
+      const deletions = deleteRange(state.document, span.start, span.end)
+      if (deletions === undefined) return failure('InvalidParent')
+      return apply(state, [...deletions, Edit.setSelection(caretAt(span.start))])
     }
     const caret = selection.anchor
     const at = locate(state.document, caret.node)
     if (at === undefined) return failure('MissingText')
     const backward = command.type === 'DeleteBackward'
-    const block = state.document.children[at.blockIndex]!
+    const block = blockAtPath(state.document, at.path)
+    if (block === undefined) return failure('MissingText')
+    // A grapheme deletion works at any depth; only the block-boundary join below
+    // is structural placement, so nested blocks wait for the addressing in §116.
     const deletion = graphemeDeletion(block, caret, at.runIndex, backward)
     if (deletion !== undefined) {
       return apply(state, [...deletion.operations, Edit.setSelection(caretAt(deletion.caret))])
     }
-    const neighborBlock = state.document.children[backward ? at.blockIndex - 1 : at.blockIndex + 1]
+    if (at.path.length !== 1) return failure('InvalidParent')
+    const blockIndex = at.path[0]!
+    const neighborBlock = state.document.children[backward ? blockIndex - 1 : blockIndex + 1]
     if (neighborBlock === undefined) return apply(state, [])
-    const survivor = backward ? neighborBlock : state.document.children[at.blockIndex]!
-    const removed = backward ? state.document.children[at.blockIndex]! : neighborBlock
+    const survivor = backward ? neighborBlock : block
+    const removed = backward ? block : neighborBlock
     const lastRun = survivor.children[survivor.children.length - 1]
     return apply(state, [
       Edit.joinBlocks(survivor.id, removed.id),
@@ -353,9 +380,11 @@ export const run = (
     const caret = span?.start ?? selection.anchor
     const at = locate(state.document, caret.node)
     if (at === undefined) return failure('MissingText')
+    const deletions = span === undefined ? [] : deleteRange(state.document, span.start, span.end)
+    if (deletions === undefined) return failure('InvalidParent')
     const textId = ids.mint()
     return apply(state, [
-      ...(span === undefined ? [] : deleteRange(state.document, span.start, span.end)),
+      ...deletions,
       Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId),
       Edit.setSelection(caretAt({ node: NodeId.make(textId), offset: 0, affinity: 'after' })),
     ])
@@ -407,21 +436,25 @@ export const run = (
     const caret = span?.start ?? selection.anchor
     const at = locate(state.document, caret.node)
     if (at === undefined) return failure('MissingText')
-    const operations: Array<Operation> =
-      span === undefined ? [] : [...deleteRange(state.document, span.start, span.end)]
+    // Pasting places blocks, so a container's children wait for §116's addressing.
+    if (at.path.length !== 1) return failure('InvalidParent')
+    const blockIndex = at.path[0]!
+    const replacements = span === undefined ? [] : deleteRange(state.document, span.start, span.end)
+    if (replacements === undefined) return failure('InvalidParent')
+    const operations: Array<Operation> = [...replacements]
     const inserted = withFreshIds(command.slice, ids.mint).blocks
-    const block = state.document.children[at.blockIndex]!
+    const block = state.document.children[blockIndex]!
     const atBlockStart = at.runIndex === 0 && caret.offset === 0
     const atBlockEnd = at.runIndex === block.children.length - 1 && caret.offset === at.text.length
     let trailingRun: NodeId | undefined
     if (atBlockStart) {
       // Pasting at the very start puts the content above this block.
       for (const [index, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, at.blockIndex + index))
+        operations.push(Edit.insertBlock(piece, blockIndex + index))
       }
     } else if (atBlockEnd) {
       for (const [index, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, at.blockIndex + 1 + index))
+        operations.push(Edit.insertBlock(piece, blockIndex + 1 + index))
       }
     } else {
       // Mid-block: split the block at the caret and land the content between
@@ -430,10 +463,10 @@ export const run = (
       operations.push(Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId))
       trailingRun = NodeId.make(textId)
       for (const [index, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, at.blockIndex + 1 + index))
+        operations.push(Edit.insertBlock(piece, blockIndex + 1 + index))
       }
     }
-    const landing = landingAfter(inserted, trailingRun, state.document, at.blockIndex, atBlockEnd)
+    const landing = landingAfter(inserted, trailingRun, state.document, blockIndex, atBlockEnd)
     if (landing !== undefined) operations.push(Edit.setSelection(caretAt(landing)))
     return apply(state, operations)
   }

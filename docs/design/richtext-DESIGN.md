@@ -4560,9 +4560,12 @@ Not done:
   import, and both renderers. §13 defines the child-constraint vocabulary
   (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide,
   and §116 decides the representation, the addressing, and the slice order. Its
-  model and codec have landed: a node block may carry nested blocks, and nested
-  content decodes, round-trips, is counted, and is preserved when unknown. The
-  commands and interpreters that reach into it are still to come.
+  model and codec have landed: a node block may carry nested blocks, nested
+  content decodes, round-trips, is counted, and is preserved when unknown, and
+  commands reach a run inside one — typing, grapheme deletion, and marks all work
+  at depth, while a join or placement inside a container is refused with
+  `InvalidParent` until slice 3. The clipboard and the interpreters that reach
+  into it are still to come.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4804,11 +4807,13 @@ Landing order, each keeping the suite green:
    `inspect`, id uniqueness, the recursive walk for order, `locate`, and
    `selectionIsValid`. **Landed**: the model, the codec, `preserveUnknownBlocks`,
    `inspect`, the limits, id uniqueness, `findUnknownNodes`/`findUnknownMarks`,
-   `selectionIsValid`, and `Node.read`. **Remaining**: `locate`, `ordered`,
-   `covered`, and `deleteRange` in `command.ts` and `clipboard.ts`, and `apply`'s
-   tree index — until those land, a command cannot reach a nested run, so text
-   edits, marks, and clipboard inside a container do not work yet, and structural
-   placement inside one is refused with `InvalidParent`.
+   `selectionIsValid`, `Node.read`, and the commands that reach a run wherever it
+   sits — `locate`, `ordered`, `covered`, `deleteRange`, and `apply`'s tree index,
+   which addresses blocks by path and copies each touched container once.
+   **Remaining**: `clipboard.ts`'s `sliceOf` and `plainTextOf`, the interpreters
+   (slice 2), and structural placement at depth (slice 3). Until slice 3, a
+   command that would join or place blocks inside a container is refused with
+   `InvalidParent` rather than half-applied.
 2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
    adapter.
 3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,
