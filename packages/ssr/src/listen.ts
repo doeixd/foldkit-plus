@@ -5,18 +5,34 @@
  * One capture-phase listener per event type sits at the root, so events that
  * do not bubble (`focus`, `blur`) are caught, and it runs before anything
  * Foldkit attaches later. On an event it walks from the target to the root
- * and, for every marker of that event on the way, dispatches each binding the
- * marker names, in order, the way Foldkit's own handler would: a hole is
+ * and, for every marker of that event on the way, collects each binding's
+ * Message in order, the way Foldkit's own handler would dispatch it: a hole is
  * filled from the event, `OnClick`'s options are honoured, `OnSubmit`
  * prevents the default. A marker token the page could not name (`*`) means
  * the live page does something here the page cannot describe, so the walk
- * ends and `onUnnamed` is told; what to do then is the caller's, and Phase C
- * makes it boot.
+ * ends and the answer names that element.
  */
 import { Result, Schema } from 'effect'
 import type { KeyboardModifiers } from 'foldkit/html'
-import type { EncodedBinding } from './index.js'
 import { BINDING_ATTRIBUTE, EVENT_OF, UNNAMED_HANDLER } from './resumable.js'
+
+/**
+ * A binding as the envelope carries it: Foldkit's attribute (`OnSubmit`,
+ * `OnBlur`), whose tag says what its handler does beside dispatching; the
+ * Message, encoded through the application's Message Schema (for a hole, with
+ * the hole filled by a placeholder); the fields the event fills, `depth`
+ * placement wrappers down; and the attribute's options. Its ordinal is its
+ * index. The page is read through this Schema, so a tampered list is refused.
+ */
+const EncodedBinding = Schema.Struct({
+  attribute: Schema.String,
+  message: Schema.Unknown,
+  hole: Schema.optionalKey(Schema.Array(Schema.String)),
+  depth: Schema.optionalKey(Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
+  options: Schema.optionalKey(Schema.Unknown),
+})
+export type EncodedBinding = typeof EncodedBinding.Type
+export const EncodedBindings = Schema.Array(EncodedBinding)
 
 /** A binding decoded from the page: its Message is one of the application's. */
 export interface DecodedBinding {

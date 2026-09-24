@@ -33,8 +33,14 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
-import { FALLBACK_FIELD, SLOT_ATTRIBUTE, builder, view } from './resumable.js'
-import { decodeBindings, listen, type DecodedBinding } from './listen.js'
+import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, builder, view } from './resumable.js'
+import {
+  EncodedBindings,
+  decodeBindings,
+  listen,
+  type DecodedBinding,
+  type EncodedBinding,
+} from './listen.js'
 
 /** The attribute on the script that carries a page's resume envelope. */
 export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
@@ -137,9 +143,7 @@ export class ResumeRefused extends Schema.TaggedError<ResumeRefused>()('ResumeRe
   message: Schema.String,
 }) {}
 
-type Reason = 'Missing' | 'Duplicate' | 'Unreadable' | 'Protocol' | 'Plan' | 'Invalid' | 'Route'
-
-const refuse = (reason: Reason, message: string) =>
+const refuse = (reason: ResumeRefused['reason'], message: string) =>
   Result.fail(new ResumeRefused({ reason, message }))
 
 /**
@@ -270,14 +274,19 @@ const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
   if (Result.isFailure(decoded)) {
     return Result.fail(`the envelope's state does not decode: ${decoded.failure.message}`)
   }
-  const parts = (payload.parts ?? {}) as Readonly<Record<string, unknown>>
+  const given = payload.parts ?? {}
+  if (typeof given !== 'object' || Array.isArray(given)) {
+    return Result.fail("the envelope's parts are not an object of parts by id")
+  }
+  const parts = given as Readonly<Record<string, unknown>>
   const unknown = Object.keys(parts).find(id => !plan.parts.some(part => part.id === id))
   if (unknown !== undefined) {
     return Result.fail(`the envelope carries a part "${unknown}" the plan does not name`)
   }
   let model = plan.state.set(plan.baseline, decoded.success)
   for (const part of plan.parts) {
-    if (!(part.id in parts)) return Result.fail(`the envelope carries no "${part.id}" part`)
+    if (!Object.hasOwn(parts, part.id))
+      return Result.fail(`the envelope carries no "${part.id}" part`)
     const restored = part.restore(model, parts[part.id])
     if (Result.isFailure(restored)) {
       return Result.fail(`the "${part.id}" part does not restore: ${restored.failure}`)
@@ -730,21 +739,6 @@ const FLAGS_SCRIPT = new RegExp(
  */
 const HEAD_FIELDS = ['title', 'lang', 'dir', 'canonical', 'ogUrl'] as const
 
-/**
- * A binding as the envelope carries it: Foldkit's attribute (`OnSubmit`,
- * `OnBlur`), whose tag says what its handler does beside dispatching; the
- * Message, encoded through the application's Message Schema (for a hole, with
- * the hole filled by a placeholder); the fields the event fills; and the
- * attribute's options. Its ordinal is its index.
- */
-export interface EncodedBinding {
-  readonly attribute: string
-  readonly message: unknown
-  readonly hole?: ReadonlyArray<string> | undefined
-  readonly depth?: number | undefined
-  readonly options?: unknown
-}
-
 /** A render's bindings, encoded, or why one cannot be. */
 const encodeBindings = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
@@ -827,19 +821,13 @@ const eagerEntries = <Model, Fields extends Schema.Struct.Fields>(
  *
  * The application's `init` runs once. Its Model's slice is round-tripped
  * through the plan's Schema and set onto the baseline, which is the Model the
- * browser will start from, and the page is rendered from that Model. Three
- * refusals keep the handover honest:
- *
- * - `init` returned Commands and the plan names no `boot`. Foldkit drops
- *   `init`'s Commands on the server and the browser does not run `init`, so an
- *   undeclared one would never run anywhere.
- * - A Surface in the plan reads, or is activated by, a field in neither the
- *   slice nor `local`, reads data no part of the plan resumes, or activates
- *   differently from the browser's Model. `SSR.inspect` shows why.
- * - The view rendered from the browser's Model differs from the view rendered
- *   from the server's. The view reads a field the plan leaves out, and the
- *   browser would rebuild that part of the page. In production Foldkit does so
- *   silently, so this is the one place it shows.
+ * browser will start from, and the page is rendered from that Model. Every
+ * way the browser could start somewhere else is a `ResumeUnsafe`, whose
+ * `reason` names it; the README lists them. The one that matters most: the
+ * view rendered from the browser's Model differs from the one rendered from
+ * the server's, because it reads a field the plan leaves out. In production
+ * Foldkit would rebuild that part of the page silently, so this is the one
+ * place it shows.
  */
 const render = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
@@ -1094,10 +1082,12 @@ const generate = <
  * exports, so a resumed page is served by Node and Workers alike.
  *
  * `GET` and `HEAD` render the page against the plan, with the request's URL
- * and, when the application has Flags, `flags(request)`. Any other method is
- * answered `405` (`handleRequest` passes every method through, `POST`
- * included). A render that fails, or a plan the render refuses, is answered
- * `500` with the reason logged, never with a page the browser cannot resume.
+ * and, when the application has Flags, `flags(request)`. `POST` goes to
+ * `SSR.handle` when the plan has a server fallback, and is answered `400` when
+ * the post is unusable. Any other method is answered `405` (`handleRequest`
+ * passes every method through). A render that fails, or a plan the render
+ * refuses, is answered `500` with the reason logged, never with a page the
+ * browser cannot resume.
  *
  * The page is answered whole, as `Responded`: a `Rendered` result is placed in
  * `handleRequest`'s one template, which has no place for a per-request
@@ -1237,13 +1227,9 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
  * runtime, then boots it with the answers queued for replay.
  *
  * The queued Messages reach the runtime through one Subscription entry added
- * for the purpose, which waits for Foldkit's first committed patch: the
- * renderer removes the root's app stamp just before that patch, so an
- * observer of the attribute fires once the patch, and with it Foldkit's own
- * listeners, are in place. Then the delegated listeners come off, an event the
- * page could not answer is dispatched again for the live page, and the
- * Messages replay in order, so the Model ends where an eager boot would have
- * taken it.
+ * for the purpose, so they go through Foldkit's own queue, in order, after
+ * its first render, and the Model ends where an eager boot would have taken
+ * it. When lazy bundles must load first, the boot waits for them.
  */
 const deferBoot = (
   root: HTMLElement,
@@ -1344,6 +1330,14 @@ const isRunnable = (command: unknown): command is RunnableCommand =>
   Effect.isEffect(command.effect)
 
 /**
+ * The most Messages and Commands one post may run. The browser's loop runs
+ * for the life of the page, so a Command that schedules itself again, a tick
+ * or a poll, is ordinary there; on the server it would hold the request open
+ * for ever.
+ */
+const MAX_STEPS = 100
+
+/**
  * Foldkit's loop, once, on the server: `update` for each Message, then each
  * returned Command run under the config's `resources`, its Message folded
  * back through `update`, until no Command remains.
@@ -1358,7 +1352,16 @@ const fold = <Model>(
     let current = model
     const pending = [...messages]
     const queue = [...commands]
+    let steps = 0
+    let last = ''
     while (pending.length > 0 || queue.length > 0) {
+      if (++steps > MAX_STEPS) {
+        return yield* Effect.die(
+          new Error(
+            `SSR.handle: the post did not settle within ${MAX_STEPS} Messages and Commands; the last Command run was "${last}". A Command that schedules itself again cannot run on the server`,
+          ),
+        )
+      }
       if (pending.length > 0) {
         const next = config.update(current, pending.shift()) as {
           readonly model: Model
@@ -1384,6 +1387,7 @@ const fold = <Model>(
               unknown,
               never
             >)
+      last = command.name
       const result = yield* Effect.orDie(provided)
       // A Command fired and forgotten yields no Message, and folds nothing in.
       if (result !== undefined && result !== null) pending.push(result)
@@ -1444,22 +1448,35 @@ const handle = <Model, Fields extends Schema.Struct.Fields>(
     } catch {
       return yield* refuseFallback('Unreadable', `${FALLBACK_FIELD} is not JSON`)
     }
-    if (typeof raw === 'object' && raw !== null) {
-      const overridden: Record<string, unknown> = { ...raw }
-      form.forEach((value, name) => {
-        if (name !== FALLBACK_FIELD && name in overridden && typeof value === 'string') {
-          overridden[name] = value
+    const decode = Schema.decodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)
+    const invalid = (failure: { readonly message: string }) =>
+      refuseFallback('Invalid', `the posted Message does not decode: ${failure.message}`)
+    // The posted Message is decoded before anything reads it.
+    const written = decode(raw)
+    if (Result.isFailure(written)) return yield* invalid(written.failure)
+    // A form inside a placement posts the parent's Message; the fields it
+    // names sit `depth` wrappers down.
+    const postedDepth = form.get(FALLBACK_DEPTH_FIELD) ?? '0'
+    if (typeof postedDepth !== 'string' || !/^\d{1,2}$/.test(postedDepth)) {
+      return yield* refuseFallback('Unreadable', `${FALLBACK_DEPTH_FIELD} is not a depth`)
+    }
+    const override = (value: unknown, down: number): unknown => {
+      if (typeof value !== 'object' || value === null) return value
+      const copy: Record<string, unknown> = { ...value }
+      if (down > 0) {
+        copy.message = override(copy.message, down - 1)
+        return copy
+      }
+      form.forEach((field, name) => {
+        if (name !== FALLBACK_FIELD && Object.hasOwn(copy, name) && typeof field === 'string') {
+          copy[name] = field
         }
       })
-      raw = overridden
+      return copy
     }
-    const decoded = Schema.decodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)(raw)
-    if (Result.isFailure(decoded)) {
-      return yield* refuseFallback(
-        'Invalid',
-        `the posted Message does not decode: ${decoded.failure.message}`,
-      )
-    }
+    // The fields typed into the form, set into the Message and decoded again.
+    const decoded = decode(override(raw, Number(postedDepth)))
+    if (Result.isFailure(decoded)) return yield* invalid(decoded.failure)
     const message = decoded.success
     const started = yield* startOf(config, { url: request.url, ...options })
     const allowed = allowedTags(plan, started.model)
@@ -1498,7 +1515,11 @@ const bindings = <Model, Fields extends Schema.Struct.Fields>(
 ): Result.Result<ReadonlyArray<DecodedBinding>, ResumeRefused> => {
   const parsed = readEnvelope(page)
   if (Result.isFailure(parsed)) return Result.fail(parsed.failure)
-  const encoded = (parsed.success.bindings ?? []) as ReadonlyArray<EncodedBinding>
+  const read = Schema.decodeUnknownResult(EncodedBindings)(parsed.success.bindings ?? [])
+  if (Result.isFailure(read)) {
+    return refuse('Invalid', `the page's bindings are malformed: ${read.failure.message}`)
+  }
+  const encoded = read.success
   if (encoded.length > 0 && plan.surfaces.length === 0) {
     return refuse(
       'Invalid',

@@ -112,7 +112,8 @@ SSR.hydrate(config, Editor, { buildId })
   `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
   and `HEAD` render, `POST` is handled for a plan with `fallback: 'server'`;
   other methods get `405`; a refused, failed or throwing render, or `flags`
-  that reject, get `500` with the reason logged.
+  that reject, get `500` with the reason logged. It answers `Responded`, since
+  a `Rendered` result has no room for the envelope.
 - `lazy: [Upload]` in the config (each a `Bundle.lazy`): `SSR.render` loads
   the bodies first; `SSR.hydrate` loads them before boot, answering from the
   markers meanwhile whatever `start` is, then replays. A placement's view
@@ -127,9 +128,13 @@ SSR.hydrate(config, Editor, { buildId })
   decodes it, lets posted fields named as the Message's own override them,
   requires a tag an active Surface lists, rebuilds the Model (`init`, then the
   plan's `boot`), runs `update` and each Command under `config.resources`
-  (Foldkit's `resources` Layer), and answers with the rendered page. Bad
-  posts are `400` (`FallbackRefused`); a failing Command is `500`. It answers `Responded`, since a `Rendered` result
-  has no room for the envelope.
+  (Foldkit's `resources` Layer), and answers with the rendered page. A form
+  inside a placement posts the wrapped Message and a `foldkit-plus-depth`
+  field, so its fields are filled inside the wrapper. Bad posts are `400`
+  (`FallbackRefused`); a failing Command is `500`, and so is a post whose
+  Commands do not settle within 100 steps (a Command that reschedules itself,
+  a poll, cannot run on the server); a Command yielding no Message folds
+  nothing in.
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`
   records its path alone, since a static host ignores the query: it resumes at

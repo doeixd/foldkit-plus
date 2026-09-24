@@ -450,7 +450,9 @@ With scripts on, the page answers the submit as any other event and the form
 never posts. Without them the browser posts the Message and the named fields,
 and `SSR.entry` hands the `POST` to `SSR.handle`, which decodes the Message,
 letting a posted field of the same name as one of the Message's own override
-it, so the typed `title` reaches `update` as it would through the page. The
+it, so the typed `title` reaches `update` as it would through the page. A
+form inside a placement posts the parent's wrapped Message, and a
+`foldkit-plus-depth` field says how many wrappers down its fields sit. The
 Message must be one the Surfaces active for the request's Model list. The
 server then rebuilds that Model as a render would, `init` and the plan's
 `boot`, runs `update` with the Message and every Command that follows, each
@@ -461,8 +463,12 @@ A post the server cannot use, one with no Message, one that is not JSON or
 does not decode, or one no active Surface lists, is answered `400` with the
 reason (`FallbackRefused`). A Command that fails is answered `500`, as a
 render that fails is; one that yields no Message, fired and forgotten, folds
-nothing in and the page is answered as usual. `SSR.handle(request, config, plan, { buildId, flags? })`
-is also callable on its own, for an entry that is not `SSR.entry`.
+nothing in and the page is answered as usual. The browser's loop runs for the
+life of the page, so a Command that schedules itself again, a poll or a tick,
+is ordinary there; on the server a post that has not settled within 100
+Messages and Commands is answered `500`, naming the last Command run.
+`SSR.handle(request, config, plan, { buildId, flags? })` is also callable on
+its own, for an entry that is not `SSR.entry`.
 
 ## Bundles whose bodies load on demand
 
@@ -676,8 +682,13 @@ const Message = defineMessageUnion({
   `resources`, and answers with the resumable page that results; a Message no
   active Surface lists, a missing Message, one that is not JSON and one that
   does not decode are each `400`; a Command that yields no Message folds
-  nothing in and the page is still answered; `POST` is `405` for a plan with
-  no fallback, and named among the allowed methods for one with.
+  nothing in and the page is still answered, and one that reschedules itself
+  is stopped with `500` naming it; a form inside a placement has its posted
+  fields filled inside the wrapper; `POST` is `405` for a plan with no
+  fallback, and named among the allowed methods for one with.
+- **Review hardening:** a tampered bindings list (not a list, an entry that is
+  not a binding, a negative depth) and parts that are not an object are each
+  refused as `Invalid`, never thrown on.
 - **Phase F, bodies on demand:** the server waits for a lazy bundle's bodies
   and renders the real view, once per bundle; the placement root is stamped
   with its slot; a binding inside the placement is the parent's Message with

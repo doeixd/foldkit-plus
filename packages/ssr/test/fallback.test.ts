@@ -5,7 +5,7 @@
  */
 import { Effect } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import { FALLBACK_FIELD, Resume, SSR } from 'foldkit-ssr'
 import { App, Message, config, plan, template, type Model } from './fallbackFixture.js'
@@ -82,6 +82,14 @@ describe('SSR.handle through handleRequest', () => {
     expect(await response.text()).toContain('<li>Served</li>')
   })
 
+  it('answers 500, naming the Command, when the Commands never settle', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Polled()) }))
+    expect(response.status).toBe(500)
+    expect(String(logged.mock.calls[0]?.[0])).toContain('the last Command run was "Poll"')
+    logged.mockRestore()
+  })
+
   it('refuses a Message no active Surface lists', async () => {
     const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Cleared()) }))
     expect(response.status).toBe(400)
@@ -94,6 +102,14 @@ describe('SSR.handle through handleRequest', () => {
     expect(broken.status).toBe(400)
     expect(await broken.text()).toContain('does not decode')
     expect((await serve(post({ [FALLBACK_FIELD]: 'not json' }))).status).toBe(400)
+    // The posted Message must be one before a field is set into it.
+    const patched = await serve(
+      post({ title: 'Milk', [FALLBACK_FIELD]: '{"_tag":"Added","title":5}' }),
+    )
+    expect(patched.status).toBe(400)
+    const deep = await serve(post({ [FALLBACK_FIELD]: added, 'foldkit-plus-depth': '-1' }))
+    expect(deep.status).toBe(400)
+    expect(await deep.text()).toContain('foldkit-plus-depth is not a depth')
   })
 
   it('answers POST 405 for a plan with no fallback', async () => {

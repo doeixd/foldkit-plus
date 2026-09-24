@@ -128,6 +128,9 @@ export const UNNAMED_HANDLER = '*'
 /** The posted field that carries a form's encoded Message, for the server fallback. */
 export const FALLBACK_FIELD = 'foldkit-plus-message'
 
+/** The posted field that says how many placement wrappers the form's fields sit under. */
+export const FALLBACK_DEPTH_FIELD = 'foldkit-plus-depth'
+
 /** The attribute on a placement's root naming its slot, while the server renders. */
 export const SLOT_ATTRIBUTE = 'data-foldkit-plus-slot'
 
@@ -209,8 +212,8 @@ export type MessageOf<Builder> = Builder extends {
  * The resumable builder for a view whose Messages are `Message`: its elements
  * and attributes, and the hole forms of the four value events. One shape
  * whether it wraps a view's `HtmlBuilder` or a Surface renderer's builder, so a
- * helper typed with it takes either; Foldkit's phantom Message key, which only
- * the first has, is left out of both.
+ * helper typed with it takes either. It keeps Foldkit's phantom Message key,
+ * so a placement's view accepts it as the parent's builder.
  */
 export type ResumableBuilder<Message> = Omit<
   HtmlBuilder<Message>,
@@ -358,11 +361,14 @@ export const builder = <Builder extends AnyBuilder>(
     if (encoded === undefined) return { attributes, children }
     const make = (name: string) => source[name] as (value: string) => unknown
     const input = source.input as (attributes: ReadonlyArray<unknown>) => unknown
+    const hidden = (name: string, value: string) =>
+      input([make('Type')('hidden'), make('Name')(name), make('Value')(value)])
     return {
       attributes: [...attributes, make('Method')('post')],
       children: [
         ...children,
-        input([make('Type')('hidden'), make('Name')(FALLBACK_FIELD), make('Value')(encoded)]),
+        hidden(FALLBACK_FIELD, encoded),
+        ...(now.depth === 0 ? [] : [hidden(FALLBACK_DEPTH_FIELD, String(now.depth))]),
       ],
     }
   }
@@ -453,7 +459,7 @@ export const builder = <Builder extends AnyBuilder>(
           const posted = fallback(tag, attributes, rest[0])
           return keyed(tag)(key, mark(tag, posted.attributes), posted.children, ...rest.slice(1))
         }
-    } else if (name !== 'submodel' && /^[a-z]/.test(name) && typeof value === 'function') {
+    } else if (/^[a-z]/.test(name) && typeof value === 'function') {
       const element = value as (
         attributes: ReadonlyArray<unknown>,
         ...rest: Array<unknown>

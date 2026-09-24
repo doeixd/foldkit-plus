@@ -46,6 +46,11 @@ export const body: Bundle.Body<ClickerModel, ClickerMessage, void, never, never,
         // A hole, filled from the event inside the placement's wrapper.
         rh.input([rh.Id('text'), rh.Value(model.text), rh.OnInput(ClickerMessage.Typed)]),
         rh.p([rh.Id('echo')], [model.text]),
+        // Inside the placement: with a fallback, it posts the parent's Message.
+        rh.form(
+          [rh.Id('rename'), rh.OnSubmit(ClickerMessage.Typed({ value: model.text }))],
+          [rh.input([rh.Name('value'), rh.Value(model.text)])],
+        ),
       ],
     )
   }),
@@ -112,12 +117,13 @@ export const make = (load: () => Promise<typeof body>) => {
     subscriptions: placements.subscriptions(),
     lazy: [Clicker],
   }
-  const plan = (start: Start = 'now') =>
+  const plan = (start: Start = 'now', fallback?: 'server') =>
     SSR.plan(App, {
       id: 'lazy',
       state: Projection.pick(App.model.title, App.model.clicker),
       surfaces: [Surface.at(Page, undefined)],
       start,
+      ...(fallback === undefined ? {} : { fallback }),
     })
   return { Clicker, config, plan }
 }

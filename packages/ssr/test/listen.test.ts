@@ -149,13 +149,14 @@ describe('Resume.listen answers from the markers', () => {
 })
 
 describe('Resume.bindings refuses a page that does not add up', () => {
+  /** Replaces the page's bindings with what `edit` makes of them, then reads the page. */
   const refusal = (
-    edit: (body: { bindings: Array<{ attribute: string; message: unknown }> }) => void,
+    edit: (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) => unknown,
   ) => {
     const script = document.querySelector('script[data-foldkit-plus-resume]')
     if (script === null) throw new Error('no envelope')
     const body = JSON.parse(script.textContent ?? '')
-    edit(body)
+    body.bindings = edit(body.bindings)
     script.textContent = JSON.stringify(body)
     const root = document.querySelector(`[${FOLDKIT_APP_ATTRIBUTE}]`)
     if (root === null) throw new Error('no root')
@@ -168,7 +169,7 @@ describe('Resume.bindings refuses a page that does not add up', () => {
   it('when a marker names a binding the page does not carry', async () => {
     await served()
     byId('like').setAttribute('data-foldkit-plus-on-click', '99')
-    expect(refusal(() => {})).toMatchObject({
+    expect(refusal(bindings => bindings)).toMatchObject({
       reason: 'Invalid',
       message: 'the marker data-foldkit-plus-on-click="99" names no binding the page carries',
     })
@@ -176,15 +177,31 @@ describe('Resume.bindings refuses a page that does not add up', () => {
 
   it("when an entry is not one of the application's Messages", async () => {
     await served()
-    expect(refusal(body => (body.bindings[0]!.message = { _tag: 'Elsewhere' })).message).toContain(
-      'binding 0 does not decode as a Message',
-    )
+    const elsewhere = refusal(([first, ...rest]) => [
+      { ...first, message: { _tag: 'Elsewhere' } },
+      ...rest,
+    ])
+    expect(elsewhere.message).toContain('binding 0 does not decode as a Message')
   })
 
   it('when an entry names no event attribute', async () => {
     await served()
-    expect(refusal(body => (body.bindings[0]!.attribute = 'OnNothing')).message).toBe(
-      'binding 0 is for "OnNothing", which is no event attribute',
-    )
+    const nothing = refusal(([first, ...rest]) => [{ ...first, attribute: 'OnNothing' }, ...rest])
+    expect(nothing.message).toBe('binding 0 is for "OnNothing", which is no event attribute')
+  })
+
+  // A tampered list is refused like any other page, never thrown on.
+  it.each([
+    ['not a list', () => 'bindings'],
+    ['an entry that is not a binding', () => [null]],
+    [
+      'a depth that is not a count',
+      (bindings: ReadonlyArray<Readonly<Record<string, unknown>>>) =>
+        bindings.map(binding => ({ ...binding, depth: -1 })),
+    ],
+  ])('when the list is malformed: %s', async (_name, edit) => {
+    await served()
+    expect(refusal(edit)).toMatchObject({ reason: 'Invalid' })
+    expect(refusal(edit).message).toContain("the page's bindings are malformed")
   })
 })

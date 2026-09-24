@@ -24,6 +24,7 @@ export const Message = defineMessageUnion({
   Booted: {},
   Cleared: {},
   Pinged: {},
+  Polled: {},
 })
 export type Message = typeof Message.Type
 
@@ -37,7 +38,14 @@ export const App = Surface.application({ Model, Message, initial, update: model 
 
 export const Todos = App.surface('Todos', {
   model: ({ model }) => ({ draft: model.draft, todos: model.todos, noted: model.noted }),
-  messages: [Message.Typed, Message.Added, Message.Noted, Message.Booted, Message.Pinged],
+  messages: [
+    Message.Typed,
+    Message.Added,
+    Message.Noted,
+    Message.Booted,
+    Message.Pinged,
+    Message.Polled,
+  ],
 })
 
 const note = (of: number) => ({
@@ -53,6 +61,9 @@ const booted = { name: 'Booted', effect: Effect.succeed(Message.Booted()) }
 /** Fired and forgotten: it yields no Message. */
 const ping = { name: 'Ping', effect: Effect.void }
 
+/** Schedules itself again, as a poll does: fine in the browser, endless on the server. */
+const poll = { name: 'Poll', effect: Effect.succeed(Message.Polled()) }
+
 export const config = {
   Model,
   init: () => ({ model: { ...initial, todos: ['Served'] } }),
@@ -67,6 +78,7 @@ export const config = {
       Booted: () => ({ model: { ...model, booted: true } }),
       Cleared: () => ({ model: { ...model, todos: [] } }),
       Pinged: () => ({ model, commands: [ping] }),
+      Polled: () => ({ model, commands: [poll] }),
     }),
   view: (model: Model, h: HtmlBuilder<Message>) => {
     const rh = Resume.builder(h)

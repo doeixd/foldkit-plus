@@ -55,6 +55,14 @@ describe('parts in the envelope', () => {
     )
   })
 
+  it.each([5, true])('refuses a page whose parts are %s, not an object of parts', parts => {
+    const refused = SSR.resume(plan, page({ ...envelopeBody(loaded), parts }))
+    expect(Result.isFailure(refused) && refused.failure).toMatchObject({
+      reason: 'Invalid',
+      message: "the envelope's parts are not an object of parts by id",
+    })
+  })
+
   it('refuses a page whose part does not restore, naming the part', () => {
     const body = envelopeBody(loaded)
     body.parts.remote = { entities: 'nope' }
