@@ -30,12 +30,11 @@ import {
   Slot,
   Slots,
   Style,
-  Theme,
   type StyleValue,
 } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme as ThemePieces } from 'foldkit-mixins/theme'
+import { Theme } from 'foldkit-mixins/theme'
 import { ButtonSlots, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
 import { Message, type Filter, type Priority, type Todo } from './app.js'
 import type { BoardMessage } from './surface.js'
@@ -46,7 +45,7 @@ import type { BoardMessage } from './surface.js'
  * Every color is derived in the browser from these knobs with relative color
  * syntax and `light-dark()`, so the dark scheme needs no override of its own.
  */
-const palette = ThemePieces.oklch({
+const palette = Theme.oklch({
   accent: { h: 277, c: 0.23, l: '51%', dark: { l: '68%', c: 0.18 } },
   feedback: { info: 220 },
   // Near-neutral surfaces, as the hand-picked grays were.
@@ -61,7 +60,7 @@ const own = Theme.define({
   },
 })
 
-export const theme = Theme.compose(Theme.compose(ThemePieces.tokens, palette), own)
+export const theme = Theme.compose(Theme.compose(Theme.tokens, palette), own)
 
 /** `var(--fk-accent-default)`: a token reference, checked against the theme. */
 const v = <G extends keyof typeof theme & string>(
@@ -458,8 +457,8 @@ const L = Layers.standard
 export const stylesheet = Style.stylesheet(
   L.declare,
   L.in('reset', Defaults.reset),
-  L.in('tokens', ThemePieces.root(ThemePieces.tokens)),
-  L.in('theme', ThemePieces.root(theme, { omit: ThemePieces.tokens })),
+  L.in('tokens', Theme.root(Theme.tokens)),
+  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
   L.in('defaults', Defaults.body),
   PageStyle,
   HeaderStyle,
