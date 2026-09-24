@@ -1,7 +1,10 @@
 # Style improvements: a design system in `foldkit-mixins`
 
-**Status:** design, 2026-09-24, revised the same day to one composable algebra
-with subpath exports (see "Decisions in one screen"). Nothing here is built. Follows
+**Status:** built, 2026-09-24. All eight phases are committed, from the
+kernel split (`cf8092b`) to the todo-app migration (`94a06e2`); section 11
+records where the build departed from this text. Revised earlier the same day
+to one composable algebra with subpath exports (see "Decisions in one
+screen"). Follows
 [mixins-DESIGN.md](./mixins-DESIGN.md) (Style is data, deterministic CSS,
 no render-time collector) and borrows from the author's `css-tags` library
 (token-first OKLCH theming, a fixed cascade-layer order, attribute-driven
@@ -128,7 +131,7 @@ Four new things, all under `foldkit-mixins/theme`:
    on an element) stays for subtree themes.
 2. `Theme.oklch(knobs)` returns a Theme whose values are derivation
    expressions.
-3. `Theme.scoped(selector, overrides)` returns a `StyleValue` for a named
+3. `Theme.scoped(theme, selector, overrides)` returns a `StyleValue` for a named
    theme or scheme override.
 4. `Theme.tokens` is the shipped set of non-color scales.
 
@@ -191,10 +194,10 @@ merges group-wise.
 
 ```ts
 /** Rules that override tokens under `selector`; unlayered until the caller wraps it. */
-export const scoped: (selector: string, overrides: Partial<ThemeTokens>) => StyleValue
+export const scoped: <T extends ThemeTokens>(theme: T, selector: string, overrides: Overrides<T>) => StyleValue
 ```
 
-`Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })`
+`Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })`
 returns a `StyleValue` whose `globalCss` is
 `:root[data-theme="ocean"]{--fk-knob-accent-h:215}`; the page puts it in
 the theme layer with `L.in('theme', …)`. Because every derived token is a
@@ -259,7 +262,7 @@ export const sheet = Style.stylesheet(
   L.in('reset', Defaults.reset),
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-  L.in('theme', Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+  L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
   L.in('defaults', Defaults.body),
   PageStyle,
 )
@@ -548,3 +551,34 @@ clock, or the Model.
    `references/mixins.md` updated in the same change as each public API.
 
 Each phase is its own commit series with a review pass, per AGENTS.md.
+
+## 11. Where the build departed from this document
+
+Recorded after phases 1 to 8 landed; the sections above are left as designed.
+
+- **A breakpoint cannot be a variable.** `@container` and `@media` conditions
+  cannot read custom properties, so `Layout.split`'s `breakpoint` and
+  `Layout.stack`'s `split` index are part of the rule text: one class per
+  distinct value, unlike every other layout option (section 3.2).
+- **Sidebar and switcher set no containment.** The flex-basis arithmetic
+  css-tags uses already adapts to the container's width with no query, and
+  size containment changes intrinsic sizing. Only `Layout.split` has the
+  `contain` option of section 3.3.
+- **`Style.self` instead of `Style.nest('&', …)`.** `nest` prefixes `& `, so
+  the suggested spelling compiles to `.c .c`. `Style.self(declarations)` is
+  the kernel piece for a rule on the element's own class; Layout and the
+  mixins-ui recipes both use it.
+- **`Theme.scoped` takes the theme first.** `Theme.scoped(theme, selector,
+  overrides)` reads `theme` only for its type, so a misspelled group or knob
+  is a compile error rather than a custom property nothing reads.
+- **`Theme.oklch` carries dark knobs.** `accent.dark` (`l`, `c`),
+  `surface-c-dark`, and `base-l-dark` are knobs beside the light ones, since
+  one expression cannot serve both schemes; every derived value is a
+  `light-dark()` pair over them.
+- **Found while migrating the todo-app.** `Style.nest` prefixes only the
+  first selector of a comma list, so `nest(':hover x, :focus-within x')`
+  emits a page-global second selector. The example now uses one
+  `pseudo(':is(:hover, :focus-within) x')`; the library behavior is
+  unchanged. The palette's `outline` tokens are darker than the base surface
+  in both schemes, which suits dividers but leaves a small ring on a dark
+  card faint; the example mixes its checkbox ring from `text.muted`.
