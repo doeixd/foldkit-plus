@@ -483,8 +483,8 @@ interpreters, and HTML import/export work at any depth, and a split keeps its
 kind and props on both halves. `data-node` is the default rendering until a Kit
 renderer replaces it.
 
-Not yet: `atom`'s no-children enforcement at the operation level, renderers per
-kind, and metadata.
+Not yet: renderers per kind and metadata. A Kit's content contract is enforced by
+`validate`, not by `apply` (§117).
 
 ---
 
@@ -4840,8 +4840,8 @@ Landing order, each keeping the suite green:
    re-rendered where it stood, so its surviving items are rebuilt rather than
    patched individually — correct, and a follow-up for identity preservation.
 4. Kit child constraints: `children` declarations, the mismatch diagnostic, and
-   `atom`'s no-children enforcement at the operation level. **Complete**, with one
-   correction: the document codec, not `apply`, is where a Kit's content contract
+   `atom`'s no-children enforcement. **Complete**, with one correction: the
+   document codec and `validate`, not `apply`, are where a Kit's content contract
    is enforced, because `apply` takes no Kit — which §117 settles it should not.
    `node(name, { children })` declares `textContent` or `blockContent`,
    `validate` walks nested blocks and reports `MismatchedDefinition` when a
