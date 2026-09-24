@@ -50,7 +50,8 @@ patch → restored selection.
 
 ## The DOM half (second increment)
 
-`src/events.ts` wires the same subtree to an application. `intentFor(event)` reads
+`packages/richtext-dom/src/events.ts` wires the same subtree to an application.
+`intentFor(event)` reads
 `beforeinput` and `keydown` as a semantic command; every event the adapter
 understands is `preventDefault`ed so the browser cannot mutate the DOM behind
 the document, and one it understands but cannot honor yet (paste, word
@@ -93,7 +94,8 @@ so it takes the bare name (`DataAttribute('unknown', …)` → `data-unknown`).
 
 ## HTML import
 
-`src/html.ts` parses pasted HTML with a whitelist rather than trusting it.
+`packages/richtext-dom/src/html.ts` parses pasted HTML with a whitelist rather
+than trusting it.
 Known block tags become blocks, known inline tags become marks (`strong`/`b` →
 Bold, `em`/`i` → Italic, `code` → Code), our own `data-marks` and
 `data-unknown` attributes round-trip, and every other element is either
@@ -103,8 +105,8 @@ pasted `style`, `href`, or `onclick` cannot survive as anything executable, and
 `kit` passed to `attach`, a node kind the Kit does not declare is degraded to a
 paragraph instead of kept.
 
-Import lives in the harness because it needs a `DOMParser`; the package stays
-DOM-free and owns only the string serializer.
+Import lives in `foldkit-richtext-dom` because it needs a `DOMParser`;
+`foldkit-richtext` stays DOM-free and owns only the string serializer.
 
 `repair(dom, content)` is recovery, not domain state (§31): it re-renders only
 blocks whose rendered text drifted, drops elements the document does not know,
@@ -113,12 +115,13 @@ it — whether the IME committed or cancelled, the browser's temporary text is n
 in the document — and because a repair detaches the live selection, the adapter
 captures the semantic selection first and restores it after.
 
-`test/events.test.ts` covers the translation table, the deliberate no-ops, the
+`packages/richtext-dom/test/events.test.ts` covers the translation table, the
+deliberate no-ops, the
 IME handover and cancellation, the history chords, and the wired loop (type,
 Enter, Backspace, composition commit, detach). `test/controlled.test.ts` covers
 undo end to end: a typing burst collapses to one step, a discrete command undoes
 alone, an empty history is refused, and redo restores what undo took away.
-`test/dom.test.ts` covers repair directly.
+`packages/richtext-dom/test/dom.test.ts` covers repair directly.
 
 Four bugs the loop tests caught, all now recorded in the design doc: inserted
 nodes must be inserted (replacement alone leaves them out), an empty run still
@@ -169,9 +172,8 @@ runnable example (add a `package.json` with `workspace:*` dependencies and run
 ## Results
 
 Recorded in the design doc (§27): controlled ownership works without a second
-synchronized document copy or a delayed Command. The DOM half has its first
-increment, now in `packages/richtext-dom`: rendering, both-way position mapping,
-and in-place patching, exercised by the editing loop in its
-`test/dom.test.ts`. What it does not prove yet is the browser's transient state —
-IME composition, autocorrect, undo, and mobile keyboards — which is the rest of
-the Phase 3 slice.
+synchronized document copy or a delayed Command. The DOM half now lives in
+`packages/richtext-dom`: rendering, both-way position mapping, in-place patching,
+event translation, and HTML import, exercised by its tests. What it does not prove
+yet is the browser's transient state — IME composition, autocorrect, undo, and
+mobile keyboards — which is the rest of the Phase 3 slice.

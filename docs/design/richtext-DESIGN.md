@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM interpreter to `packages/richtext-dom`); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM half — interpreter, event translation, HTML import — to `packages/richtext-dom`); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4103,12 +4103,13 @@ with custom Nodes and Marks.
 
 Add HTML/plain-text serialization.
 
-**Built (private, `examples/richtext`).** `src/view.ts` renders a document or a
+**Built (private).** `examples/richtext/src/view.ts` renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml`; `packages/richtext/src/html.ts`
 serializes HTML and plain text with escaping, unknown marks on `data-marks`, and
-unknown blocks as placeholders; `examples/richtext/src/html.ts` imports HTML
-through a whitelist walk. None of it is promoted to supported API yet: the
-package has no Foldkit dependency, so the view lives in the harness.
+unknown blocks as placeholders; `packages/richtext-dom/src/html.ts` imports HTML
+through a whitelist walk. The read-only view is not promoted to supported API yet:
+it needs a Foldkit dependency, which `foldkit-richtext`'s DOM-free rule keeps out
+of that package.
 
 ---
 
@@ -4171,7 +4172,7 @@ untouched elements must keep object identity, which is the property that makes
 patching cheaper than re-rendering. The interpreter moved out of the harness when
 Phase 4 promotion began; see `packages/richtext-dom/README.md`.
 
-**Built so far (second increment, `examples/richtext/src/events.ts`).**
+**Built so far (second increment, now `packages/richtext-dom/src/events.ts`).**
 `beforeinput`/`keydown` translation into commands, `preventDefault` on
 everything the adapter understands, and composition handover: the browser keeps
 its temporary text while an IME composes, and `compositionend` becomes one
@@ -4585,12 +4586,13 @@ ownership. Not published; promotion is part of Phase 4.
 
 ## Phase 3 — vertical editing slice
 
-Done — the interpreter in `packages/richtext-dom`, the rest in the harness:
-rendering into an owned `contenteditable` subtree, both-way position mapping,
-ChangeSet patching that preserves untouched element identity,
+Done: rendering into an owned `contenteditable` subtree, both-way position
+mapping, ChangeSet patching that preserves untouched element identity,
 `beforeinput`/`keydown` translation, IME composition commit and cancellation with
 `repair`, local undo, and copy/cut/paste over DOM clipboard events with a
-slice → HTML → text fallback.
+slice → HTML → text fallback. The DOM half — interpreter, event translation, and
+HTML import — is in `packages/richtext-dom`; the read-only view and the editable
+Bundle are still harness code.
 
 Not done:
 
@@ -4608,10 +4610,11 @@ Not done:
 ## Phase 4 — editor Bundle features
 
 The controlled-Bundle proof passed (§27), so the gate is met; nothing is
-published. Promotion has begun: the DOM interpreter moved from
-`examples/richtext/src/dom.ts` to `packages/richtext-dom`, a private package with
-its own tests, build, and README, and the harness imports it from there. The rest
-still lives in the harness and moves next.
+published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
+event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
+`examples/richtext` to `packages/richtext-dom`, a private package with its own
+tests, build, and README. The read-only view and the Bundle still live in the
+harness and move next.
 
 Per item:
 
@@ -4780,8 +4783,9 @@ transform.ts    the touched-node walk that feeds mergeAdjacentRuns
 html.ts         renderBlock, toText
 kit.ts          validate's block loop
 migration.ts    migrate's walk
-harness         view.ts, html.ts, controlled.ts
-richtext-dom    the interpreter (moved out of the harness for Phase 4)
+harness         view.ts, controlled.ts
+richtext-dom    the interpreter, event translation, and HTML import
+                (moved out of the harness for Phase 4)
 ```
 
 What does not change is anything that reads a single block's runs: position
