@@ -1,5 +1,118 @@
 # RichText implementation review
 
+## Current review — 2026-09-24
+
+Reviewed RichText changes since the previous pass, through `37d9ac7`. The prior
+findings and their fix history remain below. The current focused baseline is
+green: 379 tests in 33 files, plus package/example typechecking. New findings
+below describe failures not caught by that suite; no implementation was changed.
+
+Performance follow-up on R9: per-run text/mark copying is now batched and the
+merge transform indexes blocks, but cross-block range deletion still emits one
+JoinNode per boundary. Each join copies the remaining block array and reindexes
+the full document, so deleting across B blocks still has O(B²) structural work.
+This portion of R9 remains open; no new timing claim is made. Batch structural
+deletion too, and keep the existing cross-paragraph benchmark as its check.
+
+### R15 — P1: Backspace still creates an unpaired surrogate (R2 reopened)
+
+`packages/richtext/src/command.ts:201`, `previousBoundary`.
+
+Reproduced with `😀\u0301` and a caret at offset 3: Backspace leaves `\ud83d`.
+The function checks for a surrogate pair before skipping combining marks, then
+walks backward from the accent onto the low surrogate without checking again.
+The fix for R2 therefore does not cover a supplementary character with an
+accent. The hand-written combining ranges also do not implement full grapheme
+segmentation (for example ZWJ emoji). Use a complete boundary algorithm and test
+combinations of surrogate pairs and combining marks, not only each separately.
+
+### R16 — P1: migrations can return documents with duplicate identities
+
+`packages/richtext/src/migration.ts:85`, `migrate` result validation.
+
+The boundary checks each returned Block and preserves its block ID, but never
+checks document-wide uniqueness. Reproduced with two valid Paragraphs and a
+well-typed migration assigning both child runs the ID `duplicate`: migrate
+returns success, while `decodeDocument(result.document)` rejects. A migration
+can likewise collide with an untouched run or block. Validate the assembled
+Document before returning/persisting it. Block-local schema validation cannot
+enforce the global identity invariant.
+
+### R17 — P2: mark builders accept decoded props but persist them as encoded props
+
+`packages/richtext/src/marks.ts:28`, `MarkDef.of` and `mark`.
+
+Reproduced with `mark('Rating', { Props: Schema.Struct({ score:
+Schema.NumberFromString }) })`: `.of({ score: 42 })` typechecks, but placing that
+value in a document and validating against its own Kit produces InvalidProps.
+`of` accepts the schema's decoded type and merely casts it to JSON; Kit validation
+decodes the stored value and expects `{ score: '42' }`. Encode decoded props or
+accept the encoded type explicitly. Also constrain/check the JSON boundary:
+the current cast allows schemas producing non-JSON values to claim MarkValue.
+Add transforming-codec positive and negative type cases, per AGENTS.md.
+
+### R18 — P2: an empty insertion with stored marks reformats existing text
+
+`packages/richtext/src/command.ts:293`, InsertText's stored-marks branch.
+
+Reproduced: a bold `abc`, caret at offset 0, and
+`{ type: 'InsertText', text: '', marks: [] }` yields unmarked `abc`. InsertText
+itself is a no-op, SplitRun at zero is also a no-op, then RemoveMark targets the
+original run. Do not apply stored marks to a nonexistent inserted span.
+Preserve any deliberately supported
+range-deletion behavior when handling empty replacement text.
+
+### R19 — P2: Foldkit rendering was not migrated to object-valued marks
+
+`examples/richtext/src/view.ts:25`, `renderRun`.
+
+The renderer still uses `run.marks.includes('Bold')` and compares each mark
+directly with string names. The new supported `{ name: 'Bold' }` form is rendered
+as an unknown mark, without a strong element and with `[object Object]` in its
+data attribute. The HTML serializer and editable DOM already use `markName`, so
+the same document now renders differently across interpreters. Update this
+renderer and test both representations of the shipped marks. Custom-mark
+rendering being deferred does not justify losing built-in Bold/Italic/Code.
+
+### R20 — P2: toggling a stored mark off does not turn formatting off
+
+`examples/richtext/src/controlled.ts:178`, construction of the typing command.
+
+The harness forwards stored marks only when their array is nonempty. After
+toggling Bold on, typing X, toggling Bold off, and typing Y, the stored array
+is empty so InsertText inherits Bold from the preceding run; Y remains bold.
+Reproduced output: one bold `abcXY` run. Distinguish no explicit stored-mark
+override from an explicit empty set, and forward the latter. This is the
+normal toolbar/keyboard formatting loop, not a custom-mark extension.
+
+### R21 — P1: joining into an unknown block returns an invalid document
+
+`packages/richtext/src/transaction.ts:516`, JoinNode.
+
+Reproduced with an Unknown Image block followed by a Paragraph: applying
+`Edit.joinBlocks(imageId, paragraphId)` with null selection returns success,
+but the resulting Unknown block has text children, which its schema forbids.
+`decodeDocument` rejects it and the next `apply(state, [])` returns InvalidInput.
+JoinNode concatenates children without checking whether the survivor can contain
+them. Reject incompatible joins before changing the document and test both
+survivor directions and unknown/application-node boundaries. Successful
+transactions must preserve the Document invariant, even through the low-level API.
+
+Runtime probes confirmed R15–R21; the transforming-props call also passed strict
+TypeScript compilation. Temporary probes were removed after verification. Earlier
+validation results below are historical, not current workspace-wide claims.
+
+Pre-commit checks: workspace formatting passed. Workspace typechecking failed
+with Surface/Entity errors and later RichText schema/type errors. During that
+run, `packages/richtext/src/document.ts` acquired concurrent uncommitted edits;
+these results do not describe the clean RichText baseline checked above.
+The broader check sequence was stopped during workspace tests after several
+minutes to keep the review bounded: no completed workspace-test or demo result
+is claimed for this pass. The focused baseline and diagnostic reproductions
+above completed before the concurrent RichText edit.
+
+## Previous review — 2026-09-23
+
 Review date: 2026-09-23. Scope: the current working tree of
 `packages/richtext` and `examples/richtext`, against `richtext-DESIGN.md` and
 `AGENTS.md`. Existing uncommitted implementation changes are included but are
