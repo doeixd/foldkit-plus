@@ -2,8 +2,10 @@
 
 **Status:** proposals 1 and 2 filed on 2026-09-24 as
 [foldkit#1447](https://github.com/foldkit/foldkit/issues/1447) and
-[foldkit#1448](https://github.com/foldkit/foldkit/issues/1448); proposal 3
-held, as its route says. Checked against Foldkit `main` at `95fed7fdaf`
+[foldkit#1448](https://github.com/foldkit/foldkit/issues/1448), and
+proposal 3 as the question
+[foldkit#1449](https://github.com/foldkit/foldkit/issues/1449), filed early at
+the owner's request rather than after `foldkit-ssr` is published. Checked against Foldkit `main` at `95fed7fdaf`
 (2026-09-23) and the published 0.163.0.
 
 `foldkit-ssr` works on Foldkit 0.163 with no upstream change: every phase of
