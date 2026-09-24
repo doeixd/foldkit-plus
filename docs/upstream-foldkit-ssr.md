@@ -1,8 +1,10 @@
 # Upstream plan: what `foldkit-ssr` asks of Foldkit
 
-**Status:** plan, nothing sent yet. Checked against Foldkit `main` at
-`95fed7fdaf` (2026-09-23) and the published 0.163.0. Written so each proposal
-can be opened upstream as it stands.
+**Status:** proposals 1 and 2 filed on 2026-09-24 as
+[foldkit#1447](https://github.com/foldkit/foldkit/issues/1447) and
+[foldkit#1448](https://github.com/foldkit/foldkit/issues/1448); proposal 3
+held, as its route says. Checked against Foldkit `main` at `95fed7fdaf`
+(2026-09-23) and the published 0.163.0.
 
 `foldkit-ssr` works on Foldkit 0.163 with no upstream change: every phase of
 [its plan](./design/ssr-PLAN.md) is built on public API plus behaviour Foldkit
