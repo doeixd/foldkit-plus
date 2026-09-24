@@ -186,3 +186,122 @@ describe('semantic documents', () => {
     ).toBe(false)
   })
 })
+
+describe('nested blocks', () => {
+  const nested = () => ({
+    version: 1,
+    children: [
+      {
+        type: 'Node',
+        kind: 'List',
+        id: 'l',
+        props: {},
+        children: [],
+        blocks: [
+          {
+            type: 'Node',
+            kind: 'ListItem',
+            id: 'li',
+            props: {},
+            children: [{ type: 'Text', id: 't', text: 'one', marks: ['Bold'] }],
+          },
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [{ type: 'Text', id: 'u', text: 'two', marks: [] }],
+          },
+        ],
+      },
+    ],
+  })
+  const listBlock = (document: RichText.Document) => {
+    const block = document.children[0]
+    if (block?.type !== 'Node') throw new Error('expected a node block')
+    return block
+  }
+
+  it('decodes nested blocks, counts them, and round-trips byte-equal', () => {
+    const document = RichText.decodeDocument(nested())
+    // Three blocks (List, ListItem, Paragraph) and two runs.
+    expect(RichText.inspect(document)).toEqual({ nodeCount: 5, textLength: 6, depth: 3 })
+    expect(Schema.encodeSync(RichText.Document)(document)).toEqual(nested())
+  })
+
+  it('rejects a nested block that also carries direct runs', () => {
+    expect(() =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'List',
+            id: 'l',
+            props: {},
+            children: [{ type: 'Text', id: 'x', text: 'x', marks: [] }],
+            blocks: [{ type: 'Paragraph', id: 'p', children: [] }],
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
+  it('enforces identity uniqueness across nesting', () => {
+    expect(() =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'List',
+            id: 'l',
+            props: {},
+            children: [],
+            blocks: [
+              { type: 'Paragraph', id: 'p', children: [] },
+              { type: 'Paragraph', id: 'p', children: [] },
+            ],
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
+  it('accepts a selection inside a nested run and resolves nested references', () => {
+    const document = RichText.decodeDocument(nested())
+    const at = (offset: number): RichText.Position => ({
+      node: RichText.NodeId.make('t'),
+      offset,
+      affinity: 'after',
+    })
+    expect(
+      RichText.selectionIsValid(document, { type: 'Range', anchor: at(1), focus: at(1) }),
+    ).toBe(true)
+    expect(
+      RichText.selectionIsValid(document, { type: 'Range', anchor: at(9), focus: at(1) }),
+    ).toBe(false)
+    expect(RichText.Node.make('t').read(document)?.type).toBe('Text')
+    expect(RichText.Node.make('li').read(document)?.type).toBe('Node')
+    expect(RichText.Node.make('missing').read(document)).toBeUndefined()
+  })
+
+  it('counts nested content against the decode limits', () => {
+    const limits = (over: Partial<RichText.DocumentLimits>): RichText.DocumentLimits => ({
+      ...RichText.DefaultDocumentLimits,
+      ...over,
+    })
+    expect(() => RichText.decodeDocument(nested(), limits({ maxBlocks: 2 }))).toThrow(/maxBlocks/)
+    expect(() => RichText.decodeDocument(nested(), limits({ maxTextRuns: 1 }))).toThrow(
+      /maxTextRuns/,
+    )
+    expect(() => RichText.decodeDocument(nested(), limits({ maxTextLength: 5 }))).toThrow(
+      /maxTextLength/,
+    )
+    expect(() => RichText.decodeDocument(nested(), limits({}))).not.toThrow()
+  })
+
+  it('reports nested marks through the publishing gate', () => {
+    const document = RichText.decodeDocument(nested())
+    expect(RichText.findUnknownMarks(document)).toEqual([])
+    expect(listBlock(document).blocks?.[0]?.children[0]?.marks).toEqual(['Bold'])
+  })
+})

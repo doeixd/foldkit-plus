@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for nested children beyond runs (representation and addressing decided in §116), mark overlap rules and metadata, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for nested children beyond runs (the model and codec landed; representation and addressing decided in §116), mark overlap rules and metadata, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4556,7 +4556,10 @@ Not done:
   position mapping, `locate`, every operation, normalization, HTML export and
   import, and both renderers. §13 defines the child-constraint vocabulary
   (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide,
-  and §116 decides the representation, the addressing, and the slice order.
+  and §116 decides the representation, the addressing, and the slice order. Its
+  model and codec have landed: a node block may carry nested blocks, and nested
+  content decodes, round-trips, is counted, and is preserved when unknown. The
+  commands and interpreters that reach into it are still to come.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4796,9 +4799,13 @@ Landing order, each keeping the suite green:
 
 1. Model, codec, and reads: `blocks` on a node block, the recursive codec, limits,
    `inspect`, id uniqueness, the recursive walk for order, `locate`, and
-   `selectionIsValid`. Text edits, marks, stored marks, undo, and clipboard within
-   a container work; structural placement inside one is refused with
-   `InvalidParent`.
+   `selectionIsValid`. **Landed**: the model, the codec, `preserveUnknownBlocks`,
+   `inspect`, the limits, id uniqueness, `findUnknownNodes`/`findUnknownMarks`,
+   `selectionIsValid`, and `Node.read`. **Remaining**: `locate`, `ordered`,
+   `covered`, and `deleteRange` in `command.ts` and `clipboard.ts`, and `apply`'s
+   tree index — until those land, a command cannot reach a nested run, so text
+   edits, marks, and clipboard inside a container do not work yet, and structural
+   placement inside one is refused with `InvalidParent`.
 2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
    adapter.
 3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,

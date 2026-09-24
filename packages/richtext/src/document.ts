@@ -34,6 +34,20 @@ export type RunMark = typeof RunMark.Type
 /** A mark's name: a bare string is a mark with no props, an object carries them. */
 export const markName = (mark: RunMark): string => (typeof mark === 'string' ? mark : mark.name)
 
+/**
+ * The wire shape of a value: the same structure with identities unbranded. A
+ * branded `NodeId` encodes as a plain string, so an annotated schema whose type
+ * mentions one cannot claim its encoded form is the type itself; this names the
+ * wire side, which the recursive block schema needs to break its type cycle.
+ */
+type Wire<T> = T extends NodeId
+  ? string
+  : T extends ReadonlyArray<infer E>
+    ? ReadonlyArray<Wire<E>>
+    : T extends object
+      ? { readonly [K in keyof T]: Wire<T[K]> }
+      : T
+
 export const Text = Schema.Struct({
   type: Schema.Literal('Text'),
   id: NodeId,
@@ -54,12 +68,15 @@ export const Paragraph = Schema.Struct({
   id: NodeId,
   children: Schema.Array(Text),
 })
+export type Paragraph = typeof Paragraph.Type
+
 export const Heading = Schema.Struct({
   type: Schema.Literal('Heading'),
   id: NodeId,
   level: Schema.Literals([1, 2, 3, 4, 5, 6]),
   children: Schema.Array(Text),
 })
+export type Heading = typeof Heading.Type
 
 /**
  * A block whose `type` this version does not implement, retained verbatim for
@@ -84,18 +101,54 @@ export type UnknownBlock = typeof UnknownBlock.Type
  * application's schemas; a Kit's node definition validates it at that boundary,
  * and runtime declarations stay outside the codec (§12). `children` are text
  * runs, so positions, operations, and selection work on it unchanged.
+ *
+ * `blocks` holds nested blocks, and its presence is what says the kind accepts
+ * them (§116): a List holds ListItems, a Quote holds paragraphs. A kind with
+ * nested blocks has no direct runs, which is why `children` stays `Text[]` on
+ * every block kind — a container simply leaves it empty, as `UnknownBlock` does.
+ *
+ * The shape is written by hand because `Block` and this type are mutually
+ * recursive, and TypeScript cannot infer through that cycle: the schema's
+ * nested field names the interface, and the interface names the union.
  */
+export interface NodeBlock {
+  readonly type: 'Node'
+  readonly kind: string
+  readonly id: NodeId
+  readonly props: Schema.JsonObject
+  readonly children: ReadonlyArray<Text>
+  readonly blocks?: ReadonlyArray<Block>
+}
+
 export const NodeBlock = Schema.Struct({
   type: Schema.Literal('Node'),
   kind: Schema.NonEmptyString,
   id: NodeId,
   props: Schema.JsonObject,
   children: Schema.Array(Text),
-})
-export type NodeBlock = typeof NodeBlock.Type
+  blocks: Schema.optionalKey(
+    Schema.suspend((): Schema.Codec<ReadonlyArray<Block>, Wire<ReadonlyArray<Block>>> =>
+      Schema.Array(Block),
+    ),
+  ),
+}).check(
+  Schema.makeFilter(
+    block =>
+      block.blocks === undefined ||
+      block.children.length === 0 ||
+      'A block with nested blocks keeps no direct runs',
+  ),
+)
 
+export type Block = Paragraph | Heading | NodeBlock | UnknownBlock
 export const Block = Schema.Union([Paragraph, Heading, NodeBlock, UnknownBlock])
-export type Block = typeof Block.Type
+
+/** Every identity a block subtree owns, block and run alike, in document order. */
+const subtreeIds = (block: Block): ReadonlyArray<NodeId> => [
+  block.id,
+  ...block.children.map(run => run.id),
+  ...(block.type === 'Node' && block.blocks !== undefined ? block.blocks.flatMap(subtreeIds) : []),
+]
 
 /** Version 1's initial block vocabulary, with document-wide identity validation. */
 export const Document = Schema.Struct({
@@ -105,9 +158,9 @@ export const Document = Schema.Struct({
   Schema.makeFilter(document => {
     const ids = new Set<NodeId>()
     for (const block of document.children) {
-      for (const node of [block, ...block.children]) {
-        if (ids.has(node.id)) return 'Duplicate node identity'
-        ids.add(node.id)
+      for (const id of subtreeIds(block)) {
+        if (ids.has(id)) return 'Duplicate node identity'
+        ids.add(id)
       }
     }
     return true
@@ -119,25 +172,31 @@ const isKnownBlockType = (type: unknown): boolean =>
   type === 'Paragraph' || type === 'Heading' || type === 'Node'
 
 /**
+ * Converts a block whose type this version does not implement into an `Unknown`
+ * node, and does the same inside a known node block's nested blocks. Everything
+ * except `type` and `id` becomes opaque JSON props; the raw subtree is preserved
+ * there verbatim.
+ */
+const preserveBlock = (input: unknown): unknown => {
+  if (typeof input !== 'object' || input === null) return input
+  const block = input as Record<string, unknown>
+  if (!isKnownBlockType(block.type) && block.type !== 'Unknown') {
+    const { type, id, ...props } = block
+    return { type: 'Unknown', id, originalType: type, props, children: [] }
+  }
+  return Array.isArray(block.blocks) ? { ...block, blocks: block.blocks.map(preserveBlock) } : block
+}
+
+/**
  * Converts blocks whose type this version does not implement into `Unknown`
  * nodes before structural decoding, so persisted content survives a deploy
- * that lost a node implementation. Everything except `type` and `id` becomes
- * opaque JSON props; the raw subtree is preserved there verbatim.
+ * that lost a node implementation. Nested blocks are walked for the same reason.
  */
 const preserveUnknownBlocks = (input: unknown): unknown => {
   if (typeof input !== 'object' || input === null) return input
   const document = input as { children?: unknown }
   if (!Array.isArray(document.children)) return input
-  return {
-    ...document,
-    children: document.children.map(block => {
-      if (typeof block !== 'object' || block === null) return block
-      const candidate = block as { type?: unknown; id?: unknown }
-      if (isKnownBlockType(candidate.type) || candidate.type === 'Unknown') return block
-      const { type, id, ...props } = block as Record<string, unknown>
-      return { type: 'Unknown', id, originalType: type, props, children: [] }
-    }),
-  }
+  return { ...document, children: document.children.map(preserveBlock) }
 }
 
 /** Strict boundary for persisted content. Throws a Schema error on invalid input. */
@@ -160,6 +219,15 @@ export const DefaultDocumentLimits: DocumentLimits = DocumentLimits.make({
   maxTextLength: 5_000_000,
 })
 
+/** Every block a subtree holds, nested ones included. */
+const countBlocks = (blocks: ReadonlyArray<Block>): number => {
+  let count = 0
+  eachBlock(blocks, () => {
+    count += 1
+  })
+  return count
+}
+
 /**
  * Strict boundary for persisted content. Decodes structure first, then enforces
  * `limits`. Throws a Schema error on invalid input, or an Error naming the
@@ -171,7 +239,7 @@ export const decodeDocument = (
 ): Document => {
   const document = decodeStructure(preserveUnknownBlocks(input))
   const summary = inspect(document)
-  const blocks = document.children.length
+  const blocks = countBlocks(document.children)
   const runs = summary.nodeCount - blocks
   if (blocks > limits.maxBlocks)
     throw new Error(`Document exceeds maxBlocks: ${blocks} > ${limits.maxBlocks}`)
@@ -184,6 +252,27 @@ export const decodeDocument = (
   return document
 }
 
+/** Walks every block subtree in document order. */
+const eachBlock = (
+  blocks: ReadonlyArray<Block>,
+  visit: (block: Block, depth: number) => void,
+  depth = 1,
+): void => {
+  for (const block of blocks) {
+    visit(block, depth)
+    if (block.type === 'Node' && block.blocks !== undefined)
+      eachBlock(block.blocks, visit, depth + 1)
+  }
+}
+
+/** Every node a block subtree owns, block and run alike, keyed by identity. */
+const indexNodes = (blocks: ReadonlyArray<Block>, nodes: Map<NodeId, Block | Text>): void => {
+  eachBlock(blocks, block => {
+    nodes.set(block.id, block)
+    for (const run of block.children) nodes.set(run.id, run)
+  })
+}
+
 const isKnownMarkName = Schema.is(Mark)
 
 /** A mark this vocabulary does not define, kept verbatim on its text run. */
@@ -194,14 +283,18 @@ export interface UnknownMark {
 }
 
 /** Lists unknown marks per text run; empty means the document publishes cleanly. */
-export const findUnknownMarks = (document: Document): ReadonlyArray<UnknownMark> =>
-  document.children.flatMap(block =>
-    block.children.flatMap(text =>
-      text.marks
-        .filter(mark => !isKnownMarkName(markName(mark)))
-        .map(mark => ({ node: text.id, mark: markName(mark) })),
-    ),
-  )
+export const findUnknownMarks = (document: Document): ReadonlyArray<UnknownMark> => {
+  const unknown: Array<UnknownMark> = []
+  eachBlock(document.children, block => {
+    for (const text of block.children) {
+      for (const mark of text.marks) {
+        const name = markName(mark)
+        if (!isKnownMarkName(name)) unknown.push({ node: text.id, mark: name })
+      }
+    }
+  })
+  return unknown
+}
 
 /** A block this vocabulary does not implement, retained for migration. */
 export interface UnknownNode {
@@ -210,10 +303,15 @@ export interface UnknownNode {
 }
 
 /** Lists preserved unknown blocks; empty means the document publishes cleanly. */
-export const findUnknownNodes = (document: Document): ReadonlyArray<UnknownNode> =>
-  document.children.flatMap(block =>
-    block.type === 'Unknown' ? [{ node: block.id, originalType: block.originalType }] : [],
-  )
+export const findUnknownNodes = (document: Document): ReadonlyArray<UnknownNode> => {
+  const unknown: Array<UnknownNode> = []
+  eachBlock(document.children, block => {
+    if (block.type === 'Unknown') {
+      unknown.push({ node: block.id, originalType: block.originalType })
+    }
+  })
+  return unknown
+}
 
 /** UTF-16 offset in one text run, with insertion affinity at that offset. */
 export const Position = Schema.Struct({
@@ -239,13 +337,9 @@ export const Node = {
     return Object.freeze({
       id: nodeId,
       read: (document: Document): Block | Text | undefined => {
-        for (const block of document.children) {
-          if (block.id === nodeId) return block
-          for (const text of block.children) {
-            if (text.id === nodeId) return text
-          }
-        }
-        return undefined
+        const nodes = new Map<NodeId, Block | Text>()
+        indexNodes(document.children, nodes)
+        return nodes.get(nodeId)
       },
       at: (offset: number, affinity: Position['affinity']): Position =>
         Position.make({ node: nodeId, offset, affinity }),
@@ -263,10 +357,7 @@ export type Selection = typeof Selection.Type
 export const selectionIsValid = (document: Document, selection: Selection | null): boolean => {
   if (selection === null) return true
   const nodes = new Map<NodeId, Block | Text>()
-  for (const block of document.children) {
-    nodes.set(block.id, block)
-    for (const text of block.children) nodes.set(text.id, text)
-  }
+  indexNodes(document.children, nodes)
   if (selection.type === 'Node') return nodes.has(selection.node)
   return [selection.anchor, selection.focus].every(position => {
     const node = nodes.get(position.node)
@@ -289,16 +380,19 @@ export const EditorState = Schema.Struct({
 )
 export type EditorState = typeof EditorState.Type
 
-/** Counts semantic nodes and UTF-16 text units; empty documents have depth zero. */
-export const inspect = (document: Document) => ({
-  nodeCount: document.children.reduce((count, block) => count + 1 + block.children.length, 0),
-  textLength: document.children.reduce(
-    (count, block) => count + block.children.reduce((length, text) => length + text.text.length, 0),
-    0,
-  ),
-  depth: document.children.some(block => block.children.length > 0)
-    ? 2
-    : document.children.length > 0
-      ? 1
-      : 0,
-})
+/**
+ * Counts semantic nodes and UTF-16 text units, and reports nesting depth. Depth
+ * counts levels of content: an empty document is 0, blocks are 1, runs inside a
+ * block are 2, and a block nested inside a block adds a level (§116).
+ */
+export const inspect = (document: Document) => {
+  let nodeCount = 0
+  let textLength = 0
+  let depth = 0
+  eachBlock(document.children, (block, level) => {
+    nodeCount += 1 + block.children.length
+    for (const text of block.children) textLength += text.text.length
+    depth = Math.max(depth, level + (block.children.length > 0 ? 1 : 0))
+  })
+  return { nodeCount, textLength, depth }
+}

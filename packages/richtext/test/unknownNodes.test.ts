@@ -47,6 +47,70 @@ describe('unknown blocks', () => {
     expect(RichText.decodeDocument(encoded)).toEqual(document)
   })
 
+  it('preserves an unknown kind nested inside a known block', () => {
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            { type: 'Embed', id: 'e', src: 'https://example.test/x' },
+            {
+              type: 'Paragraph',
+              id: 'p',
+              children: [{ type: 'Text', id: 't', text: 'kept', marks: [] }],
+            },
+          ],
+        },
+      ],
+    })
+    const list = document.children[0]
+    if (list?.type !== 'Node') throw new Error('expected a node block')
+    // The nested unknown keeps its fields and takes no runs; its sibling stays exact.
+    expect(list.blocks?.[0]).toEqual({
+      type: 'Unknown',
+      id: 'e',
+      originalType: 'Embed',
+      props: { src: 'https://example.test/x' },
+      children: [],
+    })
+    expect(list.blocks?.[1]).toEqual({
+      type: 'Paragraph',
+      id: 'p',
+      children: [{ type: 'Text', id: 't', text: 'kept', marks: [] }],
+    })
+    expect(RichText.findUnknownNodes(document)).toEqual([{ node: 'e', originalType: 'Embed' }])
+    // The preserved form survives a round trip.
+    expect(Schema.encodeSync(RichText.Document)(document)).toEqual(document)
+  })
+
+  it('finds an unknown mark on a run inside a nested block', () => {
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'p',
+              children: [{ type: 'Text', id: 't', text: 'x', marks: ['Highlight'] }],
+            },
+          ],
+        },
+      ],
+    })
+    expect(RichText.findUnknownMarks(document)).toEqual([{ node: 't', mark: 'Highlight' }])
+  })
+
   it('reports unknown marks and nodes together as publishing blockers', () => {
     const document = RichText.decodeDocument({
       version: 1,

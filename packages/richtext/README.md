@@ -406,6 +406,12 @@ not yet drive parsing or `apply`.
   not declare — the shipped marks by default, or a Kit's through its registry.
 - Empty documents, empty blocks, and empty text runs are valid. No normalization
   creates nodes or merges text runs yet.
+- A `Node` block may carry nested blocks in `blocks`, and its presence is what
+  says the kind accepts them (§116): a List holds ListItems, a Quote paragraphs.
+  Nested content decodes, round-trips byte-equal, is counted by `inspect` and the
+  decode limits, survives a deploy that lost its kind, and a selection or
+  reference inside it resolves. Commands and the interpreters do not reach nested
+  blocks yet, so structural operations inside a container are not wired.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.

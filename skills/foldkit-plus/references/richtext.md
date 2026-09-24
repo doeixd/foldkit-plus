@@ -93,7 +93,9 @@ merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
 Nested children, Form/Bundle integration, DOM editing, and collaboration remain
-unfinished. Marks are definitions with a boundary policy and, when they carry
+unfinished; a node block may now carry nested `blocks`, which decode, round-trip,
+count, and survive an unknown kind, but commands and interpreters do not reach
+inside them yet. Marks are definitions with a boundary policy and, when they carry
 data, a prop schema:
 
 ```ts
