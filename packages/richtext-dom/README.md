@@ -30,7 +30,7 @@ here from `examples/richtext`, where the Phase 3 slice proved it. The read-only
 
 ```text
 foldkit-richtext-dom          the interpreter: mount, patch, repair, position mapping
-foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount
+foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRendering, renderingFor
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks
@@ -177,8 +177,12 @@ bare name (`DataAttribute('unknown', …)` → `data-unknown`).
 
 `editor-bundle` is the editor as a Bundle whose authoritative document may live in
 the parent (§27). `Editor` is the Bundle; `EditorState` and `EditorView` are the
-state the parent owns beside the document; `editorAt(hostId)` places one editor and
-binds it to the host element its view renders. The Link's `read` projects the
+state the parent owns beside the document; `editorAt(hostId, renderer?)` places one
+editor and binds it to the host element its view renders. A `renderer` is placed for
+that host id rather than passed as an arg, because a registry holds functions and the
+Bundle's args are schema-decoded (§122): `placeRendering` and `renderingFor` at
+`foldkit-richtext-dom/host` are the same record the editor's mount reads, and a
+placement without one renders with the default. The Link's `read` projects the
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /
@@ -203,9 +207,10 @@ renderer that draws its own buttons.
 
 - It does not run commands or resolve domain state. A caller runs `RichText.run`
   and hands the result here; `attach` reports intent and stops.
-- Its editor mount does not yet take an application's renderer. `mount`,
-  `mountInto`, `attachEditor`, `patch`, and `repair` do, and the Bundle's mount
-  renders with the default registry until a placement registers one (§122).
+- A registry placed for a host id is forgotten when that host releases, but a
+  placement that never mounts never releases, so the map is only as bounded as
+  placements are (§122). It is a per-id record the view's author writes, not a
+  service locator.
 - It does not patch nested structural changes item by item: a container whose item
   list changed is re-rendered where it stood, so its surviving items are rebuilt
   rather than patched individually. Correct, and a follow-up for identity

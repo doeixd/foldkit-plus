@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, registering an application's renderer with the editor Bundle (§121 ships the serializer, view, and adapter; §122 decides the Bundle registration), metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2, and §120's slice 1 have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4570,14 +4570,13 @@ Not done:
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
-- **Kit-aware rendering of mark props — §121, slice 1 done.** The HTML serializer,
-  the read-only view, and the editable adapter each hard-code the three shipped marks
-  and fall back to *names*, so a declared mark with props renders as `data-marks`
+- **Kit-aware rendering of mark props — §121 done.** The HTML serializer,
+  the read-only view, and the editable adapter each hard-coded the three shipped marks
+  and fell back to *names*, so a declared mark with props rendered as `data-marks`
   rather than a real `<a href>`. §121 decides the registry that replaces that;
-  `rendering(...)` and `toHtml(blocks, renderer?)` have shipped in
-  `foldkit-richtext`, and the read-only view and the editable adapter both render
-  through it (§121 slices 2–3); §122 decides how a registry reaches the editor
-  Bundle, which is the last piece.
+  `rendering(...)` and `toHtml(blocks, renderer?)` shipped in
+  `foldkit-richtext`, the read-only view and the editable adapter render
+  through it (§121 slices 2–3), and §122 carries it into the editor Bundle by host id.
 - **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
   (§12) are not wired: no interpreter owns a metadata key yet. The package does
   not depend on `foldkit-metadata`. They must stay outside the document codec.
@@ -5269,13 +5268,12 @@ editing loop through a *prop-carrying* mark, not a snapshot of its markup.
    view looks the name up and *reports* one it cannot build; the serializer and the
    adapter take any tag, and that asymmetry is Foldkit's, not the registry's.
 3. The adapter: marks nested inside the run element, `mount`/`patch`/`repair`
-   through the renderer, and the selection tests that prove nothing moved. — **done,
-   with one piece left.** `EditorDom` carries the registry, `patch` and `repair`
-   reuse it, `textNodeOf` descends to the text node, and `repair` now compares a
-   run's mark structure (and its `data-marks`) so a browser that splits a mark
-   element is repaired rather than believed. `mountInto` and `attachEditor` take the
-   registry too. What is left is registration with the editor Bundle — decided in
-   §122.
+   through the renderer, and the selection tests that prove nothing moved. — **done.**
+   `EditorDom` carries the registry, `patch` and `repair` reuse it, `textNodeOf`
+   descends to the text node, and `repair` now compares a run's mark structure (and
+   its `data-marks`) so a browser that splits a mark element is repaired rather than
+   believed. `mountInto` and `attachEditor` take the registry too, and §122 carries it
+   the last step into the editor Bundle, whose mount reads it by host id.
 4. Node kinds in the registry, once Phase 7 declares a kind that needs more than a
    `div`.
 
@@ -5321,8 +5319,15 @@ reason this does not become a general-purpose service location.
 Slices:
 
 1. `host.ts` gains `placeRendering(hostId, rendering)` and `renderingFor(hostId)`,
-   and `releaseMount` forgets the entry for the element's id.
+   and `releaseMount` forgets the entry for the element's id. — **done.**
 2. `events` reads the registry for `element.id` and hands it to `attachEditor`;
-   `editorAt(hostId, registry?)` places it.
+   `editorAt(hostId, registry?)` places it. — **done.**
 3. A test that a Link placed through `editorAt` renders as `<a href>` in the editable
-   subtree, and that a mount with no placement keeps the default.
+   subtree, and that a mount with no placement keeps the default. — **done.**
+
+Implemented as decided, with two details the code settled: `editorAt` always places,
+defaulting to `noRendering` when given none, so "re-placement replaces" needs no
+special case; and a host released without ever mounting never forgets its entry —
+consistent, because a mount that never happened has no release either. The mount
+reads `renderingFor(element.id)` in `events`, so the whole Bundle path now renders
+through an application's registry.
