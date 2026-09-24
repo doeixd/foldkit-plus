@@ -916,10 +916,11 @@ that can fail, or, for G4, a recorded measurement.
     the middle of named ones; a placement's input and click under a lazy
     bundle. The first event of each sequence is what boots the page, so the
     boot window is inside every run.
-  - First, check that `embed`'s `dispose` removes the runtime's listeners
-    and that a second runtime can then hydrate the same document. If it
-    cannot, fall back to two test files per sequence and compare against a
-    Model the eager file writes to a fixture.
+  - Checked on 0.163: after `dispose` the container is empty and a click on
+    a node the eager run rendered reaches no `update`, and a resumed page
+    then hydrates in the same document, waits for its first event and counts
+    each click once. Foldkit documents `dispose` as idempotent and the
+    container as reusable, so the harness needs nothing upstream.
   - Mutations: drop the `stopPropagation` after a queued answer; replay the
     queue in reverse; skip the re-dispatch of an unanswered event. Each must
     make a sequence's Models differ.
