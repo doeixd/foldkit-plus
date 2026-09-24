@@ -12,8 +12,9 @@ a plan is checked against the Surfaces the browser reads, parts of the page can
 belong to the server alone, and Remote's data crosses with the page. Resumable
 pages, whose view waits for the first interaction, are being built: bindings
 the server's markup names, a listener that answers them before boot, the
-deferred boot itself, and the check that a page dispatches only what its
-Surfaces may send are done; what remains is a server fallback for forms.
+deferred boot itself, the check that a page dispatches only what its Surfaces
+may send, and a form that works with scripts off are done; what remains is
+Bundle boundaries.
 
 ## What it owns
 
@@ -115,10 +116,11 @@ export default {
 ```
 
 `GET` and `HEAD` render the page with the request's URL; an application with
-Flags passes `flags: request => ...`. Any other method is answered `405`. A
-render that fails or throws, `flags` that throw or reject, and a plan the
-render refuses are each answered `500` with the reason logged, never with a
-page the browser could not resume. `handleRequest` still
+Flags passes `flags: request => ...`. `POST` is handled when the plan has a
+[server fallback](#a-form-that-works-without-scripts), and any other method
+is answered `405`. A render that fails or throws, `flags` that throw or
+reject, and a plan the render refuses are each answered `500` with the reason
+logged, never with a page the browser could not resume. `handleRequest` still
 answers a missed asset `404` without rendering, and `HEAD` without a body.
 
 The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
@@ -418,6 +420,49 @@ The plan's `boot` Commands run at boot, so with deferral a `Mirror.kv` restore
 waits for the first interaction; that is the application's choice to make with
 `start`.
 
+## A form that works without scripts
+
+A form whose `OnSubmit` names a Message can be answered by the server before
+any script runs, or with scripts blocked, because `update` is pure and the
+server can run it. The plan says so:
+
+```ts
+const Todos = SSR.plan(App, {
+  id: 'todos',
+  state: Projection.pick(App.model.draft, App.model.todos),
+  surfaces: [Surface.at(TodoList, undefined)],
+  fallback: 'server',
+})
+```
+
+For such a plan the server writes each form with a named `OnSubmit` as
+`method="post"` to the page's own URL, with a hidden input carrying the
+Message encoded through the application's Message Schema:
+
+```ts
+rh.form(
+  [rh.OnSubmit(Message.Added({ title: model.draft }))],
+  [rh.input([rh.Name('title'), rh.Value(model.draft), rh.OnInput(Message.Typed)])],
+)
+```
+
+With scripts on, the page answers the submit as any other event and the form
+never posts. Without them the browser posts the Message and the named fields,
+and `SSR.entry` hands the `POST` to `SSR.handle`, which decodes the Message,
+letting a posted field of the same name as one of the Message's own override
+it, so the typed `title` reaches `update` as it would through the page. The
+Message must be one the Surfaces active for the request's Model list. The
+server then rebuilds that Model as a render would, `init` and the plan's
+`boot`, runs `update` with the Message and every Command that follows, each
+under the config's `resources`, and answers with the page rendered from the
+result: Foldkit's loop, once, on the server.
+
+A post the server cannot use, one with no Message, one that is not JSON or
+does not decode, or one no active Surface lists, is answered `400` with the
+reason (`FallbackRefused`). A Command that fails is answered `500`, as a
+render that fails is. `SSR.handle(request, config, plan, { buildId, flags? })`
+is also callable on its own, for an entry that is not `SSR.entry`.
+
 ## When a page is refused
 
 On the server, `SSR.render` fails with `ResumeUnsafe`:
@@ -433,6 +478,8 @@ On the server, `SSR.render` fails with `ResumeUnsafe`:
 - `UnrestorablePart`: a part cannot restore its own capture.
 - `UnencodableBinding`: the page has bindings and the plan has no Message
   Schema, or a binding's Message does not encode through it.
+- `EagerStartRequired`: the plan defers its boot while a Subscription or an
+  active Managed Resource it does not declare deferrable would start late.
 - `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
   from the one served, in its body or in its head (`title`, `lang`, `dir`,
   `canonical`, `ogUrl`), so it reads a field the plan leaves out. The message
@@ -584,3 +631,12 @@ const Message = defineMessageUnion({
   list even though it is one of the application's Messages; a handler inside
   a static region is refused naming the region and the element, and one after
   a region is not.
+- **Phase E, a form without scripts:** a form with a named `OnSubmit` is
+  written to post its Message to its own URL, and one with a closure, or under
+  a plan with no fallback, is not; a post through Foldkit's real
+  `handleRequest` runs the plan's `boot`, then `update` with the posted field
+  overriding the Message's, then the Command that follows under the config's
+  `resources`, and answers with the resumable page that results; a Message no
+  active Surface lists, a missing Message, one that is not JSON and one that
+  does not decode are each `400`; `POST` is `405` for a plan with no fallback,
+  and named among the allowed methods for one with.

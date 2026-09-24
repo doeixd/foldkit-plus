@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B, C and D done. Next: Phases E and F. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A, B, C, D and E done. Next: Phase F. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -246,6 +246,14 @@ it.
     has not been declared deferrable. A plan declares entries by key, and a
     resume part declares its own package's; nothing is deferrable by default,
     because a late WebSocket or timer is a behaviour change.
+12. **A fallback form posts to its own URL, and the page answers directly.**
+    The design's `action="/__foldkit/message"` would leave the browser at that
+    URL, where the answered page could not resume (decision 8). With no
+    `action` the form posts where it is, `SSR.entry` tells a post by its
+    method and the plan's `fallback`, and the response is the page, not a
+    redirect to it: a redirect would rerun `init` and lose what `update` did.
+    Posted fields named as the Message's own override it, since a Message
+    encoded at render time carries the draft as it was then, not as typed.
 11. **What the page says an element does is checked like what it shows.** The
     bindings manifest is compared between the server's two renders exactly as
     the body and head are (decision 9), and decoded at load exactly as the
@@ -784,6 +792,23 @@ this plan's next track, in its order, and it is the source for their detail:
 - **E. Server fallback.** `fallback: 'server'` on forms, and `SSR.handle`,
   called from Phase 6's `renderPage` for a posted Message: the server runs
   `init`, `boot`, `update` and its Commands, and renders the result.
+
+  **Done.** `fallback: 'server'` on the plan (decision 12), the form written
+  by the builder through the render context's encoder, `SSR.handle` and
+  `SSR.entry`'s `POST` path, `FallbackRefused`, and `resources` on the
+  config. One test file through Foldkit's real `handleRequest`, with a
+  Command that needs a service; thirteen mutations, twelve turning one red.
+  The survivor narrows the posted field to a string for the types (`get`
+  returns a `File` too), and a `File` there is refused as not JSON a line
+  later, so its removal changes nothing observable. Found on the way:
+  - **A Command's failure is a defect here.** Foldkit's runtime crashes on
+    one; the server answers `500` as it does for a failed render, since the
+    config declares the Command's requirements and `resources` meets them.
+    `SSR.handle`'s error type stays the three refusals.
+  - **The Model is rebuilt by rendering.** Foldkit's server decides `init`'s
+    arguments from the config's `Flags` and `routing`; rather than restate
+    that, `startOf` renders once with a capturing `init`, as `SSR.render`
+    does, and takes the Model. One render more per post, for one rule.
 - **F. Bundle boundaries**, then `Bundle.lazy`.
 
 Gates: A to D on Phase U, since three of their claims rest on Foldkit internals

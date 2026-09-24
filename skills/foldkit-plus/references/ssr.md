@@ -7,8 +7,9 @@ without rerunning `init`, a plan is checked against the Surfaces the browser
 reads, `SSR.static` regions belong to the server alone, and Remote's data
 crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
 and `Resume.view(render)` mark bindings, `Resume.listen` answers them before
-boot, a plan's `start` defers the boot, and a page dispatches only what its
-Surfaces list; a server fallback for forms is not built yet.
+boot, a plan's `start` defers the boot, a page dispatches only what its
+Surfaces list, and `fallback: 'server'` makes a form work with scripts off;
+Bundle boundaries are not built yet.
 
 ## What it owns
 
@@ -109,8 +110,18 @@ SSR.hydrate(config, Editor, { buildId })
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
 - `SSR.entry(config, plan, { buildId, template, flags? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
-  and `HEAD` render; other methods get `405`; a refused, failed or throwing
-  render, or `flags` that reject, get `500` with the reason logged. It answers `Responded`, since a `Rendered` result
+  and `HEAD` render, `POST` is handled for a plan with `fallback: 'server'`;
+  other methods get `405`; a refused, failed or throwing render, or `flags`
+  that reject, get `500` with the reason logged.
+- `fallback: 'server'` on the plan: a form with a named `rh.OnSubmit(Message)`
+  is written `method="post"` to its own URL with a hidden
+  `foldkit-plus-message` input (the Message encoded). `SSR.handle(request,
+  config, plan, { buildId, flags? })`, which `SSR.entry` calls for `POST`,
+  decodes it, lets posted fields named as the Message's own override them,
+  requires a tag an active Surface lists, rebuilds the Model (`init`, then the
+  plan's `boot`), runs `update` and each Command under `config.resources`
+  (Foldkit's `resources` Layer), and answers with the rendered page. Bad
+  posts are `400` (`FallbackRefused`); a failing Command is `500`. It answers `Responded`, since a `Rendered` result
   has no room for the envelope.
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`

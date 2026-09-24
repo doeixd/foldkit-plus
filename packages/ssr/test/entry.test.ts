@@ -37,7 +37,7 @@ describe('SSR.entry through handleRequest', () => {
     expect(await response.text()).toBe('')
   })
 
-  it('answers any other method 405, until the server fallback exists', async () => {
+  it('answers any other method 405, POST included while the plan has no fallback', async () => {
     const response = await serve(
       new Request('https://example.test/', { method: 'POST', headers: html, body: 'x' }),
     )

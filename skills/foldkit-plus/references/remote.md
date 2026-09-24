@@ -47,9 +47,11 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 - `Loading`: absent, a read or a list's query is in flight (`QueryStarted`).
 - `Ready`: all selected fields present and decode.
 - `Refreshing`: old value still visible while refetching.
-- `Failed`: stored data does not decode against the Selection, or the read or
-  query behind it failed (keeping the old value as `previous`, if any).
-- `NotFound`: tombstone (server said the entity is absent).
+- `Failed`: stored data does not decode against the Selection, the read or
+  query behind it failed (keeping the old value as `previous`, if any), or the
+  server settled a selected field without a value (`error._tag` `Unavailable`,
+  naming the field; select without it, or `Data.refresh` asks again).
+- `NotFound`: tombstone (server answered with nothing about the entity).
 
 ## Minimal client
 
@@ -332,9 +334,14 @@ and relation, so the server names no list.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
-returned. A read the server answers without an id it was asked for makes that
-entity `NotFound`; it is refetched only by `Data.refresh` or brought back by a
-later write. The unexpanded target of a returned ref is asked for by id next, and
+returned. A read the server answers with nothing about an id it was asked for
+makes that entity `NotFound`; it is refetched only by `Data.refresh` or brought
+back by a later write. A field the server answers without, and names in the
+result's `settled` (withheld by `authorize`, or absent from the Source's
+record), is recorded **unavailable**: not planned again, forgotten by
+`Data.refresh`, cleared by a write of the field; the entity's other fields stay.
+The server settles without reading the Source when every field is withheld, so
+a hidden id and an absent one answer alike. The unexpanded target of a returned ref is asked for by id next, and
 only then can it become `NotFound`.
 
 Debugging: `Data.plan(model, projection)` shows what is missing;

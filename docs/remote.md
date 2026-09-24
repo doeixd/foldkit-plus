@@ -82,6 +82,9 @@ ProjectsByOwner(u7)   Project:p9  Project:p7  Project:p4  [gap]  Project:p1
   `value === undefined`.
 - **Tombstones make absence cacheable.** A not-found entity is not refetched
   forever; a later write clears the tombstone.
+- **A withheld field is knowledge too.** The server settles a field it will
+  not answer with, without saying why; the client marks it unavailable and
+  does not ask again until a refresh. The whole entity stays.
 - **A connection is an ordered structure with boundaries.** If page 1 is
   `A B C D` and page 3 is `I J K L`, a flat array would falsely claim they are
   adjacent. Segments with explicit boundaries make the unloaded middle an honest
@@ -162,8 +165,9 @@ pending optimistic change.
 
 In the view, a remote field is a `RemoteData`. `Remote.select` produces
 `Ready` once its selected fields are present, `Refreshing` while one is stale
-(an observer is refetching it), `Failed` if the server data does not decode, and
-`NotFound` for a tombstone. A value the store lacks reads as `Loading` while a
+(an observer is refetching it), `Failed` if the server data does not decode or
+the server settled a selected field without a value, and `NotFound` for a
+tombstone. A value the store lacks reads as `Loading` while a
 read is fetching it and `Initial` when none is: the read entry emits
 `ReadStarted` before it fetches, and `ReadReceived` or `ReadFailed` clears the
 mark. That distinction is the one worth rendering differently, because nothing

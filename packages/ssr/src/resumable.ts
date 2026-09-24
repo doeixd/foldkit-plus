@@ -125,6 +125,9 @@ const MARKABLE: ReadonlySet<string> = new Set([
 /** The token in a marker for a handler the page cannot describe. */
 export const UNNAMED_HANDLER = '*'
 
+/** The posted field that carries a form's encoded Message, for the server fallback. */
+export const FALLBACK_FIELD = 'foldkit-plus-message'
+
 declare const invalid: unique symbol
 
 /** A compile-time failure that names its cause. */
@@ -321,6 +324,44 @@ export const builder = <Builder extends AnyBuilder>(
     return [...attributes, ...markers]
   }
 
+  /**
+   * A form whose `OnSubmit` names a Message, while the server renders for a
+   * plan with a fallback, also posts that Message: `method="post"` to its own
+   * URL, and a hidden input carrying the Message encoded. Posted fields named
+   * as the Message's own fields override them, so a typed title reaches
+   * `update` as it would through the page.
+   */
+  const fallback = (
+    tag: string,
+    attributes: ReadonlyArray<unknown>,
+    children: unknown,
+  ): { readonly attributes: ReadonlyArray<unknown>; readonly children: unknown } => {
+    const now = current()
+    if (
+      tag !== 'form' ||
+      now?.mode === undefined ||
+      now.mode === 'resume' ||
+      now.fallback === undefined
+    ) {
+      return { attributes, children }
+    }
+    const submit = attributes.find(
+      item => isTagged(item) && item._tag === 'OnSubmit' && 'message' in item,
+    ) as { readonly message: unknown } | undefined
+    if (submit === undefined || !Array.isArray(children)) return { attributes, children }
+    const encoded = now.fallback(submit.message)
+    if (encoded === undefined) return { attributes, children }
+    const make = (name: string) => source[name] as (value: string) => unknown
+    const input = source.input as (attributes: ReadonlyArray<unknown>) => unknown
+    return {
+      attributes: [...attributes, make('Method')('post')],
+      children: [
+        ...children,
+        input([make('Type')('hidden'), make('Name')(FALLBACK_FIELD), make('Value')(encoded)]),
+      ],
+    }
+  }
+
   const textHole =
     (name: string) =>
     (given: unknown, fixed: Record<string, unknown> = {}): unknown => {
@@ -366,15 +407,19 @@ export const builder = <Builder extends AnyBuilder>(
       const keyed = value as (tag: string) => (key: PropertyKey, ...rest: Array<unknown>) => unknown
       wrapped[name] =
         (tag: string) =>
-        (key: PropertyKey, attributes: ReadonlyArray<unknown> = [], ...rest: Array<unknown>) =>
-          keyed(tag)(key, mark(tag, attributes), ...rest)
+        (key: PropertyKey, attributes: ReadonlyArray<unknown> = [], ...rest: Array<unknown>) => {
+          const posted = fallback(tag, attributes, rest[0])
+          return keyed(tag)(key, mark(tag, posted.attributes), posted.children, ...rest.slice(1))
+        }
     } else if (name !== 'submodel' && /^[a-z]/.test(name) && typeof value === 'function') {
       const element = value as (
         attributes: ReadonlyArray<unknown>,
         ...rest: Array<unknown>
       ) => unknown
-      wrapped[name] = (attributes: ReadonlyArray<unknown>, ...rest: Array<unknown>) =>
-        element(mark(name, attributes), ...rest)
+      wrapped[name] = (attributes: ReadonlyArray<unknown>, ...rest: Array<unknown>) => {
+        const posted = fallback(name, attributes, rest[0])
+        return element(mark(name, posted.attributes), posted.children, ...rest.slice(1))
+      }
     } else wrapped[name] = value
   }
   builders.set(h, wrapped)

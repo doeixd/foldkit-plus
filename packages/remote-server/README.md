@@ -151,12 +151,15 @@ runs as:
 2. authorize returns:      id, name
 3. Source receives:        ids=[p1], fields=[id,name]
 4. Source returns:         { id: 'p1', values: { id: 'p1', name: 'Apollo' } }
-5. handler normalizes:     Project:p1 { id, name }
-6. client records presence only for the returned fields
+5. handler normalizes:     Project:p1 { id, name }, settled: privateNotes
+6. client records presence for the returned fields, privateNotes as unavailable
 ```
 
 `privateNotes` never reaches `read`. Authorization happens before application
-data access, while the request still has semantic field names.
+data access, while the request still has semantic field names. The answer
+names the field as **settled**, so the client stops asking for it; it does not
+say why. A Selection naming it reads `Failed` with an `Unavailable` error, one
+that does not name it is unaffected, and `Data.refresh` asks again.
 
 ## The read lifecycle
 
@@ -210,8 +213,8 @@ Important consequences:
 
 - a field the Entity does not declare never reaches `authorize` or `read`;
 - `authorize` can only remove requested fields, never add new ones;
-- a Source may return a partial entity — omitted fields remain absent on the
-  client and may be requested later;
+- a Source may return a partial entity — a requested field it omits is settled,
+  so the client records it unavailable rather than asking again;
 - ids shared by several selections are de-duplicated;
 - relation targets are fetched level by level and shared targets are not loaded
   repeatedly;
@@ -492,8 +495,10 @@ For Entity reads:
 - undeclared fields are dropped first;
 - `authorize` receives only declared, requested fields;
 - omitting `authorize` means the requested declared fields are readable;
-- returning no fields produces no entity contribution;
-- existence is not leaked merely because an unauthorized id was requested.
+- a withheld field is answered as settled, without its reason;
+- an id whose every requested field is withheld is not read from the Source:
+  its fields are settled and no entity is contributed, so it looks the same as
+  an id the Source does not know, and existence is not leaked.
 
 Mutation and Query policy belongs in their Sources because those operations are
 application-specific rather than field-selection policy.

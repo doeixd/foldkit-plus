@@ -445,14 +445,16 @@ The states are:
   flight.
 - **`Ready`** — every selected field is present and decodes.
 - **`Refreshing`** — the current value remains visible while it is being refetched.
-- **`Failed`** — stored server data does not decode against the Selection, or
-  the read or query behind it failed. A value that was already shown is kept as
-  `previous`.
+- **`Failed`** — stored server data does not decode against the Selection, the
+  read or query behind it failed, or the server settled a selected field
+  without a value (an `Unavailable` error; see
+  [When a field is withheld](#when-a-field-is-withheld)). A value that was
+  already shown is kept as `previous`.
 - **`NotFound`** — the entity is represented by a tombstone: a live event
-  deleted it, or the server was asked for it by id and answered without it. That
-  id is then known absent, whether it never existed, is gone, or is not this
-  principal's to see. It is not planned again until `Data.refresh` forces it or a
-  write brings it back. The target of a returned ref is not marked this way: a
+  deleted it, or the server was asked for it by id and answered with nothing
+  about it. That id is then known absent, whether it never existed, is gone, or
+  is hidden whole from this principal. It is not planned again until
+  `Data.refresh` forces it or a write brings it back. The target of a returned ref is not marked this way: a
   server need not expand a relation that rides on a request, and the planner asks
   for such a target by id next, which is when its absence is learned.
 
@@ -586,9 +588,12 @@ keep something a screen does not read, name it in a retain entry or a
 
 `Failed` with no `previous` and no request error means the stored value did not
 **decode** against the Selection: the server's shape and the entity's Schema
-disagree; the error is a `DecodeError` with the Schema's message. A failed
-request reads the same way, with
-the request's error; see [When a read fails](#when-a-read-fails). A
+disagree; the error is a `DecodeError` with the Schema's message. An
+`Unavailable` error means the server answered without a field the Selection
+names and will not answer with it; see
+[When a field is withheld](#when-a-field-is-withheld). A failed request reads
+the same way, with the request's error; see
+[When a read fails](#when-a-read-fails). A
 `RemoteProtocolError` means the client and server disagree on
 `REMOTE_PROTOCOL_VERSION`, and nothing is silently accepted.
 
@@ -1021,6 +1026,41 @@ A broken live stream is not a failed read. Its `ReadFailed` carries the
 `stream`, and records a gap in `RemoteModel.gaps` rather than failing any
 field: nothing was being read, and the values on screen are still what the
 server last said.
+
+### When a field is withheld
+
+A server may answer a read without a field it was asked for, and mean it: the
+Source's `authorize` withheld it from this principal, or the record it returned
+had no such field. The read result says so, in `settled`: the fields it asked
+for that this answer does not carry and a later one would not either. Why is
+not on the wire. The client records each as **unavailable**, one more kind of
+knowledge beside a value and a tombstone:
+
+```text
+missing      not established; the planner asks
+present      known
+stale        known, and being asked again
+unavailable  asked, and answered without: the planner does not ask again
+tombstone    the whole entity is known absent
+```
+
+A Selection that names an unavailable field reads `Failed` with an
+`Unavailable` error naming the field, not `Loading` (nothing is fetching it)
+and not `NotFound` (the entity is there). What it is not is a seventh state:
+the remedy is the one a failed read has. Select without the field, in a
+Selection of its own if some principals may read it, or show the error. A
+Selection that does not name it is unaffected: `name` reads `Ready` while
+`privateNotes` is unavailable beside it.
+
+The mark is forgotten by what forgets a failure: `Data.refresh` asks again,
+and a read, live patch or mutation result that writes the field clears it.
+It survives persistence and a server render's `Remote.resume`, so the browser
+does not ask once more for what the server already declined.
+
+An id the server answers with nothing about, neither values nor settled fields,
+is a tombstone as before. A server settles a withheld field without reading
+its Source for an id whose every field is withheld, so an absent id and a
+hidden one answer alike, and existence is not told.
 
 ## Mutations and optimistic state
 

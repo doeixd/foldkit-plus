@@ -11,7 +11,7 @@
  * Rendering and hydrating stay Foldkit's own: this package adds only the
  * handover.
  */
-import { Cause, Effect, Exit, Option, Result, Schema, Stream } from 'effect'
+import { Cause, Effect, Exit, Option, Result, Schema, Stream, type Layer } from 'effect'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
@@ -33,7 +33,7 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
-import { builder, view } from './resumable.js'
+import { FALLBACK_FIELD, builder, view } from './resumable.js'
 import { decodeBindings, listen, type DecodedBinding } from './listen.js'
 
 /** The attribute on the script that carries a page's resume envelope. */
@@ -87,6 +87,12 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly start: Start
   /** Subscription and Managed Resource keys that may start late (decision 10). */
   readonly deferrable: ReadonlyArray<string>
+  /**
+   * `server`: a form whose `OnSubmit` names a Message also posts it to the
+   * page's own URL, and `SSR.handle` runs `update` there, so the form works
+   * with scripts off or not yet loaded.
+   */
+  readonly fallback?: 'server' | undefined
 }
 
 export type Start = 'now' | 'idle' | 'on-interaction'
@@ -169,6 +175,7 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
     readonly start?: Start | undefined
     readonly deferrable?: ReadonlyArray<string> | undefined
+    readonly fallback?: 'server' | undefined
   },
 ): ResumePlan<Model, Fields, Commands> => {
   const surfaces = config.surfaces ?? []
@@ -198,6 +205,7 @@ const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unknown>(
     ...(application.Message === undefined ? {} : { Message: application.Message }),
     start: config.start ?? 'now',
     deferrable: config.deferrable ?? [],
+    ...(config.fallback === undefined ? {} : { fallback: config.fallback }),
   }
 }
 
@@ -659,6 +667,8 @@ export interface ResumableConfig<Model> {
   readonly routing?: unknown
   readonly subscriptions?: Readonly<Record<string, unknown>> | undefined
   readonly managedResources?: Readonly<Record<string, unknown>> | undefined
+  /** The services Commands need, as Foldkit's runtime provides them. */
+  readonly resources?: Layer.Layer<any, any, never> | undefined
 }
 
 /**
@@ -845,6 +855,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const servedBindings: Array<Binding> = []
     const browserBindings: Array<Binding> = []
     const inStatic: Array<{ region: string; element: string; event: string }> = []
+    const fallback = fallbackEncoder(plan)
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
       {
@@ -852,6 +863,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         regions,
         duplicates,
         bindings: servedBindings,
+        fallback,
         region: undefined,
         inStatic,
       },
@@ -920,6 +932,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         mode: 'replay',
         regions,
         bindings: browserBindings,
+        fallback,
       }) as never,
       options as never,
     )
@@ -1081,8 +1094,10 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
 ): EntryModule => ({
   renderPage: async request => {
     const method = request.method.toUpperCase()
-    if (method !== 'GET' && method !== 'HEAD') {
-      return Responded(new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } }))
+    const posting = method === 'POST' && plan.fallback === 'server'
+    if (method !== 'GET' && method !== 'HEAD' && !posting) {
+      const allow = plan.fallback === 'server' ? 'GET, HEAD, POST' : 'GET, HEAD'
+      return Responded(new Response(null, { status: 405, headers: { allow } }))
     }
     const flagsOf = options.flags
     // `Effect.result` would miss a defect, such as a view that throws, and a
@@ -1092,14 +1107,24 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
       Effect.gen(function* () {
         const flags =
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
-        return yield* render(config, plan, {
-          buildId: options.buildId,
-          url: request.url,
-          ...(flagsOf === undefined ? {} : { flags }),
-        })
+        const flagged = flagsOf === undefined ? {} : { flags }
+        return posting
+          ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
+          : yield* render(config, plan, { buildId: options.buildId, url: request.url, ...flagged })
       }),
     )
     if (Exit.isFailure(exit)) {
+      const refused = Cause.findErrorOption(exit.cause).pipe(
+        Option.filter(error => error instanceof FallbackRefused),
+      )
+      if (Option.isSome(refused)) {
+        return Responded(
+          new Response(`The form could not be handled: ${refused.value.message}`, {
+            status: 400,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+          }),
+        )
+      }
       console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
       return Responded(
         new Response('The page could not be rendered.', {
@@ -1238,6 +1263,177 @@ const deferBoot = (
   }
 }
 
+/** How a form's Message is written into the page for the fallback, when the plan has one. */
+const fallbackEncoder = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+): ((message: unknown) => string | undefined) | undefined => {
+  if (plan.fallback !== 'server' || plan.Message === undefined) return undefined
+  const encode = Schema.encodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)
+  return message => {
+    const encoded = encode(message)
+    return Result.isFailure(encoded) ? undefined : JSON.stringify(encoded.success)
+  }
+}
+
+/** Why a posted form was not handled: the request, not the page or the plan, is at fault. */
+export class FallbackRefused extends Schema.TaggedError<FallbackRefused>()('FallbackRefused', {
+  reason: Schema.Literals(['Missing', 'Unreadable', 'Invalid', 'Unlisted', 'NoFallback']),
+  message: Schema.String,
+}) {}
+
+const refuseFallback = (reason: FallbackRefused['reason'], message: string) =>
+  Effect.fail(new FallbackRefused({ reason, message }))
+
+/** A Command as Foldkit runs it: named, with the Effect that yields its Message. */
+interface RunnableCommand {
+  readonly name: string
+  readonly effect: Effect.Effect<unknown, unknown, any>
+}
+
+const isRunnable = (command: unknown): command is RunnableCommand =>
+  typeof command === 'object' &&
+  command !== null &&
+  'effect' in command &&
+  Effect.isEffect(command.effect)
+
+/**
+ * Foldkit's loop, once, on the server: `update` for each Message, then each
+ * returned Command run under the config's `resources`, its Message folded
+ * back through `update`, until no Command remains.
+ */
+const fold = <Model>(
+  config: ResumableConfig<Model>,
+  model: Model,
+  messages: ReadonlyArray<unknown>,
+  commands: ReadonlyArray<unknown>,
+): Effect.Effect<Model> =>
+  Effect.gen(function* () {
+    let current = model
+    const pending = [...messages]
+    const queue = [...commands]
+    while (pending.length > 0 || queue.length > 0) {
+      const message = pending.shift()
+      if (message !== undefined) {
+        const next = config.update(current, message) as {
+          readonly model: Model
+          readonly commands?: ReadonlyArray<unknown> | undefined
+        }
+        current = next.model
+        queue.push(...(next.commands ?? []))
+        continue
+      }
+      const command = queue.shift()
+      if (!isRunnable(command)) {
+        return yield* Effect.die(
+          new Error(`SSR.handle: a Command has no Effect to run: ${JSON.stringify(command)}`),
+        )
+      }
+      // A Command that fails would crash Foldkit's runtime; here it is a defect
+      // the entry answers with 500, since the config declares its requirements.
+      const provided: Effect.Effect<unknown, unknown, never> =
+        config.resources === undefined
+          ? (command.effect as Effect.Effect<unknown, unknown, never>)
+          : (Effect.provide(command.effect, config.resources) as Effect.Effect<
+              unknown,
+              unknown,
+              never
+            >)
+      pending.push(yield* Effect.orDie(provided))
+    }
+    return current
+  })
+
+/** The Model `init` gives this request, as the server's render would start from. */
+const startOf = <Model>(
+  config: ResumableConfig<Model>,
+  options: { readonly url?: string | undefined; readonly flags?: unknown },
+): Effect.Effect<ReturnType<ResumableConfig<Model>['init']>, RenderError> =>
+  Effect.gen(function* () {
+    let started: ReturnType<ResumableConfig<Model>['init']> | undefined
+    yield* renderToString(
+      {
+        ...config,
+        init: (...args: ReadonlyArray<unknown>) => (started = config.init(...args)),
+      } as never,
+      { buildId: 'x', ...options } as never,
+    )
+    return started!
+  })
+
+/**
+ * Answers a form posted by a page rendered with `fallback: 'server'`: the
+ * posted Message is decoded through the plan's Message Schema, with posted
+ * fields of the same names as its own overriding them, and must be one the
+ * Surfaces active for the request's Model may send. The server then rebuilds
+ * that Model as a render would, `init` and then the plan's `boot`, runs
+ * `update` with the Message and every Command that follows, and renders the
+ * result as a fresh page.
+ */
+const handle = <Model, Fields extends Schema.Struct.Fields>(
+  request: Request,
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  options: { readonly buildId: string; readonly flags?: unknown },
+): Effect.Effect<
+  { readonly rendered: RenderedApplication; readonly envelope: string },
+  RenderError | ResumeUnsafe | FallbackRefused
+> =>
+  Effect.gen(function* () {
+    if (plan.fallback !== 'server' || plan.Message === undefined) {
+      return yield* refuseFallback('NoFallback', `plan "${plan.id}" has no server fallback`)
+    }
+    const form = yield* Effect.tryPromise({
+      try: () => request.formData(),
+      catch: () => new FallbackRefused({ reason: 'Unreadable', message: 'the body is not a form' }),
+    })
+    const posted = form.get(FALLBACK_FIELD)
+    if (typeof posted !== 'string') {
+      return yield* refuseFallback('Missing', `the form carries no ${FALLBACK_FIELD} field`)
+    }
+    let raw: unknown
+    try {
+      raw = JSON.parse(posted)
+    } catch {
+      return yield* refuseFallback('Unreadable', `${FALLBACK_FIELD} is not JSON`)
+    }
+    if (typeof raw === 'object' && raw !== null) {
+      const overridden: Record<string, unknown> = { ...raw }
+      form.forEach((value, name) => {
+        if (name !== FALLBACK_FIELD && name in overridden && typeof value === 'string') {
+          overridden[name] = value
+        }
+      })
+      raw = overridden
+    }
+    const decoded = Schema.decodeUnknownResult(plan.Message as Schema.Codec<unknown, unknown>)(raw)
+    if (Result.isFailure(decoded)) {
+      return yield* refuseFallback(
+        'Invalid',
+        `the posted Message does not decode: ${decoded.failure.message}`,
+      )
+    }
+    const message = decoded.success
+    const started = yield* startOf(config, { url: request.url, ...options })
+    const allowed = allowedTags(plan, started.model)
+    if (!allowed.has(tagOf(message))) {
+      return yield* refuseFallback(
+        'Unlisted',
+        `the posted ${tagOf(message)} is not one an active Surface lists in its messages`,
+      )
+    }
+    const boot = (plan.boot?.(started.model) as ReadonlyArray<unknown> | undefined) ?? []
+    const model = yield* fold(
+      config,
+      started.model,
+      [message],
+      [...(started.commands ?? []), ...boot],
+    )
+    return yield* render(startingFrom(config, { model }) as ResumableConfig<Model>, plan, {
+      buildId: options.buildId,
+      url: request.url,
+    })
+  })
+
 /**
  * The page's bindings, decoded through the plan's Message Schema, kept to the
  * Messages the Surfaces active for `model` may send, and checked against
@@ -1281,8 +1477,9 @@ export const SSR = {
   static: staticRegion,
   generate,
   entry,
+  handle,
   serializeJsonScript,
 }
 
-export { BINDING_ATTRIBUTE, type ResumableBuilder } from './resumable.js'
+export { BINDING_ATTRIBUTE, FALLBACK_FIELD, type ResumableBuilder } from './resumable.js'
 export type { DecodedBinding } from './listen.js'

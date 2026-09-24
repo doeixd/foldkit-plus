@@ -40,6 +40,8 @@ export type RenderContext =
       readonly regions: Map<string, Region>
       readonly duplicates: Set<string>
       readonly bindings: Array<Binding>
+      /** Encodes a form's Message for its no-script fallback; absent when the plan has none. */
+      readonly fallback: ((message: unknown) => string | undefined) | undefined
       /** The static region whose render is in progress, if any. */
       region: string | undefined
       /** Handlers met inside a static region, which the server alone renders. */
@@ -53,6 +55,7 @@ export type RenderContext =
       readonly mode: 'replay'
       readonly regions: ReadonlyMap<string, Region>
       readonly bindings: Array<Binding>
+      readonly fallback: ((message: unknown) => string | undefined) | undefined
     }
   | {
       readonly mode: 'resume'

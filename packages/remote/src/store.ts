@@ -167,8 +167,8 @@ export const clearStale = (
 
 /**
  * Records fields the server settled without a value. A present field is left
- * as it is: the answer that settled it was not about the value it holds. The
- * `set` marks it, `unset` forgets it, so a refresh can ask again.
+ * as it is: the answer that settled it was not about the value it holds.
+ * `false` forgets the marks, which is how a refresh asks again.
  */
 export const setUnavailable = (
   store: EntityStore,
