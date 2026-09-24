@@ -62,6 +62,7 @@ import {
   isLoadingThrough,
   isQueryLoading,
   isRemoteMessage,
+  forgetRemote,
   refreshIsInFlight,
   refreshedAt,
   remoteMessageCases,
@@ -433,6 +434,8 @@ export interface RemoteDomain<
     model: AppModel,
     target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
   ): AppModel
+  /** `Remote.forget`: the Model with every server-derived fact gone, for a change of principal. */
+  forget(model: AppModel): AppModel
   /**
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
@@ -1282,19 +1285,27 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
 ): EntryWithoutKeepAlive<
   AppModel,
   Message,
-  { readonly requirements: ReadonlyArray<Requirement>; readonly cursor: LiveCursor },
+  {
+    readonly requirements: ReadonlyArray<Requirement>
+    readonly cursor: LiveCursor
+    readonly floor: number
+  },
   RemoteClient
 > => ({
   dependenciesSchema: Schema.Struct({
     requirements: Schema.Array(ReadRequest),
     cursor: Schema.Number,
+    floor: Schema.Number,
   }),
   modelToDependencies: model => {
     const requirements = requirementsOf(model)
     const stream = liveStreamKey(requirements)
+    const remote = bound.store.get(model)
     return {
       requirements,
-      cursor: bound.store.get(model).live[stream]?.cursor ?? 0,
+      cursor: remote.live[stream]?.cursor ?? 0,
+      // A stream is the principal's: `forget` moves the floor, and it restarts.
+      floor: remote.refresh.floor,
     }
   },
   dependenciesToStream: ({ requirements, cursor }) =>
@@ -1715,6 +1726,21 @@ export const Remote = {
   },
 
   /**
+   * Forgets everything the server told this Model: values, tombstones,
+   * unavailable fields, connections, live cursors, failures. What is known is
+   * known for a principal, and this is the one boundary for a login, a logout
+   * or a switch of organization: called from `update`, it performs no I/O, and
+   * every active Surface's read and live entries restart, so the screen asks
+   * again as whoever the client now is. A read or stream begun before is
+   * interrupted rather than landing after. A mutation in flight is treated as
+   * applied: its answer writes nothing here.
+   */
+  forget: <AppModel, Store extends RemoteModel>(
+    bound: BoundRemote<AppModel, Store>,
+    model: AppModel,
+  ): AppModel => bound.store.set(model, forgetRemote(bound.store.get(model)) as Store),
+
+  /**
    * Writes a read result into the store, recording each field's applied window.
    * `requests` are the planned requirements the result answers.
    */
@@ -1924,7 +1950,11 @@ export const Remote = {
   ): EntryWithoutKeepAlive<
     AppModel,
     Message,
-    { readonly requirements: ReadonlyArray<Requirement>; readonly cursor: LiveCursor },
+    {
+      readonly requirements: ReadonlyArray<Requirement>
+      readonly cursor: LiveCursor
+      readonly floor: number
+    },
     RemoteClient
   > => liveEntry(bound, () => requirementsOf(surface.projection(params)), toMessage, options),
 }
@@ -2450,6 +2480,7 @@ const bindDomain = <
       }
     },
     refresh: (model, target) => Remote.refresh(bound, model, target),
+    forget: model => Remote.forget(bound, model),
     overlay: (model, id, optimistic) =>
       bound.store.set(
         model,

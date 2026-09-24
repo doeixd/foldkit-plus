@@ -505,10 +505,12 @@ describe('Data.live and Data.subscriptions', () => {
     expect(subscriptions['page.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],
       cursor: 0,
+      floor: 0,
     })
     expect(subscriptions['home.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [],
       cursor: 0,
+      floor: 0,
     })
   })
 

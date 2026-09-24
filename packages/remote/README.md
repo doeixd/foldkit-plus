@@ -775,6 +775,31 @@ nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
 - A read already in flight restarts instead of landing after the refresh.
 - Refreshing what is already refreshing, or nothing, returns the same Model.
 
+### Forgetting everything: a change of principal
+
+Everything Remote knows, it knows for a principal: a value the server gave
+this session, a tombstone for an id it answered nothing about, a field it
+settled as unavailable, the rows of a list. Log in, log out, switch
+organization, and none of it is trustworthy. `Data.forget` is the one
+boundary:
+
+```ts
+case 'SignedOut': {
+  return { model: Data.forget({ ...model, session: Option.none() }) }
+}
+```
+
+It performs no I/O and returns the Model with every server-derived fact gone:
+values, tombstones, unavailable fields, connections, live cursors, failures,
+and the reads in flight. Every active Surface's read and live entries restart,
+so the screen asks again as whoever the client now is; a read or stream begun
+before is interrupted rather than landing after. A mutation in flight is
+treated as applied, so its answer writes nothing into the new store, and the
+mutation sequence is kept, so request ids stay unique.
+
+Who the client is belongs to the `RemoteClient` layer or the server's session,
+not to Remote. `forget` only says that what was known no longer is.
+
 ## Queries and pagination
 
 Entities answer "which fields of this known thing?" A Query answers "which

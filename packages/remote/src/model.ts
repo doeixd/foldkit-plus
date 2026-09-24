@@ -130,12 +130,39 @@ export interface RefreshState {
   readonly generation: number
   readonly requested: ReadonlyMap<string, number>
   readonly started: ReadonlyMap<string, number>
+  /**
+   * The generation every entry is refreshed at, at least: `forgetRemote` moves
+   * it, so every read and live entry restarts, and a read or stream begun for
+   * the principal before is interrupted rather than landing after.
+   */
+  readonly floor: number
 }
 
 export const emptyRefresh: RefreshState = {
   generation: 0,
   requested: new Map(),
   started: new Map(),
+  floor: 0,
+}
+
+/**
+ * The Model with everything the server told it forgotten: values, tombstones,
+ * unavailable fields, connections, live cursors, failures, and what is in
+ * flight. For a change of principal, whose facts these were. The mutation
+ * sequence is kept, so request ids stay unique, and a mutation in flight is
+ * treated as applied: its answer, when it comes, writes nothing here.
+ */
+export const forgetRemote = (model: RemoteModel): RemoteModel => {
+  const generation = model.refresh.generation + 1
+  return {
+    ...initialRemoteModel,
+    refresh: { generation, requested: new Map(), started: new Map(), floor: generation },
+    mutations: {
+      ...emptyMutationState,
+      sequence: model.mutations.sequence,
+      applied: new Set([...model.mutations.applied, ...model.mutations.pending]),
+    },
+  }
 }
 
 export const initialRemoteModel: RemoteModel = {
@@ -482,7 +509,7 @@ export const refreshedAt = (
   requests: ReadonlyArray<Requirement>,
   connections: ReadonlyArray<string> = [],
 ): number => {
-  let at = 0
+  let at = refresh.floor
   for (const mark of fieldMarks(requests)) at = Math.max(at, refresh.requested.get(mark) ?? 0)
   for (const identity of connections) {
     at = Math.max(at, refresh.requested.get(connectionMark(identity)) ?? 0)

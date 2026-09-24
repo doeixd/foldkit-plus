@@ -190,6 +190,12 @@ case 'ClickedRefresh': {
   // connections invalidated, refresh generation bumped.
   return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.projectId.value })) }
 }
+case 'SignedOut': {
+  // Everything Remote knows, it knows for a principal. No I/O: values, tombstones, unavailable
+  // fields, connections, live cursors, failures and in-flight reads go; every active read and
+  // live entry restarts; a mutation in flight settles into nothing; request ids stay unique.
+  return { model: Data.forget(model) }
+}
 ```
 
 - Optimistic patches are **layers** over the base store (recomputed base +

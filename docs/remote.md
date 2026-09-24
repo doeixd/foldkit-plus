@@ -85,6 +85,10 @@ ProjectsByOwner(u7)   Project:p9  Project:p7  Project:p4  [gap]  Project:p1
 - **A withheld field is knowledge too.** The server settles a field it will
   not answer with, without saying why; the client marks it unavailable and
   does not ask again until a refresh. The whole entity stays.
+- **Everything is known for a principal.** Values, tombstones, unavailable
+  fields and list membership are what the server told this session.
+  `Data.forget`, called from `update` on a login, a logout or a switch of
+  organization, drops all of it and restarts every active read and stream.
 - **A connection is an ordered structure with boundaries.** If page 1 is
   `A B C D` and page 3 is `I J K L`, a flat array would falsely claim they are
   adjacent. Segments with explicit boundaries make the unloaded middle an honest
