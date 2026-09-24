@@ -953,14 +953,26 @@ that can fail, or, for G4, a recorded measurement.
     frame, 16 ms. Acting then means the design's fix, planned as its own
     step. Otherwise the risk is closed with the numbers.
 
-Order: G1, then G2, then G3, which reuses G2's harness. G4 can run at any
-point. Each step updates the README's test list, and G1 also the README's
+- **G5. Stop depending on when `hydrate` commits.** Deferred boot assumes the
+  first render, listeners included, lands inside the event that boots the
+  page. Foldkit tests that timing but does not promise it. Its public
+  `Render.afterCommit` waits for the outstanding patch and nothing else, so
+  the replay Subscription entry yields it before replaying, and re-dispatches
+  an unanswered event then if the boot did not commit in time. Test: a boot
+  whose first render is held past the event still counts a queued click once
+  and still reaches the live page with a closure's event.
+
+Order: G1, then G2, then G3, which reuses G2's harness. G4 and G5 can run at
+any point; G5 comes before any upstream proposal, per
+[the upstream plan](../upstream-foldkit-ssr.md). Each step updates the README's test list, and G1 also the README's
 bindings section and the skill reference, since `SSR.render`'s result and the
 server's logging change.
 
 ### Beyond this plan
 
-These wait on something outside this repository, and are not scheduled:
+These wait on something outside this repository, and are not scheduled.
+[upstream-foldkit-ssr.md](../upstream-foldkit-ssr.md) turns them into
+proposals for Foldkit, checked against its `main`, and says which are dropped:
 
 - **Opaque boundaries** (design Phase 4) wait on Foldkit's "externally owned
   children" primitive, still unshipped in 0.163.
