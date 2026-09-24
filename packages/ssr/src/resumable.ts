@@ -128,6 +128,9 @@ export const UNNAMED_HANDLER = '*'
 /** The posted field that carries a form's encoded Message, for the server fallback. */
 export const FALLBACK_FIELD = 'foldkit-plus-message'
 
+/** The attribute on a placement's root naming its slot, while the server renders. */
+export const SLOT_ATTRIBUTE = 'data-foldkit-plus-slot'
+
 declare const invalid: unique symbol
 
 /** A compile-time failure that names its cause. */
@@ -211,7 +214,7 @@ export type MessageOf<Builder> = Builder extends {
  */
 export type ResumableBuilder<Message> = Omit<
   HtmlBuilder<Message>,
-  (keyof HtmlBuilder<never> & symbol) | 'OnInput' | 'OnChange' | 'OnKeyDown' | 'OnKeyUp'
+  'OnInput' | 'OnChange' | 'OnKeyDown' | 'OnKeyUp'
 > & {
   readonly OnInput: TextHole<Message>
   readonly OnChange: TextHole<Message>
@@ -289,6 +292,7 @@ export const builder = <Builder extends AnyBuilder>(
         now.inStatic.push({ region: now.region, element, event })
       }
       const recorded = holes.get(item)
+      const nested = now.depth === 0 ? {} : { depth: now.depth }
       const binding: Binding | undefined = !MARKABLE.has(item._tag)
         ? undefined
         : 'message' in item
@@ -296,7 +300,7 @@ export const builder = <Builder extends AnyBuilder>(
               attribute: item._tag,
               event,
               element,
-              message: item.message,
+              message: now.wrap(item.message),
               ...(item.options === undefined ? {} : { options: item.options }),
             }
           : recorded === undefined
@@ -305,8 +309,9 @@ export const builder = <Builder extends AnyBuilder>(
                 attribute: item._tag,
                 event,
                 element,
-                message: recorded.template,
+                message: now.wrap(recorded.template),
                 hole: recorded.hole,
+                ...nested,
               }
       const list = tokens.get(event) ?? []
       tokens.set(event, list)
@@ -349,7 +354,7 @@ export const builder = <Builder extends AnyBuilder>(
       item => isTagged(item) && item._tag === 'OnSubmit' && 'message' in item,
     ) as { readonly message: unknown } | undefined
     if (submit === undefined || !Array.isArray(children)) return { attributes, children }
-    const encoded = now.fallback(submit.message)
+    const encoded = now.fallback(now.wrap(submit.message))
     if (encoded === undefined) return { attributes, children }
     const make = (name: string) => source[name] as (value: string) => unknown
     const input = source.input as (attributes: ReadonlyArray<unknown>) => unknown
@@ -399,9 +404,46 @@ export const builder = <Builder extends AnyBuilder>(
       return made
     }
 
+  /**
+   * `h.submodel` with the child's root stamped with its slot, while the
+   * server renders: a boundary a tool can find, which the browser's first
+   * patch removes as it removes the markers.
+   */
+  const submodel = (config: {
+    readonly slotId: string
+    readonly view: unknown
+    readonly toParentMessage: (message: unknown) => unknown
+  }): unknown => {
+    const original = source.submodel as (config: unknown) => unknown
+    const now = current()
+    if (now?.mode !== 'collect' && now?.mode !== 'replay') return original(config)
+    const view = config.view as (...args: ReadonlyArray<unknown>) => unknown
+    const stamped = (...args: ReadonlyArray<unknown>) => {
+      // A binding inside dispatches the parent's Message, as Foldkit's own
+      // handlers do, so it is recorded lifted through this placement.
+      const outer = { wrap: now.wrap, depth: now.depth }
+      now.wrap = message => outer.wrap(config.toParentMessage(message))
+      now.depth = outer.depth + 1
+      let out: { data?: { attrs?: Record<string, unknown> } } | null
+      try {
+        out = view(...args) as typeof out
+      } finally {
+        now.wrap = outer.wrap
+        now.depth = outer.depth
+      }
+      if (out !== null && typeof out === 'object' && out.data !== undefined) {
+        out.data.attrs = { ...out.data.attrs, [SLOT_ATTRIBUTE]: config.slotId }
+      }
+      return out
+    }
+    // The view carries Foldkit's Submodel brand as an own property; keep it.
+    return original({ ...config, view: Object.assign(stamped, view) })
+  }
+
   const wrapped: Record<string, unknown> = {}
   for (const [name, value] of Object.entries(source)) {
-    if (name === 'OnInput' || name === 'OnChange') wrapped[name] = textHole(name)
+    if (name === 'submodel') wrapped[name] = submodel
+    else if (name === 'OnInput' || name === 'OnChange') wrapped[name] = textHole(name)
     else if (name === 'OnKeyDown' || name === 'OnKeyUp') wrapped[name] = keyHole(name)
     else if (name === 'keyed') {
       const keyed = value as (tag: string) => (key: PropertyKey, ...rest: Array<unknown>) => unknown

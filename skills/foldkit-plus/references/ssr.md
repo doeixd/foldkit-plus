@@ -8,8 +8,8 @@ reads, `SSR.static` regions belong to the server alone, and Remote's data
 crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
 and `Resume.view(render)` mark bindings, `Resume.listen` answers them before
 boot, a plan's `start` defers the boot, a page dispatches only what its
-Surfaces list, and `fallback: 'server'` makes a form work with scripts off;
-Bundle boundaries are not built yet.
+Surfaces list, `fallback: 'server'` makes a form work with scripts off, and
+`lazy: [bundle]` loads a `Bundle.lazy`'s bodies before render and boot.
 
 ## What it owns
 
@@ -113,6 +113,13 @@ SSR.hydrate(config, Editor, { buildId })
   and `HEAD` render, `POST` is handled for a plan with `fallback: 'server'`;
   other methods get `405`; a refused, failed or throwing render, or `flags`
   that reject, get `500` with the reason logged.
+- `lazy: [Upload]` in the config (each a `Bundle.lazy`): `SSR.render` loads
+  the bodies first; `SSR.hydrate` loads them before boot, answering from the
+  markers meanwhile whatever `start` is, then replays. A placement's view
+  takes `rh` (`Placed.view(model, rh)`); a binding inside it is recorded as
+  the parent's wrapped Message (`hole` one wrapper down, `depth`), so the
+  Surface lists `Message.GotUploadMessage`. Server markup stamps each
+  placement root `data-foldkit-plus-slot="Upload@upload"` (`SLOT_ATTRIBUTE`).
 - `fallback: 'server'` on the plan: a form with a named `rh.OnSubmit(Message)`
   is written `method="post"` to its own URL with a hidden
   `foldkit-plus-message` input (the Message encoded). `SSR.handle(request,

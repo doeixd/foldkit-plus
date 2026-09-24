@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R, A, B, C, D and E done. Next: Phase F. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A, B, C, D, E and F done: the plan is built. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -246,6 +246,12 @@ it.
     has not been declared deferrable. A plan declares entries by key, and a
     resume part declares its own package's; nothing is deferrable by default,
     because a late WebSocket or timer is a behaviour change.
+13. **A binding inside a placement is the parent's Message.** The page
+    dispatches what Foldkit's runtime would, which for a handler inside
+    `h.submodel` is the child's Message lifted through the placement's
+    wrapper. The server records it lifted, the Surface lists the wrapper
+    variant, and a hole is filled `depth` wrappers down. A child-typed
+    binding would have been a Message the application's `update` never sees.
 12. **A fallback form posts to its own URL, and the page answers directly.**
     The design's `action="/__foldkit/message"` would leave the browser at that
     URL, where the answered page could not resume (decision 8). With no
@@ -810,6 +816,37 @@ this plan's next track, in its order, and it is the source for their detail:
     that, `startOf` renders once with a capturing `init`, as `SSR.render`
     does, and takes the Model. One render more per post, for one rule.
 - **F. Bundle boundaries**, then `Bundle.lazy`.
+
+  **Done**, without the gate: the user asked for `Bundle.lazy` at once rather
+  than after a measured application. `Bundle.lazy` in `foldkit-bundle`
+  (`src/lazy.ts`): the declaration stays, `update` and `view` load through a
+  `Bundle.Body`, a Message before the load returns a `Load<Name>` Command that
+  yields it again, `while` renders meanwhile. In `foldkit-ssr`: `lazy` on the
+  config, loaded by `SSR.render` before rendering and by `SSR.hydrate` before
+  booting through `deferBoot`, which now takes every `start` and re-dispatches
+  an unanswered event after an asynchronous boot; the resumable builder wraps
+  `h.submodel` to stamp the placement root (`data-foldkit-plus-slot`) and to
+  lift every binding inside through the placement's `toParentMessage`, with
+  `depth` saying how many wrappers a hole sits under. Three test files, one
+  in each package on the real runtime; sixteen mutations, fifteen turning one
+  red and the last a guard that turned out dead, removed. Found on the way:
+  - **A binding inside a placement was recorded as the child's Message.** The
+    child's builder makes child Messages, and Foldkit lifts them at dispatch.
+    Recording them unlifted made every such binding `Uncovered` and its
+    encoding fail. The render context carries `wrap` and `depth` now, and
+    `h.submodel` composes them; decision 13.
+  - **Bodies load at boot, not on the first Message inside the bundle.** A
+    page whose lazy view has no handlers before its bodies arrive cannot
+    receive a first Message, and rendering `while` over the server's markup
+    would lose it. So the browser loads every listed bundle before booting,
+    and answers from the markers meanwhile; the first Message inside the
+    bundle remains the trigger for a page without `foldkit-ssr`.
+  - **`Placed.view` takes any builder with `submodel` and `OnClick`.** Its
+    bound was Foldkit's whole builder, which a resumable builder is not once
+    its hole forms differ; `BuilderLike` in `foldkit-bundle` names what a
+    placement's view uses, and the Message is read from `OnClick`.
+  - The slot is the bundle's own id, `Name@key`, which names both; the
+    design's two attributes became one.
 
 Gates: A to D on Phase U, since three of their claims rest on Foldkit internals
 (`seedAdoptedState`, a control's value mismatch, and when the root's app

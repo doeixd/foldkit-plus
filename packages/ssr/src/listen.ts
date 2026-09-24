@@ -24,6 +24,7 @@ export interface DecodedBinding {
   readonly event: string
   readonly message: unknown
   readonly hole?: ReadonlyArray<string> | undefined
+  readonly depth?: number | undefined
   readonly options?: unknown
 }
 
@@ -73,6 +74,7 @@ export const decodeBindings = (
       event,
       message: message.success,
       ...(entry.hole === undefined ? {} : { hole: entry.hole }),
+      ...(entry.depth === undefined ? {} : { depth: entry.depth }),
       ...(entry.options === undefined ? {} : { options: entry.options }),
     })
   }
@@ -110,16 +112,26 @@ const modifiersOf = (event: KeyboardEvent): KeyboardModifiers => ({
 
 /** The Message a binding dispatches for this event: its own, with the hole filled. */
 const messageFor = (binding: DecodedBinding, event: Event): unknown => {
-  const template = binding.message as Readonly<Record<string, unknown>>
   if (binding.hole === undefined) return binding.message
-  if (binding.event === 'input' || binding.event === 'change') {
-    const [field] = binding.hole
-    return { ...template, [field ?? 'value']: inputValue(event.target) }
+  const fill = (template: Readonly<Record<string, unknown>>): unknown => {
+    if (binding.event === 'input' || binding.event === 'change') {
+      const [field] = binding.hole ?? []
+      return { ...template, [field ?? 'value']: inputValue(event.target) }
+    }
+    if (event instanceof KeyboardEvent) {
+      return { ...template, key: event.key, modifiers: modifiersOf(event) }
+    }
+    return template
   }
-  if (event instanceof KeyboardEvent) {
-    return { ...template, key: event.key, modifiers: modifiersOf(event) }
-  }
-  return binding.message
+  // The hole's fields sit inside each placement wrapper's `message`.
+  const inside = (template: Readonly<Record<string, unknown>>, depth: number): unknown =>
+    depth === 0
+      ? fill(template)
+      : {
+          ...template,
+          message: inside(template.message as Readonly<Record<string, unknown>>, depth - 1),
+        }
+  return inside(binding.message as Readonly<Record<string, unknown>>, binding.depth ?? 0)
 }
 
 /** What `OnClick` declares beside its Message. */

@@ -13,8 +13,8 @@ belong to the server alone, and Remote's data crosses with the page. Resumable
 pages, whose view waits for the first interaction, are being built: bindings
 the server's markup names, a listener that answers them before boot, the
 deferred boot itself, the check that a page dispatches only what its Surfaces
-may send, and a form that works with scripts off are done; what remains is
-Bundle boundaries.
+may send, a form that works with scripts off, and bundles whose bodies load
+on demand are done.
 
 ## What it owns
 
@@ -463,6 +463,42 @@ reason (`FallbackRefused`). A Command that fails is answered `500`, as a
 render that fails is. `SSR.handle(request, config, plan, { buildId, flags? })`
 is also callable on its own, for an entry that is not `SSR.entry`.
 
+## Bundles whose bodies load on demand
+
+A `Bundle.lazy` keeps a bundle's `update` and `view` out of the boot chunk.
+Name each such bundle in the configuration's `lazy` list:
+
+```ts
+const config = {
+  Model,
+  init: () => placements.init({ title: 'Uploads', upload }),
+  update: placements.update(),
+  view: (model: Model, h: HtmlBuilder<Message>) => {
+    const rh = Resume.builder(h)
+    return { title: model.title, body: rh.main([], [PlacedUpload.view(model, rh)]) }
+  },
+  container: null,
+  subscriptions: placements.subscriptions(),
+  lazy: [Upload],
+}
+```
+
+The server loads the bodies before it renders, so the page carries the real
+view, never the bundle's `while`. The browser loads them before it boots: a
+page whose bodies are still on their way answers from its markers meanwhile,
+whatever the plan's `start`, and boots when they arrive, replaying what was
+answered; an event only the live page could answer is dispatched to it again
+then. Bodies fetched at boot rather than on the first Message inside the
+bundle is the trade the page makes for never rendering a placeholder.
+
+A binding inside a placement dispatches the parent's Message, as Foldkit's
+own handlers do, so it is recorded lifted through the placement's wrapper and
+its hole is filled one wrapper down. The plan's Surface lists the wrapper
+variant, `Message.GotUploadMessage`, as it would for any placement. While the
+server renders, each placement's root carries `data-foldkit-plus-slot`,
+`Upload@upload`, a boundary a tool can find; the browser's first patch removes
+it as it removes the markers.
+
 ## When a page is refused
 
 On the server, `SSR.render` fails with `ResumeUnsafe`:
@@ -640,3 +676,11 @@ const Message = defineMessageUnion({
   active Surface lists, a missing Message, one that is not JSON and one that
   does not decode are each `400`; `POST` is `405` for a plan with no fallback,
   and named among the allowed methods for one with.
+- **Phase F, bodies on demand:** the server waits for a lazy bundle's bodies
+  and renders the real view, once per bundle; the placement root is stamped
+  with its slot; a binding inside the placement is the parent's Message with
+  its hole one wrapper down, and one after it is the application's own; in the
+  browser a page starting now with bodies on their way does not boot, answers
+  a click, a press only the live page can answer and typing from its markers,
+  boots when the bodies arrive, and shows the click once, the press once and
+  the text; the stamp is gone after the first patch.

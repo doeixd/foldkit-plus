@@ -33,7 +33,7 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
-import { FALLBACK_FIELD, builder, view } from './resumable.js'
+import { FALLBACK_FIELD, SLOT_ATTRIBUTE, builder, view } from './resumable.js'
 import { decodeBindings, listen, type DecodedBinding } from './listen.js'
 
 /** The attribute on the script that carries a page's resume envelope. */
@@ -669,7 +669,24 @@ export interface ResumableConfig<Model> {
   readonly managedResources?: Readonly<Record<string, unknown>> | undefined
   /** The services Commands need, as Foldkit's runtime provides them. */
   readonly resources?: Layer.Layer<any, any, never> | undefined
+  /**
+   * Bundles whose bodies load on demand (`Bundle.lazy`). The server loads
+   * them before it renders; the browser loads them before it boots, answering
+   * from the markers meanwhile, so a page never shows a bundle's placeholder.
+   */
+  readonly lazy?: ReadonlyArray<Loadable> | undefined
 }
+
+/** What `SSR` needs of a lazy bundle: `Bundle.lazy` gives it. */
+export interface Loadable {
+  readonly name: string
+  readonly load: () => Promise<void>
+  readonly isLoaded: () => boolean
+}
+
+/** Loads every lazy bundle's bodies, so the view renders whole. */
+const loadLazy = (config: { readonly lazy?: ReadonlyArray<Loadable> | undefined }) =>
+  Effect.promise(() => Promise.all((config.lazy ?? []).map(bundle => bundle.load())))
 
 /**
  * The build attribute on Foldkit's hydration root. Foldkit does not export it,
@@ -724,6 +741,7 @@ export interface EncodedBinding {
   readonly attribute: string
   readonly message: unknown
   readonly hole?: ReadonlyArray<string> | undefined
+  readonly depth?: number | undefined
   readonly options?: unknown
 }
 
@@ -751,6 +769,7 @@ const encodeBindings = <Model, Fields extends Schema.Struct.Fields>(
       attribute: binding.attribute,
       message: message.success,
       ...(binding.hole === undefined ? {} : { hole: binding.hole }),
+      ...(binding.depth === undefined ? {} : { depth: binding.depth }),
       ...(binding.options === undefined ? {} : { options: binding.options }),
     })
   }
@@ -849,6 +868,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   RenderError | ResumeUnsafe
 > =>
   Effect.gen(function* () {
+    yield* loadLazy(config)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
     const regions = new Map<string, Region>()
     const duplicates = new Set<string>()
@@ -864,6 +884,8 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         duplicates,
         bindings: servedBindings,
         fallback,
+        wrap: message => message,
+        depth: 0,
         region: undefined,
         inStatic,
       },
@@ -933,6 +955,8 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         regions,
         bindings: browserBindings,
         fallback,
+        wrap: message => message,
+        depth: 0,
       }) as never,
       options as never,
     )
@@ -1194,7 +1218,8 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
       } as never),
       { buildId: options.buildId },
     )
-  if (plan.start === 'now') {
+  const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
+  if (plan.start === 'now' && pending.length === 0) {
     boot()
     return
   }
@@ -1204,7 +1229,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
     adopt(program({ model: plan.baseline }), { buildId: '' })
     return
   }
-  deferBoot(root, decoded.success, plan.start, boot)
+  deferBoot(root, decoded.success, plan.start, boot, pending)
 }
 
 /**
@@ -1223,20 +1248,27 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
 const deferBoot = (
   root: HTMLElement,
   decoded: ReadonlyArray<DecodedBinding>,
-  start: Exclude<Start, 'now'>,
+  start: Start,
   boot: (subscriptions: Readonly<Record<string, unknown>>) => void,
+  pending: ReadonlyArray<Loadable>,
 ): void => {
   const queue: Array<unknown> = []
+  // Events only the live page can answer, met while the bodies were loading.
+  const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
   let booted = false
   // Foldkit's hydrate runs its first render before returning: it adopts the
   // page and attaches its listeners. So the event that boots the page, still
-  // in dispatch, reaches the live page afterwards.
+  // in dispatch, reaches the live page afterwards, unless a bundle's bodies
+  // are still on their way; then the page gets the event again once booted.
   const stop = listen(root, {
     bindings: decoded,
     onAnswer: ({ event, messages, unnamed }) => {
       // An answer the markers could not complete is left to the live page.
       if (unnamed !== undefined) {
+        // Kept for a boot still waiting on bodies; one that just committed
+        // has stopped listening and reads this no more.
         startNow()
+        unanswered.push({ event, element: unnamed })
         return
       }
       // Answered here and replayed after boot: the live page must not answer
@@ -1251,13 +1283,28 @@ const deferBoot = (
     modelToDependencies: () => null,
     dependenciesToStream: () => Stream.fromIterable(queue),
   }
+  const commit = () => {
+    boot({ 'foldkit-ssr.replay': replay })
+    stop()
+    for (const { event, element } of unanswered.splice(0)) {
+      const Ctor = event.constructor as new (type: string, init: Event) => Event
+      element.dispatchEvent(new Ctor(event.type, event))
+    }
+  }
   const startNow = () => {
     if (booted) return
     booted = true
-    boot({ 'foldkit-ssr.replay': replay })
-    stop()
+    if (pending.length === 0) {
+      commit()
+      return
+    }
+    void Promise.all(pending.map(bundle => bundle.load())).then(commit, (error: unknown) => {
+      console.error(`[foldkit-ssr] a bundle's bodies did not load: ${String(error)}`)
+      commit()
+    })
   }
-  if (start === 'idle') {
+  if (start === 'now') startNow()
+  else if (start === 'idle') {
     if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(startNow)
     else setTimeout(startNow, 0)
   }
@@ -1481,5 +1528,10 @@ export const SSR = {
   serializeJsonScript,
 }
 
-export { BINDING_ATTRIBUTE, FALLBACK_FIELD, type ResumableBuilder } from './resumable.js'
+export {
+  BINDING_ATTRIBUTE,
+  FALLBACK_FIELD,
+  SLOT_ATTRIBUTE,
+  type ResumableBuilder,
+} from './resumable.js'
 export type { DecodedBinding } from './listen.js'

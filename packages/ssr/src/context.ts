@@ -31,6 +31,8 @@ export interface Binding {
   readonly element: string
   readonly message: unknown
   readonly hole?: ReadonlyArray<string> | undefined
+  /** How many placement wrappers enclose the hole's fields: `message` is entered that many times. */
+  readonly depth?: number | undefined
   readonly options?: unknown
 }
 
@@ -42,6 +44,10 @@ export type RenderContext =
       readonly bindings: Array<Binding>
       /** Encodes a form's Message for its no-script fallback; absent when the plan has none. */
       readonly fallback: ((message: unknown) => string | undefined) | undefined
+      /** Lifts a Message of the view in progress to the application's, through each enclosing placement. */
+      wrap: (message: unknown) => unknown
+      /** How many placements enclose the view in progress. */
+      depth: number
       /** The static region whose render is in progress, if any. */
       region: string | undefined
       /** Handlers met inside a static region, which the server alone renders. */
@@ -56,6 +62,8 @@ export type RenderContext =
       readonly regions: ReadonlyMap<string, Region>
       readonly bindings: Array<Binding>
       readonly fallback: ((message: unknown) => string | undefined) | undefined
+      wrap: (message: unknown) => unknown
+      depth: number
     }
   | {
       readonly mode: 'resume'
