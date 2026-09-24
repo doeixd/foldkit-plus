@@ -9,7 +9,7 @@ import {
   component,
   disabled,
   focusRing,
-  token,
+  ref,
   tones,
   toneVar,
   transition,
@@ -27,12 +27,12 @@ export const Button = Style.recipeFor(ButtonSlots)({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: token('space', 'xs'),
-        border: `${token('border', 'thin')} solid transparent`,
-        borderRadius: token('radius', 'md'),
+        gap: ref.space.xs,
+        border: `${ref.border.thin} solid transparent`,
+        borderRadius: ref.radius.md,
         font: 'inherit',
-        fontWeight: token('weight', 'medium'),
-        lineHeight: token('leading', 'tight'),
+        fontWeight: ref.weight.medium,
+        lineHeight: ref.leading.tight,
         cursor: 'pointer',
         ...transition('background-color, border-color, color'),
       }),
@@ -71,9 +71,9 @@ export const Button = Style.recipeFor(ButtonSlots)({
       },
     },
     size: {
-      sm: { button: size(token('space', '2xs'), token('space', 'sm'), token('size', 'sm')) },
-      md: { button: size(token('space', 'xs'), token('space', 'md'), token('size', 'md')) },
-      lg: { button: size(token('space', 'sm'), token('space', 'lg'), token('size', 'lg')) },
+      sm: { button: size(ref.space['2xs'], ref.space.sm, ref.size.sm) },
+      md: { button: size(ref.space.xs, ref.space.md, ref.size.md) },
+      lg: { button: size(ref.space.sm, ref.space.lg, ref.size.lg) },
     },
   },
   defaults: { tone: 'accent', variant: 'solid', size: 'md' },
@@ -82,15 +82,13 @@ export const Button = Style.recipeFor(ButtonSlots)({
       // A destructive primary action announces itself on focus too.
       when: { tone: 'danger', variant: 'solid' },
       style: {
-        button: variant(
-          Style.pseudo(':focus-visible', { outlineColor: token('error', 'outline') }),
-        ),
+        button: variant(Style.pseudo(':focus-visible', { outlineColor: ref.error.outline })),
       },
     },
     {
       // A small ghost button sits in dense toolbars: trim it to its label.
       when: { variant: 'ghost', size: 'sm' },
-      style: { button: variant(Style.self({ paddingInline: token('space', '2xs') })) },
+      style: { button: variant(Style.self({ paddingInline: ref.space['2xs'] })) },
     },
   ],
 })

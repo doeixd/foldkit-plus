@@ -17,8 +17,15 @@ describe('Theme', () => {
     expect(Object.isFrozen(Brand.color)).toBe(true)
   })
 
-  it('builds a css var reference', () => {
-    expect(Theme.variable(Brand, 'color', 'accent')).toBe('var(--fk-color-accent)')
+  it('references every token by path, frozen and built once', () => {
+    const ref = Theme.ref(Brand)
+    expect(ref).toEqual({
+      color: { text: 'var(--fk-color-text)', accent: 'var(--fk-color-accent)' },
+      spacing: { sm: 'var(--fk-spacing-sm)', md: 'var(--fk-spacing-md)' },
+    })
+    expect(Object.isFrozen(ref)).toBe(true)
+    expect(Object.isFrozen(ref.color)).toBe(true)
+    expect(Theme.ref(Brand)).toBe(ref)
   })
 
   it('compiles all tokens to one inline StyleValue', () => {
@@ -47,6 +54,7 @@ describe('Theme.lightDark and compose', () => {
       space: { sm: '4px' },
       radius: { md: '8px' },
     })
-    expect(Theme.variable(merged, 'radius', 'md')).toBe('var(--fk-radius-md)')
+    expect(Theme.ref(merged).radius.md).toBe('var(--fk-radius-md)')
+    expect(Theme.ref(merged).color.bg).toBe('var(--fk-color-bg)')
   })
 })

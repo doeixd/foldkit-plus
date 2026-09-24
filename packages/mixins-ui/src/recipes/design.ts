@@ -5,15 +5,16 @@
  * `foldkit-mixins/theme`; a token name either lacks is a type error here.
  */
 import { Layers, Style, type Declarations, type StyleValue } from 'foldkit-mixins'
-import type { OklchTheme, Tokens } from 'foldkit-mixins/theme'
+import { Theme } from 'foldkit-mixins/theme'
 
-type Design = Tokens & OklchTheme
-
-/** `var(--fk-group-name)` for a token the shipped scales or palette define. */
-export const token = <Group extends keyof Design & string>(
-  group: Group,
-  name: keyof Design[Group] & string,
-): string => `var(--fk-${group}-${name})`
+/**
+ * `var(--fk-group-name)` for every token the shipped scales and palette
+ * define. The palette is built only for its names: `Theme.ref` never reads a
+ * value, so the accent here is irrelevant and the page's own palette applies.
+ */
+export const ref = Theme.ref(
+  Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 0, c: 0, l: '50%' } })),
+)
 
 /** The base of a recipe, in the `components` layer. */
 export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
@@ -28,7 +29,7 @@ export const hover = (declarations: Declarations): StyleValue =>
   Style.pseudo(':hover:not([aria-disabled="true"], :disabled)', declarations)
 
 export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
-  outline: `${token('border', 'thick')} solid ${token('outline', 'focus')}`,
+  outline: `${ref.border.thick} solid ${ref.outline.focus}`,
   outlineOffset: '2px',
 })
 
@@ -39,8 +40,8 @@ export const disabled: StyleValue = Style.pseudo(':is([aria-disabled="true"], :d
 
 export const transition = (properties: string): Declarations => ({
   transitionProperty: properties,
-  transitionDuration: token('motion', 'fast'),
-  transitionTimingFunction: token('motion', 'ease'),
+  transitionDuration: ref.motion.fast,
+  transitionTimingFunction: ref.motion.ease,
 })
 
 /**
@@ -73,24 +74,24 @@ export const toneVar = (name: 'fill' | 'fill-hover' | 'on-fill' | 'ink' | 'wash'
 
 export const tones = {
   accent: tone({
-    fill: token('accent', 'default'),
-    fillHover: token('accent', 'hover'),
-    onFill: token('accent', 'text'),
-    ink: token('text', 'link'),
-    wash: token('accent', 'subtle'),
+    fill: ref.accent.default,
+    fillHover: ref.accent.hover,
+    onFill: ref.accent.text,
+    ink: ref.text.link,
+    wash: ref.accent.subtle,
   }),
   neutral: tone({
-    fill: token('surface', 'default'),
-    fillHover: token('surface', 'overt'),
-    onFill: token('text', 'overt'),
-    ink: token('text', 'default'),
-    wash: token('surface', 'muted'),
+    fill: ref.surface.default,
+    fillHover: ref.surface.overt,
+    onFill: ref.text.overt,
+    ink: ref.text.default,
+    wash: ref.surface.muted,
   }),
   danger: tone({
-    fill: token('error', 'default'),
-    fillHover: token('error', 'outline'),
-    onFill: token('error', 'text'),
-    ink: token('error', 'outline'),
-    wash: token('error', 'subtle'),
+    fill: ref.error.default,
+    fillHover: ref.error.outline,
+    onFill: ref.error.text,
+    ink: ref.error.outline,
+    wash: ref.error.subtle,
   }),
 } as const

@@ -55,21 +55,18 @@ const palette = Theme.oklch({
 const own = Theme.define({
   radius: { card: '16px', control: '10px' },
   text: {
-    done: `color-mix(in oklch, ${Theme.variable(palette, 'text', 'muted')} 60%, ${Theme.variable(palette, 'surface', 'base')})`,
+    done: `color-mix(in oklch, ${Theme.ref(palette).text.muted} 60%, ${Theme.ref(palette).surface.base})`,
   },
 })
 
 export const theme = Theme.compose(Theme.compose(Theme.tokens, palette), own)
 
-/** `var(--fk-accent-default)`: a token reference, checked against the theme. */
-const v = <G extends keyof typeof theme & string>(
-  group: G,
-  name: keyof (typeof theme)[G] & string,
-) => Theme.variable(theme, group, name)
+/** `t.accent.default` is `var(--fk-accent-default)`; a name the theme lacks is a type error. */
+export const t = Theme.ref(theme)
 
 const control: StyleValue = Style.inline({
   font: 'inherit',
-  borderRadius: v('radius', 'control'),
+  borderRadius: t.radius.control,
 })
 
 // --- the page ------------------------------------------------------------------
@@ -85,10 +82,10 @@ export const PageStyle = Style.forSlots(PageSlots)(
       Layers.standard.in('layouts', Layout.stack({ gap: '1.25rem' })),
       Style.inline({
         width: 'min(40rem, 100%)',
-        background: v('surface', 'base'),
-        color: v('text', 'default'),
-        border: `1px solid ${v('outline', 'subtle')}`,
-        borderRadius: v('radius', 'card'),
+        background: t.surface.base,
+        color: t.text.default,
+        border: `1px solid ${t.outline.subtle}`,
+        borderRadius: t.radius.card,
         padding: '1.75rem',
         boxShadow: '0 12px 40px rgb(0 0 0 / 8%)',
       }),
@@ -130,11 +127,11 @@ export const HeaderStyle = Style.forSlots(HeaderSlots)(
         minWidth: '0',
       }),
       Style.pseudo(':focus-visible', {
-        outline: `2px solid ${v('outline', 'focus')}`,
+        outline: `2px solid ${t.outline.focus}`,
         outlineOffset: '2px',
       }),
     ),
-    tally: Style.inline({ margin: '0', color: v('text', 'muted'), fontSize: '0.85rem' }),
+    tally: Style.inline({ margin: '0', color: t.text.muted, fontSize: '0.85rem' }),
   },
   { name: 'HeaderStyle' },
 )
@@ -158,12 +155,12 @@ export const ComposerStyle = Style.forSlots(ComposerSlots)(
       Style.inline({
         flex: '1',
         padding: '0.7rem 0.85rem',
-        border: `1px solid ${v('outline', 'default')}`,
+        border: `1px solid ${t.outline.default}`,
         background: 'transparent',
         color: 'inherit',
       }),
       Style.pseudo(':focus', {
-        outline: `2px solid ${v('outline', 'focus')}`,
+        outline: `2px solid ${t.outline.focus}`,
         outlineOffset: '1px',
       }),
     ),
@@ -180,7 +177,7 @@ export const ComposerStyle = Style.forSlots(ComposerSlots)(
 const AddButton = Recipes.Button.extend({
   base: {
     button: Style.inline({
-      borderRadius: v('radius', 'control'),
+      borderRadius: t.radius.control,
       padding: '0.7rem 1.1rem',
       fontWeight: '600',
     }),
@@ -211,9 +208,9 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
       Style.inline({
         padding: '0.3rem 0.75rem',
         border: '1px solid transparent',
-        borderRadius: v('radius', 'full'),
+        borderRadius: t.radius.full,
         background: 'transparent',
-        color: v('text', 'muted'),
+        color: t.text.muted,
         font: 'inherit',
         textTransform: 'capitalize',
         cursor: 'pointer',
@@ -223,12 +220,12 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
       Style.whenInput<FilterInput>(
         input => input.active,
         Style.inline({
-          borderColor: v('outline', 'subtle'),
-          background: v('accent', 'subtle'),
-          color: v('text', 'link'),
+          borderColor: t.outline.subtle,
+          background: t.accent.subtle,
+          color: t.text.link,
         }),
       ),
-      Style.pseudo(':hover', { color: v('text', 'default') }),
+      Style.pseudo(':hover', { color: t.text.default }),
     ),
   },
   { name: 'FilterStyle' },
@@ -279,7 +276,7 @@ const badge = Style.recipe({
     Style.class('badge'),
     Style.inline({
       border: '0',
-      borderRadius: v('radius', 'full'),
+      borderRadius: t.radius.full,
       padding: '0.1rem 0.55rem',
       font: 'inherit',
       fontSize: '0.75rem',
@@ -289,9 +286,9 @@ const badge = Style.recipe({
   ),
   variants: {
     priority: {
-      high: Style.inline({ color: v('warning', 'default') }),
-      normal: Style.inline({ color: v('text', 'muted') }),
-      low: Style.inline({ color: v('info', 'default') }),
+      high: Style.inline({ color: t.warning.default }),
+      normal: Style.inline({ color: t.text.muted }),
+      low: Style.inline({ color: t.info.default }),
     },
   },
   defaults: { priority: 'normal' },
@@ -307,7 +304,7 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.inline({
         flexWrap: 'nowrap',
         padding: '0.6rem 0',
-        borderTop: `1px solid ${v('outline', 'subtle')}`,
+        borderTop: `1px solid ${t.outline.subtle}`,
       }),
       // `nest` styles a descendant from the row's own class, so hovering the
       // row reveals its delete button without the view knowing.
@@ -318,7 +315,7 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.inline({ flex: '1', cursor: 'text' }),
       Style.whenInput<ItemInput>(
         input => input.todo.completed,
-        Style.inline({ color: v('text', 'done'), textDecoration: 'line-through' }),
+        Style.inline({ color: t.text.done, textDecoration: 'line-through' }),
       ),
     ),
     // The recipe picks the variant from the input, one piece per priority.
@@ -332,19 +329,19 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.inline({
         border: '0',
         background: 'transparent',
-        color: v('text', 'muted'),
+        color: t.text.muted,
         fontSize: '1.2rem',
         lineHeight: '1',
         cursor: 'pointer',
       }),
-      Style.pseudo(':hover', { color: v('error', 'default') }),
+      Style.pseudo(':hover', { color: t.error.default }),
     ),
     editor: Style.compose(
       control,
       Style.inline({
         flex: '1',
         padding: '0.3rem 0.5rem',
-        border: `1px solid ${v('accent', 'default')}`,
+        border: `1px solid ${t.accent.default}`,
         background: 'transparent',
         color: 'inherit',
       }),
@@ -382,19 +379,19 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
         height: '1.5rem',
         display: 'grid',
         placeItems: 'center',
-        border: `1px solid ${v('outline', 'overt')}`,
+        border: `1px solid ${t.outline.overt}`,
         borderRadius: '50%',
         background: 'transparent',
-        color: v('accent', 'default'),
+        color: t.accent.default,
         cursor: 'pointer',
         padding: '0',
       }),
       Style.whenInput<ItemInput>(
         input => input.todo.completed,
-        Style.inline({ borderColor: v('accent', 'default') }),
+        Style.inline({ borderColor: t.accent.default }),
       ),
       Style.pseudo(':focus-visible', {
-        outline: `2px solid ${v('outline', 'focus')}`,
+        outline: `2px solid ${t.outline.focus}`,
         outlineOffset: '2px',
       }),
     ),
@@ -415,8 +412,8 @@ export const FooterStyle = Style.forSlots(FooterSlots)(
       Layers.standard.in('layouts', Layout.cluster({ justify: 'space-between', gap: '1rem' })),
       Style.inline({
         paddingTop: '1rem',
-        borderTop: `1px solid ${v('outline', 'subtle')}`,
-        color: v('text', 'muted'),
+        borderTop: `1px solid ${t.outline.subtle}`,
+        color: t.text.muted,
         fontSize: '0.85rem',
       }),
     ),
@@ -431,12 +428,12 @@ export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
       Style.inline({
         border: '0',
         background: 'transparent',
-        color: v('text', 'muted'),
+        color: t.text.muted,
         font: 'inherit',
         cursor: 'pointer',
       }),
       Style.pseudo(':disabled', { opacity: '0.5', cursor: 'default' }),
-      Style.pseudo(':not(:disabled):hover', { color: v('error', 'default') }),
+      Style.pseudo(':not(:disabled):hover', { color: t.error.default }),
     ),
   },
   { name: 'ClearButtonStyle' },

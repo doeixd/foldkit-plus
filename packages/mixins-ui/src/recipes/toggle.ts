@@ -11,7 +11,7 @@ import {
   component,
   disabled,
   focusRing,
-  token,
+  ref,
   tones,
   toneVar,
   transition,
@@ -21,12 +21,10 @@ import {
 const checked = '[aria-checked="true"]'
 
 const label = component(
-  Style.self({ color: token('text', 'default'), fontSize: token('size', 'md'), cursor: 'pointer' }),
+  Style.self({ color: ref.text.default, fontSize: ref.size.md, cursor: 'pointer' }),
 )
 
-const description = component(
-  Style.self({ color: token('text', 'muted'), fontSize: token('size', 'sm') }),
-)
+const description = component(Style.self({ color: ref.text.muted, fontSize: ref.size.sm }))
 
 /** The control's edge length; the check mark and the thumb scale from it. */
 const box = (length: string) => variant(Style.self({ '--_fk-toggle-size': length }))
@@ -49,9 +47,9 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         inlineSize: edge,
         blockSize: edge,
         padding: '0',
-        border: `${token('border', 'thin')} solid ${token('outline', 'overt')}`,
-        borderRadius: token('radius', 'sm'),
-        background: token('surface', 'base'),
+        border: `${ref.border.thin} solid ${ref.outline.overt}`,
+        borderRadius: ref.radius.sm,
+        background: ref.surface.base,
         cursor: 'pointer',
         ...transition('background-color, border-color'),
       }),
@@ -104,8 +102,8 @@ export const Switch = Style.recipeFor(SwitchSlots)({
         blockSize: edge,
         padding: '0',
         border: '0',
-        borderRadius: token('radius', 'full'),
-        background: token('outline', 'overt'),
+        borderRadius: ref.radius.full,
+        background: ref.outline.overt,
         cursor: 'pointer',
         ...transition('background-color'),
       }),
@@ -116,11 +114,11 @@ export const Switch = Style.recipeFor(SwitchSlots)({
         insetInlineStart: '2px',
         inlineSize: `calc(${edge} - 4px)`,
         blockSize: `calc(${edge} - 4px)`,
-        borderRadius: token('radius', 'full'),
-        background: token('surface', 'base'),
+        borderRadius: ref.radius.full,
+        background: ref.surface.base,
         transitionProperty: 'translate',
-        transitionDuration: token('motion', 'fast'),
-        transitionTimingFunction: token('motion', 'ease'),
+        transitionDuration: ref.motion.fast,
+        transitionTimingFunction: ref.motion.ease,
       }),
       Style.pseudo(checked, { background: toneVar('fill') }),
       Style.pseudo(`${checked}::before`, { translate: `calc(${edge} * 0.8) 0` }),

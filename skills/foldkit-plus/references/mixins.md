@@ -107,7 +107,9 @@ attributes plus resolved contributions; the view owns `OnInput`, so a Behavior a
 Build outward: `Style.when`, `Style.whenInput(pred, piece)`, `Style.recipe({ base, variants,
 defaults, compound })`, rule-based `Style.self/pseudo/media/supports/container/nest/keyframes/global` (`self` is `&{…}`: the element's own declarations as a rule, so a layer can hold them; inline style is unlayered); `pseudo` and `nest` scope every selector of a comma list, and a selector that writes `&` places the class itself
 (compiled to a deterministic hashed class; read `FieldStyle.css` or
-`Style.stylesheet(...styles)`), `Theme.define`. Every piece's declarations are typed
+`Style.stylesheet(...styles)`), `Theme.define`, and `Theme.ref(theme)` (every token as a typed
+`var(--fk-group-name)`: `Theme.ref(theme).surface.base`; a missing group or name is a type error;
+it replaced `Theme.variable`). Every piece's declarations are typed
 `Declarations` (csstype camelCase properties plus `--custom` ones, string values): a misspelled
 or kebab-case key in a literal is a type error; a value typed as a plain string record is not
 checked. For a slot rendered once per item (tabs, rows)

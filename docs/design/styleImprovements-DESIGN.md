@@ -119,7 +119,8 @@ css-tags puts layouts last for the same reason, but it has no variants layer.
 ### 2.1 What a Theme is
 
 Unchanged: `Theme.define(tokens)` is a frozen two-level record of strings and
-`Theme.variable(theme, group, name)` is `var(--fk-group-name)`. A token's
+`Theme.ref(theme).group.name` is `var(--fk-group-name)` (built: it replaced the
+`Theme.variable(theme, group, name)` of the first draft). A token's
 *value* may be a literal, a `light-dark()`, or a CSS expression that
 references other tokens. That last case is what makes derivation possible.
 
@@ -186,7 +187,7 @@ Determinism: the same knobs give byte-identical values. `Theme.oklch` is
 called at module load, like every other Style value.
 
 The types: `OklchTheme` is a concrete `ThemeTokens` type so
-`Theme.variable(theme, 'surface', 'overt')` autocompletes and a wrong name is
+`Theme.ref(theme).surface.overt` autocompletes and a wrong name is
 a type error. `Theme.compose(Theme.oklch(...), { color: {...} })` still
 merges group-wise.
 

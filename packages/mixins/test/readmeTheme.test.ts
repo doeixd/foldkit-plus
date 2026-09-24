@@ -8,12 +8,13 @@ import { Theme } from '../src/theme.js'
 
 const L = Layers.standard
 const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a missing name is a type error
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
 const PageStyle = Style.forSlots(PageSlots)({
   root: Style.inline({
-    background: Theme.variable(theme, 'surface', 'base'),
-    color: Theme.variable(theme, 'text', 'default'),
+    background: t.surface.base,
+    color: t.text.default,
   }),
 })
 

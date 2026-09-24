@@ -20,11 +20,36 @@ export const define = <T extends ThemeTokens>(tokens: T): Readonly<T> =>
     ),
   ) as Readonly<T>
 
-export const variable = <T extends ThemeTokens, G extends keyof T & string>(
-  _theme: T,
-  group: G,
-  name: keyof T[G] & string,
-): string => `var(${VAR_PREFIX}-${group}-${name})`
+/** `var(--fk-group-name)` for every token, by the theme's own group and token names. */
+export type Refs<T extends ThemeTokens> = {
+  readonly [G in keyof T & string]: { readonly [N in keyof T[G] & string]: string }
+}
+
+const refsByTheme = new WeakMap<ThemeTokens, Refs<ThemeTokens>>()
+
+/**
+ * The theme's tokens as references: `Theme.ref(theme).surface.overt` is
+ * `var(--fk-surface-overt)`, and a group or name the theme lacks is a type
+ * error. Only the names are read, never the values. Built once per theme.
+ */
+export const ref = <T extends ThemeTokens>(theme: T): Refs<T> => {
+  const cached = refsByTheme.get(theme)
+  if (cached !== undefined) return cached as Refs<T>
+  const built = Object.freeze(
+    Object.fromEntries(
+      Object.entries(theme).map(([group, names]) => [
+        group,
+        Object.freeze(
+          Object.fromEntries(
+            Object.keys(names).map(name => [name, `var(${VAR_PREFIX}-${group}-${name})`]),
+          ),
+        ),
+      ]),
+    ),
+  )
+  refsByTheme.set(theme, built)
+  return built as Refs<T>
+}
 
 export const variables = <T extends ThemeTokens>(theme: T): StyleValue => {
   const style: Record<`--${string}`, string> = {}
@@ -67,4 +92,4 @@ export const compose = <A extends ThemeTokens, B extends ThemeTokens>(
   return define(merged) as unknown as Readonly<Merge<A, B>>
 }
 
-export const Theme = { define, variable, variables, lightDark, compose } as const
+export const Theme = { define, ref, variables, lightDark, compose } as const

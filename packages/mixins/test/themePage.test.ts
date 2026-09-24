@@ -234,9 +234,9 @@ describe('Theme.oklch', () => {
   })
 
   it('is a concrete type: a known token autocompletes, an unknown one is refused', () => {
-    expect(Theme.variable(brand, 'surface', 'overt')).toBe('var(--fk-surface-overt)')
+    expect(Theme.ref(brand).surface.overt).toBe('var(--fk-surface-overt)')
     // @ts-expect-error not a surface token
-    Theme.variable(brand, 'surface', 'loud')
+    Theme.ref(brand).surface.loud
   })
 })
 
@@ -250,7 +250,7 @@ describe('the page sheet', () => {
     const page = Style.compose(
       Style.class('page'),
       Style.pseudo(':focus-within', {
-        outline: `2px solid ${Theme.variable(theme, 'outline', 'focus')}`,
+        outline: `2px solid ${Theme.ref(theme).outline.focus}`,
       }),
     )
     const sheet = Style.stylesheet(

@@ -3,17 +3,17 @@
  */
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
-import { token } from '../src/recipes/design.js'
+import { ref } from '../src/recipes/design.js'
 import { ButtonSlots, Recipes } from '../src/index.js'
 
-token('surface', 'overt')
-token('space', 'md')
+void ref.surface.overt
+void ref.space.md
 
 // @ts-expect-error a token the palette does not define.
-token('surface', 'shiny')
+void ref.surface.shiny
 
 // @ts-expect-error a group neither the scales nor the palette have.
-token('shadow', 'md')
+void ref.shadow
 
 Recipes.Button({ tone: 'danger', variant: 'ghost', size: 'sm' })
 

@@ -57,11 +57,13 @@ IntentRecipe({ intent: 'ghost' })
 IntentRecipe({ size: 'sm' })
 
 const Brand = Theme.define({ color: { text: '#000' } })
-Theme.variable(Brand, 'color', 'text')
+const BrandRef = Theme.ref(Brand)
+const _text: string = BrandRef.color.text
+void _text
 // @ts-expect-error unknown theme group.
-Theme.variable(Brand, 'spacing', 'sm')
+BrandRef.spacing
 // @ts-expect-error unknown theme token.
-Theme.variable(Brand, 'color', 'missing')
+BrandRef.color.missing
 
 interface PredicateInput {
   readonly dark: boolean
