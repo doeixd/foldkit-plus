@@ -14,6 +14,7 @@ import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor } from './editor.js'
+import { placeRendering } from './host.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -264,10 +265,13 @@ const editorLink: Link<
 
 /**
  * Places one editor, bound to the host element the view renders and the patch
- * Command finds. Each placement picks its own id.
+ * Command finds. Each placement picks its own id. A rendering registry (§121) is
+ * placed for that id rather than passed as an arg (§122): it holds functions, so
+ * the mount looks it up by host id instead.
  */
-export const editorAt = (hostId: string) =>
-  Editor.at(editorLink, {
+export const editorAt = (hostId: string, rendering: RichText.Rendering = RichText.noRendering) => {
+  placeRendering(hostId, rendering)
+  return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.
     onOut: (out: OutMessage) => (parent: Model) =>
@@ -281,6 +285,7 @@ export const editorAt = (hostId: string) =>
           }
         : { model: parent },
   })
+}
 
 export const editor = editorAt('richtext-editor')
 

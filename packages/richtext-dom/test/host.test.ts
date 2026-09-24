@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, mountInto, releaseMount } from '../src/host.js'
+import { attachmentIn, mountInto, placeRendering, releaseMount, renderingFor } from '../src/host.js'
 
 const at = (node: string, offset: number): RichText.Position => ({
   node: RichText.NodeId.make(node),
@@ -135,5 +135,35 @@ describe('mounting into a host element', () => {
     mountInto(element, content(), { onIntent: () => {} })
     expect(element.children.length).toBe(1)
     releaseMount(element)
+  })
+})
+
+describe('a rendering registry placed for a host id (§122)', () => {
+  const registry = (tag: string): RichText.Rendering =>
+    RichText.rendering({ marks: { Link: { tag, attributes: {} } } })
+
+  it('returns what was placed, and the default for an id nothing placed', () => {
+    const placed = registry('a')
+    placeRendering('registry-1', placed)
+    expect(renderingFor('registry-1')).toBe(placed)
+    expect(renderingFor('registry-not-placed')).toBe(RichText.noRendering)
+  })
+
+  it('replaces what an id had rather than accumulating', () => {
+    placeRendering('registry-2', registry('a'))
+    const second = registry('span')
+    placeRendering('registry-2', second)
+    expect(renderingFor('registry-2')).toBe(second)
+  })
+
+  it('forgets the registry when the host it belongs to is released', () => {
+    const element = host()
+    element.id = 'registry-3'
+    const placed = registry('a')
+    placeRendering('registry-3', placed)
+    mountInto(element, content(), { onIntent: () => {} }, placed)
+    expect(renderingFor('registry-3')).toBe(placed)
+    releaseMount(element)
+    expect(renderingFor('registry-3')).toBe(RichText.noRendering)
   })
 })

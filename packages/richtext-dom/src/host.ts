@@ -9,6 +9,21 @@ import { mount } from './index.js'
 import { attach, type AttachOptions, type Attachment } from './events.js'
 
 const attachments = new WeakMap<Element, Attachment>()
+const renderings = new Map<string, RichText.Rendering>()
+
+/**
+ * Records how a placement's host id renders (§122). A registry holds functions,
+ * so it cannot ride in a Bundle's args or Model; it is placed by host id because
+ * a view is placed before its element exists, and the mount looks it up with the
+ * id it renders. Re-placing an id replaces what it had.
+ */
+export const placeRendering = (hostId: string, rendering: RichText.Rendering): void => {
+  renderings.set(hostId, rendering)
+}
+
+/** The registry placed for a host id, or the default when none was placed. */
+export const renderingFor = (hostId: string): RichText.Rendering =>
+  renderings.get(hostId) ?? RichText.noRendering
 
 /**
  * Renders `content` into `host` and records the attachment. The host is the
@@ -40,6 +55,7 @@ export const releaseMount = (host: Element): void => {
   const attachment = attachments.get(host)
   if (attachment === undefined) return
   attachments.delete(host)
+  renderings.delete(host.id)
   attachment.detach()
   attachment.current().root.remove()
 }

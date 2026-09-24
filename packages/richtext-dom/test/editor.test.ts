@@ -7,7 +7,7 @@ import { Effect, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
 import { positionToRange } from '../src/index.js'
-import { attachmentIn, releaseMount } from '../src/host.js'
+import { attachmentIn, placeRendering, releaseMount } from '../src/host.js'
 import { describe, expect, it } from 'vitest'
 import { attachEditor, events, patchEditor, toMessage, Message } from '../src/editor.js'
 
@@ -213,5 +213,68 @@ describe('attaching an editor with a rendering registry', () => {
     expect(run.firstChild).toBeInstanceOf(HTMLAnchorElement)
     expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
     releaseMount(element)
+  })
+})
+
+describe('the mount reading a registry placed for its host id (§122)', () => {
+  const linked = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 'a',
+              text: 'docs',
+              marks: [{ name: 'Link', props: { href: '/x' } }],
+            },
+          ],
+        },
+      ],
+    })
+
+  /** Drives the mount's stream, as a view does, until the first Message. */
+  const mounted = async (element: HTMLElement) => {
+    const collected = Effect.runPromise(
+      Stream.runCollect(
+        events({ content: linked() }).f(element, liveViewStateChanges).pipe(Stream.take(1)),
+      ),
+    )
+    await waitFor(() => attachmentIn(element) !== undefined)
+    const attachment = attachmentIn(element)
+    if (attachment === undefined) throw new Error('expected an attachment')
+    const end = () => {
+      attachment.current().root.dispatchEvent(beforeInput('insertText', 'X'))
+      return collected
+    }
+    return { attachment, end }
+  }
+
+  it('renders through the registry the placement recorded', async () => {
+    const element = host()
+    element.id = 'placed-editor'
+    placeRendering(
+      'placed-editor',
+      RichText.rendering({ marks: { Link: { tag: 'a', attributes: { href: '/x' } } } }),
+    )
+    const { end } = await mounted(element)
+    const run = element.querySelector('[data-run]') as HTMLElement
+    expect(run.firstChild).toBeInstanceOf(HTMLAnchorElement)
+    expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
+    expect(run.hasAttribute('data-marks')).toBe(false)
+    expect(Array.from(await end())).toEqual([Message.Typed({ text: 'X' })])
+  })
+
+  it('keeps the default registry when no placement named the id', async () => {
+    const element = host()
+    element.id = 'unplaced-editor'
+    const { end } = await mounted(element)
+    const run = element.querySelector('[data-run]') as HTMLElement
+    expect(run.firstChild).toBeInstanceOf(Text)
+    expect(run.getAttribute('data-marks')).toBe('Link')
+    await end()
   })
 })

@@ -99,7 +99,10 @@ and clipboard events into editor intent while preventing the browser from mutati
 the subtree behind the document. `onSelection` reports a caret the application did
 not just commit, and `mountInto(host, content, options)` at
 `foldkit-richtext-dom/host` renders into a view's host element and records the
-attachment a patch Command later finds. A Kit passed to `attach` degrades
+attachment a patch Command later finds. A registry can also be `placeRendering`d for
+a host id — what the editor Bundle's `editorAt(hostId, renderer?)` does — and the
+mount reads it by that id, so a renderer reaches a view's mount without entering a
+Model or schema-decoded args (`renderingFor` reads the record back). A Kit passed to `attach` degrades
 undeclared node kinds, and its `keymap` adds or overrides chord bindings
 (`Mod-b`, `Alt-ArrowUp`), checked before the built-in chords.
 `foldkit-richtext-dom/toolbar` renders the marks as buttons (`marksToolbar`) that
@@ -114,7 +117,7 @@ vocabulary (`Typed`, `Entered`, `ToggledMark`, `Selected`, `Pasted`, `Undone`,
 `Redone`, `Patched`), `toMessage`, the `events` mount a view renders as its host
 element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
 element that host names. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId)`, `application`/`update`, and the
+Bundle (§27): `Editor`, `editorAt(hostId, renderer?)`, `application`/`update`, and the
 Messages a host dispatches; every accepted edit returns that patch Command.
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a

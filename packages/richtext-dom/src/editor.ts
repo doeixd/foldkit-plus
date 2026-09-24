@@ -11,7 +11,7 @@ import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, mountInto, releaseMount } from './host.js'
+import { attachmentIn, mountInto, releaseMount, renderingFor } from './host.js'
 
 export const Message = defineMessageUnion({
   Typed: { text: Schema.String },
@@ -109,7 +109,9 @@ export const patchEditor = (
   return true
 }
 
-/** The editor's events as a mount: one attachment per element, released with it. */
+/** The editor's events as a mount: one attachment per element, released with it.
+ *  The rendering registry is looked up by the host id the placement recorded
+ *  (§122), so it reaches the mount without entering a Model or a mount's args. */
 export const events = Mount.defineStream('RichTextDomEvents', {
   args: { content: RichText.Document },
   messages: [
@@ -127,7 +129,12 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Stream.callback<EditorEvent>(queue =>
       Effect.acquireRelease(
         Effect.sync(() =>
-          attachEditor(element, content, message => Queue.offerUnsafe(queue, message)),
+          attachEditor(
+            element,
+            content,
+            message => Queue.offerUnsafe(queue, message),
+            renderingFor(element.id),
+          ),
         ),
         () => Effect.sync(() => releaseMount(element)),
       ),

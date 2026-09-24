@@ -6,7 +6,13 @@
  */
 import * as RichText from 'foldkit-richtext'
 import { type EditorDom, mount } from 'foldkit-richtext-dom'
-import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
+import {
+  attachmentIn,
+  mountInto,
+  placeRendering,
+  releaseMount,
+  renderingFor,
+} from 'foldkit-richtext-dom/host'
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
 import { parseHtml } from 'foldkit-richtext-dom/html'
 import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
@@ -28,6 +34,8 @@ export type Surface = [
   typeof attachmentIn,
   typeof mountInto,
   typeof releaseMount,
+  typeof placeRendering,
+  typeof renderingFor,
   typeof attach,
   typeof intentFor,
   KeyBinding,
@@ -54,4 +62,14 @@ export type Surface = [
 export const renderedWith = (document: RichText.Document, renderer: RichText.Rendering) => [
   renderDocument(document, renderer),
   ...renderBlocks(document.children, renderer),
+]
+
+/**
+ * §122: a placement records its renderer by host id, and the mount reads it back;
+ * the registry reaches a view without entering the Bundle's schema-decoded args.
+ */
+export const placed = (renderer: RichText.Rendering) => [
+  editorAt('smoke-host', renderer),
+  renderingFor('smoke-host'),
+  placeRendering('smoke-other', renderer),
 ]
