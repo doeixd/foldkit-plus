@@ -85,7 +85,11 @@ because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
 `DOMParser` tree: known tags map to blocks and marks, `data-marks`/`data-unknown`
 round-trip, other elements are unwrapped or dropped with a diagnostic, attributes
 are never interpreted, and `script`/`style`/`iframe` are dropped with their
-content. The adapter's `mount` builds an owned `contenteditable` subtree, `patch`
+content. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
+`contenteditable` subtree and takes the same `rendering(...)` registry, so each mark
+nests as an element inside its run element exactly as the read-only view nests it,
+while a name no entry renders stays on `data-marks`; the registry lives on the
+`EditorDom` and every later patch reuses it. `patch`
 applies a `ChangeSet` in place and keeps untouched element identity, `repair`
 recovers after an IME or an outside mutation,
 `positionToRange`/`rangeToPosition` map a semantic `Position` to and from a DOM

@@ -47,6 +47,47 @@ const success = (result: RichText.TransactionResult) => {
   return result
 }
 
+/** The chain of elements a run's text sits under, innermost last. */
+const tagsWithin = (element: HTMLElement): ReadonlyArray<string> => {
+  const tags: Array<string> = []
+  let node: Node | null = element.firstChild
+  while (node instanceof Element) {
+    tags.push(node.tagName.toLowerCase())
+    node = node.firstChild
+  }
+  return tags
+}
+
+const links = RichText.rendering({
+  marks: {
+    Link: mark => ({
+      tag: 'a',
+      attributes: { href: String(RichText.markProps(mark)?.href ?? '') },
+    }),
+  },
+})
+
+const linked = () =>
+  RichText.decodeDocument({
+    version: 1,
+    children: [
+      {
+        type: 'Paragraph',
+        id: 'p',
+        children: [
+          { type: 'Text', id: 'a', text: 'see ', marks: [] },
+          {
+            type: 'Text',
+            id: 'b',
+            text: 'docs',
+            marks: [{ name: 'Link', props: { href: '/x' } }, 'Bold'],
+          },
+          { type: 'Text', id: 'c', text: ' now', marks: [] },
+        ],
+      },
+    ],
+  })
+
 describe('rendering the owned subtree', () => {
   it('renders blocks, runs, marks, and heading levels', () => {
     const dom = mount(document, content())
@@ -57,8 +98,11 @@ describe('rendering the owned subtree', () => {
       'a',
       'b',
     ])
-    expect((paragraph.children[1] as HTMLElement).getAttribute('data-marks')).toBe('Bold Italic')
-    expect((paragraph.children[0] as HTMLElement).hasAttribute('data-marks')).toBe(false)
+    // A shipped mark nests as an element inside the run, as the read-only view
+    // renders it; the run element itself keeps `data-run` so a selection maps.
+    expect(tagsWithin(paragraph.children[1] as HTMLElement)).toEqual(['em', 'strong'])
+    expect((paragraph.children[1] as HTMLElement).hasAttribute('data-marks')).toBe(false)
+    expect(tagsWithin(paragraph.children[0] as HTMLElement)).toEqual([])
     expect(toText(dom)).toBe('abcd\nTitle')
   })
 
@@ -469,5 +513,88 @@ describe('the editing loop', () => {
     window.getSelection()!.addRange(restored!)
     expect(window.getSelection()!.anchorOffset).toBe(3)
     before.root.remove()
+  })
+})
+
+describe('the editable subtree with a rendering registry', () => {
+  it('nests a declared mark inside the run element, keeping the run addressable', () => {
+    const dom = mount(document, linked(), links)
+    const run = dom.elements.get(id('b')) as HTMLElement
+    expect(run.getAttribute('data-run')).toBe('b')
+    // The shipped mark is inside the declared one, exactly as the serializer and
+    // the read-only view nest them, and the run element stays outermost.
+    expect(tagsWithin(run)).toEqual(['a', 'strong'])
+    expect((run.firstChild as HTMLElement).getAttribute('href')).toBe('/x')
+    expect(run.textContent).toBe('docs')
+    expect(run.hasAttribute('data-marks')).toBe(false)
+    expect(toText(dom)).toBe('see docs now')
+  })
+
+  it('maps a position inside a nested mark both ways', () => {
+    const dom = mount(document, linked(), links)
+    const range = positionToRange(dom, at('b', 2))
+    expect(range?.startContainer).toBeInstanceOf(Text)
+    expect(range?.startContainer.textContent).toBe('docs')
+    expect(range?.startOffset).toBe(2)
+    expect(rangeToPosition(dom, range!.startContainer, range!.startOffset)).toEqual(
+      at('b', 2, 'before'),
+    )
+  })
+
+  it('patches an edit inside a marked run and keeps the mark rendered', () => {
+    const before = mount(document, linked(), links)
+    const result = success(
+      RichText.run(
+        {
+          document: before.content,
+          selection: { type: 'Range', anchor: at('b', 2), focus: at('b', 2) },
+        },
+        { type: 'InsertText', text: 'X' },
+        { mint: () => 'x' },
+      ),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    const run = after.elements.get(id('b')) as HTMLElement
+    expect(run.textContent).toBe('doXcs')
+    expect(tagsWithin(run)).toEqual(['a', 'strong'])
+    expect((run.firstChild as HTMLElement).getAttribute('href')).toBe('/x')
+    expect(positionToRange(after, at('b', 3))?.startOffset).toBe(3)
+  })
+
+  it('restores a mark structure the browser mangled', () => {
+    const before = mount(document, linked(), links)
+    const run = before.elements.get(id('b')) as HTMLElement
+    // What an outside mutation can leave: the text is there, the marks are not.
+    run.replaceChildren(before.root.ownerDocument.createTextNode('docs'))
+    expect(tagsWithin(run)).toEqual([])
+    const after = repair(before, linked())
+    const restored = after.elements.get(id('b')) as HTMLElement
+    expect(tagsWithin(restored)).toEqual(['a', 'strong'])
+    expect((restored.firstChild as HTMLElement).getAttribute('href')).toBe('/x')
+    expect(toText(after)).toBe('see docs now')
+  })
+
+  it('keeps a name no entry renders on the run element', () => {
+    const future = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'x', marks: [{ name: 'Highlight' }, 'Bold'] }],
+        },
+      ],
+    })
+    const dom = mount(document, future, links)
+    const run = dom.elements.get(id('a')) as HTMLElement
+    expect(run.getAttribute('data-marks')).toBe('Highlight')
+    expect(tagsWithin(run)).toEqual(['strong'])
+    // A browser can drop the attribute without touching the text; recovery puts
+    // it back, because the document is the authority on what the run carries.
+    run.removeAttribute('data-marks')
+    const repaired = repair(dom, future)
+    const restored = repaired.elements.get(id('a')) as HTMLElement
+    expect(restored.getAttribute('data-marks')).toBe('Highlight')
+    expect(tagsWithin(restored)).toEqual(['strong'])
   })
 })

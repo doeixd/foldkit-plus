@@ -14,6 +14,8 @@ export interface EditorDom {
   readonly elements: ReadonlyMap<RichText.NodeId, HTMLElement>
   /** The semantic document this subtree currently represents. */
   readonly content: RichText.Document
+  /** The registry this subtree was rendered with, and is patched with again. */
+  readonly rendering: RichText.Rendering
 }
 
 const MARK_ATTRIBUTE = 'data-marks'
@@ -24,24 +26,39 @@ const blockTag = (block: RichText.Block): string => {
   return 'p'
 }
 
-const applyMarks = (element: HTMLElement, marks: ReadonlyArray<RichText.RunMark>): void => {
-  // The slice's attribute carries mark names; props are not representable in it
-  // yet, and the semantic document remains the lossless store.
-  const names = marks.map(RichText.markName)
-  if (names.length === 0) {
-    element.removeAttribute(MARK_ATTRIBUTE)
-    return
-  }
-  element.setAttribute(MARK_ATTRIBUTE, [...names].sort().join(' '))
+/** The element a renderer entry names, with its attributes; children come later. */
+const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLElement => {
+  const element = owner.createElement(entry.tag)
+  for (const [name, value] of Object.entries(entry.attributes)) element.setAttribute(name, value)
+  return element
 }
 
-const renderRun = (owner: Document, run: RichText.Text): HTMLElement => {
+/**
+ * A run is one element carrying `data-run`, whatever the renderer wraps its text
+ * in. Nesting the mark elements *inside* that element is what keeps a browser
+ * selection mappable: `rangeToPosition` finds the run through `closest`, and the
+ * text node stays deepest, so an offset is still an offset into the run's text.
+ */
+const renderRun = (
+  owner: Document,
+  run: RichText.Text,
+  rendering: RichText.Rendering,
+): HTMLElement => {
   const element = owner.createElement('span')
   element.setAttribute('data-run', run.id)
+  const { nest, unrendered } = RichText.runRendering(rendering, run)
   // Always a text node, even when empty: a caret inside an empty run has to be
   // addressable, and an element container has no semantic offset.
-  element.append(owner.createTextNode(run.text))
-  applyMarks(element, run.marks)
+  let content: Node = owner.createTextNode(run.text)
+  for (const entry of nest) {
+    const wrapper = renderElement(owner, entry)
+    wrapper.append(content)
+    content = wrapper
+  }
+  element.append(content)
+  // A name no entry renders still rides here on the run element, so a slice and
+  // an HTML round trip keep a way to carry it.
+  if (unrendered.length > 0) element.setAttribute(MARK_ATTRIBUTE, unrendered.join(' '))
   return element
 }
 
@@ -49,6 +66,7 @@ const renderBlock = (
   owner: Document,
   block: RichText.Block,
   elements: Map<RichText.NodeId, HTMLElement>,
+  rendering: RichText.Rendering,
 ): HTMLElement => {
   const element = owner.createElement(blockTag(block))
   element.setAttribute('data-block', block.id)
@@ -63,26 +81,31 @@ const renderBlock = (
   // Always a text node, even when empty: a caret inside an empty run has to be
   // addressable, and an element container has no semantic offset.
   for (const run of block.children) {
-    const runElement = renderRun(owner, run)
+    const runElement = renderRun(owner, run, rendering)
     element.append(runElement)
     elements.set(run.id, runElement)
   }
   // A node that accepts nested blocks renders them inside it, so a list keeps
   // its items and each nested block stays addressable by identity.
   if (block.type === 'Node' && block.blocks !== undefined) {
-    for (const nested of block.blocks) element.append(renderBlock(owner, nested, elements))
+    for (const nested of block.blocks)
+      element.append(renderBlock(owner, nested, elements, rendering))
   }
   elements.set(block.id, element)
   return element
 }
 
 /** Builds the owned subtree and the identity index it is patched through. */
-export const mount = (owner: Document, content: RichText.Document): EditorDom => {
+export const mount = (
+  owner: Document,
+  content: RichText.Document,
+  rendering: RichText.Rendering = RichText.noRendering,
+): EditorDom => {
   const root = owner.createElement('div')
   root.setAttribute('contenteditable', 'true')
   const elements = new Map<RichText.NodeId, HTMLElement>()
-  for (const block of content.children) root.append(renderBlock(owner, block, elements))
-  return { root, elements, content }
+  for (const block of content.children) root.append(renderBlock(owner, block, elements, rendering))
+  return { root, elements, content, rendering }
 }
 
 /**
@@ -115,7 +138,7 @@ export const patch = (
     elements.delete(id)
   }
   const rebuilt = new Set<RichText.NodeId>()
-  patchBlocks(root.ownerDocument, root, content.children, elements, rebuilt)
+  patchBlocks(root.ownerDocument, root, content.children, elements, dom.rendering, rebuilt)
   for (const id of changeSet.dirtyNodes) {
     const located = RichText.locateRun(content, id)
     if (located === undefined) continue
@@ -123,7 +146,7 @@ export const patch = (
     if (block === undefined || rebuilt.has(block.id)) continue
     const parent = elements.get(block.id)
     if (parent === undefined) continue
-    const fresh = renderRun(root.ownerDocument, located.run)
+    const fresh = renderRun(root.ownerDocument, located.run, dom.rendering)
     elements.get(id)?.remove()
     elements.set(id, fresh)
     // A run belongs where the document says it does inside its block.
@@ -132,7 +155,7 @@ export const patch = (
     if (nextElement !== undefined) nextElement.before(fresh)
     else parent.append(fresh)
   }
-  return { root, elements, content }
+  return { root, elements, content, rendering: dom.rendering }
 }
 
 /**
@@ -149,6 +172,7 @@ const patchBlocks = (
   container: HTMLElement,
   blocks: ReadonlyArray<RichText.Block>,
   elements: Map<RichText.NodeId, HTMLElement>,
+  rendering: RichText.Rendering,
   rebuilt: Set<RichText.NodeId>,
 ): void => {
   let previousElement: HTMLElement | undefined
@@ -182,7 +206,7 @@ const patchBlocks = (
       previousElement = existing
       continue
     }
-    const fresh = renderBlock(owner, block, elements)
+    const fresh = renderBlock(owner, block, elements, rendering)
     existing?.remove()
     place(fresh)
     rebuilt.add(block.id)
@@ -190,8 +214,16 @@ const patchBlocks = (
   }
 }
 
-const textNodeOf = (element: HTMLElement): Text | undefined =>
-  element.firstChild instanceof Text ? element.firstChild : undefined
+/**
+ * The text node a run's content starts in. Mark elements may wrap it, so this
+ * descends rather than taking `firstChild`, and returns nothing when the run
+ * holds no text at all.
+ */
+const textNodeOf = (element: HTMLElement): Text | undefined => {
+  let node: Node | null = element.firstChild
+  while (node instanceof Element) node = node.firstChild
+  return node instanceof Text ? node : undefined
+}
 
 /** The DOM range for a semantic position, or undefined if it no longer resolves. */
 export const positionToRange = (dom: EditorDom, position: RichText.Position): Range | undefined => {
@@ -266,6 +298,41 @@ const renderedText = (block: RichText.Block): string => {
   return runs + nested
 }
 
+/** The chain of element names a run's text sits under, as `strong>em`. */
+const runShape = (element: HTMLElement): string => {
+  const tags: Array<string> = []
+  let node: Node | null = element.firstChild
+  while (node instanceof Element) {
+    tags.push(node.tagName.toLowerCase())
+    node = node.firstChild
+  }
+  return tags.join('>')
+}
+
+/**
+ * Whether a run element still shows what the renderer produces for it: the same
+ * mark elements, and `data-marks` carrying exactly the names no entry renders. A
+ * browser can split a mark element or drop one without changing the text, and the
+ * semantic document stays the authority, so recovery has to see that.
+ */
+const runMatches = (
+  element: HTMLElement | undefined,
+  rendering: RichText.Rendering,
+  run: RichText.Text,
+): boolean => {
+  if (element === undefined) return false
+  const { nest, unrendered } = RichText.runRendering(rendering, run)
+  const marks = unrendered.join(' ')
+  const carried = element.getAttribute(MARK_ATTRIBUTE)
+  if (marks.length === 0 ? carried !== null : carried !== marks) return false
+  // `nest` is innermost first, so the chain from the outside is its reverse.
+  const expected = nest
+    .map(entry => entry.tag.toLowerCase())
+    .reverse()
+    .join('>')
+  return runShape(element) === expected
+}
+
 /**
  * Recovery, not domain state (§31): makes the subtree match the document again
  * after something outside the semantic pipeline touched it — a cancelled IME
@@ -290,9 +357,13 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
       for (const child of nested) present.add(child.id)
       const element = elements.get(block.id)
       const runs = block.type === 'Unknown' ? [] : block.children.map(run => run.id)
+      const marksMatch =
+        block.type === 'Unknown' ||
+        block.children.every(run => runMatches(elements.get(run.id), dom.rendering, run))
       const shapeMatches =
         element !== undefined &&
         element.textContent === renderedText(block) &&
+        marksMatch &&
         sameIds(childIds(element, 'data-run'), runs) &&
         sameIds(
           childIds(element, 'data-block'),
@@ -317,12 +388,16 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
     if (identity.length > 0 && !present.has(identity as RichText.NodeId)) element.remove()
   }
   if (dirtyNodes.size === 0 && removedNodes.size === 0) return dom
-  return patch({ root: dom.root, elements, content: dom.content }, content, {
-    dirtyNodes,
-    insertedNodes: new Set(),
-    removedNodes,
-    textChanged: new Set(),
-    structureChanged: false,
-    selectionChanged: false,
-  })
+  return patch(
+    { root: dom.root, elements, content: dom.content, rendering: dom.rendering },
+    content,
+    {
+      dirtyNodes,
+      insertedNodes: new Set(),
+      removedNodes,
+      textChanged: new Set(),
+      structureChanged: false,
+      selectionChanged: false,
+    },
+  )
 }
