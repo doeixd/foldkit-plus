@@ -981,6 +981,20 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   })
 
 /**
+ * The template with the envelope before its last `</body>`, in any case. A
+ * slice, not `String.replace`, which would read `$&` or `$$` in the Model's
+ * data as a replacement pattern. A template with no `</body>` is refused: the
+ * page would be served without its envelope and refused in every browser.
+ */
+const withEnvelope = (template: string, envelope: string): string => {
+  const at = template.search(/<\/body>(?![\s\S]*<\/body>)/i)
+  if (at === -1) {
+    throw new Error('foldkit-ssr: the template has no </body> to put the resume envelope before')
+  }
+  return `${template.slice(0, at)}${envelope}${template.slice(at)}`
+}
+
+/**
  * The page to serve: the rendered application in the template, with the
  * envelope before `</body>`. Not in the rendered HTML, which
  * `injectIntoTemplate` requires to hold only the root and Foldkit's payload.
@@ -988,8 +1002,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
 const page = (
   template: string,
   result: { readonly rendered: RenderedApplication; readonly envelope: string },
-): string =>
-  injectIntoTemplate(template.replace('</body>', `${result.envelope}</body>`), result.rendered)
+): string => injectIntoTemplate(withEnvelope(template, result.envelope), result.rendered)
 
 /** A page generated at build time, and the file a static host serves it from. */
 export interface GeneratedPage {
@@ -1105,58 +1118,68 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
     readonly containerId?: string | undefined
     readonly flags?: ((request: Request) => unknown | PromiseLike<unknown>) | undefined
   },
-): EntryModule => ({
-  renderPage: async request => {
-    const method = request.method.toUpperCase()
-    const posting = method === 'POST' && plan.fallback === 'server'
-    if (method !== 'GET' && method !== 'HEAD' && !posting) {
-      const allow = plan.fallback === 'server' ? 'GET, HEAD, POST' : 'GET, HEAD'
-      return Responded(new Response(null, { status: 405, headers: { allow } }))
-    }
-    const flagsOf = options.flags
-    // `Effect.result` would miss a defect, such as a view that throws, and a
-    // `flags` that throws or rejects is not in the Effect at all: both would
-    // reject `renderPage` instead of answering it.
-    const exit = await Effect.runPromiseExit(
-      Effect.gen(function* () {
-        const flags =
-          flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
-        const flagged = flagsOf === undefined ? {} : { flags }
-        return posting
-          ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
-          : yield* render(config, plan, { buildId: options.buildId, url: request.url, ...flagged })
-      }),
-    )
-    if (Exit.isFailure(exit)) {
-      const refused = Cause.findErrorOption(exit.cause).pipe(
-        Option.filter(error => error instanceof FallbackRefused),
+): EntryModule => {
+  // Checked once, when the entry is made, rather than failing every request.
+  withEnvelope(options.template, '')
+  return {
+    renderPage: async request => {
+      const method = request.method.toUpperCase()
+      const posting = method === 'POST' && plan.fallback === 'server'
+      if (method !== 'GET' && method !== 'HEAD' && !posting) {
+        const allow = plan.fallback === 'server' ? 'GET, HEAD, POST' : 'GET, HEAD'
+        return Responded(new Response(null, { status: 405, headers: { allow } }))
+      }
+      const flagsOf = options.flags
+      // `Effect.result` would miss a defect, such as a view that throws, and a
+      // `flags` that throws or rejects is not in the Effect at all: both would
+      // reject `renderPage` instead of answering it.
+      const exit = await Effect.runPromiseExit(
+        Effect.gen(function* () {
+          const flags =
+            flagsOf === undefined
+              ? undefined
+              : yield* Effect.tryPromise(async () => flagsOf(request))
+          const flagged = flagsOf === undefined ? {} : { flags }
+          return posting
+            ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
+            : yield* render(config, plan, {
+                buildId: options.buildId,
+                url: request.url,
+                ...flagged,
+              })
+        }),
       )
-      if (Option.isSome(refused)) {
+      if (Exit.isFailure(exit)) {
+        const refused = Cause.findErrorOption(exit.cause).pipe(
+          Option.filter(error => error instanceof FallbackRefused),
+        )
+        if (Option.isSome(refused)) {
+          return Responded(
+            new Response(`The form could not be handled: ${refused.value.message}`, {
+              status: 400,
+              headers: { 'content-type': 'text/plain; charset=utf-8' },
+            }),
+          )
+        }
+        console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
         return Responded(
-          new Response(`The form could not be handled: ${refused.value.message}`, {
-            status: 400,
+          new Response('The page could not be rendered.', {
+            status: 500,
             headers: { 'content-type': 'text/plain; charset=utf-8' },
           }),
         )
       }
-      console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
+      const template = withEnvelope(options.template, exit.value.envelope)
       return Responded(
-        new Response('The page could not be rendered.', {
-          status: 500,
-          headers: { 'content-type': 'text/plain; charset=utf-8' },
-        }),
+        toResponse(
+          template,
+          Rendered(exit.value.rendered),
+          options.containerId === undefined ? undefined : { containerId: options.containerId },
+        ),
       )
-    }
-    const template = options.template.replace('</body>', `${exit.value.envelope}</body>`)
-    return Responded(
-      toResponse(
-        template,
-        Rendered(exit.value.rendered),
-        options.containerId === undefined ? undefined : { containerId: options.containerId },
-      ),
-    )
-  },
-})
+    },
+  }
+}
 
 /**
  * Starts the browser from the page's resumed Model, without running `init`.
@@ -1251,16 +1274,20 @@ const deferBoot = (
     onAnswer: ({ event, messages, unnamed }) => {
       // An answer the markers could not complete is left to the live page.
       if (unnamed !== undefined) {
-        // Kept for a boot still waiting on bodies; one that just committed
-        // has stopped listening and reads this no more.
+        // Kept for a boot still waiting on bodies, and sent again to where it
+        // first went, so every live handler on its path answers it. One that
+        // just committed has stopped listening and reads this no more.
         startNow()
-        unanswered.push({ event, element: unnamed })
+        if (event.target instanceof Element) unanswered.push({ event, element: event.target })
         return
       }
+      startNow()
+      // Nothing answered it: it goes on to the page, a plain link to the
+      // router, as it would have.
+      if (messages.length === 0) return
       // Answered here and replayed after boot: the live page must not answer
       // this one as well.
       queue.push(...messages)
-      startNow()
       event.stopPropagation()
     },
   })
@@ -1417,9 +1444,9 @@ const startOf = <Model>(
  * posted Message is decoded through the plan's Message Schema, with posted
  * fields of the same names as its own overriding them, and must be one the
  * Surfaces active for the request's Model may send. The server then rebuilds
- * that Model as a render would, `init` and then the plan's `boot`, runs
- * `update` with the Message and every Command that follows, and renders the
- * result as a fresh page.
+ * the Model the browser had, `init` and then the plan's `boot` with every
+ * Command it leads to, runs `update` with the Message and every Command that
+ * follows, and renders the result as a fresh page.
  */
 const handle = <Model, Fields extends Schema.Struct.Fields>(
   request: Request,
@@ -1486,13 +1513,12 @@ const handle = <Model, Fields extends Schema.Struct.Fields>(
         `the posted ${tagOf(message)} is not one an active Surface lists in its messages`,
       )
     }
+    // As the browser got here: `init` on the server, then the plan's `boot`
+    // at hydration, and only then the user's Message. `init`'s own Commands
+    // never run in the browser, so they do not run here.
     const boot = (plan.boot?.(started.model) as ReadonlyArray<unknown> | undefined) ?? []
-    const model = yield* fold(
-      config,
-      started.model,
-      [message],
-      [...(started.commands ?? []), ...boot],
-    )
+    const booted = yield* fold(config, started.model, [], boot)
+    const model = yield* fold(config, booted, [message], [])
     return yield* render(startingFrom(config, { model }) as ResumableConfig<Model>, plan, {
       buildId: options.buildId,
       url: request.url,

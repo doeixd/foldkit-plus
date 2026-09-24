@@ -17,10 +17,17 @@ export const ClickerModel = Schema.Struct({
   text: Schema.String,
 })
 export type ClickerModel = typeof ClickerModel.Type
+const Modifiers = Schema.Struct({
+  shiftKey: Schema.Boolean,
+  ctrlKey: Schema.Boolean,
+  altKey: Schema.Boolean,
+  metaKey: Schema.Boolean,
+})
 export const ClickerMessage = defineMessageUnion({
   Clicked: {},
   Pressed: { by: Schema.Number },
   Typed: { value: Schema.String },
+  Keyed: { key: Schema.String, modifiers: Modifiers },
 })
 export type ClickerMessage = typeof ClickerMessage.Type
 
@@ -31,6 +38,7 @@ export const body: Bundle.Body<ClickerModel, ClickerMessage, void, never, never,
       Clicked: () => ({ model: { ...model, count: model.count + 1 } }),
       Pressed: ({ by }) => ({ model: { ...model, pressed: model.pressed + by } }),
       Typed: ({ value }) => ({ model: { ...model, text: value } }),
+      Keyed: ({ key }) => ({ model: { ...model, count: model.count + key.length } }),
     }),
   view: Submodel.defineView<ClickerModel, ClickerMessage>((model, h) => {
     const rh = Resume.builder(h)
@@ -42,6 +50,15 @@ export const body: Bundle.Body<ClickerModel, ClickerMessage, void, never, never,
         rh.button(
           [rh.Id('press'), rh.OnPointerDown(() => Option.some(ClickerMessage.Pressed({ by: 2 })))],
           [String(model.pressed)],
+        ),
+        // A named key press inside a handler no marker can name: the live page
+        // answers both, so the event must come back to the inner input.
+        rh.div(
+          [
+            rh.Id('panel'),
+            rh.OnKeyDownPreventDefault(() => Option.some(ClickerMessage.Pressed({ by: 5 }))),
+          ],
+          [rh.input([rh.Id('keys'), rh.OnKeyDown(ClickerMessage.Keyed)])],
         ),
         // A hole, filled from the event inside the placement's wrapper.
         rh.input([rh.Id('text'), rh.Value(model.text), rh.OnInput(ClickerMessage.Typed)]),

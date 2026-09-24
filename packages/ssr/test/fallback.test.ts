@@ -90,6 +90,23 @@ describe('SSR.handle through handleRequest', () => {
     logged.mockRestore()
   })
 
+  it("runs the plan's boot before the posted Message, as the browser would have", async () => {
+    const seen: Array<string> = []
+    const recording = {
+      ...config,
+      update: (model: Model, message: Message) => {
+        seen.push(message._tag)
+        return config.update(model, message)
+      },
+    }
+    const response = await serve(
+      post({ title: 'Milk', [FALLBACK_FIELD]: added }),
+      SSR.entry(recording, plan, { buildId: 'b', template }),
+    )
+    expect(response.status).toBe(200)
+    expect(seen).toEqual(['Booted', 'Added', 'Noted'])
+  })
+
   it('refuses a Message no active Surface lists', async () => {
     const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Cleared()) }))
     expect(response.status).toBe(400)

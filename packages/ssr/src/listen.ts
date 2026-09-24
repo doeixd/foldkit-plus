@@ -109,15 +109,23 @@ export const decodeBindings = (
   return Result.succeed(bindings)
 }
 
-/** Foldkit's reading of an input's value: a control's `value`, else a host's text. */
-const inputValue = (target: EventTarget | null): string => {
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-    return target.value
-  }
-  if (target instanceof HTMLSelectElement) return target.value
-  if (target instanceof HTMLElement) return target.innerText ?? target.textContent ?? ''
-  return ''
+/** A string property of the target, if it has one. */
+const stringProperty = (target: EventTarget | null, name: string): string | undefined => {
+  if (target === null || !(name in target)) return undefined
+  const value: unknown = Reflect.get(target, name)
+  return typeof value === 'string' ? value : undefined
 }
+
+/**
+ * Foldkit's reading of an input's value (`inputEventValue`): any target's
+ * string `value`, a custom element's included, else its `innerText`, else its
+ * `textContent`.
+ */
+const inputValue = (target: EventTarget | null): string =>
+  stringProperty(target, 'value') ??
+  stringProperty(target, 'innerText') ??
+  stringProperty(target, 'textContent') ??
+  ''
 
 const modifiersOf = (event: KeyboardEvent): KeyboardModifiers => ({
   shiftKey: event.shiftKey,
@@ -191,7 +199,10 @@ export const listen = (root: Element, options: ListenOptions): (() => void) => {
     const type = event.type
     const attribute = `${BINDING_ATTRIBUTE}${type}`
     const messages: Array<unknown> = []
-    for (const node of event.composedPath()) {
+    // An event that does not bubble (`focus`, `blur`, `mouseenter`) reaches only
+    // its target's own handlers on the live page, so only those answer it here.
+    const path = event.bubbles ? event.composedPath() : [event.target]
+    for (const node of path) {
       if (!(node instanceof Element)) continue
       const tokens = node.getAttribute(attribute)
       // Foldkit chains an element's handlers in one listener, so a Stop among

@@ -36,7 +36,7 @@ const Editor = SSR.plan(App, {
 
 // server
 const result = await Effect.runPromise(SSR.render(config, Editor, { buildId, url }))
-const html = SSR.page(template, result)
+const html = SSR.page(template, result) // before the template's last </body>; none is refused
 
 // browser, instead of Runtime.hydrate
 SSR.hydrate(config, Editor, { buildId })
@@ -82,6 +82,8 @@ SSR.hydrate(config, Editor, { buildId })
   Foldkit attribute and encoded Message into the envelope. A binding built
   from an unsent field fails with `ViewDependsOnUnsentState`; the plan needs
   the app's Message Schema (make it from `App`), else `UnencodableBinding`.
+  A hole form whose field refuses the empty placeholder (`isMinLength(1)`) is
+  marked `*` too.
 - A Surface's `messages` is the allow list for the page's bindings. A binding
   whose Message no Surface active for the served Model lists is `Uncovered`
   (naming element and tag); bindings with no `surfaces` in the plan are

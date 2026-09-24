@@ -96,6 +96,16 @@ application.
 - **Review hardening:** a tampered bindings list (not a list, an entry that is
   not a binding, a negative depth) and parts that are not an object are each
   refused as `Invalid`, never thrown on.
+- **Second review:** a `$` pattern in the Model's data reaches the envelope as
+  written; a template's `</BODY>` in capitals takes the envelope and one with
+  none is refused, by `SSR.page` and when `SSR.entry` is made; an event that
+  does not bubble is answered at its target alone; a custom element's string
+  `value` fills a hole; the server fallback runs `boot` before the posted
+  Message, and no `init` Command; an event no binding answers reaches the
+  document and boots the page; while lazy bodies load, a held event goes back
+  to its own target, so the named handler inside and the unnamed one around it
+  both answer; and a hole form whose field refuses the empty placeholder
+  renders, marked as unnamed.
 - **Phase F, bodies on demand:** the server waits for a lazy bundle's bodies
   and renders the real view, once per bundle; the placement root is stamped
   with its slot; a binding inside the placement is the parent's Message with

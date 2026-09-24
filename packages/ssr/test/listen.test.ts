@@ -140,6 +140,29 @@ describe('Resume.listen answers from the markers', () => {
     expect(messages).toEqual([Message.Liked({ id: 'p1' })])
   })
 
+  it('answers an event that does not bubble at its target alone, as Foldkit does', async () => {
+    const { messages } = await served((model, h) => {
+      const rh = Resume.builder(h)
+      return rh.div(
+        [rh.Id('panel'), rh.Tabindex(0), rh.OnFocus(Message.Liked({ id: 'panel' }))],
+        [rh.input([rh.Id('field'), rh.OnFocus(Message.Liked({ id: model.id }))])],
+      )
+    })
+    byId('field').dispatchEvent(new FocusEvent('focus'))
+    expect(messages).toEqual([Message.Liked({ id: 'p1' })])
+  })
+
+  it("fills a hole from any target's string value, as Foldkit reads one", async () => {
+    const { messages } = await served((_model, h) => {
+      const rh = Resume.builder(h)
+      return rh.div([rh.Id('box'), rh.OnInput(Message.ChangedSearch)], ['shown text'])
+    })
+    const box = byId('box')
+    Object.defineProperty(box, 'value', { value: 'held value' })
+    box.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(messages).toEqual([Message.ChangedSearch({ value: 'held value' })])
+  })
+
   it('stops listening when told to', async () => {
     const { messages, stop } = await served()
     stop()

@@ -261,6 +261,15 @@ const isTagged = (value: unknown): value is { readonly _tag: string } & Record<s
 
 const builders = new WeakMap<object, unknown>()
 
+/** A hole form's placeholder Message, or `undefined` when its field's checks refuse one. */
+const placeholder = (make: () => unknown): unknown => {
+  try {
+    return make()
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * The resumable builder for a view's `h`. Use it in place of `h`; it has the
  * same elements and attributes, and the hole forms of the four value events.
@@ -386,7 +395,11 @@ export const builder = <Builder extends AnyBuilder>(
       }
       const [field] = hole as [string]
       const made = make(value => given({ ...fixed, [field]: value }))
-      holes.set(made, { template: given({ ...fixed, [field]: '' }), hole })
+      const template = placeholder(() => given({ ...fixed, [field]: '' }))
+      // A field whose checks refuse the empty placeholder cannot be written
+      // into the page as data; left unrecorded, the handler is marked as one
+      // the page cannot name, and the live page answers it.
+      if (template !== undefined) holes.set(made, { template, hole })
       return made
     }
 
@@ -406,7 +419,8 @@ export const builder = <Builder extends AnyBuilder>(
         )
       }
       const made = make((key, modifiers) => given({ ...fixed, key, modifiers }))
-      holes.set(made, { template: given({ ...fixed, key: '', modifiers: NO_MODIFIERS }), hole })
+      const template = placeholder(() => given({ ...fixed, key: '', modifiers: NO_MODIFIERS }))
+      if (template !== undefined) holes.set(made, { template, hole })
       return made
     }
 

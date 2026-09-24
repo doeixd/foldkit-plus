@@ -117,7 +117,8 @@ What each call does:
   the server did; [the refusals](#when-a-page-is-refused) say why and how to
   fix each.
 - **`SSR.page`** is pure: the template with the application and the envelope in
-  it.
+  it. The envelope goes before the template's last `</body>`, and a template
+  without one is refused, by `SSR.page` and by `SSR.entry` when it is made.
 - **`SSR.hydrate`** reads the envelope, starts Foldkit's runtime from the
   resumed Model, and runs the plan's `boot` Commands. `init` does not run. A
   page with no server render at all starts on the client as usual.
@@ -346,6 +347,9 @@ it leaves open. The types check it where it is written: the member must be one
 of the view's Messages, and leave exactly one string field, or exactly `key`
 and `modifiers`. A closure still works. It is not data, so the page cannot
 answer that event itself and boots on it instead, letting the live page answer.
+So does a hole form whose field has checks the empty placeholder fails, such
+as `Schema.isMinLength(1)`: it cannot be written into the page as data, so it
+is treated as a closure.
 
 A Surface renderer gets the same builder through `Resume.view`, and its `rh`
 makes only that Surface's Messages:
@@ -454,7 +458,8 @@ page's own URL, and `SSR.entry` hands that post to `SSR.handle`:
 
 ```text
 POST ──▶ decode the Message ──▶ set the posted fields into it (the typed `title`)
-     ──▶ init + boot ──▶ update, and every Command after it ──▶ the page, rendered
+     ──▶ init, then boot and its Commands ──▶ update, and every Command after it
+     ──▶ the page, rendered
 ```
 
 The Message must be one the page's active Surfaces list. Commands run under the
