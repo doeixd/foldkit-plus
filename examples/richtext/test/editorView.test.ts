@@ -8,9 +8,15 @@ import { Effect } from 'effect'
 import { Scene } from 'foldkit/test'
 import * as RichText from 'foldkit-richtext'
 import { attachmentIn, mountInto } from 'foldkit-richtext-dom/host'
-import { describe, expect, it } from 'vitest'
-import { application, editor, typed, update, type Model } from '../src/controlled.js'
-import { events, Message } from '../src/editor.js'
+import { afterEach, describe, expect, it } from 'vitest'
+import { application, edited, editor, typed, update, type Model } from '../src/controlled.js'
+import { attachEditor, events, Message } from '../src/editor.js'
+
+// Each test mounts its own host, and the id is the placement's, so a leftover
+// host from an earlier test would answer this one's `getElementById`.
+afterEach(() => {
+  window.document.body.innerHTML = ''
+})
 
 const id = RichText.NodeId.make
 
@@ -83,5 +89,68 @@ describe('the view renders the host the patch Command finds', () => {
       Scene.Mount.resolve(events, Message.ToggledMark({ mark: 'Unknown' })),
       Scene.expect(Scene.selector('#richtext-editor')).toExist(),
     )
+  })
+})
+
+describe('paste and history, through the same view', () => {
+  const beforeInput = (inputType: string, data: string): Event => {
+    const event = new Event('beforeinput', { bubbles: true, cancelable: true })
+    Object.defineProperties(event, {
+      inputType: { value: inputType },
+      data: { value: data },
+    })
+    return event
+  }
+  const key = (value: string, modifiers: { meta?: boolean; shift?: boolean } = {}): KeyboardEvent =>
+    new KeyboardEvent('keydown', {
+      key: value,
+      bubbles: true,
+      cancelable: true,
+      metaKey: modifiers.meta ?? false,
+      shiftKey: modifiers.shift ?? false,
+    })
+  const clipboard = (contents: Record<string, string>) => {
+    const data = new Map(Object.entries(contents))
+    return { getData: (type: string) => data.get(type) ?? '', setData: () => {} }
+  }
+  /**
+   * The editor a view would mount, wired the way the runtime wires it: a Message
+   * from the adapter goes through the Bundle's `update`, and the Command that
+   * transition returns is run (and its result Message dispatched) before the next
+   * event.
+   */
+  const editing = (selection: RichText.Selection | null) => {
+    let model = start(selection)
+    const host = window.document.createElement('div')
+    host.id = model.editor.hostId
+    window.document.body.append(host)
+    const attachment = attachEditor(host, model.document, message => {
+      const result = update(model, edited(message))
+      model = result.model
+      for (const command of result.commands ?? []) {
+        // The runtime dispatches a Command's result Message too; this one is the
+        // render's acknowledgement, which changes nothing.
+        Effect.runSync(command.effect)
+      }
+    })
+    return { host, root: () => attachment.current().root }
+  }
+
+  it('pastes the browser clipboard into the document and the DOM', () => {
+    const { host, root } = editing(caret('a', 2))
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { value: clipboard({ 'text/plain': 'XY' }) })
+    root().dispatchEvent(event)
+    expect(host.textContent).toBe('abXY')
+  })
+
+  it('undoes and redoes through the history chords', () => {
+    const { host, root } = editing(caret('a', 2))
+    root().dispatchEvent(beforeInput('insertText', '!'))
+    expect(host.textContent).toBe('ab!')
+    root().dispatchEvent(key('z', { meta: true }))
+    expect(host.textContent).toBe('ab')
+    root().dispatchEvent(key('z', { meta: true, shift: true }))
+    expect(host.textContent).toBe('ab!')
   })
 })

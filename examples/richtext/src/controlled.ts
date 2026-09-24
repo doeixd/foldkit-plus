@@ -289,13 +289,14 @@ export const application = Bundle.assemble<Model, ParentMessage>()([editor])
 /** The parent's update: placement Messages route to the editor, others stand still. */
 export const update = application.update()
 
-export const typed = (text: string): ParentMessage => GotEditor.make(Message.Typed({ text }))
+/** Wraps one editor Message as the parent Message that carries it. */
+export const edited = (message: Message): ParentMessage => GotEditor.make(message)
+export const typed = (text: string): ParentMessage => edited(Message.Typed({ text }))
 export const pressed = (tag: 'Backspace' | 'DeletedForward' | 'Entered'): ParentMessage =>
-  GotEditor.make(Message[tag]())
-export const toggled = (mark: string): ParentMessage =>
-  GotEditor.make(Message.ToggledMark({ mark }))
+  edited(Message[tag]())
+export const toggled = (mark: string): ParentMessage => edited(Message.ToggledMark({ mark }))
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
-  GotEditor.make(Message.Selected({ selection }))
-export const undone = (): ParentMessage => GotEditor.make(Message.Undone())
-export const redone = (): ParentMessage => GotEditor.make(Message.Redone())
-export const patched = (): ParentMessage => GotEditor.make(Message.Patched())
+  edited(Message.Selected({ selection }))
+export const undone = (): ParentMessage => edited(Message.Undone())
+export const redone = (): ParentMessage => edited(Message.Redone())
+export const patched = (): ParentMessage => edited(Message.Patched())

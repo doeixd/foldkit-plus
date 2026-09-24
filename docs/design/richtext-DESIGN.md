@@ -5019,7 +5019,10 @@ Command are identical, which is §27's requirement.
    `Scene` renders the host at its id, and running the Command the transition
    returned is what moves the DOM. The vocabulary, `attachEditor`, `events`,
    `mountInto`, `attachmentIn`, and `patchEditor` are the tests underneath.
-2. Paste and the history chords through Messages, on the same view.
+2. **Complete.** Paste and the undo/redo chords travel the same path as typing: the
+   adapter reports them, `toMessage` maps them, `update` runs them, and the
+   Command renders the result. `test/editorView.test.ts` drives a real `paste`
+   event and the history chords through the view's own mount.
 3. Promote the editor into `foldkit-richtext-dom` with the interpreter as its
    internals, and the read-only renderer alongside it.
 4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).

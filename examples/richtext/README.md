@@ -38,8 +38,9 @@ toggles land document and selection in one transition; a split mints block and
 run identities from the parent-owned counter; a refused command changes nothing
 and does not burn identities; and a document replaced from outside is what the
 next command resolves against. `test/editorView.test.ts` asserts the other half:
-the view renders the host the Command finds, and running that Command is what
-moves the DOM.
+the view renders the host the Command finds, pasting and the undo/redo chords
+travel through Messages into the document and back out to the DOM, and running
+that Command is what moves it.
 
 ## The DOM half (first increment)
 
