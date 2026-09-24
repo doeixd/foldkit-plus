@@ -651,6 +651,12 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.
+- **The index is shared: stage and commit in one command.** Two sessions in
+  one worktree share `git add`'s staging area, so files one session stages
+  and leaves for a review step are swept into the other's next `git commit`.
+  A whole phase of `foldkit-ssr` shipped under a Remote docs commit that way.
+  Stage only in the command that commits, and commit with explicit paths
+  (`git commit -- <paths>`) so nothing staged by someone else rides along.
 - **`pnpm typecheck` goes quiet downstream of a red project.** `tsc -b` skips
   every project that depends on one that failed, so while another package is
   red (someone else's work in progress, say) a break your change causes in
