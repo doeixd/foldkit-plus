@@ -575,10 +575,12 @@ Recorded after phases 1 to 8 landed; the sections above are left as designed.
   `surface-c-dark`, and `base-l-dark` are knobs beside the light ones, since
   one expression cannot serve both schemes; every derived value is a
   `light-dark()` pair over them.
-- **Found while migrating the todo-app.** `Style.nest` prefixes only the
-  first selector of a comma list, so `nest(':hover x, :focus-within x')`
-  emits a page-global second selector. The example now uses one
-  `pseudo(':is(:hover, :focus-within) x')`; the library behavior is
-  unchanged. The palette's `outline` tokens are darker than the base surface
-  in both schemes, which suits dividers but leaves a small ring on a dark
-  card faint; the example mixes its checkbox ring from `text.muted`.
+- **Found while migrating the todo-app, since fixed.** `Style.nest` and
+  `Style.pseudo` prefixed only the first selector of a comma list, so the
+  rest matched page-wide. They now scope every top-level selector (a comma
+  inside `:is()` or an attribute value does not split), and a selector that
+  writes `&` places the class itself. The palette's `outline` tokens were
+  the base shifted darker, which left rings faint on a dark surface; they
+  are now the default text mixed into the base at 10, 18, and 35 percent,
+  darker than the surface in a light scheme and lighter in a dark one. The
+  example's checkbox ring uses `outline.overt` again.
