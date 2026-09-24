@@ -10,6 +10,7 @@ import {
 
 const batch = {
   entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }],
+  settled: [],
 }
 
 const FakeRpc: RemoteRpcClient = {
@@ -20,7 +21,7 @@ const FakeRpc: RemoteRpcClient = {
       start: { _tag: 'Terminal' } as const,
       end: { _tag: 'Terminal' } as const,
     }),
-  FoldkitRemoteMutate: () => Effect.succeed({ output: { ok: true }, entities: [] }),
+  FoldkitRemoteMutate: () => Effect.succeed({ output: { settled: [], ok: true }, entities: [] }),
   FoldkitRemoteLive: () =>
     Stream.make({
       _tag: 'EntityPatched' as const,
@@ -44,6 +45,7 @@ describe('Remote.clientLayer', () => {
         Effect.gen(function* () {
           const database = yield* Database
           return {
+            settled: [],
             entities: database.rows.map(id => ({ entity: 'User', id, values: { name: id } })),
           }
         }),

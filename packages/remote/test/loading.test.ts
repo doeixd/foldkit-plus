@@ -38,7 +38,7 @@ const read = (remote: RemoteModel) => Remote.select(AppRemote, UserSummary)('u1'
 const received = (values: Record<string, unknown>): RemoteMessage => ({
   _tag: 'ReadReceived',
   requests: [requirement],
-  result: { entities: [{ entity: 'User', id: 'u1', values }] },
+  result: { settled: [], entities: [{ entity: 'User', id: 'u1', values }] },
   now: 0,
 })
 
@@ -119,6 +119,7 @@ describe('the read entry announces its read', () => {
   const FakeClient = Layer.succeed(RemoteClient, {
     read: batch =>
       Effect.succeed({
+        settled: [],
         entities: batch.requests.map(request => ({
           entity: request.entity,
           id: request.id,

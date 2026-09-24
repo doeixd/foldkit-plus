@@ -77,7 +77,7 @@ const received = (
   Data.reduce(model, {
     _tag: 'ReadReceived',
     requests: [{ entity, id, fields: Object.keys(values) }],
-    result: { entities: [{ entity, id, values }] },
+    result: { settled: [], entities: [{ entity, id, values }] },
     now: 0,
   })
 

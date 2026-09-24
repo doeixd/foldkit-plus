@@ -34,7 +34,7 @@ export const requests: Array<ReadonlyArray<string>> = []
 const client = Layer.succeed(RemoteClient, {
   read: batch => {
     requests.push(batch.requests.map(request => `${request.entity}:${request.id}`))
-    return Effect.succeed({ entities: [] })
+    return Effect.succeed({ entities: [], settled: [] })
   },
   query: () => Effect.die('no queries here'),
   mutate: () => Effect.die('no mutations here'),
@@ -47,6 +47,7 @@ export const loaded: Model = Data.reduce(initial, {
   requests: [{ entity: 'User', id: 'u1', fields: ['name', 'email'] }],
   result: {
     entities: [{ entity: 'User', id: 'u1', values: { name: 'Ada', email: 'ada@example.test' } }],
+    settled: [],
   },
   now: 0,
 })

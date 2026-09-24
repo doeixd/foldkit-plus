@@ -14,7 +14,7 @@ describe('Remote.writeRead', () => {
           windows: { comments: { first: 5 } },
         },
       ],
-      { entities: [{ entity: 'Project', id: 'p1', values: { comments: [] } }] },
+      { settled: [], entities: [{ entity: 'Project', id: 'p1', values: { comments: [] } }] },
     )
 
     const written = Option.getOrThrow(entry(store, entityKey('Project', 'p1')))
@@ -24,6 +24,7 @@ describe('Remote.writeRead', () => {
 
   it('records no window for a request without one', () => {
     const store = Remote.writeRead(emptyStore, [{ entity: 'User', id: 'u1', fields: ['name'] }], {
+      settled: [],
       entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }],
     })
 
@@ -47,7 +48,7 @@ describe('Remote.writeRead', () => {
     Remote.writeRead(
       store,
       [{ entity: 'Project', id: 'p1', fields: ['comments'], windows: { comments: window } }],
-      { entities: [{ entity: 'Project', id: 'p1', values: { comments } }] },
+      { settled: [], entities: [{ entity: 'Project', id: 'p1', values: { comments } }] },
     )
 
   it('appends an after page onto the stored page', () => {
@@ -87,6 +88,7 @@ describe('Remote.writeRead', () => {
         },
       ],
       {
+        settled: [],
         entities: [
           { entity: 'Project', id: 'p1', values: { comments: page(['Comment:c2'], true, true) } },
           { entity: 'Project', id: 'p1', values: { comments: page(['Comment:c3'], false, true) } },
@@ -145,7 +147,10 @@ describe('Remote.writeRead', () => {
     const ada = { entity: 'User', id: 'u1', values: { name: 'ada' } }
 
     it('marks a requested id the server did not return as known absent', () => {
-      const store = Remote.writeRead(emptyStore, [user('u1'), user('nope')], { entities: [ada] })
+      const store = Remote.writeRead(emptyStore, [user('u1'), user('nope')], {
+        settled: [],
+        entities: [ada],
+      })
 
       expect(isTombstone(store, entityKey('User', 'u1'))).toBe(false)
       expect(isTombstone(store, entityKey('User', 'nope'))).toBe(true)
@@ -160,6 +165,7 @@ describe('Remote.writeRead', () => {
       }
       // A server that does not expand the relation: valid, the client follows it next.
       const store = Remote.writeRead(emptyStore, [project], {
+        settled: [],
         entities: [{ entity: 'Project', id: 'p1', values: { owner: 'User:u1' } }],
       })
 
@@ -167,34 +173,36 @@ describe('Remote.writeRead', () => {
       expect(plan(store, [project])).toEqual([user('u1')])
 
       // Asked for by id and still not returned: now it is known absent.
-      const second = Remote.writeRead(store, [user('u1')], { entities: [] })
+      const second = Remote.writeRead(store, [user('u1')], { settled: [], entities: [] })
       expect(isTombstone(second, entityKey('User', 'u1'))).toBe(true)
       expect(plan(second, [project])).toEqual([])
     })
 
     it('is not planned again, until a refresh forces it or a write brings it back', () => {
-      const absent = Remote.writeRead(emptyStore, [user('nope')], { entities: [] })
+      const absent = Remote.writeRead(emptyStore, [user('nope')], { settled: [], entities: [] })
 
       expect(plan(absent, [user('nope')])).toEqual([])
       expect(plan(absent, [user('nope')], { force: true })).toEqual([user('nope')])
 
       const back = Remote.writeRead(absent, [user('nope')], {
+        settled: [],
         entities: [{ entity: 'User', id: 'nope', values: { name: 'new' } }],
       })
       expect(isTombstone(back, entityKey('User', 'nope'))).toBe(false)
     })
 
     it('forgets what it held of an entity a later read leaves out', () => {
-      const held = Remote.writeRead(emptyStore, [user('u1')], { entities: [ada] })
-      const gone = Remote.writeRead(held, [user('u1')], { entities: [] })
+      const held = Remote.writeRead(emptyStore, [user('u1')], { settled: [], entities: [ada] })
+      const gone = Remote.writeRead(held, [user('u1')], { settled: [], entities: [] })
 
       expect(isTombstone(gone, entityKey('User', 'u1'))).toBe(true)
       expect(Option.getOrThrow(entry(gone, entityKey('User', 'u1'))).values).toEqual({})
     })
 
     it('leaves alone an entity the read did not ask about', () => {
-      const held = Remote.writeRead(emptyStore, [user('u1')], { entities: [ada] })
+      const held = Remote.writeRead(emptyStore, [user('u1')], { settled: [], entities: [ada] })
       const other = Remote.writeRead(held, [user('u2')], {
+        settled: [],
         entities: [{ entity: 'User', id: 'u2', values: { name: 'grace' } }],
       })
 

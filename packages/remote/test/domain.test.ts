@@ -62,6 +62,7 @@ const client = (mutate: (typeof RemoteClient.Service)['mutate'] = () => Effect.d
   Layer.succeed(RemoteClient, {
     read: batch =>
       Effect.succeed({
+        settled: [],
         entities: batch.requests.map(request => ({
           entity: request.entity,
           id: request.id,
@@ -278,7 +279,7 @@ describe('Data.overlay shows a change nobody has made', () => {
   const known = Data.reduce(initial, {
     _tag: 'ReadReceived',
     requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-    result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Saved' } }] },
+    result: { settled: [], entities: [{ entity: 'Project', id: 'p1', values: { name: 'Saved' } }] },
     now: 0,
   })
   const name = (model: Model) => Data.get(summary, 'p1').read(model)
@@ -336,7 +337,7 @@ describe('Data.confirmed reads past what is only pending', () => {
   const known = Data.reduce(initial, {
     _tag: 'ReadReceived',
     requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-    result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Saved' } }] },
+    result: { settled: [], entities: [{ entity: 'Project', id: 'p1', values: { name: 'Saved' } }] },
     now: 0,
   })
 
@@ -618,7 +619,10 @@ describe('what runs on every Model change is built once', () => {
     const loaded = Data.reduce(initial, {
       _tag: 'ReadReceived',
       requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-      result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo' } }] },
+      result: {
+        settled: [],
+        entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo' } }],
+      },
       now: 0,
     })
     const first = Data.get(summary, 'p1').read(loaded)
@@ -631,7 +635,10 @@ describe('what runs on every Model change is built once', () => {
     const renamed = Data.reduce(loaded, {
       _tag: 'ReadReceived',
       requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-      result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo II' } }] },
+      result: {
+        settled: [],
+        entities: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo II' } }],
+      },
       now: 1,
     })
     expect(Data.get(summary, 'p1').read(renamed)).toEqual({
@@ -798,6 +805,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       _tag: 'ReadReceived',
       requests: ids.map(id => ({ entity: 'Project', id, fields: ['name'] })),
       result: {
+        settled: [],
         entities: ids.map(id => ({ entity: 'Project', id, values: { name: `name of ${id}` } })),
       },
       now: 0,
@@ -811,6 +819,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       read: batch => {
         reads.push(batch.requests.map(request => request.id))
         return Effect.succeed({
+          settled: [],
           entities: batch.requests.map(request => ({
             entity: request.entity,
             id: request.id,
@@ -881,7 +890,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       const absent = Data.reduce(initial, {
         _tag: 'ReadReceived',
         requests: [{ entity: 'Project', id: 'p9', fields: ['name'] }],
-        result: { entities: [] },
+        result: { settled: [], entities: [] },
         now: 0,
       })
       expect(project.read(absent)._tag).toBe('NotFound')
@@ -1124,6 +1133,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
               calls += 1
               // The answer is the server as it is when the read is sent.
               const answer = {
+                settled: [],
                 entities: batch.requests.map(request => ({
                   entity: request.entity,
                   id: request.id,
@@ -1149,7 +1159,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
           let model = Data.reduce(initial, {
             _tag: 'ReadReceived',
             requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-            result: { entities: [{ entity: 'Project', id: 'p1', values: { name } }] },
+            result: { settled: [], entities: [{ entity: 'Project', id: 'p1', values: { name } }] },
             now: 0,
           })
           let dependencies = entry.modelToDependencies(model)

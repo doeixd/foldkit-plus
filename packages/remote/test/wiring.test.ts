@@ -59,7 +59,7 @@ const allTags: ReadonlyArray<RemoteMessageTag> = [
 describe('RemoteDomain.wiring', () => {
   const receivedAda = Message.ReadReceived({
     requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
-    result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }] },
+    result: { settled: [], entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }] },
     now: 0,
   })
 

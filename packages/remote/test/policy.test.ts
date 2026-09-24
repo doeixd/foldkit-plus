@@ -45,6 +45,7 @@ const FakeClient = Layer.succeed(RemoteClient, {
     Effect.sync(() => {
       calls.push(batch)
       return {
+        settled: [],
         entities: batch.requests.map(request => ({
           entity: request.entity,
           id: request.id,
@@ -126,7 +127,10 @@ describe('RefreshStarted', () => {
     const landed = updateRemote(started, {
       _tag: 'ReadReceived',
       requests: [requirement],
-      result: { entities: [{ entity: 'User', id: 'u1', values: { id: 'u1', name: 'grace' } }] },
+      result: {
+        settled: [],
+        entities: [{ entity: 'User', id: 'u1', values: { id: 'u1', name: 'grace' } }],
+      },
       now: 7,
     })
     expect(isFieldStale(landed.entities, key, 'name')).toBe(false)

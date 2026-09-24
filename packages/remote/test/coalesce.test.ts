@@ -22,6 +22,7 @@ const answer = (batch: Batch) => ({
     id: request.id,
     values: Object.fromEntries(request.fields.map(field => [field, `${field}:${request.id}`])),
   })),
+  settled: [],
 })
 
 /** A raw read that records every batch and can be held open per call. */
@@ -191,7 +192,7 @@ describe('coalesceReads', () => {
         return yield* read(batch())
       }),
     )
-    expect(result).toEqual({ entities: [] })
+    expect(result).toEqual({ settled: [], entities: [] })
     expect(raw.batches).toHaveLength(0)
   })
 

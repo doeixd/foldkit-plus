@@ -32,7 +32,10 @@ describe('Remote wire', () => {
     expect(Schema.decodeUnknownSync(ReadBatch)(batch)).toEqual(batch)
     expect(Schema.encodeSync(ReadBatch)(batch)).toEqual(batch)
 
-    const result = { entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }] }
+    const result = {
+      entities: [{ entity: 'User', id: 'u1', values: { name: 'ada' } }],
+      settled: [{ entity: 'User', id: 'u1', fields: ['email'] }],
+    }
     expect(Schema.decodeUnknownSync(ReadBatchResult)(result)).toEqual(result)
   })
 
@@ -98,6 +101,7 @@ describe('Remote wire', () => {
     const handlers = RemoteRpc.toLayer({
       FoldkitRemoteRead: payload =>
         Effect.succeed({
+          settled: [],
           entities: payload.requests.map(request => ({
             entity: request.entity,
             id: request.id,

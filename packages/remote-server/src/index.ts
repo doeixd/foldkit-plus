@@ -448,7 +448,8 @@ const protocolMismatch = (received: number): RemoteProtocolError | undefined =>
       })
 
 interface EntityGroup {
-  readonly ids: Set<string>
+  /** The fields each id was asked for: the union is read, and one id is settled only for its own. */
+  readonly ids: Map<string, Set<string>>
   /** The union of the requests' fields, windows, and relations. */
   slice: RelationRequirement
   /** The alias each field read here is answered under; see `RELATION_ALIAS`. */
@@ -536,12 +537,14 @@ const groupByEntity = (requests: ReadonlyArray<Requirement>): EntityGroup[] => {
     const group = grouped.get(groupKey)
     if (group === undefined) {
       grouped.set(groupKey, {
-        ids: new Set([request.id]),
+        ids: new Map([[request.id, new Set(request.fields)]]),
         slice: Requirement.mergeRelation({ entity: request.entity, fields: [] }, request),
         renames,
       })
     } else {
-      group.ids.add(request.id)
+      const asked = group.ids.get(request.id) ?? new Set<string>()
+      for (const field of request.fields) asked.add(field)
+      group.ids.set(request.id, asked)
       group.slice = Requirement.mergeRelation(group.slice, request)
     }
   }
@@ -970,6 +973,19 @@ export const RemoteServer = {
         readonly id: string
         readonly values: Record<string, unknown>
       }> = []
+      // Fields asked for that this answer does not carry and a later one would
+      // not either: withheld by `authorize`, or left out of a record the Source
+      // returned. Answered as settled, so the client stops asking; the reason
+      // stays here. A field an id was asked for and settled is remembered under
+      // the name it was asked by.
+      const settled = new Map<string, { entity: string; id: string; fields: Set<string> }>()
+      const settle = (entity: string, id: string, fields: ReadonlyArray<string>): void => {
+        if (fields.length === 0) return
+        const key = `${entity}:${id}`
+        const entry = settled.get(key) ?? { entity, id, fields: new Set<string>() }
+        for (const field of fields) entry.fields.add(field)
+        settled.set(key, entry)
+      }
       // What this batch has already read per entity:id (fields and values), so
       // a target several relations share is fetched once, a later spec's nested
       // relation is followed from the values already in hand, and a cyclic
@@ -1037,10 +1053,22 @@ export const RemoteServer = {
           const source = server.entities.get(name)
           if (source === undefined) continue
           const allowed = allowedFields(source, principal, slice.fields)
+          const allowedSet = new Set(allowed)
+          const idList = [...ids.keys()]
+          // Every id asked for, whether the Source knows it or not: existence
+          // is not told by which ids come back settled.
+          for (const [id, asked] of ids) {
+            settle(
+              name,
+              id,
+              [...asked]
+                .filter(field => !allowedSet.has(field))
+                .map(field => renames[field] ?? field),
+            )
+          }
           if (allowed.length === 0) continue
 
           const windows = windowsOf(slice.windows, allowed)
-          const idList = [...ids]
           const records: EntityRecord[] = []
           for (let start = 0; start < idList.length; start += maxIds) {
             records.push(
@@ -1064,11 +1092,15 @@ export const RemoteServer = {
             // the prototype, and `Object.hasOwn` so inherited names are ignored.
             // A field read under an alias is answered, and remembered, under the alias.
             const values: Record<string, unknown> = Object.create(null)
+            const omitted: string[] = []
+            const asked = ids.get(record.id)
             for (const field of allowed) {
               if (Object.hasOwn(record.values, field))
                 values[renames[field] ?? field] = record.values[field]
+              else if (asked?.has(field) === true) omitted.push(renames[field] ?? field)
             }
             entities.push({ entity: name, id: record.id, values })
+            settle(name, record.id, omitted)
 
             const key = `${name}:${record.id}`
             const known = fetched.get(key) ?? new Set<string>()
@@ -1090,7 +1122,10 @@ export const RemoteServer = {
         })
       }
 
-      return { entities }
+      return {
+        entities,
+        settled: [...settled.values()].map(entry => ({ ...entry, fields: [...entry.fields] })),
+      }
     }),
 
     FoldkitRemoteMutate: Effect.fn('RemoteServer.FoldkitRemoteMutate')(function* (payload) {

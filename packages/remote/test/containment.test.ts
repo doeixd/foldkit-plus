@@ -98,7 +98,10 @@ const loadedWider = (): Model => {
       id: row.id,
       fields: ['id', 'name', 'status', 'ownerId'],
     })),
-    result: { entities: rows.map(row => ({ entity: 'Project', id: row.id, values: row })) },
+    result: {
+      settled: [],
+      entities: rows.map(row => ({ entity: 'Project', id: row.id, values: row })),
+    },
     now: 0,
   })
 }

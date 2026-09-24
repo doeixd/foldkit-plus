@@ -44,6 +44,7 @@ import {
   readField,
   remove,
   setStale,
+  setUnavailable,
   tombstone,
   writeEntities,
   type EntityStore,
@@ -677,7 +678,13 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
             : store,
         model.entities,
       )
-      const entities = setStale(asked, marksOf(message.requests), true)
+      // A field the server settled without a value is asked for again the same
+      // way, and reads `Loading` while it is.
+      const entities = setUnavailable(
+        setStale(asked, marksOf(message.requests), true),
+        marksOf(message.requests),
+        false,
+      )
       // Asking again is also how a failed field is retried, including one that
       // never loaded and so has nothing to mark stale, and one on a relation's
       // target, which the request reaches only through the store: a server need
@@ -1144,20 +1151,31 @@ export const writeRead = (
     pending.set(key, { ...pending.get(key), ...values })
     writes.push({ key, values, windows: entry?.windows })
   }
-  // The server was asked for these ids by name and answered without them.
-  // Whether the entity never existed, is gone, or is not this principal's to
-  // see, the client knows the same thing: it is not there. Without this the read
-  // would stay `Loading` for good. A forced plan (`refresh`) asks again, and any
-  // later write clears the tombstone.
+  // The server was asked for these ids by name and answered without them, and
+  // without settling any of their fields: whether the entity never existed or
+  // is gone, the client knows the same thing: it is not there. Without this the
+  // read would stay `Loading` for good. A forced plan (`refresh`) asks again,
+  // and any later write clears the tombstone.
+  //
+  // An id the server settled fields of is not absent: it was asked about and
+  // the answer was "not this", which is about the fields, not the entity. What
+  // the store already holds of it stays.
   //
   // Only ids asked for directly: the target of a returned ref is left alone. A
   // server need not expand a relation that rides on a request; the planner
   // follows a relation the store holds and asks for its targets by id next, and
   // a tombstone here would stop it.
+  const settled = new Set(result.settled.map(entry => entityKey(entry.entity, entry.id)))
   let answered = store
   for (const request of requests) {
     const key = entityKey(request.entity, request.id)
-    if (!returned.has(key)) answered = tombstone(answered, key)
+    if (!returned.has(key) && !settled.has(key)) answered = tombstone(answered, key)
   }
-  return writeEntities(answered, writes, now)
+  // Settled after the values: a field the same result also answers is present,
+  // and a present field is never marked.
+  return setUnavailable(
+    writeEntities(answered, writes, now),
+    result.settled.map(entry => [entityKey(entry.entity, entry.id), entry.fields] as const),
+    true,
+  )
 }

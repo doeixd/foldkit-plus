@@ -12,7 +12,7 @@ import type { RelationRequirement, Requirement } from './requirement.js'
  * server refuses a mismatch with `RemoteProtocolError`, so a shape change never
  * drifts silently: bump it whenever `ReadRequest` or `LiveRequirement` change.
  */
-export const REMOTE_PROTOCOL_VERSION = 3
+export const REMOTE_PROTOCOL_VERSION = 4
 
 export class RemoteReadError extends Schema.TaggedError<RemoteReadError>()('RemoteReadError', {
   message: Schema.String,
@@ -93,7 +93,21 @@ export const NormalizedEntity = Schema.Struct({
   values: Schema.Record(Schema.String, Schema.Unknown),
 })
 
-export const ReadBatchResult = Schema.Struct({ entities: Schema.Array(NormalizedEntity) })
+/**
+ * Fields a read asked for that the server answered without, and will not
+ * answer with: the client stops asking. It says nothing about why, so a rule
+ * that withholds a field is not itself on the wire.
+ */
+export const SettledFields = Schema.Struct({
+  entity: Schema.String,
+  id: Schema.String,
+  fields: Schema.Array(Schema.String),
+})
+
+export const ReadBatchResult = Schema.Struct({
+  entities: Schema.Array(NormalizedEntity),
+  settled: Schema.Array(SettledFields),
+})
 
 export const MutationRequest = Schema.Struct({
   /** Stable across transport retries so a mutation is not applied twice. */

@@ -15,7 +15,14 @@ import {
 } from './entity.js'
 import type { QueryWindow } from './query.js'
 import { aliasedField, isRefPage, relationAlias, relationShape, targetsOf } from './relation.js'
-import { entityKey, isFieldStale, isTombstone, readField, type EntityStore } from './store.js'
+import {
+  entityKey,
+  isFieldStale,
+  isFieldUnavailable,
+  isTombstone,
+  readField,
+  type EntityStore,
+} from './store.js'
 
 /** One page of a paginated relation with each target assembled through a nested selection. */
 export interface Page<Item> {
@@ -309,6 +316,30 @@ export const assemble = (
     refreshing ||= nested.refreshing
   }
   return { values, refreshing }
+}
+
+/**
+ * The first field `requirement` reads, at any depth, that the server settled
+ * without a value, as `Entity:id.field`. A read that consults it says why it
+ * cannot assemble rather than waiting on a field nothing will fetch.
+ */
+export const unavailableOf = (
+  store: EntityStore,
+  key: string,
+  requirement: RelationRequirement,
+): string | undefined => {
+  for (const field of requirement.fields) {
+    if (isFieldUnavailable(store, key, field)) return `${key}.${field}`
+    const relation = requirement.relations?.[field]
+    if (relation === undefined) continue
+    const value = readField(store, key, field)
+    if (Option.isNone(value) || value.value === null || value.value === undefined) continue
+    for (const ref of targetsOf(value.value, relation)) {
+      const found = unavailableOf(store, entityKey(ref.entity, ref.id), relation)
+      if (found !== undefined) return found
+    }
+  }
+  return undefined
 }
 
 const assembleTarget = (

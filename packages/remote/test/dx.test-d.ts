@@ -323,7 +323,7 @@ void update
 // The union constructs them like any other case.
 const _received: typeof Message.Type = Message.ReadReceived({
   requests: [],
-  result: { entities: [] },
+  result: { settled: [], entities: [] },
   now: 0,
 })
 

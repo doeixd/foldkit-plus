@@ -19,7 +19,7 @@ import { stableStringify } from './query.js'
 import { emptyStore, type EntityEntry, type EntityStore } from './store.js'
 
 /** Bump when the serialized shape changes; a mismatch discards the cache. */
-export const REMOTE_CACHE_VERSION = 4
+export const REMOTE_CACHE_VERSION = 5
 
 /**
  * What survives a reload: the entity cache, and the connections an application
@@ -92,6 +92,7 @@ interface SerializedEntry {
   readonly values: Readonly<Record<string, unknown>>
   readonly present: ReadonlyArray<string>
   readonly stale: ReadonlyArray<string>
+  readonly unavailable: ReadonlyArray<string>
   readonly tombstone: boolean
   readonly updatedAt: number
   readonly windows: Readonly<Record<string, string>>
@@ -122,6 +123,7 @@ const serializeStore = (snapshot: Snapshot, scope?: string): SerializedStore => 
         values: entry.values,
         present: sorted(entry.present),
         stale: sorted(entry.stale),
+        unavailable: sorted(entry.unavailable),
         tombstone: entry.tombstone,
         updatedAt: entry.updatedAt,
         windows: entry.windows,
@@ -148,6 +150,7 @@ const parseEntry = (value: unknown): EntityEntry => {
   }
   if (!isStringArray(entry.present)) throw new Error('entry.present is not a string array')
   if (!isStringArray(entry.stale)) throw new Error('entry.stale is not a string array')
+  if (!isStringArray(entry.unavailable)) throw new Error('entry.unavailable is not a string array')
   if (typeof entry.tombstone !== 'boolean') throw new Error('entry.tombstone is not a boolean')
   if (typeof entry.updatedAt !== 'number') throw new Error('entry.updatedAt is not a number')
   if (!isStringRecord(entry.windows)) throw new Error('entry.windows is not a string record')
@@ -155,6 +158,7 @@ const parseEntry = (value: unknown): EntityEntry => {
     values: entry.values as Readonly<Record<string, unknown>>,
     present: new Set(entry.present),
     stale: new Set(entry.stale),
+    unavailable: new Set(entry.unavailable),
     tombstone: entry.tombstone,
     updatedAt: entry.updatedAt,
     windows: entry.windows,

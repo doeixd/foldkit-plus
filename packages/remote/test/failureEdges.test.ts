@@ -82,7 +82,8 @@ const received = (
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
   }>,
-): Model => Data.reduce(model, { _tag: 'ReadReceived', requests, result: { entities }, now: 0 })
+): Model =>
+  Data.reduce(model, { _tag: 'ReadReceived', requests, result: { entities, settled: [] }, now: 0 })
 
 const failed = (model: Model, requests: ReadonlyArray<Requirement>): Model =>
   Data.reduce(model, { _tag: 'ReadFailed', requests, error: down })
@@ -167,7 +168,7 @@ describe('A stale list whose query failed', () => {
       _tag: 'Hydrated',
       connections: {
         [list.ref.identity]: [
-          [{ key: entityKey('Project', 'p1'), ref: { entity: 'Project', id: 'p1' } }],
+          [{ key: entityKey('Project', 'p1'), ref: { settled: [], entity: 'Project', id: 'p1' } }],
         ],
       },
       entities: {},

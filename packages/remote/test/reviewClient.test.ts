@@ -76,6 +76,7 @@ describe('review: nested relation windows', () => {
       { entity: 'Reply', id: 'r1', values: { body: 'a' } },
       { entity: 'Reply', id: 'r2', values: { body: 'b' } },
     ],
+    settled: [],
   }
 
   it('are recorded on the nested target, so a different window is planned again', () => {
@@ -126,6 +127,7 @@ describe('review: nested relation windows', () => {
     })
     const requests = plan(store, requirementsOf(Remote.select(AppRemote, more)('p1')))
     const next = Remote.writeRead(store, requests, {
+      settled: [],
       entities: [
         {
           entity: 'Comment',
@@ -156,6 +158,7 @@ describe('review: prefetch stamps the store with its clock', () => {
   const Client = Layer.succeed(RemoteClient, {
     read: batch =>
       Effect.succeed({
+        settled: [],
         entities: batch.requests.map(r => ({
           entity: r.entity,
           id: r.id,

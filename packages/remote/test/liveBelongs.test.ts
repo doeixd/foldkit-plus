@@ -85,6 +85,7 @@ const loaded = (
         _tag: 'ReadReceived',
         requests: [{ entity: 'Project', id: row.id, fields: ['id', 'name', 'status'] }],
         result: {
+          settled: [],
           entities: [
             {
               entity: 'Project',

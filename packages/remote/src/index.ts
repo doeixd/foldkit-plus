@@ -91,7 +91,14 @@ import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
 import type { ConnectionSpec, LivePolicy, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
-import { Selection, assemble, pageSchema, relationOf, type Page } from './selection.js'
+import {
+  Selection,
+  assemble,
+  pageSchema,
+  relationOf,
+  unavailableOf,
+  type Page,
+} from './selection.js'
 import { entityKey, isTombstone, type EntityStore } from './store.js'
 import {
   QueryRequest,
@@ -720,6 +727,29 @@ const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): Ent
 // once and return one value (a view may compare by identity). A query read
 // also depends on its connection, which changes independently of the store,
 // so it keys on that object too. Weak on both, bounded by what is read.
+/**
+ * `Failed` naming a field the server settled without a value, when one is
+ * among what `relation` reads of the entity; otherwise nothing, and the store
+ * merely lacks the value. The reason stays with the server, so a view shows
+ * the field it cannot have, not why.
+ */
+const unavailableFailure = (
+  store: EntityStore,
+  key: string,
+  relation: RelationRequirement,
+): { readonly _tag: 'Failed'; readonly error: RemoteError } | undefined => {
+  const field = unavailableOf(store, key, relation)
+  return field === undefined
+    ? undefined
+    : {
+        _tag: 'Failed',
+        error: {
+          _tag: 'Unavailable',
+          message: `The server answered without ${field}, and will not answer with it: the field is not available to this client.`,
+        },
+      }
+}
+
 const readResults = new WeakMap<object, WeakMap<object, Map<string, unknown>>>()
 
 const memoRead = <T>(snapshot: object, by: object, key: string, compute: () => T): T => {
@@ -1495,7 +1525,7 @@ export const Remote = {
           () => {
             if (isTombstone(store, key)) return { _tag: 'NotFound' }
             const assembled = assemble(store, key, relation)
-            if (assembled === undefined) return undefined
+            if (assembled === undefined) return unavailableFailure(store, key, relation)
             const decoded = Schema.decodeUnknownResult(selection.schema)(assembled.values)
             return Result.isFailure(decoded)
               ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
@@ -2159,8 +2189,9 @@ const bindDomain = <
               remote.entities,
             )
             for (const edge of edges) {
-              const assembled = assemble(visible, entityKey(edge.ref.entity, edge.ref.id), relation)
-              if (assembled === undefined) return undefined
+              const key = entityKey(edge.ref.entity, edge.ref.id)
+              const assembled = assemble(visible, key, relation)
+              if (assembled === undefined) return unavailableFailure(visible, key, relation)
               const decoded = Schema.decodeUnknownResult(select.schema)(assembled.values)
               if (Result.isFailure(decoded)) {
                 return {
@@ -2329,7 +2360,9 @@ const bindDomain = <
             message:
               state.error._tag === 'DecodeError'
                 ? `What the server sent does not decode against the Selection: ${state.error.message}`
-                : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
+                : state.error._tag === 'Unavailable'
+                  ? `${state.error.message} Select without it, or Data.refresh asks again.`
+                  : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
             ...withSurfaces,
           }
         case 'Initial':

@@ -149,9 +149,55 @@ describe('RemoteServer', () => {
     expect(result.entities).toEqual([{ entity: 'User', id: 'u1', values: { id: 'id:u1' } }])
   })
 
-  it('returns nothing for an entity the principal may not see', async () => {
+  it('returns nothing for an entity the principal may not see, and settles what was asked', async () => {
     const result = await read('nobody', [{ entity: 'User', id: 'u1', fields: ['admin'] }])
     expect(result.entities).toEqual([])
+    expect(result.settled).toEqual([{ entity: 'User', id: 'u1', fields: ['admin'] }])
+  })
+
+  it('settles a field authorize withheld, beside the values it did answer', async () => {
+    const result = await read('user', [{ entity: 'User', id: 'u1', fields: ['id', 'admin'] }])
+    expect(result.entities).toEqual([{ entity: 'User', id: 'u1', values: { id: 'id:u1' } }])
+    expect(result.settled).toEqual([{ entity: 'User', id: 'u1', fields: ['admin'] }])
+  })
+
+  it('settles a field the Source left out of a record it returned', async () => {
+    const result = await read('user', [{ entity: 'User', id: 'u1', fields: ['id', 'missing'] }])
+    expect(result.settled).toEqual([{ entity: 'User', id: 'u1', fields: ['missing'] }])
+  })
+
+  it('settles nothing for an id the Source does not know, so the client learns it is absent', async () => {
+    const unknown = RemoteServer.make({
+      entities: [
+        RemoteServer.entity<string>(User, {
+          authorize: (_principal, fields) => fields.filter(field => field !== 'admin'),
+          read: () => Effect.succeed([]),
+        }),
+      ],
+    })
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const client = yield* RpcTest.makeClient(RemoteRpc)
+          return yield* client.FoldkitRemoteRead({
+            version: REMOTE_PROTOCOL_VERSION,
+            requests: [
+              { entity: 'User', id: 'gone', fields: ['id'] },
+              { entity: 'User', id: 'hidden', fields: ['admin'] },
+            ],
+          })
+        }),
+      ).pipe(Effect.provide(RemoteRpc.toLayer({ ...RemoteServer.handlers(unknown, 'user') }))),
+    )
+    expect(result.entities).toEqual([])
+    // Only the withheld field is settled: an absent id looks the same as a
+    // present one whose fields were all withheld, so existence is not told.
+    expect(result.settled).toEqual([{ entity: 'User', id: 'hidden', fields: ['admin'] }])
+  })
+
+  it('settles nothing when everything asked for was answered', async () => {
+    const result = await read('admin', [{ entity: 'User', id: 'u1', fields: ['id', 'admin'] }])
+    expect(result.settled).toEqual([])
   })
 
   it('never returns a field the client did not request, even if authorize is permissive', async () => {

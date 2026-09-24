@@ -153,6 +153,8 @@ describe('a relation read under an alias', () => {
     ])
     expect(valuesOf(result, 'Project:p1')).toEqual({ name: 'Apollo' })
     expect(reads.every(entry => !entry.fields.includes('comments'))).toBe(true)
+    // Settled under the alias, the name the client asked by and remembers.
+    expect(result.settled).toEqual([{ entity: 'Project', id: 'p1', fields: [page] }])
   })
 
   it('refuses more pages of one relation than a screen would show, at any depth', async () => {

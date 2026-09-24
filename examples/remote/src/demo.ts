@@ -174,6 +174,7 @@ const FakeClient = Layer.succeed(RemoteClient, {
         id: request.id,
         values: { id: request.id, name: server.names[request.id], status: 'active' },
       })),
+      settled: [],
     })),
   query: () =>
     Effect.sync(() => ({

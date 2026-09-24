@@ -57,6 +57,7 @@ const served: Model = (() => {
       { entity: 'User', id: 'u1', fields: ['name', 'email'] },
     ],
     result: {
+      settled: [],
       entities: [
         { entity: 'Project', id: 'p1', values: { name: 'Atlas', owner: 'User:u1' } },
         { entity: 'Project', id: 'p2', values: { name: 'Unrelated' } },

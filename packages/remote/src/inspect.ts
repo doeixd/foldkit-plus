@@ -12,6 +12,7 @@ export interface RemoteInspection {
     readonly key: string
     readonly present: ReadonlyArray<string>
     readonly stale: ReadonlyArray<string>
+    readonly unavailable: ReadonlyArray<string>
     readonly tombstone: boolean
     readonly updatedAt: number
     readonly windows: Readonly<Record<string, string>>
@@ -43,6 +44,7 @@ const inspectEntry = (key: string, entry: EntityEntry): RemoteInspection['entiti
   key,
   present: [...entry.present],
   stale: [...entry.stale],
+  unavailable: [...entry.unavailable],
   tombstone: entry.tombstone,
   updatedAt: entry.updatedAt,
   windows: { ...entry.windows },

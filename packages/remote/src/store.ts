@@ -16,6 +16,12 @@ export interface EntityEntry {
   readonly present: ReadonlySet<string>
   /** Present fields whose value may be outdated (revalidation needed). */
   readonly stale: ReadonlySet<string>
+  /**
+   * Fields the server settled without a value: asked for, and answered without
+   * them, whatever the reason. Not planned again until a refresh asks; a later
+   * write of the field clears it.
+   */
+  readonly unavailable: ReadonlySet<string>
   /** The entity is known to be absent; a later write clears this. */
   readonly tombstone: boolean
   /** Injected clock reading of the last write; never read from ambient state. */
@@ -36,6 +42,7 @@ const emptyEntry: EntityEntry = {
   values: {},
   present: new Set(),
   stale: new Set(),
+  unavailable: new Set(),
   tombstone: false,
   updatedAt: 0,
   windows: {},
@@ -56,10 +63,12 @@ const written = (
 ): EntityEntry => {
   const present = new Set(previous.present)
   const stale = new Set(previous.stale)
+  const unavailable = new Set(previous.unavailable)
   const nextWindows: Record<string, string> = { ...previous.windows }
   for (const field of Object.keys(values)) {
     present.add(field)
     stale.delete(field)
+    unavailable.delete(field)
     // A write without a window clears any remembered one: the value changed.
     const requested = windows?.[field]
     if (requested !== undefined && requested !== '') nextWindows[field] = requested
@@ -73,6 +82,7 @@ const written = (
     values: { ...previous.values, ...values },
     present,
     stale,
+    unavailable,
     tombstone: false,
     updatedAt: now,
     windows: nextWindows,
@@ -155,12 +165,46 @@ export const clearStale = (
   fields: Iterable<string>,
 ): EntityStore => setStale(store, [[key, fields]], false)
 
+/**
+ * Records fields the server settled without a value. A present field is left
+ * as it is: the answer that settled it was not about the value it holds. The
+ * `set` marks it, `unset` forgets it, so a refresh can ask again.
+ */
+export const setUnavailable = (
+  store: EntityStore,
+  marks: ReadonlyArray<readonly [key: EntityKey, fields: Iterable<string>]>,
+  unavailable: boolean,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const [key, fields] of marks) {
+    const previous = (next ?? store)[key] ?? emptyEntry
+    if (previous.tombstone) continue
+    const marked = new Set(previous.unavailable)
+    for (const field of fields) {
+      if (unavailable) {
+        if (!previous.present.has(field)) marked.add(field)
+      } else marked.delete(field)
+    }
+    if (marked.size === previous.unavailable.size) continue
+    next ??= { ...store }
+    next[key] = { ...previous, unavailable: marked }
+  }
+  return next ?? store
+}
+
+/** Whether the server settled this field without a value, and nothing has written it since. */
+export const isFieldUnavailable = (store: EntityStore, key: EntityKey, field: string): boolean => {
+  const value = store[key]
+  return value !== undefined && !value.tombstone && value.unavailable.has(field)
+}
+
 /** Records that the entity is known to be absent, so it is not refetched. */
 export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
   replace(store, key, {
     values: {},
     present: new Set(),
     stale: new Set(),
+    unavailable: new Set(),
     tombstone: true,
     updatedAt: 0,
     windows: {},
@@ -212,7 +256,8 @@ export const readField = (
 
 /**
  * The fields the planner must fetch. A tombstone makes every field known
- * (absent), so it returns an empty list and the entity is not refetched. A
+ * (absent), so it returns an empty list and the entity is not refetched, and a
+ * field the server settled without a value is known the same way. A
  * requested window that differs from the one a field was fetched with also
  * marks it missing, but only when the stored window is known (never `""`), so a
  * writer that does not record windows cannot cause a refetch loop.
@@ -226,7 +271,9 @@ export const missingFields = (
   const value = store[key]
   if (value !== undefined && value.tombstone) return []
   return [...fields].filter(field => {
-    if (value === undefined || !value.present.has(field) || value.stale.has(field)) return true
+    if (value === undefined) return true
+    if (!value.present.has(field)) return !value.unavailable.has(field)
+    if (value.stale.has(field)) return true
     const requested = windows?.[field]
     const stored = value.windows[field]
     return requested !== undefined && stored !== undefined && stored !== '' && stored !== requested

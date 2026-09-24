@@ -79,7 +79,7 @@ describe('coalescing keys and windows', () => {
     const read: BatchRead = batch =>
       Effect.sync(() => {
         batches.push(batch)
-        return { entities: [] }
+        return { settled: [], entities: [] }
       })
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -111,7 +111,7 @@ describe('review: a nested page requirement reads alone, plain requirements shar
     const read: BatchRead = batch =>
       Effect.sync(() => {
         batches.push(batch)
-        return { entities: [] }
+        return { settled: [], entities: [] }
       })
     await Effect.runPromise(
       Effect.gen(function* () {

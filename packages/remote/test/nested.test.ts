@@ -402,7 +402,7 @@ describe('observe resolves a graph in one read', () => {
     read: batch =>
       Effect.sync(() => {
         calls.push(batch.requests)
-        return { entities: resolve(batch.requests) }
+        return { settled: [], entities: resolve(batch.requests) }
       }),
     query: () => Effect.die('unused'),
     mutate: () => Effect.die('unused'),

@@ -64,6 +64,7 @@ describe('A query given to an agent as a read capability', () => {
           },
           { entity: 'User', id: 'u1', values: { name: 'Ada' } },
         ],
+        settled: [],
       },
       now: 0,
     })

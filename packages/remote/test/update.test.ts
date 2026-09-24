@@ -32,7 +32,7 @@ const readReceived = (
   updateRemote(model, {
     _tag: 'ReadReceived',
     requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
-    result: { entities: [{ entity: 'User', id: 'u1', values }] },
+    result: { settled: [], entities: [{ entity: 'User', id: 'u1', values }] },
     now,
   })
 
@@ -254,6 +254,7 @@ describe('Remote.update', () => {
         key: 'User:u1',
         present: ['name'],
         stale: [],
+        unavailable: [],
         tombstone: false,
         updatedAt: 0,
         windows: {},
@@ -272,6 +273,7 @@ describe('Remote.update', () => {
       _tag: 'ReadReceived',
       requests,
       result: {
+        settled: [],
         entities: [
           { entity: 'User', id: 'u1', values: { name: 'ada' } },
           { entity: 'User', id: 'u2', values: { name: 'grace' } },
@@ -305,7 +307,10 @@ describe('Remote.update', () => {
     const landed = updateRemote(reading, {
       _tag: 'ReadReceived',
       requests,
-      result: { entities: [{ entity: 'User', id: 'u1', values: { name: 'ada', email: 'a@b' } }] },
+      result: {
+        settled: [],
+        entities: [{ entity: 'User', id: 'u1', values: { name: 'ada', email: 'a@b' } }],
+      },
       now: 0,
     })
 

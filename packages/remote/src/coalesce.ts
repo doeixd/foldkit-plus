@@ -205,7 +205,7 @@ export const coalesceReads = (
 
     return batch =>
       batch.requests.length === 0
-        ? Effect.succeed({ entities: [] })
+        ? Effect.succeed({ entities: [], settled: [] })
         : Effect.forEach(
             batch.requests,
             requirement =>
@@ -215,8 +215,12 @@ export const coalesceReads = (
               ),
             { concurrency: 'unbounded' },
           ).pipe(
-            Effect.map(results => ({
-              entities: [...new Set(results)].flatMap(result => result.entities),
-            })),
+            Effect.map(results => {
+              const distinct = [...new Set(results)]
+              return {
+                entities: distinct.flatMap(result => result.entities),
+                settled: distinct.flatMap(result => result.settled),
+              }
+            }),
           )
   })

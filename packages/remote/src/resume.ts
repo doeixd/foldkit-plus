@@ -26,6 +26,7 @@ const CapturedEntry = Schema.Struct({
   values: Schema.Record(Schema.String, Schema.Unknown),
   present: Schema.Array(Schema.String),
   stale: Schema.Array(Schema.String),
+  unavailable: Schema.Array(Schema.String),
   windows: Schema.Record(Schema.String, Schema.String),
   tombstone: Schema.Boolean,
   updatedAt: Schema.Number,
@@ -90,6 +91,7 @@ type MutableEntry = {
   values: Record<string, unknown>
   present: Set<string>
   stale: Set<string>
+  unavailable: Set<string>
   windows: Record<string, string>
   tombstone: boolean
   updatedAt: number
@@ -139,12 +141,16 @@ export const captureRemote = (
       values: {},
       present: new Set<string>(),
       stale: new Set<string>(),
+      unavailable: new Set<string>(),
       windows: {},
       tombstone: stored.tombstone,
       updatedAt: stored.updatedAt,
     }
     entries.set(key, entry)
     for (const field of requirement.fields) {
+      // A field the server settled without a value is knowledge too: the
+      // browser would otherwise ask for it once more.
+      if (stored.unavailable.has(field)) entry.unavailable.add(field)
       if (!stored.present.has(field)) continue
       entry.values[field] = stored.values[field]
       entry.present.add(field)
@@ -185,6 +191,7 @@ export const captureRemote = (
           values: entry.values,
           present: [...entry.present],
           stale: [...entry.stale],
+          unavailable: [...entry.unavailable],
           windows: entry.windows,
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
@@ -226,6 +233,7 @@ export const restoreRemote = <Store extends RemoteModel>(
           values: entry.values,
           present: new Set(entry.present),
           stale: new Set(entry.stale),
+          unavailable: new Set(entry.unavailable),
           windows: entry.windows,
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,

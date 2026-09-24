@@ -46,6 +46,7 @@ const update = (model: Model, message: Message): Return =>
 const FakeClient = Layer.succeed(RemoteClient, {
   read: batch =>
     Effect.succeed({
+      settled: [],
       entities: batch.requests.map(request => ({
         entity: request.entity,
         id: request.id,
@@ -74,7 +75,10 @@ describe('Remote.fold', () => {
       message: {
         _tag: 'ReadReceived',
         requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
-        result: { entities: [{ entity: 'User', id: 'u1', values: { id: 'u1', name: 'ada' } }] },
+        result: {
+          settled: [],
+          entities: [{ entity: 'User', id: 'u1', values: { id: 'u1', name: 'ada' } }],
+        },
         now: 1,
       },
     })

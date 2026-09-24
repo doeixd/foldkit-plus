@@ -61,7 +61,10 @@ const loaded = (): Model => {
   return Data.reduce(merged, {
     _tag: 'ReadReceived',
     requests: [{ entity: 'Project', id: 'p1', fields: ['id', 'name'] }],
-    result: { entities: [{ entity: 'Project', id: 'p1', values: { id: 'p1', name: 'One' } }] },
+    result: {
+      settled: [],
+      entities: [{ entity: 'Project', id: 'p1', values: { id: 'p1', name: 'One' } }],
+    },
     now: 0,
   })
 }

@@ -97,7 +97,10 @@ describe('A list whose first page is on its way', () => {
       {
         _tag: 'ReadReceived',
         requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
-        result: { entities: [{ entity: 'Project', id: 'p1', values: { name: 'One' } }] },
+        result: {
+          settled: [],
+          entities: [{ entity: 'Project', id: 'p1', values: { name: 'One' } }],
+        },
         now: 0,
       },
     )

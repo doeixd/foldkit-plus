@@ -324,6 +324,7 @@ describe('snapshot hardening', () => {
         Effect.sync(() => {
           calls.push(batch)
           return {
+            settled: [],
             entities: batch.requests.map(request => ({
               entity: request.entity,
               id: request.id,

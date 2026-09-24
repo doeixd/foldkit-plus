@@ -93,6 +93,7 @@ const loaded = (wholly = true, fields = ['id', 'name', 'status']): Model => {
     _tag: 'ReadReceived',
     requests: rows.map(r => ({ entity: 'Project', id: r.id, fields })),
     result: {
+      settled: [],
       entities: rows.map(r => ({
         entity: 'Project',
         id: r.id,
@@ -247,7 +248,10 @@ describe('Gaps, which the outer boundaries do not show', () => {
     const model = Data.reduce(bothEnds, {
       _tag: 'ReadReceived',
       requests: rows.map(r => ({ entity: 'Project', id: r.id, fields: ['id', 'name', 'status'] })),
-      result: { entities: rows.map(r => ({ entity: 'Project', id: r.id, values: r })) },
+      result: {
+        settled: [],
+        entities: rows.map(r => ({ entity: 'Project', id: r.id, values: r })),
+      },
       now: 0,
     })
 
@@ -284,6 +288,7 @@ describe('What it does not do', () => {
       _tag: 'ReadReceived',
       requests: [{ entity: 'Project', id: 'p9', fields: ['id', 'name', 'status'] }],
       result: {
+        settled: [],
         entities: [
           {
             entity: 'Project',
