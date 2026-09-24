@@ -28,6 +28,7 @@ A historical status line is not a statement about today's package availability.
 | [MIRROR.md](./MIRROR.md) | Why mirroring is observation rather than ownership, plus the store/kernel design. |
 | [mixins-DESIGN.md](./mixins-DESIGN.md) | `foldkit-mixins` substrate probes and the implementation decisions they forced. |
 | [styleImprovements-DESIGN.md](./styleImprovements-DESIGN.md) | A design system inside `foldkit-mixins` as one composable algebra over subpath exports: a `Layers` value, an OKLCH token generator and scoped theme overrides, `Layout` pieces, element defaults and prose, and shipped recipes; what is borrowed from css-tags and what is not. |
+| [platform-DESIGN.md](./platform-DESIGN.md) | Portable Style and Behavior: a target type on every piece, conditions and theme derivations as data, accessibility intents and element handles instead of ARIA strings and DOM elements, and a host per platform, with React Native through codegen as the first target. |
 | [agent-DESIGN.md](./agent-DESIGN.md) | `foldkit-agent` contract, authority boundaries, completion, and adapter rationale. |
 | [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md) | Design decisions and remaining constraints for `foldkit-remote-drizzle`. |
 | [surface-BACKBONE.md](./surface-BACKBONE.md) | Why Surface is a shared semantic seam for packages that need observation/capability metadata. |
