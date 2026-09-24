@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM half — interpreter, event translation, HTML import — to `packages/richtext-dom`, and §118 decides how a view owns that subtree); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. Nested children beyond runs (§116) are done. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 has begun (promotion moved the DOM half — interpreter, event translation, HTML import — to `packages/richtext-dom`, and §118's first slice landed: the editor Bundle's view owns the host and the patch Command its `update` returns moves the DOM); no phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -1446,9 +1446,12 @@ restore) is what the next command resolves against. Identity comes from the
 parent-owned `nextId` counter, and a refused command leaves document,
 selection, and the counter untouched — so rejected edits never burn identities.
 
-Still unproven by this track: the browser half (patching a real
-`contenteditable` from the same transition) and lifecycle beyond a single
-placement. Both belong to the Phase 3 slice.
+The browser half followed (§118): the Bundle's view renders the host element, and
+the patch Command the transition returns is what moves the DOM — so one transition
+still commits the document and the interaction state, and rendering follows it.
+What remains unproven is lifecycle beyond a single placement (an application
+placing several editors, or remounting one) and real-browser behaviour (IME,
+native selection).
 
 ---
 
@@ -4603,11 +4606,10 @@ Not done:
   served from source; see that harness's README), and it was verified to build and
   serve, but driving it needs a browser connected to the session, which this
   environment did not have.
-- **The slice and the Bundle editor are separate proofs.** `events.ts` produces
-  commands while `controlled.ts` consumes Messages; §118 decides how they meet —
-  the DOM patch is a Command from `update`, not a Subscription. The adapter's
-  events are now the editor's Messages (`examples/richtext/src/editor.ts`); the
-  Bundle's view and patch Command are the rest of Phase 4's slice 1.
+- **The slice and the Bundle editor are one editor now.** §118 decided how they
+  meet — the view renders the host, and the DOM patch is a Command from `update`,
+  not a Subscription — and §118's slice 1 landed: the Bundle has a view, and the
+  Command its `update` returns is what moves the DOM.
 
 ## Phase 4 — editor Bundle features
 
@@ -4615,9 +4617,11 @@ The controlled-Bundle proof passed (§27), so the gate is met; nothing is
 published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
 event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
 `examples/richtext` to `packages/richtext-dom`, a private package with its own
-tests, build, and README. §118 decides how the view owns the subtree (a mount for
-events, a Command from `update` for the patch) so the editor can be built on it.
-The read-only view and the editor Bundle still live in the harness and move next.
+tests, build, and README. §118 decided how a view owns that subtree and its first
+slice landed: the editor Bundle's view renders the host element, and the patch
+Command its `update` returns is what moves the DOM. The read-only view and the
+editor Bundle still live in the harness, unpublished; the toolbar, slash, and
+keymap layers remain.
 
 Per item:
 
@@ -5008,13 +5012,13 @@ Command are identical, which is §27's requirement.
 
 ## Slices
 
-1. **In progress.** The translation and the mount are done
-   (`examples/richtext/src/editor.ts`): `toMessage` maps each intent, `events` is
-   a `Mount.defineStream` that attaches on subscribe and releases when the element
-   goes, the patch Command's work is `patchEditor(hostId, state, changeSet)`, and
-   the tests drive `attachEditor`, the stream, and the patch directly. Still to
-   build: the Bundle whose view renders the host and whose update emits that
-   Command, proved through `foldkit/test`'s `Scene`.
+1. **Complete.** The editor Bundle carries a view: it renders the host element the
+   patch Command finds, with `events` as its mount, and `update` returns the
+   `RichText.patch` Command carrying the `ChangeSet` — §27's proof, now with a
+   browser half. `examples/richtext/test/editorView.test.ts` proves both ends:
+   `Scene` renders the host at its id, and running the Command the transition
+   returned is what moves the DOM. The vocabulary, `attachEditor`, `events`,
+   `mountInto`, `attachmentIn`, and `patchEditor` are the tests underneath.
 2. Paste and the history chords through Messages, on the same view.
 3. Promote the editor into `foldkit-richtext-dom` with the interpreter as its
    internals, and the read-only renderer alongside it.

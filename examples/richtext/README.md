@@ -12,11 +12,14 @@ is the whole experiment:
 ```text
 parent Model
   document        the authoritative Document
-  editor          interaction state: selection, nextId (identity source)
+  editor          state the child cannot own: selection, nextId, history,
+                  storedMarks, and hostId (the element the view renders)
 
-editor Bundle reads  →  { document, selection, nextId }
-editor Bundle writes →  { selection, nextId }        (the document is not its own)
-editor Bundle emits  →  Edited { state } | Rejected { error }
+editor Bundle reads  →  { document, selection, nextId, history, storedMarks, hostId }
+editor Bundle writes →  the editor fields                (the document is not its own)
+editor Bundle renders →  the host element, with the editor's events as its mount
+editor Bundle emits  →  Edited { state } | Replaced { state } | Rejected { error }
+                          + a RichText.patch Command
 parent onOut         →  document = state.document, selection = state.selection
 ```
 
@@ -25,11 +28,18 @@ transition, so the child never stores a copy, and `write` deliberately drops the
 document field. `onOut` runs with the child already written back, in the same
 parent transition, which is what makes the two halves commit together.
 
+Rendering is the one thing that is not part of that transition: the Bundle's
+`update` returns a `RichText.patch` Command carrying the `ChangeSet`, and the
+Command syncs the attachment its host element holds (§118). The commit is
+synchronous; the patch is what follows it.
+
 `test/controlled.test.ts` asserts what that step commits: typing and mark
 toggles land document and selection in one transition; a split mints block and
 run identities from the parent-owned counter; a refused command changes nothing
 and does not burn identities; and a document replaced from outside is what the
-next command resolves against.
+next command resolves against. `test/editorView.test.ts` asserts the other half:
+the view renders the host the Command finds, and running that Command is what
+moves the DOM.
 
 ## The DOM half (first increment)
 
