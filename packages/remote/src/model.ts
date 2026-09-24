@@ -707,11 +707,8 @@ export const updateRemote = (model: RemoteModel, message: RemoteMessage): Remote
       )
       // A field the server settled without a value is asked for again the same
       // way, and reads `Loading` while it is.
-      const entities = setUnavailable(
-        setStale(asked, marksOf(message.requests), true),
-        marksOf(message.requests),
-        false,
-      )
+      const marks = marksOf(message.requests)
+      const entities = setUnavailable(setStale(asked, marks, true), marks, false)
       // Asking again is also how a failed field is retried, including one that
       // never loaded and so has nothing to mark stale, and one on a relation's
       // target, which the request reaches only through the store: a server need
