@@ -27,7 +27,7 @@ export const variable = <T extends ThemeTokens, G extends keyof T & string>(
 ): string => `var(${VAR_PREFIX}-${group}-${name})`
 
 export const variables = <T extends ThemeTokens>(theme: T): StyleValue => {
-  const style: Record<string, string> = {}
+  const style: Record<`--${string}`, string> = {}
   for (const [group, names] of Object.entries(theme)) {
     for (const [name, value] of Object.entries(names as Record<string, string>)) {
       style[`${VAR_PREFIX}-${group}-${name}`] = value

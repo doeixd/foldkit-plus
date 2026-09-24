@@ -21,10 +21,9 @@ import {
   pseudo,
   self,
   vars,
+  type Declarations,
   type StyleValue,
 } from './styleValue.js'
-
-type Declarations = Readonly<Record<string, string>>
 
 /** The generated class of a rule-only piece, for another piece's selector. */
 const classOf = (piece: StyleValue): string => Rules.className(piece.rules ?? [])

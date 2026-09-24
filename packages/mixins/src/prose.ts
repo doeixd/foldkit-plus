@@ -73,7 +73,7 @@ const rules: StyleValue = compose(
   nest('a', { overflowWrap: 'anywhere' }),
 )
 
-const variables = (options: ProseOptions): Readonly<Record<string, string>> => ({
+const variables = (options: ProseOptions): Readonly<Record<`--${string}`, string>> => ({
   ...(options.measure === undefined ? {} : { '--fk-prose-measure': options.measure }),
   ...(options.rhythm?.paragraph === undefined
     ? {}

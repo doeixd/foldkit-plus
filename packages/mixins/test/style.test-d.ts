@@ -16,6 +16,36 @@ Style.forSlots(FieldSlots)({ internals: Style.class('x') })
 // @ts-expect-error inline declarations are string-valued.
 Style.inline({ width: 3 })
 
+// Declarations: camelCase CSS properties and custom properties, every piece.
+Style.inline({ color: 'red', gridTemplateColumns: '1fr', '--gap': '1rem' })
+Style.self({ WebkitLineClamp: '3', color: 'light-dark(#000, #fff)' })
+// @ts-expect-error a misspelled property.
+Style.inline({ colr: 'red' })
+// @ts-expect-error kebab-case: the compiler writes kebab-case from camelCase.
+Style.inline({ 'background-color': 'red' })
+// @ts-expect-error a misspelled property in a rule piece.
+Style.self({ paddng: '1rem' })
+// @ts-expect-error in a pseudo rule.
+Style.pseudo(':hover', { colr: 'red' })
+// @ts-expect-error in a nested rule.
+Style.nest('> span', { colr: 'red' })
+// @ts-expect-error in a media rule.
+Style.media('(min-width: 40rem)', { colr: 'red' })
+// @ts-expect-error in a supports rule.
+Style.supports('(display: grid)', { colr: 'red' })
+// @ts-expect-error in a container rule.
+Style.container('(min-width: 30rem)', { colr: 'red' })
+// @ts-expect-error in a starting style.
+Style.enter({ opcity: '0' })
+// @ts-expect-error in a state.
+Style.states({ open: { opcity: '1' } })
+// @ts-expect-error in a keyframe.
+Style.keyframes({ from: { opcity: '0' } })
+// @ts-expect-error in a responsive breakpoint.
+Style.responsive({ md: '(min-width: 48rem)' }, { md: { dispaly: 'flex' } })
+// @ts-expect-error vars takes only custom properties.
+Style.vars({ color: 'red' })
+
 const IntentRecipe = Style.recipe({
   variants: { intent: { primary: Style.class('p'), secondary: Style.class('s') } },
 })

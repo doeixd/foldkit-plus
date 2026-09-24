@@ -41,8 +41,11 @@ describe('prototype-key slot names', () => {
     expect(described.slots['__proto__']?.capability).toBe('Container')
   })
 
-  it('composes a __proto__ style property', () => {
-    const composed = Style.compose(Style.inline({ ['__proto__']: 'thin' }))
+  it('composes a __proto__ style property from untyped data', () => {
+    // The Declarations type refuses `__proto__`; untyped JavaScript and parsed
+    // data can still carry it, so the runtime must keep it as an own key.
+    const parsed = JSON.parse('{"__proto__":"thin"}')
+    const composed = Style.compose(Style.inline(parsed))
     expect(Object.hasOwn(composed.style, '__proto__')).toBe(true)
     expect(composed.style['__proto__']).toBe('thin')
   })

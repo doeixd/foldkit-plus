@@ -5,10 +5,21 @@
  * slot is; `style.ts` joins this to slots, and the `/theme`, `/layers`,
  * `/layout`, `/defaults`, and `/prose` subpaths build on it alone.
  */
+import type { Properties } from 'csstype'
 import { DiagnosticError } from './diagnostics.js'
 import type { SlotItem } from './slotItem.js'
 import * as Rules from './styleRules.js'
 import type { StyleRule } from './styleRules.js'
+
+/**
+ * The declarations a piece accepts: camelCase CSS properties, each a string,
+ * plus custom properties. A misspelled or kebab-case property is a type error;
+ * the compiler writes the kebab-case name. Values stay strings, so `var(...)`,
+ * `calc(...)`, and `light-dark(...)` pass through.
+ */
+export type Declarations = { readonly [K in keyof Properties]?: string } & {
+  readonly [K: `--${string}`]: string
+}
 
 export interface StyleValue {
   readonly classes: ReadonlyArray<string>
@@ -39,7 +50,7 @@ export const empty: StyleValue = Object.freeze({
 export const classPiece = (value: string): StyleValue =>
   Object.freeze({ classes: Object.freeze(tokens(value)), style: empty.style })
 
-export const inline = (value: Readonly<Record<string, string>>): StyleValue =>
+export const inline = (value: Declarations): StyleValue =>
   Object.freeze({ classes: empty.classes, style: Object.freeze({ ...value }) })
 
 /** Concatenate classes; later inline declarations win per property. */
@@ -59,10 +70,7 @@ export const compose = (...pieces: ReadonlyArray<StyleValue>): StyleValue => {
 }
 
 /** A pseudo-class/element rule, e.g. `Style.pseudo(':hover', { color: 'red' })`. */
-export const pseudo = (
-  suffix: string,
-  declarations: Readonly<Record<string, string>>,
-): StyleValue =>
+export const pseudo = (suffix: string, declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,
@@ -74,7 +82,7 @@ export const pseudo = (
  * (`&{…}`) rather than inline, so `Layers.in` can place them in a layer and a
  * later layer can override them. Inline declarations sit outside every layer.
  */
-export const self = (declarations: Readonly<Record<string, string>>): StyleValue =>
+export const self = (declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,
@@ -82,7 +90,7 @@ export const self = (declarations: Readonly<Record<string, string>>): StyleValue
   })
 
 /** An at-rule, e.g. `Style.media('(min-width: 40rem)', { color: 'red' })`. */
-export const media = (query: string, declarations: Readonly<Record<string, string>>): StyleValue =>
+export const media = (query: string, declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,
@@ -90,10 +98,7 @@ export const media = (query: string, declarations: Readonly<Record<string, strin
   })
 
 /** An at-rule, e.g. `Style.supports('(display: grid)', { display: 'grid' })`. */
-export const supports = (
-  condition: string,
-  declarations: Readonly<Record<string, string>>,
-): StyleValue =>
+export const supports = (condition: string, declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,
@@ -101,10 +106,7 @@ export const supports = (
   })
 
 /** A container query, e.g. `Style.container('(min-width: 30rem)', {...})`. */
-export const container = (
-  condition: string,
-  declarations: Readonly<Record<string, string>>,
-): StyleValue =>
+export const container = (condition: string, declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,
@@ -112,10 +114,7 @@ export const container = (
   })
 
 /** A nested selector relative to the generated class, e.g. `Style.nest('> span', {...})`. */
-export const nest = (
-  selector: string,
-  declarations: Readonly<Record<string, string>>,
-): StyleValue =>
+export const nest = (selector: string, declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,
@@ -127,7 +126,7 @@ export const nest = (
  * declared and reference `name` in an `animation` declaration.
  */
 export const keyframes = (
-  frames: Readonly<Record<string, Readonly<Record<string, string>>>>,
+  frames: Readonly<Record<string, Declarations>>,
 ): { readonly name: string; readonly style: StyleValue } => {
   const compiled = Rules.keyframes(frames)
   return Object.freeze({
@@ -155,7 +154,7 @@ export const global = (css: string): StyleValue =>
  * `whenInput` when the view knows, `states` when the DOM does.
  */
 export const states = (
-  map: Readonly<Record<string, Readonly<Record<string, string>>>>,
+  map: Readonly<Record<string, Declarations>>,
   attribute = 'data-state',
 ): StyleValue =>
   Object.freeze({
@@ -176,7 +175,7 @@ export const states = (
  */
 export const responsive = <Breakpoints extends Readonly<Record<string, string>>>(
   breakpoints: Breakpoints,
-  map: Partial<Readonly<Record<keyof Breakpoints & string, Readonly<Record<string, string>>>>>,
+  map: Partial<Readonly<Record<keyof Breakpoints & string, Declarations>>>,
 ): StyleValue =>
   Object.freeze({
     classes: empty.classes,
@@ -256,7 +255,7 @@ export const grid = <const Area extends string>(
  * `@starting-style` rule. With a `transition` on the base, the browser
  * animates from these; pair with `allowDiscrete` when `display` takes part.
  */
-export const enter = (declarations: Readonly<Record<string, string>>): StyleValue =>
+export const enter = (declarations: Declarations): StyleValue =>
   Object.freeze({
     classes: empty.classes,
     style: empty.style,

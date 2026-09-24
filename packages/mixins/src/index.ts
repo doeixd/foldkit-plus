@@ -68,6 +68,6 @@ export type {
 export type { Contract as SlotsContract } from './slots.js'
 export type { Layers as LayersValue, MapsPieces } from './layers.js'
 export type { NamedStyle, StylePieces, StylesheetSource } from './style.js'
-export type { StyleCondition, StyleValue } from './styleValue.js'
+export type { Declarations, StyleCondition, StyleValue } from './styleValue.js'
 export type { StyleRule } from './styleRules.js'
 export type { Theme as ThemeValue, ThemeTokens } from './theme/core.js'

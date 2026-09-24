@@ -4,7 +4,7 @@
  * that ships `Theme.root` of `Theme.tokens` and a `Theme.oklch` palette from
  * `foldkit-mixins/theme`; a token name either lacks is a type error here.
  */
-import { Layers, Style, type StyleValue } from 'foldkit-mixins'
+import { Layers, Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import type { OklchTheme, Tokens } from 'foldkit-mixins/theme'
 
 type Design = Tokens & OklchTheme
@@ -14,8 +14,6 @@ export const token = <Group extends keyof Design & string>(
   group: Group,
   name: keyof Design[Group] & string,
 ): string => `var(--fk-${group}-${name})`
-
-type Declarations = Readonly<Record<string, string>>
 
 /** The base of a recipe, in the `components` layer. */
 export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
