@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { mount, repair, toText } from '../src/dom.js'
+import { mount, repair, toText } from 'foldkit-richtext-dom'
 import {
   attach,
   intentFor,

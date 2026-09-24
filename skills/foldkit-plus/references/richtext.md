@@ -2,7 +2,9 @@
 
 `foldkit-richtext` is an unpublished workspace package. The application Model
 owns the document and local selection; the package supplies pure data validation
-and text transitions. It has no DOM editor, persistence runtime, or hidden store.
+and text transitions. It has no DOM editor, persistence runtime, or hidden store;
+the editable DOM interpreter is the separate private `foldkit-richtext-dom`
+package, and it too is a spike.
 
 The current loop is `EditorState + Transaction → next state + ChangeSet + positionMap`,
 or a diagnostic with no partial result. Call `apply` inside the application's
@@ -77,6 +79,12 @@ elements are unwrapped or dropped with a diagnostic, attributes are never
 interpreted, and `script`/`style`/`iframe` are dropped with their content. A
 Kit passed to `attach` degrades undeclared node kinds.
 
+The editable DOM interpreter lives in `packages/richtext-dom` (private): `mount`
+builds an owned `contenteditable` subtree, `patch` applies a `ChangeSet` in place
+and keeps untouched element identity, `repair` recovers after an IME or an
+outside mutation, and `positionToRange`/`rangeToPosition` map a semantic
+`Position` to and from a DOM `Range`.
+
 The read-only view (`examples/richtext/src/view.ts`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
 ownership — with the same element and attribute names the editable adapter uses.
@@ -109,12 +117,13 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-Nested children, Form/Bundle integration, DOM editing, and collaboration remain
-unfinished; a node block may now carry nested `blocks`, which decode, round-trip,
-count, and survive an unknown kind, and commands reach a run inside one — typing,
-grapheme deletion, marks, and the clipboard work at depth, with a copy across a
-container's children carrying the container. The HTML serializer, the read-only
-view, and the editable adapter all render a container with its nested blocks, and
+Form/Bundle integration, the rest of Phase 4, and collaboration remain
+unfinished. Nested children are done: a node block may carry nested `blocks`,
+which decode, round-trip, count, and survive an unknown kind, and commands reach
+a run inside one — typing, grapheme deletion, marks, and the clipboard work at
+depth, with a copy across a container's children carrying the container. The HTML
+serializer, the read-only view, and the editable adapter all render a container
+with its nested blocks, and
 HTML import reads `data-node` back and maps `<ul>`/`<ol>`/`<li>` to a
 `List`/`ListItem` the Kit declares (props start empty; the slice keeps them).
 Structural placement works at depth too: a split keeps its halves in the block's

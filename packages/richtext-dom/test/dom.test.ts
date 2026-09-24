@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { mount, patch, positionToRange, rangeToPosition, repair, toText } from '../src/dom.js'
+import { mount, patch, positionToRange, rangeToPosition, repair, toText } from '../src/index.js'
 
 const id = RichText.NodeId.make
 const at = (

@@ -1,9 +1,9 @@
 /**
- * A minimal DOM interpreter for the Phase 3 slice: it renders a semantic
- * Document into an owned subtree, maps positions both ways, and patches only
- * the nodes a ChangeSet names. No Foldkit VDOM reaches inside this subtree, and
- * the semantic document stays authoritative — the DOM is never read as truth
- * beyond mapping a browser selection back to a semantic position.
+ * The DOM interpreter for an editable subtree: it renders a semantic Document
+ * into an owned subtree, maps positions both ways, and patches only the nodes a
+ * ChangeSet names. No Foldkit VDOM reaches inside this subtree, and the semantic
+ * document stays authoritative — the DOM is never read as truth beyond mapping a
+ * browser selection back to a semantic position.
  */
 import * as RichText from 'foldkit-richtext'
 

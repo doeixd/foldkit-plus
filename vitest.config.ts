@@ -7,6 +7,9 @@ export default defineConfig({
       'foldkit-richtext': fileURLToPath(
         new URL('./packages/richtext/src/index.ts', import.meta.url),
       ),
+      'foldkit-richtext-dom': fileURLToPath(
+        new URL('./packages/richtext-dom/src/index.ts', import.meta.url),
+      ),
       // Vite's client environment (the jsdom tests) refuses to bundle a Node
       // builtin, so a static `node:sqlite` import resolves to this shim under
       // Vitest. Node and tsx still resolve the real builtin.

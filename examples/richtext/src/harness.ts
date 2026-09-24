@@ -4,7 +4,7 @@
  * jsdom tests cover the logic; this covers what jsdom cannot (§115).
  */
 import * as RichText from 'foldkit-richtext'
-import { mount, toText } from './dom.js'
+import { mount, toText } from 'foldkit-richtext-dom'
 import { attach, readSelection, restoreSelection } from './events.js'
 
 const id = RichText.NodeId.make

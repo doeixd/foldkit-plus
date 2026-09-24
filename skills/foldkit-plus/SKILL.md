@@ -46,6 +46,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (in development, unpublished) | [ssr.md](references/ssr.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 | A semantic rich-text document and pure text edits | the local Model | `foldkit-richtext` (foundation only, unpublished) | [richtext.md](references/richtext.md) |
+| An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM interpreter, over the document the Model owns | `foldkit-richtext-dom` (private spike) | [richtext.md](references/richtext.md) |
 
 Install the peers with the packages you pick, for example
 `pnpm add effect foldkit foldkit-surface foldkit-sync`. `foldkit-durable` needs

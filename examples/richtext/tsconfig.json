@@ -8,7 +8,8 @@
     "noEmit": false,
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
-      "foldkit-richtext": ["../../packages/richtext/src/index.ts"]
+      "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
+      "foldkit-richtext-dom": ["../../packages/richtext-dom/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
@@ -18,6 +19,9 @@
     },
     {
       "path": "../../packages/richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/richtext-dom/tsconfig.build.json"
     }
   ]
 }
