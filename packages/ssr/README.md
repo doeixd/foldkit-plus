@@ -11,7 +11,8 @@ Foldkit's fetch handler, the browser takes it over from the handed-over Model,
 a plan is checked against the Surfaces the browser reads, parts of the page can
 belong to the server alone, and Remote's data crosses with the page. Resumable
 pages, whose view waits for the first interaction, are being built: the first
-step, bindings the server's markup names, is done.
+two steps, bindings the server's markup names and a listener that answers
+them before boot, are done.
 
 ## What it owns
 
@@ -342,9 +343,22 @@ be made from the application, so it knows that Schema.
 The server compares the bindings of its two renders as it compares the body:
 a Message built from a field the plan does not send
 (`Liked({ id: model.post.id })` with `post.id` unsent) would be one Message before the
-view runs and another after, so it is refused, naming the element. Nothing
-uses the bindings in the browser yet; delegated dispatch and deferred boot are
-the next phases.
+view runs and another after, so it is refused, naming the element.
+
+In the browser, `Resume.bindings(plan, document, root)` decodes the page's
+bindings through the application's Message Schema and checks every marker
+against them; a page whose entries are not the application's Messages, or
+whose markers name a binding it does not carry, is refused whole. Then
+`Resume.listen(root, { bindings, onMessage, onUnnamed })` answers events from
+the markers with one capture-phase listener per event type at the root, so
+`focus` and `blur` are caught too. It walks from the target to the root and
+dispatches each binding on the way, in the order Foldkit chains them, filling
+a hole from the event as the closure would, honouring `OnClick`'s
+`defaultAction`, `propagation` and `focusSelector`, and preventing a submit's
+default as `OnSubmit` does. At a `*` it stops and calls `onUnnamed`, because
+the live page does something there the page cannot describe. What the
+Messages do before the runtime exists, and when to boot, is deferred boot,
+the next phase.
 
 ## When a page is refused
 
@@ -482,3 +496,11 @@ const Message = defineMessageUnion({
   patch, the nodes are kept, and a click, an input and a key press each
   dispatch the Message their binding names. A member that leaves the wrong
   fields fails to compile, and at runtime says why.
+- **Phase B, delegated dispatch:** with no runtime booted, a click, an input,
+  a change, a key press and a focus each dispatch the Message their binding
+  names, with holes filled from the event; two bindings on one element both
+  run and `Stop` keeps the click from the parent; a submit's default is
+  prevented; a handler the page could not name stops the walk and is
+  reported, so a parent is not answered alone; the listeners can be removed;
+  and a marker naming no binding, an entry that is not a Message, or an
+  entry for no event attribute each refuse the page.

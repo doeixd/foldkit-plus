@@ -25,7 +25,7 @@ export const BINDING_ATTRIBUTE = 'data-foldkit-plus-on-'
  * Foldkit's own attribute table (0.163). `OnCustomEvent` names its event in
  * its payload, and `OnMount` and `OnUnmount` listen to none.
  */
-const EVENT_OF: Readonly<Record<string, string>> = {
+export const EVENT_OF: Readonly<Record<string, string>> = {
   OnClick: 'click',
   OnDoubleClick: 'dblclick',
   OnMouseDown: 'mousedown',
@@ -123,7 +123,7 @@ const MARKABLE: ReadonlySet<string> = new Set([
 ])
 
 /** The token in a marker for a handler the page cannot describe. */
-const UNNAMED_HANDLER = '*'
+export const UNNAMED_HANDLER = '*'
 
 declare const invalid: unique symbol
 

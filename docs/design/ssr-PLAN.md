@@ -1,6 +1,6 @@
 # `foldkit-ssr`: implementation plan
 
-**Status:** Phases 0 to 6, U, R and A done. Next: Phases B to F. Written 2026-09-22 against
+**Status:** Phases 0 to 6, U, R, A and B done. Next: Phases C to F. Written 2026-09-22 against
 `foldkit` 0.158.2 and this repository at 0.10.0, revised the same day after an
 independent review (see [What review changed](#what-review-changed)), and
 revised on 2026-09-23 for [what Foldkit 0.159 to 0.163
@@ -694,6 +694,25 @@ this plan's next track, in its order, and it is the source for their detail:
   every marker in the root is checked against it then; a page that fails is
   refused whole (decision 3), which settles the design's rule 5 against its
   §2.
+
+  **Done.** `Resume.bindings` and `Resume.listen` in `src/listen.ts`, eleven
+  tests, ten mutations each turning one red. Found on the way:
+
+  - **`Stop` stops other elements, not siblings.** Foldkit chains an
+    element's handlers in one listener, so a `propagation: 'Stop'` among them
+    still runs the rest of that element's handlers and only keeps the event
+    from the elements above. The first cut returned at the `Stop`; a test with
+    two `OnClick`s on one button caught it.
+  - **`*` ends the walk.** A parent's named binding must not be answered
+    while a child's unnamed handler is skipped, or the page does less than the
+    live one; the listener reports the element and stops. Deciding what then
+    happens, boot and replay, is Phase C's.
+  - **Decoding is through the whole Message union for now.** Restricting it
+    to the tags active Surfaces list (rule 3) is Phase D, as planned, and
+    `Resume.bindings` is where it will attach.
+  - `OnBlur`'s devtools check is not reproduced: before boot there is no
+    devtools host to have focus. `OnFocusEnter`/`OnFocusLeave` are not
+    markable, so their containment check is not needed.
 - **C. Deferred boot.** `SSR.hydrate`'s `start: 'now' | 'idle' |
   'on-interaction'`, default `'now'`, with Messages queued before boot and
   replayed after Foldkit's first committed patch. `EagerStartRequired` refuses

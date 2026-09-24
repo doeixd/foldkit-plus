@@ -34,6 +34,7 @@ import {
 } from 'foldkit-surface'
 import { current, withContext, type Binding, type Region, type RenderContext } from './context.js'
 import { builder, view } from './resumable.js'
+import { decodeBindings, listen, type DecodedBinding } from './listen.js'
 
 /** The attribute on the script that carries a page's resume envelope. */
 export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
@@ -293,6 +294,23 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
   return `<script type="application/json" ${RESUME_ATTRIBUTE}>${body}</script>`
 }
 
+/** The page's one envelope, parsed; refused when there is none, more than one, or not JSON. */
+const readEnvelope = (
+  page: ParentNode,
+): Result.Result<Readonly<Record<string, unknown>>, ResumeRefused> => {
+  const scripts = page.querySelectorAll(`script[${RESUME_ATTRIBUTE}]`)
+  if (scripts.length === 0) return refuse('Missing', 'the page holds no resume envelope')
+  if (scripts.length > 1) {
+    return refuse('Duplicate', `the page holds ${scripts.length} resume envelopes`)
+  }
+  try {
+    const parsed: unknown = JSON.parse(scripts[0]!.textContent ?? '')
+    return Result.succeed((parsed ?? {}) as Readonly<Record<string, unknown>>)
+  } catch (error) {
+    return refuse('Unreadable', `the resume envelope is not JSON: ${String(error)}`)
+  }
+}
+
 /**
  * The Model a page resumes from: the baseline with the envelope's slice set
  * onto it. Refused, with the reason, when the page holds no envelope or more
@@ -304,18 +322,10 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
   page: ParentNode,
   options: { readonly route?: string | undefined } = {},
 ): Result.Result<Model, ResumeRefused> => {
-  const scripts = page.querySelectorAll(`script[${RESUME_ATTRIBUTE}]`)
-  if (scripts.length === 0) return refuse('Missing', 'the page holds no resume envelope')
-  if (scripts.length > 1) {
-    return refuse('Duplicate', `the page holds ${scripts.length} resume envelopes`)
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(scripts[0]!.textContent ?? '')
-  } catch (error) {
-    return refuse('Unreadable', `the resume envelope is not JSON: ${String(error)}`)
-  }
-  const { v, plan: id, state, parts, route, match } = (parsed ?? {}) as Record<string, unknown>
+  const read = readEnvelope(page)
+  if (Result.isFailure(read)) return Result.fail(read.failure)
+  const parsed = read.success
+  const { v, plan: id, state, parts, route, match } = parsed
   if (v !== PROTOCOL) {
     return refuse('Protocol', `the envelope is protocol ${String(v)}, not ${PROTOCOL}`)
   }
@@ -1026,8 +1036,29 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields>(
   )
 }
 
+/**
+ * The page's bindings, decoded through the plan's Message Schema and checked
+ * against every marker in `root`. Refused, with the reason, when the page
+ * carries none, an entry is not one of the application's Messages, or a marker
+ * names a binding the page does not carry: a page is answered whole or not at
+ * all.
+ */
+const bindings = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  page: ParentNode,
+  root: Element,
+): Result.Result<ReadonlyArray<DecodedBinding>, ResumeRefused> => {
+  const parsed = readEnvelope(page)
+  if (Result.isFailure(parsed)) return Result.fail(parsed.failure)
+  const encoded = (parsed.success.bindings ?? []) as ReadonlyArray<EncodedBinding>
+  const decoded = decodeBindings(plan.Message, encoded, root)
+  return Result.isFailure(decoded)
+    ? refuse('Invalid', decoded.failure)
+    : Result.succeed(decoded.success)
+}
+
 /** The resumable track: bindings the server's markup names, so a page can answer before it boots. */
-export const Resume = { builder, view }
+export const Resume = { builder, view, bindings, listen }
 
 export const SSR = {
   plan,
@@ -1044,3 +1075,4 @@ export const SSR = {
 }
 
 export { BINDING_ATTRIBUTE, type ResumableBuilder } from './resumable.js'
+export type { DecodedBinding } from './listen.js'

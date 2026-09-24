@@ -6,8 +6,8 @@ Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
 without rerunning `init`, a plan is checked against the Surfaces the browser
 reads, `SSR.static` regions belong to the server alone, and Remote's data
 crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
-and `Resume.view(render)` mark bindings; nothing dispatches them before boot
-yet.
+and `Resume.view(render)` mark bindings, and `Resume.listen` answers them
+before boot; deferred boot itself is not built yet.
 
 ## What it owns
 
@@ -80,6 +80,11 @@ SSR.hydrate(config, Editor, { buildId })
   Foldkit attribute and encoded Message into the envelope. A binding built
   from an unsent field fails with `ViewDependsOnUnsentState`; the plan needs
   the app's Message Schema (make it from `App`), else `UnencodableBinding`.
+- In the browser, `Resume.bindings(plan, document, root)` decodes the page's
+  bindings and checks its markers (a `ResumeRefused` otherwise), then
+  `Resume.listen(root, { bindings, onMessage, onUnnamed })` dispatches each
+  binding an event reaches as Foldkit would, and calls `onUnnamed` at a `*`.
+  It returns the function that removes the listeners.
   A helper that takes the builder is typed `ResumableBuilder<Message>`
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
