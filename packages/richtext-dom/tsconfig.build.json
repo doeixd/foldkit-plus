@@ -6,8 +6,7 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    {
-      "path": "../richtext/tsconfig.build.json"
-    }
+    { "path": "../bundle/tsconfig.build.json" },
+    { "path": "../richtext/tsconfig.build.json" }
   ]
 }
