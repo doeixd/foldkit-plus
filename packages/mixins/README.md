@@ -102,6 +102,11 @@ pnpm add foldkit-mixins
 `foldkit` and `effect` are peer dependencies. `foldkit-mixins-surface` bridges a Surface
 projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
+The design-system pieces are subpaths, so an application that only attaches classes pays for
+none of them: `foldkit-mixins/layers` and `foldkit-mixins/theme` today, with `/layout`,
+`/defaults`, and `/prose` reserved (see
+[styleImprovements-DESIGN.md](../../docs/design/styleImprovements-DESIGN.md)).
+
 ## Quick start
 
 The component author publishes the extension points. Style and Behavior can then be authored
@@ -245,7 +250,8 @@ Style is pure data. It never touches the DOM.
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `variable` / `variables` | typed tokens and CSS custom properties |
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
-| `Style.layers` / `Style.inLayer(name, piece)` / `Style.foundation(theme)` | the closed cascade order (`defaults`, `components`, `variants`, `utilities`, `app`), a piece's rules in one layer, and the no-JavaScript stylesheet: the order, the tokens on `:root`, `color-scheme` |
+| `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece) and `in(name, piece)` (the piece's rules and global CSS inside that layer; a name outside the order is a type error). `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
+| `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated |
 
 Rule-based Style compiles to one deterministic class (an FNV-1a hash of canonical rule text) plus
 CSS as data:

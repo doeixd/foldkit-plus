@@ -115,11 +115,3 @@ export const css = (generated: string, rules: ReadonlyArray<StyleRule>): string 
       )
     })
     .join('')
-
-/** A custom property line for one theme token, for `Style.foundation`. */
-export const variableDeclaration = (
-  prefix: string,
-  group: string,
-  name: string,
-  value: string,
-): string => `${prefix}-${group}-${name}:${value}`

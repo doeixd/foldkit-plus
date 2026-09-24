@@ -32,3 +32,21 @@ describe('Theme', () => {
     expect(variables.classes).toEqual([])
   })
 })
+
+describe('Theme.lightDark and compose', () => {
+  it('lightDark is a CSS light-dark() value', () => {
+    expect(Theme.lightDark('#fff', '#000')).toBe('light-dark(#fff, #000)')
+  })
+
+  it('compose merges groups, later tokens winning', () => {
+    const base = Theme.define({ color: { text: '#111', bg: '#fff' }, space: { sm: '4px' } })
+    const brand = Theme.define({ color: { text: '#222' }, radius: { md: '8px' } })
+    const merged = Theme.compose(base, brand)
+    expect(merged).toEqual({
+      color: { text: '#222', bg: '#fff' },
+      space: { sm: '4px' },
+      radius: { md: '8px' },
+    })
+    expect(Theme.variable(merged, 'radius', 'md')).toBe('var(--fk-radius-md)')
+  })
+})

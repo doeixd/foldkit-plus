@@ -20,6 +20,8 @@ export type DiagnosticCode =
   | 'mixins:duplicate-mount-name'
   | 'mixins:duplicate-item-id'
   | 'mixins:ragged-grid-areas'
+  | 'style:duplicate-layer'
+  | 'style:conflicting-layer-order'
   | 'a11y:missing-slot'
   | 'a11y:hidden-slot'
   | 'a11y:capability-mismatch'
@@ -27,7 +29,7 @@ export type DiagnosticCode =
   | 'a11y:missing-attribute'
 
 export interface Diagnostic {
-  readonly source: 'mixins' | 'a11y'
+  readonly source: 'mixins' | 'a11y' | 'style'
   readonly code: DiagnosticCode
   readonly severity: 'error'
   readonly message: string

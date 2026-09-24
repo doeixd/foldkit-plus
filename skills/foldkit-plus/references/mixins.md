@@ -270,9 +270,12 @@ adapter.
   `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
   piece)` styles every slot whose capability satisfies `cap`.
 - Theme and layers: `Theme.lightDark(light, dark)` (CSS `light-dark()`, no Model field),
-  `Theme.compose(base, over)`; `Style.layers` is the closed order `defaults, components, variants,
-  utilities, app`, `Style.inLayer(name, piece)` emits a piece's rules in that layer (a misspelled
-  name is a type error), and `Style.foundation(theme)` is the stylesheet a page ships first.
+  `Theme.compose(base, over)`. Layers are a value: `Layers.standard` (also
+  `foldkit-mixins/layers`) is the order `reset, tokens, theme, defaults, components, layouts,
+  variants, utilities, app`; `L.in(name, piece)` puts a piece's rules and global CSS in that layer
+  (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
+  `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. `Layers.define(names)`
+  makes another order. There is no `Style.foundation`; the page composes its sheet.
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
   (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`).
