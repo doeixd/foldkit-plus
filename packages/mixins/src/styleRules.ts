@@ -24,8 +24,44 @@ export const rule = (
     ...(at === undefined ? {} : { at }),
   })
 
+/**
+ * The top-level selectors of a list: split on commas outside `()`, `[]` and
+ * strings, so `:is(a, b)` and `[title="a, b"]` stay whole.
+ */
+export const selectorList = (selector: string): ReadonlyArray<string> => {
+  const parts: Array<string> = []
+  let depth = 0
+  let quote: string | undefined
+  let start = 0
+  for (let index = 0; index < selector.length; index++) {
+    const char = selector[index]
+    if (quote !== undefined) {
+      if (char === '\\') index++
+      else if (char === quote) quote = undefined
+    } else if (char === '"' || char === "'") quote = char
+    else if (char === '(' || char === '[') depth++
+    else if (char === ')' || char === ']') depth--
+    else if (char === ',' && depth === 0) {
+      parts.push(selector.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  parts.push(selector.slice(start).trim())
+  return parts
+}
+
+/** Each selector of a list relative to the class: `&` kept where written, else `prefix` added. */
+const relative = (selector: string, prefix: (part: string) => string): string =>
+  selectorList(selector)
+    .map(part => (part.includes('&') ? part : prefix(part)))
+    .join(', ')
+
+/** `:hover, :focus-visible` is `&:hover, &:focus-visible`. */
 export const pseudo = (suffix: string, declarations: Readonly<Record<string, string>>): StyleRule =>
-  rule(`&${suffix}`, declarations)
+  rule(
+    relative(suffix, part => `&${part}`),
+    declarations,
+  )
 
 export const media = (query: string, declarations: Readonly<Record<string, string>>): StyleRule =>
   rule('&', declarations, `@media ${query}`)
@@ -40,9 +76,15 @@ export const container = (
   declarations: Readonly<Record<string, string>>,
 ): StyleRule => rule('&', declarations, `@container ${condition}`)
 
-/** A nested selector relative to the class, e.g. `> span` or `[data-open] &`. */
+/**
+ * A nested selector relative to the class, e.g. `> span`, or `[data-open] &`
+ * where `&` places the class. Every selector of a list is scoped.
+ */
 export const nest = (selector: string, declarations: Readonly<Record<string, string>>): StyleRule =>
-  rule(`& ${selector}`, declarations)
+  rule(
+    relative(selector, part => `& ${part}`),
+    declarations,
+  )
 
 /** `gridTemplateColumns` -> `grid-template-columns`; custom properties pass through. */
 const kebab = (property: string): string =>
@@ -102,7 +144,11 @@ export const className = (rules: ReadonlyArray<StyleRule>): string =>
   `style-${hash(canonical(rules))}`
 
 const selectorFor = (generated: string, selector: string): string =>
-  selector.includes('&') ? selector.replace(/&/g, `.${generated}`) : `.${generated} ${selector}`
+  selectorList(selector)
+    .map(part =>
+      part.includes('&') ? part.replace(/&/g, `.${generated}`) : `.${generated} ${part}`,
+    )
+    .join(', ')
 
 export const css = (generated: string, rules: ReadonlyArray<StyleRule>): string =>
   rules

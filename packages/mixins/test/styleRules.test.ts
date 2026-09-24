@@ -8,7 +8,9 @@ import {
   Slots,
   Style,
   type SlotAttributes,
+  type StyleValue,
 } from '../src/index.js'
+import * as Rules from '../src/styleRules.js'
 import { h, type TestMessage } from './resolverFixture.js'
 
 const RuleSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
@@ -203,5 +205,43 @@ describe('Style rule compiler', () => {
     expect(a.css).toBe(b.css)
     expect(a.rules.map(rule => rule.className)).toEqual(b.rules.map(rule => rule.className))
     expect(Style.stylesheet(a)).toBe(Style.stylesheet(b))
+  })
+})
+
+describe('selector lists', () => {
+  const cssOf = (piece: StyleValue) => {
+    const Named = Style.forSlots(RuleSlots)({ root: piece })
+    const generated = Named.rules[0]?.className
+    return { css: Named.css, c: `.${generated}` }
+  }
+
+  it.each([
+    [
+      'nest scopes every selector of a list',
+      Style.nest(':hover > .x, .y', { opacity: '1' }),
+      (c: string) => `${c} :hover > .x, ${c} .y{opacity:1}`,
+    ],
+    [
+      'pseudo scopes every selector of a list',
+      Style.pseudo(':hover, :focus-visible', { color: 'red' }),
+      (c: string) => `${c}:hover, ${c}:focus-visible{color:red}`,
+    ],
+    [
+      'a comma inside :is() or an attribute value does not split',
+      Style.nest(':is(h2, h3) + p, [title="a, b"]', { color: 'red' }),
+      (c: string) => `${c} :is(h2, h3) + p, ${c} [title="a, b"]{color:red}`,
+    ],
+    [
+      'a selector that writes & places the class itself',
+      Style.nest('[data-open] &, > span', { color: 'red' }),
+      (c: string) => `[data-open] ${c}, ${c} > span{color:red}`,
+    ],
+  ])('%s', (_name, piece, expected) => {
+    const { css, c } = cssOf(piece)
+    expect(css).toBe(expected(c))
+  })
+
+  it('splits only top-level commas', () => {
+    expect(Rules.selectorList(':is(a, b), [x=","], c')).toEqual([':is(a, b)', '[x=","]', 'c'])
   })
 })

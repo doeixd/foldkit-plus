@@ -289,7 +289,9 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
   a name the template lacks is a type error and a ragged template raises
   `mixins:ragged-grid-areas`;
 - `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
-  strings `pseudo` and `nest` take.
+  strings `pseudo` and `nest` take. Each takes a selector list: every top-level selector is
+  scoped to the class (`:is(a, b)` is not split), and a selector that writes `&` places the class
+  itself (`nest('[data-open] &')`).
 
 ### Theme from a few knobs
 

@@ -105,7 +105,7 @@ attributes plus resolved contributions; the view owns `OnInput`, so a Behavior a
 `OnInput` would throw `mixins:event-conflict` at render.
 
 Build outward: `Style.when`, `Style.whenInput(pred, piece)`, `Style.recipe({ base, variants,
-defaults, compound })`, rule-based `Style.self/pseudo/media/supports/container/nest/keyframes/global` (`self` is `&{…}`: the element's own declarations as a rule, so a layer can hold them; inline style is unlayered)
+defaults, compound })`, rule-based `Style.self/pseudo/media/supports/container/nest/keyframes/global` (`self` is `&{…}`: the element's own declarations as a rule, so a layer can hold them; inline style is unlayered); `pseudo` and `nest` scope every selector of a comma list, and a selector that writes `&` places the class itself
 (compiled to a deterministic hashed class; read `FieldStyle.css` or
 `Style.stylesheet(...styles)`), `Theme.define`. For a slot rendered once per item (tabs, rows)
 pass the item as the second argument, `slots.row.attrs(base, { index, id, count })`; a Behavior
