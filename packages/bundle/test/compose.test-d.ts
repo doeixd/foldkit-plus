@@ -96,11 +96,63 @@ describe('mistakes are reported at the step', () => {
     )
   })
 
-  it('requires onOut for a bundle with an OutMessage, and args for one with args', () => {
-    // @ts-expect-error Hello has an OutMessage, so onOut is required
-    Bundle.compose({}).pipe(Bundle.withChild('hello', Hello))
+  it('holds the assembly back until a child that needs a config has one', () => {
+    const Waiting = Bundle.compose({ greeting: Schema.String }).pipe(
+      Bundle.withChild('hello', Hello),
+    )
+    // The Model and Message exist already, for Surface.application.
+    expectTypeOf<typeof Waiting.Model.Type>().toEqualTypeOf<{
+      readonly greeting: string
+      readonly hello: { readonly name: string }
+    }>()
+    // @ts-expect-error `hello` needs its onOut before the assembly exists
+    Waiting.placements.initial({ greeting: '' })
+    // @ts-expect-error nor the placed children
+    void Waiting.children.hello
+
+    const Ready = Waiting.pipe(
+      Bundle.configure('hello', {
+        onOut: out => model => {
+          // The whole parent, as it is when configured.
+          expectTypeOf(model.hello).toEqualTypeOf<{ readonly name: string }>()
+          return { model: { ...model, greeting: out.name } }
+        },
+      }),
+    )
+    Ready.placements.initial({ greeting: '' })
+    expectTypeOf(Ready.children.hello.name).toEqualTypeOf<'Hello'>()
+  })
+
+  it('types a configure by the child it configures', () => {
+    const Waiting = Bundle.compose({ greeting: Schema.String }).pipe(
+      Bundle.withChild('hello', Hello),
+      Bundle.withChild('clicks', Count),
+    )
+    Waiting.pipe(
+      Bundle.configure('hello', {
+        // @ts-expect-error `greeting` is a string
+        onOut: () => model => ({ model: { ...model, greeting: 1 } }),
+      }),
+    )
     // @ts-expect-error Count takes args
-    Bundle.compose({}).pipe(Bundle.withChild('clicks', Count))
+    Waiting.pipe(Bundle.configure('clicks', {}))
+    Waiting.pipe(Bundle.configure('clicks', { args: { start: 0 } }))
+    // @ts-expect-error `greeting` is not a child
+    Waiting.pipe(Bundle.configure('greeting', {}))
+    const Configured = Waiting.pipe(Bundle.configure('clicks', { args: { start: 0 } }))
+    // @ts-expect-error `clicks` has its config already
+    Configured.pipe(Bundle.configure('clicks', { args: { start: 1 } }))
+  })
+
+  it('takes an onOut made from the finished parent, as a Crud editor is', () => {
+    const Base = Bundle.compose({ greeting: Schema.String }).pipe(Bundle.withChild('hello', Hello))
+    type Model = typeof Base.Model.Type
+    // Stands for `Editor.at({ data, model: App.model.hello }).onOut`.
+    const madeFromTheParent = (out: { readonly name: string }) => (model: Model) => ({
+      model: { ...model, greeting: out.name },
+    })
+    const Page = Base.pipe(Bundle.configure('hello', { onOut: madeFromTheParent }))
+    Page.placements.initial({ greeting: '' })
   })
 
   it('rejects a field the parent already has', () => {

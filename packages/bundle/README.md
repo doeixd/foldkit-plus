@@ -113,6 +113,7 @@ const App = Bundle.compose({ greeting: Schema.String }).pipe(
 | `Bundle.withEach(field, bundle, config?)` | the bundle once per key of a record under `field` |
 | `Bundle.withWiring(...wirings)` | an integration's wiring (Remote, Mirror, Sync, Agent) |
 | `Bundle.withServices<S>()` | the services the parent's own `update` may require |
+| `Bundle.configure(field, config)` | the config of a child added without one |
 
 The result has `App.Model` and `App.Message`, the Schemas to give
 `Surface.application` or the runtime; `App.children.hello`, the placement, with
@@ -135,6 +136,25 @@ second `pipe` once those exist:
 ```ts
 const Wired = App.pipe(Bundle.withWiring(Data.wiring({ board: BoardSurface })))
 ```
+
+A child's config can be made from the parent too: a Crud editor's `onOut` comes
+from `Editor.at({ data, model: App.model.editor })`, which needs the Surface
+application built from this very Model. Add such a child without its config,
+build what needs the Model, and give the config with `Bundle.configure`:
+
+```ts
+const Base = Bundle.compose({ greeting: Schema.String }).pipe(Bundle.withChild('hello', HelloForm))
+const greet =
+  (out: typeof Greeted.Type) =>
+  (model: typeof Base.Model.Type) => ({ model: { ...model, greeting: `Hello, ${out.name}!` } })
+const Page = Base.pipe(Bundle.configure('hello', { onOut: greet }))
+```
+
+`Base.Model` and `Base.Message` exist at once, for `Surface.application`.
+`children` and `placements` do not until every child that needs `args` or an
+`onOut` has them: reading either earlier is a type error naming the children
+still waiting. `configure` is typed by the child it configures, and refuses a
+field that is not a child or one given its config already.
 
 ### What it builds, and when to build it by hand
 

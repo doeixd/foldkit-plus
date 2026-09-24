@@ -12,7 +12,6 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
-import { defineMessageUnion } from 'foldkit/message'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
@@ -47,11 +46,8 @@ export const Editor = Crud.editor('PostEditor', {
   form: EditPostForm,
   mutation: EditPostMutation,
 })
-const EditSlot = Bundle.declare(
-  Editor.bundle.pipe(
-    Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, EditPostView))),
-  ),
-  'editPost',
+const EditorBundle = Editor.bundle.pipe(
+  Bundle.withView(Crud.editorView(FormView.submodel(EditPostForm, EditPostView))),
 )
 
 // Deleting is a mutation with a yes in between.
@@ -62,7 +58,6 @@ const Remover = Crud.remover('PostRemover', {
   id: 'id',
 })
 export const RemoverMessage = Remover.Message
-const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
 
 /**
  * The search box, debounced.
@@ -77,31 +72,39 @@ const RemoveSlot = Bundle.declare(Remover.bundle, 'removePost')
  * `OutMessage` is what moves `postSearch`, which is what the query reads.
  */
 const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
-const SearchBox = Bundle.declare(SearchInput, 'search')
 
-export const Model = Schema.Struct({
+// The page, stated once: its own fields and Messages, and the three bundles it
+// places. The editor and the remover save through Remote, whose domain is made
+// from this page's Model below, so their `onOut` is given once it exists.
+const Base = Bundle.compose({
   remote: Remote.Model,
   // What the query reads: the *settled* search, not every keystroke.
   postSearch: Schema.String,
   postSort: PostSort.Schema,
-  ...EditSlot.fields,
-  ...RemoveSlot.fields,
-  ...SearchBox.fields,
-})
+}).pipe(
+  Bundle.withMessages({
+    ...Remote.messages,
+    AskedToDeletePost: { id: PostId },
+    OpenedPost: { id: PostId },
+    ClosedEditor: {},
+    RequestedMorePosts: {},
+    RetriedPosts: {},
+    CompletedFocusPosts: {},
+    SortedPosts: { sort: PostSort.Schema },
+  }),
+  Bundle.withChild('editPost', EditorBundle),
+  Bundle.withChild('removePost', Remover.bundle),
+  // The settled search, a quarter second after the last keystroke, is the only
+  // thing that changes the query's input — and so the only thing that fetches.
+  Bundle.withChild('search', SearchInput, {
+    args: { delayMs: 250 },
+    onOut: out => model => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
+  }),
+)
+
+export const Model = Base.Model
 export type Model = typeof Model.Type
-export const Message = defineMessageUnion({
-  ...Remote.messages,
-  ...EditSlot.cases,
-  ...RemoveSlot.cases,
-  ...SearchBox.cases,
-  AskedToDeletePost: { id: PostId },
-  OpenedPost: { id: PostId },
-  ClosedEditor: {},
-  RequestedMorePosts: {},
-  RetriedPosts: {},
-  CompletedFocusPosts: {},
-  SortedPosts: { sort: PostSort.Schema },
-})
+export const Message = Base.Message
 export type Message = typeof Message.Type
 
 /** A keystroke, on its way to the debounce rather than to the query. */
@@ -118,7 +121,7 @@ export const searchSettled = (model: Model, text: string): Message =>
     message: SearchInput.Message.Settled({ value: text, generation: model.search.generation }),
   })
 
-export const App = Surface.application({ Model, Message })
+export const App = Surface.application(Base)
 
 // The client's interpretation: Remote registers the Entities as they are. It
 // never sees a table; relations arrive as refs and the store follows them.
@@ -159,28 +162,24 @@ export const pickers = Crud.options(EditPostForm, [Authors], {
   chosen: (model: Model) => model.editPost.form,
 })
 
-const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 // The form knows nothing of Remote. The editor's `onOut` is what turns a decoded
-// `EditPostInput` into the mutation.
-export const EditForm = Page.at(EditSlot, { onOut: PostEditor.onOut })
-export const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
-// The settled search, a quarter second after the last keystroke, is the only
-// thing that changes the query's input — and so the only thing that fetches.
-export const Search = Page.at(SearchBox, {
-  args: { delayMs: 250 },
-  onOut: out => (model: Model) => ({ model: modifyFields(model, { postSearch: () => out.value }) }),
-})
-
-// One list for the page: the editor's placement, and Remote with what is on
-// screen. Remote's Messages route to its reducer and its Subscriptions fetch what
-// the lists and the open editor require.
-export const placements = Page.assemble(
-  EditForm,
-  RemoveForm,
-  Search,
+// `EditPostInput` into the mutation; Remote joins with what is on screen, so its
+// Messages route to its reducer and its Subscriptions fetch what the lists and
+// the open editor require.
+const Page = Base.pipe(
+  Bundle.withServices<RemoteClient>(),
+  Bundle.configure('editPost', { onOut: PostEditor.onOut }),
+  Bundle.configure('removePost', { onOut: PostRemover.onOut }),
   // Every piece on the page, handed over: each one's requirement is gathered.
-  Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers })),
+  Bundle.withWiring(
+    Data.wiring(Crud.actives({ posts: Posts, authors: Authors, editor: PostEditor, pickers })),
+  ),
 )
+
+export const EditForm = Page.children.editPost
+export const RemoveForm = Page.children.removePost
+export const Search = Page.children.search
+export const placements = Page.placements
 
 // `after` lets the editor show the loaded value whichever Message brings it.
 export const update = PostEditor.after(

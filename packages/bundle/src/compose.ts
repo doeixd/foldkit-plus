@@ -5,10 +5,13 @@
  * the same values those would, so everything they check still holds.
  *
  * Steps are pipeable, so each one is typed by the parent built so far: an
- * `onOut` knows the Model, a later step sees every earlier child.
+ * `onOut` knows the Model, a later step sees every earlier child. A child whose
+ * config is made from the parent itself (a Remote domain, a Crud editor) is
+ * added first and configured in a later `pipe`, once those values exist.
  */
 import { Pipeable, Schema } from 'effect'
 import { defineMessageUnion, type MessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
 import type { Assembly, PlacedIn } from './assembly.js'
 import type { AnyBundle, EachConfigParam, PlaceConfigParam } from './bundle.js'
 import { declare, declareEach, type BundleParts, type WrapperTag } from './declare.js'
@@ -22,22 +25,51 @@ type P<B> = BundleParts<B>
 /** The Message cases of a parent: its own, and a wrapper per child. */
 type Cases = Readonly<Record<string, Schema.Struct.Fields>>
 
-/** A child as the composition records it, for its placed type. */
-interface Child<B extends AnyBundle, Kind extends 'one' | 'each', OutStepMessage, R2> {
+/**
+ * A child as the composition records it, for its placed type. `Pending` while
+ * the bundle needs `args` or `onOut` and none has been given yet.
+ */
+interface Child<
+  B extends AnyBundle,
+  Kind extends 'one' | 'each',
+  OutStepMessage,
+  R2,
+  Pending extends boolean = false,
+  Given extends boolean = true,
+> {
   readonly bundle: B
   readonly kind: Kind
   readonly outStepMessage?: OutStepMessage
   readonly requirements?: R2
+  readonly pending?: Pending
+  readonly given?: Given
 }
-type AnyChild = Child<AnyBundle, 'one' | 'each', any, any>
+
+/** Whether placing a bundle needs a config: it takes args, or has an OutMessage. */
+type NeedsConfig<B> = [P<B>['Args']] extends [void]
+  ? [P<B>['OutMessage']] extends [never]
+    ? false
+    : true
+  : true
+
+/** The fields of the children still waiting for `Bundle.configure`. */
+type PendingOf<Children> = {
+  [K in keyof Children]: Children[K] extends Child<any, any, any, any, true, any> ? K : never
+}[keyof Children] &
+  string
+
+/** A composition's children and assembly, or the children it still waits on. */
+type WhenConfigured<Children, Value> = [PendingOf<Children>] extends [never]
+  ? Value
+  : Invalid<`Configure ${PendingOf<Children>} first, with Bundle.configure`>
 
 type ModelOf<Fields extends Schema.Struct.Fields> = Schema.Struct.Type<Fields>
 type MessageOf<C extends Cases> = MessageUnion<C>['Type']
 
 type PlacedChild<C, Model, Message, Field extends string> =
-  C extends Child<infer B, 'one', infer OutStepMessage, infer R2>
+  C extends Child<infer B, 'one', infer OutStepMessage, infer R2, any, any>
     ? PlacedBy<B, Model, Wrapped<WrapperTag<Field>, P<B>['Message']>, OutStepMessage, R2, Field>
-    : C extends Child<infer B, 'each', infer OutStepMessage, infer R2>
+    : C extends Child<infer B, 'each', infer OutStepMessage, infer R2, any, any>
       ? CollectionBy<
           B,
           Model,
@@ -68,16 +100,25 @@ export interface Composition<
   readonly Model: Schema.Struct<Fields>
   /** The parent's Message: its own cases, and `Got<Field>Message` per child. */
   readonly Message: MessageUnion<C>
-  /** Each child as placed, by field: `children.hello.view(model, h)`, `children.hello.helpers`. */
-  readonly children: ChildrenOf<Children, ModelOf<Fields>, MessageOf<C>>
-  /** The one assembly of every child and wiring: `initial`, `update`, `subscriptions`, `complete`. */
-  readonly placements: AssemblyOf<
-    ModelOf<Fields>,
-    MessageOf<C>,
-    ReadonlyArray<
-      ChildrenOf<Children, ModelOf<Fields>, MessageOf<C>>[keyof Children & string] | Ws[number]
-    >,
-    Services
+  /**
+   * Each child as placed, by field: `children.hello.view(model, h)`,
+   * `children.hello.helpers`. Available once every child is configured.
+   */
+  readonly children: WhenConfigured<Children, ChildrenOf<Children, ModelOf<Fields>, MessageOf<C>>>
+  /**
+   * The one assembly of every child and wiring: `initial`, `update`,
+   * `subscriptions`, `complete`. Available once every child is configured.
+   */
+  readonly placements: WhenConfigured<
+    Children,
+    AssemblyOf<
+      ModelOf<Fields>,
+      MessageOf<C>,
+      ReadonlyArray<
+        ChildrenOf<Children, ModelOf<Fields>, MessageOf<C>>[keyof Children & string] | Ws[number]
+      >,
+      Services
+    >
   >
 }
 
@@ -98,7 +139,8 @@ interface Spec {
     readonly field: string
     readonly kind: 'one' | 'each'
     readonly bundle: AnyBundle
-    readonly config: ReadonlyArray<unknown>
+    /** `undefined` until given, by the step that added the child or by `configure`. */
+    readonly config: ReadonlyArray<unknown> | undefined
   }>
   readonly wirings: ReadonlyArray<AnyWiring>
 }
@@ -140,23 +182,38 @@ const build = (spec: Spec): AnyComposition => {
   const Model = Schema.Struct(fields)
   const Message = defineMessageUnion(cases as never)
   const page = parent({ Model, Message } as never) as ReturnType<typeof parent<any, any>>
-  const children = Object.fromEntries(
-    declared.map(({ child, declaration }) => [
-      child.field,
-      child.kind === 'one'
-        ? (page.at as (...args: ReadonlyArray<unknown>) => unknown)(declaration, ...child.config)
-        : (page.each as (...args: ReadonlyArray<unknown>) => unknown)(declaration, ...child.config),
-    ]),
-  )
-  const placements = (page.assemble as (...items: ReadonlyArray<unknown>) => unknown)(
-    ...Object.values(children),
-    ...spec.wirings,
-  )
+  // Placed when first read: a child configured in a later step cannot be
+  // placed before its config exists, and a bundle with args refuses to be.
+  let placed: { readonly children: object; readonly placements: unknown } | undefined
+  const place = () => {
+    if (placed !== undefined) return placed
+    const children = Object.fromEntries(
+      declared.map(({ child, declaration }) => {
+        const config = child.config ?? []
+        return [
+          child.field,
+          child.kind === 'one'
+            ? (page.at as (...args: ReadonlyArray<unknown>) => unknown)(declaration, ...config)
+            : (page.each as (...args: ReadonlyArray<unknown>) => unknown)(declaration, ...config),
+        ]
+      }),
+    )
+    const placements = (page.assemble as (...items: ReadonlyArray<unknown>) => unknown)(
+      ...Object.values(children),
+      ...spec.wirings,
+    )
+    placed = { children, placements }
+    return placed
+  }
   const composition = {
     Model,
     Message,
-    children,
-    placements,
+    get children() {
+      return place().children
+    },
+    get placements() {
+      return place().placements
+    },
     pipe() {
       // eslint-disable-next-line prefer-rest-params
       return Pipeable.pipeArguments(this, arguments)
@@ -214,9 +271,10 @@ type WithOneCases<C, Field extends string, B> = C & {
 /**
  * A child in a field of the parent, with the wrapper `Got<Field>Message`. The
  * config is what `Page.at` takes: `args` when the bundle has them, `onOut` when
- * it has an OutMessage, typed by the parent as it is at this step.
+ * it has an OutMessage, typed by the parent as it is at this step. Leave it out
+ * when it is made from the parent itself, and give it with `Bundle.configure`.
  */
-export const withChild =
+export interface WithChildStep {
   <
     const Field extends string,
     B extends AnyBundle,
@@ -230,29 +288,63 @@ export const withChild =
   >(
     field: FreshField<Field, Fields>,
     bundle: B,
-    ...config: PlaceConfigParam<
-      P<B>['Args'],
-      ModelOf<WithOne<Fields, Field, B>>,
-      Wrapped<WrapperTag<Field>, P<B>['Message']>,
-      P<B>['Message'],
-      P<B>['OutMessage'],
-      OutStepMessage,
-      R2
-    >
-  ) =>
-  (
+    config: PlaceConfig<Fields, Field, B, OutStepMessage, R2>,
+  ): (
     self: Composition<Fields, C, Children, Services, Ws>,
-  ): Composition<
+  ) => Composition<
     WithOne<Fields, Field, B>,
     WithOneCases<C, Field, B>,
     Children & { readonly [K in Field]: Child<B, 'one', OutStepMessage, R2> },
     Services,
     Ws
-  > =>
+  >
+  <
+    const Field extends string,
+    B extends AnyBundle,
+    Fields extends Schema.Struct.Fields,
+    C extends Cases,
+    Children,
+    Services,
+    Ws extends ReadonlyArray<AnyWiring>,
+  >(
+    field: FreshField<Field, Fields>,
+    bundle: B,
+  ): (
+    self: Composition<Fields, C, Children, Services, Ws>,
+  ) => Composition<
+    WithOne<Fields, Field, B>,
+    WithOneCases<C, Field, B>,
+    Children & { readonly [K in Field]: Child<B, 'one', never, never, NeedsConfig<B>, false> },
+    Services,
+    Ws
+  >
+}
+
+type PlaceConfig<Fields, Field extends string, B, OutStepMessage, R2> = NonNullable<
+  PlaceConfigParam<
+    P<B>['Args'],
+    ModelOf<WithOne<Fields, Field, B>>,
+    Wrapped<WrapperTag<Field>, P<B>['Message']>,
+    P<B>['Message'],
+    P<B>['OutMessage'],
+    OutStepMessage,
+    R2
+  >[0]
+>
+
+export const withChild: WithChildStep = ((
+    field: string,
+    bundle: AnyBundle,
+    ...config: ReadonlyArray<unknown>
+  ) =>
+  (self: object) =>
     extend(self, spec => ({
       ...spec,
-      children: [...spec.children, { field: field as string, kind: 'one', bundle, config }],
-    })) as never
+      children: [
+        ...spec.children,
+        { field, kind: 'one', bundle, config: config.length === 0 ? undefined : config },
+      ],
+    }))) as never
 
 type WithEach<Fields, Field extends string, B> = Fields & {
   readonly [K in Field]: Schema.$Record<typeof Schema.String, Schema.Codec<P<B>['Model'], unknown>>
@@ -266,9 +358,10 @@ type WithEachCases<C, Field extends string, B> = C & {
 
 /**
  * A child per key of a record field of the parent, with the wrapper
- * `Got<Field>Message` carrying the key. The config is what `Page.each` takes.
+ * `Got<Field>Message` carrying the key. The config is what `Page.each` takes;
+ * as with `withChild`, it can be left out and given with `Bundle.configure`.
  */
-export const withEach =
+export interface WithEachStep {
   <
     const Field extends string,
     B extends AnyBundle,
@@ -282,29 +375,150 @@ export const withEach =
   >(
     field: FreshField<Field, Fields>,
     bundle: B & WithoutResources<B>,
-    ...config: EachConfigParam<
-      P<B>['Args'],
-      ModelOf<WithEach<Fields, Field, B>>,
-      KeyedWrapped<WrapperTag<Field>, P<B>['Message']>,
-      P<B>['Message'],
-      P<B>['OutMessage'],
-      OutStepMessage,
-      R2
-    >
-  ) =>
-  (
+    config: EachConfigFor<Fields, Field, B, OutStepMessage, R2>,
+  ): (
     self: Composition<Fields, C, Children, Services, Ws>,
-  ): Composition<
+  ) => Composition<
     WithEach<Fields, Field, B>,
     WithEachCases<C, Field, B>,
     Children & { readonly [K in Field]: Child<B, 'each', OutStepMessage, R2> },
     Services,
     Ws
-  > =>
+  >
+  <
+    const Field extends string,
+    B extends AnyBundle,
+    Fields extends Schema.Struct.Fields,
+    C extends Cases,
+    Children,
+    Services,
+    Ws extends ReadonlyArray<AnyWiring>,
+  >(
+    field: FreshField<Field, Fields>,
+    bundle: B & WithoutResources<B>,
+  ): (
+    self: Composition<Fields, C, Children, Services, Ws>,
+  ) => Composition<
+    WithEach<Fields, Field, B>,
+    WithEachCases<C, Field, B>,
+    Children & { readonly [K in Field]: Child<B, 'each', never, never, NeedsConfig<B>, false> },
+    Services,
+    Ws
+  >
+}
+
+type EachConfigFor<Fields, Field extends string, B, OutStepMessage, R2> = NonNullable<
+  EachConfigParam<
+    P<B>['Args'],
+    ModelOf<WithEach<Fields, Field, B>>,
+    KeyedWrapped<WrapperTag<Field>, P<B>['Message']>,
+    P<B>['Message'],
+    P<B>['OutMessage'],
+    OutStepMessage,
+    R2
+  >[0]
+>
+
+export const withEach: WithEachStep = ((
+    field: string,
+    bundle: AnyBundle,
+    ...config: ReadonlyArray<unknown>
+  ) =>
+  (self: object) =>
     extend(self, spec => ({
       ...spec,
-      children: [...spec.children, { field: field as string, kind: 'each', bundle, config }],
-    })) as never
+      children: [
+        ...spec.children,
+        { field, kind: 'each', bundle, config: config.length === 0 ? undefined : config },
+      ],
+    }))) as never
+
+/** The config a child still waiting for one takes: what `withChild` or `withEach` would have. */
+type ConfigOf<Ch, Fields, Field extends string, OutStepMessage, R2> =
+  Ch extends Child<infer B, 'one', any, any, any, any>
+    ? PlaceConfig<Fields, Field, B, OutStepMessage, R2>
+    : Ch extends Child<infer B, 'each', any, any, any, any>
+      ? EachConfigFor<Fields, Field, B, OutStepMessage, R2>
+      : never
+
+type Configured<Children, Field extends string, OutStepMessage, R2> = {
+  readonly [K in keyof Children]: K extends Field
+    ? Children[K] extends Child<infer B, infer Kind, any, any, any, any>
+      ? Child<B, Kind, OutStepMessage, R2>
+      : never
+    : Children[K]
+}
+
+/** The fields of children added without a config, which `configure` may give one. */
+type Unconfigured<Children> = {
+  [K in keyof Children]: Children[K] extends Child<any, any, any, any, any, false> ? K : never
+}[keyof Children] &
+  string
+
+/**
+ * What a config's onOut returns, in Message and services; `never` without one,
+ * and `never` for an onOut that returns no Commands, which infers `unknown`.
+ */
+type StepMessageOf<Config> = Config extends {
+  readonly onOut: (...input: ReadonlyArray<any>) => Update.Step<any, infer Message, any>
+}
+  ? KnownOr<Message>
+  : never
+type StepRequirementsOf<Config> = Config extends {
+  readonly onOut: (...input: ReadonlyArray<any>) => Update.Step<any, any, infer Requirements>
+}
+  ? KnownOr<Requirements>
+  : never
+type KnownOr<T> = unknown extends T ? never : T
+
+/**
+ * The config of a child added without one: `args`, `onOut`, `key`, `when`,
+ * typed by the parent. For a config made from the parent itself:
+ *
+ * ```ts
+ * const Base = Bundle.compose({ ... }).pipe(Bundle.withChild('editor', Editor.bundle))
+ * const App = Surface.application(Base)
+ * const PostEditor = Editor.at({ data: Data, model: App.model.editor })
+ * const Page = Base.pipe(Bundle.configure('editor', { onOut: PostEditor.onOut }))
+ * ```
+ */
+export const configure =
+  <
+    const Field extends string,
+    Fields extends Schema.Struct.Fields,
+    C extends Cases,
+    Children,
+    Services,
+    Ws extends ReadonlyArray<AnyWiring>,
+    // The config itself, checked against the child and inferred whole, so an
+    // onOut's own Message and services can be read back out of it.
+    const Config extends ConfigOf<Children[Field & keyof Children], Fields, Field, any, any>,
+  >(
+    field: Field & Unconfigured<Children>,
+    config: Config,
+  ) =>
+  (
+    self: Composition<Fields, C, Children, Services, Ws>,
+  ): Composition<
+    Fields,
+    C,
+    Configured<Children, Field, StepMessageOf<Config>, StepRequirementsOf<Config>>,
+    Services,
+    Ws
+  > =>
+    extend(self, spec => {
+      const at = spec.children.findIndex(child => child.field === field)
+      const child = spec.children[at]
+      if (child === undefined) {
+        throw new Error(`Bundle.configure: the parent has no child "${field}"`)
+      }
+      if (child.config !== undefined) {
+        throw new Error(`Bundle.configure: the child "${field}" was given its config already`)
+      }
+      const children = [...spec.children]
+      children[at] = { ...child, config: [config] }
+      return { ...spec, children }
+    }) as never
 
 /**
  * An integration's wiring (Remote, Mirror, Sync, Agent), joined to the

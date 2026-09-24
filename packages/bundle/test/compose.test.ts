@@ -145,6 +145,52 @@ describe('Bundle.compose', () => {
   })
 })
 
+describe('Bundle.configure', () => {
+  it("places a child with the config given after its field, and runs that config's onOut", () => {
+    const Base = Bundle.compose({ greeting: Schema.String }).pipe(
+      Bundle.withChild('hello', Hello),
+      Bundle.withChild('clicks', Count),
+    )
+    const Page = Base.pipe(
+      Bundle.configure('hello', {
+        onOut: out => model => ({ model: { ...model, greeting: `Configured, ${out.name}` } }),
+      }),
+      Bundle.configure('clicks', { args: { start: 7 } }),
+    )
+    const start = Page.placements.initial({ greeting: '' }).model
+    expect(start.clicks).toEqual({ count: 7 })
+    const update = Page.placements.update()
+    const typed = update(
+      start,
+      Page.Message.GotHelloMessage({ message: HelloMessage.ChangedName({ value: 'Ada' }) }),
+    ).model
+    const submitted = update(
+      typed,
+      Page.Message.GotHelloMessage({ message: HelloMessage.Submitted() }),
+    )
+    expect(submitted.model.greeting).toBe('Configured, Ada')
+  })
+
+  it('places once: a child read from children is the one the assembly routes to', () => {
+    const Page = Bundle.compose({}).pipe(Bundle.withChild('clicks', Count, { args: { start: 0 } }))
+    expect(Page.children.clicks).toBe(Page.children.clicks)
+    expect(Page.placements).toBe(Page.placements)
+    expect(Page.placements.placements).toContain(Page.children.clicks)
+  })
+
+  it('refuses a child it does not have, or one configured already', () => {
+    const Base = Bundle.compose({}).pipe(Bundle.withChild('clicks', Count, { args: { start: 0 } }))
+    // @ts-expect-error there is no child `missing`
+    expect(() => Base.pipe(Bundle.configure('missing', {}))).toThrow(
+      'the parent has no child "missing"',
+    )
+    expect(() =>
+      // @ts-expect-error `clicks` has its config already
+      Base.pipe(Bundle.configure('clicks', { args: { start: 1 } })),
+    ).toThrow('the child "clicks" was given its config already')
+  })
+})
+
 describe('Bundle.compose against the hand-written parent', () => {
   it('gives the same Model and Message tags', () => {
     const Clicks = Bundle.declare(Count, 'clicks')

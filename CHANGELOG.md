@@ -17,9 +17,13 @@ version changed; `pnpm` skips versions already in the registry.
   with each child's `Got<Field>Message`, each placement under
   `children.<field>`, and the assembly, so a parent no longer spreads
   `declare(...).fields` and `.cases` into Schemas it writes by hand. Each step
-  is typed by the parent so far, so an `onOut` knows the Model. It builds the
-  same values `declare`, `parent`, `at` and `assemble` do, and those stay for
-  a parent whose Model already exists or a placement with a custom Link.
+  is typed by the parent so far, so an `onOut` knows the Model. A child whose
+  config is made from the parent itself, such as a Crud editor whose `onOut`
+  needs the Surface application built from this Model, is added without one
+  and given it later with `Bundle.configure`; until then its `children` and
+  `placements` are type errors naming what waits. It builds the same values
+  `declare`, `parent`, `at` and `assemble` do, and those stay for a parent
+  whose Model already exists or a placement with a custom Link.
 - **`foldkit-bundle`: `Bundle.lazy`, a bundle whose `update` and `view` load
   on demand.** The declaration (`Model`, `Message`, `args`, `init`,
   `subscriptions`, `resources`, `helpers`) stays in the boot chunk; the bodies
