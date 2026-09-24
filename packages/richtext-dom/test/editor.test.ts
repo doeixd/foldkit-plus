@@ -6,8 +6,8 @@
 import { Effect, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
-import { positionToRange } from 'foldkit-richtext-dom'
-import { attachmentIn, releaseMount } from 'foldkit-richtext-dom/host'
+import { positionToRange } from '../src/index.js'
+import { attachmentIn, releaseMount } from '../src/host.js'
 import { describe, expect, it } from 'vitest'
 import { attachEditor, events, patchEditor, toMessage, Message } from '../src/editor.js'
 

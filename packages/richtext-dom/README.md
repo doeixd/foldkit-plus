@@ -33,6 +33,7 @@ foldkit-richtext-dom          the interpreter: mount, patch, repair, position ma
 foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
+foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 ```
 
 ## The loop
@@ -107,6 +108,33 @@ attachmentIn(host)?.sync(state, changeSet)
 // Unmount.
 releaseMount(host)
 ```
+
+## The editor's Messages
+
+`editor` is the vocabulary an editor's `update` handles, and the mount that
+produces it (§118). The adapter reports what happened as commands, a caret, and a
+history chord; `toMessage` turns each into a Message:
+
+```ts
+const Message = defineMessageUnion({
+  Typed, Backspace, DeletedForward, Entered, ToggledMark,
+  Selected, Pasted, Undone, Redone, Patched,
+})
+```
+
+`toMessage(command)` refuses what the vocabulary cannot carry rather than dropping
+a detail: the adapter reports only plain insertions and toggles by name, so an
+insertion carrying marks and a mark value with props come back `undefined` — the
+vocabulary has no shape for them yet, and silently losing the marks would be
+worse. `attachEditor(host, content, emit)` attaches the translation to a host
+element and reports each Message; `events({ content })` wraps the same thing in a
+`Mount.defineStream`, so a view renders a host element whose mount produces these
+Messages and releases the subtree when the element goes. `patchEditor(hostId,
+state, changeSet)` is what the patch Command runs: it finds the element by id,
+syncs the attachment it holds, and reports whether it patched — a missing host is
+an editor that went away while the transition was in flight, not an error.
+`Patched` is that Command's own completion, because a Foldkit Command must return
+a Message.
 
 ## What it does not do
 

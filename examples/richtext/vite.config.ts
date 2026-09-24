@@ -8,6 +8,10 @@ export default defineConfig({
     alias: {
       'foldkit-richtext': new URL('../../packages/richtext/src/index.ts', import.meta.url).pathname,
       // The subpaths before the bare package, so the more specific entry wins.
+      'foldkit-richtext-dom/editor': new URL(
+        '../../packages/richtext-dom/src/editor.ts',
+        import.meta.url,
+      ).pathname,
       'foldkit-richtext-dom/host': new URL(
         '../../packages/richtext-dom/src/host.ts',
         import.meta.url,

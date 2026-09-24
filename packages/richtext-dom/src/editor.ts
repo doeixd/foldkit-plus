@@ -11,7 +11,7 @@ import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
+import { attachmentIn, mountInto, releaseMount } from './host.js'
 
 export const Message = defineMessageUnion({
   Typed: { text: Schema.String },

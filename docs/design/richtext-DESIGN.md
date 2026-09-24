@@ -5023,6 +5023,8 @@ Command are identical, which is §27's requirement.
    adapter reports them, `toMessage` maps them, `update` runs them, and the
    Command renders the result. `test/editorView.test.ts` drives a real `paste`
    event and the history chords through the view's own mount.
-3. Promote the editor into `foldkit-richtext-dom` with the interpreter as its
-   internals, and the read-only renderer alongside it.
+3. **In progress.** The editor's vocabulary and mount moved into
+   `foldkit-richtext-dom` (`foldkit-richtext-dom/editor`), which is why that
+   package now peers on `effect` and `foldkit`. The Bundle and the read-only
+   renderer still live in the harness and move next.
 4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).

@@ -1300,6 +1300,12 @@ importers:
         specifier: workspace:*
         version: link:../richtext
     devDependencies:
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+      foldkit:
+        specifier: 0.163.0
+        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

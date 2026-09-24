@@ -89,32 +89,10 @@ slice, then HTML, then plain text.
 
 ## The editor's Messages
 
-`src/editor.ts` is where the browser meets the editor's vocabulary (§118). The
-adapter reports what happened as commands, a caret, and a history chord; this
-turns each one into the Message an editor's `update` already handles:
-
-```ts
-const Message = defineMessageUnion({
-  Typed, Backspace, DeletedForward, Entered, ToggledMark,
-  Selected, Pasted, Undone, Redone,
-})
-```
-
-`toMessage(command)` is that translation, and it refuses what the vocabulary
-cannot carry rather than dropping a detail: the adapter reports only plain
-insertions and toggles by name, so an insertion carrying marks and a mark value
-with props come back `undefined` — the vocabulary has no shape for them yet, and
-silently losing the marks would be worse. `attachEditor(host, content, emit)`
-attaches the translation to a host element and reports each Message;
-`events({ content })` wraps the same thing in a `Mount.defineStream`, so a view can
-render a host element whose mount produces these Messages and releases the subtree
-when the element goes. `patchEditor(hostId, state, changeSet)` is what the patch
-Command runs: it finds the element by id, syncs the attachment it holds, and
-reports whether it patched — a missing host is an editor that went away while the
-transition was in flight, not an error.
-
-The proof's union moved here: `controlled.ts` imports it instead of declaring a
-second one, which also gave the proof paste.
+The vocabulary an editor's `update` handles, and the mount that produces it, live
+in `foldkit-richtext-dom` (`foldkit-richtext-dom/editor`, §118); that package's
+README is the reference. `controlled.ts` imports them from there, so the same
+Messages arrive whether a person typed, pasted, or moved the caret.
 
 ## Read-only view
 

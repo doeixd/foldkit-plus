@@ -8,6 +8,9 @@ export default defineConfig({
         new URL('./packages/richtext/src/index.ts', import.meta.url),
       ),
       // The subpaths before the bare package, so the more specific entry wins.
+      'foldkit-richtext-dom/editor': fileURLToPath(
+        new URL('./packages/richtext-dom/src/editor.ts', import.meta.url),
+      ),
       'foldkit-richtext-dom/host': fileURLToPath(
         new URL('./packages/richtext-dom/src/host.ts', import.meta.url),
       ),

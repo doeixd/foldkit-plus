@@ -11,6 +11,10 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./editor": {
+      "types": "./dist/editor.d.mts",
+      "import": "./dist/editor.mjs"
+    },
     "./events": {
       "types": "./dist/events.d.mts",
       "import": "./dist/events.mjs"
@@ -36,7 +40,13 @@
   "dependencies": {
     "foldkit-richtext": "workspace:*"
   },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.116",
+    "foldkit": "^0.163.0"
+  },
   "devDependencies": {
+    "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
