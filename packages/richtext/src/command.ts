@@ -14,6 +14,7 @@ import {
   type Position,
   type RunMark,
   type Selection,
+  type Text as Run,
 } from './document.js'
 import { withFreshIds, type Slice } from './clipboard.js'
 import {
@@ -156,14 +157,31 @@ const covered = (document: Document, start: Position, end: Position): ReadonlyAr
   return spans
 }
 
+/** The last run in a block's subtree, or undefined when it holds none. */
+const lastRunOf = (block: Block): Run | undefined => {
+  if (block.type === 'Node' && block.blocks !== undefined) {
+    for (let index = block.blocks.length - 1; index >= 0; index--) {
+      const found = lastRunOf(block.blocks[index]!)
+      if (found !== undefined) return found
+    }
+  }
+  return block.children[block.children.length - 1]
+}
+
+/** The block list a path lives in: the document's, or a container's nested blocks. */
+const containerBlocks = (document: Document, containerPath: BlockPath): ReadonlyArray<Block> => {
+  if (containerPath.length === 0) return document.children
+  const container = blockAtPath(document, containerPath)
+  return container?.type === 'Node' && container.blocks !== undefined ? container.blocks : []
+}
+
 /**
  * Deletes an ordered [start, end): one operation per covered run, then the
  * blocks the range spanned are joined, so selecting across a paragraph boundary
  * and deleting removes the boundary too. The first block survives, which is
  * where the caret already is. Returns undefined when the range needs a join this
- * version cannot express — a merge inside a container, whose addressing arrives
- * with nested structural placement (§116) — so the caller refuses rather than
- * deleting half of what was selected.
+ * version cannot express — one across containers, which has no boundary to
+ * remove — so the caller refuses rather than deleting half of what was selected.
  */
 const deleteRange = (
   document: Document,
@@ -178,10 +196,16 @@ const deleteRange = (
   if (startAt === undefined || endAt === undefined) return deletions
   // Within one block there is no boundary to remove.
   if (pathKey(startAt.path) === pathKey(endAt.path)) return deletions
-  if (startAt.path.length !== 1 || endAt.path.length !== 1) return undefined
-  const survivor = document.children[startAt.path[0]!]!.id
-  for (let index = startAt.path[0]! + 1; index <= endAt.path[0]!; index++) {
-    const block = document.children[index]
+  const containerPath = startAt.path.slice(0, -1)
+  // The boundary only exists between siblings; a range that leaves its container
+  // needs a merge this version does not define.
+  if (pathKey(containerPath) !== pathKey(endAt.path.slice(0, -1))) return undefined
+  const blocks = containerBlocks(document, containerPath)
+  const from = startAt.path[startAt.path.length - 1]!
+  const to = endAt.path[endAt.path.length - 1]!
+  const survivor = blocks[from]!.id
+  for (let index = from + 1; index <= to; index++) {
+    const block = blocks[index]
     if (block !== undefined) deletions.push(Edit.joinBlocks(survivor, block.id))
   }
   return deletions
@@ -333,19 +357,21 @@ export const run = (
     const backward = command.type === 'DeleteBackward'
     const block = blockAtPath(state.document, at.path)
     if (block === undefined) return failure('MissingText')
-    // A grapheme deletion works at any depth; only the block-boundary join below
-    // is structural placement, so nested blocks wait for the addressing in §116.
     const deletion = graphemeDeletion(block, caret, at.runIndex, backward)
     if (deletion !== undefined) {
       return apply(state, [...deletion.operations, Edit.setSelection(caretAt(deletion.caret))])
     }
-    if (at.path.length !== 1) return failure('InvalidParent')
-    const blockIndex = at.path[0]!
-    const neighborBlock = state.document.children[backward ? blockIndex - 1 : blockIndex + 1]
+    // A block edge joins the sibling in the same container, wherever it sits.
+    const containerPath = at.path.slice(0, -1)
+    const siblings = containerBlocks(state.document, containerPath)
+    const index = at.path[at.path.length - 1]!
+    const neighborBlock = siblings[backward ? index - 1 : index + 1]
     if (neighborBlock === undefined) return apply(state, [])
-    const survivor = backward ? neighborBlock : block
-    const removed = backward ? block : neighborBlock
-    const lastRun = survivor.children[survivor.children.length - 1]
+    const survivor = backward ? neighborBlock : siblings[index]!
+    const removed = backward ? siblings[index]! : neighborBlock
+    // The caret lands at the junction: the end of what the survivor already had,
+    // or the removed block's last run when the survivor holds no runs.
+    const lastRun = lastRunOf(survivor) ?? lastRunOf(removed)
     return apply(state, [
       Edit.joinBlocks(survivor.id, removed.id),
       Edit.setSelection(
@@ -420,25 +446,29 @@ export const run = (
     const caret = span?.start ?? selection.anchor
     const at = locate(state.document, caret.node)
     if (at === undefined) return failure('MissingText')
-    // Pasting places blocks, so a container's children wait for §116's addressing.
-    if (at.path.length !== 1) return failure('InvalidParent')
-    const blockIndex = at.path[0]!
+    const index = at.path[at.path.length - 1]!
+    const containerPath = at.path.slice(0, -1)
+    // The content lands in the caret's own container, so pasting inside a list
+    // item stays inside the list.
+    const parent =
+      containerPath.length === 0 ? undefined : blockAtPath(state.document, containerPath)?.id
     const replacements = span === undefined ? [] : deleteRange(state.document, span.start, span.end)
     if (replacements === undefined) return failure('InvalidParent')
     const operations: Array<Operation> = [...replacements]
     const inserted = withFreshIds(command.slice, ids.mint).blocks
-    const block = state.document.children[blockIndex]!
+    const block = blockAtPath(state.document, at.path)
+    if (block === undefined) return failure('MissingText')
     const atBlockStart = at.runIndex === 0 && caret.offset === 0
     const atBlockEnd = at.runIndex === block.children.length - 1 && caret.offset === at.text.length
     let trailingRun: NodeId | undefined
     if (atBlockStart) {
       // Pasting at the very start puts the content above this block.
-      for (const [index, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, blockIndex + index))
+      for (const [offset, piece] of inserted.entries()) {
+        operations.push(Edit.insertBlock(piece, index + offset, parent))
       }
     } else if (atBlockEnd) {
-      for (const [index, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, blockIndex + 1 + index))
+      for (const [offset, piece] of inserted.entries()) {
+        operations.push(Edit.insertBlock(piece, index + 1 + offset, parent))
       }
     } else {
       // Mid-block: split the block at the caret and land the content between
@@ -446,11 +476,17 @@ export const run = (
       const textId = ids.mint()
       operations.push(Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId))
       trailingRun = NodeId.make(textId)
-      for (const [index, piece] of inserted.entries()) {
-        operations.push(Edit.insertBlock(piece, blockIndex + 1 + index))
+      for (const [offset, piece] of inserted.entries()) {
+        operations.push(Edit.insertBlock(piece, index + 1 + offset, parent))
       }
     }
-    const landing = landingAfter(inserted, trailingRun, state.document, blockIndex, atBlockEnd)
+    const landing = landingAfter(
+      inserted,
+      trailingRun,
+      containerBlocks(state.document, containerPath),
+      index,
+      atBlockEnd,
+    )
     if (landing !== undefined) operations.push(Edit.setSelection(caretAt(landing)))
     return apply(state, operations)
   }
@@ -461,13 +497,13 @@ export const run = (
 /**
  * Where the caret goes after a paste: the end of the last inserted run, or the
  * start of what follows when the inserted content ends without text — the
- * trailing half a split created, then whatever block follows in the document.
+ * trailing half a split created, then the next sibling.
  */
 const landingAfter = (
   inserted: ReadonlyArray<Block>,
   trailingRun: NodeId | undefined,
-  document: Document,
-  blockIndex: number,
+  siblings: ReadonlyArray<Block>,
+  index: number,
   atBlockEnd: boolean,
 ): Position | undefined => {
   const last = inserted[inserted.length - 1]!
@@ -476,7 +512,7 @@ const landingAfter = (
     return { node: lastRun.id, offset: lastRun.text.length, affinity: 'after' }
   }
   if (trailingRun !== undefined) return { node: trailingRun, offset: 0, affinity: 'after' }
-  const following = document.children[blockIndex + (atBlockEnd ? 1 : 0)]
+  const following = siblings[index + (atBlockEnd ? 1 : 0)]
   const followingRun = following?.children[0]
   return followingRun === undefined
     ? undefined

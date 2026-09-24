@@ -4564,9 +4564,12 @@ Not done:
   decodes, round-trips, is counted, and is preserved when unknown; commands reach
   a run inside one — typing, grapheme deletion, marks, and clipboard work at
   depth, with a copy across a container's children carrying the container; and
-  every interpreter renders one, with HTML import reading a container back. A join
-  or placement inside a container is refused with `InvalidParent` until slice 3,
-  and nested structural patching arrives with it.
+  every interpreter renders one, with HTML import reading a container back.
+  Structural placement works at any depth: a split keeps its halves in the block's
+  container, siblings join within theirs, and `InsertNode`/`MoveNode` take an
+  optional parent, so a block enters or leaves a container. A range that would
+  merge across containers, and a parent that cannot hold blocks, stay refused with
+  `InvalidParent`.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4811,11 +4814,12 @@ Landing order, each keeping the suite green:
    `findUnknownNodes`/`findUnknownMarks`, `selectionIsValid`, `Node.read`, the
    commands that reach a run wherever it sits (`locate`, `ordered`, `covered`,
    `deleteRange`), `apply`'s tree index — blocks addressed by path, each touched
-   container copied once — and the clipboard (`sliceOf` keeps the container a
+   container copied once - and the clipboard (`sliceOf` keeps the container a
    range crosses, `withFreshIds` remints nested identities, `plainTextOf` walks
-   the tree). **Remaining**: the interpreters (slice 2) and structural placement
-   at depth (slice 3). Until slice 3, a command that would join or place blocks
-   inside a container is refused with `InvalidParent` rather than half-applied.
+   the tree). **Remaining**: the Kit child constraints (slice 4) and migrations
+   plus a demo (slice 5). Structural placement works at any depth now; only a
+   range that would merge across containers, and a parent that cannot hold blocks,
+   are refused with `InvalidParent`.
 2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
    adapter. **Complete.** `toHtml` renders a container's nested blocks inside its
    element and `toText` gives one line per text block; the read-only view does the
@@ -4828,7 +4832,19 @@ Landing order, each keeping the suite green:
    container, and those patch directly. It arrives with slice 3.
 3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,
    `DeleteNode`, `SplitNode`/`JoinNode` within a parent, and paste into a
-   container.
+   container. **Complete.** A split keeps its halves in the block's own container;
+   siblings join within theirs, with the compatibility rules extended (a container
+   and a run holder are refused, and two containers of the same kind concatenate
+   their nested blocks rather than dropping them); `InsertNode` and `MoveNode`
+   take an optional `parent`, so a block enters or leaves a container; paste lands
+   in the caret's container; and `DeleteNode` collapses the selection to the
+   nearest surviving run in document order, which fixes a case nesting introduced
+   (a delete beside a container used to clear the selection even though the
+   container held runs). What stays refused with `InvalidParent` is a range that
+   would merge across containers, and a parent that cannot hold blocks.
+   The DOM adapter needs no change here: a container whose item list changed is
+   re-rendered where it stood, so its surviving items are rebuilt rather than
+   patched individually — correct, and a follow-up for identity preservation.
 4. Kit child constraints: `children` declarations, the mismatch diagnostic, and
    `atom`'s no-children enforcement at the operation level.
 5. Migrations and a demo: `promoteUnknown` into a nested kind, HTML import for

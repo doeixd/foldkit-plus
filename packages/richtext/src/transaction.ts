@@ -8,6 +8,8 @@ import {
   Position,
   RunMark,
   Selection,
+  blockAtPath,
+  compareRunPlaces,
   selectionIsValid,
   type BlockPath,
   type Document,
@@ -63,6 +65,8 @@ const MoveNodeOperation = Schema.Struct({
   type: Schema.Literal('MoveNode'),
   node: NodeId,
   to: Offset,
+  /** The block list to move into: a node block's, or the document's when absent. */
+  parent: Schema.optionalKey(NodeId),
 })
 const SetNodePropsOperation = Schema.Struct({
   type: Schema.Literal('SetNodeProps'),
@@ -73,6 +77,8 @@ const InsertNodeOperation = Schema.Struct({
   type: Schema.Literal('InsertNode'),
   block: Block,
   at: Offset,
+  /** The block list to insert into: a node block's, or the document's when absent. */
+  parent: Schema.optionalKey(NodeId),
 })
 const DeleteNodeOperation = Schema.Struct({
   type: Schema.Literal('DeleteNode'),
@@ -171,8 +177,17 @@ export const Edit = {
       removed: targetId(removed),
     }),
 
-  moveBlock: (node: TextTarget, to: number): Extract<Operation, { readonly type: 'MoveNode' }> =>
-    MoveNodeOperation.make({ type: 'MoveNode', node: targetId(node), to }),
+  moveBlock: (
+    node: TextTarget,
+    to: number,
+    parent?: TextTarget,
+  ): Extract<Operation, { readonly type: 'MoveNode' }> =>
+    MoveNodeOperation.make({
+      type: 'MoveNode',
+      node: targetId(node),
+      to,
+      ...(parent === undefined ? {} : { parent: targetId(parent) }),
+    }),
 
   setNodeProps: (
     node: TextTarget,
@@ -180,8 +195,17 @@ export const Edit = {
   ): Extract<Operation, { readonly type: 'SetNodeProps' }> =>
     SetNodePropsOperation.make({ type: 'SetNodeProps', node: targetId(node), level }),
 
-  insertBlock: (block: Block, at: number): Extract<Operation, { readonly type: 'InsertNode' }> =>
-    InsertNodeOperation.make({ type: 'InsertNode', block, at }),
+  insertBlock: (
+    block: Block,
+    at: number,
+    parent?: TextTarget,
+  ): Extract<Operation, { readonly type: 'InsertNode' }> =>
+    InsertNodeOperation.make({
+      type: 'InsertNode',
+      block,
+      at,
+      ...(parent === undefined ? {} : { parent: targetId(parent) }),
+    }),
 
   deleteBlock: (node: TextTarget): Extract<Operation, { readonly type: 'DeleteNode' }> =>
     DeleteNodeOperation.make({ type: 'DeleteNode', node: targetId(node) }),
@@ -329,6 +353,10 @@ const sameSelection = (left: Selection | null, right: Selection | null): boolean
   )
 }
 
+/** The nested block list of a container, or undefined for any other block. */
+const nestedOf = (block: Block): ReadonlyArray<Block> | undefined =>
+  block.type === 'Node' && block.blocks !== undefined ? block.blocks : undefined
+
 /**
  * A block's address: root-first container indices. `[2]` is the third top-level
  * block; `[2, 0]` is the first block nested inside it (§116). The document's own
@@ -414,6 +442,22 @@ export const apply = (
   const writeBlock = (path: BlockPath, block: Block): void => {
     const container = ensureContainer(path.slice(0, -1))
     container[path[path.length - 1]!] = block
+  }
+  /**
+   * The block list a structural operation targets: the document's, or a node
+   * block's nested blocks. A parent that cannot hold blocks is `InvalidParent`,
+   * one that does not exist is `MissingNode`.
+   */
+  const containerPathOf = (
+    parent: NodeId | undefined,
+  ): { readonly path: BlockPath } | { readonly error: 'MissingNode' | 'InvalidParent' } => {
+    if (parent === undefined) return { path: [] }
+    const path = blockPaths.get(parent)
+    if (path === undefined) return { error: 'MissingNode' }
+    const block = blockAt(path)
+    return block?.type === 'Node' && block.blocks !== undefined
+      ? { path }
+      : { error: 'InvalidParent' }
   }
   const materialize = (): void => {
     if (workingBlocks.size === 0 && workingRuns.size === 0) return
@@ -509,13 +553,11 @@ export const apply = (
       materialize()
       const blockPath = blockPaths.get(operation.block)
       if (blockPath === undefined) return { ok: false, error: 'MissingNode' }
-      if (blockPath.length !== 1) return { ok: false, error: 'InvalidParent' }
       const runLocation = runPaths.get(operation.node)
       if (runLocation === undefined) return { ok: false, error: 'MissingText' }
       const { path: runBlockPath, index: textIndex } = runLocation
       if (pathKey(runBlockPath) !== pathKey(blockPath)) return { ok: false, error: 'InvalidRange' }
-      const blockIndex = blockPath[0]!
-      const target = document.children[blockIndex]!
+      const target = blockAt(blockPath)!
       const run = target.children[textIndex]!
       if (operation.offset > run.text.length) return { ok: false, error: 'InvalidRange' }
       if (
@@ -540,10 +582,14 @@ export const apply = (
           ...target.children.slice(textIndex + 1),
         ],
       }
-      const blocks = [...document.children]
-      blocks[blockIndex] = leftBlock
-      blocks.splice(blockIndex + 1, 0, rightBlock)
-      document = { ...document, children: blocks }
+      // The halves land in the block's own container, so a split inside a
+      // container stays inside it.
+      const containerPath = blockPath.slice(0, -1)
+      const index = blockPath[blockPath.length - 1]!
+      const container = ensureContainer(containerPath)
+      container[index] = leftBlock
+      container.splice(index + 1, 0, rightBlock)
+      materialize()
       usedIds.add(operation.blockId)
       usedIds.add(operation.textId)
       reindex()
@@ -574,20 +620,22 @@ export const apply = (
       if (intoPath === undefined) return { ok: false, error: 'MissingNode' }
       const removedPath = blockPaths.get(operation.removed)
       if (removedPath === undefined) return { ok: false, error: 'MissingNode' }
-      // Joining is structural placement: nested blocks wait for the addressing
-      // that lets a container's children move (§116).
-      if (intoPath.length !== 1 || removedPath.length !== 1) {
+      // Siblings only: two blocks in different containers have no boundary
+      // between them to remove.
+      if (pathKey(intoPath.slice(0, -1)) !== pathKey(removedPath.slice(0, -1))) {
         return { ok: false, error: 'InvalidParent' }
       }
-      const intoIndex = intoPath[0]!
-      const removedIndex = removedPath[0]!
+      const containerPath = intoPath.slice(0, -1)
+      const intoIndex = intoPath[intoPath.length - 1]!
+      const removedIndex = removedPath[removedPath.length - 1]!
       if (removedIndex !== intoIndex + 1) return { ok: false, error: 'InvalidRange' }
-      const survivor = document.children[intoIndex]!
+      const container = ensureContainer(containerPath)
+      const survivor = container[intoIndex]!
       const removedBlocks: Array<Block> = []
       while (operationIndex < transaction.length) {
         const next = transaction[operationIndex]
         if (next?.type !== 'JoinNode' || next.into !== operation.into) break
-        const removed = document.children[intoIndex + removedBlocks.length + 1]
+        const removed = container[intoIndex + removedBlocks.length + 1]
         if (removed?.id !== next.removed) break
         // Opaque content cannot be merged without silently discarding it.
         if (survivor.type === 'Unknown' || removed.type === 'Unknown') {
@@ -602,17 +650,27 @@ export const apply = (
           )
             return { ok: false, error: 'InvalidRange' }
         }
+        // A container and a run holder merge differently: joining a list with a
+        // paragraph would have to drop one side's shape.
+        if ((nestedOf(survivor) === undefined) !== (nestedOf(removed) === undefined)) {
+          return { ok: false, error: 'InvalidRange' }
+        }
         removedBlocks.push(removed)
         operationIndex++
       }
       operationIndex--
-      const blocks = [...document.children]
-      blocks[intoIndex] = {
-        ...survivor,
-        children: [...survivor.children, ...removedBlocks.flatMap(block => block.children)],
+      const mergedRuns = [...survivor.children, ...removedBlocks.flatMap(block => block.children)]
+      if (survivor.type === 'Node' && survivor.blocks !== undefined) {
+        container[intoIndex] = {
+          ...survivor,
+          children: mergedRuns,
+          blocks: [...survivor.blocks, ...removedBlocks.flatMap(block => nestedOf(block) ?? [])],
+        }
+      } else {
+        container[intoIndex] = { ...survivor, children: mergedRuns }
       }
-      blocks.splice(removedIndex, removedBlocks.length)
-      document = { ...document, children: blocks }
+      container.splice(removedIndex, removedBlocks.length)
+      materialize()
       reindex()
       for (const removed of removedBlocks) {
         // A Node selection on a retired identity follows the survivor.
@@ -633,14 +691,21 @@ export const apply = (
       materialize()
       const fromPath = blockPaths.get(operation.node)
       if (fromPath === undefined) return { ok: false, error: 'MissingNode' }
-      if (fromPath.length !== 1) return { ok: false, error: 'InvalidParent' }
-      const fromIndex = fromPath[0]!
-      if (operation.to > document.children.length - 1) return { ok: false, error: 'InvalidRange' }
-      if (operation.to === fromIndex) continue
-      const blocks = [...document.children]
-      const [moved] = blocks.splice(fromIndex, 1)
-      blocks.splice(operation.to, 0, moved!)
-      document = { ...document, children: blocks }
+      const target = containerPathOf(operation.parent)
+      if ('error' in target) return { ok: false, error: target.error }
+      const sourcePath = fromPath.slice(0, -1)
+      const fromIndex = fromPath[fromPath.length - 1]!
+      // A move within one container lands at an existing index; a move into
+      // another can append, so its bound is that container's length.
+      const sameContainer = pathKey(sourcePath) === pathKey(target.path)
+      const limit = sameContainer ? blocksAt(target.path).length - 1 : blocksAt(target.path).length
+      if (operation.to > limit) return { ok: false, error: 'InvalidRange' }
+      if (sameContainer && operation.to === fromIndex) continue
+      const source = ensureContainer(sourcePath)
+      const [moved] = source.splice(fromIndex, 1)
+      const destination = sameContainer ? source : ensureContainer(target.path)
+      destination.splice(operation.to, 0, moved!)
+      materialize()
       reindex()
       dirtyNodes.add(operation.node)
       structureChanged = true
@@ -661,22 +726,31 @@ export const apply = (
     }
     if (operation.type === 'InsertNode') {
       materialize()
-      if (operation.at > document.children.length) return { ok: false, error: 'InvalidRange' }
-      const carried = [operation.block.id, ...operation.block.children.map(run => run.id)]
+      const target = containerPathOf(operation.parent)
+      if ('error' in target) return { ok: false, error: target.error }
+      if (operation.at > blocksAt(target.path).length) return { ok: false, error: 'InvalidRange' }
+      const carried = [
+        operation.block.id,
+        ...operation.block.children.map(run => run.id),
+        ...(operation.block.type === 'Node' && operation.block.blocks !== undefined
+          ? operation.block.blocks.flatMap(block => [
+              block.id,
+              ...block.children.map(run => run.id),
+            ])
+          : []),
+      ]
       if (new Set(carried).size !== carried.length || carried.some(id => usedIds.has(id))) {
         return { ok: false, error: 'InvalidInput' }
       }
-      const blocks = [...document.children]
-      blocks.splice(operation.at, 0, operation.block)
-      document = { ...document, children: blocks }
-      for (const id of carried) usedIds.add(id)
-      reindex()
-      dirtyNodes.add(operation.block.id)
-      insertedNodes.add(operation.block.id)
-      for (const run of operation.block.children) {
-        dirtyNodes.add(run.id)
-        insertedNodes.add(run.id)
+      const container = ensureContainer(target.path)
+      container.splice(operation.at, 0, operation.block)
+      materialize()
+      for (const id of carried) {
+        usedIds.add(id)
+        dirtyNodes.add(id)
+        insertedNodes.add(id)
       }
+      reindex()
       structureChanged = true
       continue
     }
@@ -684,25 +758,41 @@ export const apply = (
       materialize()
       const path = blockPaths.get(operation.node)
       if (path === undefined) return { ok: false, error: 'MissingNode' }
-      if (path.length !== 1) return { ok: false, error: 'InvalidParent' }
-      const blockIndex = path[0]!
-      const target = document.children[blockIndex]!
-      const blocks = [...document.children]
-      blocks.splice(blockIndex, 1)
-      // Collapse to the start of the block now at this index, wrapping to the
-      // document start; with no runs left anywhere, selection clears instead.
-      const ordered = [...blocks.slice(blockIndex), ...blocks.slice(0, blockIndex)]
-      const fallbackBlock = ordered.find(block => block.children[0] !== undefined)
-      const fallback = fallbackBlock?.children[0]
-      const collapses: Array<CollapseStep> = []
-      if (fallback !== undefined) {
-        for (const run of target.children) collapses.push({ node: run.id, into: fallback.id })
-      }
-      document = { ...document, children: blocks }
+      const containerPath = path.slice(0, -1)
+      const index = path[path.length - 1]!
+      const target = blockAt(path)!
+      const container = ensureContainer(containerPath)
+      container.splice(index, 1)
+      materialize()
       reindex()
+      // The nearest surviving run in document order — the first at or after the
+      // removed block's place, else the last before it — or nothing, which
+      // clears the selection. Walking the tree is what lets a delete beside a
+      // container collapse into the container's own runs.
+      const removedPlace = { path, index: 0 }
+      let fallback: { readonly block: Block; readonly run: Text } | undefined
+      let after: { readonly block: Block; readonly run: Text } | undefined
+      eachBlock(document.children, (block, blockPath) => {
+        for (const [runIndex, run] of block.children.entries()) {
+          const place = { path: blockPath, index: runIndex }
+          if (compareRunPlaces(place, removedPlace) >= 0) after ??= { block, run }
+          else fallback = { block, run }
+        }
+      })
+      const landing = after ?? fallback
+      const collapses: Array<CollapseStep> = []
+      const removedRuns: Array<NodeId> = []
+      const collect = (block: Block): void => {
+        for (const run of block.children) removedRuns.push(run.id)
+        if (block.type === 'Node' && block.blocks !== undefined) block.blocks.forEach(collect)
+      }
+      collect(target)
+      if (landing !== undefined) {
+        for (const run of removedRuns) collapses.push({ node: run, into: landing.run.id })
+      }
       if (selection?.type === 'Range') {
         selection =
-          fallback === undefined
+          landing === undefined
             ? null
             : {
                 ...selection,
@@ -711,19 +801,20 @@ export const apply = (
               }
       } else if (selection?.type === 'Node') {
         const selectedNode = selection.node
-        if (
-          selectedNode === operation.node ||
-          target.children.some(run => run.id === selectedNode)
-        ) {
-          selection = fallbackBlock === undefined ? null : { ...selection, node: fallbackBlock.id }
+        if (selectedNode === operation.node || removedRuns.includes(selectedNode)) {
+          selection = landing === undefined ? null : { ...selection, node: landing.block.id }
         }
       }
       for (const step of collapses) positionMap.push(step)
-      dirtyNodes.add(operation.node)
-      removedNodes.add(operation.node)
-      for (const run of target.children) {
-        dirtyNodes.add(run.id)
-        removedNodes.add(run.id)
+      const removedIds: Array<NodeId> = []
+      const collectIds = (block: Block): void => {
+        removedIds.push(block.id, ...block.children.map(run => run.id))
+        if (block.type === 'Node' && block.blocks !== undefined) block.blocks.forEach(collectIds)
+      }
+      collectIds(target)
+      for (const id of removedIds) {
+        dirtyNodes.add(id)
+        removedNodes.add(id)
       }
       structureChanged = true
       continue

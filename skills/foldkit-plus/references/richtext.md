@@ -100,10 +100,13 @@ count, and survive an unknown kind, and commands reach a run inside one — typi
 grapheme deletion, marks, and the clipboard work at depth, with a copy across a
 container's children carrying the container. The HTML serializer, the read-only
 view, and the editable adapter all render a container with its nested blocks, and
-HTML import reads `data-node` back (props start empty; the slice keeps them). A
-join or placement inside a container is refused with `InvalidParent` until slice
-3. Marks are definitions with a boundary policy and, when they carry data, a prop
-schema:
+HTML import reads `data-node` back (props start empty; the slice keeps them).
+Structural placement works at depth too: a split keeps its halves in the block's
+container, siblings join within theirs, and `insertBlock`/`moveBlock` take an
+optional parent to enter or leave a container. A range that would merge across
+containers, and a parent that cannot hold blocks, are refused with
+`InvalidParent`. Marks are definitions with a boundary policy and, when they carry
+data, a prop schema:
 
 ```ts
 const Link = RichText.mark('Link', {

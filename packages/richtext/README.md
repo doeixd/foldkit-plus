@@ -433,7 +433,11 @@ not yet drive parsing or `apply`.
   grapheme deletion, marks, stored marks, undo, and the clipboard work inside a
   container — a copy across its children carries the container — and every
   interpreter renders one, with the HTML importer reading a container back.
-  Structural placement inside one is still refused with `InvalidParent`.
+  Structural placement works at depth too: a split keeps its halves in the block's
+  own container, siblings join within theirs, and a move or insert takes an
+  optional `parent` to enter or leave a container. What is still refused with
+  `InvalidParent` is a range that would have to merge across containers, and a
+  parent that cannot hold blocks.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.
@@ -457,21 +461,26 @@ not yet drive parsing or `apply`.
   sibling, preserving run identities, marks, and range selections without
   emitting position steps. No runs merge (that is future normalization's job);
   the survivor keeps its block type. Node selections on the removed block
-  remap to the survivor. Only adjacent pairs join.
+  remap to the survivor. Only adjacent siblings join, and only compatible ones:
+  opaque content, application nodes of a different kind or props, and a container
+  with a run holder are all refused rather than merged lossily. Joining two
+  containers of the same kind concatenates their nested blocks.
 - `MoveNode` reorders one block to an explicit post-removal index; moving to
   the same index is a no-op. Run identities and selections are untouched, so no
-  position steps are emitted.
+  position steps are emitted. An optional `parent` moves it into a node block's
+  nested blocks (and back out), and a parent that cannot hold blocks is refused.
 - `SetNodeProps` retypes a heading's level today (the first block prop; Kit
   definitions generalize this later). Same-level sets are no-ops; paragraphs
   reject the operation.
-- `InsertNode` splices a caller-built block at an explicit index; every carried
-  identity must be fresh within the transaction. Positions need no mapping
-  (they address runs, not indexes).
-- `DeleteNode` removes one block and collapses its positions to the start of
-  the block now at that index, wrapping to the document start — or clears the
-  selection when no text remains. Node selections on the removed subtree remap
-  to the collapse target. Collapse steps in the position map carry the same
-  rule to external positions.
+- `InsertNode` splices a caller-built block at an explicit index, or into a node
+  block's nested blocks when `parent` is given; every carried identity must be
+  fresh within the transaction. Positions need no mapping (they address runs, not
+  indexes).
+- `DeleteNode` removes one block and collapses its positions to the nearest
+  surviving run in document order — the first at or after the removed block's
+  place, else the last before it — or clears the selection when no run remains.
+  Node selections on the removed subtree remap to the collapse target. Collapse
+  steps in the position map carry the same rule to external positions.
 - `decodeDocument` preserves blocks whose type this version does not implement
   as `Unknown` nodes: original type, remaining JSON fields, and no text runs.
   Unknown nodes are addressable structurally (move, delete) but never

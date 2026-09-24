@@ -392,6 +392,27 @@ describe('rendering and patching nested blocks', () => {
     expect(toText(after)).toBe('two\nonebold\ntail')
   })
 
+  it('rebuilds a container whose items changed, and patches it in place', () => {
+    const before = mount(document, nested())
+    const result = success(
+      RichText.apply({ document: nested(), selection: null }, [
+        RichText.Edit.moveBlock(RichText.Node.make('li2'), 0, RichText.Node.make('list')),
+      ]),
+    )
+    const after = patch(before, result.state.document, result.changeSet)
+    // The item order changed, so the container is re-rendered where it stood.
+    expect(after.root.children[0]).toBe(after.elements.get(id('list')))
+    const container = after.elements.get(id('list')) as HTMLElement
+    expect(Array.from(container.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'li2',
+      'li1',
+    ])
+    expect(toText(after)).toBe('two\nonebold\ntail')
+    // The top-level sibling is untouched, and every nested id is addressable.
+    expect(after.elements.get(id('tail'))).toBe(before.elements.get(id('tail')))
+    expect(after.elements.get(id('a'))?.textContent).toBe('one')
+  })
+
   it('repairs a nested run the browser touched, and nothing else', () => {
     const before = mount(document, nested())
     expect(repair(before, before.content)).toBe(before)
