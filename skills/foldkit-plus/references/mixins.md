@@ -276,6 +276,17 @@ adapter.
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
   `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. `Layers.define(names)`
   makes another order. There is no `Style.foundation`; the page composes its sheet.
+- Theme pieces (`foldkit-mixins/theme`): `Theme.root(theme, { omit?, colorScheme? })` is the
+  tokens as `:root` custom properties and `Theme.scoped(selector, overrides)` is overrides under a
+  selector, both unlayered global pieces (`L.in('theme', …)`). `Theme.tokens` is the shared
+  scales (`knob` density/radius-factor, `space`, `radius`, `font`, `size`, `leading`, `weight`,
+  `motion`, `border`, `breakpoint`). `Theme.oklch({ accent: { h, c, l }, … })` derives the
+  palette (`surface`, `text`, `outline`, `accent`, `secondary`, `tertiary`, `success`, `warning`,
+  `error`, `info`); only `knob` holds literals, so overriding `knob.accent-h` under a
+  `Theme.scoped` selector recolors everything. Emit `Theme.root(theme, { omit: Theme.tokens })`
+  after `Theme.root(Theme.tokens)` to avoid duplicates. The active theme is a Model field written
+  as `data-theme` on the root. `Theme.breakpointWidths(Theme.tokens)` feeds the `Breakpoints`
+  bundle (`theme:unparseable-breakpoint` for a non-`min-width` query).
 - Defaults and prose: `Defaults.reset` and `Defaults.all` (`body`, `headings`, `links`, `code`,
   `controls`; `all` excludes `reset`) from `foldkit-mixins/defaults` are `:where()` element CSS over
   `--fk-*` tokens with fallbacks, unlayered: place them with `L.in('reset', …)` / `L.in('defaults',

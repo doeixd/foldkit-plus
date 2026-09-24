@@ -103,8 +103,7 @@ pnpm add foldkit-mixins
 projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
 The design-system pieces are subpaths, so an application that only attaches classes pays for
-none of them: `foldkit-mixins/layers`, `foldkit-mixins/theme`, and `foldkit-mixins/layout`
-today, with `/defaults` and `/prose` reserved (see
+none of them: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, and `/prose` (see
 [styleImprovements-DESIGN.md](../../docs/design/styleImprovements-DESIGN.md)).
 
 ## Quick start
@@ -250,6 +249,8 @@ Style is pure data. It never touches the DOM.
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `variable` / `variables` | typed tokens and CSS custom properties |
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
+| `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
+| `Theme.tokens` / `Theme.oklch(knobs)` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, border and breakpoint scales; a whole palette derived from an accent and a few knobs; the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece) and `in(name, piece)` (the piece's rules and global CSS inside that layer; a name outside the order is a type error). `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated |
 
@@ -289,6 +290,53 @@ Beyond `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces ar
   `mixins:ragged-grid-areas`;
 - `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
   strings `pseudo` and `nest` take.
+
+### Theme from a few knobs
+
+`foldkit-mixins/theme` extends the root `Theme` with the pieces a page ships. `Theme.oklch` takes
+an accent color and a few knobs (hue shifts, surface saturation and contrast, a contrast factor,
+feedback hues) and returns typed tokens for surfaces, text, outlines, and the accent, secondary,
+tertiary and feedback families. Only the `knob` group holds literals; every other value is a CSS
+expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
+the derivation and one knob override recolors everything below it. `Theme.tokens` is the
+non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
+
+A theme reaches the page as pieces, and the page chooses the layers:
+
+```ts
+import { Layers, Slot, Slots, Capability, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
+
+const L = Layers.standard
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+
+const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
+const PageStyle = Style.forSlots(PageSlots)({
+  root: Style.inline({
+    background: Theme.variable(theme, 'surface', 'base'),
+    color: Theme.variable(theme, 'text', 'default'),
+  }),
+})
+
+export const sheet = Style.stylesheet(
+  L.declare,
+  L.in('tokens', Theme.root(Theme.tokens)),
+  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('theme', Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+  PageStyle,
+)
+```
+
+`omit` leaves out the tokens another theme already declared, so the scales go out once in
+`tokens` and the palette once in `theme`. Which theme is active is a Model fact: the view writes
+`data-theme` on the root, and `Theme.scoped` only says what the value means. A scheme the user
+picks works the same way with a `data-color-scheme` selector and a `color-scheme` override; a
+scheme the browser picks needs nothing, because the `light-dark()` values follow it. The palette
+needs relative color syntax and `light-dark()` (Chrome 123, Firefox 128, Safari 17.5).
+
+`Style.responsive(Theme.tokens.breakpoint, { md: { … } })` and
+`Theme.breakpointWidths(Theme.tokens)` (for the `Breakpoints` bundle) name the same breakpoints;
+a query that is not a plain `min-width` raises `theme:unparseable-breakpoint`.
 
 ### Layout
 
