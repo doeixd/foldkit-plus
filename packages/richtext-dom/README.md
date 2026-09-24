@@ -75,7 +75,8 @@ Read the calls literally:
   did not just commit, so the editor can follow it; a position it did commit is
   not reported back, and neither is anything while an IME owns the caret.
   `attachment.sync(state, changeSet)` does the patch and selection restore below
-  in one call, and `detach()` removes the listeners.
+  in one call, and `detach()` removes the listeners. `keymap` adds or overrides
+  chord bindings, checked before the built-in chords.
 - `patch(dom, content, changeSet)` removes the identities the change set removed,
   re-renders the ones it marked dirty, and places inserted or moved elements in
   document order. Every other element is left alone.

@@ -4630,8 +4630,9 @@ Per item:
 selection state           harness: in the Bundle's interaction state
 stored marks              harness: interaction state plus InsertText.marks
 history                   harness: snapshot History committed in the child
-keymaps                   adapter only (Mod-b/i/e, Mod-z/y, Enter, Backspace,
-                          Delete); no Bundle keymap layer
+keymaps                   the adapter's built-ins, plus a `keymap` table an
+                          application adds to or overrides; the editor's own
+                          binding layer waits for a binding that needs it (§119)
 copy/paste                adapter only; not routed through the Bundle
 drag/drop                 not started
 mobile virtual keyboards  not started (Phase 3)
@@ -5030,3 +5031,78 @@ Command are identical, which is §27's requirement.
    read-only renderer (`/view`). The harness is what is left of the Phase 3 slice:
    the browser page.
 4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).
+   Decided in §119; they are three layers, not one.
+
+---
+
+# 119. The keymap, toolbar, and slash layers
+
+§118's slices 1–3 landed: the editor is a Bundle with a view, and it lives in
+`foldkit-richtext-dom`. §104's remainder is the layers around it. Three questions
+decide them, and each is answered by what the code already is.
+
+## Where a key binding belongs
+
+`intentFor` hard-codes the chords an editor gets: Mod-b/i/e for the shipped marks,
+Mod-z / Mod-Shift-z / Mod-y for history, and Enter, Backspace, Delete. An
+application cannot rebind them, and a chord whose meaning is not a command has
+nowhere to go: `Intent` carries a `Command` or a history direction, and `Command`
+is the transaction vocabulary (insert, delete, split, mark, select, paste, move),
+which is deliberately small.
+
+So the keymap is two layers, not one:
+
+- **The adapter's table.** `intentFor` takes an optional list of chord → command
+  bindings, checked before its built-ins, so an application can add or override a
+  chord without forking the adapter. This keeps the adapter's job — browser event
+  to editor intent — and needs no new vocabulary.
+- **The editor's bindings.** A chord that should produce an editor Message no
+  browser event produces belongs to the editor instead: `events` would take a
+  keymap whose bindings emit Messages directly. That is the "intents into Messages
+  rather than commands" layer §104 asks for, and it is worth building when a
+  binding needs it — the adapter's table already covers every chord the command
+  vocabulary can express.
+
+A binding is a chord (`Mod-Shift-b`, `Alt-ArrowUp`) plus what it produces.
+Modifiers match exactly and the key is what the browser reports, so `Mod-b` does
+not fire for `Mod-Shift-b` and a chord that types a symbol names the symbol —
+Shift+8 is `Mod-Shift-*` on a US layout, not `Mod-Shift-8`.
+
+## The toolbar renders chrome, and chrome is not the editor's
+
+§29 gives the editor the `contenteditable` subtree and the application everything
+around it — host, toolbar, menus, status. §35 makes the toolbar a Mixins slot
+family (toolbar, toolbar group, toolbar button, active toolbar button). Both say
+the same thing: the toolbar is not the Bundle's view. The Bundle renders one host
+element; a toolbar beside it is the application's or a Mixins layer's `Html`.
+
+So the toolbar needs a *read* from the editor, not a view: which marks are active
+for the current selection. That is missing from `foldkit-richtext`.
+`marksInRange(document, anchor, focus)` returns the marks every run the selection
+covers carries — the marks a toggle would remove, which is what "active" means for
+a button. A collapsed caret is its run's marks; the editor's `storedMarks` are the
+editor's own state and are layered on top by whoever draws the button (a caret
+carrying Bold with nothing selected should light the button).
+
+## Slash commands are a menu over the editor's Messages
+
+A slash command is a menu, not a binding: `/` opens a list, what follows filters
+it, and choosing an entry runs an editor Message — or a command the vocabulary does
+not have yet, such as turning the block into a heading. It needs the editor to
+report the text before the caret (a read), the menu's own state (open, query,
+selection), and its keys (ArrowUp/Down, Enter, Escape), which is the editor's
+binding layer above. It is the largest of the three and the one that most wants a
+real block vocabulary, so it comes last.
+
+## Slices
+
+1. **Complete.** The adapter's keymap table: `intentFor` and `attach` take chord
+   bindings, checked before the built-in chords; the tests cover matching, an
+   override winning, exact modifiers, the key as the browser reports it, and
+   fall-through to the built-ins.
+2. `marksInRange` in `foldkit-richtext`, with tests over a caret, a range inside
+   one run, a range across runs, and an empty run.
+3. The editor's keymap layer in `events`, when a binding needs a Message no browser
+   event produces.
+4. The toolbar as Mixins slots, in the `foldkit-mixins-richtext` package.
+5. Slash commands, over 1 and 3.

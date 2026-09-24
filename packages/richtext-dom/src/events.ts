@@ -24,6 +24,30 @@ export interface Intent {
   readonly preventDefault: boolean
 }
 
+/**
+ * One chord an application adds to the adapter's table, or overrides in it.
+ * Modifiers match exactly and the key matches what the browser reports, so
+ * `Mod-b` does not fire for Shift held, and a chord that types a symbol names the
+ * symbol: Shift+8 is `Mod-Shift-*` on a US layout, not `Mod-Shift-8`.
+ */
+export interface KeyBinding {
+  /** `Mod-b`, `Mod-Shift-b`, `Alt-ArrowUp`. `Mod` is Meta or Control, either one. */
+  readonly chord: string
+  readonly command: RichText.Command
+}
+
+const chordMatches = (chord: string, event: KeyboardEvent): boolean => {
+  const parts = chord.split('-')
+  const name = parts[parts.length - 1] ?? ''
+  const modifiers = parts.slice(0, -1)
+  const wantsMod = modifiers.includes('Mod')
+  const hasMod = event.metaKey || event.ctrlKey
+  if (hasMod !== wantsMod) return false
+  if (event.shiftKey !== modifiers.includes('Shift')) return false
+  if (event.altKey !== modifiers.includes('Alt')) return false
+  return name.length === 1 ? event.key.toLowerCase() === name.toLowerCase() : event.key === name
+}
+
 const MOD = (event: KeyboardEvent): boolean => event.metaKey || event.ctrlKey
 
 const historyChord = (event: KeyboardEvent): 'undo' | 'redo' | undefined => {
@@ -52,8 +76,15 @@ const markChord = (event: KeyboardEvent): string | undefined => {
  * Reads one event as intent. `composing` tells the adapter that an IME owns the
  * interaction: the browser must keep its temporary text, so composition input
  * is passed through and committed on `compositionend` instead.
+ *
+ * `keymap` is checked before the built-in chords, so an application adds to the
+ * table or overrides an entry without forking the adapter.
  */
-export const intentFor = (event: Event, composing = false): Intent | undefined => {
+export const intentFor = (
+  event: Event,
+  composing = false,
+  keymap: ReadonlyArray<KeyBinding> = [],
+): Intent | undefined => {
   if (event.type === 'beforeinput') {
     const input = event as Event & { readonly inputType?: string; readonly data?: string | null }
     const inputType = input.inputType ?? ''
@@ -83,6 +114,8 @@ export const intentFor = (event: Event, composing = false): Intent | undefined =
   if (event.type !== 'keydown') return undefined
   const key = event as KeyboardEvent
   if (composing) return { preventDefault: false }
+  const bound = keymap.find(binding => chordMatches(binding.chord, key))
+  if (bound !== undefined) return { preventDefault: true, command: bound.command }
   const history = historyChord(key)
   if (history !== undefined) return { preventDefault: true, history }
   const mark = markChord(key)
@@ -166,6 +199,8 @@ export interface AttachOptions {
    * the Kit does not declare is degraded to a paragraph, never kept.
    */
   readonly kit?: RichText.Kit | undefined
+  /** Chords the application adds or overrides, checked before the built-ins. */
+  readonly keymap?: ReadonlyArray<KeyBinding> | undefined
 }
 
 export interface Attachment {
@@ -223,7 +258,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let composingSelection: RichText.Selection | null = null
   let placeholderIds = 0
   const onEvent = (event: Event): void => {
-    const intent = intentFor(event, composing)
+    const intent = intentFor(event, composing, options.keymap)
     if (intent === undefined) return
     if (intent.preventDefault) event.preventDefault()
     if (intent.command !== undefined) options.onIntent(intent.command)

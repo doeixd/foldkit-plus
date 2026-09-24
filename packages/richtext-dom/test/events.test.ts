@@ -12,6 +12,7 @@ import {
   readSelection,
   restoreSelection,
   SLICE_CLIPBOARD_TYPE,
+  type KeyBinding,
 } from '../src/events.js'
 import { mount, positionToRange, repair, toText, type EditorDom } from '../src/index.js'
 
@@ -64,7 +65,7 @@ const beforeInput = (inputType: string, data?: string): Event => {
 }
 const key = (
   value: string,
-  modifiers: { meta?: boolean; ctrl?: boolean; shift?: boolean } = {},
+  modifiers: { meta?: boolean; ctrl?: boolean; shift?: boolean; alt?: boolean } = {},
 ): KeyboardEvent =>
   new KeyboardEvent('keydown', {
     key: value,
@@ -73,6 +74,7 @@ const key = (
     metaKey: modifiers.meta ?? false,
     ctrlKey: modifiers.ctrl ?? false,
     shiftKey: modifiers.shift ?? false,
+    altKey: modifiers.alt ?? false,
   })
 const composition = (type: 'compositionstart' | 'compositionend', data?: string): Event => {
   const event = new Event(type, { bubbles: true })
@@ -631,5 +633,74 @@ describe('reporting a caret move', () => {
     moveCaret(dom, 'a', 1)
     expect(moves).toEqual([])
     document.body.removeChild(dom.root)
+  })
+})
+
+describe('chords an application binds', () => {
+  const binding = (chord: string): KeyBinding => ({
+    chord,
+    command: { type: 'ToggleMark', mark: 'Custom' },
+  })
+
+  it('overrides a built-in chord', () => {
+    expect(intentFor(key('b', { meta: true }), false, [binding('Mod-b')])).toEqual({
+      preventDefault: true,
+      command: { type: 'ToggleMark', mark: 'Custom' },
+    })
+  })
+
+  it('matches the modifiers exactly', () => {
+    const keys = [binding('Mod-b')]
+    // Shift held is a different chord, so the built-in Bold binding still wins.
+    expect(intentFor(key('B', { meta: true, shift: true }), false, keys)).toEqual({
+      preventDefault: true,
+      command: { type: 'ToggleMark', mark: 'Bold' },
+    })
+    expect(intentFor(key('b'), false, keys)).toBeUndefined()
+    expect(intentFor(key('i', { meta: true }), false, keys)).toEqual({
+      preventDefault: true,
+      command: { type: 'ToggleMark', mark: 'Italic' },
+    })
+  })
+
+  it('names the key the way the browser reports it', () => {
+    // Shift+8 on a US layout reports `*`, so that is the chord's key.
+    expect(
+      intentFor(key('*', { meta: true, shift: true }), false, [binding('Mod-Shift-*')]),
+    ).toEqual({ preventDefault: true, command: { type: 'ToggleMark', mark: 'Custom' } })
+    // The character carries the shift, so a chord without it does not match.
+    expect(
+      intentFor(key('*', { meta: true, shift: true }), false, [binding('Mod-*')]),
+    ).toBeUndefined()
+  })
+
+  it('matches a named key exactly and a letter case-insensitively', () => {
+    expect(intentFor(key('ArrowUp', { alt: true }), false, [binding('Alt-ArrowUp')])).toEqual({
+      preventDefault: true,
+      command: { type: 'ToggleMark', mark: 'Custom' },
+    })
+    // The same key without the modifier is not the chord.
+    expect(intentFor(key('ArrowUp'), false, [binding('Alt-ArrowUp')])).toBeUndefined()
+    expect(
+      intentFor(key('ArrowDown', { alt: true }), false, [binding('Alt-ArrowUp')]),
+    ).toBeUndefined()
+  })
+
+  it('stays out of the way while an IME owns the keys', () => {
+    expect(intentFor(key('b', { meta: true }), true, [binding('Mod-b')])).toEqual({
+      preventDefault: false,
+    })
+  })
+
+  it('reaches the adapter through attach', () => {
+    const dom = mount(document, content())
+    const intents: Array<RichText.Command> = []
+    const attachment = attach(dom, {
+      onIntent: command => intents.push(command),
+      keymap: [binding('Mod-b')],
+    })
+    dom.root.dispatchEvent(key('b', { meta: true }))
+    expect(intents).toEqual([{ type: 'ToggleMark', mark: 'Custom' }])
+    attachment.detach()
   })
 })
