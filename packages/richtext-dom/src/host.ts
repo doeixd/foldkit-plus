@@ -16,7 +16,7 @@ const attachments = new WeakMap<Element, Attachment>()
  * interpreter owns everything below.
  */
 export const mountInto = (
-  host: HTMLElement,
+  host: Element,
   content: RichText.Document,
   options: AttachOptions,
 ): Attachment => {

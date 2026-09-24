@@ -11,6 +11,7 @@ import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
+import { Message } from './editor.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -39,18 +40,6 @@ export const EditorView = Schema.Struct({
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
 })
 export type EditorView = typeof EditorView.Type
-
-export const Message = defineMessageUnion({
-  Typed: { text: Schema.String },
-  Backspace: {},
-  DeletedForward: {},
-  Entered: {},
-  ToggledMark: { mark: Schema.String },
-  Selected: { selection: Schema.NullOr(RichText.Selection) },
-  Undone: {},
-  Redone: {},
-})
-export type Message = typeof Message.Type
 
 /** The committed edit, or the diagnostic that refused it. */
 export type OutMessage =
@@ -103,6 +92,8 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'ToggleMark', mark: message.mark }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
+    case 'Pasted':
+      return { type: 'Paste', slice: message.slice }
   }
 }
 

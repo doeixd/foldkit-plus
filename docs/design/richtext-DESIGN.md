@@ -4604,9 +4604,10 @@ Not done:
   serve, but driving it needs a browser connected to the session, which this
   environment did not have.
 - **The slice and the Bundle editor are separate proofs.** `events.ts` produces
-  commands while `controlled.ts` consumes Messages; nothing wires the DOM adapter
-  to the Bundle yet. §118 decides how they meet — the DOM patch is a Command from
-  `update`, not a Subscription — and its slices land in Phase 4.
+  commands while `controlled.ts` consumes Messages; §118 decides how they meet —
+  the DOM patch is a Command from `update`, not a Subscription. The adapter's
+  events are now the editor's Messages (`examples/richtext/src/editor.ts`); the
+  Bundle's view and patch Command are the rest of Phase 4's slice 1.
 
 ## Phase 4 — editor Bundle features
 
@@ -5000,16 +5001,19 @@ Command are identical, which is §27's requirement.
   appends the root, attaches the listeners, and records the attachment in a
   `WeakMap` keyed by the element; `attachmentIn(host)` hands a patch Command the
   attachment, and `releaseMount` detaches and removes the subtree.
-- **A Message union covering the intent vocabulary.** The proof's union predates
-  paste and selection. Every intent `intentFor` and the clipboard handlers can
-  produce must map to a Message, and a test should hold that total.
+- **A Message union covering the intent vocabulary — landed.** The proof's union
+  predated paste and selection. `examples/richtext/src/editor.ts` is now that
+  vocabulary and the `toMessage` translation into it, with a test over each intent
+  and over the refusals; the proof imports the union instead of keeping a second.
 
 ## Slices
 
-1. The Bundle with the view and the mount, in the harness, proved in jsdom through
-   `foldkit/test`'s `Scene` plus direct `MountAction.f` calls: typing patches
-   incrementally, a caret move reports, a committed and a cancelled composition
-   both repair, and unmounting detaches.
+1. **In progress.** The translation and the mount are done
+   (`examples/richtext/src/editor.ts`): `toMessage` maps each intent, `events` is
+   a `Mount.defineStream` that attaches on subscribe and releases when the element
+   goes, and the tests drive `attachEditor` and the stream directly. Still to
+   build: the Bundle whose view renders the host and whose patch Command syncs the
+   attachment, proved through `foldkit/test`'s `Scene`.
 2. Paste and the history chords through Messages, on the same view.
 3. Promote the editor into `foldkit-richtext-dom` with the interpreter as its
    internals, and the read-only renderer alongside it.
