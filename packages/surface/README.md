@@ -233,7 +233,7 @@ A parameterized Surface's projection is not evaluated until it has params.
 is the value, or a function of the Model returning it (`undefined` while the
 Surface is inactive, on another route say). Its `projectionOf(model)` is the
 projection for those params, or `undefined`, and it carries the Surface's
-`owner`; a Subscription derives what to fetch from a list of them
+`owner` and `messages`, the tags of the Messages the Surface lists; a Subscription derives what to fetch from a list of them
 (`foldkit-remote`'s `Data.subscriptions`).
 
 ### `Surface.make`, the explicit form

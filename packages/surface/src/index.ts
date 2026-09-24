@@ -159,6 +159,10 @@ const messageTag = (constructor: unknown): string | undefined => {
   return typeof literal === 'string' ? literal : undefined
 }
 
+/** The tags of the Messages a Surface lists in `messages`. */
+const messageTags = (surface: { readonly messages: readonly unknown[] }): ReadonlyArray<string> =>
+  surface.messages.map(messageTag).filter((tag): tag is string => tag !== undefined)
+
 function makeTree(
   schema: AnySchema,
   path: readonly string[],
@@ -680,6 +684,8 @@ export interface ActiveSurface<Root> {
   readonly owner: object
   /** The projection for the params the Model gives, or `undefined` while inactive. */
   readonly projectionOf: (model: Root) => Projection<Root, unknown> | undefined
+  /** The tags of the Messages the Surface lists in `messages`: what it may send. */
+  readonly messages: ReadonlyArray<string>
   /** Present when the Surface was placed with `Surface.when`; absent for `Surface.at`. */
   readonly activation?: Activation | undefined
 }
@@ -1086,6 +1092,7 @@ export const Surface = {
   ): ActiveSurface<Root> => ({
     name: surface.name,
     owner: surface.owner,
+    messages: messageTags(surface),
     projectionOf: model => {
       const resolved =
         typeof params === 'function'
@@ -1133,6 +1140,7 @@ export const Surface = {
     return {
       name: surface.name,
       owner: surface.owner,
+      messages: messageTags(surface),
       activation: { path: place.dependency, tag },
       projectionOf: model => {
         const value = place.get(model) as { readonly _tag: string } | undefined
@@ -1243,7 +1251,7 @@ export const Surface = {
       owner: surface.owner,
       owns: [],
       observes: projection.dependencies,
-      messages: surface.messages.map(messageTag).filter((tag): tag is string => tag !== undefined),
+      messages: messageTags(surface),
       metadata: Metadata.summarize(projection.metadata),
     }
   },

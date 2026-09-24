@@ -188,6 +188,9 @@ rejects copies and hand-built values.
   `get`), because activation observes and because a union field is a union of
   `FieldRef`s that no single `ModelRef` accepts. `Surface.at` stays for
   activation that is a genuine computation.
+- Both give an `ActiveSurface` with `projectionOf(model)`, `owner` and
+  `messages`, the tags the Surface lists: what it may send, which `foldkit-ssr`
+  reads.
 
 ## Gotchas
 

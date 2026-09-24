@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-surface`: an active Surface carries `messages`.** `Surface.at`
+  and `Surface.when` now give the tags of the Messages the Surface lists, so a
+  tool holding a plan's Surfaces knows what each may send; `foldkit-ssr` reads
+  it to keep a page's bindings to them.
 - **`Remote.resume(Data)`: Remote's state for a server-rendered page.** A
   resume part for `foldkit-ssr` (in development) that sends what the page's
   active Surfaces read, field by field through relations, each connection
