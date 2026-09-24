@@ -53,7 +53,8 @@ container. An empty application node is accepted either way, because a document
 cannot say whether it is an atom or a run holder with no runs. The Kit is what
 `run` may add marks from; `apply` still takes no Kit, so a content contract is
 enforced at validation rather than at the operation. Parsing stays with the
-caller.
+caller, and the harness parser maps `<ul>`/`<ol>`/`<li>` to a `List`/`ListItem`
+the Kit declares.
 
 `History` is snapshot undo over `EditorState`, kept in the application Model:
 `commit(history, previous, { group })`, `undo`, `redo`, with `groupFor(command)`
@@ -108,13 +109,15 @@ count, and survive an unknown kind, and commands reach a run inside one — typi
 grapheme deletion, marks, and the clipboard work at depth, with a copy across a
 container's children carrying the container. The HTML serializer, the read-only
 view, and the editable adapter all render a container with its nested blocks, and
-HTML import reads `data-node` back (props start empty; the slice keeps them).
+HTML import reads `data-node` back and maps `<ul>`/`<ol>`/`<li>` to a
+`List`/`ListItem` the Kit declares (props start empty; the slice keeps them).
 Structural placement works at depth too: a split keeps its halves in the block's
 container, siblings join within theirs, and `insertBlock`/`moveBlock` take an
-optional parent to enter or leave a container. A Kit declares what content a kind
-holds (`textContent` or `blockContent`), and `validate` reports a declaration the
-document contradicts. Marks are definitions with a boundary policy and, when they
-carry data, a prop schema:
+optional parent to enter or leave a container. Migrations descend into containers,
+and `promoteUnknown` takes the target's content mode. A Kit declares what content
+a kind holds (`textContent` or `blockContent`), and `validate` reports a
+declaration the document contradicts. Marks are definitions with a boundary policy
+and, when they carry data, a prop schema:
 
 ```ts
 const Link = RichText.mark('Link', {

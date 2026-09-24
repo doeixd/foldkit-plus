@@ -4785,7 +4785,8 @@ harness         view.ts, dom.ts, html.ts, controlled.ts
 
 What does not change is anything that reads a single block's runs: position
 mapping inside a block, mark resolution, and normalization within a run array.
-The enumerations above are the ones that walk the whole document.
+The enumerations above are the ones that walk the whole document; all of them are
+recursive now (slice 4 did `kit.ts`, slice 5 `migration.ts`).
 
 ## Kits: declaring the content a kind accepts
 
@@ -4856,7 +4857,16 @@ Landing order, each keeping the suite green:
    positive: an `atom` declaration reported a mismatch for exactly the empty
    application node an atom is held as.
 5. Migrations and a demo: `promoteUnknown` into a nested kind, HTML import for
-   lists, and a list in the Phase 3 slice.
+   lists, and a list in the Phase 3 slice. **Complete.** `migrate` descends into
+   containers, so a preserved block nested in one is rewritten where it sits and
+   the identity and invalid-content checks apply there too; `promoteUnknown` takes
+   the target's content mode, so promoting into a container kind produces a valid
+   block rather than one `validate` would call a mismatch. The harness importer
+   maps `<ul>`/`<ol>` to a `List` and `<li>` to a `ListItem` when the Kit declares
+   them, holding runs or nested blocks as the declaration says, and degrading to
+   the items' content when it does not. The Phase 3 slice has an end-to-end test
+   over a list: type in an item, Enter to split it (the new item stays in the
+   list), Backspace at its start to join it back.
 
 ## Deferred
 

@@ -1,7 +1,10 @@
 import { Schema } from 'effect'
 import {
+  blockContent,
   eachBlock,
+  textContent,
   type Block,
+  type ContentMode,
   type Document,
   type NodeBlock,
   type NodeId,
@@ -9,11 +12,6 @@ import {
   type RunMark,
 } from './document.js'
 import { markName, markProps, type MarkDef } from './marks.js'
-
-/** A declaration's content mode: runs, or nested blocks (§13). */
-export const textContent = 'text' as const
-export const blockContent = 'blocks' as const
-export type ContentMode = typeof textContent | typeof blockContent
 
 /**
  * The node shapes this version can declare: a `block` is one of the built-in

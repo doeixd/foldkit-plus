@@ -157,6 +157,92 @@ describe('translating events into intent', () => {
   })
 })
 
+describe('the wired editing loop over a list', () => {
+  const listDocument = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [{ type: 'Text', id: 'a', text: 'one', marks: [] }],
+            },
+            {
+              type: 'Paragraph',
+              id: 'li2',
+              children: [{ type: 'Text', id: 'b', text: 'two', marks: [] }],
+            },
+          ],
+        },
+        {
+          type: 'Paragraph',
+          id: 'tail',
+          children: [{ type: 'Text', id: 't', text: 'tail', marks: [] }],
+        },
+      ],
+    })
+
+  const setup = (selection: RichText.Selection) => {
+    const dom = mount(document, listDocument())
+    document.body.append(dom.root)
+    restoreSelection(dom, selection)
+    const intents: RichText.Command[] = []
+    const attachment = attach(dom, { onIntent: command => intents.push(command) })
+    let minted = 0
+    const run = (command: RichText.Command) => {
+      const state = {
+        document: attachment.current().content,
+        selection: readSelection(attachment.current()),
+      }
+      const result = success(RichText.run(state, command, { mint: () => `e${++minted}` }))
+      attachment.sync(result.state, result.changeSet)
+    }
+    return { attachment, intents, run }
+  }
+
+  it('types inside a list item and splits it with Enter, all inside the list', () => {
+    const { attachment, run } = setup({
+      type: 'Range',
+      anchor: at('a', 3),
+      focus: at('a', 3),
+    })
+    attachment.current().root.dispatchEvent(beforeInput('insertText', '!'))
+    run({ type: 'InsertText', text: '!' })
+    expect(toText(attachment.current())).toBe('one!\ntwo\ntail')
+
+    // Enter inside the item splits it; the new item is a sibling in the list,
+    // not a top-level block.
+    attachment.current().root.dispatchEvent(beforeInput('insertParagraph'))
+    run({ type: 'SplitBlock' })
+    const list = attachment.current().elements.get(id('list')) as HTMLElement
+    expect(Array.from(list.children).map(child => child.getAttribute('data-block'))).toHaveLength(3)
+    expect(
+      Array.from(attachment.current().root.children).map(child => child.getAttribute('data-block')),
+    ).toEqual(['list', 'tail'])
+    attachment.detach()
+  })
+
+  it('joins a list item with its previous sibling on Backspace', () => {
+    const { attachment, run } = setup({ type: 'Range', anchor: at('b', 0), focus: at('b', 0) })
+    attachment.current().root.dispatchEvent(beforeInput('deleteContentBackward'))
+    run({ type: 'DeleteBackward' })
+    const list = attachment.current().elements.get(id('list')) as HTMLElement
+    expect(Array.from(list.children).map(child => child.getAttribute('data-block'))).toEqual([
+      'li1',
+    ])
+    expect(toText(attachment.current())).toBe('onetwo\ntail')
+    expect(attachment.current().elements.get(id('t'))?.textContent).toBe('tail')
+    attachment.detach()
+  })
+})
+
 describe('the wired editing loop', () => {
   const setup = () => {
     const dom = mount(document, content())

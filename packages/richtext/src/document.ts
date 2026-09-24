@@ -35,6 +35,15 @@ export type RunMark = typeof RunMark.Type
 export const markName = (mark: RunMark): string => (typeof mark === 'string' ? mark : mark.name)
 
 /**
+ * The content a block holds: runs, or nested blocks (§13). A document does not
+ * declare which a block kind accepts — its Kit does — so these are the words a
+ * declaration and a migration both use.
+ */
+export const textContent = 'text' as const
+export const blockContent = 'blocks' as const
+export type ContentMode = typeof textContent | typeof blockContent
+
+/**
  * The wire shape of a value: the same structure with identities unbranded. A
  * branded `NodeId` encodes as a plain string, so an annotated schema whose type
  * mentions one cannot claim its encoded form is the type itself; this names the

@@ -236,7 +236,45 @@ const childBlocks = (
   return blocks
 }
 
-/** Blocks of one element, including our own preserved and application-node elements. */
+/**
+ * A node block for a kind, holding runs or nested blocks as its declaration says
+ * (and as its content implies when no declaration settles it). Props are not
+ * carried by HTML, so the value starts empty.
+ */
+const nodeBlockFrom = (
+  element: Element,
+  kind: string,
+  declared: RichText.NodeDefinition | undefined,
+  mint: () => string,
+  diagnostics: Array<HtmlDiagnostic>,
+  kit: RichText.Kit | undefined,
+): RichText.Block => {
+  const holdsBlocks =
+    (declared?.kind === 'node' && declared.children === RichText.blockContent) ||
+    Array.from(element.children).some(child => isBlockElement(child.tagName.toLowerCase()))
+  return holdsBlocks
+    ? {
+        type: 'Node',
+        kind,
+        id: RichText.NodeId.make(mint()),
+        props: {},
+        children: [],
+        blocks: childBlocks(element, mint, diagnostics, kit),
+      }
+    : {
+        type: 'Node',
+        kind,
+        id: RichText.NodeId.make(mint()),
+        props: {},
+        children: runsFrom(linesOf(element, diagnostics).flat(), mint),
+      }
+}
+
+/** The kind a list element becomes, so pasted lists stay semantic. */
+const listKindOf = (tag: string): string | undefined =>
+  tag === 'ul' || tag === 'ol' ? 'List' : tag === 'li' ? 'ListItem' : undefined
+
+/** Blocks of one element, including our own preserved, application-node, and list elements. */
 const blocksFrom = (
   element: Element,
   mint: () => string,
@@ -257,38 +295,13 @@ const blocksFrom = (
       },
     ]
   }
-  const nodeKind = element.getAttribute('data-node')?.trim()
-  if (nodeKind !== undefined && nodeKind.length > 0) {
-    const declaredNode = kit?.nodes.find(candidate => candidate.name === nodeKind)
-    const declared = kit === undefined || declaredNode !== undefined
-    if (declared) {
-      // A kind whose element holds block children is a container, so a list
-      // keeps its items; a declaration that says `blocks` settles it even when
-      // the element holds only inline content. Otherwise the kind holds runs
-      // directly. Props are not carried by HTML, so the value starts empty.
-      const holdsBlocks =
-        (declaredNode?.kind === 'node' && declaredNode.children === 'blocks') ||
-        Array.from(element.children).some(child => isBlockElement(child.tagName.toLowerCase()))
-      return [
-        holdsBlocks
-          ? {
-              type: 'Node' as const,
-              kind: nodeKind,
-              id: RichText.NodeId.make(mint()),
-              props: {},
-              children: [],
-              blocks: childBlocks(element, mint, diagnostics, kit),
-            }
-          : {
-              type: 'Node' as const,
-              kind: nodeKind,
-              id: RichText.NodeId.make(mint()),
-              props: {},
-              children: runsFrom(linesOf(element, diagnostics).flat(), mint),
-            },
-      ]
+  const kind = element.getAttribute('data-node')?.trim() ?? listKindOf(tag)
+  if (kind !== undefined && kind.length > 0) {
+    const declaredNode = kit?.nodes.find(candidate => candidate.name === kind)
+    if (kit === undefined || declaredNode !== undefined) {
+      return [nodeBlockFrom(element, kind, declaredNode, mint, diagnostics, kit)]
     }
-    diagnostics.push({ code: 'Undeclared', detail: nodeKind })
+    diagnostics.push({ code: 'Undeclared', detail: kind })
     // Degrade to its content rather than keeping a kind the Kit refuses.
   }
   return childBlocks(element, mint, diagnostics, kit)

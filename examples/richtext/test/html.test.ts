@@ -204,6 +204,79 @@ describe('what import refuses', () => {
     expect(asRuns.children.map(run => run.text)).toEqual(['one'])
   })
 
+  it('imports a pasted list as a semantic list when the Kit declares one', () => {
+    const kit = RichText.kit({
+      nodes: [
+        RichText.node('List', { children: RichText.blockContent }),
+        RichText.node('ListItem', { children: RichText.blockContent }),
+        RichText.block('Paragraph'),
+      ],
+      marks: [RichText.Bold],
+    })
+    const parsed = parse('<ul><li>one</li><li>two <strong>bold</strong></li></ul>', kit)
+    expect(parsed.diagnostics).toEqual([])
+    const list = parsed.blocks[0]
+    if (list?.type !== 'Node') throw new Error('expected a node block')
+    expect(list.kind).toBe('List')
+    const items = list.blocks ?? []
+    expect(items.map(item => item.type === 'Node' && item.kind)).toEqual(['ListItem', 'ListItem'])
+    // Each item holds its content as a paragraph, which is what `blockContent`
+    // asks for.
+    const firstItem = items[0]
+    if (firstItem?.type !== 'Node') throw new Error('expected an item')
+    expect(firstItem.blocks?.[0]?.children.map(run => run.text)).toEqual(['one'])
+    const secondItem = items[1]
+    if (secondItem?.type !== 'Node') throw new Error('expected an item')
+    expect(secondItem.blocks?.[0]?.children.map(run => [run.text, run.marks])).toEqual([
+      ['two ', []],
+      ['bold', ['Bold']],
+    ])
+    // The document is valid against the same Kit it was parsed with.
+    expect(
+      RichText.validate(
+        RichText.decodeDocument(
+          parsed.blocks.length > 0
+            ? { version: 1, children: parsed.blocks }
+            : { version: 1, children: [] },
+        ),
+        kit,
+      ),
+    ).toEqual([])
+  })
+
+  it('lets a text declaration keep a list item’s runs directly', () => {
+    const kit = RichText.kit({
+      nodes: [
+        RichText.node('List', { children: RichText.blockContent }),
+        RichText.node('ListItem', { children: RichText.textContent }),
+        RichText.block('Paragraph'),
+      ],
+      marks: [],
+    })
+    const parsed = parse('<ol><li>one</li></ol>', kit)
+    const list = parsed.blocks[0]
+    if (list?.type !== 'Node') throw new Error('expected a node block')
+    const item = list.blocks?.[0]
+    if (item?.type !== 'Node') throw new Error('expected an item')
+    expect(item.blocks).toBeUndefined()
+    expect(item.children.map(run => run.text)).toEqual(['one'])
+    expect(parsed.diagnostics).toEqual([])
+  })
+
+  it('degrades a list the Kit does not declare, keeping its content', () => {
+    const kit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
+    const parsed = parse('<ul><li>one</li><li>two</li></ul>', kit)
+    expect(shape(parsed.blocks)).toEqual([
+      { type: 'Paragraph', text: 'one', marks: [[]] },
+      { type: 'Paragraph', text: 'two', marks: [[]] },
+    ])
+    expect(parsed.diagnostics.map(diagnostic => diagnostic.detail)).toEqual([
+      'List',
+      'ListItem',
+      'ListItem',
+    ])
+  })
+
   it('round-trips a list through the serializer', () => {
     const list = RichText.decodeDocument({
       version: 1,

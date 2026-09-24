@@ -217,12 +217,14 @@ A node block may also accept **nested blocks** in `blocks` (§116), which is how
 List holds ListItems. The HTML serializer renders them inside the node's element
 and `toText` gives one line per text block; the read-only view and the editable
 adapter do the same, so a list keeps its items in every interpreter. HTML import
-reads `data-node` back: an element holding block children becomes a container, an
-element holding inline content becomes a run holder, and a kind the Kit does not
-declare degrades to its content with a diagnostic. A `blockContent` declaration
-settles the one ambiguous case — a container whose element holds only inline
-content — because the declaration says what the content is. Props are not carried
-by HTML; the slice format keeps them, so an imported node starts with `{}` props.
+reads `data-node` back, and maps `<ul>`/`<ol>` to a `List` and `<li>` to a
+`ListItem` when the Kit declares those names: an element holding block children
+becomes a container, an element holding inline content becomes a run holder, and a
+kind the Kit does not declare degrades to its content with a diagnostic. A
+`blockContent` declaration settles the one ambiguous case — a container whose
+element holds only inline content — because the declaration says what the content
+is. Props are not carried by HTML; the slice format keeps them, so an imported
+node starts with `{}` props.
 
 ## Transforms
 
@@ -321,19 +323,22 @@ RichText.migrate(document, [
 They operate on blocks, never on DOM, and run at a boundary the application
 chooses — loading, publishing, or an explicit upgrade — never automatically on
 every read. The list order *is* the chain: a later migration sees what an
-earlier one produced.
+earlier one produced. A migration descends into containers, so a preserved block
+nested in a list is rewritten where it sits.
 
 Three rules are enforced rather than documented and hoped for:
 
 - **Identity survives.** A migration returns the same `id`, so positions,
   references, and selections keep addressing the same node; changing it throws
-  instead of silently breaking every reference.
+  instead of silently breaking every reference. That holds for a nested block too.
 - **The result is still content.** Returned blocks must decode, and the complete
   document is validated after each changed migration pass. Non-JSON props,
   unknown shapes, and identities duplicated across blocks are rejected.
 - **Declining is allowed.** Returning `undefined` keeps the block as it is —
   which is what `promoteUnknown` does when legacy data does not decode against
-  the target's schema, rather than half-converting it.
+  the target's schema, rather than half-converting it. `promoteUnknown` takes the
+  target's content mode, so promoting into a container kind yields a valid block
+  (`blocks: []`) rather than one `validate` would call a mismatch.
 
 ## HTML export
 
