@@ -217,7 +217,7 @@ describe('rejection and external replacement', () => {
         selection: caret('a', 1),
         nextId: before.editor.nextId,
         history: RichText.emptyHistory,
-        storedMarks: [],
+        storedMarks: null,
       },
     }
     const after = step(replaced, typed('!'))
@@ -261,19 +261,51 @@ describe('stored marks', () => {
     expect(runs(model)).toEqual([['aXb', []]])
   })
 
+  it('types without a mark after toggling it off beside marked text', () => {
+    let model = start(caret('a', 2))
+    expect(model.editor.storedMarks).toBeNull()
+    model = step(model, toggled('Bold'))
+    model = step(model, typed('X'))
+    expect(runs(model)).toEqual([
+      ['ab', []],
+      ['X', ['Bold']],
+    ])
+    model = step(model, toggled('Bold'))
+    expect(model.editor.storedMarks).toEqual([])
+    model = step(model, typed('Y'))
+    expect(runs(model)).toEqual([
+      ['ab', []],
+      ['X', ['Bold']],
+      ['Y', []],
+    ])
+    expect(model.editor.selection).toEqual(caret(model.document.children[0]!.children[2]!.id, 1))
+    expect(RichText.inspectHistory(model.editor.history).past).toBe(1)
+  })
+
   it('drops the stored marks when the caret moves', () => {
     let model = start(caret('a', 1))
     model = step(model, toggled('Bold'))
     model = step(model, selected(caret('a', 0)))
-    expect(model.editor.storedMarks).toEqual([])
+    expect(model.editor.storedMarks).toBeNull()
     model = step(model, typed('X'))
     expect(runs(model)).toEqual([['Xab', []]])
+  })
+
+  it('inherits marks again after moving the caret', () => {
+    let model = start(caret('a', 1))
+    model = step(model, toggled('Italic'))
+    model = step(model, selected(caret('b', 2)))
+    expect(model.editor.storedMarks).toBeNull()
+    model = step(model, typed('X'))
+    expect(model.document.children[1]?.children.map(run => [run.text, run.marks])).toEqual([
+      ['cdX', ['Bold']],
+    ])
   })
 
   it('leaves a range toggle to the document, not the caret', () => {
     let model = start(range(['a', 0], ['a', 2]))
     model = step(model, toggled('Italic'))
-    expect(model.editor.storedMarks).toEqual([])
+    expect(model.editor.storedMarks).toBeNull()
     expect(runs(model)).toEqual([['ab', ['Italic']]])
   })
 

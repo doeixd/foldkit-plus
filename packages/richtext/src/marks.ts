@@ -13,6 +13,8 @@ export { markName }
 /** Which edges a mark continues across when typing at a run boundary. */
 export type MarkExpansion = 'before' | 'after' | 'both' | 'none'
 
+const decodeJsonProps = Schema.decodeUnknownSync(Schema.JsonObject)
+
 /**
  * A mark definition: its name, where it continues across a boundary, and the
  * schema its props must satisfy when it has any. A Kit declares the vocabulary
@@ -24,7 +26,7 @@ export interface MarkDef<Props extends PropsSchema | undefined = PropsSchema | u
   readonly expand: MarkExpansion
   /** Validates a mark value's props at the Kit boundary, not in the codec. */
   readonly Props: Props
-  /** Builds a mark value this definition accepts, checking props at the call site. */
+  /** Encodes decoded props into the JSON value stored on a text run. */
   readonly of: Props extends Schema.Codec<infer A, any, any>
     ? (props: A) => MarkValue
     : () => MarkValue
@@ -40,14 +42,21 @@ export const mark = <Props extends PropsSchema | undefined = undefined>(
   options: { readonly Props?: Props; readonly expand?: MarkExpansion } = {},
 ): MarkDef<Props> => {
   if (name.length === 0) throw new Error('RichText.mark: a mark needs a name')
+  const encodeProps =
+    options.Props === undefined
+      ? undefined
+      : Schema.encodeUnknownSync(options.Props, { onExcessProperty: 'error' })
   return {
     name,
     expand: options.expand ?? 'both',
     Props: options.Props as Props,
-    of: ((props?: unknown): MarkValue =>
-      props === undefined
-        ? { name }
-        : { name, props: props as NonNullable<MarkValue['props']> }) as MarkDef<Props>['of'],
+    of: ((props?: unknown): MarkValue => {
+      if (encodeProps === undefined) return { name }
+      // The stored value is the schema's *encoded* form: a transforming codec
+      // (`NumberFromString`) must persist `'42'`, which is what Kit validation
+      // decodes. Decoding the result against JSON keeps the boundary honest.
+      return { name, props: decodeJsonProps(encodeProps(props)) }
+    }) as MarkDef<Props>['of'],
   }
 }
 

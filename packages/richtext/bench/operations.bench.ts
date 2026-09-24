@@ -3,9 +3,9 @@
  *
  * Three shapes an editor actually meets: pasting a lot of text into one run,
  * formatting a long selection that spans many runs, and deleting a range across
- * paragraphs. The numbers are recorded in the package README; the per-operation
- * array copies the review flagged are still here, so this measures the cost
- * rather than claiming a target is met.
+ * paragraphs. The numbers are recorded in the package README; the accumulated
+ * per-block changes and the batched structural deletion are what the review
+ * asked for, and this is the check that they did not make an edit slower.
  */
 import { describe, test } from 'vitest'
 import * as RichText from 'foldkit-richtext'

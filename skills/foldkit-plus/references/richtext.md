@@ -83,7 +83,9 @@ clock. `InsertText` takes an optional `marks`: with it the inserted span carries
 exactly that set, without it the boundary rule decides and the text inherits the
 run it joins; an unknown mark is refused. That keeps stored marks in the
 application: a collapsed toggle is a no-op in the command layer, and the caller
-hands the caret's format back on the next insertion.
+hands the caret's format back on the next insertion. In the controlled harness,
+`storedMarks: null` inherits the document's marks; an array overrides them, and
+`[]` explicitly turns formatting off. Moving the caret resets the override.
 
 Normalization is a transform registry: `Transform` is a pure function of the
 document plus the touched nodes, returning the new document with its position
@@ -108,9 +110,11 @@ RichText.kit({ nodes, marks: [RichText.Bold, Link] })
 RichText.run(state, command, ids, { marks: RichText.markRegistry(kit.marks) })
 ```
 
-`of` builds the value the definition's `Props` accepts, typed at the call site, so
-a wrong prop type is a compile error; a definition without props builds a value
-carrying only its name.
+`of` accepts the definition's decoded props, then synchronously encodes them and
+validates the encoded result as a JSON object. Wrong input types are compile
+errors; invalid values or non-JSON output throw at the call. Encoding must
+require no services. A definition without props builds a value carrying only
+its name.
 
 A run stores a mark as a bare name with no props or as `{ name, props }` with
 them. Loading preserves the form it found, so a names-only document round-trips
@@ -132,7 +136,8 @@ first-class: `RichText.node(name, { Props })` declares a `Node` block whose JSON
 props the Kit validates (`UnsupportedNode` / `InvalidProps`), with text-run
 children so positions and operations work unchanged. Migrations move persisted
 data forward: `migrate(document, migrations)` runs in list order, must keep each
-block's identity, must produce content the codec can store, and may decline a
+block's identity, must produce content the codec can store with document-wide
+unique IDs after each changed migration pass, and may decline a
 block by returning `undefined`; `promoteUnknown` turns a preserved unknown block
 into a declared kind. Unknown nodes and marks are
 preserved verbatim (listed by `findUnknownNodes`/`findUnknownMarks`) rather

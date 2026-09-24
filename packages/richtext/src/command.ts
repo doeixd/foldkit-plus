@@ -181,50 +181,49 @@ const deleteRange = (
   return deletions
 }
 
-const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff
-const isLowSurrogate = (code: number): boolean => code >= 0xdc00 && code <= 0xdfff
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-/** A combining mark, by the ranges this version knows: the ones that extend a grapheme. */
-const isCombining = (code: number): boolean =>
-  (code >= 0x0300 && code <= 0x036f) ||
-  (code >= 0x0483 && code <= 0x0489) ||
-  (code >= 0x1ab0 && code <= 0x1aff) ||
-  (code >= 0x20d0 && code <= 0x20ff) ||
-  (code >= 0xfe20 && code <= 0xfe2f)
-
-/**
- * Where the grapheme before `offset` starts: a surrogate pair counts as one
- * character, and the combining marks that extend it go with it. Deleting half a
- * character is corruption, not an edit, and UTF-16 coordinates do not require
- * it: a command can remove the whole grapheme.
- */
-const previousBoundary = (text: string, offset: number): number => {
-  if (offset <= 0) return 0
-  let index = offset - 1
-  if (
-    isLowSurrogate(text.charCodeAt(index)) &&
-    index > 0 &&
-    isHighSurrogate(text.charCodeAt(index - 1))
-  ) {
-    index -= 1
+/** A caret uses UTF-16 offsets, while a deletion removes a whole grapheme. */
+const graphemeDeletion = (
+  block: Block,
+  caret: Position,
+  runIndex: number,
+  backward: boolean,
+): { operations: ReadonlyArray<Operation>; caret: Position } | undefined => {
+  const starts: Array<number> = []
+  let length = 0
+  for (const run of block.children) {
+    starts.push(length)
+    length += run.text.length
   }
-  while (index > 0 && isCombining(text.charCodeAt(index))) index -= 1
-  return index
-}
-
-/** Where the grapheme at `offset` ends, for forward deletion. */
-const nextBoundary = (text: string, offset: number): number => {
-  if (offset >= text.length) return text.length
-  let index = offset + 1
-  if (
-    isHighSurrogate(text.charCodeAt(offset)) &&
-    index < text.length &&
-    isLowSurrogate(text.charCodeAt(index))
-  ) {
-    index += 1
+  const at = starts[runIndex]! + caret.offset
+  if (backward ? at === 0 : at === length) return undefined
+  const text = block.children.map(run => run.text).join('')
+  let from = 0
+  let to = 0
+  for (const segment of segmenter.segment(text)) {
+    const end = segment.index + segment.segment.length
+    if (backward ? end >= at : end > at) {
+      from = segment.index
+      to = end
+      break
+    }
   }
-  while (index < text.length && isCombining(text.charCodeAt(index))) index += 1
-  return index
+  const operations: Array<Operation> = []
+  let graphemeStart: Position | undefined
+  for (const [index, run] of block.children.entries()) {
+    const start = starts[index]!
+    const localFrom = Math.max(0, from - start)
+    const localTo = Math.min(run.text.length, to - start)
+    if (localFrom >= localTo) continue
+    graphemeStart ??= { node: run.id, offset: localFrom, affinity: 'after' }
+    operations.push(Edit.deleteText(run.id, localFrom, localTo))
+  }
+  if (graphemeStart === undefined) return undefined
+  // A backward deletion removes what is to the caret's left, so the caret lands
+  // where the grapheme began; a forward one removes to its right, and the caret
+  // already sits at the surviving boundary.
+  return { operations, caret: backward ? graphemeStart : caret }
 }
 
 /**
@@ -269,6 +268,12 @@ export const run = (
     const deletions = isCollapsed(selection)
       ? []
       : deleteRange(state.document, target, ordered(state.document, selection)!.end)
+    if (command.text.length === 0) {
+      return apply(
+        state,
+        deletions.length === 0 ? [] : [...deletions, Edit.setSelection(caretAt(target))],
+      )
+    }
     if (stored === undefined) {
       return apply(state, [
         ...deletions,
@@ -320,29 +325,10 @@ export const run = (
     const at = locate(state.document, caret.node)
     if (at === undefined) return failure('MissingText')
     const backward = command.type === 'DeleteBackward'
-    if (backward ? caret.offset > 0 : caret.offset < at.text.length) {
-      const from = backward ? previousBoundary(at.text, caret.offset) : caret.offset
-      const to = backward ? caret.offset : nextBoundary(at.text, caret.offset)
-      return apply(state, [
-        Edit.deleteText(at.id, from, to),
-        Edit.setSelection(caretAt({ ...caret, offset: backward ? from : caret.offset })),
-      ])
-    }
-    const neighborRun =
-      state.document.children[at.blockIndex]?.children[backward ? at.runIndex - 1 : at.runIndex + 1]
-    if (neighborRun !== undefined && neighborRun.text.length > 0) {
-      // Stepping into the neighbor removes that run's whole grapheme, not one
-      // code unit of it.
-      const from = backward ? previousBoundary(neighborRun.text, neighborRun.text.length) : 0
-      const to = backward ? neighborRun.text.length : nextBoundary(neighborRun.text, 0)
-      return apply(state, [
-        Edit.deleteText(neighborRun.id, from, to),
-        Edit.setSelection(
-          caretAt(
-            backward ? { ...caret, node: neighborRun.id, offset: from, affinity: 'after' } : caret,
-          ),
-        ),
-      ])
+    const block = state.document.children[at.blockIndex]!
+    const deletion = graphemeDeletion(block, caret, at.runIndex, backward)
+    if (deletion !== undefined) {
+      return apply(state, [...deletion.operations, Edit.setSelection(caretAt(deletion.caret))])
     }
     const neighborBlock = state.document.children[backward ? at.blockIndex - 1 : at.blockIndex + 1]
     if (neighborBlock === undefined) return apply(state, [])

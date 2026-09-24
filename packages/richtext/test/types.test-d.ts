@@ -68,6 +68,25 @@ const withProps: RichText.Operation = RichText.Edit.addMark(reference, Link.of({
 const byName: RichText.Operation = RichText.Edit.addMark(reference, 'Highlight')
 // @ts-expect-error The href must be a string.
 Link.of({ href: 42 })
+const Rating = RichText.mark('Rating', {
+  Props: Schema.Struct({ score: Schema.NumberFromString }),
+})
+const ratingValue: RichText.MarkValue = Rating.of({ score: 42 })
+// @ts-expect-error of accepts decoded props; the encoded string belongs only in the document.
+Rating.of({ score: '42' })
+// @ts-expect-error a transforming codec still rejects unrelated input types.
+Rating.of({ score: true })
+// @ts-expect-error of is a one-argument builder when props are declared.
+Rating.of()
+declare const needsEncodeService: Schema.Codec<
+  { readonly score: number },
+  { readonly score: string },
+  never,
+  { readonly encodeService: true }
+>
+// @ts-expect-error mark builders encode synchronously without an application service.
+RichText.mark('ServiceRating', { Props: needsEncodeService })
+void ratingValue
 void [withProps, byName]
 RichText.apply({ document, selection: null }, [
   RichText.Edit.insertText(reference.at(0, 'after'), '!'),

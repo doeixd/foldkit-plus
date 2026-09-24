@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Block, NodeBlock, NodeId, type Document } from './document.js'
+import { Block, NodeBlock, NodeId, Document } from './document.js'
 
 /**
  * Migrations move semantic data forward when a deployment changes its
@@ -43,6 +43,8 @@ const matches = (block: Block, from: string): boolean =>
     : block.type === 'Node'
       ? block.kind === from
       : block.type === from
+
+const decodeMigratedDocument = Schema.decodeUnknownSync(Document, { onExcessProperty: 'error' })
 
 /** Declares a migration, checking at construction that it is shaped like one. */
 export const migration = (
@@ -95,6 +97,11 @@ export const migrate = (
       continue
     }
     next = { ...next, children: blocks }
+    try {
+      decodeMigratedDocument(next)
+    } catch {
+      throw new Error(`Migration "${migration.name}" produced an invalid document`)
+    }
   }
   return { document: next, applied, unused }
 }

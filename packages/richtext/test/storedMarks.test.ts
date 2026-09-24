@@ -84,6 +84,33 @@ describe('typing with stored marks', () => {
     ])
   })
 
+  it('leaves a collapsed selection unchanged when the inserted text is empty', () => {
+    const before = state(caret('b', 0))
+    const result = success(
+      RichText.run(before, { type: 'InsertText', text: '', marks: [] }, minted()),
+    )
+    expect(result.state).toBe(before)
+    expect(runsOf(result.state)).toEqual([
+      ['ab', []],
+      ['cd', ['Bold']],
+    ])
+  })
+
+  it('deletes a selected range when its replacement text is empty', () => {
+    const result = success(
+      RichText.run(
+        state(range(['b', 0], ['b', 1])),
+        { type: 'InsertText', text: '', marks: [] },
+        minted(),
+      ),
+    )
+    expect(runsOf(result.state)).toEqual([
+      ['ab', []],
+      ['d', ['Bold']],
+    ])
+    expect(result.state.selection).toEqual(caret('b', 0))
+  })
+
   it('types at the end of a run without leaving an empty remainder', () => {
     const result = success(
       RichText.run(

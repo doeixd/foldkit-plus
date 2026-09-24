@@ -165,6 +165,101 @@ describe('join blocks', () => {
     ])
   })
 
+  it('rejects a join that would put text children in an unknown block', () => {
+    const state: RichText.EditorState = {
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [
+          { type: 'Unknown', id: 'image', originalType: 'Image', props: {}, children: [] },
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [{ type: 'Text', id: 't', text: 'hello', marks: [] }],
+          },
+        ],
+      }),
+      selection: null,
+    }
+    expect(RichText.apply(state, [RichText.Edit.joinBlocks(id('image'), id('p'))])).toEqual({
+      ok: false,
+      error: 'InvalidRange',
+    })
+    expect(RichText.decodeDocument(state.document)).toEqual(state.document)
+
+    const reverse: RichText.EditorState = {
+      ...state,
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [...state.document.children].reverse(),
+      }),
+    }
+    expect(RichText.apply(reverse, [RichText.Edit.joinBlocks(id('p'), id('image'))])).toEqual({
+      ok: false,
+      error: 'InvalidRange',
+    })
+  })
+
+  it('rejects joins touching application nodes without their Kit child contract', () => {
+    const node = {
+      type: 'Node' as const,
+      kind: 'Callout',
+      id: 'callout',
+      props: {},
+      children: [{ type: 'Text' as const, id: 'u', text: 'note', marks: [] }],
+    }
+    const paragraph = {
+      type: 'Paragraph' as const,
+      id: 'p',
+      children: [{ type: 'Text' as const, id: 't', text: 'hello', marks: [] }],
+    }
+    for (const [first, second] of [
+      [node, paragraph],
+      [paragraph, node],
+    ] as const) {
+      const state: RichText.EditorState = {
+        document: RichText.decodeDocument({ version: 1, children: [first, second] }),
+        selection: null,
+      }
+      expect(
+        RichText.apply(state, [RichText.Edit.joinBlocks(id(first.id), id(second.id))]),
+      ).toEqual({
+        ok: false,
+        error: 'InvalidRange',
+      })
+    }
+  })
+
+  it('joins application nodes with the same kind and props', () => {
+    const state: RichText.EditorState = {
+      document: RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Node',
+            kind: 'Callout',
+            id: 'a',
+            props: { tone: 'info' },
+            children: [{ type: 'Text', id: 't', text: 'hello', marks: [] }],
+          },
+          {
+            type: 'Node',
+            kind: 'Callout',
+            id: 'b',
+            props: { tone: 'info' },
+            children: [{ type: 'Text', id: 'u', text: ' world', marks: ['Bold'] }],
+          },
+        ],
+      }),
+      selection: null,
+    }
+    const joined = success(RichText.apply(state, [RichText.Edit.joinBlocks(id('a'), id('b'))]))
+    expect(joined.state.document.children[0]?.children.map(run => run.text)).toEqual([
+      'hello',
+      ' world',
+    ])
+    expect(RichText.decodeDocument(joined.state.document)).toEqual(joined.state.document)
+  })
+
   it('builds the documented wire shape from ids or references', () => {
     expect(RichText.Edit.joinBlocks(id('p'), id('p2'))).toEqual({
       type: 'JoinNode',

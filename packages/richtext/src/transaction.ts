@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Equal, Schema } from 'effect'
 import { markName, resolveInsertion, sameMark } from './marks.js'
 import {
   Block,
@@ -398,7 +398,8 @@ export const apply = (
   const textChanged = new Set<NodeId>()
   let structureChanged = false
   const positionMap: Array<PositionStep | SplitStep | RelocateStep | CollapseStep> = []
-  for (const operation of transaction) {
+  for (let operationIndex = 0; operationIndex < transaction.length; operationIndex++) {
+    const operation = transaction[operationIndex]!
     if (operation.type === 'SetSelection') {
       // A pending edit could change what a position resolves against.
       materialize()
@@ -521,19 +522,49 @@ export const apply = (
       if (removedIndex === undefined) return { ok: false, error: 'MissingNode' }
       if (removedIndex !== intoIndex + 1) return { ok: false, error: 'InvalidRange' }
       const survivor = document.children[intoIndex]!
-      const removed = document.children[removedIndex]!
+      const removedBlocks: Array<Block> = []
+      while (operationIndex < transaction.length) {
+        const next = transaction[operationIndex]
+        if (next?.type !== 'JoinNode' || next.into !== operation.into) break
+        const removed = document.children[intoIndex + removedBlocks.length + 1]
+        if (removed?.id !== next.removed) break
+        // Opaque content cannot be merged without silently discarding it.
+        if (survivor.type === 'Unknown' || removed.type === 'Unknown') {
+          return { ok: false, error: 'InvalidRange' }
+        }
+        if (survivor.type === 'Node' || removed.type === 'Node') {
+          if (
+            survivor.type !== 'Node' ||
+            removed.type !== 'Node' ||
+            survivor.kind !== removed.kind ||
+            !Equal.equals(survivor.props, removed.props)
+          )
+            return { ok: false, error: 'InvalidRange' }
+        }
+        removedBlocks.push(removed)
+        operationIndex++
+      }
+      operationIndex--
       const blocks = [...document.children]
-      blocks[intoIndex] = { ...survivor, children: [...survivor.children, ...removed.children] }
-      blocks.splice(removedIndex, 1)
+      blocks[intoIndex] = {
+        ...survivor,
+        children: [...survivor.children, ...removedBlocks.flatMap(block => block.children)],
+      }
+      blocks.splice(removedIndex, removedBlocks.length)
       document = { ...document, children: blocks }
       reindex()
-      if (selection?.type === 'Node' && selection.node === operation.removed) {
-        selection = { ...selection, node: operation.into }
+      for (const removed of removedBlocks) {
+        // A Node selection on a retired identity follows the survivor.
+        if (selection?.type === 'Node' && selection.node === removed.id) {
+          selection = { ...selection, node: operation.into }
+        }
       }
       dirtyNodes.add(operation.into)
-      dirtyNodes.add(operation.removed)
-      for (const moved of removed.children) dirtyNodes.add(moved.id)
-      removedNodes.add(operation.removed)
+      for (const removed of removedBlocks) {
+        dirtyNodes.add(removed.id)
+        removedNodes.add(removed.id)
+        for (const moved of removed.children) dirtyNodes.add(moved.id)
+      }
       structureChanged = true
       continue
     }

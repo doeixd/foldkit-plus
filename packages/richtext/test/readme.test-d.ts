@@ -43,3 +43,15 @@ RichText.run(
   { marks: RichText.markRegistry(ArticleKit.marks) },
 )
 void marked
+
+const NodeKit = RichText.kit({
+  nodes: [
+    RichText.block('Paragraph'),
+    RichText.node('Callout', {
+      Props: Schema.Struct({ tone: Schema.Literals(['info', 'warning']) }),
+    }),
+    RichText.node('Image'),
+  ],
+  marks: [RichText.Bold],
+})
+RichText.validate(document, NodeKit)

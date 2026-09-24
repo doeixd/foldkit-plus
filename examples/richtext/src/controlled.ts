@@ -19,8 +19,8 @@ export const EditorState = Schema.Struct({
   nextId: Schema.Number,
   /** Local undo history: snapshots of document plus selection. */
   history: RichText.History,
-  /** The marks the caret carries, so the next typed text lands with them. */
-  storedMarks: Schema.Array(Schema.String),
+  /** Null inherits neighboring marks; an array explicitly sets them, even when empty. */
+  storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
 })
 export type EditorState = typeof EditorState.Type
 
@@ -36,7 +36,7 @@ export const EditorView = Schema.Struct({
   selection: Schema.NullOr(RichText.Selection),
   nextId: Schema.Number,
   history: RichText.History,
-  storedMarks: Schema.Array(Schema.String),
+  storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
 })
 export type EditorView = typeof EditorView.Type
 
@@ -118,7 +118,7 @@ export const Editor = Bundle.make({
       selection: null,
       nextId: 0,
       history: RichText.emptyHistory,
-      storedMarks: [],
+      storedMarks: null,
     },
   }),
   update: (model, message): { readonly model: EditorView; readonly outMessage: OutMessage } => {
@@ -168,14 +168,14 @@ export const Editor = Bundle.make({
     }
     const storedMarks =
       message._tag === 'ToggledMark' && collapsed
-        ? model.storedMarks.includes(message.mark)
+        ? model.storedMarks?.includes(message.mark)
           ? model.storedMarks.filter(mark => mark !== message.mark)
-          : [...model.storedMarks, message.mark]
+          : [...(model.storedMarks ?? []), message.mark]
         : message._tag === 'Selected'
-          ? []
+          ? null
           : model.storedMarks
     const command =
-      message._tag === 'Typed' && storedMarks.length > 0
+      message._tag === 'Typed' && storedMarks !== null
         ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
         : toCommand(message)
     const result = RichText.run(state, command, { mint: () => `e${nextId++}` })

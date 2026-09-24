@@ -40,8 +40,6 @@ describe('mark definitions', () => {
       name: 'Highlight',
       props: { tone: 'yellow' },
     })
-    // @ts-expect-error the tone must be one the schema declares
-    Highlight.of({ tone: 'purple' })
     // A mark without props still builds a value, from its bare name.
     expect(RichText.mark('Link', { expand: 'none' }).of()).toEqual({ name: 'Link' })
     // Reading a mark's props back: absent for a bare name, present for a value.
@@ -51,6 +49,35 @@ describe('mark definitions', () => {
     })
     expect(RichText.markName({ name: 'Link', props: { href: '/docs' } })).toBe('Link')
     expect(RichText.markName('Bold')).toBe('Bold')
+  })
+
+  it('encodes transforming props for document storage and Kit validation', () => {
+    const Rating = RichText.mark('Rating', {
+      Props: Schema.Struct({ score: Schema.NumberFromString }),
+    })
+    const value = Rating.of({ score: 42 })
+    expect(value).toEqual({ name: 'Rating', props: { score: '42' } })
+    const marked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 't', text: 'x', marks: [value] }],
+        },
+      ],
+    })
+    expect(
+      RichText.validate(
+        marked,
+        RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [Rating] }),
+      ),
+    ).toEqual([])
+  })
+
+  it('refuses a schema that encodes props outside JSON', () => {
+    const Opaque = RichText.mark('Opaque', { Props: Schema.Struct({ value: Schema.Unknown }) })
+    expect(() => Opaque.of({ value: new Date(0) })).toThrow()
   })
 
   it('compares mark sets without regard to order, and compares props structurally', () => {

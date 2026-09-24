@@ -22,9 +22,11 @@ const MARK_WRAPPERS: ReadonlyArray<readonly [string, (child: Child) => Html]> = 
 const renderRun = (run: RichText.Text): Child => {
   let node: Child = run.text
   for (const [mark, wrap] of MARK_WRAPPERS) {
-    if (run.marks.includes(mark)) node = wrap(node)
+    if (run.marks.some(value => RichText.markName(value) === mark)) node = wrap(node)
   }
-  const unknown = run.marks.filter(mark => !MARK_WRAPPERS.some(([name]) => name === mark))
+  const unknown = run.marks
+    .map(RichText.markName)
+    .filter(mark => !MARK_WRAPPERS.some(([name]) => name === mark))
   return unknown.length === 0 ? node : h.span([h.DataAttribute('marks', unknown.join(' '))], [node])
 }
 

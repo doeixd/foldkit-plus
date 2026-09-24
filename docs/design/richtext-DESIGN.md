@@ -3242,7 +3242,8 @@ Three rules are enforced in code rather than left to discipline: a migration
 must return the same `id` (changing it throws, instead of silently breaking
 every reference to that node); the returned block must decode as a block (so a
 migration cannot write non-JSON props or an unknown shape into persisted
-content); and returning `undefined` declines the block, which is what
+content), and the assembled document is checked for globally unique identities
+after each changed migration pass; returning `undefined` declines the block, which is what
 `promoteUnknown` does when legacy data does not decode rather than
 half-converting it. Migrations run at a boundary the application chooses —
 loading, publishing, or an explicit upgrade — never automatically on every read.
@@ -4029,8 +4030,8 @@ optional `marks` set, so an application can hand the caret's stored marks to the
 insertion and get a span carrying exactly them; unknown marks are refused. This
 is not completion of Phase 1.
 
-Remaining: nested children beyond runs, marks with props and custom mark
-authoring, metadata keys, and collaboration (including
+Remaining: nested children beyond runs, mark overlap rules, metadata keys,
+and collaboration (including
 collaborative undo), alongside
 the parallel feasibility tracks below. The current implementation is
 private/unpublished and APIs may change as those proofs establish the final
@@ -4199,10 +4200,12 @@ restores the semantic selection afterwards, because a repair detaches the live
 one. Only then does a commit become one `InsertText` at the semantic caret.
 
 **Stored marks.** A collapsed mark toggle belongs to the caret, not the document.
-The harness keeps `storedMarks` in its interaction state: a collapsed
-`ToggledMark` flips that set without touching the document (so history gains no
-step), a caret move clears it, and the next `Typed` passes it to the command
-layer. The package gained the other half — `InsertText` takes an optional
+The harness keeps `storedMarks` in its interaction state: `null` inherits the
+document's marks, while an array is an explicit override, including an empty
+array for plain text. A collapsed `ToggledMark` flips that set without touching
+the document (so history gains no step), a caret move resets it to `null`, and
+the next `Typed` passes an explicit override to the command layer when present.
+The package gained the other half — `InsertText` takes an optional
 `marks`, and when it is present the inserted span is split out of its run and
 given exactly that set, with an unknown mark refused at the toggle rather than at
 the first keystroke after it. Without `marks`, the boundary rule still decides.

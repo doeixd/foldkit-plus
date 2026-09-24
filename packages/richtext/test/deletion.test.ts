@@ -106,6 +106,26 @@ describe('deleting a range across a paragraph boundary', () => {
       ['d', ['Bold']],
     ])
   })
+
+  it('removes many crossed blocks in one range without losing the tail', () => {
+    const blocks = Array.from({ length: 120 }, (_, index) => ({
+      type: 'Paragraph' as const,
+      id: `p${index}`,
+      children: [{ type: 'Text' as const, id: `t${index}`, text: 'abc', marks: [] }],
+    }))
+    const state: RichText.EditorState = {
+      document: RichText.decodeDocument({ version: 1, children: blocks }),
+      selection: range(['t10', 1], ['t109', 2]),
+    }
+    const result = success(run(state, { type: 'DeleteBackward' }))
+    expect(result.state.document.children.map(block => block.id)).toEqual([
+      ...blocks.slice(0, 10).map(block => block.id),
+      'p10',
+      ...blocks.slice(110).map(block => block.id),
+    ])
+    expect(result.state.document.children[10]?.children.map(run => run.text).join('')).toBe('ac')
+    expect(result.changeSet.removedNodes.size).toBeGreaterThanOrEqual(99)
+  })
 })
 
 describe('deletion never splits a character', () => {
@@ -127,6 +147,8 @@ describe('deletion never splits a character', () => {
     ['an emoji', 'ab🌱', 4, 'ab'],
     ['an emoji mid-text', 'a🌱b', 3, 'ab'],
     ['a combining mark', 'e\u0301x', 2, 'x'],
+    ['an accented supplementary character', '😀\u0301x', 3, 'x'],
+    ['a joined emoji', '👩‍💻x', 5, 'x'],
   ])('removes %s whole when deleting backward', (_label, value, offset, expected) => {
     const result = success(run(text(value, caret('t', offset)), { type: 'DeleteBackward' }))
     expect(result.state.document.children[0]?.children[0]?.text).toBe(expected)
@@ -136,6 +158,8 @@ describe('deletion never splits a character', () => {
   it.each([
     ['an emoji', '🌱ab', 0, 'ab'],
     ['a combining mark', '\u0301ex', 0, 'ex'],
+    ['an accented supplementary character', '😀\u0301x', 0, 'x'],
+    ['a joined emoji', '👩‍💻x', 0, 'x'],
   ])('removes %s whole when deleting forward', (_label, value, offset, expected) => {
     const result = success(run(text(value, caret('t', offset)), { type: 'DeleteForward' }))
     expect(result.state.document.children[0]?.children[0]?.text).toBe(expected)
@@ -164,4 +188,30 @@ describe('deletion never splits a character', () => {
     expect(result.state.document.children[0]?.children[0]?.text).not.toMatch(/[\uD800-\uDFFF]/u)
     expect(result.state.selection).toEqual(caret('a', 1))
   })
+
+  it.each(['DeleteBackward', 'DeleteForward'] as const)(
+    'removes one grapheme split across styled runs with %s',
+    type => {
+      const state: RichText.EditorState = {
+        document: RichText.decodeDocument({
+          version: 1,
+          children: [
+            {
+              type: 'Paragraph',
+              id: 'p',
+              children: [
+                { type: 'Text', id: 'a', text: '👩', marks: [] },
+                { type: 'Text', id: 'b', text: '‍', marks: ['Bold'] },
+                { type: 'Text', id: 'c', text: '💻x', marks: [] },
+              ],
+            },
+          ],
+        }),
+        selection: type === 'DeleteBackward' ? caret('c', 2) : caret('a', 0),
+      }
+      const result = success(run(state, { type }))
+      expect(result.state.document.children[0]?.children.map(run => run.text).join('')).toBe('x')
+      expect(RichText.decodeDocument(result.state.document)).toEqual(result.state.document)
+    },
+  )
 })

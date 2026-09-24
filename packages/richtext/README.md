@@ -149,6 +149,11 @@ most once it never holds both forms of one mark:
 Link.of({ href: '/docs' }) // { name: 'Link', props: { href: '/docs' } }
 ```
 
+`of` accepts decoded props and encodes them with the declared schema before
+storing them as JSON. Transforming codecs therefore preserve their encoded
+representation in the document. Encoding must require no services; invalid
+props or a non-JSON-object encoded result throw at the builder call.
+
 `markName(mark)` and `markProps(mark)` read either form, and `sameMark` decides
 equivalence. Props are part of a mark's identity: two runs carrying the same name
 with different props are not equivalent, so normalization does not merge them, and
@@ -183,7 +188,7 @@ const ArticleKit = RichText.kit({
     RichText.node('Callout', { Props: Schema.Struct({ tone: Schema.Literals(['info', 'warning']) }) }),
     RichText.node('Image'),
   ],
-  marks: ['Bold'],
+  marks: [RichText.Bold],
 })
 
 RichText.validate(document, ArticleKit)
@@ -194,8 +199,7 @@ A node block's children are text runs, so positions, operations, selection,
 clipboard slices, history, and the interpreters all work on it unchanged — a
 split keeps its kind and props on both halves. `data-node="Kind"` is the default
 rendering in HTML and in the view until a Kit renderer replaces it. Nesting
-children beyond runs, mark definitions with props, and migrations are still to
-come.
+children beyond runs remains unfinished.
 
 ## Transforms
 
@@ -259,11 +263,15 @@ scales linearly (5× the runs costs 5.3× the time, where it used to cost 8.2×)
 Differences under a few percent in the other rows are within this machine's
 run-to-run noise, not a claim either way.
 
-Two costs remain. A structural operation still rebuilds the document index, and
-normalization walks the whole dirty set — including run identities, which cannot
-match a block — so a transaction that touches every run of a block does O(dirty)
-lookups in the merge pass. Neither is measured as a problem at these sizes; the
-benchmark exists so a claim about them can be checked rather than asserted.
+Two costs remain. A structural operation still rebuilds the document index, though
+a contiguous run of joins is now batched: deleting a range across B paragraphs
+emits B joins but `apply` consumes them as one structural edit, so the block array
+is copied once and the index rebuilt once instead of B times. The cross-paragraph
+deletion case in the benchmark is that change's check. Normalization also walks
+the whole dirty set — including run identities, which cannot match a block — so a
+transaction that touches every run of a block does O(dirty) lookups in the merge
+pass. Neither is measured as a problem at these sizes; the benchmark exists so a
+claim about them can be checked rather than asserted.
 
 ## Migrations
 
@@ -295,8 +303,9 @@ Three rules are enforced rather than documented and hoped for:
 - **Identity survives.** A migration returns the same `id`, so positions,
   references, and selections keep addressing the same node; changing it throws
   instead of silently breaking every reference.
-- **The result is still content.** The returned block must decode as a block, so
-  a migration cannot write non-JSON props or an unknown shape into the document.
+- **The result is still content.** Returned blocks must decode, and the complete
+  document is validated after each changed migration pass. Non-JSON props,
+  unknown shapes, and identities duplicated across blocks are rejected.
 - **Declining is allowed.** Returning `undefined` keeps the block as it is —
   which is what `promoteUnknown` does when legacy data does not decode against
   the target's schema, rather than half-converting it.
@@ -501,12 +510,12 @@ into an application's Model; when decoding them directly, pass
 
 `apply` does not enforce limits: size-check untrusted operation payloads
 (notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. Nested children, marks with props, and
-collaboration are still pending. Retain rejected source content for
+decoding untrusted payloads. Nested children and collaboration are still
+pending. Retain rejected source content for
 recovery; do not replace it with an empty document.
 
 Each transaction currently validates the whole input and indexes its text runs.
-Edits copy the affected arrays and preserve untouched nodes. Large-document
-performance remains to be measured in the Phase 1 feasibility work.
+Edits copy the affected arrays and preserve untouched nodes. The performance
+section records the measured cases; collaborative replay remains unmeasured.
 
 See the [design and phase status](../../docs/design/richtext-DESIGN.md#101-phase-1--pure-semantics-and-integration-feasibility).

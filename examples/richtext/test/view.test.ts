@@ -56,6 +56,28 @@ const attr = (node: VNode | string | null, key: string): string | undefined =>
   node === null || typeof node === 'string' ? undefined : node.data?.attrs?.[key]
 
 describe('the read-only renderer', () => {
+  it.each([
+    ['Bold', 'strong'],
+    ['Italic', 'em'],
+    ['Code', 'code'],
+  ] as const)('renders %s from plain and object marks', (mark, element) => {
+    for (const value of [mark, { name: mark }]) {
+      const content = RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [{ type: 'Text', id: 'a', text: 'x', marks: [value] }],
+          },
+        ],
+      })
+      const rendered = renderDocument(content) as unknown as VNode
+      expect(tags(rendered)).toEqual(['div', 'p', element])
+      expect(text(rendered)).toBe('x')
+    }
+  })
+
   it('renders blocks as elements and marks as nested elements', () => {
     const rendered = renderDocument(document()) as unknown as VNode
     // Marks nest in the same order the HTML serializer uses: Code outermost.
@@ -82,7 +104,9 @@ describe('the read-only renderer', () => {
         {
           type: 'Paragraph',
           id: 'p',
-          children: [{ type: 'Text', id: 'a', text: 'x', marks: ['Highlight', 'Bold'] }],
+          children: [
+            { type: 'Text', id: 'a', text: 'x', marks: [{ name: 'Highlight' }, { name: 'Bold' }] },
+          ],
         },
       ],
     })

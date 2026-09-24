@@ -140,6 +140,35 @@ describe('migrations', () => {
     ).toThrow(/produced an invalid block/)
   })
 
+  it('refuses duplicate identities introduced across blocks', () => {
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'first',
+          children: [{ type: 'Text', id: 'a', text: '', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'second',
+          children: [{ type: 'Text', id: 'b', text: '', marks: [] }],
+        },
+      ],
+    })
+    for (const duplicate of ['a', 'first', 'second']) {
+      expect(() =>
+        RichText.migrate(document, [
+          RichText.migration('Collides', 'Paragraph', block =>
+            block.id === id('second')
+              ? { ...block, children: [{ ...block.children[0]!, id: id(duplicate) }] }
+              : undefined,
+          ),
+        ]),
+      ).toThrow(/Migration "Collides" produced an invalid document/)
+    }
+  })
+
   it('checks a migration at construction', () => {
     expect(() => RichText.migration('', 'Embed', () => undefined)).toThrow()
     expect(() => RichText.migration('Name', '', () => undefined)).toThrow()
