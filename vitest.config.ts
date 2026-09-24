@@ -26,6 +26,9 @@ export default defineConfig({
       'foldkit-richtext-dom/view': fileURLToPath(
         new URL('./packages/richtext-dom/src/view.ts', import.meta.url),
       ),
+      'foldkit-richtext-dom/toolbar': fileURLToPath(
+        new URL('./packages/richtext-dom/src/toolbar.ts', import.meta.url),
+      ),
       'foldkit-richtext-dom': fileURLToPath(
         new URL('./packages/richtext-dom/src/index.ts', import.meta.url),
       ),

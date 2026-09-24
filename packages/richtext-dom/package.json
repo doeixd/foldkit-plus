@@ -31,6 +31,10 @@
       "types": "./dist/html.d.mts",
       "import": "./dist/html.mjs"
     },
+    "./toolbar": {
+      "types": "./dist/toolbar.d.mts",
+      "import": "./dist/toolbar.mjs"
+    },
     "./view": {
       "types": "./dist/view.d.mts",
       "import": "./dist/view.mjs"

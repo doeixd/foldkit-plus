@@ -91,6 +91,9 @@ not just commit, and `mountInto(host, content, options)` at
 attachment a patch Command later finds. A Kit passed to `attach` degrades
 undeclared node kinds, and its `keymap` adds or overrides chord bindings
 (`Mod-b`, `Alt-ArrowUp`), checked before the built-in chords.
+`foldkit-richtext-dom/toolbar` renders the marks as buttons (`marksToolbar`) that
+dispatch their Messages, each active when the caret carries it or every run the
+selection covers does.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `Selected`, `Pasted`, `Undone`,

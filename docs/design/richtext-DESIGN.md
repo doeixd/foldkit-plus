@@ -4636,7 +4636,9 @@ keymaps                   the adapter's built-ins, plus a `keymap` table an
 copy/paste                adapter only; not routed through the Bundle
 drag/drop                 not started
 mobile virtual keyboards  not started (Phase 3)
-toolbar integration       not started
+toolbar integration       the mark buttons and their active rule
+                          (`foldkit-richtext-dom/toolbar`, `marksToolbar`); the
+                          Mixins slot family is next
 slash commands            not started
 ```
 
@@ -5081,8 +5083,15 @@ for the current selection. That is missing from `foldkit-richtext`.
 `marksInRange(document, anchor, focus)` returns the marks every run the selection
 covers carries — the marks a toggle would remove, which is what "active" means for
 a button. A collapsed caret is its run's marks; the editor's `storedMarks` are the
-editor's own state and are layered on top by whoever draws the button (a caret
-carrying Bold with nothing selected should light the button).
+editor's own state, and the button reads them first (a caret carrying Bold with
+nothing selected lights the button).
+
+The buttons themselves are small enough to land before the slot family, and they
+are what a family would wrap: `foldkit-richtext-dom/toolbar` exports `marksToolbar`,
+one button per mark over `marksInRange`, each with its active state and Message. The
+Mixins family (§35) then adds slots around those buttons rather than a second
+renderer, so an application that does not need to restyle parts gets a toolbar
+without adopting Mixins at all.
 
 ## Slash commands are a menu over the editor's Messages
 
@@ -5106,5 +5115,7 @@ real block vocabulary, so it comes last.
    subtree agrees on. That is what a toolbar's active button reads.
 3. The editor's keymap layer in `events`, when a binding needs a Message no browser
    event produces.
-4. The toolbar as Mixins slots, in the `foldkit-mixins-richtext` package.
+4. **In progress.** The buttons and their active rule landed
+   (`foldkit-richtext-dom/toolbar`, `marksToolbar`). The Mixins slot family
+   (`foldkit-mixins-richtext`), which wraps them, is next.
 5. Slash commands, over 1 and 3.

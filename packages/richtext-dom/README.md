@@ -34,6 +34,7 @@ foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks
+foldkit-richtext-dom/toolbar  marksToolbar
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
 ```
@@ -169,6 +170,17 @@ transition. `application` and `update` are the assembled parent, and `edited` /
 build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
+
+## The marks toolbar
+
+`marksToolbar({ state, toMessage, marks? })` returns a view — `(h) => Html` — of one
+button per mark, dispatching the same Message a chord does. It is the application's
+chrome: §29 gives the editor the subtree and the application everything around it,
+so the application places this beside the editor's host rather than the Bundle
+rendering it. `state` is what the editor projects (`document`, `selection`,
+`storedMarks`), and `marks` defaults to the three the package ships. A mark is
+active when the caret carries it, or — with no stored format — when every run the
+selection covers does.
 
 ## What it does not do
 

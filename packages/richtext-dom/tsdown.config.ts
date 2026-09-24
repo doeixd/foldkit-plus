@@ -6,6 +6,7 @@ export default defineConfig({
     'src/host.ts',
     'src/events.ts',
     'src/html.ts',
+    'src/toolbar.ts',
     'src/view.ts',
     'src/editor.ts',
     'src/editor-bundle.ts',
