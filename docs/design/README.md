@@ -27,6 +27,7 @@ A historical status line is not a statement about today's package availability.
 | [REVISION_PLAN.md](./REVISION_PLAN.md) | Authoritative plan and handoff for the Surface/Remote revision; phase status and decisions. Where it conflicts with older Surface notes, this wins. |
 | [MIRROR.md](./MIRROR.md) | Why mirroring is observation rather than ownership, plus the store/kernel design. |
 | [mixins-DESIGN.md](./mixins-DESIGN.md) | `foldkit-mixins` substrate probes and the implementation decisions they forced. |
+| [styleImprovements-DESIGN.md](./styleImprovements-DESIGN.md) | A design system inside `foldkit-mixins`: a longer layer order, an OKLCH token generator and scoped theme overrides, `Layout` pieces, element defaults and prose, and shipped recipes; what is borrowed from css-tags and what is not. |
 | [agent-DESIGN.md](./agent-DESIGN.md) | `foldkit-agent` contract, authority boundaries, completion, and adapter rationale. |
 | [remote-drizzle-DESIGN.md](./remote-drizzle-DESIGN.md) | Design decisions and remaining constraints for `foldkit-remote-drizzle`. |
 | [surface-BACKBONE.md](./surface-BACKBONE.md) | Why Surface is a shared semantic seam for packages that need observation/capability metadata. |
