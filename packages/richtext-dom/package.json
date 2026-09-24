@@ -15,6 +15,10 @@
       "types": "./dist/events.d.mts",
       "import": "./dist/events.mjs"
     },
+    "./host": {
+      "types": "./dist/host.d.mts",
+      "import": "./dist/host.mjs"
+    },
     "./html": {
       "types": "./dist/html.d.mts",
       "import": "./dist/html.mjs"

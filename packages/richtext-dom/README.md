@@ -30,6 +30,7 @@ here from `examples/richtext`, where the Phase 3 slice proved it. The read-only
 
 ```text
 foldkit-richtext-dom          the interpreter: mount, patch, repair, position mapping
+foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 ```
@@ -87,6 +88,25 @@ Read the calls literally:
   fallback: a whitelist walk over a `DOMParser` tree that mints fresh identities,
   so a pasted `style`, `href`, or `onclick` can never survive as anything
   executable.
+
+## Mounting into a view
+
+A Foldkit view owns the host element; the interpreter owns what goes inside it.
+`mountInto` renders into the host and records the attachment there, so a patch
+Command that has only the element can find it (§118):
+
+```ts
+import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
+
+// The mount: once, when the host element enters the DOM.
+const attachment = mountInto(host, content, { onIntent, onSelection })
+
+// The patch Command: after the transition committed, given the host element.
+attachmentIn(host)?.sync(state, changeSet)
+
+// Unmount.
+releaseMount(host)
+```
 
 ## What it does not do
 

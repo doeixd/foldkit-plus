@@ -4976,7 +4976,7 @@ patch    finds the host by id, patches in place, restores the selection
 ```
 
 The adapter handle is recovered through the element: the mount registers the
-`EditorDom` in a `WeakMap` keyed by the host element, and the patch Command looks
+attachment in a `WeakMap` keyed by the host element, and the patch Command looks
 it up. No DOM reference enters the Model (Models are schemas), and no Context
 service has to carry one.
 
@@ -4994,9 +4994,12 @@ Command are identical, which is §27's requirement.
   follow the caret. `attach` now takes `onSelection` and reports a position the
   application did not just commit, staying quiet while an IME owns the caret and
   after `detach`. The editor Message that consumes it still has to exist.
-- **A host-element mount.** `mount(ownerDocument, content)` builds a detached
-  root. A view needs the host: the mount appends the root into it and registers
-  the handle for the patch Command.
+- **A host-element mount — landed.** `mount(ownerDocument, content)` builds a
+  detached root, so a view had nowhere to put it.
+  `foldkit-richtext-dom/host` adds `mountInto(host, content, options)`, which
+  appends the root, attaches the listeners, and records the attachment in a
+  `WeakMap` keyed by the element; `attachmentIn(host)` hands a patch Command the
+  attachment, and `releaseMount` detaches and removes the subtree.
 - **A Message union covering the intent vocabulary.** The proof's union predates
   paste and selection. Every intent `intentFor` and the clipboard handlers can
   produce must map to a Message, and a test should hold that total.

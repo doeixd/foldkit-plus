@@ -83,8 +83,11 @@ recovers after an IME or an outside mutation,
 `positionToRange`/`rangeToPosition` map a semantic `Position` to and from a DOM
 `Range`, and `attach(dom, { onIntent })` turns `beforeinput`/`keydown`/composition
 and clipboard events into editor intent while preventing the browser from mutating
-the subtree behind the document. A Kit passed to `attach` degrades undeclared node
-kinds.
+the subtree behind the document. `onSelection` reports a caret the application did
+not just commit, and `mountInto(host, content, options)` at
+`foldkit-richtext-dom/host` renders into a view's host element and records the
+attachment a patch Command later finds. A Kit passed to `attach` degrades
+undeclared node kinds.
 
 The read-only view (`examples/richtext/src/view.ts`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
