@@ -1,66 +1,91 @@
 # `foldkit-ssr`
 
-Server rendering for a Foldkit application: render once on the server, hand the
-browser the part of the Model it owns, and hydrate without running `init` a
-second time.
+Server rendering for a Foldkit application that hands the browser **the Model
+the server reached**, not the inputs to rebuild it. `init` runs once, on the
+server. The browser adopts the server's HTML and starts from the slice of the
+Model it owns.
 
-**Status: in development, not published.** Built in phases from
-[the plan](../../docs/design/ssr-PLAN.md). Phases 0 to 6, U and R are
-done: a page renders on the server or at build time and is served through
-Foldkit's fetch handler, the browser takes it over from the handed-over Model,
-a plan is checked against the Surfaces the browser reads, parts of the page can
-belong to the server alone, and Remote's data crosses with the page. Resumable
-pages, whose view waits for the first interaction, are being built: bindings
-the server's markup names, a listener that answers them before boot, the
-deferred boot itself, the check that a page dispatches only what its Surfaces
-may send, a form that works with scripts off, and bundles whose bodies load
-on demand are done.
+**In development, not published.** The API below is built and tested; it may
+still change before a first release.
 
-## What it owns
+```ts
+// Which part of the Model the browser owns.
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+})
 
-Only the handover. Rendering to HTML and adopting it in the browser are
-Foldkit's own (`foldkit/experimental/server` and `foldkit/runtime`), and this
-package calls them rather than replacing them. What it adds is a **resume
-plan**: which slice of the Model crosses from the server to the browser,
-written into the page as a JSON script and read back through the slice's own
-Schema.
+// Server: render, and write that slice into the page.
+const html = SSR.page(template, await Effect.runPromise(SSR.render(config, Post, { buildId, url })))
 
-## Compared with Foldkit's own server rendering
+// Browser: take the page over from the slice, without running init.
+SSR.hydrate(config, Post, { buildId })
+```
 
-Foldkit already renders on the server and hydrates in the browser. What it
-sends across is the **input**: the Flags that produced the page, which the
-browser decodes and feeds to `init` again. A resume plan sends the **result**:
-the part of the Model the browser owns, so `init` runs once.
+## Why you would use it
 
-|                                  | Foldkit (`renderToString` + `Runtime.hydrate`)                                            | `foldkit-ssr` (`SSR.render` + `SSR.hydrate`)                                                    |
-| -------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| What the page carries            | The encoded Flags                                                                         | The plan's slice of the Model; no Flags                                                         |
-| `init`                           | Runs on the server, then again in the browser                                             | Runs on the server only                                                                         |
-| `init`'s Commands                | Ignored on the server, run in the browser                                                 | Run nowhere unless the plan names them in `boot`; rendering refuses a plan that would drop them |
-| Server-only data                 | Crosses if `init` needs it, since it must be in the Flags                                 | Stays on the server unless the plan's slice includes it                                         |
-| Server-only parts of the page    | Rendered again in the browser, from the Model rebuilt there                               | `SSR.static` regions: adopted as they are, never rendered in the browser                        |
-| A view the browser can't match   | The browser rebuilds that part of the page; only development warns                        | `SSR.render` fails with `ViewDependsOnUnsentState` before the page is served                    |
-| The route                        | The browser's `init` reads the browser's URL                                              | The browser must be at the path and query the page was rendered for, or the page is refused     |
-| A page from another build        | Refused and frozen                                                                        | The same: Foldkit's own check runs first                                                        |
-| A page whose payload can't be read | Refused and frozen                                                                      | The same, and the reason is logged                                                              |
-| What you write                   | Nothing beyond the config                                                                 | A plan: `id`, `state`, and `boot` if `init` returns Commands                                    |
-| Status                           | Experimental, published                                                                   | In development, unpublished                                                                     |
+Foldkit already renders on the server. What its page carries is the **input**:
+the Flags that produced the first Model, which the browser decodes and feeds to
+`init` again. That is simple and right when `init` is cheap and its Flags are
+small.
 
-Use Foldkit's own rendering when the Flags are small and `init` is cheap to run
-twice: a Model computed from a few Flags sends less that way than its slice
-would. Use a resume plan when `init` needs data the browser should not receive
-or re-derive, when its Commands would redo work the server already did, or when
-you want a view that reads unsent state caught on the server rather than
-repaired in the browser.
+It stops being right when `init` does real work: it loads a post, reads a
+session, computes something expensive. Then the browser either repeats that
+work or has to receive everything `init` read, as Flags, including data the
+page never shows. `foldkit-ssr` sends the **result** instead: the fields the
+browser owns, and nothing else.
 
-The cost of a plan:
-- `SSR.render` renders the view twice, once from the server's Model and once
-  from the browser's, to catch a view that reads a field the plan doesn't send.
-- `SSR.hydrate` skips `init` by giving Foldkit a config whose `init` returns the
-  resumed Model. That relies on how Foldkit hydrates today, not on a Foldkit API;
-  the tests will fail the day that changes.
+|                                 | Foldkit's own (`renderToString` + `Runtime.hydrate`) | `foldkit-ssr` (`SSR.render` + `SSR.hydrate`)                    |
+| ------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+| The page carries                | The Flags                                            | The plan's slice of the Model; no Flags                         |
+| `init` runs                     | On the server, then again in the browser             | On the server only                                              |
+| Server-only data                | Crosses if `init` needs it                           | Stays on the server unless the slice includes it                |
+| A view that reads unsent state  | Rebuilt in the browser; only development warns       | Refused by `SSR.render`, naming the field, before it is served  |
+| What you write                  | Nothing beyond the config                            | A plan                                                          |
 
-## Render and hydrate
+Beyond the handover it offers three things you can adopt one at a time:
+server-owned **static regions** that never render in the browser, **resumable
+pages** that answer clicks and typing before the runtime has booted, and
+**forms that work with scripts off**, answered by running `update` on the
+server.
+
+## What it owns, and what it does not
+
+It owns **the handover**: which slice crosses, how it is written into the page,
+and the checks that the browser can start from it.
+
+- **Rendering and adoption stay Foldkit's.** `SSR.render` calls Foldkit's
+  `renderToString` and `SSR.hydrate` calls `Runtime.hydrate`. Foldkit still
+  refuses a page from another build and still adopts the server's nodes.
+- **The Model stays the application's.** A plan names fields of it; it adds no
+  state of its own, and every change after boot goes through `update`.
+- **Data belongs to its package.** Remote's store crosses through Remote's own
+  part (`Remote.resume`), which decides what to capture.
+
+## The mental model
+
+```text
+server   init ──▶ Model ──┬── plan.state ──▶ slice ──▶ envelope   (JSON in the page)
+                          └── view ──▶ HTML                        (checked, see below)
+
+browser  envelope ──▶ baseline with the slice set on it ──▶ Model
+         Model + the server's HTML ──▶ Runtime.hydrate adopts ──▶ plan.boot Commands
+```
+
+The one rule everything else serves: **the browser's first Model renders the
+same page the server sent.** The browser's Model is the plan's baseline, by
+default the application's `initial`, with the slice set onto it. So
+`SSR.render` renders the view twice, once from the server's Model and once from
+the browser's, and refuses the plan if the two differ. A view that reads a
+field the plan does not send is caught there, on the server, instead of being
+silently rebuilt in the browser.
+
+## A first page
+
+The examples in this README share one application, a post page, sketched [at
+the end](#the-application-in-these-examples). `App` is its Surface application
+from `foldkit-surface`, and `config` is what you would pass to
+`makeApplication`, the same object on both sides.
 
 ```ts
 import { Effect } from 'effect'
@@ -82,56 +107,29 @@ const html = SSR.page(template, result)
 SSR.hydrate(config, Post, { buildId })
 ```
 
-`App` is the application's Surface application (`foldkit-surface`), and
-`config` the one you pass to `makeApplication`, the same on both sides. The
-examples in this README share one application, a post page, sketched
-[at the end](#the-application-in-these-examples). An application with Flags
-also passes `flags` to `SSR.render`; they shape the server's `init` and never
-reach the page.
-`SSR.page` puts the envelope in the template, not in Foldkit's rendered HTML,
-which `injectIntoTemplate` requires to hold only the root and its own payload.
+What each call does:
 
-The head is part of the view. Since Foldkit 0.163 nothing gives `canonical` a
-default from the URL, so a page that wants one derives it from the route in its
-Model, as it does its `title`, and sends the route in `state`. A head field
-read from a field the plan leaves out is refused like a body that is (see
-below).
+- **`SSR.plan`** is a declaration. It does no I/O and holds no state. It
+  throws only for a plan that could never work, such as two parts with one id.
+- **`SSR.render`** is an Effect. It runs `init` once, renders the view twice,
+  checks the plan, and returns the rendered application and the envelope
+  script. It fails with `ResumeUnsafe` when the browser could not start where
+  the server did; [the refusals](#when-a-page-is-refused) say why and how to
+  fix each.
+- **`SSR.page`** is pure: the template with the application and the envelope in
+  it.
+- **`SSR.hydrate`** reads the envelope, starts Foldkit's runtime from the
+  resumed Model, and runs the plan's `boot` Commands. `init` does not run. A
+  page with no server render at all starts on the client as usual.
 
-## Serve it through Foldkit's fetch handler
+An application with Flags passes `flags` to `SSR.render`. They shape the
+server's `init` and never reach the page.
 
-Foldkit's server entry is one function, `renderPage(request)`, which its
-`handleRequest` calls for every request that is not a static file, on Node and
-on Workers alike. `SSR.entry` is that function for a resume plan:
+### Commands `init` would have run: `boot`
 
-```ts
-import { handleRequest } from 'foldkit/experimental/server'
-
-// The server entry.
-export const { renderPage } = SSR.entry(config, Post, { buildId, template })
-
-// A Worker, or any host that hands you a Web Request.
-export default {
-  fetch: (request: Request) => handleRequest(request, { renderPage, template }),
-}
-```
-
-`GET` and `HEAD` render the page with the request's URL; an application with
-Flags passes `flags: request => ...`. `POST` is handled when the plan has a
-[server fallback](#a-form-that-works-without-scripts), and any other method
-is answered `405`. A render that fails or throws, `flags` that throw or
-reject, and a plan the render refuses are each answered `500` with the reason
-logged, never with a page the browser could not resume. `handleRequest` still
-answers a missed asset `404` without rendering, and `HEAD` without a body.
-
-The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
-`toResponse`: the `Rendered` result `handleRequest` would place in its
-template has no room for a per-request envelope.
-
-## Startup Commands: `boot`
-
-The browser does not run `init`, so the Commands `init` returns would run
-nowhere. `SSR.render` refuses a plan that would drop them, naming them. Name
-what the browser should run on load in `boot`:
+The browser does not run `init`, so the Commands it returns would run nowhere.
+`SSR.render` refuses a plan that would drop them, naming them. Say what the
+browser runs on load in `boot`:
 
 ```ts
 const Post = SSR.plan(App, {
@@ -148,110 +146,48 @@ Commands, which is where a `Mirror.kv` restores what the user saved:
 boot: model => assembly.init(model).commands ?? []
 ```
 
-## Check the plan against the browser's Surfaces
+### The head is part of the view
 
-The view is checked on every render, but a Surface can read a field the first
-view never shows: a like button's state, a menu's contents. Name the Surfaces
-the browser may activate, and the fields allowed to start from the baseline:
+`title`, `lang`, `dir`, `canonical` and `ogUrl` are checked like the body.
+Since Foldkit 0.163 nothing gives `canonical` a default from the URL, so a page
+that wants one derives it from the route in its Model, as it does its `title`,
+and sends the route in `state`.
 
-```ts
-const Post = SSR.plan(App, {
-  id: 'post',
-  state: Projection.pick(App.model.route, App.model.post.id, App.model.post.liked),
-  local: [App.model.menuOpen], // the browser starts it from the baseline, on purpose
-  surfaces: [
-    Surface.when(PostActions, App.model.route, AppRoute.Post, route => ({ id: route.id })),
-    Surface.at(Menu, undefined),
-  ],
-})
-```
+## Serving pages
 
-`SSR.render` then refuses the plan, naming the Surface and the field, when an
-active Surface:
+### Through Foldkit's fetch handler
 
-- reads a field that is neither in `state` nor in `local`;
-- is activated by one (the place a `Surface.when` reads);
-- reads data no Model path names, such as a Remote selection, reported by its
-  metadata (`remote data (User:u1)`), unless one of the plan's `parts` resumes
-  it (see below);
-- is activated differently, or reads something else, from the Model the browser
-  starts from. This catches a `Surface.at` whose callback reads an unsent field.
-
-A Surface's reads depend on the Model through its params, so the check runs
-for the Model the server rendered. `SSR.inspect(plan, model)` returns the same
-findings as data: what is sent, what is local, and for each Surface whether it
-is active, where each read comes from (`state`, `local` or `missing`), and
-whether the browser would activate it the same way.
-
-## Parts: state the slice cannot carry
-
-Some state is not a field to pick. Remote's normalized store is keyed by entity
-and holds whatever the server read, most of which the page never shows. A
-**part** is a package's own contribution to the envelope: it captures what the
-plan's active Surfaces read, and restores it in the browser.
+Foldkit's server entry is one function, `renderPage(request)`, which
+`handleRequest` calls for every request that is not a static file, on Node and
+on Workers alike. `SSR.entry` is that function for a plan:
 
 ```ts
-const Post = SSR.plan(App, {
-  id: 'post',
-  state: Projection.pick(App.model.route),
-  surfaces: [PostPageAt],
-  parts: [Remote.resume(Data)],
-})
+import { handleRequest } from 'foldkit/experimental/server'
+
+// The server entry.
+export const { renderPage } = SSR.entry(config, Post, { buildId, template })
+
+// A Worker, or any host that hands you a Web Request.
+export default {
+  fetch: (request: Request) => handleRequest(request, { renderPage, template }),
+}
 ```
 
-`Remote.resume` sends each field the Surfaces select, through relations, each
-connection with its boundaries, and the live cursors of what it sends, and
-nothing else of the store; the browser asks the server for none of it again.
-The coverage check counts a read as sent when a part covers it.
+`GET` and `HEAD` render the page for the request's URL; an application with
+Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
+[server fallback](#forms-that-work-without-scripts), and any other method is
+answered `405`. A render that fails or throws, `flags` that reject, and a plan
+the render refuses are answered `500` with the reason logged, never with a page
+the browser could not resume.
 
-Every part the plan names must be in the page and restore, and no other part
-may be, or the page is refused whole. The server resumes each part from its own
-capture before serving, so a part that cannot restore what it captured is
-refused there (`UnrestorablePart`), not in the browser. Two parts with one id
-are refused when the plan is made.
+The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
+`toResponse`. A `Rendered` result has no room for the envelope, which is why
+the entry takes the template itself, and why Foldkit's built-in `prerender`
+cannot generate these pages; `SSR.generate` below does.
+[foldkit#1448](https://github.com/foldkit/foldkit/issues/1448) asks Foldkit
+for that room.
 
-## Static regions: parts of the page the server owns
-
-An article body, a product description, highlighted code: a part of the page
-no Message changes need not be rendered in the browser at all, and what it
-reads need not be sent. Mark it with `SSR.static`:
-
-```ts
-const view = (model: Model, h: HtmlBuilder<Message>) => ({
-  title: 'Post', // not the post's title: the browser does not have it
-  body: h.main(
-    [],
-    [
-      SSR.static('post-copy', ih => [
-        ih.h1([], [model.post.title]),
-        ih.p([], [model.post.body]),
-      ]),
-      PostActionsView(model, h), // the part the browser owns
-    ],
-  ),
-})
-```
-
-The render receives Foldkit's inert builder, so it cannot attach a Message
-handler. On the server it runs once, although the server renders the view twice
-to check it. In the browser, `SSR.hydrate` reads each region's markup before
-hydrating, and the region becomes that markup as trusted `InnerHTML`, which
-Foldkit adopts node for node. The render never runs there, so the plan above
-sends neither `post.title` nor `post.body`, and the view check passes.
-
-A region changes only with a new document. Content a Message should change
-belongs in a Surface.
-
-- Two regions with one id are refused on the server
-  (`DuplicateStaticRegion`): the browser could adopt only one.
-- A region the browser asks for that is not in the page, say after a Message
-  shows one, is logged and rendered in the browser from the browser's Model.
-- With no server render, a region renders like any other part of the view.
-
-## Static generation
-
-The same render at build time, for paths you know, as files a static host
-serves:
+### At build time
 
 ```ts
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -272,25 +208,116 @@ for (const page of pages) {
 ```
 
 Each path becomes `index.html` in its own folder (`/about` is
-`about/index.html`), and a path ending in `.html` keeps its name. `origin` makes
-each path the full URL a routing application parses. An application with Flags
-passes `flags: path => ...`, and they stay out of the page as always. The
-pages come back in the order of `paths`, typed as a tuple of them, so
-`const [home, about] = pages` needs no check.
+`about/index.html`); a path ending in `.html` keeps its name. `origin` makes
+each path the full URL a routing application parses, and `flags: path => ...`
+gives each its own Flags. The pages come back in the order of `paths`, typed as
+a tuple, so `const [home, about] = pages` needs no check.
 
-A static host serves one file whatever the query, and for `/about` and
-`/about/` alike. So a generated page records its path alone, and the browser
-checks the path and ignores the query and a trailing slash: `/about?ref=mail`
-resumes the page generated for `/about`, and `/other` is refused. A path with a
-query or fragment, or two paths that would be one file, are refused with
-`UngeneratablePath`.
+A static host serves one file for every query, and for `/about` and `/about/`
+alike, so a generated page records its path alone: `/about?ref=mail` resumes
+the page generated for `/about`, and `/other` is refused. A server-rendered page
+records its path and query, and resumes only there.
 
-## Bindings: what each element causes
+## Checking what the browser will read
 
-A resumable page answers an interaction before its view has run. For that the
-page must say, in the server's markup, which Message each element causes. A
-Foldkit handler is already a Message value, so for most events that is data;
-`Resume.builder` writes it down:
+The view check sees what the first render shows. A Surface can read a field the
+first view never shows: a like button's state, a menu's contents. Name the
+Surfaces the browser may activate, and the fields that may start from the
+baseline on purpose:
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.post.id, App.model.post.liked),
+  local: [App.model.menuOpen], // starts from the baseline, on purpose
+  surfaces: [
+    Surface.when(PostActions, App.model.route, AppRoute.Post, route => ({ id: route.id })),
+    Surface.at(Menu, undefined),
+  ],
+})
+```
+
+`SSR.render` then refuses the plan, naming the Surface and the field, when an
+active Surface reads a field that is in neither `state` nor `local`, is
+activated by one, reads data no part of the plan resumes, or would activate
+differently from the Model the browser starts from. The check runs for the
+server's Model, because a Surface's reads follow its params.
+`SSR.inspect(plan, model)` returns the same findings as data, for a test or a
+debugging session: for each Surface, whether it is active, and where each read
+comes from, `state`, `local` or `missing`.
+
+## State the slice cannot carry
+
+### Parts: another package's state
+
+Some state is not a field to pick. Remote's normalized store holds whatever the
+server read, most of which the page never shows. A **part** is a package's own
+contribution to the envelope: it captures what the plan's active Surfaces read,
+and restores it in the browser.
+
+```ts
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route),
+  surfaces: [PostPageAt],
+  parts: [Remote.resume(Data)],
+})
+```
+
+`Remote.resume` sends each field the Surfaces select, through relations, each
+connection with its boundaries, and the live cursors of what it sends, and
+nothing else of the store. The browser requests none of it again, and the
+coverage check counts those reads as sent. Every part the plan names must be in
+the page and restore, or the page is refused whole. The server restores each
+part from its own capture before serving, so a part that could not is refused
+there (`UnrestorablePart`), not in a user's browser.
+
+### Static regions: parts of the page the server owns
+
+An article body, a product description, highlighted code: a part of the page no
+Message changes need not render in the browser at all, and what it reads need
+not be sent. Mark it with `SSR.static`:
+
+```ts
+const view = (model: Model, h: HtmlBuilder<Message>) => ({
+  title: 'Post', // not the post's title: the browser does not have it
+  body: h.main(
+    [],
+    [
+      SSR.static('post-copy', ih => [
+        ih.h1([], [model.post.title]),
+        ih.p([], [model.post.body]),
+      ]),
+      PostActionsView(model, h), // the part the browser owns
+    ],
+  ),
+})
+```
+
+The region renders once, on the server, with Foldkit's inert builder, so it
+cannot attach a handler. The browser adopts the server's markup as it is and
+never runs the render, so this plan sends neither `post.title` nor `post.body`
+and the view check still passes. A region changes only with a new document;
+content a Message should change belongs in a Surface. A region the browser
+needs that is not in the page, say after a Message shows one, is logged and
+rendered in the browser.
+
+## Resumable pages: answering before the runtime boots
+
+Everything above boots Foldkit's runtime as soon as the page loads. A resumable
+page waits: it answers clicks and typing from the server's markup, and boots
+only when it must, so the first interaction does not wait for the application's
+code to start.
+
+```text
+server   each handler ──▶ its Message, encoded ──▶ a marker on the element + an entry in the envelope
+
+browser  event ──▶ the markers name its Messages ──▶ queued ──▶ the runtime boots
+                                                             ──▶ the queue replays through update
+```
+
+It rests on the fact that a Foldkit handler is already a Message value.
+`Resume.builder(h)` is `h` that writes those values into the server's markup:
 
 ```ts
 const view = (model: Model, h: HtmlBuilder<Message>) => {
@@ -313,15 +340,15 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
 }
 ```
 
-`rh` is `h` with one addition: `OnInput`, `OnChange`, `OnKeyDown` and `OnKeyUp`
-also take a Message's own constructor, and the event fills the field it leaves
-open. The types check it where it is written: the member must be one of the
-view's Messages and leave exactly one string field, or exactly `key` and
-`modifiers`, after the fixed ones. A closure still works; it is simply not
-data, so nothing can name what it would do.
+`rh` differs from `h` in one place: `OnInput`, `OnChange`, `OnKeyDown` and
+`OnKeyUp` also take a Message's own constructor, and the event fills the field
+it leaves open. The types check it where it is written: the member must be one
+of the view's Messages, and leave exactly one string field, or exactly `key`
+and `modifiers`. A closure still works. It is not data, so the page cannot
+answer that event itself and boots on it instead, letting the live page answer.
 
-A Surface renderer takes the resumable builder through `Resume.view`, which
-goes wherever a renderer goes. Its `rh` makes only the Surface's own Messages:
+A Surface renderer gets the same builder through `Resume.view`, and its `rh`
+makes only that Surface's Messages:
 
 ```ts
 const LikeView = Surface.rootView(
@@ -331,149 +358,52 @@ const LikeView = Surface.rootView(
 )
 ```
 
-During the server's render each binding gets an ordinal, its element a
-`data-foldkit-plus-on-<event>` attribute naming it, and the envelope the
-Message encoded through the application's Message Schema, with the Foldkit
-attribute it came from (`OnSubmit` also prevents the default action, which the
-page must know to answer as the live page would). Foldkit runs every handler
-of an event on an element, in order, so the marker lists every ordinal of that
-event, `click="0 1"`; a handler the page cannot describe, a closure or an
-attribute such as `OnKeyDownPreventDefault`, is listed as `*`, so the page
-knows it cannot answer that event alone. In the browser the builder marks
-nothing, and Foldkit's first patch removes the server's markers. The plan must
-be made from the application, so it knows that Schema.
-
-The server compares the bindings of its two renders as it compares the body:
-a Message built from a field the plan does not send
-(`Liked({ id: model.post.id })` with `post.id` unsent) would be one Message before the
-view runs and another after, so it is refused, naming the element.
-
-A Surface's `messages` list is the allow list for what a page may dispatch
-before boot. On the server a binding whose Message no Surface active for the
-served Model lists is `Uncovered`, naming the element and the tag, and a page
-with bindings whose plan declares no `surfaces` is refused
-(`UndeclaredSurfaces`), since nothing says what it may dispatch. A handler
-inside an `SSR.static` region, which only a nested resumable builder can put
-there, is refused too (`BindingInStaticRegion`): a static region is the
-server's alone.
-
-In the browser, `Resume.bindings(plan, document, root, model)` decodes the
-page's bindings through the application's Message Schema, keeps them to what
-the Surfaces active for the resumed Model may send, and checks every marker
-against them; a page whose entries are not the application's Messages, or
-not ones an active Surface lists, or whose markers name a binding it does not
-carry, is refused whole. Then
-`Resume.listen(root, { bindings, onAnswer })` answers events from the markers
-with one capture-phase listener per event type at the root, so `focus` and
-`blur` are caught too. It walks from the target to the root and collects each
-binding's Message on the way, in the order Foldkit chains them, filling a hole
-from the event as the closure would, honouring `OnClick`'s `defaultAction`,
-`propagation` and `focusSelector`, and preventing a submit's default as
-`OnSubmit` does. Each event gets one answer, `{ event, messages, unnamed? }`;
-at a `*` the walk stops and the answer names that element as `unnamed`,
-because the live page does something there the page cannot describe. Both
-are what `SSR.hydrate` uses when the plan defers its boot.
-
-## Deferred boot: the page answers until the runtime is needed
-
-A plan says when the runtime starts:
+Then say when the runtime starts:
 
 ```ts
 const Post = SSR.plan(App, {
   id: 'post',
   state: Projection.pick(App.model.post),
-  start: 'on-interaction', // or 'idle'; 'now' is the default
+  surfaces: [PostActionsAt],
+  start: 'on-interaction', // or 'idle'; 'now', the default, boots on load
 })
 ```
 
-With `'now'`, `SSR.hydrate` boots as before. Otherwise it decodes the page's
-bindings, listens, and boots on the first event they answer, or when the
-browser is idle. Foldkit's hydrate adopts the page during that event's
-dispatch, so the event that woke the page is not lost: an answer the markers
-completed is queued and replayed after boot, in order, through the same
-`update`, and the event stops there so the live page does not answer it
-again; an answer they could not complete, one that met a `*`, queues nothing
-and goes on to the live page, which alone can answer it. Either way the Model
-ends where an eager boot would have taken it. A page whose bindings are
-refused is contained, as any refused page is.
+The event that boots the page is not lost and does not count twice. Messages
+answered before boot replay in order through the same `update`, so the Model
+ends where an eager boot would have taken it, and the input typed into is
+adopted, not rebuilt.
 
-What deferral cannot do is start a Subscription or a Managed Resource late
-without changing what the application does, so on the server `SSR.render`
-refuses a deferred plan while one of them would be active for the sent Model,
-naming each (`EagerStartRequired`). The plan declares by key the entries that
-may start late, and a part vouches for its own package's, as `Remote.resume`
-does for Remote's:
+### What a resumable page must declare
 
-```ts
-const Post = SSR.plan(App, {
-  id: 'post',
-  state: Projection.pick(App.model.post),
-  parts: [Remote.resume(Data)], // Remote's entries start whenever the page does
-  start: 'idle',
-  deferrable: ['tick'], // this application's own clock may start late
-})
-```
+- **Its Surfaces.** A Surface's `messages` list is what the page may dispatch
+  before boot. A binding whose Message no active Surface lists is refused on
+  the server, naming the element and the Message, and the browser refuses a
+  page that carries one.
+- **What may start late.** A Subscription or Managed Resource that starts at
+  boot starts later on a deferred page, which can change what the application
+  does. `SSR.render` refuses a deferred plan while one would be active,
+  naming each, until the plan declares it:
 
-For the check to see them, the configuration passed to `SSR.render` carries
-the application's `subscriptions` and `managedResources`, as Foldkit's does.
-The plan's `boot` Commands run at boot, so with deferral a `Mirror.kv` restore
-waits for the first interaction; that is the application's choice to make with
-`start`.
+  ```ts
+  const Post = SSR.plan(App, {
+    id: 'post',
+    state: Projection.pick(App.model.post),
+    parts: [Remote.resume(Data)], // Remote's entries may start late; its part says so
+    start: 'idle',
+    deferrable: ['tick'], // this application's own clock may start late
+  })
+  ```
 
-## A form that works without scripts
+  For the check to see them, pass the application's `subscriptions` and
+  `managedResources` in the config given to `SSR.render`, as you would to
+  Foldkit. `boot` Commands run at boot, so a deferred page's `Mirror.kv`
+  restore waits for the first interaction.
 
-A form whose `OnSubmit` names a Message can be answered by the server before
-any script runs, or with scripts blocked, because `update` is pure and the
-server can run it. The plan says so:
+### Bundles whose code loads on demand
 
-```ts
-const Todos = SSR.plan(App, {
-  id: 'todos',
-  state: Projection.pick(App.model.draft, App.model.todos),
-  surfaces: [Surface.at(TodoList, undefined)],
-  fallback: 'server',
-})
-```
-
-For such a plan the server writes each form with a named `OnSubmit` as
-`method="post"` to the page's own URL, with a hidden input carrying the
-Message encoded through the application's Message Schema:
-
-```ts
-rh.form(
-  [rh.OnSubmit(Message.Added({ title: model.draft }))],
-  [rh.input([rh.Name('title'), rh.Value(model.draft), rh.OnInput(Message.Typed)])],
-)
-```
-
-With scripts on, the page answers the submit as any other event and the form
-never posts. Without them the browser posts the Message and the named fields,
-and `SSR.entry` hands the `POST` to `SSR.handle`, which decodes the Message,
-letting a posted field of the same name as one of the Message's own override
-it, so the typed `title` reaches `update` as it would through the page. A
-form inside a placement posts the parent's wrapped Message, and a
-`foldkit-plus-depth` field says how many wrappers down its fields sit. The
-Message must be one the Surfaces active for the request's Model list. The
-server then rebuilds that Model as a render would, `init` and the plan's
-`boot`, runs `update` with the Message and every Command that follows, each
-under the config's `resources`, and answers with the page rendered from the
-result: Foldkit's loop, once, on the server.
-
-A post the server cannot use, one with no Message, one that is not JSON or
-does not decode, or one no active Surface lists, is answered `400` with the
-reason (`FallbackRefused`). A Command that fails is answered `500`, as a
-render that fails is; one that yields no Message, fired and forgotten, folds
-nothing in and the page is answered as usual. The browser's loop runs for the
-life of the page, so a Command that schedules itself again, a poll or a tick,
-is ordinary there; on the server a post that has not settled within 100
-Messages and Commands is answered `500`, naming the last Command run.
-`SSR.handle(request, config, plan, { buildId, flags? })` is also callable on
-its own, for an entry that is not `SSR.entry`.
-
-## Bundles whose bodies load on demand
-
-A `Bundle.lazy` keeps a bundle's `update` and `view` out of the boot chunk.
-Name each such bundle in the configuration's `lazy` list:
+A `Bundle.lazy` from `foldkit-bundle` keeps a bundle's `update` and `view` out
+of the boot chunk. Name each in the config's `lazy` list:
 
 ```ts
 const config = {
@@ -490,80 +420,128 @@ const config = {
 }
 ```
 
-The server loads the bodies before it renders, so the page carries the real
-view, never the bundle's `while`. The browser loads them before it boots: a
-page whose bodies are still on their way answers from its markers meanwhile,
-whatever the plan's `start`, and boots when they arrive, replaying what was
-answered; an event only the live page could answer is dispatched to it again
-then. Bodies fetched at boot rather than on the first Message inside the
-bundle is the trade the page makes for never rendering a placeholder.
+The server loads the code before it renders, so the page carries the real
+view. The browser loads it before it boots and answers from the markers
+meanwhile, whatever `start` says. A binding inside a placement dispatches the
+parent's Message, as Foldkit's own handlers do, so the plan's Surface lists the
+wrapper variant, `Message.GotUploadMessage`.
 
-A binding inside a placement dispatches the parent's Message, as Foldkit's
-own handlers do, so it is recorded lifted through the placement's wrapper and
-its hole is filled one wrapper down. The plan's Surface lists the wrapper
-variant, `Message.GotUploadMessage`, as it would for any placement. While the
-server renders, each placement's root carries `data-foldkit-plus-slot`,
-`Upload@upload`, a boundary a tool can find; the browser's first patch removes
-it as it removes the markers.
+## Forms that work without scripts
+
+A form whose `OnSubmit` names a Message can be answered by the server, before
+any script has run or with scripts blocked, because `update` is pure and the
+server can run it. The plan opts in:
+
+```ts
+const Todos = SSR.plan(App, {
+  id: 'todos',
+  state: Projection.pick(App.model.draft, App.model.todos),
+  surfaces: [Surface.at(TodoList, undefined)],
+  fallback: 'server',
+})
+```
+
+```ts
+rh.form(
+  [rh.OnSubmit(Message.Added({ title: model.draft }))],
+  [rh.input([rh.Name('title'), rh.Value(model.draft), rh.OnInput(Message.Typed)])],
+)
+```
+
+With scripts on, nothing changes: the page answers the submit and the form
+never posts. Without them, the server wrote the form to post the Message to the
+page's own URL, and `SSR.entry` hands that post to `SSR.handle`:
+
+```text
+POST ──▶ decode the Message ──▶ set the posted fields into it (the typed `title`)
+     ──▶ init + boot ──▶ update, and every Command after it ──▶ the page, rendered
+```
+
+The Message must be one the page's active Surfaces list. Commands run under the
+config's `resources` Layer, as Foldkit's runtime would provide them. A post the
+server cannot use is answered `400` with the reason (`FallbackRefused`); a
+Command that fails is answered `500`. The browser's loop runs for the life of
+the page, so a Command that reschedules itself, a poll or a tick, is ordinary
+there; on the server a post that has not settled within 100 Messages and
+Commands is answered `500`, naming the last Command. `SSR.handle(request,
+config, plan, { buildId, flags? })` can also be called from an entry of your
+own.
 
 ## When a page is refused
 
-On the server, `SSR.render` fails with `ResumeUnsafe`:
+A refusal never shows a user a half-working page. On the server it is an error
+before anything is served; in the browser the page is contained, as Foldkit
+contains a page from another build, and the reason is logged.
 
-- `UndeclaredStartup`: `init` returned Commands and the plan has no `boot`.
-- `Uncovered`: a Surface in `surfaces` reads or is activated by something the
-  plan neither sends nor names `local`, as above; or a binding dispatches a
-  Message no active Surface lists in `messages`.
-- `UndeclaredSurfaces`: the page has bindings and the plan has no `surfaces`.
-- `DuplicateStaticRegion`: two `SSR.static` regions share an id.
-- `BindingInStaticRegion`: a handler inside an `SSR.static` region.
-- `UngeneratablePath`: `SSR.generate` was given a path no file can be served at.
-- `UnrestorablePart`: a part cannot restore its own capture.
-- `UnencodableBinding`: the page has bindings and the plan has no Message
-  Schema, or a binding's Message does not encode through it.
-- `EagerStartRequired`: the plan defers its boot while a Subscription or an
-  active Managed Resource it does not declare deferrable would start late.
-- `ViewDependsOnUnsentState`: the view rendered from the browser's Model differs
-  from the one served, in its body or in its head (`title`, `lang`, `dir`,
-  `canonical`, `ogUrl`), so it reads a field the plan leaves out. The message
-  names which. Add the field to `state`, or stop the view reading it. In
-  production Foldkit would silently rebuild that part of the page, so this is
-  the one place it shows.
+On the server, `SSR.render` fails with `ResumeUnsafe`, whose `reason` is one
+of:
 
-In the browser, `SSR.hydrate` checks, in Foldkit's order, the page's build id
-and then its envelope. A page from another build is refused by Foldkit itself.
-A page whose envelope cannot resume is refused the same way, with the reason
-logged. A refused page is contained, never rendered again on the client. A page
-with no server render at all starts on the client as usual.
+| `reason`                   | What it means                                                                 | The fix                                                             |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ViewDependsOnUnsentState` | The view, or its head, renders differently from the browser's Model           | Add the field the message names to `state`, or stop the view reading it |
+| `UndeclaredStartup`        | `init` returned Commands and the plan has no `boot`                           | Name them in `boot`                                                  |
+| `Uncovered`                | An active Surface reads or is activated by an unsent field, or a binding sends a Message no active Surface lists | Send the field, name it `local`, or list the Message on the Surface |
+| `UnrestorablePart`         | A part cannot restore its own capture                                          | A bug in that part                                                   |
+| `DuplicateStaticRegion`    | Two `SSR.static` regions share an id                                          | Give each its own id                                                 |
+| `BindingInStaticRegion`    | A handler inside an `SSR.static` region                                        | Move the element out, into a Surface                                 |
+| `UndeclaredSurfaces`       | The page has bindings and the plan no `surfaces`                              | Name the Surfaces the page may activate                              |
+| `UnencodableBinding`       | The plan has no Message Schema, or a binding's Message does not encode through it | Make the plan from the application; build the Message with its constructor |
+| `EagerStartRequired`       | A deferred plan would start a Subscription or Managed Resource late           | Declare it in `deferrable`, or start `'now'`                         |
+| `UngeneratablePath`        | `SSR.generate` was given a path no file can be served at                      | Leave out the query and fragment; keep paths to distinct files      |
 
-The envelope's reasons, which `SSR.resume` returns as `ResumeRefused`:
-`Missing` or `Duplicate` envelope, `Unreadable` JSON, another `Protocol`
-version, another `Plan`, state, a part or the bindings that are `Invalid` (a
-part missing, unknown to the plan, or not restoring; a binding that is not a
-Message or not one an active Surface lists, or a marker naming none), and a
-`Route` other than the one the page was rendered for (path and query, or the path alone for a generated
-page). A page is never half-restored.
+In the browser, `SSR.hydrate` checks in Foldkit's order: the build id first,
+then the envelope. `SSR.resume` returns the envelope's refusal as
+`ResumeRefused`: `Missing` or `Duplicate` envelope, `Unreadable` JSON, another
+`Protocol` version or `Plan`, state, parts or bindings that are `Invalid`, or a
+`Route` other than the one the page was rendered for. A page is resumed whole or
+not at all.
 
-## The pieces underneath
+## Costs and limits
 
-`SSR.render` and `SSR.hydrate` are built from two smaller functions, usable on
-their own:
+- **`SSR.render` renders the view twice.** That is the view check. A static
+  region's render runs once.
+- **`SSR.hydrate` relies on how Foldkit hydrates today.** It gives Foldkit a
+  config whose `init` returns the resumed Model, and removes the `Flags` key,
+  which Foldkit would otherwise require a payload for. The tests pin both, and
+  fail the day Foldkit changes.
+  [foldkit#1449](https://github.com/foldkit/foldkit/issues/1449) asks whether
+  Foldkit would support this directly.
+- **A resumable page leans on three Foldkit behaviours,** each pinned by a test
+  here and two by Foldkit's own: the first patch removes attributes the
+  browser's view does not assert, a control's value is re-asserted to the
+  Model's, and `Runtime.hydrate` renders its first frame before it returns.
+- **Development is not production.** Under Vite's dev server, Foldkit's model
+  preservation restores the previous Model after a reload and skips adoption.
+- **A closure handler makes its event wait for boot,** with no warning yet
+  naming the element.
 
-```ts
-const script = SSR.envelope(Post, model, { route: '/posts/p1' })
-const resumed = SSR.resume(Post, document, { route: '/posts/p1' }) // Result
-```
+## Lower-level API
 
-The envelope escapes `<` as Foldkit escapes its Flags, so no string in the
-Model can close the script or open another. It also escapes U+2028 and U+2029.
+`SSR.render` and `SSR.hydrate` are built from pieces usable on their own:
+
+- **`SSR.envelope(plan, model, { route? })`** returns the envelope script for a
+  Model, and **`SSR.resume(plan, document, { route? })`** reads it back as a
+  `Result`. The envelope escapes `<` as Foldkit escapes its Flags, and U+2028
+  and U+2029, so no string in the Model can close the script.
+- **`SSR.inspect(plan, model)`**: the plan's coverage as data.
+- **`Resume.bindings(plan, document, root, model)`** decodes and checks a
+  page's bindings, and **`Resume.listen(root, { bindings, onAnswer })`**
+  answers events from the markers, one `{ event, messages, unnamed? }` per
+  event. `SSR.hydrate` uses both; they are there for a custom boot.
+- **Attribute names**, for tools and tests: `RESUME_ATTRIBUTE` (the envelope
+  script), `STATIC_ATTRIBUTE`, `BINDING_ATTRIBUTE` (a prefix, followed by the
+  event), `SLOT_ATTRIBUTE` (a placement's root while the server renders) and
+  `FALLBACK_FIELD` (the posted Message).
 
 ## The application in these examples
 
-A post page. The examples read these fields and send these Messages; `App`
-is `Surface.application({ Model, Message, initial, update })`, and the
-Surfaces (`PostActions`, `Menu`, `Like`), `Data` (a `Remote.make` domain over
-`App.model.remote`) and `LoadPreferences` (a `Command.define`) are the
-application's own.
+A post page. `App` is `Surface.application({ Model, Message, initial, update
+})`. The Surfaces (`PostActions`, `Menu`, `Like`), `Data` (a `Remote.make`
+domain over `App.model.remote`) and `LoadPreferences` (a `Command.define`) are
+the application's own. `PostActionsAt` and `PostPageAt` are Surfaces placed
+for a plan, as `Surface.when(PostActions, App.model.route, AppRoute.Post, route
+=> ({ id: route.id }))` places one in
+[the coverage example](#checking-what-the-browser-will-read).
 
 ```ts
 const AppRoute = defineRouteUnion({ Home: {}, Post: { id: Schema.String } })
@@ -597,103 +575,9 @@ const Message = defineMessageUnion({
 })
 ```
 
-## What the tests prove
+## See also
 
-- **Phase 0, the ground:** Foldkit's own rendering and hydration, one test file
-  per case, because a hydrated program cannot be stopped and a page holds one
-  application. The cases are a counter, a page from another build, Flags, a
-  routing application, a keyed list, a controlled input with trusted
-  `InnerHTML`, a custom element that renders its own contents, and head fields.
-  Every hydration test fails if the server's nodes are replaced instead of
-  adopted.
-- **Phase 1, the envelope:** the slice round-trips onto the baseline, nothing
-  outside it is in the page, each refusal has its test, and a hostile string in
-  the Model cannot break out of the script.
-- **Phase 2, the handover:** `init` runs once, on the server; the browser adopts
-  the server's nodes and the page works; a large field left out of the plan is
-  nowhere in the page; Flags never reach it; `boot` runs, including a
-  `Mirror.kv` restore; and each refusal above, on the server and in the
-  browser, has its test.
-- **Phase 3, coverage:** each kind of gap is reported, naming the Surface and
-  the field: an unsent read, an unsent activation, a Remote read, and a Surface
-  the browser would activate differently, including one whose Remote id comes
-  from an unsent field. A sent parent field covers its children; a local place
-  with no path covers nothing; an inactive Surface is not checked.
-- **Phase 4, static regions:** a region's render runs once on the server and
-  never in the browser, its nodes are the same after hydration and after a
-  Message, and what it reads is not in the envelope. A duplicate id is refused,
-  a region missing from the page is reported and rendered, a client-only render
-  works, and a render leaves no context behind.
-- **Phase 5, static generation:** each path is rendered to its file, with its
-  own Flags; a generated page resumes at its path with a query and a trailing
-  slash, and is refused at another path; and each path no file can be served
-  at is refused.
-- **Phase R, Remote's state:** a page with Remote data hydrates with the data
-  present and no request, and with the node the server rendered; a field no
-  Surface selects is not in the page; a part that is missing, unknown or does
-  not restore refuses the page; a covered Remote read passes the coverage
-  check. `foldkit-remote`'s own tests pin the capture: relations, connection
-  boundaries, stale marks, live cursors under the key the live entry uses,
-  and retention keeping what was resumed.
-- **Phase 6, delivery:** through Foldkit's real `handleRequest`, `GET` answers
-  the resumable page and the browser resumes it on its route without `init`;
-  `HEAD` answers with no body; `POST` is answered `405`; a missed asset renders
-  nothing; a refused plan is answered `500` with the reason logged; and each
-  request gets its own Flags, kept out of the page.
-- **Phase A, bindings:** each binding, keyed elements included, is marked with
-  its ordinal in render order and written into the envelope as its encoded
-  Message, decodable by the Message Schema; a closure is not marked; a binding
-  built from an unsent field is refused, naming the element; a plan without
-  the Schema is refused. In the browser the markers are gone after the first
-  patch, the nodes are kept, and a click, an input and a key press each
-  dispatch the Message their binding names. A member that leaves the wrong
-  fields fails to compile, and at runtime says why.
-- **Phase B, delegated dispatch:** with no runtime booted, a click, an input,
-  a change, a key press and a focus each dispatch the Message their binding
-  names, with holes filled from the event; two bindings on one element both
-  run and `Stop` keeps the click from the parent; a submit's default is
-  prevented; a handler the page could not name stops the walk and is
-  reported, so a parent is not answered alone; the listeners can be removed;
-  and a marker naming no binding, an entry that is not a Message, or an
-  entry for no event attribute each refuse the page.
-- **Phase C, deferred boot:** a page planned to start on interaction has no
-  runtime until the first event; what was typed before boot is in the Model
-  after it and the input it was typed into is adopted, not rebuilt; the click
-  that boots the page counts once, though the live page would have answered
-  it too; an event at a handler the page could not name boots it and is
-  answered by the live page alone, once, including an event no binding names;
-  after boot the live page answers, not the markers; `'idle'` boots without an
-  event. On the server a deferred plan is refused naming each Subscription,
-  and each Managed Resource the sent Model asks for, that would start late,
-  unless the plan declares it or Remote's part vouches for it.
-- **Phase D, what a page may dispatch:** a binding whose Message no active
-  Surface lists is refused naming the element and the tag, and one a listed
-  Surface would send is not; a Surface inactive for the served Model lists
-  nothing; a page with bindings and no `surfaces` is refused, on the server
-  and in the browser; the browser refuses an entry an active Surface does not
-  list even though it is one of the application's Messages; a handler inside
-  a static region is refused naming the region and the element, and one after
-  a region is not.
-- **Phase E, a form without scripts:** a form with a named `OnSubmit` is
-  written to post its Message to its own URL, and one with a closure, or under
-  a plan with no fallback, is not; a post through Foldkit's real
-  `handleRequest` runs the plan's `boot`, then `update` with the posted field
-  overriding the Message's, then the Command that follows under the config's
-  `resources`, and answers with the resumable page that results; a Message no
-  active Surface lists, a missing Message, one that is not JSON and one that
-  does not decode are each `400`; a Command that yields no Message folds
-  nothing in and the page is still answered, and one that reschedules itself
-  is stopped with `500` naming it; a form inside a placement has its posted
-  fields filled inside the wrapper; `POST` is `405` for a plan with no
-  fallback, and named among the allowed methods for one with.
-- **Review hardening:** a tampered bindings list (not a list, an entry that is
-  not a binding, a negative depth) and parts that are not an object are each
-  refused as `Invalid`, never thrown on.
-- **Phase F, bodies on demand:** the server waits for a lazy bundle's bodies
-  and renders the real view, once per bundle; the placement root is stamped
-  with its slot; a binding inside the placement is the parent's Message with
-  its hole one wrapper down, and one after it is the application's own; in the
-  browser a page starting now with bodies on their way does not boot, answers
-  a click, a press only the live page can answer and typing from its markers,
-  boots when the bodies arrive, and shows the click once, the press once and
-  the text; the stamp is gone after the first patch.
+- [The implementation plan](../../docs/design/ssr-PLAN.md): the decisions and
+  why, phase by phase.
+- [What the tests prove](./test/README.md).
+- [What this package asks of Foldkit](../../docs/upstream-foldkit-ssr.md).
