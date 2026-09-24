@@ -14,7 +14,9 @@ version changed; `pnpm` skips versions already in the registry.
   active Surfaces read, field by field through relations, each connection
   with its boundaries, and the live cursors of the entities captured; nothing
   else of the store. A `Snapshot` stays the tool for a cache that survives a
-  reload.
+  reload. The part also vouches for Remote's Subscription entries, which
+  `Data.subscriptions` and the fold's `subscriptions` mark as safe to start
+  late, so a page that resumes Remote's data may defer its boot.
 
 - **`Mirror.fold` and `Remote.fold`: a library's Messages under one variant
   of the application's union.** Spreading `Mirror.messages` or

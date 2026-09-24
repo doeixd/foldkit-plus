@@ -116,7 +116,7 @@ import {
   type ConnectionRequirement,
   type RelationRequirement,
 } from './requirement.js'
-import { resumePart } from './resume.js'
+import { markAll, resumePart } from './resume.js'
 
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
@@ -1390,10 +1390,12 @@ export const Remote = {
         >,
         options?: SubscriptionsOptions,
       ) =>
-        Subscription.lift(brandEntries(domain.subscriptions(active, options)))({
-          toChildModel: (model: AppModel) => model,
-          toParentMessage,
-        }) as never,
+        markAll(
+          Subscription.lift(brandEntries(domain.subscriptions(active, options)))({
+            toChildModel: (model: AppModel) => model,
+            toParentMessage,
+          }),
+        ) as never,
     })
   },
 
@@ -2027,6 +2029,7 @@ const bindDomain = <
             ),
           ),
       }
+      markAll(entries)
       // The loop above wrote exactly the keys the mapped type names.
       return entries as SubscriptionEntries<AppModel, typeof active>
     },

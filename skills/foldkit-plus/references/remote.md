@@ -246,8 +246,11 @@ case 'ClickedRefresh': {
 Server rendering with `foldkit-ssr` (in development): `Remote.resume(Data)` in
 `SSR.plan({ parts })` sends what the plan's active Surfaces read, field by
 field, with connection boundaries and live cursors, and nothing else of the
-store; the browser plans no request for it. Use it rather than a `Snapshot`,
-which is for a cache that survives a reload and keeps no cursors.
+store; the browser plans no request for it. The part also vouches for
+Remote's Subscription entries, so a plan with `start: 'idle' |
+'on-interaction'` may defer its boot without naming them in `deferrable`. Use
+it rather than a `Snapshot`, which is for a cache that survives a reload and
+keeps no cursors.
 
 Prefetch (SSR, route/hover, tests) and persistence:
 
