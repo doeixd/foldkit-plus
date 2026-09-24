@@ -234,6 +234,12 @@ Names come from the keys passed to `Slots.define`; they are never repeated insid
 
 Style is pure data. It never touches the DOM.
 
+Every piece takes `Declarations`: camelCase CSS properties (typed by
+[`csstype`](https://github.com/frenic/csstype)) and custom properties, each a
+string. A misspelled or kebab-case property in an object literal is a type
+error; the compiler writes the kebab-case name. Values are not checked, so
+`var(...)` and `light-dark(...)` pass through.
+
 | Primitive | Meaning |
 | --- | --- |
 | `Style.class(...)` | class tokens |
@@ -251,8 +257,8 @@ Style is pure data. It never touches the DOM.
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
 | `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
 | `Theme.tokens` / `Theme.oklch(knobs)` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, border and breakpoint scales; a whole palette derived from an accent and a few knobs; the breakpoints as pixel widths for `foldkit-primitives/media` |
-| `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece) and `in(name, piece)` (the piece's rules and global CSS inside that layer; a name outside the order is a type error). `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
-| `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated |
+| `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece) and `in(name, pieceOrNamedStyle)` (the unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a name outside the order is a type error; a bare piece wholly in another layer is `style:relayered`). `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
+| `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
 
 Rule-based Style compiles to one deterministic class (an FNV-1a hash of canonical rule text) plus
 CSS as data:
@@ -325,9 +331,14 @@ export const sheet = Style.stylesheet(
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
   L.in('theme', Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
-  PageStyle,
+  L.in('app', PageStyle),
 )
 ```
+
+Once the sheet declares an order, every rule in it must sit in one of its layers: an unlayered
+rule would beat all of them, `app` included, so `Style.stylesheet` refuses it with
+`style:unlayered-rule`. `L.in('app', PageStyle)` places a whole `NamedStyle`; a layout or recipe
+it composes keeps the layer it was already given.
 
 `omit` leaves out the tokens another theme already declared, so the scales go out once in
 `tokens` and the palette once in `theme`. Which theme is active is a Model fact: the view writes

@@ -107,7 +107,10 @@ attributes plus resolved contributions; the view owns `OnInput`, so a Behavior a
 Build outward: `Style.when`, `Style.whenInput(pred, piece)`, `Style.recipe({ base, variants,
 defaults, compound })`, rule-based `Style.self/pseudo/media/supports/container/nest/keyframes/global` (`self` is `&{…}`: the element's own declarations as a rule, so a layer can hold them; inline style is unlayered); `pseudo` and `nest` scope every selector of a comma list, and a selector that writes `&` places the class itself
 (compiled to a deterministic hashed class; read `FieldStyle.css` or
-`Style.stylesheet(...styles)`), `Theme.define`. For a slot rendered once per item (tabs, rows)
+`Style.stylesheet(...styles)`), `Theme.define`. Every piece's declarations are typed
+`Declarations` (csstype camelCase properties plus `--custom` ones, string values): a misspelled
+or kebab-case key in a literal is a type error; a value typed as a plain string record is not
+checked. For a slot rendered once per item (tabs, rows)
 pass the item as the second argument, `slots.row.attrs(base, { index, id, count })`; a Behavior
 reads it as `item` in `attributes` and as the second argument of `mount`, and it is `undefined`
 for a slot rendered once. Introspect with `Slots.describe(contract)`; combine with `Mixin.compose`.
@@ -281,7 +284,11 @@ component's own `aria-checked` / `aria-selected` / `aria-disabled`.
   `foldkit-mixins/layers`) is the order `reset, tokens, theme, defaults, components, layouts,
   variants, utilities, app`; `L.in(name, piece)` puts a piece's rules and global CSS in that layer
   (a misspelled name is a type error), `L.declare` is the `@layer …;` statement, and
-  `Style.stylesheet(L.declare, L.in('theme', …), PageStyle)` hoists it first. `Layers.define(names)`
+  `Style.stylesheet(L.declare, L.in('theme', …), L.in('app', PageStyle))` hoists it first.
+  Once a sheet declares an order, an unlayered rule throws `style:unlayered-rule` (it would beat
+  every layer, `app` included); keyframes, font faces and `@property` pass. `L.in` takes a piece
+  or a whole `NamedStyle` and places only what is unlayered: a composed layout or recipe keeps its
+  layer, and a bare piece wholly in another layer throws `style:relayered`. `Layers.define(names)`
   makes another order. There is no `Style.foundation`; the page composes its sheet.
 - Theme pieces (`foldkit-mixins/theme`): `Theme.root(theme, { omit?, colorScheme? })` is the
   tokens as `:root` custom properties and `Theme.scoped(theme, selector, overrides)` is overrides under a
