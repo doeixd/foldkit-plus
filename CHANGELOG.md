@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-bundle`: `Bundle.lazy`, a bundle whose `update` and `view` load
+  on demand.** The declaration (`Model`, `Message`, `args`, `init`,
+  `subscriptions`, `resources`, `helpers`) stays in the boot chunk; the bodies
+  are a `Bundle.Body` a chunk exports. A Message before the load returns a
+  Command that loads them and yields it again, so nothing is lost; `while`
+  renders meanwhile; `load()` preloads once. `Placed.view` and a collection's
+  views now take any builder with `submodel` and `OnClick` (`BuilderLike`), so
+  a wrapper of Foldkit's builder can be handed to them.
 - **`foldkit-surface`: an active Surface carries `messages`.** `Surface.at`
   and `Surface.when` now give the tags of the Messages the Surface lists, so a
   tool holding a plan's Surfaces knows what each may send; `foldkit-ssr` reads

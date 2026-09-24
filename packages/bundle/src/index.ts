@@ -19,6 +19,7 @@ export type {
   PlacedResources,
   PlacedView,
   ViewBuilder,
+  BuilderLike,
 } from './placed.js'
 export { isPlacedCollection } from './collection.js'
 export type {

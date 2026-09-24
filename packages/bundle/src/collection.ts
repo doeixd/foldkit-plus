@@ -10,7 +10,7 @@ import * as Subscription from 'foldkit/subscription'
 import * as Update from 'foldkit/update'
 import type { BundleSpec, Helper, ResourceEntries } from './bundle.js'
 import type { AnyMessage, CollectionLink } from './link.js'
-import { checkArgs, type ViewBuilder } from './placed.js'
+import { checkArgs, type BuilderLike, type ViewBuilder } from './placed.js'
 
 const PlacedCollectionTypeId: unique symbol = Symbol.for('foldkit-bundle/PlacedCollection')
 
@@ -40,8 +40,8 @@ export interface EachConfig<
 export type CollectionView<Parent, ParentMessage, ViewInputs, Key extends string = string> = [
   ViewInputs,
 ] extends [void]
-  ? <H extends HtmlBuilder<any>>(parent: Parent, h: ViewBuilder<H, ParentMessage>, key: Key) => Html
-  : <H extends HtmlBuilder<any>>(
+  ? <H extends BuilderLike>(parent: Parent, h: ViewBuilder<H, ParentMessage>, key: Key) => Html
+  : <H extends BuilderLike>(
       parent: Parent,
       h: ViewBuilder<H, ParentMessage>,
       key: Key,
@@ -96,7 +96,7 @@ export interface PlacedCollection<
   /** One item's view; nothing when the key is missing. */
   readonly view: CollectionView<Parent, ParentMessage, ViewInputs, Key>
   /** Every item's view, in the order of the Link's `entries`. */
-  readonly viewAll: <H extends HtmlBuilder<any>>(
+  readonly viewAll: <H extends BuilderLike>(
     parent: Parent,
     h: ViewBuilder<H, ParentMessage>,
     ...viewInputs: [ViewInputs] extends [void] ? [] : [viewInputs: ViewInputs]

@@ -138,6 +138,15 @@ need (`init` when a wiring restores, `url` when one reads the URL).
 - **Typed keys and order:** `Link.keyedWrapper(tag, Message, UploadId)` with
   `Page.link.collectionById('uploads', wrapper, { id: item => item.id })`, then
   `Upload.each(link, config)`: keys are `UploadId`, and order follows the array.
+- **Bodies on demand:** `Bundle.lazy({ name, Model, Message, init, while? },
+  () => import('./x.js').then(m => m.body))` keeps the declaration in the boot
+  chunk and loads `update` and `view` (a `Bundle.Body<Model, Message, Args,
+  OutMessage, R, ViewInputs>`) on the first Message, which is not lost: until
+  then `update` returns a `Load<Name>` Command that yields it again, and the
+  view renders `while` (give it the handlers that should trigger the load).
+  `bundle.load()` preloads once; `bundle.isLoaded()`. `subscriptions`,
+  `resources`, `helpers` stay in the declaration. A page's `lazy: [Upload]` in
+  `foldkit-ssr`'s config loads them before render and boot.
 - **Extending:** `Counter.pipe(Bundle.rename('Clicks'), Bundle.mapUpdate(update =>
   (model, message, args) => …), Bundle.withHelpers({ … }))`; also `mapInit`,
   `mapView`, `withSubscriptions`, and `withView(view)` to give a headless bundle

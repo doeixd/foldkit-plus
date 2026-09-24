@@ -443,6 +443,8 @@ export const ignore =
 export { assemble } from './assembly.js'
 export type { Assembly, WiredRecord } from './assembly.js'
 export { declare, declareEach } from './declare.js'
+export { lazy } from './lazy.js'
+export type { Body, Lazy, LazySpec, Loadable } from './lazy.js'
 export type { Declared, DeclaredEach, WrapperTag } from './declare.js'
 export { parent } from './parent.js'
 export type { Parent } from './parent.js'

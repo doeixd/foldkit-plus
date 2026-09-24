@@ -364,6 +364,52 @@ The component's view inputs pass through:
 `fromParts` accepts `subscriptions` and `helpers` too, but no Managed Resources.
 [`test/fromParts.test.ts`](test/fromParts.test.ts) runs this example.
 
+## Bodies that load on demand: `Bundle.lazy`
+
+A bundle's declaration is what the parent Schema and the boot need: `Model`,
+`Message`, `args`, `init`, and the `subscriptions`, `resources` and `helpers`
+Foldkit wires at boot. Its `update` and `view` can live in a chunk that loads
+on the first Message inside the bundle:
+
+```ts
+const Upload = Bundle.lazy(
+  {
+    name: 'Upload',
+    Model: UploadModel,
+    Message: UploadMessage,
+    init: () => ({ model: { name: '', percent: 0 } }),
+    // Shown until the bodies load. Its handlers are what ask for them.
+    while: Submodel.defineView<UploadModel, UploadMessage>((model, h) =>
+      h.li([h.OnClick(UploadMessage.Progressed({ percent: 0 }))], [model.name]),
+    ),
+  },
+  () => import('./upload.js').then(chunk => chunk.body),
+)
+```
+
+The chunk exports a `Bundle.Body`, the `update` and the `view`:
+
+```ts
+export const body: Bundle.Body<UploadModel, UploadMessage, void, never, never, void> = {
+  update: (model, message) => ({ model: { ...model, percent: message.percent } }),
+  view: Submodel.defineView<UploadModel, UploadMessage>((model, h) =>
+    h.li([], [`${model.name} ${model.percent}%`]),
+  ),
+}
+```
+
+Until the bodies load, a Message reaching `update` leaves the Model as it is
+and returns one Command, which loads them and yields the same Message again,
+so nothing is lost and the Model ends where an eager bundle's would; the view
+renders `while`, or nothing. `Upload.load()` loads them ahead of time, once,
+and `Upload.isLoaded()` says whether they have. Placed, extended or preset
+with `with`, the bundle stays lazy. `subscriptions`, `resources` and
+`helpers` stay in the declaration because Foldkit starts the first two at
+boot and a helper runs synchronously; none can wait for a chunk.
+[`test/lazy.test.ts`](test/lazy.test.ts) runs this on the Foldkit runtime.
+`foldkit-ssr` loads every lazy bundle in a page's `lazy` list before it
+renders or boots, so a server-rendered page never shows `while`.
+
 ## Extending a bundle
 
 Bundles are pipeable. Each combinator returns a new bundle and leaves the

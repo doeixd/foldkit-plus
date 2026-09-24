@@ -121,9 +121,16 @@ export interface Placed<
   readonly helpers: PlacedHelpers<Parent, ParentMessage, R, Helpers>
 }
 
+/**
+ * What a placement's view needs of a builder: `submodel`, and `OnClick` to
+ * read its Message from. A wrapper of Foldkit's builder that keeps both, such
+ * as `foldkit-ssr`'s resumable builder, is one.
+ */
+export type BuilderLike = Pick<HtmlBuilder<any>, 'submodel' | 'OnClick'>
+
 export type PlacedView<Parent, ParentMessage, ViewInputs> = [ViewInputs] extends [void]
-  ? <H extends HtmlBuilder<any>>(parent: Parent, h: ViewBuilder<H, ParentMessage>) => Html
-  : <H extends HtmlBuilder<any>>(
+  ? <H extends BuilderLike>(parent: Parent, h: ViewBuilder<H, ParentMessage>) => Html
+  : <H extends BuilderLike>(
       parent: Parent,
       h: ViewBuilder<H, ParentMessage>,
       viewInputs: ViewInputs,
@@ -134,7 +141,9 @@ export interface Invalid<Message extends string> {
   readonly invalid: Message
 }
 
-type BuilderMessage<H> = H extends HtmlBuilder<infer M> ? M : never
+type BuilderMessage<H> = H extends { readonly OnClick: (message: infer M, ...rest: any) => any }
+  ? M
+  : never
 
 /**
  * The parent's `h`, checked to accept this placement's Messages. Generic over the
