@@ -51,7 +51,7 @@ export {
   sameMarkSet,
   resolveInsertion,
 } from './marks.js'
-export { type Command, type CommandIds, type RunOptions, run } from './command.js'
+export { type Command, type CommandIds, type RunOptions, marksInRange, run } from './command.js'
 export {
   History,
   type CommitOptions,

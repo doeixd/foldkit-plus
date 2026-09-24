@@ -16,7 +16,9 @@ InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNod
 text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion and
 prop schemas, unknown node preservation, bounded decode limits, Kits with
-vocabulary validation, a command layer resolving intent into transactions, local
+vocabulary validation, a command layer resolving intent into transactions, a read
+for the marks a selection carries (`marksInRange`, for a toolbar's active button),
+local
 undo history with explicit grouping, clipboard slices with a strict codec, HTML
 export, and inspection. Unknown marks load verbatim and round-trip;
 `findUnknownMarks` lists them per run for a publishing gate. The operation

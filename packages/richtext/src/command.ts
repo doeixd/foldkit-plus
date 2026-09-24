@@ -3,6 +3,7 @@ import {
   blockAtPath,
   compareRunPlaces,
   eachBlock,
+  locateBlock,
   locateRun,
   pathKey,
   type Block,
@@ -155,6 +156,51 @@ const covered = (document: Document, start: Position, end: Position): ReadonlyAr
     }
   })
   return spans
+}
+
+/** Marks every run in the list carries; empty when there are no runs. */
+const sharedMarks = (runs: ReadonlyArray<ReadonlyArray<RunMark>>): ReadonlySet<string> => {
+  let common: Set<string> | undefined
+  for (const marks of runs) {
+    const names = new Set(marks.map(markName))
+    if (common === undefined) {
+      common = names
+      continue
+    }
+    for (const name of common) if (!names.has(name)) common.delete(name)
+  }
+  return common ?? new Set()
+}
+
+/**
+ * The marks every run the selection covers carries: the ones a toggle would
+ * remove, which is what an "active" toolbar button means. A caret reports its
+ * run's marks — an empty run can carry them, which is how a caret holds a format
+ * — and a range is not bold when it straddles a bold run and a plain one. A node
+ * selection reports what its whole subtree agrees on. A read, not a command:
+ * nothing here changes anything.
+ */
+export const marksInRange = (
+  document: Document,
+  selection: Selection | null,
+): ReadonlySet<string> => {
+  if (selection === null) return new Set()
+  if (selection.type === 'Node') {
+    const found = locateBlock(document, selection.node)
+    if (found === undefined) return new Set()
+    const runs: Array<ReadonlyArray<RunMark>> = []
+    eachBlock([found.block], each => {
+      for (const run of each.children) runs.push(run.marks)
+    })
+    return sharedMarks(runs)
+  }
+  const bounds = ordered(document, selection)
+  if (bounds === undefined) return new Set()
+  if (isCollapsed(selection)) {
+    const caret = locate(document, selection.anchor.node)
+    return caret === undefined ? new Set() : sharedMarks([caret.marks])
+  }
+  return sharedMarks(covered(document, bounds.start, bounds.end).map(span => span.run.marks))
 }
 
 /** The last run in a block's subtree, or undefined when it holds none. */

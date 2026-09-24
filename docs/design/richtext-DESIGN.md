@@ -5100,8 +5100,10 @@ real block vocabulary, so it comes last.
    bindings, checked before the built-in chords; the tests cover matching, an
    override winning, exact modifiers, the key as the browser reports it, and
    fall-through to the built-ins.
-2. `marksInRange` in `foldkit-richtext`, with tests over a caret, a range inside
-   one run, a range across runs, and an empty run.
+2. **Complete.** `marksInRange(document, selection)` in `foldkit-richtext` reports
+   the marks every run the selection covers carries — a caret reports its run's
+   marks, an empty run can carry them, and a node selection reports what its
+   subtree agrees on. That is what a toolbar's active button reads.
 3. The editor's keymap layer in `events`, when a binding needs a Message no browser
    event produces.
 4. The toolbar as Mixins slots, in the `foldkit-mixins-richtext` package.

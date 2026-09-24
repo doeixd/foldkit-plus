@@ -58,6 +58,105 @@ const success = (result: RichText.TransactionResult) => {
   return result
 }
 
+describe('the marks a selection carries', () => {
+  const emptyRuns = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: '', marks: [] },
+            { type: 'Text', id: 'b', text: '', marks: ['Italic'] },
+          ],
+        },
+      ],
+    })
+  const bothBold = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: 'ab', marks: ['Bold'] },
+            { type: 'Text', id: 'b', text: 'cd', marks: ['Bold'] },
+          ],
+        },
+        {
+          type: 'Paragraph',
+          id: 'q',
+          children: [{ type: 'Text', id: 'c', text: 'ef', marks: [] }],
+        },
+      ],
+    })
+  const list = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li1',
+              children: [{ type: 'Text', id: 'x', text: 'ax', marks: ['Bold'] }],
+            },
+            {
+              type: 'Paragraph',
+              id: 'li2',
+              children: [{ type: 'Text', id: 'y', text: 'by', marks: ['Bold'] }],
+            },
+          ],
+        },
+      ],
+    })
+
+  it('reports nothing without a selection, or one that does not resolve', () => {
+    expect(RichText.marksInRange(document(), null)).toEqual(new Set())
+    expect(RichText.marksInRange(document(), caret('missing', 0))).toEqual(new Set())
+    expect(RichText.marksInRange(document(), range(['missing', 0], ['b', 1]))).toEqual(new Set())
+    expect(RichText.marksInRange(document(), { type: 'Node', node: id('missing') })).toEqual(
+      new Set(),
+    )
+  })
+
+  it('reports the caret run marks', () => {
+    expect(RichText.marksInRange(document(), caret('a', 1))).toEqual(new Set())
+    expect(RichText.marksInRange(document(), caret('b', 1))).toEqual(new Set(['Bold']))
+  })
+
+  it('reports what a range agrees on', () => {
+    expect(RichText.marksInRange(document(), range(['b', 0], ['b', 1]))).toEqual(new Set(['Bold']))
+    // A marked run and a plain one agree on nothing.
+    expect(RichText.marksInRange(document(), range(['a', 0], ['b', 2]))).toEqual(new Set())
+    expect(RichText.marksInRange(document(), range(['b', 1], ['c', 1]))).toEqual(new Set())
+    // A range across a boundary covers no text at all, so nothing is shared.
+    expect(RichText.marksInRange(document(), range(['a', 2], ['b', 0]))).toEqual(new Set())
+  })
+
+  it('reports an empty run marks, which is how a caret holds a format', () => {
+    expect(RichText.marksInRange(emptyRuns(), caret('a', 0))).toEqual(new Set())
+    expect(RichText.marksInRange(emptyRuns(), caret('b', 0))).toEqual(new Set(['Italic']))
+  })
+
+  it('reports what a node selection agrees on, at any depth', () => {
+    expect(RichText.marksInRange(bothBold(), { type: 'Node', node: id('p') })).toEqual(
+      new Set(['Bold']),
+    )
+    expect(RichText.marksInRange(bothBold(), { type: 'Node', node: id('q') })).toEqual(new Set())
+    expect(RichText.marksInRange(list(), { type: 'Node', node: id('list') })).toEqual(
+      new Set(['Bold']),
+    )
+  })
+})
+
 describe('insert text commands', () => {
   it('types at a caret and leaves it after the inserted text', () => {
     const result = success(run(state(caret('a', 1)), { type: 'InsertText', text: 'XY' }))

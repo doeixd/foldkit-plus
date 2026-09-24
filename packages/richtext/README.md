@@ -121,6 +121,12 @@ the caret's format belongs to the caller, and the command layer reads no hidden
 cursor state. A collapsed `ToggleMark` is likewise a no-op — the application
 decides what the caret carries and passes it back on the next `InsertText`.
 
+`marksInRange(document, selection)` is the read beside them, for a toolbar's active
+button: the marks every run the selection covers carries. A caret reports its run's
+marks — an empty run can carry them, which is how a caret holds a format — a range
+that straddles a marked run and a plain one reports neither, and a node selection
+reports what its whole subtree agrees on.
+
 ## Mark definitions
 
 A mark is a definition, not a bare name. It says where typing continues it
