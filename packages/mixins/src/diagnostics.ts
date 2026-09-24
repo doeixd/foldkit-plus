@@ -22,6 +22,7 @@ export type DiagnosticCode =
   | 'mixins:ragged-grid-areas'
   | 'style:duplicate-layer'
   | 'style:conflicting-layer-order'
+  | 'theme:unparseable-breakpoint'
   | 'a11y:missing-slot'
   | 'a11y:hidden-slot'
   | 'a11y:capability-mismatch'
@@ -29,7 +30,7 @@ export type DiagnosticCode =
   | 'a11y:missing-attribute'
 
 export interface Diagnostic {
-  readonly source: 'mixins' | 'a11y' | 'style'
+  readonly source: 'mixins' | 'a11y' | 'style' | 'theme'
   readonly code: DiagnosticCode
   readonly severity: 'error'
   readonly message: string

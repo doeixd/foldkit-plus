@@ -3,7 +3,7 @@
  * belongs in the Foldkit Model; `variables` compiles the tokens to CSS custom
  * properties so switching a class or a root style is cheap and SSR-safe.
  */
-import { inline, type StyleValue } from './styleValue.js'
+import { inline, type StyleValue } from '../styleValue.js'
 
 export type ThemeTokens = {
   readonly [group: string]: { readonly [name: string]: string }
@@ -11,7 +11,7 @@ export type ThemeTokens = {
 
 export type Theme<T extends ThemeTokens = ThemeTokens> = T
 
-const VAR_PREFIX = '--fk'
+export const VAR_PREFIX = '--fk'
 
 export const define = <T extends ThemeTokens>(tokens: T): Readonly<T> =>
   Object.freeze(

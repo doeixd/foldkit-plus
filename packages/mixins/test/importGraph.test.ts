@@ -14,6 +14,10 @@ const kernelAndSubpaths = [
   'styleValue.ts',
   'styleRules.ts',
   'theme.ts',
+  'theme/core.ts',
+  'theme/root.ts',
+  'theme/tokens.ts',
+  'theme/oklch.ts',
   'layers.ts',
   'layout.ts',
   'defaults.ts',
@@ -32,7 +36,7 @@ const slotSide = [
 ]
 
 const importsOf = (file: string): ReadonlyArray<string> =>
-  [...readFileSync(join(src, file), 'utf8').matchAll(/from '\.\/([^']+)'/g)].map(
+  [...readFileSync(join(src, file), 'utf8').matchAll(/from '(?:\.\.?\/)+([^']+)'/g)].map(
     match => match[1] ?? '',
   )
 
