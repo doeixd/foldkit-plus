@@ -55,6 +55,10 @@ const contrast = (color: string) =>
 const tint = (color: string, percent: number) =>
   `color-mix(in oklch, ${v('surface', 'base')} ${percent}%, ${color})`
 
+/** The default text color at `percent` over the base surface. */
+const line = (percent: number) =>
+  `color-mix(in oklch, ${v('text', 'default')} ${percent}%, ${v('surface', 'base')})`
+
 const neutral = v('hue', 'neutral')
 const base = v('surface', 'base')
 const surfaceC = v('knob', 'surface-c')
@@ -150,10 +154,12 @@ export const oklch = (knobs: OklchKnobs) => {
       link: shift(accent, 0.1, 0.05),
       'link-hover': shift(v('text', 'link'), -0.1, 0),
     },
+    // Text mixed into the base: darker than the surface in a light scheme,
+    // lighter in a dark one, so a line separates in both from one expression.
     outline: {
-      subtle: from(base, 'calc(l - 0.05)', `calc(c + ${surfaceC})`),
-      default: from(base, 'calc(l - 0.06)', `calc(c + ${surfaceC} * 1.5)`),
-      overt: from(base, 'calc(l - 0.07)', `calc(c + ${surfaceC} * 2)`),
+      subtle: line(10),
+      default: line(18),
+      overt: line(35),
       focus: shift(accent, -0.1, 0.1),
     },
     accent: family(

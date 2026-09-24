@@ -383,7 +383,7 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
         height: '1.5rem',
         display: 'grid',
         placeItems: 'center',
-        border: `1px solid color-mix(in oklch, ${v('text', 'muted')} 45%, transparent)`,
+        border: `1px solid ${v('outline', 'overt')}`,
         borderRadius: '50%',
         background: 'transparent',
         color: v('accent', 'default'),
