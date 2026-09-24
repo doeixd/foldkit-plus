@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   Attributes,
   Capability,
+  Layers,
   Slot,
   SlotView,
   Slots,
@@ -24,6 +25,16 @@ describe('Style rule compiler', () => {
     const generated = classValue(builders.root.attrs())
     expect(generated).toMatch(/^style-[a-z0-9]+$/)
     expect(Hover.css).toBe(`.${generated}:hover{color:red}`)
+  })
+
+  it('self is a rule on the generated class itself, which a layer can hold', () => {
+    const Own = Style.forSlots(RuleSlots)({
+      root: Layers.standard.in('components', Style.self({ display: 'grid' })),
+    })
+    const builders = SlotView.buildersFor(RuleSlots, [Own.mixin], { input: undefined, h })
+    const generated = classValue(builders.root.attrs())
+    expect(Own.css).toBe(`@layer components{.${generated}{display:grid}}`)
+    expect(Attributes.find(builders.root.attrs(), 'Style')).toBeUndefined()
   })
 
   it('is declaration-order independent and content sensitive', () => {

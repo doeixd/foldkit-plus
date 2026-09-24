@@ -17,12 +17,6 @@ export const token = <Group extends keyof Design & string>(
 
 type Declarations = Readonly<Record<string, string>>
 
-/**
- * Declarations on the slot's own element, as a rule rather than inline, so
- * a layer can hold them and an application's stylesheet can override them.
- */
-export const self = (declarations: Declarations): StyleValue => Style.pseudo('', declarations)
-
 /** The base of a recipe, in the `components` layer. */
 export const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
   Layers.standard.in('components', Style.compose(...pieces))
@@ -67,7 +61,7 @@ interface Tone {
 
 const tone = (value: Tone): StyleValue =>
   variant(
-    self({
+    Style.self({
       '--_fk-tone-fill': value.fill,
       '--_fk-tone-fill-hover': value.fillHover,
       '--_fk-tone-on-fill': value.onFill,

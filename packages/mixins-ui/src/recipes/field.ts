@@ -5,10 +5,10 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { InputSlots } from '../input.js'
 import { TextareaSlots } from '../textarea.js'
-import { component, disabled, focusRing, self, token, transition, variant } from './design.js'
+import { component, disabled, focusRing, token, transition, variant } from './design.js'
 
 const control = component(
-  self({
+  Style.self({
     display: 'block',
     inlineSize: '100%',
     border: `${token('border', 'thin')} solid ${token('outline', 'default')}`,
@@ -27,7 +27,7 @@ const control = component(
 )
 
 const label = component(
-  self({
+  Style.self({
     display: 'block',
     marginBlockEnd: token('space', '2xs'),
     color: token('text', 'overt'),
@@ -37,7 +37,7 @@ const label = component(
 )
 
 const description = component(
-  self({
+  Style.self({
     marginBlockStart: token('space', '2xs'),
     color: token('text', 'muted'),
     fontSize: token('size', 'sm'),
@@ -45,7 +45,7 @@ const description = component(
 )
 
 const size = (block: string, inline: string, font: string) =>
-  variant(self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
+  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
 
 const sizes = {
   sm: size(token('space', '2xs'), token('space', 'xs'), token('size', 'sm')),
@@ -54,9 +54,9 @@ const sizes = {
 } as const
 
 const filled: StyleValue = variant(
-  self({ background: token('surface', 'subtle'), borderColor: 'transparent' }),
+  Style.self({ background: token('surface', 'subtle'), borderColor: 'transparent' }),
 )
-const outlined: StyleValue = variant(self({ background: token('surface', 'base') }))
+const outlined: StyleValue = variant(Style.self({ background: token('surface', 'base') }))
 
 export const Input = Style.recipeFor(InputSlots)({
   base: { input: control, label, description },
@@ -69,7 +69,7 @@ export const Input = Style.recipeFor(InputSlots)({
 
 export const Textarea = Style.recipeFor(TextareaSlots)({
   base: {
-    textarea: Style.compose(control, component(self({ resize: 'vertical' }))),
+    textarea: Style.compose(control, component(Style.self({ resize: 'vertical' }))),
     label,
     description,
   },

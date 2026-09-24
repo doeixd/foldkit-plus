@@ -4,14 +4,14 @@
  */
 import { Style } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
-import { component, focusRing, self, token, variant, hover } from './design.js'
+import { component, focusRing, token, variant, hover } from './design.js'
 
-const width = (max: string) => variant(self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
+const width = (max: string) => variant(Style.self({ maxInlineSize: `min(${max}, 100% - 2rem)` }))
 
 export const Dialog = Style.recipeFor(DialogSlots)({
   base: {
     dialog: component(
-      self({
+      Style.self({
         padding: '0',
         border: '0',
         background: 'transparent',
@@ -22,14 +22,14 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       Style.pseudo('::backdrop', { background: 'transparent' }),
     ),
     backdrop: component(
-      self({
+      Style.self({
         position: 'fixed',
         inset: '0',
         background: `color-mix(in oklch, ${token('surface', 'bedrock')} 45%, transparent)`,
       }),
     ),
     panel: component(
-      self({
+      Style.self({
         position: 'relative',
         display: 'grid',
         gap: token('space', 'sm'),
@@ -43,7 +43,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
       }),
     ),
     title: component(
-      self({
+      Style.self({
         margin: '0',
         color: token('text', 'overt'),
         fontFamily: token('font', 'heading'),
@@ -52,9 +52,9 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         lineHeight: token('leading', 'tight'),
       }),
     ),
-    description: component(self({ margin: '0', color: token('text', 'muted') })),
+    description: component(Style.self({ margin: '0', color: token('text', 'muted') })),
     closeButton: component(
-      self({
+      Style.self({
         position: 'absolute',
         insetBlockStart: token('space', 'sm'),
         insetInlineEnd: token('space', 'sm'),

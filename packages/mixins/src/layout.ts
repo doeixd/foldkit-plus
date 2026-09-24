@@ -19,19 +19,12 @@ import {
   media,
   nest,
   pseudo,
+  self,
   vars,
   type StyleValue,
 } from './styleValue.js'
 
 type Declarations = Readonly<Record<string, string>>
-
-/** Declarations on the element itself, as a rule (so they can be layered). */
-const self = (declarations: Declarations): StyleValue =>
-  Object.freeze({
-    classes: empty.classes,
-    style: empty.style,
-    rules: Object.freeze([Rules.rule('&', declarations)]),
-  })
 
 /** The generated class of a rule-only piece, for another piece's selector. */
 const classOf = (piece: StyleValue): string => Rules.className(piece.rules ?? [])

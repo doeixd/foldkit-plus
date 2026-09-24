@@ -5,27 +5,18 @@
  */
 import { Style } from 'foldkit-mixins'
 import { TabsSlots } from '../tabs.js'
-import {
-  component,
-  disabled,
-  focusRing,
-  self,
-  token,
-  transition,
-  variant,
-  hover,
-} from './design.js'
+import { component, disabled, focusRing, token, transition, variant, hover } from './design.js'
 
 const selected = '[aria-selected="true"]'
 
 const size = (block: string, inline: string, font: string) =>
-  variant(self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
+  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
 
 export const Tabs = Style.recipeFor(TabsSlots)({
   base: {
-    tablist: component(self({ display: 'flex', gap: token('space', '2xs') })),
+    tablist: component(Style.self({ display: 'flex', gap: token('space', '2xs') })),
     tab: component(
-      self({
+      Style.self({
         border: '0',
         background: 'transparent',
         color: token('text', 'muted'),
@@ -39,13 +30,13 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       focusRing,
       disabled,
     ),
-    panel: component(self({ paddingBlock: token('space', 'md') })),
+    panel: component(Style.self({ paddingBlock: token('space', 'md') })),
   },
   variants: {
     variant: {
       line: {
         tablist: variant(
-          self({
+          Style.self({
             boxShadow: `inset 0 calc(-1 * ${token('border', 'thin')}) 0 ${token('outline', 'default')}`,
           }),
         ),
@@ -57,7 +48,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
       },
       pill: {
         tablist: variant(
-          self({
+          Style.self({
             inlineSize: 'fit-content',
             padding: token('space', '3xs'),
             borderRadius: token('radius', 'lg'),
@@ -65,7 +56,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
           }),
         ),
         tab: variant(
-          self({ borderRadius: token('radius', 'md') }),
+          Style.self({ borderRadius: token('radius', 'md') }),
           Style.pseudo(selected, { background: token('surface', 'base') }),
         ),
       },

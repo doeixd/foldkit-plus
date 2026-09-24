@@ -9,7 +9,6 @@ import {
   component,
   disabled,
   focusRing,
-  self,
   token,
   tones,
   toneVar,
@@ -19,12 +18,12 @@ import {
 } from './design.js'
 
 const size = (block: string, inline: string, font: string) =>
-  variant(self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
+  variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
 
 export const Button = Style.recipeFor(ButtonSlots)({
   base: {
     button: component(
-      self({
+      Style.self({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -50,19 +49,23 @@ export const Button = Style.recipeFor(ButtonSlots)({
     variant: {
       solid: {
         button: variant(
-          self({ background: toneVar('fill'), color: toneVar('on-fill') }),
+          Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
           hover({ background: toneVar('fill-hover') }),
         ),
       },
       outline: {
         button: variant(
-          self({ background: 'transparent', color: toneVar('ink'), borderColor: toneVar('fill') }),
+          Style.self({
+            background: 'transparent',
+            color: toneVar('ink'),
+            borderColor: toneVar('fill'),
+          }),
           hover({ background: toneVar('wash') }),
         ),
       },
       ghost: {
         button: variant(
-          self({ background: 'transparent', color: toneVar('ink') }),
+          Style.self({ background: 'transparent', color: toneVar('ink') }),
           hover({ background: toneVar('wash') }),
         ),
       },
@@ -87,7 +90,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
     {
       // A small ghost button sits in dense toolbars: trim it to its label.
       when: { variant: 'ghost', size: 'sm' },
-      style: { button: variant(self({ paddingInline: token('space', '2xs') })) },
+      style: { button: variant(Style.self({ paddingInline: token('space', '2xs') })) },
     },
   ],
 })

@@ -245,7 +245,7 @@ Style is pure data. It never touches the DOM.
 | `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` and a `calc` delay |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
-| `Style.pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance |
+| `Style.self` / `pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance; `self` is a rule on the element's own class (`&{…}`), for declarations a layer must hold |
 | `Style.keyframes` / `global` | class-independent CSS |
 | `Theme.define` / `variable` / `variables` | typed tokens and CSS custom properties |
 | `Theme.lightDark(light, dark)` / `Theme.compose(base, over)` | a token that follows the color scheme with CSS `light-dark()`; themes merged at definition time |
@@ -275,7 +275,7 @@ inside `Style.whenInput` compiles to its class like any other; the class is stat
 presence follows the input, and its CSS is in `Style.stylesheet` whether or not the condition
 ever holds.
 
-Beyond `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
+Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
 
 - `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that
   write `data-state`; `whenInput` when the view knows, `states` when the DOM does;

@@ -11,7 +11,6 @@ import {
   component,
   disabled,
   focusRing,
-  self,
   token,
   tones,
   toneVar,
@@ -22,15 +21,15 @@ import {
 const checked = '[aria-checked="true"]'
 
 const label = component(
-  self({ color: token('text', 'default'), fontSize: token('size', 'md'), cursor: 'pointer' }),
+  Style.self({ color: token('text', 'default'), fontSize: token('size', 'md'), cursor: 'pointer' }),
 )
 
 const description = component(
-  self({ color: token('text', 'muted'), fontSize: token('size', 'sm') }),
+  Style.self({ color: token('text', 'muted'), fontSize: token('size', 'sm') }),
 )
 
 /** The control's edge length; the check mark and the thumb scale from it. */
-const box = (length: string) => variant(self({ '--_fk-toggle-size': length }))
+const box = (length: string) => variant(Style.self({ '--_fk-toggle-size': length }))
 
 const sizes = {
   sm: box('0.875rem'),
@@ -43,7 +42,7 @@ const edge = 'var(--_fk-toggle-size)'
 export const Checkbox = Style.recipeFor(CheckboxSlots)({
   base: {
     checkbox: component(
-      self({
+      Style.self({
         position: 'relative',
         display: 'inline-block',
         flexShrink: '0',
@@ -97,7 +96,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
 export const Switch = Style.recipeFor(SwitchSlots)({
   base: {
     button: component(
-      self({
+      Style.self({
         position: 'relative',
         display: 'inline-block',
         flexShrink: '0',

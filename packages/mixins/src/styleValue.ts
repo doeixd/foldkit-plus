@@ -69,6 +69,18 @@ export const pseudo = (
     rules: Object.freeze([Rules.pseudo(suffix, declarations)]),
   })
 
+/**
+ * Declarations on the element itself, as a rule on its generated class
+ * (`&{…}`) rather than inline, so `Layers.in` can place them in a layer and a
+ * later layer can override them. Inline declarations sit outside every layer.
+ */
+export const self = (declarations: Readonly<Record<string, string>>): StyleValue =>
+  Object.freeze({
+    classes: empty.classes,
+    style: empty.style,
+    rules: Object.freeze([Rules.rule('&', declarations)]),
+  })
+
 /** An at-rule, e.g. `Style.media('(min-width: 40rem)', { color: 'red' })`. */
 export const media = (query: string, declarations: Readonly<Record<string, string>>): StyleValue =>
   Object.freeze({
