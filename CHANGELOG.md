@@ -18,7 +18,9 @@ and the four agent adapters, and `foldkit-durable` 0.4.0; `foldkit-form`,
 `foldkit-bundle-surface` 0.2.0; `foldkit-mirror` 0.3.0; `foldkit-sync` 0.6.0;
 `foldkit-react` and `foldkit-react-codegen` 0.2.0. Every one of them moves to
 Foldkit 0.163 and Effect 4.0.0-rc.116; `foldkit-metadata` is unchanged at
-0.1.0.
+0.1.0. Four packages are published for the first time at 0.1.0:
+`foldkit-ssr`, `foldkit-richtext`, `foldkit-richtext-dom` and
+`foldkit-mixins-richtext`.
 
 **A page is declared once.** `Bundle.compose` states a parent's own fields and
 Messages and the bundles it places, and derives its Model, Message union,
@@ -36,6 +38,40 @@ ships for its components.
 **Remote tells a withheld field from a deleted entity**, forgets everything at
 a change of principal with `Data.forget`, and refreshes a value when it ages
 out rather than when the Model next changes.
+
+**Server rendering and rich text, first releases.** `foldkit-ssr` renders on
+the server, hands the browser the Model the server reached instead of rerunning
+`init`, and can answer events before the runtime boots. `foldkit-richtext` and
+its DOM adapter give an editor whose document lives in the application Model.
+All four new packages are early and may change between minor versions.
+
+### New packages
+
+- **`foldkit-ssr` 0.1.0.** Server rendering that hands the browser the Model
+  the server reached, not the inputs to rebuild it. `SSR.plan` names the slice
+  of the Model the browser owns, checked against the Surfaces it reads.
+  `SSR.render` and `SSR.page` render on the server, `SSR.generate` at build
+  time, and `SSR.entry` serves through Foldkit's `handleRequest`.
+  `SSR.hydrate` adopts the server's HTML without running `init`.
+  `SSR.static` regions belong to the server alone, and a part such as
+  `Remote.resume(Data)` carries a package's state across. Resumable pages,
+  forms that work with scripts off, and lazy bundles are listed under Added.
+- **`foldkit-richtext` 0.1.0.** Pure semantic documents and text
+  transactions. A `Document` is versioned data with stable node ids, and
+  `run` or `apply`, called from `update`, returns the next state, a
+  `ChangeSet` and a position map, or a diagnostic with no partial result. It
+  holds no store and does no I/O. Unknown blocks are preserved, migrations
+  keep identities, a rendering registry declares node kinds, and `toHtml` and
+  `toText` serialize a document.
+- **`foldkit-richtext-dom` 0.1.0.** The DOM adapter for an editable
+  `foldkit-richtext` subtree. It renders a document into real DOM once,
+  patches only the nodes a `ChangeSet` names, and turns browser events into
+  commands the application's `update` decides on. Subpaths hold the host
+  mount, events, HTML import, a read-only view, a marks toolbar, and an editor
+  Bundle (`foldkit-richtext-dom/editor-bundle`).
+- **`foldkit-mixins-richtext` 0.1.0.** The editor's mark toolbar as a
+  Mixins `SlotView` (`markToolbar`, `MarkToolbarSlots`), so each button is a
+  slot an application styles.
 
 ### Upgrading from 0.10
 
@@ -93,7 +129,7 @@ out rather than when the Model next changes.
   `ActiveSurface` by hand rather than through `Surface.at` or `Surface.when`:
   add `messages`, an empty list for a Remote requirement that sends nothing,
   as `foldkit-crud` and `foldkit-cms` now do.
-- **`foldkit-ssr` (in development, not published): resumable pages.** On top
+- **`foldkit-ssr`: resumable pages.** On top
   of rendering on the server and handing the browser its slice of the Model,
   a page can now answer before its runtime boots. `Resume.builder(h)` writes
   in the server's markup which Message each element causes, and the browser
@@ -106,7 +142,7 @@ out rather than when the Model next changes.
   is refused rather than thrown on, and a post whose Commands never settle is
   stopped after 100 steps. See the package README.
 - **`Remote.resume(Data)`: Remote's state for a server-rendered page.** A
-  resume part for `foldkit-ssr` (in development) that sends what the page's
+  resume part for `foldkit-ssr` that sends what the page's
   active Surfaces read, field by field through relations, each connection
   with its boundaries, and the live cursors of the entities captured; nothing
   else of the store. A `Snapshot` stays the tool for a cache that survives a

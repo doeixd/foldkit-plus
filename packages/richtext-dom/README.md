@@ -22,9 +22,11 @@ the boundary. Nothing inside the subtree is read as truth; the semantic document
 stays authoritative, and the DOM is consulted only to map a browser selection back
 to a position.
 
-This package is a **private spike**: unpublished, and its API may change. It moved
-here from `examples/richtext`, where the Phase 3 slice proved it. The read-only
-`view.ts` and the editable Bundle still live in that harness and move next.
+This package is **early**: 0.x, and its API may change between minor versions.
+
+```bash
+pnpm add foldkit-richtext-dom foldkit-richtext foldkit-bundle foldkit effect
+```
 
 ## Entries
 

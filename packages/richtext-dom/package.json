@@ -1,10 +1,31 @@
 {
   "name": "foldkit-richtext-dom",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The DOM interpreter for a foldkit-richtext editable subtree.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "rich-text",
+    "editor",
+    "contenteditable",
+    "dom",
+    "typescript"
+  ],
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/richtext-dom"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/richtext-dom#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
   "sideEffects": false,
   "exports": {
     ".": {

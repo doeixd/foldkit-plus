@@ -1,7 +1,6 @@
 {
   "name": "foldkit-ssr",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Server rendering for Foldkit Plus: render once on the server, hand the Model over, and hydrate without rerunning init.",
   "keywords": [
     "foldkit",
@@ -11,6 +10,9 @@
   ],
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Patrick Glenn <doeixd@gmail.com>",
   "repository": {
     "type": "git",

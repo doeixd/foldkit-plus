@@ -2,11 +2,12 @@
 
 Pure semantic documents and text transactions for Foldkit. Content is versioned
 data with stable node IDs; edits return a new document, mapped selection, and an
-invalidation summary. This package is **in development and unpublished**.
+invalidation summary. This package is **early**: 0.x, and its API may change
+between minor versions.
 
 The application Model owns the document and local selection. Call `apply` from
 the application's `update`; it performs no I/O and holds no editor store. DOM
-editing lives in the private `foldkit-richtext-dom` spike; Form/CMS integration
+editing lives in [`foldkit-richtext-dom`](../richtext-dom); Form/CMS integration
 and Sync replication are not implemented yet.
 
 ```text
@@ -16,7 +17,9 @@ EditorState + Transaction → next EditorState + ChangeSet + positionMap
 
 ## A small edit
 
-Within this workspace, import the package as follows:
+```bash
+pnpm add foldkit-richtext effect
+```
 
 ```ts
 import * as RichText from 'foldkit-richtext'

@@ -1,10 +1,10 @@
 # RichText — semantic document foundation
 
-`foldkit-richtext` is an unpublished workspace package. The application Model
+`foldkit-richtext` is published at 0.1.0 and early. The application Model
 owns the document and local selection; the package supplies pure data validation
 and text transitions. It has no DOM editor, persistence runtime, or hidden store;
-the editable DOM adapter is the separate private `foldkit-richtext-dom` package,
-and it too is a spike.
+the editable DOM adapter is the separate `foldkit-richtext-dom` package, also
+0.1.0 and early.
 
 The current loop is `EditorState + Transaction → next state + ChangeSet + positionMap`,
 or a diagnostic with no partial result. Call `apply` inside the application's
@@ -80,7 +80,7 @@ of `data-marks`. A name with no entry keeps the shipped rendering, entries nest
 outside the shipped marks and in alphabetical order, attribute values are escaped,
 and a tag or attribute name that would end the markup is refused.
 
-HTML import and the editable adapter live in `packages/richtext-dom` (private),
+HTML import and the editable adapter live in `foldkit-richtext-dom`,
 because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
 `DOMParser` tree: known tags map to blocks and marks, `data-marks`/`data-unknown`
 round-trip, other elements are unwrapped or dropped with a diagnostic, attributes

@@ -5,8 +5,12 @@ the server reached**, not the inputs to rebuild it. `init` runs once, on the
 server. The browser adopts the server's HTML and starts from the slice of the
 Model it owns.
 
-**In development, not published.** The API below is built and tested; it may
-still change before a first release.
+**Early.** The API below is built and tested; as a 0.x package it may still
+change between minor versions.
+
+```bash
+pnpm add foldkit-ssr foldkit-surface foldkit effect
+```
 
 ```ts
 // Which part of the Model the browser owns.

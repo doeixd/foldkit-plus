@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-**In development and unpublished.** Phases 0–6, U and R of its plan are built:
+**Published at 0.1.0, early.** Phases 0–6, U and R of its plan are built:
 render on the server or at build time (`SSR.generate`) and serve through
 Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
 without rerunning `init`, a plan is checked against the Surfaces the browser

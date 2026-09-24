@@ -1,10 +1,30 @@
 {
   "name": "foldkit-richtext",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Pure semantic documents and editing transactions for Foldkit.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "rich-text",
+    "editor",
+    "document",
+    "typescript"
+  ],
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/richtext"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/richtext#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
   "sideEffects": false,
   "exports": {
     ".": {

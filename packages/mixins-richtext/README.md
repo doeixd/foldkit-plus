@@ -14,8 +14,8 @@ lit.
 
 ## Status
 
-Private and unpublished: the `foldkit-richtext` family is still a spike. The first
-slice is the mark toolbar; the rest of the design's editor chrome (floating toolbar,
+Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
+versions. The first slice is the mark toolbar; the rest of the design's editor chrome (floating toolbar,
 link popover, block handle, placeholder, status) arrives when a view needs it.
 
 ## The mark toolbar
