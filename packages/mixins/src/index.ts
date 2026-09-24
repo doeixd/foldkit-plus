@@ -66,7 +66,7 @@ export type {
   SlotViewTransformFor,
 } from './slotView.js'
 export type { Contract as SlotsContract } from './slots.js'
-export type { Layers as LayersValue } from './layers.js'
+export type { Layers as LayersValue, MapsPieces } from './layers.js'
 export type { NamedStyle, StylePieces, StylesheetSource } from './style.js'
 export type { StyleCondition, StyleValue } from './styleValue.js'
 export type { StyleRule } from './styleRules.js'

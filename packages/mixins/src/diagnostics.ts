@@ -22,6 +22,8 @@ export type DiagnosticCode =
   | 'mixins:ragged-grid-areas'
   | 'style:duplicate-layer'
   | 'style:conflicting-layer-order'
+  | 'style:unlayered-rule'
+  | 'style:relayered'
   | 'theme:unparseable-breakpoint'
   | 'a11y:missing-slot'
   | 'a11y:hidden-slot'

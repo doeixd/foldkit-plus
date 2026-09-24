@@ -13,6 +13,7 @@ const src = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
 const kernelAndSubpaths = [
   'styleValue.ts',
   'styleRules.ts',
+  'cssBlocks.ts',
   'theme.ts',
   'theme/core.ts',
   'theme/root.ts',

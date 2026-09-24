@@ -261,7 +261,7 @@ describe('the page sheet', () => {
         'theme',
         Theme.scoped(theme, ':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } }),
       ),
-      page,
+      L.in('app', page),
     )
     expect(
       sheet.startsWith(
@@ -274,7 +274,7 @@ describe('the page sheet', () => {
     expect(sheet).not.toContain('--fk-knob-density:1;--fk-knob-radius-factor:1;--fk-knob-accent-h')
     expect(sheet).toContain('@layer theme{:root[data-theme="ocean"]{--fk-knob-accent-h:215}}')
     expect(sheet).toMatch(
-      /\.style-[a-z0-9]+:focus-within\{outline:2px solid var\(--fk-outline-focus\)\}$/,
+      /@layer app\{\.style-[a-z0-9]+:focus-within\{outline:2px solid var\(--fk-outline-focus\)\}\}$/,
     )
   })
 })

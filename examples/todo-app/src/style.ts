@@ -13,9 +13,9 @@
  *   and its builder, so it can only emit Messages the view may emit.
  *
  * - **Theme and layout**: the palette is derived from one accent color by
- *   `Theme.oklch`, and rows, toolbars and the page are `Layout` pieces. Both
- *   ship in the page stylesheet at the bottom of this file, in cascade layers,
- *   so every rule here (unlayered) wins over them.
+ *   `Theme.oklch`, and rows, toolbars and the page are `Layout` pieces.
+ *   `sheet.ts` ships them in cascade layers, with every style here in `app`,
+ *   so an application rule wins over the layouts and the recipe it composes.
  *
  * None of this owns state. The views in `view.ts` publish the slots; this file
  * never sees markup.
@@ -32,7 +32,6 @@ import {
   Style,
   type StyleValue,
 } from 'foldkit-mixins'
-import { Defaults } from 'foldkit-mixins/defaults'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
 import { ButtonSlots, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
@@ -441,32 +440,4 @@ export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
     ),
   },
   { name: 'ClearButtonStyle' },
-)
-
-// --- the stylesheet ----------------------------------------------------------------
-
-/**
- * The page's one stylesheet, composed rather than configured: the layer order
- * first, then the scales, the palette, the element defaults, and every rule
- * piece above (`pseudo`, `media`, `nest`, layouts, the recipe), each compiled to
- * a class named by a hash of its rule, so the server and the browser agree.
- * `client.ts` injects it once.
- */
-const L = Layers.standard
-
-export const stylesheet = Style.stylesheet(
-  L.declare,
-  L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens)),
-  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
-  L.in('defaults', Defaults.body),
-  PageStyle,
-  HeaderStyle,
-  ComposerStyle,
-  AddButtonStyle,
-  FilterStyle,
-  ItemStyle,
-  ToggleStyle,
-  FooterStyle,
-  ClearButtonStyle,
 )

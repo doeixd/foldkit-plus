@@ -10,7 +10,7 @@ import { AppAgent, bindAgent } from './agent.js'
 import type { Message } from './app.js'
 import type { Principal } from './principal.js'
 import { mountApp } from './runtime.js'
-import { stylesheet } from './style.js'
+import { stylesheet } from './sheet.js'
 import { TodoSync } from './sync.js'
 
 // The rule-based styles (`pseudo`, `media`, `nest`) compiled to CSS once, at

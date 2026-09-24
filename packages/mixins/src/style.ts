@@ -6,6 +6,7 @@
  * `styleValue.ts`; this module joins them to slots.
  */
 import * as Capability from './capability.js'
+import { declaredNames, isUnordered, layerOf, topLevelBlocks } from './cssBlocks.js'
 import type { InputContribution, SlotContribution } from './contribution.js'
 import { DiagnosticError } from './diagnostics.js'
 import * as Mixin from './mixin.js'
@@ -56,6 +57,11 @@ export interface NamedStyle<Slots> {
   readonly rules: ReadonlyArray<{ readonly className: string; readonly css: string }>
   /** Class-independent rule chunks, for a deduplicating stylesheet. */
   readonly globalRules: ReadonlyArray<string>
+  /**
+   * The same style over the same slots with every piece transformed, compiled
+   * afresh; what `Layers.in` uses to place a whole `NamedStyle` in a layer.
+   */
+  readonly mapPieces: (transform: (piece: StyleValue) => StyleValue) => NamedStyle<Slots>
 }
 
 /** A boolean known at authoring time. */
@@ -253,6 +259,13 @@ export const forSlots =
         }
       }
     }
+    const mapPieces = (transform: (piece: StyleValue) => StyleValue): NamedStyle<Slots> => {
+      const mapped: Record<string, StyleValue> = {}
+      for (const [key, piece] of Object.entries(pieces as Record<string, StyleValue | undefined>)) {
+        if (piece !== undefined) mapped[key] = transform(piece)
+      }
+      return forSlots(slots)(mapped as StylePieces<Slots>, options)
+    }
     return Object.freeze({
       ...(options?.name === undefined ? {} : { name: options.name }),
       pieces,
@@ -261,6 +274,7 @@ export const forSlots =
       globalCss,
       rules: Object.freeze(rules),
       globalRules: Object.freeze(globalRules),
+      mapPieces,
     })
   }
 
@@ -280,10 +294,44 @@ const sourceOf = (style: StyleValue): StylesheetSource => {
 }
 
 /**
+ * An unlayered rule beats every layer, `app` included, so once a sheet
+ * declares an order, a rule outside it, or in a layer the order does not
+ * name (which would sort after the last one), is a mistake. Keyframes, font
+ * faces, and registered properties are not ordered by the cascade and pass.
+ */
+const refuseUnlayered = (
+  css: string,
+  names: ReadonlyArray<string>,
+  where: string,
+  className?: string,
+): void => {
+  for (const block of topLevelBlocks(css)) {
+    if (isUnordered(block)) continue
+    const layer = layerOf(block)
+    if (layer !== undefined && names.includes(layer)) continue
+    throw new DiagnosticError({
+      source: 'style',
+      code: 'style:unlayered-rule',
+      severity: 'error',
+      message:
+        layer === undefined
+          ? `Style.stylesheet declares a layer order, but ${where} has a rule outside it, which would beat every layer; place its piece with L.in(name, …)`
+          : `${where} is in layer "${layer}", which the declared order (${names.join(', ')}) does not name, so it would sort after "${names.at(-1)}"; place it with L.in(name, …)`,
+      details: {
+        ...(className === undefined ? {} : { className }),
+        ...(layer === undefined ? {} : { layer }),
+      },
+    })
+  }
+}
+
+/**
  * One `<style>` block: the `@layer …;` statement first (one order per
  * sheet), then the other global chunks, then the scoped classes, each
  * deduplicated with the first seen winning. A bare `StyleValue` (a theme
  * root, a layered reset, a layout) compiles like a piece of a `NamedStyle`.
+ * With an order declared, every rule must sit in one of its layers
+ * (`style:unlayered-rule`); without one, unlayered rules are allowed.
  */
 export const stylesheet = (...styles: ReadonlyArray<StyleValue | StylesheetSource>): string => {
   const scoped = new Map<string, string>()
@@ -307,6 +355,13 @@ export const stylesheet = (...styles: ReadonlyArray<StyleValue | StylesheetSourc
           message: `Style.stylesheet was given two layer orders: "${order}" and "${rule}"`,
         })
       }
+    }
+  }
+  if (order !== undefined) {
+    const names = declaredNames(order)
+    for (const chunk of global) refuseUnlayered(chunk, names, `global CSS "${chunk.slice(0, 60)}"`)
+    for (const [className, css] of scoped) {
+      refuseUnlayered(css, names, `class "${className}"`, className)
     }
   }
   return [...(order === undefined ? [] : [order]), ...global, ...scoped.values()].join('')

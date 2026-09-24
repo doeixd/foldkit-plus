@@ -6,7 +6,7 @@ import { Message, initialModel, visibleTodos } from '../src/app.js'
 import { update } from '../src/surface.js'
 import { runDemo } from '../src/demo.js'
 import { manifest, validate } from '../src/module.js'
-import { stylesheet } from '../src/style.js'
+import { stylesheet } from '../src/sheet.js'
 
 describe('the todo app', () => {
   it('runs the whole transcript', async () => {
