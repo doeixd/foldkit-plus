@@ -30,7 +30,28 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
-    }
+    },
+    "./layers": {
+      "types": "./dist/layers.d.mts",
+      "import": "./dist/layers.mjs"
+    },
+    "./theme": {
+      "types": "./dist/theme.d.mts",
+      "import": "./dist/theme.mjs"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.mts",
+      "import": "./dist/layout.mjs"
+    },
+    "./defaults": {
+      "types": "./dist/defaults.d.mts",
+      "import": "./dist/defaults.mjs"
+    },
+    "./prose": {
+      "types": "./dist/prose.d.mts",
+      "import": "./dist/prose.mjs"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

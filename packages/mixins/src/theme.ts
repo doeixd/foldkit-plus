@@ -3,8 +3,7 @@
  * belongs in the Foldkit Model; `variables` compiles the tokens to CSS custom
  * properties so switching a class or a root style is cheap and SSR-safe.
  */
-import type { StyleValue } from './style.js'
-import { inline } from './style.js'
+import { inline, type StyleValue } from './styleValue.js'
 
 export type ThemeTokens = {
   readonly [group: string]: { readonly [name: string]: string }
