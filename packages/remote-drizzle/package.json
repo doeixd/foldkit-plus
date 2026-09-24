@@ -1,6 +1,6 @@
 {
   "name": "foldkit-remote-drizzle",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Provisional compiler from Remote Entity/Selection/Query to Drizzle's typed query graph.",
   "keywords": [
     "foldkit",

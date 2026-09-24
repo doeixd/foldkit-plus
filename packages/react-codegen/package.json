@@ -1,6 +1,6 @@
 {
   "name": "foldkit-react-codegen",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compile Foldkit view functions to React TSX, with a diagnostic for every construct that cannot be translated faithfully.",
   "keywords": [
     "foldkit",

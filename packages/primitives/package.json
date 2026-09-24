@@ -1,6 +1,6 @@
 {
   "name": "foldkit-primitives",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Ready-made primitives for the Elm architecture, packaged with foldkit-bundle: media queries, presence, timers, pagination, history, sockets, observers, clipboard, and interaction Bundles with their Behaviors.",
   "keywords": [
     "foldkit",

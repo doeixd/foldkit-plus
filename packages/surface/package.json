@@ -1,6 +1,6 @@
 {
   "name": "foldkit-surface",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Typed observation and capability boundaries for Foldkit: ModelRef, Projection, and Surface.",
   "keywords": [
     "foldkit",

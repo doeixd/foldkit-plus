@@ -1,6 +1,6 @@
 {
   "name": "foldkit-form",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Forms for Foldkit: a Bundle over core field validation, built from an operation's input and the Entity it writes.",
   "keywords": [
     "foldkit",

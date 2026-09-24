@@ -1,6 +1,6 @@
 {
   "name": "foldkit-cms-drizzle",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "The server half of foldkit-cms over Drizzle: the entries, drafts and revisions tables, the draft operations with their conflict rule, the worklist query, and the audience boundary between a visitor and an author.",
   "keywords": [
     "foldkit",

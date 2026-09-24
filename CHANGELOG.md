@@ -7,6 +7,60 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.11.0
+
+`foldkit-remote`, `foldkit-remote-server` and `foldkit-remote-drizzle` 0.8.0;
+`foldkit-surface` 0.5.0; `foldkit-bundle` 0.3.0; `foldkit-mixins`,
+`foldkit-mixins-ui`, `foldkit-mixins-surface` and `foldkit-mixins-crud` 0.4.0;
+`foldkit-primitives` 0.3.0; `foldkit-crud`, `foldkit-entity`, `foldkit-agent`
+and the four agent adapters, and `foldkit-durable` 0.4.0; `foldkit-form`,
+`foldkit-mixins-form`, `foldkit-cms`, `foldkit-cms-drizzle` and
+`foldkit-bundle-surface` 0.2.0; `foldkit-mirror` 0.3.0; `foldkit-sync` 0.6.0;
+`foldkit-react` and `foldkit-react-codegen` 0.2.0. Every one of them moves to
+Foldkit 0.163 and Effect 4.0.0-rc.116; `foldkit-metadata` is unchanged at
+0.1.0.
+
+**A page is declared once.** `Bundle.compose` states a parent's own fields and
+Messages and the bundles it places, and derives its Model, Message union,
+placements and assembly, so a page no longer spreads each placement's fields
+and cases into Schemas it writes by hand. `Bundle.lazy` keeps a bundle's
+`update` and `view` out of the boot chunk.
+
+**Interaction and styling you do not have to rebuild.** `foldkit-primitives`
+gains an `interaction` subpath of Bundles for roving focus, typeahead, grid
+navigation, selection, press, focus scopes, dismissable layers and live
+announcements. `foldkit-mixins` gains cascade layers as a value, a theme from a
+few knobs, layout pieces, and multi-slot recipes, which `foldkit-mixins-ui`
+ships for its components.
+
+**Remote tells a withheld field from a deleted entity**, forgets everything at
+a change of principal with `Data.forget`, and refreshes a value when it ages
+out rather than when the Model next changes.
+
+### Upgrading from 0.10
+
+- Move `foldkit` and `@foldkit/ui` to `0.163.0`, and `effect`,
+  `@effect/platform-browser` and any `@effect/*` package to `4.0.0-rc.116`.
+- Deploy a Remote client and server together: the wire protocol is now 4, and a
+  read you wrote by hand, a test fake included, returns `settled` beside
+  `entities`.
+- Replace `Theme.variable(theme, group, name)` with `Theme.ref(theme)[group][name]`.
+
+### Breaking
+
+- `foldkit-remote`, `foldkit-remote-server`: `ReadBatchResult` requires
+  `settled`, the protocol is 4 and the cache version 5, so a cache persisted by
+  0.10 is discarded. See the entry under Changed.
+- `foldkit-surface`: an `ActiveSurface` carries a required `messages`, so one
+  built by hand, rather than through `Surface.at` or `Surface.when`, adds it.
+- `foldkit-mixins`: `Theme.variable` is removed; declarations are type-checked
+  against csstype; a style property set by a Behavior and by anything else is
+  refused (`mixins:style-property-conflict`).
+- `foldkit-bundle`: an array collection's item must carry its key as its id;
+  writing one that does not throws.
+- `foldkit-cms`: a hand-built `EditorForm` needs `authoredChanged`, which a
+  form made by `Form` already has.
+
 ### Added
 
 - **`foldkit-bundle`: `Bundle.compose`, a parent in one declaration.** A
@@ -74,6 +128,153 @@ version changed; `pnpm` skips versions already in the registry.
   the library's own answer. `Mirror.Message` and `Remote.Message` are the
   union Schemas for the wrapper field. The spread and the `reduces` guard stay
   for an `update` that only reduces; wiring stays the bundle path.
+- **`foldkit-primitives`: a `foldkit-primitives/interaction` subpath for
+  interaction state a view's slots reflect.** Each primitive is a namespace
+  (`RovingTabindex`, `Press`, ...) exporting its `bundle`, `Model`, `Message`,
+  `Args`, a `foldkit-mixins` Behavior (`behavior`) that wires it to a view's
+  slots, and its pure functions. `foldkit-mixins` is a new optional peer,
+  needed only for this subpath.
+- **`foldkit-primitives`: keyboard navigation and selection over a set of
+  items.** `RovingTabindex` keeps one tab stop by the current item's id, so a
+  reorder keeps it; its pure `move()` handles arrows by orientation, looping,
+  Home, End, PageUp, PageDown, skipping disabled items and RTL, and under
+  `virtual` DOM focus stays on the container with `aria-activedescendant`.
+  `Typeahead` finds the item whose label starts with the typed characters, and
+  a repeated character cycles. `ListNavigation` combines the two with one key
+  handler. `GridNavigation` moves in two dimensions over rows of cells, with
+  Home and End per row and Ctrl+Home and Ctrl+End per grid. `Selection` keeps
+  `{ selected, anchor }` in `single`, `multiple` or `none` mode, with a Shift
+  range through `Ranged` and the pure `between()`, and writes `aria-selected`.
+- **`foldkit-primitives`: focus management.** `FocusScope` (a Mount in
+  `/dom`, with a Behavior in `/interaction`) focuses `initialFocus` or the
+  first tabbable element, keeps Tab inside the scope under `contain`, and
+  returns focus on unmount under `restore`. `InputModality` (in `/events`)
+  records whether the keyboard or a pointer was used last, and
+  `FocusVisible.behavior` writes `data-focus-visible` under keyboard for a
+  design system that decides focus rings in the Model.
+- **`foldkit-primitives`: pointer and press input.** `Press` treats a pointer
+  press, Enter, Space and an assistive-technology click as one activation. It
+  ignores the ghost click after a touch and writes `data-pressed`. The
+  placement must handle its `Pressed { pointerType, shiftKey }`. `LongPress`
+  emits `LongPressed` after `thresholdMs`, reusing the events `Press` reports.
+  `Move` (a Mount in `/dom`) captures the pointer and reports each move as the
+  distance from where it went down. The parent's update decides what a drag
+  means.
+- **`foldkit-primitives`: overlay layers.** `DismissLayer` is one Bundle
+  placed once that owns the document's pointerdown and Escape listeners. It
+  gives the placement `Dismiss { ids }` for the layers a press outside or an
+  Escape closes. Nested layers and triggers work without registration.
+  `ScrollLock` and `HideOutside` are Mounts over Foldkit's `Dom.lockScroll`
+  and `Dom.inertOthers`, attached through `Layers.scrollLock` and
+  `Layers.hideOutside`.
+- **`foldkit-primitives`: `LiveAnnounce`, screen-reader announcements from
+  `update`.** One Bundle holds a polite and an assertive region. `say()`
+  builds the Message, `view()` renders the regions, a burst is read once after
+  `debounceMs`, the text clears after `clearAfterMs`, and a repeated text is
+  read again.
+- **`foldkit-primitives`: reduced motion as a service.** `Motion` in
+  `foldkit-primitives/motion` is read when a transition starts. Provide
+  `Motion.live` for the user's `prefers-reduced-motion`, or `Motion.reduced` /
+  `Motion.full` in tests. Under reduced motion a presence exits at once and a
+  tween or spring jumps to its end, using the same Messages. With no service
+  provided, motion is unchanged.
+- **`foldkit-bundle`: exports the `Declared` and `DeclaredEach` types**, for
+  a helper that reads a placement's field and wraps its Messages.
+- **`foldkit-mixins`: cascade layers as a value, and a stylesheet built from
+  pieces.** `Layers.define(names)` returns `names`, `declare` (the `@layer`
+  statement as a piece), `in(name, piece)` and `layer(name)`; a layer name
+  outside the order is a type error. `Layers.standard` is the shipped order:
+  `reset, tokens, theme, defaults, components, layouts, variants, utilities,
+  app`. A slot style takes its layer when it is compiled, with
+  `Style.forSlots(S)(pieces, { layer: L.layer('app') })`, so the view and the
+  sheet share the same class names. `Style.stylesheet` now takes bare
+  `StyleValue`s beside `NamedStyle`s and hoists the layer order first. Once a
+  sheet declares an order, it refuses a rule outside it
+  (`style:unlayered-rule`), because an unlayered rule beats every layer, `app`
+  included. A sheet with no order behaves as before.
+- **`foldkit-mixins`: a theme from a few knobs, under `foldkit-mixins/theme`.**
+  `Theme.oklch(knobs)` derives surfaces, text, outlines, and the accent,
+  secondary, tertiary and feedback colors from an accent and a few knobs.
+  Every derived value is a CSS expression, so one knob override recolors the
+  page in the browser. `Theme.tokens` holds the non-color scales, with
+  `density` and `radius-factor` knobs. `Theme.root` and `Theme.scoped` turn a
+  theme into `:root` and selector rules for the sheet, and `Theme.scoped`
+  type-checks its overrides against the theme. `Theme.ref(theme)` gives every
+  token as a typed `var(--fk-…)`, so a missing name is a type error.
+  `Theme.compose`, `Theme.lightDark` and `Theme.breakpointWidths` complete the
+  set, and the root export gains `ref`, `compose` and `lightDark`. The palette
+  needs relative color syntax and `light-dark()`.
+- **`foldkit-mixins`: layout, element defaults and prose as subpath
+  entries.** `foldkit-mixins/layout` ships `Layout.stack`, `cluster`, `split`,
+  `sidebar`, `switcher`, `reel`, `center`, `frame`, `pad`, `autoGrid`,
+  `intrinsic` and `aside`. `foldkit-mixins/defaults` ships element defaults
+  (`reset`, `body`, `headings`, `links`, `code`, `controls`, `all`), and
+  `foldkit-mixins/prose` ships `Prose.style`. They are unlayered, so the page
+  places them with `Layers.in`. `foldkit-mixins/layers` re-exports `Layers`.
+- **`foldkit-mixins`: more Style pieces.** `Style.self` is a rule on the
+  element's own class, for declarations that must sit in a layer rather than
+  inline. `states` styles per `data-state` value. `responsive` takes a map
+  keyed by breakpoint names typed from the record you pass. `enter` writes a
+  `@starting-style` rule, and `allowDiscrete`, `vars` and
+  `viewTransitionName` round it out. `Style.grid` declares a template whose
+  `area(name)` accepts only the areas it names. The `Selector` namespace
+  builds the strings `pseudo` and `nest` take. Every piece's declarations are
+  typed as `Declarations`, csstype's camelCase properties plus custom
+  properties.
+- **`foldkit-mixins`: multi-slot recipes, per-item styles and
+  `forCapability`.** `Style.recipeFor(Slots)` gives each slot of a contract a
+  base, variants per axis, defaults and compound matches, and returns the
+  pieces for `Style.forSlots`. Its `extend(patch)` adjusts a shipped recipe
+  without forking it. `Style.perItem` computes a piece from the item a slot
+  is rendered for, and `Style.stagger({ stepMs })` staggers a list with no
+  timer. `Style.forCapability` styles every public slot with a given
+  capability.
+- **`foldkit-mixins`: slots rendered once per item, and ready-made stateless
+  Behaviors.** `slots.x.attrs(base, item)` takes an optional `SlotItem`
+  (`{ index, id?, count? }`), which reaches a Behavior's attributes and
+  mount. `Behaviors.Collection` describes a parent's array once, with ids,
+  disabled items and `aria-posinset`/`aria-setsize`, and refuses duplicate ids
+  (`mixins:duplicate-item-id`). `Behaviors.Disclosure`,
+  `Behaviors.ToggleState`, `Behaviors.FieldAssociation` and
+  `Behaviors.SpinValue` put a parent's state into ARIA and keyboard handling.
+- **`foldkit-mixins-ui`: `Recipes` for Button, Input, Textarea, Checkbox,
+  Switch, Dialog and Tabs.** Each is a `Style.recipeFor` over the package's
+  slot contract, such as
+  `Recipes.Button({ tone: 'danger', variant: 'outline', size: 'sm' })`.
+  Values reference `Theme.tokens` and a `Theme.oklch` palette, so the page
+  must ship those tokens. Bases sit in the `components` layer and variants in
+  `variants`, all as layered rules, so an `app`-layer style overrides them.
+  State comes from the ARIA attributes `@foldkit/ui` already writes.
+- **`foldkit-mixins-ui`: `Patterns`, `HoverIntent` and `Anchor`.**
+  `Patterns` has an `A11y.pattern` per adapter. `Patterns.catalog` gives each
+  one's tier and the behavior it leaves to the browser, so
+  `A11y.validate(Patterns.Tabs, MySlots)` checks a custom view.
+  `HoverIntent` (`HoverIntentSlots`) adapts `@foldkit/ui`'s hover intent.
+  `Anchor.behavior(Slots)({ floating, config })` positions a floating slot
+  with `@foldkit/ui/anchor`.
+- **`foldkit-remote`: `Data.forget`, the one boundary for a change of
+  principal.** Called from `update` on a login, a logout or a switch of
+  organization, it returns the Model with every server-derived fact gone
+  (values, tombstones, unavailable fields, connections, live cursors,
+  failures) and performs no I/O. Every active Surface's read and live entries
+  restart, and a read or stream begun before is interrupted rather than
+  landing after. A mutation in flight is treated as applied, so its answer
+  writes nothing. `Remote.forget(bound, model)` is the unbound form.
+- **`foldkit-remote`: a value ages out as a Message.** Under
+  `staleWhileRevalidate` a page that sat still past its `maxAge` was never
+  refreshed, because the plan ran only when the Model changed. The read entry
+  now sleeps until the earliest value it holds ages out, under the Effect
+  clock, and emits `RefreshStarted` for what is due; the plan that follows
+  fetches it. A test controls this with the Effect test clock.
+- **`foldkit-form`: `authoredChanged(before, after)`.** It says whether a
+  completed transition changed what the author wrote, by comparing the two
+  Models: a blur, a refused edit or a repeated value is `false`; a changed
+  draft or an added, removed or changed row is `true`. Nested rows recurse.
+  `foldkit-cms`'s editor now autosaves on it instead of on the form's Message
+  tags, so a Bundle-backed or stateful control autosaves like a text field.
+- **`foldkit-mixins-form`: every control carries `name=<key>`**, and a
+  relation picker's checkboxes also carry `value`, so a plain form post (for
+  example `foldkit-ssr`'s `fallback: 'server'`) carries the drafts.
 
 ### Changed
 
@@ -108,6 +309,43 @@ version changed; `pnpm` skips versions already in the registry.
   in a Model and `switch` on a Message tag; the surface, sync,
   mixins-surface, and mirror snippets, and the skill's one-screen example,
   no longer trip it.
+- **`foldkit-remote`, `foldkit-remote-server`: a withheld field is settled on
+  the wire instead of tombstoning its entity.** Before, a field the server
+  answered without was planned again. The second read came back with no
+  entity, and the client tombstoned it, dropping every field it already held.
+  `ReadBatchResult` now has a required `settled: Array<{ entity, id, fields }>`:
+  fields the server will not answer with. `RemoteServer` settles what
+  `authorize` withheld and what a Source left out of a record. The client
+  marks those fields unavailable: they are not planned again, a later write
+  clears them, and a refresh forgets them. An id is tombstoned only when it is
+  neither returned nor settled. A Selection naming such a field reads `Failed`
+  with an `Unavailable` error. `REMOTE_PROTOCOL_VERSION` is now 4 and
+  `REMOTE_CACHE_VERSION` is now 5, so a persisted cache from 0.10.0 is
+  discarded. **Breaking** for a hand-written `RemoteClient`, `RemoteRpcClient`
+  or server read handler, including test fakes: return `settled: []` (or the
+  fields you withheld) beside `entities`. Deploy client and server together.
+- **`foldkit-mixins`: `Theme.variable` is replaced by `Theme.ref`.**
+  **Breaking.** `Theme.ref(theme)` is built once per theme and reads like the
+  token it names. Migrate `Theme.variable(theme, 'surface', 'base')` to
+  `Theme.ref(theme).surface.base`.
+- **`foldkit-mixins`: declarations are type-checked against csstype.**
+  **Breaking** at the type level only: `inline`, `self`, `pseudo`, `nest`,
+  `media`, `supports`, `container` and the other pieces took any
+  `Record<string, string>`. A misspelled or kebab-case property is now a type
+  error. Write it in camelCase, or as a `--custom` property. Compiled CSS is
+  unchanged, and `csstype` is a new dependency.
+- **`foldkit-mixins`: a style property a Behavior sets has one owner.**
+  **Breaking.** When a Behavior sets a property through `h.Style` and a Style
+  piece, the base or another Behavior sets the same one, resolving now raises
+  `mixins:style-property-conflict`, naming both. Before, the last writer won
+  silently. To migrate, remove the property from one of the two.
+- **`foldkit-mixins`: rule pieces work under `Style.whenInput`.** Before, a
+  pseudo, nest or media piece inside `whenInput` was refused with
+  `style:conditional-rules-unsupported`. Now each compiles to its own class,
+  which ships in the sheet and is present only while the input matches. That
+  diagnostic code is gone.
+- **`foldkit-cms`: the editor autosaves on `authoredChanged`.** A hand-built
+  `EditorForm` now needs it; a form made by `Form` already has it.
 
 ### Fixed
 
@@ -120,6 +358,18 @@ version changed; `pnpm` skips versions already in the registry.
   mirror or a replica could overwrite one field with another. Both `pick` and
   `Projection.compose` now refuse the collision when the projection is built,
   naming both paths. The same field picked twice is still kept once.
+- **`foldkit-bundle`: four routing and assembly bugs.** A nested placement
+  listed after its outer placement now gets its Messages, because routing asks
+  the deepest placements first. `Link.collectionById` throws, naming both, when
+  an item's id is not its key; before, the item could never be read back and
+  its Messages reached nothing. A tag is shared only when every claimant
+  declares it shared, and a placement never shares. A nested child under an
+  absent outer child no longer runs its init Commands.
+- **`foldkit-mixins`: `Style.nest` and `Style.pseudo` scope every selector
+  of a comma list.** Only the first selector got the element's class, so the
+  rest matched page-wide. Each top-level selector is now scoped. A selector
+  that writes `&` places the class there instead of gaining a prefix. Rules
+  without a comma compile to the same text and class.
 
 ## 0.10.0
 

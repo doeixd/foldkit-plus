@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Typed slot contracts and inside-out Style/Behavior attachments for Foldkit.",
   "keywords": [
     "foldkit",
