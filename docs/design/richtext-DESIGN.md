@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for nested children beyond runs, mark overlap rules and metadata, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for nested children beyond runs (representation and addressing decided in §116), mark overlap rules and metadata, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -481,8 +481,9 @@ clipboard slices, history, and both interpreters work on a node block
 unchanged, and a split keeps its kind and props on both halves. `data-node` is
 the default rendering until a Kit renderer replaces it.
 
-Not yet: nested children beyond runs (`blockContent`), `atom`'s no-children
-enforcement at the operation level, renderers per kind, and metadata.
+Not yet: nested children beyond runs (`blockContent`, specified in §116),
+`atom`'s no-children enforcement at the operation level, renderers per kind, and
+metadata.
 
 ---
 
@@ -779,6 +780,8 @@ Atom
 while applications may define narrower constraints.
 
 This is similar to Composition Regions, but the rich-text tree has stricter editing invariants and should remain its own model.
+
+The representation and addressing this implies are decided in §116.
 
 ---
 
@@ -4552,7 +4555,8 @@ Not done:
   nested callouts need blocks containing blocks, which reaches the `Block` type,
   position mapping, `locate`, every operation, normalization, HTML export and
   import, and both renderers. §13 defines the child-constraint vocabulary
-  (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide.
+  (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide,
+  and §116 decides the representation, the addressing, and the slice order.
 - **Mark overlap rules and metadata.** A mark definition carries a name, an
   expansion policy, and an optional prop schema; whether several values of one
   mark may overlap, and interpreter-owned mark metadata, are not modelled.
@@ -4674,3 +4678,138 @@ handling (the `drop` matches are DOM element and attribute cleanup); listing
 `richtext` (no renderer package); and `foldkit-metadata` appears in six package
 manifests, none of them richtext. Tests stand at 28 vitest files plus 2 type-test
 files in the package, and 5 in the harness.
+
+---
+
+# 116. Nested children
+
+Today a block's children are text runs, and structural operations address a block
+by its index in `document.children`. Lists, quotes, and nested callouts need
+blocks that contain blocks, which changes both facts. This section decides the
+representation and the addressing, and keeps the change additive: no version
+bump, and no persisted content stops decoding.
+
+## Representation: `blocks` on a node block
+
+A `Node` block gains an optional `blocks`, holding nested blocks:
+
+```ts
+NodeBlock = {
+  type: 'Node'
+  kind: 'List' | 'Quote' | 'Callout' | ...
+  id
+  props
+  children: Text[]   // direct runs; empty when blocks is present
+  blocks?: Block[]   // nested blocks; present means this kind accepts them
+}
+```
+
+- `children` stays `Text[]` on every block kind. That is what keeps the ~113
+  `block.children` reads across the package and the harness working unchanged: a
+  container simply has no direct runs, exactly as `UnknownBlock` already does.
+- `blocks` present means the kind accepts block children; absent means runs. The
+  codec enforces what it can — "blocks present implies `children` is empty" — and
+  a Kit's declaration must agree about the mode (below).
+- `Block` and `NodeBlock` are mutually recursive. `Schema.suspend` carries that,
+  and strict decoding propagates through it: a nested block's excess property is
+  rejected, and an unknown nested kind is rejected so a recursive
+  `preserveUnknownBlocks` can turn it into an `Unknown` block. Verified with a
+  probe before writing this: nested decode, byte-equal round-trip, flat documents
+  unaffected, and excess properties rejected at every depth.
+
+Rejected alternatives:
+
+- A uniform `{ kind: 'text' | 'blocks', children }` field is the cleaner shape,
+  and §13's vocabulary (`TextContent`/`BlockContent`) points at it, but it changes
+  the shape of *every* persisted block: version 1 documents would stop decoding,
+  which needs a version bump and a migration path the codec does not have
+  (migrations run on already-decoded documents). Nesting is not worth breaking
+  every stored document.
+- A separate `Container` block kind is explicit, but adds a member to every block
+  switch for no capability: the mode is already self-describing by presence.
+
+## Addressing: a parent, then an index
+
+Operations that place a block gain an optional parent:
+
+```ts
+InsertNode { block, parent?: NodeId, at: number }
+MoveNode   { node, parent?: NodeId, to: number }
+```
+
+`parent` absent means the document root, so a transaction persisted before nesting
+replays exactly as it did. Internally `apply` indexes the tree by *path*
+(`Map<NodeId, ReadonlyArray<number>>`, root-first indices) instead of the current
+`Map<NodeId, number>`, and resolves `(parent, at)` to a path before mutating. Text,
+mark, and selection operations need no parent: they address runs by id, and the
+index finds them wherever they are.
+
+Document order becomes one depth-first walk — a block's runs, then its nested
+blocks — used by `ordered`, `covered`, `deleteRange`, `sliceOf`, and every
+selection comparison.
+
+`SplitNode` and `JoinNode` resolve their parent internally and refuse to cross one:
+a split stays inside its block, a join merges siblings under the same parent.
+Structural placement refuses a parent whose kind does not accept blocks with a new
+`InvalidParent` diagnostic.
+
+## What must become recursive
+
+The flat two-level assumption lives in these places, and each one changes:
+
+```text
+document.ts     the id-uniqueness filter, inspect, selectionIsValid,
+                findUnknownMarks, findUnknownNodes, preserveUnknownBlocks
+command.ts      locate, covered, deleteRange, Paste's index arithmetic
+clipboard.ts    locate, ordered, sliceOf, plainTextOf
+transaction.ts  indexDocument, the block-index lookups, the per-block copies
+transform.ts    the touched-node walk that feeds mergeAdjacentRuns
+html.ts         renderBlock, toText
+kit.ts          validate's block loop
+migration.ts    migrate's walk
+harness         view.ts, dom.ts, html.ts, controlled.ts
+```
+
+What does not change is anything that reads a single block's runs: position
+mapping inside a block, mark resolution, and normalization within a run array.
+The enumerations above are the ones that walk the whole document.
+
+## Kits: declaring the content a kind accepts
+
+§8's declaration spelling is the target. Today `block(name)` takes only a name;
+the implementation adds an options object:
+
+```ts
+RichText.block('Paragraph')                                   // runs
+RichText.block('Callout', { Props: Tone, children: RichText.blockContent })
+RichText.atom('Image', { Props: Asset })
+```
+
+`block(name, { children })` defaults to runs; `blockContent` says the kind accepts
+blocks; `atom` still says no children. `validate` reports `MismatchedDefinition`
+when a declaration and the document disagree about the mode, reusing the mechanism
+that already catches an atom held as a block.
+
+## Slices
+
+Landing order, each keeping the suite green:
+
+1. Model, codec, and reads: `blocks` on a node block, the recursive codec, limits,
+   `inspect`, id uniqueness, the recursive walk for order, `locate`, and
+   `selectionIsValid`. Text edits, marks, stored marks, undo, and clipboard within
+   a container work; structural placement inside one is refused with
+   `InvalidParent`.
+2. Interpreters: recursive HTML export and import, the read-only view, and the DOM
+   adapter.
+3. Structural operations at any depth: `InsertNode`/`MoveNode` with a parent,
+   `DeleteNode`, `SplitNode`/`JoinNode` within a parent, and paste into a
+   container.
+4. Kit child constraints: `children` declarations, the mismatch diagnostic, and
+   `atom`'s no-children enforcement at the operation level.
+5. Migrations and a demo: `promoteUnknown` into a nested kind, HTML import for
+   lists, and a list in the Phase 3 slice.
+
+## Deferred
+
+Mark overlap rules (§10), inline atoms (`inlineContent`, Phase 7), collaborative
+structure (Phase 10), and slot-based node renderers (§34–§35) are not part of this.
