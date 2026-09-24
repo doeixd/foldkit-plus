@@ -119,9 +119,9 @@ describe('Recipes', () => {
   it('yields to an application rule in the app layer', () => {
     const L = Layers.standard
     const Danger = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
-    const Override = L.in(
-      'app',
-      Style.forSlots(ButtonSlots)({ button: Style.self({ background: 'red' }) }),
+    const Override = Style.forSlots(ButtonSlots)(
+      { button: Style.self({ background: 'red' }) },
+      { layer: L.layer('app') },
     )
     const sheet = Style.stylesheet(L.declare, Danger, Override)
 

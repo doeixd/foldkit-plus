@@ -12,6 +12,7 @@ import { DiagnosticError } from './diagnostics.js'
 import * as Mixin from './mixin.js'
 import type { Mixin as MixinValue } from './mixin.js'
 import type { Any as AnySlot, HiddenOf } from './slot.js'
+import type { Placement } from './layers.js'
 import type { SlotItem } from './slotItem.js'
 import * as SlotView from './slotView.js'
 import * as Rules from './styleRules.js'
@@ -57,11 +58,15 @@ export interface NamedStyle<Slots> {
   readonly rules: ReadonlyArray<{ readonly className: string; readonly css: string }>
   /** Class-independent rule chunks, for a deduplicating stylesheet. */
   readonly globalRules: ReadonlyArray<string>
+}
+
+export interface StyleOptions {
+  readonly name?: string
   /**
-   * The same style over the same slots with every piece transformed, compiled
-   * afresh; what `Layers.in` uses to place a whole `NamedStyle` in a layer.
+   * The layer every piece is placed in before compiling, e.g.
+   * `Layers.standard.layer('app')`. A rule already in a layer keeps it.
    */
-  readonly mapPieces: (transform: (piece: StyleValue) => StyleValue) => NamedStyle<Slots>
+  readonly layer?: Placement
 }
 
 /** A boolean known at authoring time. */
@@ -218,9 +223,11 @@ const contributionFrom = (
 
 export const forSlots =
   <Slots>(slots: Slots) =>
-  (pieces: StylePieces<Slots>, options?: { readonly name?: string }): NamedStyle<Slots> => {
+  (pieces: StylePieces<Slots>, options?: StyleOptions): NamedStyle<Slots> => {
     const known = slots as unknown as Record<string, unknown>
     const contributions: Record<string, SlotContribution<never>> = Object.create(null)
+    // What was compiled, so `pieces` recomposed elsewhere keeps the layer too.
+    const compiledPieces: Record<string, StyleValue> = {}
     const rules: Array<{ className: string; css: string }> = []
     const globalRules: Array<string> = []
     let css = ''
@@ -245,10 +252,12 @@ export const forSlots =
         })
       }
       if (piece !== undefined) {
+        const placed = options?.layer === undefined ? piece : options.layer.place(piece)
+        compiledPieces[key] = placed
         // Rule and global CSS are static even when the contribution is deferred,
         // so compile once, then build the contribution and gather the CSS.
-        const compiled = compileStyle(piece)
-        contributions[key] = contributionFrom(piece, compiled)
+        const compiled = compileStyle(placed)
+        contributions[key] = contributionFrom(placed, compiled)
         for (const entry of compiled.compiled) {
           rules.push(entry)
           css += entry.css
@@ -259,22 +268,14 @@ export const forSlots =
         }
       }
     }
-    const mapPieces = (transform: (piece: StyleValue) => StyleValue): NamedStyle<Slots> => {
-      const mapped: Record<string, StyleValue> = {}
-      for (const [key, piece] of Object.entries(pieces as Record<string, StyleValue | undefined>)) {
-        if (piece !== undefined) mapped[key] = transform(piece)
-      }
-      return forSlots(slots)(mapped as StylePieces<Slots>, options)
-    }
     return Object.freeze({
       ...(options?.name === undefined ? {} : { name: options.name }),
-      pieces,
+      pieces: options?.layer === undefined ? pieces : (compiledPieces as StylePieces<Slots>),
       mixin: Mixin.dynamic<never>(options?.name ?? 'Style', contributions),
       css,
       globalCss,
       rules: Object.freeze(rules),
       globalRules: Object.freeze(globalRules),
-      mapPieces,
     })
   }
 
@@ -568,7 +569,7 @@ export const forCapability =
   (
     capability: string | Capability.Any,
     piece: StyleValue,
-    options?: { readonly name?: string },
+    options?: StyleOptions,
   ): NamedStyle<Slots> => {
     const source = slots as unknown as Record<string, AnySlot>
     const pieces: Record<string, StyleValue> = {}

@@ -1,7 +1,7 @@
 /**
  * Compile-time Style contract. Type-checked, not executed.
  */
-import { Style, Theme } from '../src/index.js'
+import { Capability, Layers, Slot, Slots, Style, Theme } from '../src/index.js'
 import { FieldSlots } from './fixture.js'
 
 const _ok = Style.forSlots(FieldSlots)({ root: Style.class('x') })
@@ -98,3 +98,15 @@ Style.recipe({
     { when: { colour: 'primary' }, style: Style.class('x') },
   ],
 })
+
+// A layer is named from its order, and only a bare piece goes through `in`:
+// a slot style is layered where it is defined, with the `layer` option.
+const LayerRoot = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
+const Placed = Style.forSlots(LayerRoot)(
+  { root: Style.class('x') },
+  { layer: Layers.standard.layer('app') },
+)
+// @ts-expect-error not a layer in the standard order
+Layers.standard.layer('ap')
+// @ts-expect-error Layers.in no longer takes a NamedStyle
+Layers.standard.in('app', Placed)

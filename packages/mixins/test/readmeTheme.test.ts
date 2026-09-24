@@ -12,14 +12,9 @@ const t = Theme.ref(theme) // t.surface.base is 'var(--fk-surface-base)'; a miss
 
 const PageSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
 // Layered where it is defined: the view attaches this same value, so its classes are the sheet's.
-const PageStyle = L.in(
-  'app',
-  Style.forSlots(PageSlots)({
-    root: Style.self({
-      background: t.surface.base,
-      color: t.text.default,
-    }),
-  }),
+const PageStyle = Style.forSlots(PageSlots)(
+  { root: Style.self({ background: t.surface.base, color: t.text.default }) },
+  { layer: L.layer('app') },
 )
 
 const sheet = Style.stylesheet(

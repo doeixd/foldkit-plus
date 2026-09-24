@@ -167,16 +167,26 @@ describe('Style.stylesheet refuses a rule outside the declared order', () => {
 describe('Layers.in', () => {
   const hover = Style.pseudo(':hover', { color: 'blue' })
 
-  it('places a whole NamedStyle, and the slot resolves the layered class', () => {
-    const Named = Style.forSlots(RootSlots)({ root: Style.compose(Style.class('card'), hover) })
-    const layered = L.in('app', Named)
+  it('forSlots with a layer compiles the placed pieces, so the view renders the sheet class', () => {
+    const layered = Style.forSlots(RootSlots)(
+      { root: Style.compose(Style.class('card'), hover) },
+      { layer: L.layer('app') },
+    )
     expectTypeOf(layered).toEqualTypeOf<NamedStyle<typeof RootSlots>>()
     expect(layered.css).toMatch(/^@layer app\{\.style-[a-z0-9]+:hover\{color:blue\}\}$/)
     const className = layered.rules[0]?.className
-    expect(className).not.toBe(Named.rules[0]?.className)
     const root = SlotView.buildersFor(RootSlots, [layered.mixin], { input: undefined, h }).root
     expect(Attributes.find(root.attrs(), 'Class')?.value).toBe(`card ${className}`)
     expect(Style.stylesheet(L.declare, layered)).toBe(`${L.declare.globalCss?.[0]}${layered.css}`)
+    // Its pieces are the placed ones, so recomposing them keeps the layer.
+    expect(Style.forSlots(RootSlots)(layered.pieces).rules).toEqual(layered.rules)
+  })
+
+  it('forCapability takes the same layer', () => {
+    const Named = Style.forCapability(RootSlots)(Capability.Container, hover, {
+      layer: L.layer('components'),
+    })
+    expect(Named.css).toMatch(/^@layer components\{/)
   })
 
   it('leaves a rule that is already layered in its layer', () => {
@@ -197,13 +207,11 @@ describe('Layers.in', () => {
     ])
   })
 
-  it('never refuses a NamedStyle, whose pieces may already be layered', () => {
-    const Named = Style.forSlots(RootSlots)({
-      root: Style.compose(L.in('layouts', hover), Style.inline({ color: 'red' })),
-    })
-    expect(L.in('app', Named).rules.map(rule => rule.css)).toEqual(
-      Named.rules.map(rule => rule.css),
-    )
+  it('a layer option never refuses a piece already in another layer', () => {
+    const piece = Style.compose(L.in('layouts', hover), Style.inline({ color: 'red' }))
+    const bare = Style.forSlots(RootSlots)({ root: piece })
+    const placed = Style.forSlots(RootSlots)({ root: piece }, { layer: L.layer('app') })
+    expect(placed.rules.map(rule => rule.css)).toEqual(bare.rules.map(rule => rule.css))
   })
 
   it('is idempotent in the same layer', () => {

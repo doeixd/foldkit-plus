@@ -13,12 +13,15 @@ import type { StyleRule } from './styleRules.js'
 import type { StyleValue } from './styleValue.js'
 
 /**
- * A style that rebuilds itself with every piece transformed, such as a
- * `NamedStyle`; `Layers.in` places each of its pieces and gets the same kind
- * of style back.
+ * One layer of one order, for `Style.forSlots(S)(pieces, { layer })`: every
+ * piece is placed before it is compiled, so the style a view attaches and the
+ * style a sheet ships are the same value with the same classes. A piece
+ * already in another layer keeps it and is not refused, because a slot piece
+ * that is only a layered layout or recipe is ordinary.
  */
-export interface MapsPieces<Self> {
-  readonly mapPieces: (transform: (piece: StyleValue) => StyleValue) => Self
+export interface Placement<Name extends string = string> {
+  readonly layer: Name
+  readonly place: (piece: StyleValue) => StyleValue
 }
 
 export interface Layers<Name extends string> {
@@ -31,14 +34,13 @@ export interface Layers<Name extends string> {
    * already in a layer keeps it, so a design system's layered layout composed
    * into an application style stays in `layouts`. A piece with nothing
    * unlayered but something in another layer is refused with
-   * `style:relayered`, since the call would move nothing. A `NamedStyle` is
-   * placed piece by piece and never refused, so a page can put every style
-   * in `app` in one pass whatever each already holds.
+   * `style:relayered`, since the call would move nothing. A slot style is
+   * layered where it is defined, with `layer`, not here: placing a finished
+   * style would copy it under new classes that no view attaches.
    */
-  readonly in: {
-    (name: Name, piece: StyleValue): StyleValue
-    <Style extends MapsPieces<Style>>(name: Name, style: Style): Style
-  }
+  readonly in: (name: Name, piece: StyleValue) => StyleValue
+  /** The placement `Style.forSlots` takes as its `layer` option. */
+  readonly layer: (name: Name) => Placement<Name>
 }
 
 /** What one `in` call placed, and which other layers it left in place. */
@@ -128,12 +130,9 @@ const refuseRelayer = (name: string, count: Tally): void => {
   })
 }
 
-function placeIn(name: string, piece: StyleValue): StyleValue
-function placeIn<Style extends MapsPieces<Style>>(name: string, style: Style): Style
-function placeIn(name: string, value: StyleValue | MapsPieces<unknown>): unknown {
-  if ('mapPieces' in value) return value.mapPieces(piece => place(name, piece, tally()))
+const placeIn = (name: string, piece: StyleValue): StyleValue => {
   const count = tally()
-  const placed = place(name, value, count)
+  const placed = place(name, piece, count)
   refuseRelayer(name, count)
   return placed
 }
@@ -159,6 +158,8 @@ export const define = <const Name extends string>(names: ReadonlyArray<Name>): L
       globalCss: Object.freeze([`@layer ${names.join(', ')};`]),
     }),
     in: placeIn,
+    layer: (name: Name): Placement<Name> =>
+      Object.freeze({ layer: name, place: (piece: StyleValue) => place(name, piece, tally()) }),
   })
 }
 
