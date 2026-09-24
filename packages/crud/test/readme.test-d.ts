@@ -76,6 +76,35 @@ const Other = Mutation.make('Other', { Input: { slug: Schema.String }, Output: {
 // @ts-expect-error EditPostForm submits an EditPostInput, which `Other` does not take
 Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
 
+// The opening example: a list, bound, and its page read.
+{
+  const AuthorsQuery = Query.make('Authors', {
+    Input: { search: Schema.String },
+    Result: Query.connection(Blog.Author),
+  })
+  const OpeningModel = Schema.Struct({ remote: Remote.Model, search: Schema.String })
+  const OpeningApp = Surface.application({
+    Model: OpeningModel,
+    Message: defineMessageUnion({ ...Remote.messages }),
+  })
+  const Data = Remote.make({
+    model: OpeningApp.model.remote,
+    entities: Object.values(Blog),
+    queries: [AuthorsQuery],
+  })
+
+  const Authors = Crud.list('Authors', {
+    query: AuthorsQuery,
+    selection: Entity.select(Blog.Author, { id: true, name: true }),
+  })
+  const AuthorList = Authors.at({ data: Data, input: model => ({ search: model.search }) })
+
+  const model: typeof OpeningModel.Type = { remote: Remote.initial, search: '' }
+  expectTypeOf(AuthorList.page(model)).toEqualTypeOf<
+    RemoteData<Page<{ readonly id: string; readonly name: string }>>
+  >()
+}
+
 // A list, and its rows as a picker's choices.
 {
   const AuthorsQuery = Query.make('Authors', {
