@@ -24,10 +24,11 @@ const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
 const url = `${protocol}://${location.host}/sync?token=${encodeURIComponent(token)}`
 
 const storageScope = Effect.runSync(Scope.make())
-const storage = Effect.runSync(
+// Opening IndexedDB and reading the replica back are asynchronous.
+const storage = await Effect.runPromise(
   Effect.provideService(Sync.indexedDb(`foldkit-todo-app/${token}`), Scope.Scope, storageScope),
 )
-const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make(token), storage))
+const replica = await Effect.runPromise(TodoSync.openReplica(ReplicaId.make(token), storage))
 
 const container = document.querySelector<HTMLElement>('#app')
 if (container === null) throw new Error('#app is missing from the page')
