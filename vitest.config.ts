@@ -11,6 +11,9 @@ export default defineConfig({
       'foldkit-richtext-dom/editor': fileURLToPath(
         new URL('./packages/richtext-dom/src/editor.ts', import.meta.url),
       ),
+      'foldkit-richtext-dom/editor-bundle': fileURLToPath(
+        new URL('./packages/richtext-dom/src/editor-bundle.ts', import.meta.url),
+      ),
       'foldkit-richtext-dom/host': fileURLToPath(
         new URL('./packages/richtext-dom/src/host.ts', import.meta.url),
       ),

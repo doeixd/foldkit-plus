@@ -1306,6 +1306,9 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

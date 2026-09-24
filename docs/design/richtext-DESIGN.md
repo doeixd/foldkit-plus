@@ -4618,9 +4618,10 @@ published. Promotion has begun: the DOM half — the interpreter (`dom.ts`), the
 event translation (`events.ts`), and the HTML importer (`html.ts`) — moved from
 `examples/richtext` to `packages/richtext-dom`, a private package with its own
 tests, build, and README. §118 decided how a view owns that subtree and its first
-slice landed: the editor Bundle's view renders the host element, and the patch
-Command its `update` returns is what moves the DOM. The read-only view and the
-editor Bundle still live in the harness, unpublished; the toolbar, slash, and
+three slices landed: the editor's view renders the host element, the patch Command
+its `update` returns is what moves the DOM, paste and the undo/redo chords travel
+the same path, and the editor Bundle and read-only renderer moved in beside the
+interpreter. The harness is now only the browser page. The toolbar, slash, and
 keymap layers remain.
 
 Per item:
@@ -5023,9 +5024,9 @@ Command are identical, which is §27's requirement.
    adapter reports them, `toMessage` maps them, `update` runs them, and the
    Command renders the result. `test/editorView.test.ts` drives a real `paste`
    event and the history chords through the view's own mount.
-3. **In progress.** The editor's vocabulary and mount moved into
-   `foldkit-richtext-dom` (`foldkit-richtext-dom/editor`), which is why that
-   package now peers on `effect` and `foldkit`, and the read-only renderer followed
-   it (`foldkit-richtext-dom/view`). Only the Bundle still lives in the harness and
-   moves next.
+3. **Complete.** The editor moved into `foldkit-richtext-dom`: the vocabulary and
+   mount (`/editor`), the Bundle and its placement (`/editor-bundle`, which is why
+   the package peers on `effect`, `foldkit`, and `foldkit-bundle`), and the
+   read-only renderer (`/view`). The harness is what is left of the Phase 3 slice:
+   the browser page.
 4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).

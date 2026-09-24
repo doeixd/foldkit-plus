@@ -9,7 +9,7 @@ import { Scene } from 'foldkit/test'
 import * as RichText from 'foldkit-richtext'
 import { attachmentIn, mountInto } from 'foldkit-richtext-dom/host'
 import { afterEach, describe, expect, it } from 'vitest'
-import { application, edited, editor, typed, update, type Model } from '../src/controlled.js'
+import { application, edited, editor, typed, update, type Model } from '../src/editor-bundle.js'
 import { attachEditor, events, Message } from 'foldkit-richtext-dom/editor'
 
 // Each test mounts its own host, and the id is the placement's, so a leftover

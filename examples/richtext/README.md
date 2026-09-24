@@ -1,13 +1,14 @@
-# foldkit-richtext controlled-Bundle harness
+# foldkit-richtext harness
 
-A private feasibility harness, not a runnable example and not published. It
-answers one question from the [Rich Text design](../../docs/design/richtext-DESIGN.md#27-the-document-and-editor-bundle)
-(§27): can a rich-text editor be a Bundle whose authoritative document lives in
-the parent, with one parent transition committing the document and the editor's
-interaction state together?
+A private harness, not a runnable example and not published. It is what is left of
+the Phase 3 slice and the §27 Bundle proof once promotion moved the code into
+`packages/richtext-dom`: a page that mounts the editable adapter in a real browser
+(`harness.html`), and the notes below on what the slice proved.
 
-There is no DOM, no persistence, and no collaboration here. `src/controlled.ts`
-is the whole experiment:
+The editor is `foldkit-richtext-dom/editor-bundle` (the Bundle, its Link, and the
+placement) over `foldkit-richtext-dom/editor` (the vocabulary, `toMessage`, the
+mount, and the patch work). That package's README is the reference. The shape they
+implement is still §27's:
 
 ```text
 parent Model
@@ -33,14 +34,14 @@ Rendering is the one thing that is not part of that transition: the Bundle's
 Command syncs the attachment its host element holds (§118). The commit is
 synchronous; the patch is what follows it.
 
-`test/controlled.test.ts` asserts what that step commits: typing and mark
-toggles land document and selection in one transition; a split mints block and
-run identities from the parent-owned counter; a refused command changes nothing
-and does not burn identities; and a document replaced from outside is what the
-next command resolves against. `test/editorView.test.ts` asserts the other half:
-the view renders the host the Command finds, pasting and the undo/redo chords
-travel through Messages into the document and back out to the DOM, and running
-that Command is what moves it.
+The package's `test/editor-bundle.test.ts` asserts what that step commits: typing
+and mark toggles land document and selection in one transition; a split mints block
+and run identities from the parent-owned counter; a refused command changes nothing
+and does not burn identities; and a document replaced from outside is what the next
+command resolves against. Its `test/editorView.test.ts` asserts the other half: the
+view renders the host the Command finds, pasting and the undo/redo chords travel
+through Messages into the document and back out to the DOM, and running that
+Command is what moves it.
 
 ## The DOM half (first increment)
 
@@ -144,7 +145,7 @@ throwaway-tolerant.
 ## Running it
 
 ```bash
-pnpm vitest run examples/richtext/test
+pnpm vitest run packages/richtext-dom/test
 pnpm exec tsc -b examples/richtext
 ```
 
@@ -171,9 +172,9 @@ selection, clipboard permissions) stays unverified. That is the deferred item in
 
 ## Why there is no package.json
 
-The harness only needs `foldkit-richtext`, `foldkit-richtext-dom`, and
-`foldkit-bundle`, all mapped to source in `tsconfig.json` and aliased in the root
-`vitest.config.ts`. Keeping the harness out of the workspace dependency graph
+The harness only needs `foldkit-richtext` and `foldkit-richtext-dom`, mapped to
+source in `tsconfig.json` and aliased in the root `vitest.config.ts`. Keeping the
+harness out of the workspace dependency graph
 means it needs no `pnpm install`, so it adds no lockfile churn. Promote it to a
 runnable example (add a `package.json` with `workspace:*` dependencies and run
 `pnpm install`) only when it grows a demo entry point.

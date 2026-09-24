@@ -35,6 +35,7 @@ foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
+foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
 ```
 
 ## The loop
@@ -153,6 +154,20 @@ the HTML serializer uses, unknown marks ride on a `span` with `data-marks`, and
 unknown blocks render as an inert `div data-unknown="Type"` placeholder. One
 caveat worth knowing: `h.DataAttribute` prefixes `data-` itself, so it takes the
 bare name (`DataAttribute('unknown', …)` → `data-unknown`).
+
+## The editor Bundle
+
+`editor-bundle` is the editor as a Bundle whose authoritative document may live in
+the parent (§27). `Editor` is the Bundle; `EditorState` and `EditorView` are the
+state the parent owns beside the document; `editorAt(hostId)` places one editor and
+binds it to the host element its view renders. The Link's `read` projects the
+parent's document in, and `write` keeps only the editor fields, so the child never
+stores a document copy; `onOut` commits the returned state in the same parent
+transition. `application` and `update` are the assembled parent, and `edited` /
+`typed` / `pressed` / `toggled` / `selected` / `undone` / `redone` / `patched`
+build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
+Command carrying the `ChangeSet`, which is how rendering follows the commit instead
+of sharing it.
 
 ## What it does not do
 

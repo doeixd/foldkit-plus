@@ -17,7 +17,7 @@ import {
   update,
   type Model,
   type ParentMessage,
-} from '../src/controlled.js'
+} from '../src/editor-bundle.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({

@@ -13,7 +13,7 @@ import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
-import { events, Message, patchEditor } from 'foldkit-richtext-dom/editor'
+import { events, Message, patchEditor } from './editor.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({

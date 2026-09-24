@@ -93,7 +93,9 @@ undeclared node kinds.
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `Selected`, `Pasted`, `Undone`,
 `Redone`, `Patched`), `toMessage`, the `events` mount a view renders as its host
 element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
-element that host names.
+element that host names. `foldkit-richtext-dom/editor-bundle` is the editor as a
+Bundle (§27): `Editor`, `editorAt(hostId)`, `application`/`update`, and the
+Messages a host dispatches; every accepted edit returns that patch Command.
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
@@ -127,7 +129,8 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-Form/Bundle integration, the rest of Phase 4, and collaboration remain
+Form integration (Phase 5), the rest of Phase 4 (toolbar, slash commands, keymaps),
+and collaboration remain
 unfinished. Nested children are done: a node block may carry nested `blocks`,
 which decode, round-trip, count, and survive an unknown kind, and commands reach
 a run inside one — typing, grapheme deletion, marks, and the clipboard work at

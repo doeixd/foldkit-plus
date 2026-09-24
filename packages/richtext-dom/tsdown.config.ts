@@ -8,6 +8,7 @@ export default defineConfig({
     'src/html.ts',
     'src/view.ts',
     'src/editor.ts',
+    'src/editor-bundle.ts',
   ],
   format: ['esm'],
   dts: true,
