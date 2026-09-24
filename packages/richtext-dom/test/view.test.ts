@@ -218,3 +218,113 @@ describe('the read-only renderer', () => {
     expect(text(placeholder)).toBe('[Embed]')
   })
 })
+
+describe('the read-only renderer with a rendering registry', () => {
+  const links = RichText.rendering({
+    marks: {
+      Link: mark => ({
+        tag: 'a',
+        attributes: { href: String(RichText.markProps(mark)?.href ?? '') },
+      }),
+    },
+  })
+
+  it('renders a declared mark as its element, with the shipped marks inside it', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 'a',
+              text: 'docs',
+              marks: [{ name: 'Link', props: { href: '/x' } }, 'Bold'],
+            },
+          ],
+        },
+      ],
+    })
+    const paragraph = (renderDocument(content, links) as unknown as VNode).children?.[0] as VNode
+    expect(tags(paragraph)).toEqual(['p', 'a', 'strong'])
+    expect(attr(paragraph.children?.[0] as VNode, 'href')).toBe('/x')
+    expect(text(paragraph)).toBe('docs')
+  })
+
+  it('renders a declared node kind as its element, with attributes from its props', () => {
+    const renderer = RichText.rendering({
+      nodes: {
+        Callout: block => ({
+          tag: 'aside',
+          attributes: { 'data-tone': String(block.props.tone ?? '') },
+        }),
+      },
+    })
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'c',
+          props: { tone: 'warn' },
+          children: [{ type: 'Text', id: 't', text: 'Careful', marks: ['Bold'] }],
+        },
+      ],
+    })
+    const block = (renderDocument(content, renderer) as unknown as VNode).children?.[0] as VNode
+    expect(block.sel).toBe('aside')
+    expect(attr(block, 'data-tone')).toBe('warn')
+    expect(tags(block)).toEqual(['aside', 'strong'])
+  })
+
+  it('lets an entry replace a shipped mark or the default node element', () => {
+    const renderer = RichText.rendering({
+      marks: { Bold: { tag: 'b', attributes: {} } },
+      nodes: { Callout: { tag: 'section', attributes: {} } },
+    })
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'c',
+          props: {},
+          children: [{ type: 'Text', id: 't', text: 'x', marks: ['Bold'] }],
+        },
+      ],
+    })
+    const block = (renderDocument(content, renderer) as unknown as VNode).children?.[0] as VNode
+    expect(block.sel).toBe('section')
+    expect(tags(block)).toEqual(['section', 'b'])
+  })
+
+  it('reports a tag Foldkit cannot build rather than swapping in another element', () => {
+    const paragraph = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'a', text: 'x', marks: [] }] },
+      ],
+    })
+    // `my-widget` is not a tag Foldkit can build, and `Attribute` names an
+    // attribute builder rather than an element — neither may become an element.
+    for (const tag of ['my-widget', 'Attribute']) {
+      const renderer = RichText.rendering({ marks: { Bold: { tag, attributes: {} } } })
+      const marked = RichText.decodeDocument({
+        version: 1,
+        children: [
+          {
+            type: 'Paragraph',
+            id: 'p',
+            children: [{ type: 'Text', id: 'a', text: 'x', marks: ['Bold'] }],
+          },
+        ],
+      })
+      expect(() => renderDocument(marked, renderer)).toThrow(/no element for/)
+    }
+    expect(tags(renderDocument(paragraph) as unknown as VNode)).toEqual(['div', 'p'])
+  })
+})

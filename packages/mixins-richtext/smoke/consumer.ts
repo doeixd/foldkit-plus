@@ -9,7 +9,7 @@ import { type EditorDom, mount } from 'foldkit-richtext-dom'
 import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
 import { parseHtml } from 'foldkit-richtext-dom/html'
-import { renderDocument } from 'foldkit-richtext-dom/view'
+import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
 import { markActive, marksToolbar, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
 import { events, Message, patchEditor, toMessage } from 'foldkit-richtext-dom/editor'
 import { edited, editorAt, update } from 'foldkit-richtext-dom/editor-bundle'
@@ -45,4 +45,13 @@ export type Surface = [
   typeof update,
   typeof MarkToolbarSlots,
   typeof markToolbar,
+]
+
+/**
+ * The renderer is one value shared by the serializer and the view (§121), so the
+ * view's parameters have to accept it too.
+ */
+export const renderedWith = (document: RichText.Document, renderer: RichText.Rendering) => [
+  renderDocument(document, renderer),
+  ...renderBlocks(document.children, renderer),
 ]

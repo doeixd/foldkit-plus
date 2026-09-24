@@ -115,6 +115,9 @@ Messages a host dispatches; every accepted edit returns that patch Command.
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
 ownership — with the same element and attribute names the editable adapter uses.
+`renderDocument(document, renderer?)` / `renderBlocks(blocks, renderer?)` take the
+same `rendering(...)` registry as the serializer, so a declared Link renders as a
+real `<a href>`; a tag Foldkit has no builder for is reported, not swapped.
 
 The harness also carries a page (`examples/richtext/harness.html`, served from
 source with `pnpm exec vite examples/richtext`) for exercising the editable
