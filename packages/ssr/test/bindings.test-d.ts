@@ -6,7 +6,7 @@ import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
-import { Resume } from 'foldkit-ssr'
+import { Resume, type ResumableBuilder } from 'foldkit-ssr'
 import { App, Message } from './bindingsFixture.js'
 
 const Other = defineMessageUnion({ Elsewhere: { value: Schema.String } })
@@ -65,4 +65,33 @@ export const surfaceViews = (): number => {
     Resume.builder(h).button([Resume.builder(h).OnClick(Message.Liked({ id: like.id }))], []),
   )
   return [likeView, plainView].length
+}
+
+// A helper typed with ResumableBuilder takes the builder of any view or Surface
+// renderer whose Messages match; a builder that may send more is refused.
+const likeButton = (rh: ResumableBuilder<Message>, id: string) =>
+  rh.button([rh.OnClick(Message.Liked({ id }))], ['Like'])
+const likeSubset = (
+  rh: ResumableBuilder<typeof Message.Liked.Type | typeof Message.ChangedSearch.Type>,
+  id: string,
+) => rh.button([rh.OnClick(Message.Liked({ id }))], ['Like'])
+
+export const helpers = (h: HtmlBuilder<Message>): number => {
+  const inView = likeButton(Resume.builder(h), 'p1')
+  const inSurface = Surface.rootView(
+    Like,
+    undefined,
+    Resume.view((like, rh) => likeSubset(rh, like.id)),
+  )
+  const Wider = App.surface('Wider', {
+    model: ({ model }) => ({ id: model.id }),
+    messages: [Message.Liked, Message.ChangedSearch, Message.Renamed],
+  })
+  const tooWide = Surface.rootView(
+    Wider,
+    undefined,
+    // @ts-expect-error: a builder that may send Renamed is not one limited to Like's Messages
+    Resume.view((wider, rh) => likeSubset(rh, wider.id)),
+  )
+  return [inView, inSurface, tooWide].length
 }

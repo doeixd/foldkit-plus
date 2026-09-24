@@ -83,6 +83,27 @@ describe('parts in the plan and the render', () => {
     ).toThrow('two parts of plan "author" share the id "broken"')
   })
 
+  it('captures each part once per render', async () => {
+    let captures = 0
+    const counted: ResumePart<Model> = {
+      id: 'counted',
+      covers: [],
+      capture: () => {
+        captures++
+        return {}
+      },
+      restore: model => Result.succeed(model),
+    }
+    const counting = SSR.plan(App, {
+      id: 'author',
+      state: Projection.pick(App.model.theme),
+      surfaces: plan.surfaces,
+      parts: [...plan.parts, counted],
+    })
+    await Effect.runPromise(SSR.render(config, counting, { buildId: 'b' }))
+    expect(captures).toBe(1)
+  })
+
   it('refuses to render a part that cannot restore its own capture', async () => {
     const unrestorable = SSR.plan(App, {
       id: 'author',

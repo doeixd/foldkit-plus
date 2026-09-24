@@ -69,8 +69,36 @@ describe('SSR.entry through handleRequest', () => {
     expect(response.status).toBe(500)
     expect(await response.text()).toBe('The page could not be rendered.')
     expect(logged.mock.calls.flat().join(' ')).toContain(
-      'https://example.test/ was not rendered: init returned LoadPreferences',
+      'https://example.test/ was not rendered: ResumeUnsafe: init returned LoadPreferences',
     )
+  })
+
+  it('answers 500 when the view throws or the Flags cannot be had, never rejecting', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const throwing = {
+      ...config,
+      view: (): never => {
+        throw new Error('the view broke')
+      },
+    }
+    const broken = await serve(
+      new Request('https://example.test/', { headers: html }),
+      SSR.entry(throwing, plan, { buildId: 'b', template }),
+    )
+    expect(broken.status).toBe(500)
+
+    const flagless = await serve(
+      new Request('https://example.test/', { headers: html }),
+      SSR.entry(themed, themedPlan, {
+        buildId: 'b',
+        template,
+        flags: () => Promise.reject(new Error('the database is down')),
+      }),
+    )
+    expect(flagless.status).toBe(500)
+    const log = logged.mock.calls.flat().join(' ')
+    expect(log).toContain('the view broke')
+    expect(log).toContain('the database is down')
   })
 
   it('gives each request its own Flags, which stay out of the page', async () => {

@@ -482,9 +482,10 @@ Then `Remote.resume(Data, { surfaces })` as a part.
 **Done.** `ResumePart` and `SSR.plan({ parts })` in `foldkit-ssr`, and
 `Remote.resume(Data)` in `foldkit-remote`, which returns an object of that
 shape without importing `foldkit-ssr`, so neither package depends on the other.
-Remote's side has fourteen tests and `foldkit-ssr`'s eight; eighteen of twenty
-mutations turned a test red once five tests were added for survivors, and the
-last was equivalent (capturing a projection twice captures the same thing).
+Remote's side has fourteen tests and `foldkit-ssr`'s eight; eighteen of
+nineteen mutations turned a test red once five tests were added for
+survivors, and the last was equivalent (capturing a projection twice captures
+the same thing).
 Decided and found on the way:
 
 - **The capture is per field, not per entity.** Retention's `reachable` and the
@@ -593,7 +594,12 @@ Learned:
   the entry needs no handling of either. It passes `POST` through, which is
   where Phase E's fallback will attach.
 - A render failure is logged with the request URL and answered with a generic
-  body, since a `ResumeUnsafe` message names the application's fields.
+  body, since a `ResumeUnsafe` message names the application's fields. The
+  first cut caught failures with `Effect.result`, which misses defects: a view
+  that threw, or `flags` that rejected, would have rejected `renderPage`
+  instead of answering it. Review found it against the trap already listed in
+  AGENTS.md; the entry now runs `flags` and the render as one Effect and
+  answers any failed exit `500`.
 - `flags(request)` may be async, so an application can load what its `init`
   needs before the synchronous render (decision 6). A Remote application still
   has to get its prefetched data into `init`'s Model; `SSR.entry` does not do
@@ -653,7 +659,21 @@ this plan's next track, in its order, and it is the source for their detail:
     builder read one context.
   - **Ordinals are indices.** The envelope's `bindings` is an array, and a
     marker's value is its index; the design's `e12` was a name for the same
-    thing. One binding per event per element, the last, as Foldkit keeps.
+    thing. Ordinals follow the order the view builds elements, so a child's
+    bindings come before its parent's.
+  - **Every handler of an event, in order.** The first cut kept one binding
+    per event per element, the last, on the belief that Foldkit keeps the last
+    handler. It chains them all, in attribute order (`addDataOn`), so a click
+    before boot would have dispatched fewer Messages than the live page. A
+    marker now lists every ordinal of its event, and a handler the page cannot
+    describe (a closure, or `OnKeyDownPreventDefault` and its kin) is listed as
+    `*`, so Phase B knows the live page does something there the page cannot
+    name and must boot instead. The tag-to-event table is Foldkit's own,
+    read from its source rather than written from memory.
+  - **The envelope records the Foldkit attribute**, not only the DOM event:
+    `OnSubmit`, `OnContextMenu` and `OnCancel` prevent the default action,
+    `OnBlur` ignores Foldkit's devtools, and `OnFocusEnter` listens to
+    `focusin` with a containment check. Phase B reproduces each by its tag.
   - **A hole's Message is encoded whole**, with the hole filled by a
     placeholder (`''`, and no modifiers), so the envelope needs no second
     Schema for partial Messages and Phase B decodes one Message and fills the

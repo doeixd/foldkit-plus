@@ -5,8 +5,8 @@
  * A binding whose Message the browser's Model would build differently is
  * refused, like a view that reads a field the plan does not send.
  */
-import { Effect, Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
+import { Effect, Option, Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Projection } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { BINDING_ATTRIBUTE, Resume, SSR } from 'foldkit-ssr'
@@ -27,18 +27,26 @@ describe('the resumable builder on the server', () => {
     expect(tag('keys')).toContain(`${BINDING_ATTRIBUTE}keydown="3"`)
     // A keyed element is marked like any other.
     expect(tag('item')).toContain(`${BINDING_ATTRIBUTE}click="4"`)
-    // A closure is not data: nothing can name what it would do.
-    expect(tag('closure')).not.toContain(BINDING_ATTRIBUTE)
+    // A closure is not data: the page marks that it does something it cannot name.
+    expect(tag('closure')).toContain(`${BINDING_ATTRIBUTE}input="*"`)
   })
 
   it('writes each binding into the envelope, as the Message Schema encodes it', async () => {
     const { envelope } = await rendered()
     expect(bindingsOf(envelope)).toEqual([
-      { event: 'click', message: { _tag: 'Liked', id: 'p1' }, options: { propagation: 'Stop' } },
-      { event: 'input', message: { _tag: 'ChangedSearch', value: '' }, hole: ['value'] },
-      { event: 'change', message: { _tag: 'Renamed', id: 'p1', title: '' }, hole: ['title'] },
       {
-        event: 'keydown',
+        attribute: 'OnClick',
+        message: { _tag: 'Liked', id: 'p1' },
+        options: { propagation: 'Stop' },
+      },
+      { attribute: 'OnInput', message: { _tag: 'ChangedSearch', value: '' }, hole: ['value'] },
+      {
+        attribute: 'OnChange',
+        message: { _tag: 'Renamed', id: 'p1', title: '' },
+        hole: ['title'],
+      },
+      {
+        attribute: 'OnKeyDown',
         message: {
           _tag: 'Pressed',
           key: '',
@@ -46,7 +54,7 @@ describe('the resumable builder on the server', () => {
         },
         hole: ['key', 'modifiers'],
       },
-      { event: 'click', message: { _tag: 'Liked', id: 'p1' } },
+      { attribute: 'OnClick', message: { _tag: 'Liked', id: 'p1' } },
     ])
     for (const binding of bindingsOf(envelope)) {
       expect(() => Schema.decodeUnknownSync(Message)(binding.message)).not.toThrow()
@@ -76,6 +84,63 @@ describe('the resumable builder on the server', () => {
       Effect.flip(SSR.render(config, schemaless, { buildId: 'b' })),
     )
     expect(refused).toMatchObject({ _tag: 'ResumeUnsafe', reason: 'UnencodableBinding' })
+  })
+})
+
+describe('several handlers of one event', () => {
+  const renderBody = (body: (model: Model, h: HtmlBuilder<Message>) => Html) =>
+    Effect.runPromise(
+      SSR.render(
+        {
+          ...config,
+          view: (model: Model, h: HtmlBuilder<Message>) => ({
+            title: 'Post',
+            body: body(model, h),
+          }),
+        },
+        plan,
+        { buildId: 'b' },
+      ),
+    )
+
+  it('marks every binding of the event, in the order Foldkit chains them', async () => {
+    const { rendered: page, envelope } = await renderBody((model, h) => {
+      const rh = Resume.builder(h)
+      return rh.button(
+        [rh.OnClick(Message.Liked({ id: model.id })), rh.OnClick(Message.Counted({ count: 1 }))],
+        [],
+      )
+    })
+    expect(page.html).toContain(`${BINDING_ATTRIBUTE}click="0 1"`)
+    expect(
+      bindingsOf(envelope).map((binding: { message: { _tag: string } }) => binding.message._tag),
+    ).toEqual(['Liked', 'Counted'])
+  })
+
+  it("records each binding's Foldkit attribute, which says what its handler does beside dispatching", async () => {
+    const { envelope } = await renderBody((model, h) => {
+      const rh = Resume.builder(h)
+      // OnSubmit also prevents the default action; OnBlur ignores devtools focus.
+      return rh.form(
+        [rh.OnSubmit(Message.Liked({ id: model.id }))],
+        [rh.input([rh.OnBlur(Message.Counted({ count: 0 }))])],
+      )
+    })
+    // A child's element is built before its parent's, so the input comes first.
+    expect(bindingsOf(envelope).map((binding: { attribute: string }) => binding.attribute)).toEqual(
+      ['OnBlur', 'OnSubmit'],
+    )
+  })
+
+  it('marks a handler it cannot name beside those it can, so nothing does less before boot', async () => {
+    const { rendered: page } = await renderBody((_model, h) => {
+      const rh = Resume.builder(h)
+      return rh.div(
+        [rh.OnKeyDown(Message.Pressed), rh.OnKeyDownPreventDefault(() => Option.none())],
+        [],
+      )
+    })
+    expect(page.html).toContain(`${BINDING_ATTRIBUTE}keydown="0 *"`)
   })
 })
 

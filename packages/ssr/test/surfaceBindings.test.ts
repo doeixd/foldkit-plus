@@ -39,5 +39,7 @@ it("marks a Surface renderer's bindings through Resume.view", async () => {
   expect(rendered.html).toMatch(
     new RegExp(`<button[^>]*${BINDING_ATTRIBUTE}click="0"[^>]*id="surface-like"`),
   )
-  expect(envelope).toContain('"bindings":[{"event":"click","message":{"_tag":"Liked","id":"p1"}}]')
+  expect(envelope).toContain(
+    '"bindings":[{"attribute":"OnClick","message":{"_tag":"Liked","id":"p1"}}]',
+  )
 })

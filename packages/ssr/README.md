@@ -60,25 +60,31 @@ The cost of a plan:
 ## Render and hydrate
 
 ```ts
+import { Effect } from 'effect'
 import { Projection } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 
 // Which part of the Model the browser owns. The rest starts from the
 // baseline, by default the application's initial Model.
-export const Editor = SSR.plan(App, {
-  id: 'editor',
-  state: Projection.pick(App.model.draft, App.model.count),
+export const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
 })
 
 // On the server, per request.
-const result = yield* SSR.render(config, Editor, { buildId, url: request.url, flags })
+const result = await Effect.runPromise(SSR.render(config, Post, { buildId, url: request.url }))
 const html = SSR.page(template, result)
 
 // In the browser, instead of Runtime.hydrate.
-SSR.hydrate(config, Editor, { buildId })
+SSR.hydrate(config, Post, { buildId })
 ```
 
-`config` is the one you pass to `makeApplication`, the same on both sides.
+`App` is the application's Surface application (`foldkit-surface`), and
+`config` the one you pass to `makeApplication`, the same on both sides. The
+examples in this README share one application, a post page, sketched
+[at the end](#the-application-in-these-examples). An application with Flags
+also passes `flags` to `SSR.render`; they shape the server's `init` and never
+reach the page.
 `SSR.page` puts the envelope in the template, not in Foldkit's rendered HTML,
 which `injectIntoTemplate` requires to hold only the root and its own payload.
 
@@ -98,7 +104,7 @@ on Workers alike. `SSR.entry` is that function for a resume plan:
 import { handleRequest } from 'foldkit/experimental/server'
 
 // The server entry.
-export const { renderPage } = SSR.entry(config, Editor, { buildId, template })
+export const { renderPage } = SSR.entry(config, Post, { buildId, template })
 
 // A Worker, or any host that hands you a Web Request.
 export default {
@@ -108,8 +114,9 @@ export default {
 
 `GET` and `HEAD` render the page with the request's URL; an application with
 Flags passes `flags: request => ...`. Any other method is answered `405`. A
-render that fails, or a plan it refuses, is answered `500` with the reason
-logged, never with a page the browser could not resume. `handleRequest` still
+render that fails or throws, `flags` that throw or reject, and a plan the
+render refuses are each answered `500` with the reason logged, never with a
+page the browser could not resume. `handleRequest` still
 answers a missed asset `404` without rendering, and `HEAD` without a body.
 
 The page comes back whole, as Foldkit's `Responded`, built by Foldkit's own
@@ -123,10 +130,10 @@ nowhere. `SSR.render` refuses a plan that would drop them, naming them. Name
 what the browser should run on load in `boot`:
 
 ```ts
-const Editor = SSR.plan(App, {
-  id: 'editor',
-  state: Projection.pick(App.model.draft),
-  boot: model => [LoadPreferences(model)],
+const Post = SSR.plan(App, {
+  id: 'post',
+  state: Projection.pick(App.model.route, App.model.draft),
+  boot: () => [LoadPreferences()],
 })
 ```
 
@@ -247,7 +254,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 const pages = await Effect.runPromise(
-  SSR.generate(config, Editor, {
+  SSR.generate(config, Post, {
     buildId,
     template,
     origin: 'https://example.com',
@@ -289,11 +296,11 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
     body: rh.main(
       [],
       [
-        rh.button([rh.OnClick(Message.Liked({ id: model.id }))], ['Like']),
+        rh.button([rh.OnClick(Message.Liked({ id: model.post.id }))], ['Like']),
         // A Message with a hole: the event fills `value`.
-        rh.input([rh.Value(model.search), rh.OnInput(Message.ChangedSearch)]),
+        rh.input([rh.Value(model.draft), rh.OnInput(Message.ChangedDraft)]),
         // Fixed fields beside the hole: the event fills `title`.
-        rh.input([rh.OnChange(Message.Renamed, { id: model.id })]),
+        rh.input([rh.OnChange(Message.Renamed, { id: model.post.id })]),
         // A key event fills `key` and `modifiers`.
         rh.div([rh.OnKeyDown(Message.Pressed)], []),
       ],
@@ -322,13 +329,19 @@ const LikeView = Surface.rootView(
 
 During the server's render each binding gets an ordinal, its element a
 `data-foldkit-plus-on-<event>` attribute naming it, and the envelope the
-Message encoded through the application's Message Schema. In the browser the
-builder marks nothing, and Foldkit's first patch removes the server's markers.
-The plan must be made from the application, so it knows that Schema.
+Message encoded through the application's Message Schema, with the Foldkit
+attribute it came from (`OnSubmit` also prevents the default action, which the
+page must know to answer as the live page would). Foldkit runs every handler
+of an event on an element, in order, so the marker lists every ordinal of that
+event, `click="0 1"`; a handler the page cannot describe, a closure or an
+attribute such as `OnKeyDownPreventDefault`, is listed as `*`, so the page
+knows it cannot answer that event alone. In the browser the builder marks
+nothing, and Foldkit's first patch removes the server's markers. The plan must
+be made from the application, so it knows that Schema.
 
 The server compares the bindings of its two renders as it compares the body:
 a Message built from a field the plan does not send
-(`Liked({ id: model.id })` with `id` unsent) would be one Message before the
+(`Liked({ id: model.post.id })` with `post.id` unsent) would be one Message before the
 view runs and another after, so it is refused, naming the element. Nothing
 uses the bindings in the browser yet; delegated dispatch and deferred boot are
 the next phases.
@@ -371,12 +384,52 @@ page). A page is never half-restored.
 their own:
 
 ```ts
-const script = SSR.envelope(Editor, model, { route: '/posts?page=2' })
-const resumed = SSR.resume(Editor, document, { route: '/posts?page=2' }) // Result
+const script = SSR.envelope(Post, model, { route: '/posts/p1' })
+const resumed = SSR.resume(Post, document, { route: '/posts/p1' }) // Result
 ```
 
 The envelope escapes `<` as Foldkit escapes its Flags, so no string in the
 Model can close the script or open another. It also escapes U+2028 and U+2029.
+
+## The application in these examples
+
+A post page. The examples read these fields and send these Messages; `App`
+is `Surface.application({ Model, Message, initial, update })`, and the
+Surfaces (`PostActions`, `Menu`, `Like`), `Data` (a `Remote.make` domain over
+`App.model.remote`) and `LoadPreferences` (a `Command.define`) are the
+application's own.
+
+```ts
+const AppRoute = defineRouteUnion({ Home: {}, Post: { id: Schema.String } })
+
+const Model = Schema.Struct({
+  route: AppRoute,
+  post: Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    body: Schema.String,
+    liked: Schema.Boolean,
+  }),
+  draft: Schema.String,
+  menuOpen: Schema.Boolean,
+  remote: Remote.Model,
+})
+
+const Modifiers = Schema.Struct({
+  shiftKey: Schema.Boolean,
+  ctrlKey: Schema.Boolean,
+  altKey: Schema.Boolean,
+  metaKey: Schema.Boolean,
+})
+
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  Liked: { id: Schema.String },
+  ChangedDraft: { value: Schema.String },
+  Renamed: { id: Schema.String, title: Schema.String },
+  Pressed: { key: Schema.String, modifiers: Modifiers },
+})
+```
 
 ## What the tests prove
 

@@ -20,8 +20,12 @@ import { current, type Binding } from './context.js'
 /** The attribute prefix of an element's binding marker. */
 export const BINDING_ATTRIBUTE = 'data-foldkit-plus-on-'
 
-/** The DOM event of each event attribute whose binding can be marked. */
-const EVENTS: Readonly<Record<string, string>> = {
+/**
+ * The DOM event each of Foldkit's event attributes listens to, read from
+ * Foldkit's own attribute table (0.163). `OnCustomEvent` names its event in
+ * its payload, and `OnMount` and `OnUnmount` listen to none.
+ */
+const EVENT_OF: Readonly<Record<string, string>> = {
   OnClick: 'click',
   OnDoubleClick: 'dblclick',
   OnMouseDown: 'mousedown',
@@ -31,15 +35,95 @@ const EVENTS: Readonly<Record<string, string>> = {
   OnMouseOver: 'mouseover',
   OnMouseOut: 'mouseout',
   OnMouseMove: 'mousemove',
+  OnPointerMove: 'pointermove',
+  OnPointerLeave: 'pointerleave',
+  OnPointerDown: 'pointerdown',
+  OnPointerUp: 'pointerup',
+  OnKeyDown: 'keydown',
+  OnKeyDownPreventDefault: 'keydown',
+  OnKeyDownSelf: 'keydown',
+  OnKeyDownSelfPreventDefault: 'keydown',
+  OnKeyDownFocus: 'keydown',
+  OnKeyUp: 'keyup',
+  OnKeyUpPreventDefault: 'keyup',
+  OnKeyPress: 'keypress',
   OnFocus: 'focus',
   OnBlur: 'blur',
-  OnSubmit: 'submit',
-  OnReset: 'reset',
+  OnFocusEnter: 'focusin',
+  OnFocusLeave: 'focusout',
   OnInput: 'input',
   OnChange: 'change',
-  OnKeyDown: 'keydown',
-  OnKeyUp: 'keyup',
+  OnBeforeInput: 'beforeinput',
+  OnBeforeInputPreventDefault: 'beforeinput',
+  OnFileChange: 'change',
+  OnSubmit: 'submit',
+  OnReset: 'reset',
+  OnScroll: 'scroll',
+  OnWheel: 'wheel',
+  OnCopy: 'copy',
+  OnCut: 'cut',
+  OnPaste: 'paste',
+  OnPastePreventDefault: 'paste',
+  OnCopyText: 'copy',
+  OnCutText: 'cut',
+  OnCancel: 'cancel',
+  OnCancelPreventDefault: 'cancel',
+  OnToggle: 'toggle',
+  OnContextMenu: 'contextmenu',
+  OnDragStart: 'dragstart',
+  OnDrag: 'drag',
+  OnDragEnd: 'dragend',
+  OnDragEnter: 'dragenter',
+  OnDragLeave: 'dragleave',
+  OnDragOver: 'dragover',
+  OnDrop: 'drop',
+  OnDropFiles: 'drop',
+  OnTouchStart: 'touchstart',
+  OnTouchEnd: 'touchend',
+  OnTouchMove: 'touchmove',
+  OnTouchCancel: 'touchcancel',
+  OnAnimationStart: 'animationstart',
+  OnAnimationEnd: 'animationend',
+  OnAnimationIteration: 'animationiteration',
+  OnTransitionEnd: 'transitionend',
+  OnLoad: 'load',
+  OnError: 'error',
+  OnPlay: 'play',
+  OnPause: 'pause',
+  OnEnded: 'ended',
+  OnTimeUpdate: 'timeupdate',
+  OnVolumeChange: 'volumechange',
+  OnSelect: 'select',
 }
+
+/**
+ * The attributes whose binding the page can describe: a Message value, or one
+ * of the hole forms this builder records. Any other handler still runs on the
+ * live page, so its event is marked `*`: the page does something there it
+ * cannot name, and a dispatcher that ran only the named bindings would do less.
+ */
+const MARKABLE: ReadonlySet<string> = new Set([
+  'OnClick',
+  'OnDoubleClick',
+  'OnMouseDown',
+  'OnMouseUp',
+  'OnMouseEnter',
+  'OnMouseLeave',
+  'OnMouseOver',
+  'OnMouseOut',
+  'OnMouseMove',
+  'OnFocus',
+  'OnBlur',
+  'OnSubmit',
+  'OnReset',
+  'OnInput',
+  'OnChange',
+  'OnKeyDown',
+  'OnKeyUp',
+])
+
+/** The token in a marker for a handler the page cannot describe. */
+const UNNAMED_HANDLER = '*'
 
 declare const invalid: unique symbol
 
@@ -116,13 +200,15 @@ export type MessageOf<Builder> = Builder extends {
   : never
 
 /**
- * The resumable form of a builder: the same elements and attributes, and the
- * hole forms of the four value events. `Builder` is the builder it wraps, a
- * view's `HtmlBuilder` unless it says otherwise.
+ * The resumable builder for a view whose Messages are `Message`: its elements
+ * and attributes, and the hole forms of the four value events. One shape
+ * whether it wraps a view's `HtmlBuilder` or a Surface renderer's builder, so a
+ * helper typed with it takes either; Foldkit's phantom Message key, which only
+ * the first has, is left out of both.
  */
-export type ResumableBuilder<Message, Builder = HtmlBuilder<Message>> = Omit<
-  Builder,
-  'OnInput' | 'OnChange' | 'OnKeyDown' | 'OnKeyUp'
+export type ResumableBuilder<Message> = Omit<
+  HtmlBuilder<Message>,
+  (keyof HtmlBuilder<never> & symbol) | 'OnInput' | 'OnChange' | 'OnKeyDown' | 'OnKeyUp'
 > & {
   readonly OnInput: TextHole<Message>
   readonly OnChange: TextHole<Message>
@@ -172,9 +258,9 @@ const builders = new WeakMap<object, unknown>()
  */
 export const builder = <Builder extends AnyBuilder>(
   h: Builder,
-): ResumableBuilder<MessageOf<Builder>, Builder> => {
+): ResumableBuilder<MessageOf<Builder>> => {
   const cached = builders.get(h)
-  if (cached !== undefined) return cached as ResumableBuilder<MessageOf<Builder>, Builder>
+  if (cached !== undefined) return cached as ResumableBuilder<MessageOf<Builder>>
   const source = h as unknown as Record<string, unknown>
   const attribute = source.Attribute as (name: string, value: string) => unknown
 
@@ -185,30 +271,49 @@ export const builder = <Builder extends AnyBuilder>(
     const id = attributes.find(item => isTagged(item) && item._tag === 'Id') as
       { readonly value: string } | undefined
     const element = id === undefined ? tag : `${tag}#${id.value}`
-    // One binding per event on an element: Foldkit keeps the last handler.
-    const byEvent = new Map<string, Binding>()
+    // Foldkit chains every handler of an event, in the order the attributes
+    // come, so a marker lists every binding of its event in that order.
+    const tokens = new Map<string, Array<string>>()
     for (const item of attributes) {
       if (!isTagged(item)) continue
-      const event = EVENTS[item._tag]
+      const event =
+        item._tag === 'OnCustomEvent' && typeof item.name === 'string'
+          ? item.name
+          : EVENT_OF[item._tag]
       if (event === undefined) continue
       const recorded = holes.get(item)
-      if ('message' in item) {
-        byEvent.set(event, {
-          event,
-          element,
-          message: item.message,
-          ...(item.options === undefined ? {} : { options: item.options }),
-        })
-      } else if (recorded !== undefined) {
-        byEvent.set(event, { event, element, message: recorded.template, hole: recorded.hole })
+      const binding: Binding | undefined = !MARKABLE.has(item._tag)
+        ? undefined
+        : 'message' in item
+          ? {
+              attribute: item._tag,
+              event,
+              element,
+              message: item.message,
+              ...(item.options === undefined ? {} : { options: item.options }),
+            }
+          : recorded === undefined
+            ? undefined
+            : {
+                attribute: item._tag,
+                event,
+                element,
+                message: recorded.template,
+                hole: recorded.hole,
+              }
+      const list = tokens.get(event) ?? []
+      tokens.set(event, list)
+      if (binding === undefined) {
+        list.push(UNNAMED_HANDLER)
+      } else {
+        list.push(String(now.bindings.length))
+        now.bindings.push(binding)
       }
     }
-    if (byEvent.size === 0) return attributes
-    const markers = [...byEvent.values()].map(binding => {
-      const ordinal = now.bindings.length
-      now.bindings.push(binding)
-      return attribute(`${BINDING_ATTRIBUTE}${binding.event}`, String(ordinal))
-    })
+    if (tokens.size === 0) return attributes
+    const markers = [...tokens].map(([event, list]) =>
+      attribute(`${BINDING_ATTRIBUTE}${event}`, list.join(' ')),
+    )
     return [...attributes, ...markers]
   }
 
@@ -269,7 +374,7 @@ export const builder = <Builder extends AnyBuilder>(
     } else wrapped[name] = value
   }
   builders.set(h, wrapped)
-  return wrapped as unknown as ResumableBuilder<MessageOf<Builder>, Builder>
+  return wrapped as unknown as ResumableBuilder<MessageOf<Builder>>
 }
 
 /**
@@ -279,7 +384,7 @@ export const builder = <Builder extends AnyBuilder>(
  */
 export const view =
   <Model, Builder extends AnyBuilder, Out>(
-    render: (model: Model, rh: ResumableBuilder<MessageOf<Builder>, Builder>) => Out,
+    render: (model: Model, rh: ResumableBuilder<MessageOf<Builder>>) => Out,
   ) =>
   (model: Model, h: Builder): Out =>
     render(model, builder(h))

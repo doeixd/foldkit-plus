@@ -11,7 +11,7 @@
  * Rendering and hydrating stay Foldkit's own: this package adds only the
  * handover.
  */
-import { Effect, Result, Schema } from 'effect'
+import { Cause, Effect, Exit, Result, Schema } from 'effect'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   FOLDKIT_FLAGS_ATTRIBUTE,
@@ -204,6 +204,12 @@ const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
     return projection === undefined ? [] : [projection]
   })
 
+/** What the envelope carries of a Model: the encoded slice, and each part's capture. */
+interface Payload {
+  readonly state: unknown
+  readonly parts?: Readonly<Record<string, unknown>>
+}
+
 /**
  * What the envelope carries of `model`: the plan's slice, encoded through its
  * own Schema, and each part's capture.
@@ -211,7 +217,7 @@ const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
 const payloadOf = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
-) => {
+): Payload => {
   const state = Schema.encodeSync(codecOf(plan.state.schema))(plan.state.get(model))
   if (plan.parts.length === 0) return { state }
   const projections = activeProjections(plan, model)
@@ -251,6 +257,12 @@ const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
   return Result.succeed(model)
 }
 
+interface EnvelopeOptions {
+  readonly route?: string | undefined
+  readonly match?: RouteMatch | undefined
+  readonly bindings?: ReadonlyArray<EncodedBinding> | undefined
+}
+
 /**
  * The script a server writes into its page's template: the plan's slice of
  * `model`, encoded through the slice's own Schema, each part's capture, and
@@ -259,16 +271,19 @@ const modelFrom = <Model, Fields extends Schema.Struct.Fields>(
 const envelope = <Model, Fields extends Schema.Struct.Fields>(
   resume: ResumePlan<Model, Fields>,
   model: Model,
-  options: {
-    readonly route?: string | undefined
-    readonly match?: RouteMatch | undefined
-    readonly bindings?: ReadonlyArray<EncodedBinding> | undefined
-  } = {},
+  options: EnvelopeOptions = {},
+): string => envelopeOf(resume, payloadOf(resume, model), options)
+
+/** The envelope script for a payload already built. */
+const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
+  resume: ResumePlan<Model, Fields>,
+  payload: Payload,
+  options: EnvelopeOptions,
 ): string => {
   const body = serializeJsonScript({
     v: PROTOCOL,
     plan: resume.id,
-    ...payloadOf(resume, model),
+    ...payload,
     ...(options.route === undefined ? {} : { route: options.route }),
     ...(options.match === 'path' ? { match: 'path' } : {}),
     ...(options.bindings === undefined || options.bindings.length === 0
@@ -334,9 +349,8 @@ const resume = <Model, Fields extends Schema.Struct.Fields>(
  */
 const browserModelOf = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
-  model: Model,
-): Result.Result<Model, string> =>
-  modelFrom(plan, JSON.parse(serializeJsonScript(payloadOf(plan, model))))
+  payload: Payload,
+): Result.Result<Model, string> => modelFrom(plan, JSON.parse(serializeJsonScript(payload)))
 
 /** Where the browser gets a Model path's value: the envelope, the baseline, or nowhere it may. */
 export type Cover = 'state' | 'local' | 'missing'
@@ -414,9 +428,17 @@ const inspect = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
 ): PlanInspection => {
-  const resumed = browserModelOf(plan, model)
+  const resumed = browserModelOf(plan, payloadOf(plan, model))
   if (Result.isFailure(resumed)) throw new Error(`SSR.inspect: ${resumed.failure}`)
-  const browser = resumed.success
+  return coverage(plan, model, resumed.success)
+}
+
+/** How a plan covers its Surfaces, given the server's Model and the browser's. */
+const coverage = <Model, Fields extends Schema.Struct.Fields>(
+  plan: ResumePlan<Model, Fields>,
+  model: Model,
+  browser: Model,
+): PlanInspection => {
   const covered = new Set(plan.parts.flatMap(part => part.covers))
   return {
     id: plan.id,
@@ -603,13 +625,14 @@ const FLAGS_SCRIPT = new RegExp(
 const HEAD_FIELDS = ['title', 'lang', 'dir', 'canonical', 'ogUrl'] as const
 
 /**
- * A binding as the envelope carries it: the DOM event, the Message encoded
- * through the application's Message Schema (for a hole, with the hole filled
- * by a placeholder), the fields the event fills, and the attribute's options.
- * Its ordinal is its index.
+ * A binding as the envelope carries it: Foldkit's attribute (`OnSubmit`,
+ * `OnBlur`), whose tag says what its handler does beside dispatching; the
+ * Message, encoded through the application's Message Schema (for a hole, with
+ * the hole filled by a placeholder); the fields the event fills; and the
+ * attribute's options. Its ordinal is its index.
  */
 export interface EncodedBinding {
-  readonly event: string
+  readonly attribute: string
   readonly message: unknown
   readonly hole?: ReadonlyArray<string> | undefined
   readonly options?: unknown
@@ -636,7 +659,7 @@ const encodeBindings = <Model, Fields extends Schema.Struct.Fields>(
       )
     }
     out.push({
-      event: binding.event,
+      attribute: binding.attribute,
       message: message.success,
       ...(binding.hole === undefined ? {} : { hole: binding.hole }),
       ...(binding.options === undefined ? {} : { options: binding.options }),
@@ -732,13 +755,15 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       })
     }
 
-    const resumed = browserModelOf(plan, started.model)
+    // Built once: each part's capture reads the whole store it owns.
+    const payload = payloadOf(plan, started.model)
+    const resumed = browserModelOf(plan, payload)
     if (Result.isFailure(resumed)) {
       return yield* new ResumeUnsafe({ reason: 'UnrestorablePart', message: resumed.failure })
     }
     const browser = resumed.success
 
-    const uncovered = shortfalls(inspect(plan, started.model))
+    const uncovered = shortfalls(coverage(plan, started.model, browser))
     if (uncovered.length > 0) {
       return yield* new ResumeUnsafe({
         reason: 'Uncovered',
@@ -777,7 +802,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     }
     return {
       rendered,
-      envelope: envelope(plan, started.model, {
+      envelope: envelopeOf(plan, payload, {
         ...(options.url === undefined
           ? {}
           : { route: match === 'path' ? pathKey(routeOf(options.url)) : routeOf(options.url) }),
@@ -916,18 +941,23 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
     if (method !== 'GET' && method !== 'HEAD') {
       return Responded(new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } }))
     }
-    const flags = options.flags === undefined ? undefined : await options.flags(request)
-    const result = await Effect.runPromise(
-      Effect.result(
-        render(config, plan, {
+    const flagsOf = options.flags
+    // `Effect.result` would miss a defect, such as a view that throws, and a
+    // `flags` that throws or rejects is not in the Effect at all: both would
+    // reject `renderPage` instead of answering it.
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const flags =
+          flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
+        return yield* render(config, plan, {
           buildId: options.buildId,
           url: request.url,
-          ...(options.flags === undefined ? {} : { flags }),
-        }),
-      ),
+          ...(flagsOf === undefined ? {} : { flags }),
+        })
+      }),
     )
-    if (Result.isFailure(result)) {
-      console.error(`[foldkit-ssr] ${request.url} was not rendered: ${result.failure.message}`)
+    if (Exit.isFailure(exit)) {
+      console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
       return Responded(
         new Response('The page could not be rendered.', {
           status: 500,
@@ -935,11 +965,11 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
         }),
       )
     }
-    const template = options.template.replace('</body>', `${result.success.envelope}</body>`)
+    const template = options.template.replace('</body>', `${exit.value.envelope}</body>`)
     return Responded(
       toResponse(
         template,
-        Rendered(result.success.rendered),
+        Rendered(exit.value.rendered),
         options.containerId === undefined ? undefined : { containerId: options.containerId },
       ),
     )
@@ -1013,9 +1043,4 @@ export const SSR = {
   serializeJsonScript,
 }
 
-export {
-  BINDING_ATTRIBUTE,
-  type KeyHole,
-  type ResumableBuilder,
-  type TextHole,
-} from './resumable.js'
+export { BINDING_ATTRIBUTE, type ResumableBuilder } from './resumable.js'

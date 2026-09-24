@@ -20,6 +20,7 @@ runs once, on the server; nothing outside the slice crosses, Flags included.
 ## Basic use
 
 ```ts
+import { Effect } from 'effect'
 import { Projection, Surface } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 
@@ -32,7 +33,7 @@ const Editor = SSR.plan(App, {
 })
 
 // server
-const result = yield* SSR.render(config, Editor, { buildId, url, flags })
+const result = await Effect.runPromise(SSR.render(config, Editor, { buildId, url }))
 const html = SSR.page(template, result)
 
 // browser, instead of Runtime.hydrate
@@ -72,15 +73,21 @@ SSR.hydrate(config, Editor, { buildId })
 - `const rh = Resume.builder(h)` in a view: `h` plus hole forms,
   `rh.OnInput(Message.ChangedSearch)`, `rh.OnChange(Message.Renamed, { id })`,
   `rh.OnKeyDown(Message.Pressed)`; the member must leave one string field (or
-  `key` and `modifiers`), checked by the types. The server marks each binding
-  and writes its Message into the envelope; a binding built from an unsent
-  field fails with `ViewDependsOnUnsentState`; the plan needs the app's
-  Message Schema (make it from `App`), else `UnencodableBinding`.
+  `key` and `modifiers`), checked by the types. The server marks each
+  element's event with every binding's ordinal in the order Foldkit chains
+  them (`data-foldkit-plus-on-click="0 1"`), `*` for a handler it cannot
+  describe (a closure, `OnKeyDownPreventDefault`), and writes each binding's
+  Foldkit attribute and encoded Message into the envelope. A binding built
+  from an unsent field fails with `ViewDependsOnUnsentState`; the plan needs
+  the app's Message Schema (make it from `App`), else `UnencodableBinding`.
+  A helper that takes the builder is typed `ResumableBuilder<Message>`
+  (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
+  builder type the package exports.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
 - `SSR.entry(config, plan, { buildId, template, flags? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
-  and `HEAD` render; other methods get `405`; a refused render gets `500`
-  with the reason logged. It answers `Responded`, since a `Rendered` result
+  and `HEAD` render; other methods get `405`; a refused, failed or throwing
+  render, or `flags` that reject, get `500` with the reason logged. It answers `Responded`, since a `Rendered` result
   has no room for the envelope.
 - The route check compares path and query with the URL the server rendered.
   A page from `SSR.generate(config, plan, { buildId, template, origin, paths })`

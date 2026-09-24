@@ -19,11 +19,14 @@ export type Region = ReadonlyArray<Html | string>
 
 /**
  * An element's binding as the server's render records it, before encoding:
- * the DOM event, the element for diagnostics, and the Message it causes. For a
- * Message with a hole, `message` is the Message with the hole filled by a
- * placeholder, and `hole` names the fields the event fills.
+ * the Foldkit attribute and its DOM event, the element for diagnostics, and
+ * the Message it causes. For a Message with a hole, `message` is the Message
+ * with the hole filled by a placeholder, and `hole` names the fields the event
+ * fills.
  */
 export interface Binding {
+  /** Foldkit's attribute, whose tag says what the handler does beside dispatching. */
+  readonly attribute: string
   readonly event: string
   readonly element: string
   readonly message: unknown
