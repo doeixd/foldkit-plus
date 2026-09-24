@@ -1,54 +1,99 @@
-import { Mark, type Document, type Position } from './document.js'
+import { Equal, Schema } from 'effect'
+import {
+  markName,
+  type Document,
+  type MarkValue,
+  type Position,
+  type PropsSchema,
+  type RunMark,
+} from './document.js'
+
+export { markName }
 
 /** Which edges a mark continues across when typing at a run boundary. */
 export type MarkExpansion = 'before' | 'after' | 'both' | 'none'
 
 /**
- * A mark definition: its name, and where it continues across a boundary. A Kit
- * declares the vocabulary an editor accepts, so an application can say that its
- * own mark behaves like a link (nothing expands) or like bold (it continues).
+ * A mark definition: its name, where it continues across a boundary, and the
+ * schema its props must satisfy when it has any. A Kit declares the vocabulary
+ * an editor accepts, so an application can say that its own mark behaves like a
+ * link (nothing expands, an `href` prop) or like bold (it continues).
  */
-export interface MarkDef {
+export interface MarkDef<Props extends PropsSchema | undefined = PropsSchema | undefined> {
   readonly name: string
   readonly expand: MarkExpansion
+  /** Validates a mark value's props at the Kit boundary, not in the codec. */
+  readonly Props: Props
+  /** Builds a mark value this definition accepts, checking props at the call site. */
+  readonly of: Props extends Schema.Codec<infer A, any, any>
+    ? (props: A) => MarkValue
+    : () => MarkValue
 }
 
-/** Declares a mark, defaulting to `both`: the conservative choice for an unknown name. */
-export const mark = (name: string, expand: MarkExpansion = 'both'): MarkDef => {
+/**
+ * Declares a mark. Expansion defaults to `both`: the conservative choice for a
+ * name no policy knows. A definition with `Props` gets an `of` that builds the
+ * value; a definition without props builds a value that carries only its name.
+ */
+export const mark = <Props extends PropsSchema | undefined = undefined>(
+  name: string,
+  options: { readonly Props?: Props; readonly expand?: MarkExpansion } = {},
+): MarkDef<Props> => {
   if (name.length === 0) throw new Error('RichText.mark: a mark needs a name')
-  return { name, expand }
+  return {
+    name,
+    expand: options.expand ?? 'both',
+    Props: options.Props as Props,
+    of: ((props?: unknown): MarkValue =>
+      props === undefined
+        ? { name }
+        : { name, props: props as NonNullable<MarkValue['props']> }) as MarkDef<Props>['of'],
+  }
 }
 
-export const Bold: MarkDef = mark('Bold', 'after')
-export const Italic: MarkDef = mark('Italic', 'after')
-export const Code: MarkDef = mark('Code', 'none')
+export const Bold: MarkDef = mark('Bold', { expand: 'after' })
+export const Italic: MarkDef = mark('Italic', { expand: 'after' })
+export const Code: MarkDef = mark('Code', { expand: 'none' })
 
 /** The marks this vocabulary defines, and the policy a document without a Kit gets. */
 export const shippedMarks: ReadonlyArray<MarkDef> = [Bold, Italic, Code]
 
 /**
- * The expansion policy of a set of definitions. A mark the registry does not
- * declare expands both ways: preservation never retargets it away.
+ * The expansion policy of a set of definitions, and which names it declares. A
+ * mark the registry does not declare expands both ways: preservation never
+ * retargets it away. Declared names are what an edit may add.
  */
 export interface MarkRegistry {
   readonly expansionOf: (name: string) => MarkExpansion
+  readonly declares: (name: string) => boolean
 }
 
 export const markRegistry = (definitions: ReadonlyArray<MarkDef>): MarkRegistry => {
   const byName = new Map(definitions.map(definition => [definition.name, definition.expand]))
-  return { expansionOf: name => byName.get(name) ?? 'both' }
+  return {
+    expansionOf: name => byName.get(name) ?? 'both',
+    declares: name => byName.has(name),
+  }
 }
 
 /** The policy of the shipped vocabulary. */
 export const shippedRegistry: MarkRegistry = markRegistry(shippedMarks)
 
-/** Whether this vocabulary defines the mark; unknown marks load but never add. */
-export const isKnownMark = (mark: string): mark is Mark =>
-  shippedMarks.some(definition => definition.name === mark)
+/** A mark's props, or undefined when it carries none. */
+export const markProps = (mark: RunMark): MarkValue['props'] | undefined =>
+  typeof mark === 'string' ? undefined : mark.props
 
-/** Order-insensitive mark-set equality; the equivalence normalization merges on. */
-export const sameMarkSet = (left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean =>
-  left.length === right.length && left.every(mark => right.includes(mark))
+/**
+ * Whether two marks are the same mark with the same props. This is the
+ * equivalence normalization merges on, so props compare structurally and key
+ * order does not matter.
+ */
+export const sameMark = (left: RunMark, right: RunMark): boolean =>
+  markName(left) === markName(right) && Equal.equals(markProps(left), markProps(right))
+
+/** Order-insensitive mark-set equality; a run carries a name at most once. */
+export const sameMarkSet = (left: ReadonlyArray<RunMark>, right: ReadonlyArray<RunMark>): boolean =>
+  left.length === right.length && left.every(mark => right.some(other => sameMark(mark, other)))
 
 /**
  * Retargets a boundary insertion to the neighboring run when the current run
@@ -73,7 +118,7 @@ export const resolveInsertion = (
     if (neighbor === undefined) return position
     const direction = leavingLeft ? 'before' : 'after'
     const desired = run.marks.filter(mark => {
-      const expand = registry.expansionOf(mark)
+      const expand = registry.expansionOf(markName(mark))
       return expand === 'both' || expand === direction
     })
     if (!sameMarkSet(desired, neighbor.marks)) return position

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 
 const id = RichText.NodeId.make
-const run = (runId: string, text: string, marks: ReadonlyArray<string>) => ({
+const run = (runId: string, text: string, marks: ReadonlyArray<RichText.RunMark>) => ({
   type: 'Text',
   id: runId,
   text,
@@ -180,5 +180,39 @@ describe('run normalization', () => {
     expect(result.state.document.children[0]?.children).toEqual([
       { type: 'Text', id: 'a', text: 'x!', marks: [] },
     ])
+  })
+
+  it('merges a mark with props only when the props agree', () => {
+    const link = (href: string) => ({ name: 'Link', props: { href } })
+    const merged = success(
+      RichText.apply(
+        {
+          document: doc([
+            { blockId: 'p', runs: [run('a', 'ab', [link('/x')]), run('b', 'cd', [link('/x')])] },
+          ]),
+          selection: null,
+        },
+        [RichText.Edit.insertText(RichText.Node.make('b').at(2, 'after'), '!')],
+      ),
+    )
+    expect(merged.state.document.children[0]?.children).toEqual([
+      { type: 'Text', id: 'a', text: 'abcd!', marks: [link('/x')] },
+    ])
+
+    // The same name with different props is a different mark, so the runs stay
+    // apart — the props are part of the mark's identity, not decoration.
+    const distinct = success(
+      RichText.apply(
+        {
+          document: doc([
+            { blockId: 'p', runs: [run('a', 'ab', [link('/x')]), run('b', 'cd', [link('/y')])] },
+          ]),
+          selection: null,
+        },
+        [RichText.Edit.insertText(RichText.Node.make('a').at(0, 'after'), '!')],
+      ),
+    )
+    expect(distinct.state.document.children[0]?.children.map(child => child.id)).toEqual(['a', 'b'])
+    expect(distinct.changeSet.removedNodes).toEqual(new Set())
   })
 })

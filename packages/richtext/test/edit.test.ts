@@ -95,10 +95,7 @@ describe('Edit constructors', () => {
     expect(() => RichText.Edit.deleteText(Text, 3, 2)).toThrow()
     expect(() => RichText.Edit.deleteText(Text, -1, 2)).toThrow()
     expect(() => RichText.Edit.deleteText(Text, 0.5, 1)).toThrow()
-    expect(() =>
-      // @ts-expect-error Deliberately invalid mark.
-      RichText.Edit.addMark(Text, 'Link'),
-    ).toThrow()
+    expect(() => RichText.Edit.addMark(Text, { name: '' })).toThrow()
     expect(() =>
       // @ts-expect-error A text target is required.
       RichText.Edit.addMark(42, 'Bold'),

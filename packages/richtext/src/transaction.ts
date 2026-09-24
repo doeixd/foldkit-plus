@@ -1,11 +1,11 @@
 import { Schema } from 'effect'
-import { resolveInsertion } from './marks.js'
+import { markName, resolveInsertion, sameMark } from './marks.js'
 import {
   Block,
   EditorState,
-  Mark,
   NodeId,
   Position,
+  RunMark,
   Selection,
   selectionIsValid,
   type Document,
@@ -33,7 +33,7 @@ const DeleteTextOperation = Schema.Struct({
 const AddMarkOperation = Schema.Struct({
   type: Schema.Literal('AddMark'),
   node: NodeId,
-  mark: Mark,
+  mark: RunMark,
 })
 const RemoveMarkOperation = Schema.Struct({
   type: Schema.Literal('RemoveMark'),
@@ -129,7 +129,7 @@ export const Edit = {
     return DeleteTextOperation.make({ type: 'DeleteText', node: targetId(node), from, to })
   },
 
-  addMark: (node: TextTarget, mark: Mark): Extract<Operation, { readonly type: 'AddMark' }> =>
+  addMark: (node: TextTarget, mark: RunMark): Extract<Operation, { readonly type: 'AddMark' }> =>
     AddMarkOperation.make({ type: 'AddMark', node: targetId(node), mark }),
 
   removeMark: (
@@ -636,16 +636,33 @@ export const apply = (
     const [blockIndex, textIndex] = location
     const block = blockAt(blockIndex)
     const text = runsAt(blockIndex)[textIndex]!
-    if (operation.type === 'AddMark' || operation.type === 'RemoveMark') {
-      const has = text.marks.includes(operation.mark)
-      if (operation.type === 'AddMark' ? has : !has) continue
+    if (operation.type === 'AddMark') {
+      // A run carries a mark name at most once, so adding is a *set*: append
+      // when the name is absent, replace when its props differ, and no-op when
+      // the mark is already exactly this one (which keeps state identity).
+      const existing = text.marks.find(mark => markName(mark) === markName(operation.mark))
+      if (existing !== undefined && sameMark(existing, operation.mark)) continue
       const children = runArray(blockIndex)
       children[textIndex] = {
         ...text,
         marks:
-          operation.type === 'AddMark'
+          existing === undefined
             ? [...text.marks, operation.mark]
-            : text.marks.filter(mark => mark !== operation.mark),
+            : text.marks.map(mark =>
+                markName(mark) === markName(operation.mark) ? operation.mark : mark,
+              ),
+      }
+      dirtyNodes.add(block.id)
+      dirtyNodes.add(id)
+      textChanged.add(id)
+      continue
+    }
+    if (operation.type === 'RemoveMark') {
+      if (!text.marks.some(mark => markName(mark) === operation.mark)) continue
+      const children = runArray(blockIndex)
+      children[textIndex] = {
+        ...text,
+        marks: text.marks.filter(mark => markName(mark) !== operation.mark),
       }
       dirtyNodes.add(block.id)
       dirtyNodes.add(id)

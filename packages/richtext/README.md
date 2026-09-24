@@ -114,37 +114,61 @@ transactions rather than commands.
 
 `InsertText` takes an optional `marks`. With it, the inserted text carries
 exactly that set wherever it lands; without it, the boundary rule decides and the
-text inherits the marks of the run it joins. Unknown marks are rejected. That is
-how *stored marks* stay the application's state: the caret's format belongs to
-the caller, and the command layer reads no hidden cursor state. A collapsed
-`ToggleMark` is likewise a no-op — the application decides what the caret carries
-and passes it back on the next `InsertText`.
+text inherits the marks of the run it joins. A mark the caller's vocabulary does
+not declare is rejected. That is how *stored marks* stay the application's state:
+the caret's format belongs to the caller, and the command layer reads no hidden
+cursor state. A collapsed `ToggleMark` is likewise a no-op — the application
+decides what the caret carries and passes it back on the next `InsertText`.
 
 ## Mark definitions
 
-A mark is a definition, not a bare name: its **boundary expansion** says where
-typing continues it. A Kit carries the policy, so an editor can tune its own
-vocabulary:
+A mark is a definition, not a bare name. It says where typing continues it
+(**boundary expansion**) and, when it carries data, what schema that data
+satisfies. A Kit declares the vocabulary, so an editor extends it:
 
 ```ts
+const Link = RichText.mark('Link', {
+  Props: Schema.Struct({ href: Schema.String }),
+  expand: 'none',
+})
+
 const ArticleKit = RichText.kit({
   nodes: [RichText.block('Paragraph'), RichText.block('Heading')],
-  marks: [RichText.Bold, RichText.Italic, RichText.Code, RichText.mark('Link', 'none')],
+  marks: [RichText.Bold, RichText.Italic, RichText.Code, Link],
 })
 
 RichText.run(state, command, ids, { marks: RichText.markRegistry(ArticleKit.marks) })
 ```
 
+A run stores a mark as a bare name when it has no props, and as
+`{ name, props }` when it does. Loading preserves the form it found, so a
+names-only document round-trips byte-equal, and since a run carries a name at
+most once it never holds both forms of one mark:
+
+```ts
+Link.of({ href: '/docs' }) // { name: 'Link', props: { href: '/docs' } }
+```
+
+`markName(mark)` and `markProps(mark)` read either form, and `sameMark` decides
+equivalence. Props are part of a mark's identity: two runs carrying the same name
+with different props are not equivalent, so normalization does not merge them, and
+`AddMark` is a *set* for its name — it appends, replaces props that differ, and
+no-ops on the same value. `RemoveMark` keys on the name alone.
+
 The shipped policy is `Bold`/`Italic` → `after`, `Code` → `none`, and a mark no
 registry declares → `both` (so preservation never retargets an unknown mark
 away). `resolveInsertion` retargets a boundary insertion when the current run
 carries marks that forbid the edge and the neighbor carries exactly the marks
-that remain; a registry changes which marks those are, not the rule.
+that remain; a registry changes which marks those are, not the rule. Declared
+names are also what `run` may add, so a Kit's marks are usable by name or value.
 
-Custom mark *authoring* is not here yet: `Edit.addMark` still accepts only the
-shipped marks, so a registry today tunes policy rather than adding vocabulary.
-Marks with props (a `Link` with an `href`) come with the mark-definition work,
-the way node kinds got theirs.
+`validate(document, kit)` is the publishing gate: it reports `UnknownMark` for a
+name the Kit does not declare, and `InvalidProps` for a declared mark whose props
+its `Props` schema refuses — including a mark that declares props but carries
+none, and one carrying a field the schema does not declare.
+
+The HTML fallback carries mark *names*; props travel in the slice format. A
+declared mark with props gets real attributes once a Kit-aware renderer exists.
 
 ## Application node blocks
 
@@ -374,19 +398,23 @@ not yet drive parsing or `apply`.
 ## Current semantics
 
 - Documents contain paragraphs and headings (levels 1–6), each containing text
-  runs. The known marks are `Bold`, `Italic`, and `Code`, with no duplicates.
-  Unknown mark strings load verbatim for forward compatibility (see
-  `findUnknownMarks`); they ride along through text edits, cannot be added via
-  `Edit.addMark`, and can be removed by name via `Edit.removeMark`.
+  runs. The shipped marks are `Bold`, `Italic`, and `Code`, and a run carries a
+  mark name at most once. A mark with props is stored as `{ name, props }`; a
+  name the vocabulary does not define loads verbatim for forward compatibility
+  (see `findUnknownMarks`) and rides along through text edits. `Edit.addMark`
+  takes any mark; `run` is what refuses to add one the caller's vocabulary does
+  not declare — the shipped marks by default, or a Kit's through its registry.
 - Empty documents, empty blocks, and empty text runs are valid. No normalization
   creates nodes or merges text runs yet.
 - `InsertText` targets one run and inherits that run's marks. When the command
   carries `marks`, the inserted span is split out of its run and given exactly
   that set instead — that is how a caller's stored marks reach the document.
 - `DeleteText` removes a half-open range `[from, to)` within one run.
-- `AddMark` appends a missing mark to one run; `RemoveMark` filters a present
-  mark away. Redundant mark edits are no-ops that preserve state identity.
-  Mark edits dirty the run and its block without emitting position steps.
+- `AddMark` sets one run's mark for that name: it appends when the name is
+  absent, replaces the value when its props differ, and no-ops when the mark is
+  already exactly this one. `RemoveMark` filters that name away whatever props it
+  carries. Redundant mark edits preserve state identity, and mark edits dirty the
+  run and its block without emitting position steps.
 - `SplitNode` splits one block at a run offset into two: runs before the split  stay (trailing runs move right with their ids), the split run keeps its id on
   the left, and the right remainder takes the caller-supplied run id under a
   caller-supplied block id of the same block type. Splitting an empty block is

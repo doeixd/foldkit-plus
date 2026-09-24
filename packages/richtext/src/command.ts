@@ -4,11 +4,19 @@ import {
   type Document,
   type EditorState,
   type Mark,
+  type MarkValue,
   type Position,
+  type RunMark,
   type Selection,
 } from './document.js'
 import { withFreshIds, type Slice } from './clipboard.js'
-import { isKnownMark, resolveInsertion, type MarkRegistry } from './marks.js'
+import {
+  markName,
+  resolveInsertion,
+  sameMark,
+  shippedRegistry,
+  type MarkRegistry,
+} from './marks.js'
 import { Edit, apply, type Operation, type TransactionResult } from './transaction.js'
 
 /**
@@ -18,11 +26,16 @@ import { Edit, apply, type Operation, type TransactionResult } from './transacti
  * the caller's `mint`; nothing here reads a clock or a hidden counter.
  */
 export type Command =
-  | { readonly type: 'InsertText'; readonly text: string; readonly marks?: ReadonlyArray<string> }
+  | {
+      readonly type: 'InsertText'
+      readonly text: string
+      /** Stored marks: a bare name, or a value when the mark carries props. */
+      readonly marks?: ReadonlyArray<string | MarkValue>
+    }
   | { readonly type: 'DeleteBackward' }
   | { readonly type: 'DeleteForward' }
   | { readonly type: 'SplitBlock' }
-  | { readonly type: 'ToggleMark'; readonly mark: string }
+  | { readonly type: 'ToggleMark'; readonly mark: string | MarkValue }
   | { readonly type: 'SetSelection'; readonly selection: Selection | null }
   | { readonly type: 'Paste'; readonly slice: Slice }
 
@@ -45,7 +58,7 @@ interface Located {
   readonly blockId: NodeId
   readonly id: NodeId
   readonly text: string
-  readonly marks: ReadonlyArray<string>
+  readonly marks: ReadonlyArray<RunMark>
 }
 
 const locate = (document: Document, node: NodeId): Located | undefined => {
@@ -225,6 +238,8 @@ export const run = (
   ids: CommandIds,
   options: RunOptions = {},
 ): TransactionResult => {
+  // The vocabulary an edit may add: the caller's Kit, or the shipped marks.
+  const declared = options.marks ?? shippedRegistry
   if (command.type === 'SetSelection') {
     return apply(state, [Edit.setSelection(command.selection)])
   }
@@ -244,10 +259,10 @@ export const run = (
     if (target === undefined) return failure('InvalidSelection')
     const at = locate(state.document, target.node)
     if (at === undefined) return failure('MissingText')
-    const marks: Array<Mark> = []
+    const marks: Array<RunMark> = []
     if (stored !== undefined) {
       for (const mark of stored) {
-        if (!isKnownMark(mark)) return failure('InvalidInput')
+        if (!declared.declares(markName(mark))) return failure('InvalidInput')
         marks.push(mark)
       }
     }
@@ -280,10 +295,14 @@ export const run = (
     const piece = target.offset > 0 ? NodeId.make(ids.mint()) : target.node
     if (target.offset > 0) operations.push(Edit.splitRun(target.node, target.offset, piece))
     for (const mark of marks) {
-      if (!at.marks.includes(mark)) operations.push(Edit.addMark(piece, mark))
+      if (!at.marks.some(existing => sameMark(existing, mark))) {
+        operations.push(Edit.addMark(piece, mark))
+      }
     }
     for (const mark of at.marks) {
-      if (!marks.some(kept => kept === mark)) operations.push(Edit.removeMark(piece, mark))
+      if (!marks.some(kept => markName(kept) === markName(mark))) {
+        operations.push(Edit.removeMark(piece, markName(mark)))
+      }
     }
     return apply(state, operations)
   }
@@ -362,9 +381,11 @@ export const run = (
     if (span === undefined) return failure('InvalidSelection')
     const spans = covered(state.document, span.start, span.end)
     if (spans.length === 0) return apply(state, [])
-    const adding = !spans.every(entry => entry.run.marks.includes(command.mark))
+    // A toggle keys on the name: the mark is present on every covered run, or
+    // it is absent everywhere. Props are the mark's own business.
     const mark = command.mark
-    if (adding && !isKnownMark(mark)) return failure('InvalidInput')
+    const name = markName(mark)
+    const adding = !spans.every(entry => entry.run.marks.some(held => markName(held) === name))
     const operations: Array<Operation> = []
     const targets: Array<NodeId> = []
     for (const [index, entry] of spans.entries()) {
@@ -382,10 +403,12 @@ export const run = (
       targets.push(target)
     }
     if (adding) {
-      if (!isKnownMark(mark)) return failure('InvalidInput')
+      // Adding needs the vocabulary to declare the mark; removing a preserved
+      // one by name is always allowed.
+      if (!declared.declares(name)) return failure('InvalidInput')
       for (const target of targets) operations.push(Edit.addMark(target, mark))
     } else {
-      for (const target of targets) operations.push(Edit.removeMark(target, mark))
+      for (const target of targets) operations.push(Edit.removeMark(target, name))
     }
     return apply(state, operations)
   }

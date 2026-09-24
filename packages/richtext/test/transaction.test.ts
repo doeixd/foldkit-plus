@@ -189,6 +189,35 @@ describe('text transactions', () => {
     expect(removed.changeSet.textChanged).toEqual(new Set(['t']))
   })
 
+  it('sets a mark value for its name, replacing props and no-opping on the same value', () => {
+    const state = initial()
+    const link = (href: string) => ({ name: 'Link', props: { href } })
+    const added = success(
+      RichText.apply(state, [{ type: 'AddMark', node: id('t'), mark: link('/a') }]),
+    )
+    expect(added.state.document.children[0]?.children[0]?.marks).toEqual(['Bold', link('/a')])
+
+    // The same name with different props replaces the value: a run carries one
+    // mark per name.
+    const replaced = success(
+      RichText.apply(added.state, [{ type: 'AddMark', node: id('t'), mark: link('/b') }]),
+    )
+    expect(replaced.state.document.children[0]?.children[0]?.marks).toEqual(['Bold', link('/b')])
+
+    // The identical value changes nothing, so state identity is preserved.
+    const same = success(
+      RichText.apply(replaced.state, [{ type: 'AddMark', node: id('t'), mark: link('/b') }]),
+    )
+    expect(same.state).toBe(replaced.state)
+    expect(same.changeSet.textChanged).toEqual(new Set())
+
+    // Removal keys on the name, whatever the props.
+    const removed = success(
+      RichText.apply(replaced.state, [{ type: 'RemoveMark', node: id('t'), mark: 'Link' }]),
+    )
+    expect(removed.state.document.children[0]?.children[0]?.marks).toEqual(['Bold'])
+  })
+
   it('treats redundant mark edits as no-ops preserving state identity', () => {
     const state = initial()
     const redundant = success(
@@ -245,9 +274,11 @@ describe('text transactions', () => {
       ok: false,
       error: 'InvalidInput',
     })
-    expect(
-      // @ts-expect-error Unknown marks are rejected at the boundary.
-      RichText.apply(initial(), [{ type: 'AddMark', node: id('t'), mark: 'Link' }]),
-    ).toEqual({ ok: false, error: 'InvalidInput' })
+    // The operation layer checks shape, not vocabulary. A mark this version does
+    // not define is preserved like any loaded one, and the publishing gate is
+    // where it is caught; `run` refuses it at the command boundary instead.
+    const raw = RichText.apply(initial(), [{ type: 'AddMark', node: id('t'), mark: 'Link' }])
+    if (!raw.ok) throw new Error(raw.error)
+    expect(RichText.findUnknownMarks(raw.state.document)).toEqual([{ node: 't', mark: 'Link' }])
   })
 })

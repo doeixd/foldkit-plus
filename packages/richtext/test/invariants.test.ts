@@ -86,7 +86,7 @@ describe('the mark-name boundary', () => {
   it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty'])(
     'refuses the prototype name %s as a mark',
     name => {
-      expect(RichText.isKnownMark(name)).toBe(false)
+      expect(RichText.shippedRegistry.declares(name)).toBe(false)
       const state: RichText.EditorState = {
         document: RichText.decodeDocument({
           version: 1,

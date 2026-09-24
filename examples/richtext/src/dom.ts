@@ -5,7 +5,7 @@
  * the semantic document stays authoritative — the DOM is never read as truth
  * beyond mapping a browser selection back to a semantic position.
  */
-import type * as RichText from 'foldkit-richtext'
+import * as RichText from 'foldkit-richtext'
 
 export interface EditorDom {
   /** The owned subtree root. Everything inside belongs to this interpreter. */
@@ -24,12 +24,15 @@ const blockTag = (block: RichText.Block): string => {
   return 'p'
 }
 
-const applyMarks = (element: HTMLElement, marks: ReadonlyArray<string>): void => {
-  if (marks.length === 0) {
+const applyMarks = (element: HTMLElement, marks: ReadonlyArray<RichText.RunMark>): void => {
+  // The slice's attribute carries mark names; props are not representable in it
+  // yet, and the semantic document remains the lossless store.
+  const names = marks.map(RichText.markName)
+  if (names.length === 0) {
     element.removeAttribute(MARK_ATTRIBUTE)
     return
   }
-  element.setAttribute(MARK_ATTRIBUTE, [...marks].sort().join(' '))
+  element.setAttribute(MARK_ATTRIBUTE, [...names].sort().join(' '))
 }
 
 const renderRun = (owner: Document, run: RichText.Text): HTMLElement => {

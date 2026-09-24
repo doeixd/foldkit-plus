@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 
 /**
@@ -174,5 +175,63 @@ describe('typing with stored marks', () => {
       ),
     )
     expect(runsOf(result.state)?.[1]).toEqual(['X', ['Italic', 'Bold']])
+  })
+
+  it('lands a stored mark that carries props, and replaces one already there', () => {
+    const Link = RichText.mark('Link', { Props: Schema.Struct({ href: Schema.String }) })
+    const ArticleKit = RichText.kit({ nodes: [], marks: [RichText.Bold, Link] })
+    const registry = RichText.markRegistry(ArticleKit.marks)
+    const typed = success(
+      RichText.run(
+        state(caret('a', 1)),
+        { type: 'InsertText', text: 'X', marks: [Link.of({ href: '/docs' })] },
+        minted(),
+        { marks: registry },
+      ),
+    )
+    expect(runsOf(typed.state)).toEqual([
+      ['a', []],
+      ['X', [{ name: 'Link', props: { href: '/docs' } }]],
+      ['b', []],
+      ['cd', ['Bold']],
+    ])
+
+    // Typing inside a bold run with a Link stored lands exactly the Link: the
+    // stored set is the whole truth for the inserted span, not an addition.
+    const relinked = success(
+      RichText.run(
+        state(caret('b', 1)),
+        { type: 'InsertText', text: 'X', marks: [Link.of({ href: '/other' })] },
+        minted(),
+        { marks: registry },
+      ),
+    )
+    expect(runsOf(relinked.state)).toEqual([
+      ['ab', []],
+      ['c', ['Bold']],
+      ['X', [{ name: 'Link', props: { href: '/other' } }]],
+      ['d', ['Bold']],
+    ])
+  })
+
+  it('refuses a stored mark no registry declares, and accepts one a Kit declares', () => {
+    expect(
+      RichText.run(
+        state(caret('a', 1)),
+        { type: 'InsertText', text: 'X', marks: ['Link'] },
+        minted(),
+      ),
+    ).toEqual({ ok: false, error: 'InvalidInput' })
+    const Link = RichText.mark('Link', { Props: Schema.Struct({ href: Schema.String }) })
+    const ArticleKit = RichText.kit({ nodes: [], marks: [RichText.Bold, Link] })
+    const typed = success(
+      RichText.run(
+        state(caret('a', 1)),
+        { type: 'InsertText', text: 'X', marks: [Link.of({ href: '/docs' })] },
+        minted(),
+        { marks: RichText.markRegistry(ArticleKit.marks) },
+      ),
+    )
+    expect(runsOf(typed.state)?.[1]).toEqual(['X', [{ name: 'Link', props: { href: '/docs' } }]])
   })
 })

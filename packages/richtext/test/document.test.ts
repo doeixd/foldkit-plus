@@ -81,6 +81,9 @@ describe('semantic documents', () => {
       [
         ['duplicate mark', { marks: ['Bold', 'Bold'] }],
         ['empty mark', { marks: [''] }],
+        ['duplicate mark name across forms', { marks: ['Link', { name: 'Link', props: {} }] }],
+        ['mark value without a name', { marks: [{ props: { href: '/x' } }] }],
+        ['mark value with an empty name', { marks: [{ name: '', props: { href: '/x' } }] }],
         ['non-text value', { text: 4 }],
         ['unknown text data', { html: '<b>x</b>' }],
       ] as const
@@ -123,6 +126,32 @@ describe('semantic documents', () => {
       expect(() => RichText.decodeDocument(input)).toThrow()
     },
   )
+
+  it('round-trips a mark with props, and keeps a bare name a bare name', () => {
+    const raw = {
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 't',
+              text: 'docs',
+              marks: ['Bold', { name: 'Link', props: { href: '/docs' } }],
+            },
+          ],
+        },
+      ],
+    }
+    const document = RichText.decodeDocument(raw)
+    expect(document.children[0]?.children[0]?.marks).toEqual([
+      'Bold',
+      { name: 'Link', props: { href: '/docs' } },
+    ])
+    expect(Schema.encodeSync(RichText.Document)(document)).toEqual(raw)
+  })
 
   it('validates range references and preserves backwards selections', () => {
     const document = RichText.decodeDocument(content())

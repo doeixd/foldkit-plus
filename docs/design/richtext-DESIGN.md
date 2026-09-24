@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for nested children beyond runs, marks with props, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for nested children beyond runs, mark overlap rules and metadata, metadata keys, and collaboration. Phases 2 and 3 have private harness increments (`examples/richtext`: the read-only Foldkit renderer, HTML import/export, and the DOM editing loop, including stored marks) that are spikes, not supported API. Phase 4 onwards is not started. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -582,21 +582,27 @@ vocabulary implements it: `Bold`/`Italic` expand `after`, `Code` expands
 (refusing mark swaps at mixed edges). Unknown marks default to `both`. The
 registry, custom marks, and overlap rules remain Kit work.
 
-**Implemented (policy, not yet authoring).** A mark is a `MarkDef`
-(`{ name, expand }`) made with `RichText.mark(name, expand?)`, and a Kit carries
-the definitions, so an editor tunes its own vocabulary:
+**Implemented.** A mark is a `MarkDef` made with
+`RichText.mark(name, { Props?, expand? })`, and a Kit carries the definitions, so
+an editor declares its own vocabulary:
 
 ```ts
-RichText.kit({ nodes: [...], marks: [Bold, Italic, mark('Link', 'none')] })
+const Link = mark('Link', { Props: Schema.Struct({ href: Schema.String }), expand: 'none' })
+RichText.kit({ nodes: [...], marks: [Bold, Italic, Link] })
 RichText.run(state, command, ids, { marks: markRegistry(kit.marks) })
 ```
 
+A run stores a mark as a bare name when it has no props, or as `{ name, props }`
+when it does. Loading preserves the form it found, so a names-only document
+round-trips byte-equal, and because a run carries a name at most once it never
+holds both forms of one mark. Props are part of a mark's identity: normalization
+does not merge runs whose props differ.
 `resolveInsertion` takes the registry, so the rule is unchanged but which marks
-it applies to is the application's. A mark no registry declares expands `both`,
-which keeps preservation from retargeting it away. Still to come: mark props
-(a `Link` with an `href`), which is what makes custom mark *authoring* possible —
-today `Edit.addMark` accepts only the shipped marks, so a registry tunes policy
-rather than adding vocabulary.
+it applies to is the application's; a mark no registry declares expands `both`,
+which keeps preservation from retargeting it away. The registry's declared names
+are what `run` may add, and `validate` enforces a declared mark's prop schema
+(`InvalidProps`). Overlap rules, mark metadata, and a Kit-aware renderer for
+props (a real `<a href>` rather than `data-marks`) remain Kit work.
 
 ---
 
@@ -4534,10 +4540,11 @@ reads as current.
 Done and tested: version-1 documents, text runs, paragraphs and headings,
 Bold/Italic/Code, branded NodeIds, range and node selections, position mapping,
 atomic transactions with ChangeSets, merge normalization, mark definitions with
-boundary expansion, bounded decode limits, unknown node and mark preservation,
-application node kinds with Kit-validated props, migrations, the command layer
-(including stored marks through `InsertText.marks`), snapshot history, clipboard
-slices, HTML export, and inspection.
+boundary expansion, prop schemas, and Kit-declared vocabulary, bounded decode
+limits, unknown node and mark preservation, application node kinds with
+Kit-validated props, migrations, the command layer (including stored marks
+through `InsertText.marks`), snapshot history, clipboard slices, HTML export, and
+inspection.
 
 Not done:
 
@@ -4546,19 +4553,20 @@ Not done:
   position mapping, `locate`, every operation, normalization, HTML export and
   import, and both renderers. §13 defines the child-constraint vocabulary
   (`BlockContent`, `InlineContent`, `TextContent`, `Atom`) this should provide.
-- **Mark props and custom mark authoring.** A run's marks are names from a fixed
-  union. `Edit.addMark` accepts only `Bold`/`Italic`/`Code`, so a Kit tunes
-  expansion policy but cannot declare a mark, and a mark cannot carry data. `Link`
-  with an `href` needs a mark *value* (`{ name, props }`), a prop schema on
-  `MarkDef`, a Kit-declared mark vocabulary, and HTML export/import for it. Every
-  consumer of `Text.marks` and every fixture is in scope.
+- **Mark overlap rules and metadata.** A mark definition carries a name, an
+  expansion policy, and an optional prop schema; whether several values of one
+  mark may overlap, and interpreter-owned mark metadata, are not modelled.
+- **Kit-aware rendering of mark props.** The HTML fallback and the harness DOM
+  adapter carry mark *names*, so a declared mark with props renders as
+  `data-marks` rather than a real `<a href>`. The slice format is the lossless
+  path.
 - **Metadata keys.** `foldkit-metadata` facts on Kit, Node, and Mark definitions
   (§12) are not wired: no interpreter owns a metadata key yet. The package does
   not depend on `foldkit-metadata`. They must stay outside the document codec.
-- **Kit-driven semantics.** A Kit can validate a document (`validate`) and the
-  harness HTML parser degrades undeclared *node* kinds, but `apply` never
-  consults a Kit, and a Kit cannot declare marks or mark props. Where a Kit
-  should constrain `apply` is an open design question.
+- **Kit-driven `apply`.** A Kit validates a document (`validate`) and constrains
+  what `run` may add, and the harness HTML parser degrades undeclared *node*
+  kinds, but `apply` never consults a Kit. Where a Kit should constrain `apply`
+  is an open design question.
 - **Collaboration.** Convergent representation, collaborative undo, and the
   replica backend belong to Phase 8 and later; nothing exists here.
 
@@ -4627,8 +4635,8 @@ scheduled publication.
 ## Phase 7 — richer Nodes
 
 Not started: lists, links, quotes, code, image, callout, mentions, custom embeds,
-and the Surface-backed and React-backed node proofs. Links, quotes, and code
-depend on Phase 1's mark props and nested children.
+and the Surface-backed and React-backed node proofs. Links need the mark-props
+work, which now exists; lists, quotes, and code need nested children.
 
 ## Phases 8–12
 

@@ -4,21 +4,46 @@ import { Schema } from 'effect'
 export const NodeId = Schema.NonEmptyString.pipe(Schema.brand('foldkit-richtext/NodeId'))
 export type NodeId = typeof NodeId.Type
 
+/** The mark names this vocabulary defines; a document may hold others verbatim. */
 export const Mark = Schema.Literals(['Bold', 'Italic', 'Code'])
 export type Mark = typeof Mark.Type
+
+/** A schema this version can hand to `decodeUnknownSync` at a Kit boundary. */
+export type PropsSchema = Schema.Codec<any, any, never>
+
+/**
+ * A mark with props: which mark, plus the JSON data it carries. Props are JSON
+ * here for the same reason a node's are: the document codec cannot know an
+ * application's schemas, so a Kit validates them at that boundary (§12).
+ */
+export const MarkValue = Schema.Struct({
+  name: Schema.NonEmptyString,
+  props: Schema.optionalKey(Schema.JsonObject),
+})
+export type MarkValue = typeof MarkValue.Type
+
+/**
+ * A mark as a text run stores it: a bare name for a mark with no props, or a
+ * value when it has them. Loading preserves the form it found, so a names-only
+ * document round-trips byte-equal, and because a run carries a name at most once
+ * it never holds both forms of one mark.
+ */
+export const RunMark = Schema.Union([Schema.NonEmptyString, MarkValue])
+export type RunMark = typeof RunMark.Type
+
+/** A mark's name: a bare string is a mark with no props, an object carries them. */
+export const markName = (mark: RunMark): string => (typeof mark === 'string' ? mark : mark.name)
 
 export const Text = Schema.Struct({
   type: Schema.Literal('Text'),
   id: NodeId,
   text: Schema.String,
-  // Any non-empty mark string: loading preserves vocabulary this version does
-  // not define. `Edit.addMark` still accepts only known marks; see
-  // `findUnknownMarks` for the publishing gate.
-  marks: Schema.Array(Schema.String).check(
+  // A mark name this version does not define loads verbatim; `Edit.addMark`
+  // still accepts only what the caller's vocabulary declares. A run carries a
+  // name at most once; see `findUnknownMarks` for the publishing gate.
+  marks: Schema.Array(RunMark).check(
     Schema.makeFilter(
-      marks =>
-        (marks.every(mark => mark.length > 0) && new Set(marks).size === marks.length) ||
-        'Invalid marks',
+      marks => new Set(marks.map(markName)).size === marks.length || 'Invalid marks',
     ),
   ),
 })
@@ -159,11 +184,12 @@ export const decodeDocument = (
   return document
 }
 
-const isKnownMark = Schema.is(Mark)
+const isKnownMarkName = Schema.is(Mark)
 
 /** A mark this vocabulary does not define, kept verbatim on its text run. */
 export interface UnknownMark {
   readonly node: NodeId
+  /** The mark's name; its props, if any, stay on the run. */
   readonly mark: string
 }
 
@@ -171,7 +197,9 @@ export interface UnknownMark {
 export const findUnknownMarks = (document: Document): ReadonlyArray<UnknownMark> =>
   document.children.flatMap(block =>
     block.children.flatMap(text =>
-      text.marks.filter(mark => !isKnownMark(mark)).map(mark => ({ node: text.id, mark })),
+      text.marks
+        .filter(mark => !isKnownMarkName(markName(mark)))
+        .map(mark => ({ node: text.id, mark: markName(mark) })),
     ),
   )
 

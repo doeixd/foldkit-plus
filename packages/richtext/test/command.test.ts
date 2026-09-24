@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 
 const id = RichText.NodeId.make
@@ -46,8 +47,12 @@ const minted = () => {
   let count = 0
   return { mint: () => `new-${++count}` }
 }
-const run = (current: RichText.EditorState, command: RichText.Command, ids = minted()) =>
-  RichText.run(current, command, ids)
+const run = (
+  current: RichText.EditorState,
+  command: RichText.Command,
+  ids = minted(),
+  options?: RichText.RunOptions,
+) => RichText.run(current, command, ids, options)
 const success = (result: RichText.TransactionResult) => {
   if (!result.ok) throw new Error(result.error)
   return result
@@ -260,6 +265,34 @@ describe('toggle mark commands', () => {
     const removed = success(run(future, { type: 'ToggleMark', mark: 'Highlight' }))
     expect(removed.state.document.children[0]?.children[0]?.marks).toEqual([])
     expect(RichText.findUnknownMarks(removed.state.document)).toEqual([])
+  })
+
+  it('adds a declared mark with props, then removes it by name', () => {
+    const Link = RichText.mark('Link', { Props: Schema.Struct({ href: Schema.String }) })
+    const ArticleKit = RichText.kit({ nodes: [], marks: [RichText.Bold, Link] })
+    const options = { marks: RichText.markRegistry(ArticleKit.marks) }
+    const added = success(
+      run(
+        state(range(['a', 0], ['a', 2])),
+        { type: 'ToggleMark', mark: Link.of({ href: '/docs' }) },
+        minted(),
+        options,
+      ),
+    )
+    expect(added.state.document.children[0]?.children[0]?.marks).toEqual([
+      { name: 'Link', props: { href: '/docs' } },
+    ])
+
+    // The toggle keys on the name, so a different href still removes it.
+    const removed = success(
+      run(
+        { document: added.state.document, selection: range(['a', 0], ['a', 2]) },
+        { type: 'ToggleMark', mark: Link.of({ href: '/other' }) },
+        minted(),
+        options,
+      ),
+    )
+    expect(removed.state.document.children[0]?.children[0]?.marks).toEqual([])
   })
 })
 

@@ -12,15 +12,16 @@ Available now: version-1 documents, explicit branded NodeIds, paragraphs,
 headings, text runs, Bold/Italic/Code marks, range and node selections,
 InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNode/SetNodeProps/InsertNode/DeleteNode/SplitRun,
 text position mapping with split relocation and deletion collapse, structural
-ChangeSets, merge normalization, mark definitions with boundary expansion,
-unknown node preservation, bounded decode limits, Kits with vocabulary
-validation, a command layer resolving intent into transactions, local undo
-history with explicit grouping, clipboard slices with a strict codec, HTML
-export, and inspection. Unknown mark
-strings load verbatim and
-round-trip; `findUnknownMarks` lists them per run for a publishing gate, while
-`Edit.addMark` accepts only known marks. Mark edits are idempotent per run: redundant adds and removes
-are no-ops without position steps. Build operations with `Edit.*`, which fills
+ChangeSets, merge normalization, mark definitions with boundary expansion and
+prop schemas, unknown node preservation, bounded decode limits, Kits with
+vocabulary validation, a command layer resolving intent into transactions, local
+undo history with explicit grouping, clipboard slices with a strict codec, HTML
+export, and inspection. Unknown marks load verbatim and round-trip;
+`findUnknownMarks` lists them per run for a publishing gate. The operation
+builder takes any mark; `run` is what refuses to add one the caller's vocabulary
+does not declare. Mark edits are idempotent per run: a
+redundant add or remove is a no-op without position steps. Build operations with
+`Edit.*`, which fills
 `type`, accepts a NodeId or `Node.make` reference, and returns a narrowed
 variant; shape misuse throws at the call site while document mismatches stay
 `apply` diagnostics. `decodeDocument` enforces `DocumentLimits` (defaults:
@@ -42,8 +43,9 @@ stale content snapshot. `read` performs a linear lookup.
 
 `RichText.kit({ nodes, marks })` declares an editor's vocabulary as data;
 `validate(document, kit)` reports `UnknownNode` / `UnsupportedNode` /
-`UnknownMark` diagnostics without changing the document. It does not yet drive
-parsing or `apply`, and prop schemas and nested children are pending.
+`UnknownMark` / `InvalidProps` diagnostics without changing the document. The Kit
+is what `run` may add marks from, and `validate` enforces a mark's declared prop
+schema; parsing stays with the caller, and nested children are pending.
 
 `History` is snapshot undo over `EditorState`, kept in the application Model:
 `commit(history, previous, { group })`, `undo`, `redo`, with `groupFor(command)`
@@ -90,12 +92,40 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-Custom Kits, nested children, marks with props,
-Form/Bundle integration, DOM
-editing, and collaboration remain unfinished. Marks are definitions
-(`RichText.mark(name, expand?)`) and a Kit carries the policy:
-`resolveInsertion` and `run(..., { marks: markRegistry(kit.marks) })` honor it,
-with an undeclared mark expanding `both`. Application node kinds are
+Nested children, Form/Bundle integration, DOM editing, and collaboration remain
+unfinished. Marks are definitions with a boundary policy and, when they carry
+data, a prop schema:
+
+```ts
+const Link = RichText.mark('Link', {
+  Props: Schema.Struct({ href: Schema.String }),
+  expand: 'none',
+})
+Link.of({ href: '/docs' }) // { name: 'Link', props: { href: '/docs' } }
+RichText.kit({ nodes, marks: [RichText.Bold, Link] })
+RichText.run(state, command, ids, { marks: RichText.markRegistry(kit.marks) })
+```
+
+`of` builds the value the definition's `Props` accepts, typed at the call site, so
+a wrong prop type is a compile error; a definition without props builds a value
+carrying only its name.
+
+A run stores a mark as a bare name with no props or as `{ name, props }` with
+them. Loading preserves the form it found, so a names-only document round-trips
+byte-equal, and a run carries a name at most once, so it never holds both forms
+of one mark. Read
+either with `markName`/`markProps`, and compare with `sameMark`/`sameMarkSet`.
+`markRegistry(kit.marks)` answers both what `run` may add (`declares`) and how a
+mark expands across a boundary (`expansionOf`). Props are part of a mark's
+identity: normalization does not merge runs whose props differ, and `AddMark` is a
+set for its name (append, replace props, no-op on the same value) while
+`RemoveMark` keys on the name alone. Declared names are what `run` may add, so a
+Kit's marks work by name or value: `InsertText`'s stored marks and `ToggleMark`'s
+mark each take a bare name or a `{ name, props }` value. `validate` reports
+`UnknownMark` for an
+undeclared name and `InvalidProps` for props its schema refuses, including a mark
+that declares props but carries none. `resolveInsertion` honors the policy, with
+an undeclared mark expanding `both`. Application node kinds are
 first-class: `RichText.node(name, { Props })` declares a `Node` block whose JSON
 props the Kit validates (`UnsupportedNode` / `InvalidProps`), with text-run
 children so positions and operations work unchanged. Migrations move persisted
@@ -104,8 +134,9 @@ block's identity, must produce content the codec can store, and may decline a
 block by returning `undefined`; `promoteUnknown` turns a preserved unknown block
 into a declared kind. Unknown nodes and marks are
 preserved verbatim (listed by `findUnknownNodes`/`findUnknownMarks`) rather
-than stripped; everything else is rejected. Preserve the
-original input for recovery. Do not present the design's API sketches as shipped APIs.
+than stripped; everything else is rejected. Preserve the original input for
+recovery. The HTML fallback carries mark names, not props; the slice format
+carries both. Do not present the design's API sketches as shipped APIs.
 
 The planned integrations reuse Bundle lifecycle, Form controls, CMS drafts,
 metadata keys, and Sync presence; they must not add another document owner.

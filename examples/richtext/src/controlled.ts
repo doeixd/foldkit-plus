@@ -159,7 +159,11 @@ export const Editor = Bundle.make({
       model.selection.anchor.offset === model.selection.focus.offset
     // The caret never carries a mark the vocabulary cannot type, so an unknown
     // one is refused here rather than at the first keystroke after it.
-    if (message._tag === 'ToggledMark' && collapsed && !RichText.isKnownMark(message.mark)) {
+    if (
+      message._tag === 'ToggledMark' &&
+      collapsed &&
+      !RichText.shippedRegistry.declares(message.mark)
+    ) {
       return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
     }
     const storedMarks =

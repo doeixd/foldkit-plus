@@ -1,4 +1,5 @@
 import type { Block, Document, Text } from './document.js'
+import { markName } from './marks.js'
 
 /**
  * HTML is an interchange format, not the document model (§70). This serializer
@@ -6,7 +7,9 @@ import type { Block, Document, Text } from './document.js'
  * read by anything; nothing here is ever parsed back into authority. Unknown
  * marks survive as `data-marks` on a span and unknown blocks as a placeholder
  * carrying their original type, so a round trip through HTML cannot silently
- * invent formatting the document never had.
+ * invent formatting the document never had. This fallback carries mark *names*;
+ * a mark's props travel in the slice format, and a declared mark with props gets
+ * real attributes once a Kit-aware renderer exists.
  */
 export type BlockList = ReadonlyArray<Block>
 
@@ -31,9 +34,11 @@ const markTag = (mark: string): string | undefined => MARK_TAGS.find(([name]) =>
 const renderRun = (run: Text): string => {
   let html = escapeText(run.text)
   for (const [name, tag] of MARK_TAGS) {
-    if (run.marks.includes(name)) html = `<${tag}>${html}</${tag}>`
+    if (run.marks.some(mark => markName(mark) === name)) html = `<${tag}>${html}</${tag}>`
   }
-  const unknown = run.marks.filter(mark => markTag(mark) === undefined)
+  const unknown = run.marks
+    .filter(mark => markTag(markName(mark)) === undefined)
+    .map(mark => markName(mark))
   return unknown.length === 0
     ? html
     : `<span data-marks="${escapeAttribute(unknown.join(' '))}">${html}</span>`

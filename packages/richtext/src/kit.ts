@@ -1,9 +1,12 @@
 import { Schema } from 'effect'
-import { Mark, type Document, type NodeBlock, type NodeId } from './document.js'
-import type { MarkDef } from './marks.js'
-
-/** A schema this version can hand to `decodeUnknownSync` at the Kit boundary. */
-type PropsSchema = Schema.Codec<any, any, never>
+import {
+  type Document,
+  type NodeBlock,
+  type NodeId,
+  type PropsSchema,
+  type RunMark,
+} from './document.js'
+import { markName, markProps, type MarkDef } from './marks.js'
 
 /**
  * The node shapes this version can declare: a block holds runs, an atom holds
@@ -123,15 +126,30 @@ export const inspectKit = (definition: Kit) => ({
 })
 
 /**
+ * Whether a mark's props decode against its declared schema, and why not. The
+ * same stability rule as node props: only the verdict travels, not a schema's
+ * message. A mark that declares props must carry them.
+ */
+const markPropsFailure = (definition: MarkDef, mark: RunMark): boolean => {
+  if (definition.Props === undefined) return false
+  try {
+    Schema.decodeUnknownSync(definition.Props, { onExcessProperty: 'error' })(markProps(mark))
+    return false
+  } catch {
+    return true
+  }
+}
+
+/**
  * Checks a document against a Kit's vocabulary without changing it. Reports
  * preserved unknown blocks, known blocks the Kit does not declare, application
- * nodes whose props their schema refuses, and marks outside the Kit. Content
- * diagnostics never strip or repair the document; callers decide whether to
- * block publishing or surface a placeholder.
+ * nodes whose props their schema refuses, and marks outside the Kit or whose
+ * props their definition refuses. Content diagnostics never strip or repair the
+ * document; callers decide whether to block publishing or surface a placeholder.
  */
 export const validate = (document: Document, definition: Kit): ReadonlyArray<Diagnostic> => {
   const byName = new Map(definition.nodes.map(node => [node.name, node]))
-  const declaredMarks = new Set<string>(definition.marks.map(mark => mark.name))
+  const declaredMarks = new Map(definition.marks.map(mark => [mark.name, mark]))
   const diagnostics: Array<Diagnostic> = []
   for (const node of document.children) {
     if (node.type === 'Unknown') {
@@ -190,13 +208,23 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
     }
     for (const run of node.children) {
       for (const mark of run.marks) {
-        if (declaredMarks.has(mark)) continue
-        diagnostics.push({
-          code: 'UnknownMark',
-          node: run.id,
-          detail: mark,
-          message: `The Kit does not declare mark "${mark}"`,
-        })
+        const name = markName(mark)
+        const declared = declaredMarks.get(name)
+        if (declared === undefined) {
+          diagnostics.push({
+            code: 'UnknownMark',
+            node: run.id,
+            detail: name,
+            message: `The Kit does not declare mark "${name}"`,
+          })
+        } else if (markPropsFailure(declared, mark)) {
+          diagnostics.push({
+            code: 'InvalidProps',
+            node: run.id,
+            detail: name,
+            message: `"${name}" props do not match its declared schema`,
+          })
+        }
       }
     }
   }

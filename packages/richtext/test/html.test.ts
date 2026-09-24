@@ -72,6 +72,32 @@ describe('html serialization', () => {
     )
   })
 
+  it('carries a mark name but not its props, which the slice format keeps', () => {
+    const linked = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            {
+              type: 'Text',
+              id: 'a',
+              text: 'docs',
+              marks: ['Bold', { name: 'Link', props: { href: '/docs' } }],
+            },
+          ],
+        },
+      ],
+    })
+    // HTML is the interchange fallback: the mark survives by name, and its props
+    // travel in the slice format instead. A declared mark gets real attributes
+    // once a Kit-aware renderer exists.
+    expect(RichText.documentToHtml(linked)).toBe(
+      '<p><span data-marks="Link"><strong>docs</strong></span></p>',
+    )
+  })
+
   it('nests marks deterministically, not in the order they were added', () => {
     const first = RichText.decodeDocument({
       version: 1,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 
 const ArticleKit = RichText.kit({
@@ -29,7 +30,7 @@ describe('kits', () => {
       { name: 'Heading', kind: 'block', children: 'text' },
       { name: 'Image', kind: 'atom', children: 'none' },
     ])
-    expect(ArticleKit.marks).toEqual([
+    expect(ArticleKit.marks).toMatchObject([
       { name: 'Bold', expand: 'after' },
       { name: 'Italic', expand: 'after' },
     ])
@@ -96,6 +97,43 @@ describe('kits', () => {
       'UnknownMark',
       'UnknownMark',
     ])
+  })
+
+  it('checks a declared mark against the props schema it carries', () => {
+    const Highlight = RichText.mark('Highlight', {
+      Props: Schema.Struct({ tone: Schema.Literals(['yellow', 'green']) }),
+    })
+    const HighlightKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [Highlight] })
+    const marked = (marks: ReadonlyArray<unknown>) =>
+      RichText.decodeDocument({
+        version: 1,
+        children: [
+          { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'x', marks }] },
+        ],
+      })
+    expect(
+      RichText.validate(marked([{ name: 'Highlight', props: { tone: 'yellow' } }]), HighlightKit),
+    ).toEqual([])
+    expect(
+      RichText.validate(marked([{ name: 'Highlight', props: { tone: 'purple' } }]), HighlightKit),
+    ).toEqual([
+      {
+        code: 'InvalidProps',
+        node: 't',
+        detail: 'Highlight',
+        message: '"Highlight" props do not match its declared schema',
+      },
+    ])
+    // A mark that declares props must carry them, and only the declared ones.
+    expect(RichText.validate(marked(['Highlight']), HighlightKit).map(d => d.code)).toEqual([
+      'InvalidProps',
+    ])
+    expect(
+      RichText.validate(
+        marked([{ name: 'Highlight', props: { tone: 'yellow', extra: 1 } }]),
+        HighlightKit,
+      ).map(d => d.code),
+    ).toEqual(['InvalidProps'])
   })
 
   it('is usable as a publishing gate alongside the unknown finders', () => {

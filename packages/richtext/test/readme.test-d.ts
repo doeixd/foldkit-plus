@@ -1,3 +1,4 @@
+import { Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
 
 const Text = RichText.Node.make('text-1')
@@ -23,3 +24,22 @@ if (result.ok) {
   const editedDocument = result.state.document
   void editedDocument
 }
+
+// The README's mark-definition example: a Kit declares the vocabulary, including
+// a mark that carries props, and the command layer may add what it declares.
+const Link = RichText.mark('Link', {
+  Props: Schema.Struct({ href: Schema.String }),
+  expand: 'none',
+})
+const ArticleKit = RichText.kit({
+  nodes: [RichText.block('Paragraph'), RichText.block('Heading')],
+  marks: [RichText.Bold, RichText.Italic, RichText.Code, Link],
+})
+const marked: RichText.Operation = RichText.Edit.addMark(Text.id, Link.of({ href: '/docs' }))
+RichText.run(
+  { document, selection: null },
+  { type: 'ToggleMark', mark: Link.of({ href: '/docs' }) },
+  { mint: () => 'm' },
+  { marks: RichText.markRegistry(ArticleKit.marks) },
+)
+void marked

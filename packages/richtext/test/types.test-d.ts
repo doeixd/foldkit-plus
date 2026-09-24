@@ -35,9 +35,9 @@ const position: RichText.Position = { node: id, offset: 0 }
 const operation: RichText.Operation = { type: 'InsertText', at: 0, text: 'x' }
 // @ts-expect-error Mark edits target a text node, not a bare offset.
 const markOperation: RichText.Operation = { type: 'AddMark', at: 0, mark: 'Bold' }
-// @ts-expect-error Unknown marks are rejected.
-const unknownMark: RichText.Operation = { type: 'AddMark', node: id, mark: 'Link' }
-void [rawId, position, operation, markOperation, unknownMark]
+// @ts-expect-error A mark is a name or a value with props, not a number.
+const badMark: RichText.Operation = { type: 'AddMark', node: id, mark: 42 }
+void [rawId, position, operation, markOperation, badMark]
 
 const reference = RichText.Node.make('text')
 const referenceId: RichText.NodeId = reference.id
@@ -60,8 +60,15 @@ const textValue: string = current.text
 void [referenceId, referencePosition, textValue]
 
 const built = RichText.Edit.addMark(reference, 'Italic')
-const builtMark: RichText.Mark = built.mark
+const builtMark: RichText.RunMark = built.mark
 const builtOperation: RichText.Operation = built
+const Link = RichText.mark('Link', { Props: Schema.Struct({ href: Schema.String }) })
+// A definition with props builds a value; a bare name is a mark without props.
+const withProps: RichText.Operation = RichText.Edit.addMark(reference, Link.of({ href: '/docs' }))
+const byName: RichText.Operation = RichText.Edit.addMark(reference, 'Highlight')
+// @ts-expect-error The href must be a string.
+Link.of({ href: 42 })
+void [withProps, byName]
 RichText.apply({ document, selection: null }, [
   RichText.Edit.insertText(reference.at(0, 'after'), '!'),
   RichText.Edit.deleteText(text.id, 0, 1),
@@ -123,7 +130,7 @@ void [insertedBlock, removedNode]
 const boldDef: RichText.MarkDef = RichText.Bold
 const expansion: RichText.MarkExpansion = boldDef.expand
 const resolved: RichText.Position = RichText.resolveInsertion(document, referencePosition)
-const markSet: boolean = RichText.sameMarkSet(['Bold'], ['Bold'])
+const markSet: boolean = RichText.sameMarkSet([{ name: 'Bold' }], [{ name: 'Bold' }])
 // @ts-expect-error Expansions are before, after, both, or none.
 const badDef: RichText.MarkDef = { name: 'Bold', expand: 'sideways' }
 void [expansion, resolved, markSet, badDef]
