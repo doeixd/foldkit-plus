@@ -7,7 +7,8 @@
     "composite": true,
     "noEmit": false,
     "paths": {
-      "foldkit-mixins": ["../mixins/src/index.ts"]
+      "foldkit-mixins": ["../mixins/src/index.ts"],
+      "foldkit-mixins/*": ["../mixins/src/*.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],

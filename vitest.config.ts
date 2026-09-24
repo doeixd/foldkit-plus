@@ -66,6 +66,22 @@ export default defineConfig({
       'foldkit-remote-drizzle': fileURLToPath(
         new URL('./packages/remote-drizzle/src/index.ts', import.meta.url),
       ),
+      // The subpaths before the bare package, so the more specific entry wins.
+      'foldkit-mixins/theme': fileURLToPath(
+        new URL('./packages/mixins/src/theme.ts', import.meta.url),
+      ),
+      'foldkit-mixins/layers': fileURLToPath(
+        new URL('./packages/mixins/src/layers.ts', import.meta.url),
+      ),
+      'foldkit-mixins/layout': fileURLToPath(
+        new URL('./packages/mixins/src/layout.ts', import.meta.url),
+      ),
+      'foldkit-mixins/defaults': fileURLToPath(
+        new URL('./packages/mixins/src/defaults.ts', import.meta.url),
+      ),
+      'foldkit-mixins/prose': fileURLToPath(
+        new URL('./packages/mixins/src/prose.ts', import.meta.url),
+      ),
       'foldkit-mixins': fileURLToPath(new URL('./packages/mixins/src/index.ts', import.meta.url)),
       'foldkit-mixins-surface': fileURLToPath(
         new URL('./packages/mixins-surface/src/index.ts', import.meta.url),
