@@ -69,6 +69,7 @@ let failing = false
 const Client = Layer.succeed(RemoteClient, {
   read: batch =>
     Effect.sync(() => ({
+      settled: [],
       entities: batch.requests.flatMap(request => {
         const title = server.posts.get(request.id)
         return title === undefined

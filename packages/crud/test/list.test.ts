@@ -50,6 +50,7 @@ const names = ['Ada', 'Alan', 'Annie', 'Grace']
 const Client = Layer.succeed(RemoteClient, {
   read: batch =>
     Effect.sync(() => ({
+      settled: [],
       entities: batch.requests.map(request => ({
         entity: request.entity,
         id: request.id,
