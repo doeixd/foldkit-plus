@@ -5,8 +5,9 @@ data with stable node IDs; edits return a new document, mapped selection, and an
 invalidation summary. This package is **in development and unpublished**.
 
 The application Model owns the document and local selection. Call `apply` from
-the application's `update`; it performs no I/O and holds no editor store. Form/CMS
-integration, DOM editing, and Sync replication are not implemented yet.
+the application's `update`; it performs no I/O and holds no editor store. DOM
+editing lives in the private `foldkit-richtext-dom` spike; Form/CMS integration
+and Sync replication are not implemented yet.
 
 ```text
 EditorState + Transaction → next EditorState + ChangeSet + positionMap
@@ -355,9 +356,10 @@ the order they were added), unknown marks survive as `data-marks` on a span,
 unknown blocks as a `<div data-unknown="Type">` placeholder, and text and
 attribute values are escaped, so content cannot become markup. Importing HTML
 is a whitelist walk over a `DOMParser` tree, and the read-only Foldkit view is
-built with `inertHtml`; both live in the harness adapter because the package
-stays DOM-free and framework-free. Nothing parses HTML back into authority
-without that walk.
+built with `inertHtml`; both live outside this package — the importer and view in
+the `examples/richtext` harness, and the editable DOM interpreter in
+`foldkit-richtext-dom` — because the package stays DOM-free and framework-free.
+Nothing parses HTML back into authority without that walk.
 
 ## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with

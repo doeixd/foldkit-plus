@@ -33,24 +33,24 @@ next command resolves against.
 
 ## The DOM half (first increment)
 
-`src/dom.ts` is a minimal DOM interpreter for the editable subtree. It renders a
-Document into an owned `contenteditable` root (one element per block, one
-`span[data-run]` per run, marks as `data-marks`, preserved unknown blocks as
-read-only placeholders), maps positions both ways (`positionToRange` /
-`rangeToPosition`), and patches a ChangeSet in place: removed identities lose
-their elements, dirty identities are re-rendered or inserted, and every
-untouched element keeps its object identity so a keystroke does not rebuild the
-tree.
+The interpreter moved to `packages/richtext-dom` when Phase 4 promotion began, and
+its README is the reference. It renders a Document into an owned `contenteditable`
+root (one element per block, one `span[data-run]` per run, marks as `data-marks`,
+preserved unknown blocks as read-only placeholders), maps positions both ways
+(`positionToRange` / `rangeToPosition`), and patches a ChangeSet in place: removed
+identities lose their elements, dirty identities are re-rendered or inserted, and
+every untouched element keeps its object identity so a keystroke does not rebuild
+the tree.
 
-`test/dom.test.ts` runs under jsdom and covers rendering, both-way position
-mapping (including what a DOM caret cannot recover: affinity is derived, not
-round-tripped), in-place patching, retired identities after normalization, and
-one end-to-end editing loop: DOM selection → `RichText.run` → patch → restored
-selection.
+`packages/richtext-dom/test/dom.test.ts` runs under jsdom and covers rendering,
+both-way position mapping (including what a DOM caret cannot recover: affinity is
+derived, not round-tripped), in-place patching, retired identities after
+normalization, and one end-to-end editing loop: DOM selection → `RichText.run` →
+patch → restored selection.
 
 ## The DOM half (second increment)
 
-`src/events.ts` wires the subtree to an application. `intentFor(event)` reads
+`src/events.ts` wires the same subtree to an application. `intentFor(event)` reads
 `beforeinput` and `keydown` as a semantic command; every event the adapter
 understands is `preventDefault`ed so the browser cannot mutate the DOM behind
 the document, and one it understands but cannot honor yet (paste, word
@@ -150,27 +150,28 @@ pnpm exec vite examples/richtext --port 5179
 
 The page exposes `window.harness` (`state()`, `selection()`, `caret(node, offset)`)
 for a browser-driving tool. It has been verified to **build and serve** — Vite
-resolves `foldkit-richtext` to `packages/richtext/src/index.ts` and transpiles
-every module — but not yet to be **driven** by a real browser: the browser tool in
-this session needs a desktop-app connection it does not have, so the transient
-behaviour the slice actually cares about (IME composition, native selection,
-clipboard permissions) stays unverified. That is the deferred item in §115, not a
-claim.
+resolves `foldkit-richtext` and `foldkit-richtext-dom` to their sources and
+transpiles every module — but not yet to be **driven** by a real browser: the
+browser tool in this session needs a desktop-app connection it does not have, so
+the transient behaviour the slice actually cares about (IME composition, native
+selection, clipboard permissions) stays unverified. That is the deferred item in
+§115, not a claim.
 
 ## Why there is no package.json
 
-The harness only needs `foldkit-richtext` and `foldkit-bundle`, both mapped to
-source in `tsconfig.json` and aliased in the root `vitest.config.ts`. Keeping it
-out of the workspace dependency graph means it needs no `pnpm install`, so it
-adds no lockfile churn. Promote it to a runnable example (add a `package.json`
-with `workspace:*` dependencies and run `pnpm install`) only when it grows a
-demo entry point.
+The harness only needs `foldkit-richtext`, `foldkit-richtext-dom`, and
+`foldkit-bundle`, all mapped to source in `tsconfig.json` and aliased in the root
+`vitest.config.ts`. Keeping the harness out of the workspace dependency graph
+means it needs no `pnpm install`, so it adds no lockfile churn. Promote it to a
+runnable example (add a `package.json` with `workspace:*` dependencies and run
+`pnpm install`) only when it grows a demo entry point.
 
 ## Results
 
 Recorded in the design doc (§27): controlled ownership works without a second
 synchronized document copy or a delayed Command. The DOM half has its first
-increment (`src/dom.ts`): rendering, both-way position mapping, and in-place
-patching, exercised by the editing loop in `test/dom.test.ts`. What neither
-proves yet is the browser's transient state — IME composition, autocorrect,
-undo, and mobile keyboards — which is the rest of the Phase 3 slice.
+increment, now in `packages/richtext-dom`: rendering, both-way position mapping,
+and in-place patching, exercised by the editing loop in its
+`test/dom.test.ts`. What it does not prove yet is the browser's transient state —
+IME composition, autocorrect, undo, and mobile keyboards — which is the rest of
+the Phase 3 slice.

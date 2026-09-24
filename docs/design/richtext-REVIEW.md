@@ -173,7 +173,7 @@ before producing DeleteText, including relevant adjacent-run cases.
 
 ### R3 — P1: DOM patching does not apply block moves
 
-`examples/richtext/src/dom.ts:108`, `patch` / `place`.
+`packages/richtext-dom/src/index.ts:108`, `patch` / `place`.
 
 When an element already exists, `place` replaces it at its old DOM position and
 returns without consulting the next block identity. MoveNode changes document
@@ -270,7 +270,7 @@ for large selections/pastes before claiming the performance target is met.
 
 ### R10 — P2: typing rebuilds untouched sibling run DOM
 
-`examples/richtext/src/dom.ts`, dirty block branch in `patch`.
+`packages/richtext-dom/src/index.ts`, dirty block branch in `patch`.
 
 InsertText marks the run and its parent block dirty. The adapter replaces that
 whole block, rebuilding every sibling run even when its ID/content is unchanged;
