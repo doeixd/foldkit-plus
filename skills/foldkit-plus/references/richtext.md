@@ -81,6 +81,12 @@ The read-only view (`examples/richtext/src/view.ts`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM
 ownership — with the same element and attribute names the editable adapter uses.
 
+The harness also carries a page (`examples/richtext/harness.html`, served from
+source with `pnpm exec vite examples/richtext`) for exercising the editable
+adapter in a real browser, where jsdom cannot reach: real typing, a real
+selection, a real Enter. The page is verified to build and serve; driving it needs
+a browser connected to the session.
+
 The harness adapter carries slices over the clipboard
 (`application/x-foldkit-richtext+json`, HTML, and plain text) and resolves a
 paste as slice → HTML → text.

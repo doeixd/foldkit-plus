@@ -4606,7 +4606,10 @@ Not done:
 - **Mobile virtual keyboards.** Not attempted.
 - **Real-browser verification.** Every DOM test runs in jsdom, so the adapter's
   behavior under a real browser (native selection, IME, clipboard permissions) is
-  unverified. The design review deferred this explicitly.
+  unverified. A page to drive it now exists (`examples/richtext/harness.html`,
+  served from source; see that harness's README), and it was verified to build and
+  serve, but driving it needs a browser connected to the session, which this
+  environment did not have.
 - **The slice and the Bundle editor are separate proofs.** `events.ts` produces
   commands while `controlled.ts` consumes Messages; nothing wires the DOM adapter
   to the Bundle, and the design keeps them apart until Phase 4.

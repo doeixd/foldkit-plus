@@ -136,6 +136,27 @@ pnpm vitest run examples/richtext/test
 pnpm exec tsc -b examples/richtext
 ```
 
+## Running it in a browser
+
+`harness.html` mounts the adapter over a list and prints the semantic state after
+every command, so the slice can be exercised where jsdom cannot reach: real
+typing, a real `beforeinput`, a real selection, a real Enter. It is served from
+source, so it needs no build and no `pnpm install`:
+
+```bash
+pnpm exec vite examples/richtext --port 5179
+# then open http://127.0.0.1:5179/harness.html
+```
+
+The page exposes `window.harness` (`state()`, `selection()`, `caret(node, offset)`)
+for a browser-driving tool. It has been verified to **build and serve** — Vite
+resolves `foldkit-richtext` to `packages/richtext/src/index.ts` and transpiles
+every module — but not yet to be **driven** by a real browser: the browser tool in
+this session needs a desktop-app connection it does not have, so the transient
+behaviour the slice actually cares about (IME composition, native selection,
+clipboard permissions) stays unverified. That is the deferred item in §115, not a
+claim.
+
 ## Why there is no package.json
 
 The harness only needs `foldkit-richtext` and `foldkit-bundle`, both mapped to
