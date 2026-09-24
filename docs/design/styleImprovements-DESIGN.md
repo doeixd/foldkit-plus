@@ -1,6 +1,7 @@
 # Style improvements: a design system in `foldkit-mixins`
 
-**Status:** design, 2026-09-24. Nothing here is built. Follows
+**Status:** design, 2026-09-24, revised the same day to one composable algebra
+with subpath exports (see "Decisions in one screen"). Nothing here is built. Follows
 [mixins-DESIGN.md](./mixins-DESIGN.md) (Style is data, deterministic CSS,
 no render-time collector) and borrows from the author's `css-tags` library
 (token-first OKLCH theming, a fixed cascade-layer order, attribute-driven
@@ -42,9 +43,10 @@ deliberately left in css-tags.
 
 | Question | Decision | Why |
 | --- | --- | --- |
-| New package or `foldkit-mixins`? | `foldkit-mixins`, new modules `theme.ts` (grown), `layout.ts`, `prose.ts` | mixins-DESIGN says extract `foldkit-style` only when the compiler grows an AST. These are data builders over the existing compiler. |
-| Are themes layers? | **No.** A theme is a token *set*; a layer is a cascade *position*. Theme tokens are emitted in the `theme` layer. A named theme is a scoped override in the same layer. | Layers order rules; they do not hold values. Conflating them makes "which theme wins" a question of layer order instead of a Model field, which breaks the one-owner rule. |
-| Layer order | `reset, tokens, theme, defaults, components, layouts, variants, utilities, app` (was `defaults, components, variants, utilities, app`) | css-tags' order, minus what Foldkit does not need (`engine`, `palette`, `website-theme`). `layouts` sits between components and variants so a layout wrapper never beats a component's own inner rule but an app variant still beats the layout. Breaking change to a 0.x tuple; allowed. |
+| One algebra or a config object? | **One algebra.** Every new thing is a `StyleValue` (rules and global CSS with a layer tag), and the page composes them with `Style.stylesheet`. There is no `foundation({ theme, reset, defaults, … })` that knows the list of things. | `StyleValue` already carries `rules` and `globalCss`. A theme root, a reset, a layout, and a scoped override are the same type as a hover rule; a central bundler would only restate what `stylesheet` does. |
+| New package or `foldkit-mixins`? | `foldkit-mixins`, as **subpath exports**: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, `/prose`. The root export keeps Slots, Style, Behavior, and the core `Theme` functions. | The package is `sideEffects: false`, so a subpath of load-time constants is dropped when unimported, as `foldkit-primitives` does. mixins-DESIGN says extract `foldkit-style` only when the compiler grows an AST; subpaths give the tree-shaking today, and the kernel is arranged so extraction later is a rename (section 7). |
+| Are themes layers? | **No.** A theme is a token *set*; a layer is a cascade *position*. `Theme.root(theme)` is a piece the caller puts in a layer. A named theme is a scoped override piece in the same layer. | Layers order rules; they do not hold values. Conflating them makes "which theme wins" a question of layer order instead of a Model field, which breaks the one-owner rule. |
+| Is the layer order a constant? | **No.** `Layers.define([...] as const)` returns an instance (`names`, `declare`, `in`), typed to its names. `Layers.standard` is the shipped one: `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`. | A design system that wants its own order gets the same typo safety. `Style.layers`, `inLayer`, and `foundation` go away; a 0.x break. |
 | Where does dark mode live? | Two mechanisms, both existing: `Theme.lightDark` for scheme-following tokens (browser owns it), a `data-theme` or `data-color-scheme` attribute on the root written from the Model for a user choice. `Theme.scoped` emits the override rules for the second. | Matches css-tags (`:root[data-color-scheme="dark"]`) and the state-model rule: a choice is a Model fact. |
 | Derived colors: computed in TypeScript or in CSS? | **In CSS**, as `oklch(from var(--fk-…) …)` and `color-mix()` references. TypeScript only writes the references. | Overriding one knob at runtime (a class, a `data-theme`, an inline style on a subtree) must re-derive everything, which only the browser can do. css-tags proves the browser math is enough. |
 | Layout: attribute-driven like css-tags? | **No.** A layout is a Style piece whose inputs are TypeScript arguments; per-instance variation is `Style.vars`. | The view already passes typed input; `attr()` parsing exists to give plain HTML a way in, which a Foldkit view does not need. |
@@ -56,38 +58,53 @@ deliberately left in css-tags.
 ### Today
 
 ```ts
-Style.layers = ['defaults', 'components', 'variants', 'utilities', 'app']
+Style.layers = ['defaults', 'components', 'variants', 'utilities', 'app']   // closed constant
 Style.inLayer(name, piece)
 Style.foundation(theme) // "@layer defaults, components, variants, utilities, app;:root{…}"
 ```
 
-### Proposed
+### Proposed: `foldkit-mixins/layers`
 
 ```ts
-export const layers = Object.freeze([
+export interface Layers<Name extends string> {
+  readonly names: ReadonlyArray<Name>
+  /** The `@layer a, b, c;` statement as a global piece; `stylesheet` hoists it first. */
+  readonly declare: StyleValue
+  /** The piece's rules and global CSS emitted inside `@layer name`. */
+  readonly in: (name: Name, piece: StyleValue) => StyleValue
+}
+
+export const define: <const Name extends string>(names: ReadonlyArray<Name>) => Layers<Name>
+
+export const standard = define([
   'reset',      // normalize: box-sizing, margins, media defaults
   'tokens',     // scales that never change per theme: spacing, type, radius, motion
   'theme',      // the knobs and everything derived from them; scoped overrides
   'defaults',   // element defaults: body, headings, links, code, form controls
   'components', // a design system's component rules
-  'layouts',    // stack, cluster, sidebar, … (new)
+  'layouts',    // stack, cluster, sidebar, …
   'variants',   // a recipe's per-variant rules
   'utilities',  // single-purpose rules
   'app',        // the application, always last
-] as const)
+])
 ```
 
 Rules that hold:
 
-- `app` is last and `reset` is first. Nothing may be emitted outside the
-  tuple; a misspelled name is still a type error.
-- `Style.foundation` declares this order. It grows to also emit the `reset`
-  layer when asked (`{ reset: true }`), the `tokens` and `theme` layers from
-  the theme handed to it, and the `defaults` layer when a `Defaults` piece
-  is passed. Its output is still one string a page ships first, with no
-  JavaScript.
+- `in` is today's `inLayer`, but typed to the instance, so a name outside
+  its `names` is a type error. It now also wraps `globalCss` chunks, which
+  is what lets a reset or a theme root sit in a layer.
+- `declare` is an ordinary global piece. `Style.stylesheet` hoists every
+  `@layer …;` statement to the top of its output and dedupes them, so the
+  order is declared once no matter how many pieces include it. Two different
+  `declare`s in one sheet is a diagnostic (`style:conflicting-layer-order`).
+- `define` refuses duplicate names (`style:duplicate-layer`).
 - Nothing in mixins emits into `app`; it exists so an application's own
-  `inLayer('app', …)` is guaranteed to win.
+  `L.in('app', …)` is guaranteed to win. The shipped `Layout`, `Defaults`,
+  and `Prose` pieces are **unlayered** until the caller wraps them; the
+  layer they document is a recommendation, and `Layers.standard.in` is
+  where it is applied. That keeps each generator ignorant of the instance
+  in use.
 
 Why `layouts` after `components` and before `variants`: a card inside a stack
 should keep its own padding rules against the stack's child selector, and an
@@ -103,13 +120,21 @@ Unchanged: `Theme.define(tokens)` is a frozen two-level record of strings and
 *value* may be a literal, a `light-dark()`, or a CSS expression that
 references other tokens. That last case is what makes derivation possible.
 
-Three new things:
+Four new things, all under `foldkit-mixins/theme`:
 
-1. `Theme.oklch(knobs)` returns a Theme whose values are derivation
+1. `Theme.root(theme)` returns a `StyleValue` whose global CSS is
+   `:root{--fk-…}` for every token, plus `color-scheme: light dark`. It
+   replaces `Style.foundation`'s token output. `Theme.variables` (inline,
+   on an element) stays for subtree themes.
+2. `Theme.oklch(knobs)` returns a Theme whose values are derivation
    expressions.
-2. `Theme.scoped(selector, overrides)` returns CSS text for a named theme or
-   scheme override.
-3. `Theme.tokens` is the shipped set of non-color scales.
+3. `Theme.scoped(selector, overrides)` returns a `StyleValue` for a named
+   theme or scheme override.
+4. `Theme.tokens` is the shipped set of non-color scales.
+
+The root export of `foldkit-mixins` keeps `Theme.define`, `variable`,
+`variables`, `lightDark`, and `compose`, because `Style.forSlots` users need
+`variable` without the rest. The subpath re-exports those and adds the four.
 
 ### 2.2 `Theme.oklch`: the css-tags engine as a token generator
 
@@ -165,14 +190,15 @@ merges group-wise.
 ### 2.3 `Theme.scoped`: named themes and a user's color scheme
 
 ```ts
-/** Rules that override tokens under `selector`, emitted in the theme layer. */
+/** Rules that override tokens under `selector`; unlayered until the caller wraps it. */
 export const scoped: (selector: string, overrides: Partial<ThemeTokens>) => StyleValue
 ```
 
 `Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })`
 returns a `StyleValue` whose `globalCss` is
-`@layer theme{:root[data-theme="ocean"]{--fk-knob-accent-h:215}}`. Because
-every derived token is a reference, that one line recolors the whole page.
+`:root[data-theme="ocean"]{--fk-knob-accent-h:215}`; the page puts it in
+the theme layer with `L.in('theme', …)`. Because every derived token is a
+reference, that one line recolors the whole page.
 
 Ownership, stated once: *which* theme is active is a Model field; the view
 writes `h.DataAttribute('theme', model.theme)` on the root. `Theme.scoped`
@@ -215,35 +241,51 @@ on what `md` means; a helper `Theme.breakpointWidths(tokens)` parses the
 `min-width` out of each query for that purpose, and refuses a query it cannot
 parse.
 
-### 2.5 `Style.foundation` grows
+### 2.5 The page sheet is composition, not configuration
+
+`Style.foundation` is removed. A page imports what it uses and composes it:
 
 ```ts
-Style.foundation({
-  theme: Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } })),
-  reset: true,
-  defaults: Defaults.all,           // section 4
-  scoped: [Theme.scoped(':root[data-theme="ocean"]', …)],
-})
+import { Style } from 'foldkit-mixins'
+import { Layers } from 'foldkit-mixins/layers'
+import { Theme } from 'foldkit-mixins/theme'
+import { Defaults } from 'foldkit-mixins/defaults'
+
+const L = Layers.standard
+const theme = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
+
+export const sheet = Style.stylesheet(
+  L.declare,
+  L.in('reset', Defaults.reset),
+  L.in('tokens', Theme.root(Theme.tokens)),
+  L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
+  L.in('theme', Theme.scoped(':root[data-theme="ocean"]', { knob: { 'accent-h': '215' } })),
+  L.in('defaults', Defaults.body),
+  PageStyle,
+)
 ```
 
-emits, in order: the `@layer` list; `@layer reset{…}`; `@layer tokens{:root{…}}`
-for groups that come from `Theme.tokens`; `@layer theme{:root{…}}` for the
-rest plus `color-scheme`; each scoped override; `@layer defaults{…}`. Which
-group goes to `tokens` versus `theme` is decided by name: a group is a token
-if it is one of `Theme.tokens`' groups. Simpler than tagging, and it keeps
-`Theme.define` unchanged for users who never touch `Theme.tokens`.
+`Style.stylesheet` changes in two ways to make this work: it accepts a bare
+`StyleValue` beside a `NamedStyle`, and it hoists `@layer …;` statements
+first. Everything else it does today (global chunks first, then scoped
+classes, first seen wins) is unchanged. There is no list of "things a
+foundation has"; a page that wants no reset leaves the line out.
 
-The current one-argument form stays as an overload.
+`Theme.root(theme, { omit })` skips the groups present in another theme, so
+the scales go out once in `tokens` and the colors once in `theme`. A page
+that does not care about that distinction calls `L.in('theme',
+Theme.root(theme))` once.
 
 ## 3. Layouts
 
 ### 3.1 Shape
 
-A new module `layout.ts`, exported as `Layout`. Each entry is a function from
-typed options to a `StyleValue` made of `inline` declarations and rule
-pieces, wrapped in `inLayer('layouts', …)`. No new compiler features; the
-only new primitive needed is a per-child rule, which `Style.nest('> *', …)`
-already gives.
+A new subpath `foldkit-mixins/layout`, exported as `Layout`. Each entry is a
+function from typed options to an unlayered `StyleValue` made of `inline`
+declarations and rule pieces; the caller wraps it in `L.in('layouts', …)`
+or, more usually, a design system's own style module does so once and
+re-exports. No new compiler features; the only new primitive needed is a
+per-child rule, which `Style.nest('> *', …)` already gives.
 
 ```ts
 export const stack = (options?: {
@@ -322,8 +364,8 @@ publishes a container slot; that is the existing extension model.
 ### 4.1 `Defaults`
 
 css-tags' value for plain HTML is that `<main class="prose">` reads well with
-no component markup. Here that is a set of `globalCss` pieces in the
-`defaults` layer:
+no component markup. Here that is a set of `globalCss` pieces under
+`foldkit-mixins/defaults`, meant for the `reset` and `defaults` layers:
 
 ```ts
 export const Defaults = {
@@ -333,13 +375,13 @@ export const Defaults = {
   links:   StyleValue   // text.link, text.link-hover, visited, focus outline
   code:    StyleValue   // pre and code on surface.subtle with outline.subtle
   controls: StyleValue  // input, select, textarea, button: font inherit, radius.md, outline.focus
-  all:     StyleValue   // every one of the above, composed
+  all:     StyleValue   // every one of the above except reset, composed
 }
 ```
 
 Each is plain CSS text over `--fk-*` references, so it re-themes with the
-tokens. `Style.foundation({ defaults: Defaults.all })` emits it; an
-application that wants only `body` and `links` composes those.
+tokens. `L.in('defaults', Defaults.all)` emits it; an application that
+wants only `body` and `links` composes those.
 
 Element defaults are the one place this design writes element selectors
 rather than classes. They are unavoidable for content the application does
@@ -353,8 +395,9 @@ measure (`max-inline-size: 65ch`), the rhythm tokens (`--fk-prose-*` for
 paragraph, heading, list, and figure spacing, following css-tags'
 "relationships between unlike elements" rule), and nested rules for `p`,
 `h2 + p`, `ul`, `blockquote`, `figure`, `figcaption`, `hr`, `table`, `mark`,
-`abbr`. It compiles to one class like any rule piece, in the `components`
-layer. `foldkit-richtext`'s HTML renderer is its first consumer.
+`abbr`. It compiles to one class like any rule piece, and belongs in the
+`components` layer. It lives under `foldkit-mixins/prose`;
+`foldkit-richtext`'s HTML renderer is its first consumer.
 
 ## 5. `Style.responsive` and breakpoints
 
@@ -387,26 +430,54 @@ the button set proves the token names.
 
 ## 7. Where each thing lives
 
-| Thing | Module | Layer it emits into |
-| --- | --- | --- |
-| `Style.layers`, `inLayer`, `foundation` | `mixins/src/style.ts` | — |
-| `Theme.define`, `variable`, `variables`, `lightDark`, `compose` | `mixins/src/theme.ts` | — |
-| `Theme.oklch`, `Theme.tokens`, `Theme.scoped`, `Theme.breakpointWidths` | `mixins/src/theme.ts` (+ `themeOklch.ts` for the derivation table) | `tokens`, `theme` |
-| `Layout.*` | `mixins/src/layout.ts` | `layouts` |
-| `Defaults.*` | `mixins/src/defaults.ts` | `reset`, `defaults` |
-| `Prose.style` | `mixins/src/prose.ts` | `components` |
-| `Recipes.*` | `mixins-ui/src/recipes/*.ts` | `components`, `variants` |
+### Modules and subpaths
 
-No new package. Every export is data built at module load; nothing reads the
-DOM, the clock, or the Model.
+| Thing | Module | Subpath | Recommended layer |
+| --- | --- | --- | --- |
+| `StyleValue`, `compose`, `inline`, `class`, `pseudo`, `media`, `supports`, `container`, `nest`, `states`, `responsive`, `enter`, `vars`, `keyframes`, `global`, `grid` | `mixins/src/styleValue.ts` (new; the kernel) | `foldkit-mixins` | — |
+| `forSlots`, `forCapability`, `attach`, `recipe`, `recipeFor`, `whenInput`, `perItem`, `stagger`, `stylesheet` | `mixins/src/style.ts` | `foldkit-mixins` | — |
+| `Layers.define`, `Layers.standard` | `mixins/src/layers.ts` | `foldkit-mixins/layers` | — |
+| `Theme.define`, `variable`, `variables`, `lightDark`, `compose` | `mixins/src/theme.ts` | `foldkit-mixins` and `/theme` | — |
+| `Theme.root`, `oklch`, `scoped`, `tokens`, `breakpointWidths` | `mixins/src/theme/*.ts` | `foldkit-mixins/theme` | `tokens`, `theme` |
+| `Layout.*` | `mixins/src/layout.ts` | `foldkit-mixins/layout` | `layouts` |
+| `Defaults.*` | `mixins/src/defaults.ts` | `foldkit-mixins/defaults` | `reset`, `defaults` |
+| `Prose.style` | `mixins/src/prose.ts` | `foldkit-mixins/prose` | `components` |
+| `Recipes.*` | `mixins-ui/src/recipes/*.ts` | `foldkit-mixins-ui` | `components`, `variants` |
+
+### The kernel has no slot import
+
+`styleValue.ts` and `styleRules.ts` import nothing from `slot.ts`,
+`slots.ts`, `contribution.ts`, or `resolver.ts`. `layers`, `theme`,
+`layout`, `defaults`, and `prose` import only the kernel. `style.ts` is the
+one module that joins the kernel to slots. A test reads the import graph so
+this cannot drift.
+
+The point is not purity; it is that if a second consumer with no slots
+appears (`foldkit-richtext`'s HTML renderer wanting `Prose` alone, or a
+static site), the kernel and its subpaths lift into a `foldkit-style`
+package by moving files, with `foldkit-mixins` re-exporting them. Until
+then, one package.
+
+### Tree-shaking
+
+`foldkit-mixins` is already `sideEffects: false`. Every subpath is
+load-time constants and pure functions; `Theme.tokens`, `Layers.standard`,
+and `Defaults.all` are dropped by a bundler when unimported. The OKLCH
+derivation table is the largest constant and is reachable only from
+`/theme`. The root export grows by nothing.
+
+Every export is data built at module load; nothing reads the DOM, the
+clock, or the Model.
 
 ## 8. What changes for existing users
 
-- `Style.layers` gains four names and reorders; any `inLayer('components', …)`
-  still works. Anyone who pasted the old `@layer` line by hand must replace it
-  with `Style.foundation`.
-- `Style.foundation(theme)` keeps working. The options form is additive.
-- `Theme` gains members; nothing is removed.
+- `Style.layers`, `Style.inLayer`, and `Style.foundation` are removed.
+  `Layers.standard.names`, `Layers.standard.in`, and
+  `Style.stylesheet(Layers.standard.declare, Theme.root(theme), …)` replace
+  them. The `themeLayers.test.ts` layer cases move to `layers.test.ts`.
+- `Style.stylesheet` accepts `StyleValue`s and hoists `@layer` statements.
+  Callers passing only `NamedStyle`s see identical output.
+- The root `Theme` export is unchanged; the subpath adds members.
 - `examples/todo-app/src/style.ts` moves its eleven hex colors to
   `Theme.oklch({ accent: { h: 243, c: 0.18, l: '58%' } })` and deletes the
   dark-mode block from `styles.css`, which becomes the proof that the
@@ -435,27 +506,45 @@ DOM, the clock, or the Model.
 - **Scales and named palettes** (`--scale-l-7`, `--palette-gold-chroma-3`).
   Utility-class material. A view names a semantic token.
 - **Generating a class per distinct layout value.** See 3.2.
+- **A `Style.foundation({ theme, reset, defaults, scoped })` config object**
+  (this document's first draft). It would be the one place that has to know
+  every kind of piece, and every new kind (a prose baseline, a print sheet)
+  would grow it. `stylesheet` over `StyleValue`s already composes anything.
+- **A closed layer constant.** Safe, but a design system with a different
+  order had no way in. A `Layers` instance is typed the same and is a value.
+- **Layered generators** (`Layout.stack` already in `@layer layouts`).
+  It would tie every generator to one `Layers` instance and its names.
+  Unlayered pieces plus `L.in` at the page keep generators and orders
+  independent; the cost is one wrapper call per line of the page sheet.
+- **A `foldkit-style` package now.** Same tree-shaking as subpaths, one more
+  manifest, and no second consumer yet. The import-graph test keeps the
+  door open.
 
 ## 10. Phase plan
 
-1. **Layers.** Extend the tuple, grow `foundation` to the options form, keep
-   the overload. Tests: order, each section's emission, the overload
-   unchanged. Update the mixins README table and the skill reference.
-2. **`Theme.tokens` and density.** Ship the scales, `breakpointWidths`, and
-   the `tokens`-versus-`theme` split in `foundation`.
-3. **`Theme.oklch` and `Theme.scoped`.** The derivation table, its types, a
+1. **Kernel split and subpaths.** Move the piece builders to
+   `styleValue.ts`, add the import-graph test, add the subpath entries to
+   `package.json` and the tsdown config.
+2. **Layers.** `Layers.define`/`standard`, `in` wrapping global CSS,
+   `stylesheet` accepting `StyleValue` and hoisting `@layer`. Remove
+   `Style.layers`, `inLayer`, `foundation`. Tests: order, hoisting, the two
+   diagnostics, `NamedStyle`-only output unchanged. Update the mixins README
+   table and the skill reference.
+3. **`Theme.root`, `Theme.tokens`, density.** Ship the scales,
+   `breakpointWidths`, and `root`'s `omit` option.
+4. **`Theme.oklch` and `Theme.scoped`.** The derivation table, its types, a
    test that asserts every non-knob value is a reference and that no token
    references an undefined one (a static check over the emitted text). A
    browser demo page under `examples/mixins` that flips `data-theme` and
    `data-color-scheme` from the Model.
-4. **`Layout`.** `stack`, `cluster`, `center`, `autoGrid` first (no
+5. **`Layout`.** `stack`, `cluster`, `center`, `autoGrid` first (no
    container queries), then `split`, `sidebar`, `switcher`, `reel`, `frame`,
    `pad`. Tests pin the compiled CSS of each and the one-class-many-vars
    property.
-5. **`Defaults` and `Prose`.** With `foldkit-richtext`'s HTML output as the
+6. **`Defaults` and `Prose`.** With `foldkit-richtext`'s HTML output as the
    fixture.
-6. **`Recipes.Button` in `mixins-ui`**, then the rest of the six.
-7. **todo-app migration** as the end-to-end proof, and the skill's
+7. **`Recipes.Button` in `mixins-ui`**, then the rest of the six.
+8. **todo-app migration** as the end-to-end proof, and the skill's
    `references/mixins.md` updated in the same change as each public API.
 
 Each phase is its own commit series with a review pass, per AGENTS.md.
