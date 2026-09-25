@@ -11,11 +11,11 @@
  * thing: each node is wrapped in a `display: contents` element that carries
  * `data-composition-node`, so an editor can find the node under the pointer.
  */
-import { holds } from '../condition.js'
 import { Result } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { Block, type AnyBlock, type PropsOf } from '../block.js'
+import { Block, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
 import { Catalog } from '../catalog.js'
+import { holds } from '../condition.js'
 import type { Document, NodeId } from '../document.js'
 
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
@@ -34,7 +34,7 @@ export interface RenderContext<B extends AnyBlock, Message> {
    * the Block does not offer is left out. A look draws them:
    * `HeroLook.draw({ appearance, h })`.
    */
-  readonly appearance: Readonly<Record<string, string>>
+  readonly appearance: Readonly<Record<string, AppearanceChoice>>
 }
 
 /** One view per Block of the Catalog, by name: a Block without one is a type error. */
@@ -82,18 +82,6 @@ const make =
  * again is a placeholder, which is nothing in view mode and a labelled box in
  * edit mode.
  */
-/** The stored choices the Block offers: an axis it has, a value on that axis's list. */
-const offered = (block: AnyBlock, stored: unknown): Readonly<Record<string, string>> =>
-  typeof stored !== 'object' || stored === null || Array.isArray(stored)
-    ? {}
-    : Object.fromEntries(
-        Object.entries(stored).filter(
-          (entry): entry is [string, string] =>
-            typeof entry[1] === 'string' &&
-            (block.appearance[entry[0]]?.values.includes(entry[1]) ?? false),
-        ),
-      )
-
 const render = <Blocks extends AnyBlock, Message>(
   renderer: Renderer<Blocks, Message>,
   document: Document,
@@ -149,7 +137,7 @@ const render = <Blocks extends AnyBlock, Message>(
       regions,
       h,
       mode,
-      appearance: offered(block, node.appearance),
+      appearance: Block.offeredAppearance(block, node.appearance),
     })
     return mode === 'view'
       ? html

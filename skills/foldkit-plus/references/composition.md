@@ -119,8 +119,12 @@ const Hero = Block.define('Hero', { Props, provides }).pipe(Appearance.attach(He
 - Every piece compiles once; a selection attaches base + chosen values
   (or defaults) + matching compounds + token declarations side by side.
 - The Renderer's `appearance` holds only choices the Block offers.
-- `Block.withAppearance({ axis: { kind: 'variant' | 'token', values } })` sets
-  axes by hand. No responsive choices yet.
+- `Block.withAppearance({ axis: { kind: 'variant' | 'token', values, breakpoints? } })`
+  sets axes by hand. A token axis made with
+  `Appearance.token(t.space, { slot, property, breakpoints: Theme.tokens.breakpoint })`
+  is responsive: stored `{ gap: { base: 'sm', md: 'lg' } }`, drawn as rules
+  (no inline value), breakpoints after base. Variants are never responsive.
+  A view's `appearance` values are `string | Record<point, string>`.
 - The drawn Builder's inspector draws a `select` per axis, blank for default.
 - A layout Block: the look's base is `Layout.switcher()` (or `sidebar`), and the
   layout's parameters (`--fk-l-threshold` via `Style.vars`, child `flexGrow`,

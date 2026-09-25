@@ -382,6 +382,13 @@ const SiteRenderer = Renderer.make(Site, {
   compile them in a cascade layer, such as `Layers.standard.layer('app')`.
 - Arbitrary CSS, class names and selectors are not in the Document. An escape
   hatch is a Block written for it, visibly outside the typed path.
+- **A token choice may change at breakpoints.** Given `breakpoints` (such as
+  `Theme.tokens.breakpoint`, smallest first), a node stores one name for every
+  viewport or a name per point, `{ gap: { base: 'sm', md: 'lg' } }`. Each is a
+  rule, the breakpoints' after the base's in `look.styles`, so the widest that
+  matches wins; a view's `appearance` then holds the record. A variant is one
+  value for every viewport: its pieces may be classes, which no media query
+  can hold.
 - **A layout Block is a Mixins layout.** Its look's base is the layout, and
   the layout's parameters are its axes:
 
@@ -485,5 +492,4 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 - Actions are stored but not interpreted.
 - A condition is one of four operations over one context key; there is no
   `or` and no `not`, as in `Expr`.
-- An appearance choice is one value for every viewport; responsive choices,
-  keyed by breakpoint, are not yet here.
+- Only a token choice is responsive; a variant is one value for every viewport.

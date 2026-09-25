@@ -478,29 +478,55 @@ export const BuilderView = {
           input,
         ])
       })
-      // The node's look: one choice per axis its Block offers, blank for the default.
+      // The node's look: one choice per axis its Block offers, blank for the default,
+      // and on a responsive axis one more per breakpoint it may change at.
       const chosen = isChoices(node.appearance) ? node.appearance : {}
-      const looks = Object.entries(block.appearance).map(([axis, { values }]) => {
-        const fieldId = `${builder.name}-${id}-appearance-${axis}`
-        const choose = (value: string): Message => {
-          const { [axis]: _, ...others } = chosen
-          const next = value === '' ? others : { ...others, [axis]: value }
-          return Message.Applied({
-            op: Composition.Op.setAppearance(id, Object.keys(next).length === 0 ? null : next),
-          })
-        }
-        return h.div(slots.field.attrs(), [
-          h.label([h.For(fieldId)], [axis]),
-          h.select(
-            slots.control.attrs([h.Id(fieldId), h.OnChange(choose)]),
-            ['', ...values].map(value =>
-              h.option(
-                [h.Value(value), h.Selected((chosen[axis] ?? '') === value)],
-                [value === '' ? 'default' : value],
+      const looks = Object.entries(block.appearance).flatMap(([axis, { values, breakpoints }]) => {
+        const stored = chosen[axis]
+        // What is chosen at each point: `base`, then each breakpoint.
+        const at: Readonly<Record<string, string>> =
+          typeof stored === 'string'
+            ? { base: stored }
+            : isChoices(stored)
+              ? Object.fromEntries(
+                  Object.entries(stored).filter(
+                    (entry): entry is [string, string] => typeof entry[1] === 'string',
+                  ),
+                )
+              : {}
+        const choose =
+          (point: string) =>
+          (value: string): Message => {
+            const { [point]: _, ...kept } = at
+            const points = value === '' ? kept : { ...kept, [point]: value }
+            const { [axis]: __, ...others } = chosen
+            // One name when only the base is chosen; none when nothing is.
+            const choice =
+              Object.keys(points).length === 0
+                ? undefined
+                : Object.keys(points).length === 1 && points['base'] !== undefined
+                  ? points['base']
+                  : points
+            const next = choice === undefined ? others : { ...others, [axis]: choice }
+            return Message.Applied({
+              op: Composition.Op.setAppearance(id, Object.keys(next).length === 0 ? null : next),
+            })
+          }
+        return ['base', ...(breakpoints ?? [])].map(point => {
+          const fieldId = `${builder.name}-${id}-appearance-${axis}${point === 'base' ? '' : `-${point}`}`
+          return h.div(slots.field.attrs(), [
+            h.label([h.For(fieldId)], [point === 'base' ? axis : `${axis} at ${point}`]),
+            h.select(
+              slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
+              ['', ...values].map(value =>
+                h.option(
+                  [h.Value(value), h.Selected((at[point] ?? '') === value)],
+                  [value === '' ? (point === 'base' ? 'default' : 'unchanged') : value],
+                ),
               ),
             ),
-          ),
-        ])
+          ])
+        })
       })
       // When it shows: an `eq` condition per context key, blank for always. Other
       // conditions on a key are kept as they are.

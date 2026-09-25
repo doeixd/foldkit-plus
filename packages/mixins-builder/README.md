@@ -157,7 +157,9 @@ resolve it:
 
 After the props, each appearance axis the Block offers is a `select` of its
 values, with a blank for the default; a choice is one `setAppearance`, and
-clearing the last one removes the node's `appearance`.
+clearing the last one removes the node's `appearance`. A responsive token axis
+adds one `select` per breakpoint (`space at md`), blank for unchanged; with
+only the base chosen, one name is stored.
 
 Then, when the Catalog declares a `context`, one field per context key says
 when the node shows: `when audience` is a `select` of the key's literals (a

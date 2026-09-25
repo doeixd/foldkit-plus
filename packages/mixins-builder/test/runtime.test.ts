@@ -103,6 +103,12 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     // Dragging the Banner's row onto the Heading's lands it after the Heading
     // (jsdom has no boxes, so the pointer is inside a Heading, which takes
     // nothing), and the click the drop ends with selects nothing.
+    const pick = (selector: string, value: string) => {
+      const select = document.querySelector<HTMLSelectElement>(selector)
+      if (select === null) throw new Error(`no ${selector}`)
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }
     const pointer = (row: Element | undefined, type: string, clientY: number) => {
       const event = new Event(type, { bubbles: true, cancelable: true })
       Object.assign(event, { button: 0, clientX: 10, clientY })
@@ -147,6 +153,23 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('loud'))
     choose('')
     await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('plain'))
+    // A responsive axis: a name at a breakpoint, then a base, is a name per
+    // point; with only the base left it is one name again.
+    const stored = () => {
+      const now = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
+      return Object.values(now?.nodes ?? {}).find(node => node.block === 'Banner')?.appearance
+    }
+    const space = (point: string, value: string) =>
+      pick(`[aria-label="Properties"] select[id$="-appearance-space${point}"]`, value)
+    space('-md', 'm')
+    await vi.waitFor(() => expect(stored()).toEqual({ space: { md: 'm' } }))
+    space('', 's')
+    await vi.waitFor(() => expect(stored()).toEqual({ space: { base: 's', md: 'm' } }))
+    space('-md', '')
+    await vi.waitFor(() => expect(stored()).toEqual({ space: 's' }))
+    space('', '')
+    await vi.waitFor(() => expect(stored()).toBeUndefined())
+
     // Clearing the last choice leaves no appearance behind at all.
     const page = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
     const banner = Object.values(page?.nodes ?? {}).find(node => node.block === 'Banner')
@@ -155,12 +178,6 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
 
     // Shown only to members, the Banner is marked hidden while previewing as a
     // guest, and not as a member; always again, it has no condition at all.
-    const pick = (selector: string, value: string) => {
-      const select = document.querySelector<HTMLSelectElement>(selector)
-      if (select === null) throw new Error(`no ${selector}`)
-      select.value = value
-      select.dispatchEvent(new Event('change', { bubbles: true }))
-    }
     const bannerHidden = () =>
       onPage('.banner')?.closest('[data-composition-node]')?.hasAttribute('data-composition-hidden')
     pick('[aria-label="Properties"] select[id$="-when-audience"]', 'member')

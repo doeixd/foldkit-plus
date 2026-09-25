@@ -92,7 +92,17 @@ describe('the drawn Builder', () => {
     const fields = all(inspector)
       .filter(node => node.sel === 'label')
       .map(text)
-    expect(fields).toEqual(['text', 'size', 'count', 'shown', 'tone', 'when audience', 'when beta'])
+    expect(fields).toEqual([
+      'text',
+      'size',
+      'count',
+      'shown',
+      'tone',
+      'space',
+      'space at md',
+      'when audience',
+      'when beta',
+    ])
     const controls = all(inspector).filter(node =>
       ['input', 'select', 'code'].includes(node.sel ?? ''),
     )
@@ -101,6 +111,8 @@ describe('the drawn Builder', () => {
       ['select', undefined],
       ['input', undefined],
       ['input', 'checkbox'],
+      ['select', undefined],
+      ['select', undefined],
       ['select', undefined],
       ['select', undefined],
       ['select', undefined],

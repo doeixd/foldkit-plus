@@ -11,10 +11,10 @@
  * refuse an edit because of something already wrong elsewhere in the Document,
  * so an author keeps working around content the deployment no longer knows.
  */
-import { check as checkWhen } from './condition.js'
 import { Result, Schema } from 'effect'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
+import { check as checkWhen } from './condition.js'
 import { accepts } from './content.js'
 import { Node, NodeId, index, type Document, type Place } from './document.js'
 import { bounds } from './region.js'

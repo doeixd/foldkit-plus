@@ -44,7 +44,15 @@ export interface Block<
 export interface AppearanceAxis {
   readonly values: ReadonlyArray<string>
   readonly kind: 'variant' | 'token'
+  /**
+   * The breakpoints a choice may change at, by name: a node may then store
+   * `{ base: 's', md: 'lg' }` for this axis as well as one name.
+   */
+  readonly breakpoints?: ReadonlyArray<string>
 }
+
+/** A stored choice: one name, or for a responsive axis a name per breakpoint and `base`. */
+export type AppearanceChoice = string | Readonly<Record<string, string>>
 
 export type AppearanceAxes = Readonly<Record<string, AppearanceAxis>>
 
@@ -120,6 +128,31 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** What is wrong with a node's stored appearance, against the Block's axes. */
+/** Why one stored name is not a choice of an axis, or nothing when it is. */
+const checkName = (
+  name: string,
+  axis: AppearanceAxis,
+  value: unknown,
+  path: ReadonlyArray<string>,
+): ReadonlyArray<AppearanceFinding> => {
+  if (typeof value === 'string' && axis.values.includes(value)) return []
+  const shown = typeof value === 'string' ? `"${value}"` : JSON.stringify(value)
+  return [
+    axis.kind === 'token' && typeof value === 'string'
+      ? {
+          code: 'composition:unknown-token',
+          path,
+          message: `${shown} is not a token the theme has for ${name}`,
+        }
+      : {
+          code: 'composition:invalid-appearance',
+          path,
+          message: `${shown} is not one of ${name}'s: ${axis.values.join(', ')}`,
+        },
+  ]
+}
+
+/** What is wrong with a node's stored appearance, against the Block's axes. */
 const checkAppearance = (
   block: AnyBlock,
   appearance: unknown,
@@ -144,24 +177,58 @@ const checkAppearance = (
           message: `a ${block.name} has no appearance "${name}"`,
         },
       ]
-    if (typeof choice === 'string' && axis.values.includes(choice)) return []
-    const shown = typeof choice === 'string' ? `"${choice}"` : JSON.stringify(choice)
-    return axis.kind === 'token' && typeof choice === 'string'
-      ? [
-          {
-            code: 'composition:unknown-token',
-            path,
-            message: `${shown} is not a token the theme has for ${name}`,
-          },
-        ]
-      : [
-          {
-            code: 'composition:invalid-appearance',
-            path,
-            message: `${shown} is not one of ${name}'s: ${axis.values.join(', ')}`,
-          },
-        ]
+    if (!isRecord(choice) || axis.breakpoints === undefined)
+      return checkName(name, axis, choice, path)
+    // A responsive choice: a name for `base` and for each breakpoint it changes at.
+    const allowed = ['base', ...axis.breakpoints]
+    const entries = Object.entries(choice)
+    if (entries.length === 0)
+      return [{ code: 'composition:invalid-appearance', path, message: 'chooses nothing' }]
+    return entries.flatMap(([at, value]) =>
+      allowed.includes(at)
+        ? checkName(name, axis, value, [...path, at])
+        : [
+            {
+              code: 'composition:invalid-appearance' as const,
+              path: [...path, at],
+              message: `"${at}" is not one of ${name}'s breakpoints: ${allowed.join(', ')}`,
+            },
+          ],
+    )
   })
+}
+
+/**
+ * The stored choices a Block offers, for its view: an axis it has, a name on
+ * that axis's list, and for a responsive axis each breakpoint's name that is.
+ * Anything else is left out, not drawn.
+ */
+const offeredAppearance = (
+  block: AnyBlock,
+  appearance: unknown,
+): Readonly<Record<string, AppearanceChoice>> => {
+  if (!isRecord(appearance)) return {}
+  const offered: Record<string, AppearanceChoice> = {}
+  for (const [name, choice] of Object.entries(appearance)) {
+    const axis = block.appearance[name]
+    if (axis === undefined) continue
+    if (typeof choice === 'string') {
+      if (axis.values.includes(choice)) offered[name] = choice
+      continue
+    }
+    if (!isRecord(choice) || axis.breakpoints === undefined) continue
+    const allowed = ['base', ...axis.breakpoints]
+    const kept = Object.fromEntries(
+      Object.entries(choice).filter(
+        (entry): entry is [string, string] =>
+          allowed.includes(entry[0]) &&
+          typeof entry[1] === 'string' &&
+          axis.values.includes(entry[1]),
+      ),
+    )
+    if (Object.keys(kept).length > 0) offered[name] = kept
+  }
+  return offered
 }
 
 // Props are decoded strictly: a key the Block's schema does not name is an
@@ -188,6 +255,8 @@ export const Block = {
 
   /** What is wrong with a node's stored appearance: an axis it lacks, a value off the list. */
   checkAppearance,
+  /** The stored choices the Block offers, as a view receives them; the rest left out. */
+  offeredAppearance,
 
   /** Decodes stored props against the Block's schema. An excess key fails. */
   decode: <B extends AnyBlock>(

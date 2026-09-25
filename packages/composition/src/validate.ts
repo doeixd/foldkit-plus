@@ -5,10 +5,10 @@
  * a publish refuses it, an editor shows a placeholder and keeps working. An
  * unknown Block is reported and still walked, so what it holds is checked too.
  */
-import { check as checkWhen } from './condition.js'
 import { Result, Schema } from 'effect'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
+import { check as checkWhen } from './condition.js'
 import { accepts } from './content.js'
 import { nodeIds, type Document, type NodeId } from './document.js'
 import { bounds } from './region.js'

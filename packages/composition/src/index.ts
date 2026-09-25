@@ -19,6 +19,7 @@ export {
   type AnyBlock,
   type AppearanceAxes,
   type AppearanceAxis,
+  type AppearanceChoice,
   type AppearanceFinding,
   type PropsFinding,
   type PropsOf,

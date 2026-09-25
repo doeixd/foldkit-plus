@@ -100,7 +100,9 @@ version changed; `pnpm` skips versions already in the registry.
   Slots with the chosen Style attached, every piece compiled once, and
   `look.styles` is the stylesheet. A Renderer's views receive `appearance`,
   the choices the Block offers. The drawn Builder's inspector chooses them.
-  A layout Block is a Mixins layout this way: the test site's Columns is
+  A token axis given `breakpoints` is responsive: a node stores
+  `{ base: 'sm', md: 'lg' }`, drawn as rules the widest matching breakpoint
+  wins. A layout Block is a Mixins layout this way: the test site's Columns is
   `Layout.switcher`, with its ratio, when it stacks, and its gap as choices.
   Phase 8 of the page builder design.
 - **`foldkit-composition`: conditions.** A Catalog may declare a `context`

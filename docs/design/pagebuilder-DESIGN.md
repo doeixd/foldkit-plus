@@ -1066,7 +1066,7 @@ What remains of Phase 7, in order:
 
 **Phase 8: appearance and conditions.**
 
-- **8-1, appearance (§18). Done, but for responsive choices.** A `foldkit-composition/appearance` subpath, with
+- **8-1, appearance (§18). Done.** A `foldkit-composition/appearance` subpath, with
   `foldkit-mixins` as an optional peer. `Appearance.forBlock(Block, Slots,
   recipe)` checks a node's stored choices against the recipe's axes and the
   theme's tokens (`composition:invalid-appearance`, `composition:unknown-token`);
@@ -1083,8 +1083,10 @@ What remains of Phase 7, in order:
   > combined class, which a stylesheet built piece by piece would not hold. A
   > Renderer hands each view `appearance`, the choices its Block offers, and the
   > view draws with `look.draw`. The inspector's token picker is the same
-  > `select` as a variant's. Responsive choices, and the Behavior conflict
-  > test, remain.
+  > `select` as a variant's. Only token choices are responsive: a variant's
+  > pieces may be classes, which no media query can hold, and a responsive
+  > token is drawn as rules because an inline value beats every breakpoint.
+  > The Behavior conflict test remains.
 - **8-2, layout Blocks. Done.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
   its parameters appearance axes.
 - **8-3, conditions (§16),** which no phase had named. **Done.** A `when` is a

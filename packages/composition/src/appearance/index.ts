@@ -17,7 +17,7 @@
 import { Style, SlotView } from 'foldkit-mixins'
 import type { Declarations, NamedStyle, StyleOptions, StylePieces } from 'foldkit-mixins'
 import type { HtmlBuilder } from 'foldkit/html'
-import { Block, type AnyBlock, type AppearanceAxes } from '../block.js'
+import { Block, type AnyBlock, type AppearanceAxes, type AppearanceChoice } from '../block.js'
 
 /** The slot recipe shape a look reads: what `Style.recipeFor(Slots)` returns has it. */
 interface RecipeLike<Slots> {
@@ -36,13 +36,18 @@ interface RecipeLike<Slots> {
  * A choice among a theme's tokens, written as one declaration on one slot:
  * `Appearance.token(t.space, { slot: 'root', property: 'gap' })`, where `t` is
  * `Theme.ref(theme)`. The names are the group's keys; a name is stored, its
- * `var(...)` is drawn.
+ * `var(...)` is drawn. With `breakpoints` (such as `Theme.tokens.breakpoint`,
+ * smallest first), a node may choose a name per breakpoint:
+ * `{ base: 'sm', md: 'lg' }`.
  */
 export interface TokenAxis<Slots> {
   readonly tokens: Readonly<Record<string, string>>
   readonly slot: keyof Slots & string
   readonly property: keyof Declarations & string
+  readonly breakpoints?: Readonly<Record<string, string>>
 }
+
+type Appearance = Readonly<Record<string, AppearanceChoice>>
 
 export interface Look<Slots> {
   readonly slots: Slots
@@ -51,12 +56,10 @@ export interface Look<Slots> {
   /** Every compiled piece a selection can attach, for `Style.stylesheet(...look.styles)`. */
   readonly styles: ReadonlyArray<NamedStyle<Slots>>
   /** The pieces a stored selection attaches: base, each chosen value, matching compounds, tokens. */
-  readonly select: (
-    appearance: Readonly<Record<string, string>>,
-  ) => ReadonlyArray<NamedStyle<Slots>>
+  readonly select: (appearance: Appearance) => ReadonlyArray<NamedStyle<Slots>>
   /** The Block's Slots, with a node's chosen Style attached, for its view to draw with. */
   readonly draw: <Message>(context: {
-    readonly appearance: Readonly<Record<string, string>>
+    readonly appearance: Appearance
     readonly h: HtmlBuilder<Message>
   }) => SlotView.SlotBuilders<Slots, Message>
 }
@@ -89,13 +92,34 @@ const make = <Slots>(
     when: entry.when,
     style: compile(entry.style),
   }))
+  // A token is one declaration on the caller's slot, which `forSlots` checks exists.
+  const onSlot = (token: TokenAxis<Slots>, piece: ReturnType<typeof Style.inline>) =>
+    compile({ [token.slot]: piece } as StylePieces<Slots>)
+  const tokenBase: Array<NamedStyle<Slots>> = []
+  const atBreakpoint = new Map<string, NamedStyle<Slots>>()
+  const responsive: Array<NamedStyle<Slots>> = []
   for (const [axis, token] of Object.entries(tokens))
-    for (const [name, value] of Object.entries(token.tokens))
-      byValue.set(
-        key(axis, name),
-        // Keyed by the caller's slot name, which `forSlots` checks exists.
-        compile({ [token.slot]: Style.inline({ [token.property]: value }) } as StylePieces<Slots>),
+    for (const [name, value] of Object.entries(token.tokens)) {
+      const declaration = { [token.property]: value }
+      // Responsive, the base is a rule too: an inline value would beat every breakpoint's.
+      const style = onSlot(
+        token,
+        token.breakpoints === undefined ? Style.inline(declaration) : Style.self(declaration),
       )
+      byValue.set(key(axis, name), style)
+      tokenBase.push(style)
+    }
+  // Each breakpoint's rules after the base, smallest first, so the widest that matches wins.
+  for (const [axis, token] of Object.entries(tokens))
+    for (const at of Object.keys(token.breakpoints ?? {}))
+      for (const [name, value] of Object.entries(token.tokens)) {
+        const style = onSlot(
+          token,
+          Style.responsive(token.breakpoints ?? {}, { [at]: { [token.property]: value } }),
+        )
+        atBreakpoint.set(key(`${axis}\u0000${at}`, name), style)
+        responsive.push(style)
+      }
 
   const axes: AppearanceAxes = Object.fromEntries([
     ...Object.entries(variants).map(([axis, values]) => [
@@ -104,22 +128,37 @@ const make = <Slots>(
     ]),
     ...Object.entries(tokens).map(([axis, token]) => [
       axis,
-      { kind: 'token' as const, values: Object.keys(token.tokens) },
+      {
+        kind: 'token' as const,
+        values: Object.keys(token.tokens),
+        ...(token.breakpoints === undefined ? {} : { breakpoints: Object.keys(token.breakpoints) }),
+      },
     ]),
   ])
 
-  const select = (appearance: Readonly<Record<string, string>>) => {
+  const select = (appearance: Appearance) => {
     const chosen: Record<string, string> = {}
+    const picked: Array<NamedStyle<Slots>> = []
+    const pick = (style: NamedStyle<Slots> | undefined) => {
+      if (style !== undefined) picked.push(style)
+    }
     for (const axis of Object.keys(axes)) {
-      const value = appearance[axis] ?? def?.defaults?.[axis]
-      if (value !== undefined && byValue.has(key(axis, value))) chosen[axis] = value
+      const choice = appearance[axis] ?? def?.defaults?.[axis]
+      if (typeof choice === 'string') {
+        if (!byValue.has(key(axis, choice))) continue
+        chosen[axis] = choice
+        pick(byValue.get(key(axis, choice)))
+      } else if (choice !== undefined)
+        for (const [at, name] of Object.entries(choice))
+          pick(
+            at === 'base'
+              ? byValue.get(key(axis, name))
+              : atBreakpoint.get(key(`${axis}\u0000${at}`, name)),
+          )
     }
     return [
       ...base,
-      ...Object.entries(chosen).flatMap(([axis, value]) => {
-        const style = byValue.get(key(axis, value))
-        return style === undefined ? [] : [style]
-      }),
+      ...picked,
       ...compounds
         .filter(entry =>
           Object.entries(entry.when).every(([axis, value]) => chosen[axis] === value),
@@ -131,10 +170,16 @@ const make = <Slots>(
   return Object.freeze({
     slots,
     axes,
-    styles: Object.freeze([...base, ...byValue.values(), ...compounds.map(entry => entry.style)]),
+    styles: Object.freeze([
+      ...base,
+      ...[...byValue.values()].filter(style => !tokenBase.includes(style)),
+      ...compounds.map(entry => entry.style),
+      ...tokenBase,
+      ...responsive,
+    ]),
     select,
     draw: <Message>(context: {
-      readonly appearance: Readonly<Record<string, string>>
+      readonly appearance: Appearance
       readonly h: HtmlBuilder<Message>
     }) =>
       SlotView.buildersFor(
@@ -154,7 +199,12 @@ export const Appearance = {
   /** A token axis: the names of `tokens` (a group of `Theme.ref(theme)`) as one declaration on a slot. */
   token: <Slots>(
     tokens: Readonly<Record<string, string>>,
-    at: { readonly slot: keyof Slots & string; readonly property: keyof Declarations & string },
+    at: {
+      readonly slot: keyof Slots & string
+      readonly property: keyof Declarations & string
+      /** Named media queries, smallest first, a choice may change at: `Theme.tokens.breakpoint`. */
+      readonly breakpoints?: Readonly<Record<string, string>>
+    },
   ): TokenAxis<Slots> => ({ tokens, ...at }),
   /** Pipe step: the Block's appearance axes are the look's. */
   attach:

@@ -310,6 +310,30 @@ describe('validate', () => {
       ['nodes', 's', 'appearance', 'gap'],
       ['nodes', 's', 'appearance', 'edge'],
     ])
+    // A responsive axis takes a name per breakpoint, and base; a variant axis does not.
+    const Responsive = Section.pipe(
+      Block.withAppearance({
+        space: { kind: 'variant', values: ['snug', 'roomy'] },
+        gap: { kind: 'token', values: ['s', 'm'], breakpoints: ['md', 'lg'] },
+      }),
+    )
+    const findings = (appearance: Schema.Json) =>
+      Block.checkAppearance(Responsive, appearance).map(each => [each.code, each.path.join('.')])
+    expect(findings({ gap: { base: 's', md: 'm' } })).toEqual([])
+    expect(findings({ gap: { xl: 's', md: 'zz' }, space: { md: 'roomy' } })).toEqual([
+      ['composition:invalid-appearance', 'appearance.gap.xl'],
+      ['composition:unknown-token', 'appearance.gap.md'],
+      ['composition:invalid-appearance', 'appearance.space'],
+    ])
+    expect(findings({ gap: {} })).toEqual([['composition:invalid-appearance', 'appearance.gap']])
+    // What a view is handed: the choices on offer, a responsive one trimmed to them.
+    expect(
+      Block.offeredAppearance(Responsive, {
+        gap: { base: 's', md: 'zz', xl: 'm' },
+        space: { md: 'roomy' },
+      }),
+    ).toEqual({ gap: { base: 's' } })
+    expect(Block.offeredAppearance(Responsive, { gap: { md: 'zz' } })).toEqual({})
     expect(Looks.appearance).not.toBe(Section.appearance)
     expect(Section.appearance).toEqual({})
   })

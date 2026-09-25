@@ -5,7 +5,7 @@
  * made from `look.styles` holds every class a node can be drawn with.
  */
 import { Schema } from 'effect'
-import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Attributes, Capability, Slot, Slots, Style } from 'foldkit-mixins'
 import { inertHtml, type Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { Block, Catalog, Composition, Content, NodeId } from '../src/index.js'
@@ -142,6 +142,36 @@ describe('a look', () => {
     const [ruled] = classes(title)
     expect(sheet).toContain(`.${ruled}{font-weight:700}`)
     expect(HeroLook.draw({ appearance: { tone: 'accent' }, h: inertHtml })).toBeDefined()
+  })
+
+  it('draws a responsive token as rules, each breakpoint after the base', () => {
+    const Wide = Appearance.make(HeroSlots, {
+      tokens: {
+        gap: Appearance.token(
+          { s: 'var(--fk-space-s)', m: 'var(--fk-space-m)' },
+          {
+            slot: 'root',
+            property: 'gap',
+            breakpoints: { md: '(min-width: 48rem)', lg: '(min-width: 64rem)' },
+          },
+        ),
+      },
+    })
+    expect(Wide.axes['gap']?.breakpoints).toEqual(['md', 'lg'])
+    const slots = Wide.draw({ appearance: { gap: { base: 's', lg: 'm' } }, h: inertHtml })
+    const root = slots.root.attrs()
+    // No inline value: it would beat every breakpoint.
+    expect(Attributes.find(root, 'Style')).toBeUndefined()
+    const drawnClasses = String(Attributes.find(root, 'Class')?.value ?? '').split(' ')
+    expect(drawnClasses).toHaveLength(2)
+    const sheet = Style.stylesheet(...Wide.styles)
+    const [base, large] = drawnClasses.map(name => sheet.indexOf(`.${name}`))
+    expect(sheet).toContain('@media (min-width: 64rem)')
+    expect(base).toBeGreaterThanOrEqual(0)
+    expect(large).toBeGreaterThan(base ?? 0)
+    // One name for every viewport draws only the base rule.
+    const one = Wide.draw({ appearance: { gap: 'm' }, h: inertHtml }).root.attrs()
+    expect(String(Attributes.find(one, 'Class')?.value ?? '').split(' ')).toHaveLength(1)
   })
 
   it('refuses a name that is both a recipe axis and a token axis', () => {
