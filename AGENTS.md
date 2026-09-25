@@ -98,6 +98,64 @@ Review for AI slop and remove it. Concretely:
 - **Inflated prose.** In docs and commit messages, say the thing once. Cut
   "powerful", "seamless", "robust", "simply", and restated section headers.
 
+Slop is also code that looks finished and is wrong. Look for these too:
+
+- **Misunderstood tools.** Code written from a plausible model of a library
+  instead of its source. Examples found here:
+  - Assuming a Schema can refuse excess keys (only the decode call can).
+  - Styling an outline on a `display: contents` element, which draws nothing.
+  - Indexing a plain object with a stored or client-chosen name, which reads
+    `constructor` from `Object`.
+  - Trusting `event.target` for a touch that the browser captured to where it
+    went down.
+
+  Probe the behaviour before building on it.
+- **Claims the code does not keep.** The README promises "nothing stored makes
+  it throw", but one path throws. A doc comment names a parameter that no
+  longer exists. A commit message says "refused" when the value is silently
+  dropped. A type check compares payload shapes, not tags, so the wrong
+  Message passes. Check every sentence against the code, as you would a test.
+- **Pseudo-code in docs.** A snippet with bare names such as `base`, `Props`
+  or `defaults` that no fixture defines is not an example. Compile it or
+  delete it.
+- **Tests that pass for the wrong reason.**
+  - A fixture where key order and position agree, so an order test cannot
+    fail.
+  - A scenario where the old code path is already invalid, so the mutation
+    it should catch is behavior-equivalent.
+  - `toBeDefined()` on a value that is always defined, or an assertion that
+    only proves the import is used.
+- **Quiet fallbacks.** A default that turns a missing input into a wrong one
+  (`owner ?? {}`, which SSR then refuses), a `catch` that hides a
+  programming error, or a no-op that still records an undo step and
+  announces itself. Fail loudly at definition time, or do nothing visibly.
+- **Bad design.**
+  - Two ways to do the same thing.
+  - Sibling APIs whose signatures disagree (one `active` takes an owner, the
+    other invents one).
+  - A parameter typed wider than what works (`Schema.Top` where only a
+    struct is read).
+  - A value decided at one moment and applied later, after the state it was
+    derived from may have changed (a drop place worked out when the pointer
+    moved and applied on release).
+  - A positional parameter list that callers must count.
+  - A cast that makes a type promise nothing enforces.
+- **Bad performance.**
+  - Work repeated for every row that depends only on the whole (every row
+    recomputing the tree).
+  - A lookup inside a loop (`indexOf`, `includes`, `some`, or an array
+    spread per item) turning linear into quadratic.
+  - Derivation on every render or every Model change of what changes only
+    with one input: memoize by that input's identity.
+  - Listeners attached for a component's whole life that are needed only
+    during an interaction.
+- **Bad code.**
+  - Helpers copied instead of shared.
+  - A predicate spelled out twice.
+  - A function whose name no longer says what it does.
+  - Comments separated from the thing they document.
+  - State threaded through closures where a value would do.
+
 Prefer deleting code to adding it. The smallest version that a reader
 understands on one pass wins.
 
