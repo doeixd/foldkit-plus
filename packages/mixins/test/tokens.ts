@@ -21,5 +21,8 @@ export const declaredTokens: ReadonlyArray<string> = [
   ...['thin', 'thick', 'heavy'].map(n => `border-${n}`),
 ]
 
+/** Custom properties a container sets for what is inside it; no theme declares them. */
+export const hooks: ReadonlyArray<string> = ['heading']
+
 export const tokenReferences = (css: string): ReadonlyArray<string> =>
   [...css.matchAll(/var\(--fk-([a-z0-9-]+)/g)].map(match => match[1] ?? '')

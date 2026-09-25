@@ -310,7 +310,8 @@ them by layer order alone.
 - Defaults and prose: `Defaults.reset` and `Defaults.all` (`body`, `headings`, `links`, `code`,
   `controls`; `all` excludes `reset`) from `foldkit-mixins/defaults` are `:where()` element CSS over
   `--fk-*` tokens with fallbacks, unlayered: place them with `L.in('reset', …)` / `L.in('defaults',
-  …)`. `Prose.style({ measure?, rhythm?: { paragraph, heading, list, figure } })` from
+  …)`. Headings are `text-overt`; a colored band sets `Style.vars({ '--fk-heading': 'currentColor' })`
+  and its headings take its color. `Prose.style({ measure?, rhythm?: { paragraph, heading, list, figure } })` from
   `foldkit-mixins/prose` is one class for every caller; options are `--fk-prose-*` variables on
   the element. Put it in `components`.
 - Layout: `foldkit-mixins/layout` exports `Layout.stack/cluster/split/sidebar/switcher/reel/center/

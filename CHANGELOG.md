@@ -255,6 +255,9 @@ version changed; `pnpm` skips versions already in the registry.
     and the `documentOf` of their `active` are `Option`s; the reads gain
     `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
     key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-mixins`: `Defaults.headings` reads `--fk-heading` first,** so a
+  container drawn in its own color sets `--fk-heading: currentColor` and its
+  headings take its color; elsewhere they stay `text-overt`.
 - **`foldkit-mixins-form`: `FieldSlots` gains `group` and `affix`,** for a
   control drawn with text beside it; `foldkit-cms`'s slug renderer draws its
   prefix and input in them instead of in bare spans with a

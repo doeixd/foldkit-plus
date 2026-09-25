@@ -165,8 +165,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     Hero's accent tone) stays dark unless its own style says `inherit`. That is
     a reasonable default, but a Block author meets it as "my title is the wrong
     color". *Proposed:* headings inherit, with `text-overt` on `body` content
-    only, or a note in the defaults' docs. Status: worked around (`color:
-    inherit` on the Hero's title).
+    only, or a note in the defaults' docs. **Fixed** (plan area 2d): headings
+    are `var(--fk-heading, text-overt)`, a band sets `--fk-heading:
+    currentColor`, and the Hero's title no longer says `color: inherit`.
 
 18. **The CMS's address control has no Slots of its own.**
     `Cms.controlRenderers()` draws the slug as a bare `span` holding a prefix

@@ -66,6 +66,8 @@ const HeroSlots = Slots.define({
   lead: part,
   actions: part,
 })
+// On a band of its own color, headings take the band's color instead of their own.
+const onBand = Style.vars({ '--fk-heading': 'currentColor' })
 const HeroLook = Appearance.make(HeroSlots, {
   layer: components,
   recipe: Style.recipeFor(HeroSlots)({
@@ -84,8 +86,6 @@ const HeroLook = Appearance.make(HeroSlots, {
         textTransform: 'uppercase',
       }),
       title: Style.self({
-        // The element defaults give a heading its own color; on a tone it takes the tone's.
-        color: 'inherit',
         fontFamily: t.font.heading,
         fontSize: 'clamp(2.2rem, 5vw, 3.6rem)',
         letterSpacing: '-0.02em',
@@ -100,12 +100,20 @@ const HeroLook = Appearance.make(HeroSlots, {
       tone: {
         plain: { root: Style.self({ background: t.surface.muted }) },
         accent: {
-          root: Style.self({
-            background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 55%, ${t.tertiary.default}))`,
-            color: t.text['on-accent'],
-          }),
+          root: Style.compose(
+            Style.self({
+              background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 55%, ${t.tertiary.default}))`,
+              color: t.text['on-accent'],
+            }),
+            onBand,
+          ),
         },
-        ink: { root: Style.self({ background: t.text.overt, color: t.surface.base }) },
+        ink: {
+          root: Style.compose(
+            Style.self({ background: t.text.overt, color: t.surface.base }),
+            onBand,
+          ),
+        },
       },
       align: {
         start: {},
