@@ -1235,6 +1235,35 @@ Each is answered by building, not by debate, and none changes the ownership mode
 - When a Block wants a Region's `max` to be configurable, does it belong in the
   Region or in the Block's props as a refinement?
 - For a large page, should `Composition.describe` give an agent every node's
-  props, or an outline plus reading a node on demand?
+  props, or an outline plus reading a node on demand? *For now every node's
+  props: the CMS agent's context is `describe`'s whole text (10-2).*
 - When `Action` moves into `foldkit-surface`, does `MessageSet` become a set of
-  Actions, or stay separate?
+  Actions, or stay separate? *They stay separate: an Action ends in a Message
+  and `Agent.action` exposes it as a variant; nothing yet asks for a set.*
+
+### Open after Phase 10
+
+These need a decision, not only more building:
+
+- **Canvas data.** The drawn Builder draws from the Builder's Model alone, so a
+  Query or Surface Block on the editor's canvas shows its waiting state. Giving
+  it the application's reads means a view input carried from the page parent
+  through the CMS editor's view, `FormView`, the form's control renderer and
+  `BuilderView` (`h.submodel` already takes `viewInputs`). Is a per-control
+  view input the right seam in `foldkit-mixins-form`, or should a Bundle
+  control's view read something else?
+- **The selection in the URL (10-3).** `Mirror.url` writes back through field
+  refs or a writable Projection, and the Builder's Model lives inside a form
+  control's Model, which Form exposes read-only. Should Form offer a writable
+  projection into a control's Model, or should the Builder mirror its own
+  selection through a Message the parent sends on navigation?
+- **A relation picker for a Block prop.** A prop that references an Entity (a
+  category, an author) wants the form's relation picker, whose choices are a
+  query the application loads. The inspector has no way to load one. Where do
+  a Block prop's picker choices come from?
+- **Rich text on the canvas (7c-2).** Waits for `foldkit-richtext-dom`'s editor
+  Bundle and host to settle; the other session owns them.
+- **Publishing.** `foldkit-composition`, `foldkit-builder` and
+  `foldkit-mixins-builder` are private; §29 is complete. `foldkit-surface`
+  (`Action`) and `foldkit-agent` (`Agent.action`) gained public API that is
+  unreleased. Publishing is the owner's call.
