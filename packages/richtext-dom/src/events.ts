@@ -206,8 +206,16 @@ export interface AttachOptions {
 export interface Attachment {
   /** The current subtree; replaced as patches are applied. */
   readonly current: () => EditorDom
-  /** Applies a committed state, patching and restoring the browser selection. */
-  readonly sync: (state: RichText.EditorState, changeSet: RichText.ChangeSet) => void
+  /**
+   * Applies a committed state, patching and restoring the browser selection. A decoration
+   * set given here replaces the one the subtree draws (§129); leaving it out keeps the set
+   * the subtree was rendered with.
+   */
+  readonly sync: (
+    state: RichText.EditorState,
+    changeSet: RichText.ChangeSet,
+    decorations?: RichText.DecorationSet,
+  ) => void
   /** True between compositionstart and compositionend. */
   readonly composing: () => boolean
   readonly detach: () => void
@@ -348,8 +356,8 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   return {
     current: () => current,
     composing: () => composing,
-    sync: (state, changeSet) => {
-      current = patchInto(current, state.document, changeSet)
+    sync: (state, changeSet, decorations) => {
+      current = patchInto(current, state.document, changeSet, decorations)
       lastSelection = state.selection
       restoreSelection(current, state.selection)
     },

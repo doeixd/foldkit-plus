@@ -136,3 +136,63 @@ describe('projecting decorations over a document', () => {
     expect(projected.get(id('z'))?.map(span => [span.from, span.to])).toEqual([[0, 1]])
   })
 })
+
+/**
+ * The cutting rule both interpreters share (§129): the read-only view and the editable
+ * adapter must cut a run the same way, so the rule is stated once, here.
+ */
+describe('cutting a run at its decoration edges', () => {
+  /** Each piece as `[text, the kinds covering it]`, so a case reads at a glance. */
+  const pieces = (text: string, set: RichText.DecorationSet) =>
+    RichText.runPieces(text, RichText.decorationsIn(document(), set).get(id('a')) ?? []).map(
+      piece => [piece.text, piece.decorations.map(decoration => decoration.kind)],
+    )
+
+  it('comes back as one undecorated piece when nothing covers the run', () => {
+    expect(pieces('ab', [])).toEqual([['ab', []]])
+    expect(pieces('ab', [decoration(['b', 0], ['b', 1])])).toEqual([['ab', []]])
+  })
+
+  it('cuts at both edges and gives each piece what covers exactly it', () => {
+    expect(pieces('ab', [decoration(['a', 0], ['a', 1])])).toEqual([
+      ['a', ['search']],
+      ['b', []],
+    ])
+    expect(pieces('ab', [decoration(['a', 1], ['a', 2])])).toEqual([
+      ['a', []],
+      ['b', ['search']],
+    ])
+  })
+
+  it('gives a piece every decoration covering it, and clamps an edge past the run', () => {
+    expect(
+      pieces('ab', [
+        decoration(['a', 0], ['a', 2], 'search'),
+        decoration(['a', 1], ['a', 9], 'cursor'),
+      ]),
+    ).toEqual([
+      ['a', ['search']],
+      ['b', ['search', 'cursor']],
+    ])
+  })
+
+  it('clamps an edge past the run, so a hand-built span cannot cut outside it', () => {
+    const span: RichText.DecorationSpan = {
+      from: 1,
+      to: 9,
+      decoration: { from: at('a', 1), to: at('a', 9), kind: 'search' },
+    }
+    expect(RichText.runPieces('ab', [span]).map(piece => piece.text)).toEqual(['a', 'b'])
+  })
+
+  it('accounts for every character of the run', () => {
+    const span = (from: number, to: number, kind: string): RichText.DecorationSpan => ({
+      from,
+      to,
+      decoration: { from: at('a', from), to: at('a', to), kind },
+    })
+    const cut = RichText.runPieces('abcdef', [span(1, 3, 'search'), span(4, 6, 'cursor')])
+    expect(cut.map(piece => piece.text).join('')).toBe('abcdef')
+    expect(cut.map(piece => piece.text)).toEqual(['a', 'bc', 'd', 'ef'])
+  })
+})

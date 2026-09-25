@@ -68,18 +68,20 @@ export const renderingFor = (hostId: string): RichText.Rendering =>
  * Renders `content` into `host` and records the attachment. The host is the
  * view's element; the subtree the interpreter creates goes inside it, and the
  * interpreter owns everything below. A rendering registry decides how a declared
- * mark or node kind renders, and the same one is kept for later patches.
+ * mark or node kind renders, a decoration set is overlaid on the runs it covers
+ * (§129), and the same two are kept for later patches.
  */
 export const mountInto = (
   host: Element,
   content: RichText.Document,
   options: AttachOptions,
   rendering: RichText.Rendering = RichText.noRendering,
+  decorations: RichText.DecorationSet = [],
 ): Attachment => {
   // A mount runs once per element, so this is defensive: a remount replaces the
   // subtree rather than leaving two.
   releaseMount(host)
-  const dom = mount(host.ownerDocument, content, rendering)
+  const dom = mount(host.ownerDocument, content, rendering, decorations)
   host.append(dom.root)
   const attachment = attach(dom, options)
   attachments.set(host, attachment)

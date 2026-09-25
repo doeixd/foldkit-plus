@@ -190,13 +190,14 @@ export const slashMenu = <Payload>(
  * Attaches the translation to a host element and reports each Message through
  * `emit`. Separate from the mount so a test can drive the DOM without pulling a
  * stream, and so a caller embedding the editor directly can hand it a rendering
- * registry.
+ * registry and the decorations to overlay (§129).
  */
 export const attachEditor = (
   host: Element,
   content: RichText.Document,
   emit: (message: EditorEvent) => void,
   rendering: RichText.Rendering = RichText.noRendering,
+  decorations: RichText.DecorationSet = [],
 ) =>
   mountInto(
     host,
@@ -210,6 +211,7 @@ export const attachEditor = (
       onSelection: selection => emit(Message.Selected({ selection })),
     },
     rendering,
+    decorations,
   )
 
 /**

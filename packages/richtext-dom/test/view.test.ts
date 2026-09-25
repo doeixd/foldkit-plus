@@ -361,13 +361,18 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(text(span ?? null)).toBe('plain')
   })
 
-  it('cuts the run at the decoration’s edges and leaves the rest bare', () => {
+  it('cuts the run at the decoration’s edges, keeping the run’s marks on every piece', () => {
     const rendered = renderDocument(document(), RichText.noRendering, [
       decoration(['b', 1], ['b', 3]),
     ]) as unknown as VNode
-    // Run `b` is `bold`: `b` before, `ol` covered, `d` after.
+    // Run `b` is `bold`: `b` before, `ol` covered, `d` after — every piece still bold,
+    // because a decoration cuts where it covers without changing what the text is.
     expect(text(rendered)).toContain('bold')
     expect(text(decorated(rendered) ?? null)).toBe('ol')
+    const paragraph = (rendered.children ?? []).find(
+      child => typeof child !== 'string' && child !== null && child.sel === 'p',
+    )
+    expect(tags(paragraph ?? null)).toEqual(['p', 'strong', 'span', 'strong', 'strong'])
   })
 
   it('keeps the run’s marks inside the decoration, so a stylesheet sees both', () => {

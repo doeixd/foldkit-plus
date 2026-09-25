@@ -218,12 +218,25 @@ declared mark or node kind becomes its element here too. Without one, blocks bec
 uses, unknown marks ride on a `span` with `data-marks`, and unknown blocks render as
 an inert `div data-unknown="Type"` placeholder.
 
-A decoration set (§64, §126) is projected with `RichText.decorationsIn` and each covered
-piece becomes a `span` with `data-decoration=<kind>`, with the run's marks inside it — so a
-stylesheet reaches both — and a run no decoration covers renders exactly as before.
-`renderBlocks` takes no set: a slice's positions cannot be resolved without the document
-they came from. The editable adapter does not overlay decorations yet (§126 records why),
-so a stylesheet serving both interpreters styles decorations in the read-only one.
+A decoration set (§64, §126) is projected with `RichText.decorationsIn` and cut into pieces with
+`RichText.runPieces` — the one cut both interpreters share — so each covered piece becomes a
+`span` with `data-decoration=<kind>`, with the run's marks inside it, and a piece no decoration
+covers keeps the run's marks and renders as before. `renderBlocks` takes no set: a slice's
+positions cannot be resolved without the document they came from.
+
+The editable adapter draws the same element (§129), so one stylesheet serves both interpreters:
+
+```ts
+let dom = mount(document, content, renderer, decorations) // the set is overlaid at mount
+attachment.sync(next, result.changeSet, nextDecorations) // and replaced on a later patch
+```
+
+Only the runs whose spans changed are re-rendered — a decoration change is a run change through
+the path marks already use, not a new invalidation — the position mapping reads a run's text
+across the pieces, so a browser caret still maps to one offset into the run, and `repair`
+compares each run against a fresh render, so a decoration the browser dropped comes back the way
+a mark does. `EditorDom.decorations` is the set the subtree currently draws. The editor Bundle
+does not choose a set yet: its patch keeps the one the subtree was rendered with.
 
 Foldkit types one builder per tag name and publishes no builder for an arbitrary tag,
 so a renderer tag outside the tags Foldkit can build — a custom element's, say — is

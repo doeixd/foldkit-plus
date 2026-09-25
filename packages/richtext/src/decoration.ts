@@ -83,3 +83,42 @@ export const decorationsIn = <Data>(
   for (const covered of spans.values()) covered.sort((left, right) => left.from - right.from)
   return spans
 }
+
+/** One piece of a run's text: what it says, and the decorations covering exactly it. */
+export interface RunPiece<Data = unknown> {
+  readonly text: string
+  readonly decorations: ReadonlyArray<Decoration<Data>>
+}
+
+/**
+ * A run's text cut at every decoration edge, in order, each piece carrying the decorations
+ * that cover exactly it. A run with no spans comes back as one piece, so a renderer has one
+ * path rather than two, and the marks are applied per piece by the caller because a run's
+ * marks cover all of it however the decorations cut it (§129) — which is why the cutting rule
+ * lives here: the read-only and editable interpreters must cut identically.
+ */
+export const runPieces = <Data>(
+  text: string,
+  spans: ReadonlyArray<DecorationSpan<Data>>,
+): ReadonlyArray<RunPiece<Data>> => {
+  if (spans.length === 0) return [{ text, decorations: [] }]
+  const edges = new Set<number>([0, text.length])
+  for (const span of spans) {
+    edges.add(Math.max(0, Math.min(text.length, span.from)))
+    edges.add(Math.max(0, Math.min(text.length, span.to)))
+  }
+  const cuts = [...edges].sort((left, right) => left - right)
+  const pieces: Array<RunPiece<Data>> = []
+  for (let index = 0; index < cuts.length - 1; index += 1) {
+    const from = cuts[index]!
+    const to = cuts[index + 1]!
+    if (from === to) continue
+    pieces.push({
+      text: text.slice(from, to),
+      decorations: spans
+        .filter(span => span.from <= from && to <= span.to)
+        .map(span => span.decoration),
+    })
+  }
+  return pieces
+}

@@ -191,8 +191,12 @@ set onto runs (cut at each run's edge, unresolvable endpoints skipped, text orde
 decoration per occurrence, across runs but never across blocks; `positionInBlock(block,
 offset)` is the offset-to-position read it shares), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
-`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
-overlay decorations yet.
+`span[data-decoration=<kind>]` with the run's marks inside; `runPieces(text, spans)` is the cut
+both interpreters share, so a piece no decoration covers still carries the run's marks. The
+editable adapter overlays the same element (§129): `mount` and `attachment.sync` take a set,
+only the runs whose spans changed are re-rendered, the position mapping reads a run's text across
+the pieces, and `repair` compares a run against a fresh render. The editor Bundle does not choose
+a set yet.
 
 Code highlighting is a decoration too (§124 §7, §130): `codeDecorations(document, tokenizers)`
 reads every `CodeBlock` a tokenizer names and returns one decoration per token, with the token's

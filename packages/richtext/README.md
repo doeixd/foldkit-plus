@@ -471,7 +471,9 @@ is not in the codec, not a Transaction, not undo, and not replicated: a caller c
 set for one render and discards it. `decorationsIn` is the projection every interpreter
 shares — a decoration crossing runs is cut at each run's edge, an endpoint that does not
 resolve skips the decoration, a backwards range is honoured, and one run's spans come back
-in text order.
+in text order. `runPieces(text, spans)` then cuts one run at its decoration edges, each piece
+carrying the decorations covering it, so both interpreters state the cut once and a renderer has
+one path rather than two.
 
 A producer comes with it. `searchDecorations(document, query)` returns every occurrence of a
 query as a decoration of kind `search` (`SEARCH_DECORATION`), changing nothing: one

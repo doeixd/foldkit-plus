@@ -2914,8 +2914,8 @@ semantic command, never an automatic round trip.
 
 > **Built (2026-09-25), as §126.** `Decoration`, `DecorationSet`, and `decorationsIn` are
 > the contracts and the shared projection; the read-only view overlays a set as
-> `span[data-decoration]`. The editable adapter's overlay is deliberately not built yet
-> (§126 records why: one text node per run is what makes a caret mappable).
+> `span[data-decoration]`. The editable adapter's overlay landed as §129: the mapping reads
+> a run's text across its pieces, and `runPieces` states the cut both interpreters share.
 
 ---
 
@@ -6064,8 +6064,8 @@ That's a major architectural win.
 
 > **Built (2026-09-25), as §126.** `Decoration`, `DecorationSet`, and `decorationsIn` are in
 > `foldkit-richtext`, and the read-only renderer overlays a set as `span[data-decoration]`
-> with the run's marks inside it. The editable interpreter's overlay is deliberately not
-> built yet; §126 records the reason and the options.
+> with the run's marks inside it. The editable interpreter's overlay landed as §129: `mount`,
+> `patch`, and `repair` take a set, and `runPieces` cuts a run the same way in both.
 
 ---
 
@@ -6910,12 +6910,13 @@ shares with `textRangeBefore`, the block-offset-to-position mapping both need. T
 view draws such a set without any hand-made decoration, so §64's first example now runs end to
 end.
 
-The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping one
-text node per run, and splitting a run at decoration edges breaks that mapping unless the
-mapping learns to read across the text nodes. §129 decides that: the adapter nests the same
-elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
-Custom Highlight API, which nothing in this repository can test. Until the overlay lands the
-editable subtree renders marks only.
+The **editable** adapter could not overlay decorations at first. Its runs mapped a caret by
+keeping one text node per run, and splitting a run at decoration edges broke that mapping unless
+the mapping learned to read across the text nodes. §129 decided the shape — the adapter nests the
+same elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
+Custom Highlight API, which nothing in this repository can test — and that overlay is now built in
+the interpreter: `mount`, `patch`, and `repair` take a set, and `runPieces` states the cut both
+interpreters use. See §129 for what remains (the editor Bundle chooses no set yet).
 
 Presence (§62) and remote selections (§63) become decorations when collaboration lands;
 nothing here changes for that — a stable selection resolved against a replica produces a
@@ -7101,6 +7102,17 @@ what a decoration's `data` renders as (today only its `kind` reaches the DOM, wh
 tokenizer names its kinds `syntax-string`, `syntax-number` — a registry over `data`, like §121's
 over marks, is the alternative), and whether the editable subtree should clip a decoration to
 the rendered window.
+
+> **Built (2026-09-25), in the interpreter.** The adapter nests the same element the view does,
+> and the mapping reads a run's text across its pieces: `mount`, `patch`, and `repair` take a
+> decoration set, a run whose spans differ is re-rendered through the path its marks already use,
+> and `repair` compares a run against a fresh render rather than a hand-written model of one —
+> which closed a real gap, since the old structural check could not see a dropped decoration.
+> `runPieces` in the core states the cut once for both interpreters, and moving the view onto it
+> fixed a bug it had been hiding: a piece no decoration covered was dropping the run's marks.
+> Still open: the editor Bundle has no source for a set, so its patch keeps the one the subtree
+> was rendered with, and the two questions above (a `data` registry, viewport clipping) are
+> untouched.
 
 ---
 
