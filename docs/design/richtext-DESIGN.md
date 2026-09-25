@@ -1,6 +1,6 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2 (slice 3 dropped per §123), §120's slice 1, and the slash menu's vocabulary (§123) have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory; §124 proposes a
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2 (slice 3 dropped per §123), §120's slice 1, and the slash menu (§123) have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory; §124 proposes a
 Markdown-first reordering of what to build next, and is a plan rather than a status report.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
@@ -4663,11 +4663,19 @@ toolbar integration       the mark buttons and their active rule
                           Mixins family that re-renders them
                           (`foldkit-mixins-richtext`, `markToolbar`); the rest of
                           §35's chrome is §120 slice 2
-slash commands            not started
+slash commands            the editor's catalogue and menu
+                          (`foldkit-richtext-dom/editor`: `slashQuery`,
+                          `slashEntries`, `matchingEntries`, `slashMenu`), the family's
+                          re-export, `slashMove`, and `slashMenuView`, and the Bundle's
+                          `menuIndex` with `Entered` resolved against a live query
+                          (§123)
 ```
 
-Also not done: promoting the rest into packages with a supported API, and the
-editor's own keymap layer that turns a chord into a Message rather than a command.
+Also not done: promoting the rest into packages with a supported API; the editor's own
+keymap layer, which §123 dropped rather than built (an unconditional chord table cannot
+express "only while a query is live", and a view-level `OnKeyDownPreventDefault` is the
+framework's answer); and removing the typed query when a menu entry is chosen, which
+waits on the composed `EditorAction` of §124 §5.
 
 ## Phase 5 — stateful Form controls
 
@@ -5061,10 +5069,11 @@ Command are identical, which is §27's requirement.
    read-only renderer (`/view`). The harness is what is left of the Phase 3 slice:
    the browser page.
 4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).
-   Decided in §119; they are three layers, not one, and the toolbar is done
-   (`/toolbar` for an application that renders its own chrome, and
-   `foldkit-mixins-richtext` for one that restyles parts). The editor's own binding
-   layer and slash commands remain.
+   Decided in §119; they are three layers, not one, and the toolbar and the slash menu
+   are done (`/toolbar` for an application that renders its own chrome, and
+   `foldkit-mixins-richtext` for one that restyles parts). The editor's own binding layer
+   is dropped rather than built: §123 shows the query is a read and a view-level
+   `OnKeyDownPreventDefault` is the framework's mechanism.
 
 ---
 
@@ -5156,13 +5165,13 @@ block while its runs and identities stay.
    (`foldkit-mixins-richtext`: `markToolbar`, `MarkToolbarSlots`). §120 corrects
    §119 on the wrapping: a slot view owns its elements, so the family could not take
    resolved attributes as a helper.
-5. Slash commands, over 1 and 3 — **started, replanned in §123.** The core can retype a
-   text block (`RetypeBlock`, §119's "turning the block into a heading") and read what is
-   typed before the caret (`textBefore`, the text a query filters on); an editor can send
-   the retype as a Message (`RetypedBlock`, `retyped(block)` at the Bundle), so a menu
-   entry is already expressible end to end. What a menu still needs: a view in
-   `foldkit-mixins-richtext` over `foldkit-primitives`' `ListNavigation`, the highlighted
-   entry beside the editor's state, and `Entered` resolved against a live query.
+5. Slash commands, over 1 and 3 — **done; the layers are §123's.** The editor's catalogue
+   (`foldkit-richtext-dom/editor`: `slashQuery`, `slashEntries`, `matchingEntries`,
+   `slashMenu`) reads a query from `textBefore` and offers the text blocks and marks a
+   caret can become; `foldkit-mixins-richtext` re-exports it, adds `slashMove` (over
+   `RovingTabindex.move`, not `ListNavigation` — §123), and draws it with
+   `slashMenuView`; and the editor Bundle's `EditorState.menuIndex` plus the application's
+   own keys drive it, with `Enter` resolved against the live query in `update`.
 
 ---
 
@@ -5470,36 +5479,29 @@ Slices:
    `foldkit-primitives` for `RovingTabindex.move`). The keys stay the application's
    (`OnKeyDownPreventDefault` while a query is live), so nothing is left here.
 3. `EditorState` gains the highlighted entry, and the Bundle's `update` resolves
-   `Entered` against a live query before it splits. — **blocked on where the catalogue
-   lives.** Tracing it shows §123's plan cannot be built as written: the Bundle is in
-   `foldkit-richtext-dom`, and the catalogue is in `foldkit-mixins-richtext`, which
-   depends on `richtext-dom` — so the Bundle cannot import the entries it must resolve
-   Enter against, and the parent cannot do it either, because the Bundle turns `Entered`
-   into `SplitBlock` before the parent sees anything. Three ways out, and the third is
-   the one to take:
+   `Entered` against a live query before it splits. — **done, with a correction to the
+   plan above.** The catalogue did not descend into `foldkit-richtext`; it went to
+   `foldkit-richtext-dom/editor`, beside the Messages it is made of. The Bundle is in
+   that package, so it can import the entries — and, the reason the command version was
+   the wrong shape, an entry can then carry the *editor Message* that chooses it, so
+   `update` resolves Enter by re-entering itself with that Message. A mark entry then
+   updates the caret's stored marks through the path a toggle already uses, a refused
+   entry is refused there too, history groups it the same way, and the patch Command is
+   the same one. Running a command directly would have needed a second copy of the
+   stored-mark and refusal logic beside the Message path — the second resolver §117
+   keeps out of the pipeline.
 
-   1. Give the Bundle a catalogue through its args or a placement. The caller's Messages
-      are not schema-decodable across that boundary in the shape the Bundle needs, and
-      §122 already rejected functions there.
-   2. Emit an OutMessage when Enter lands in a live query and let the parent choose. It
-      works, but it moves "what does this key mean" out of the editor and hands the
-      parent a command layer it may not want.
-   3. **Put the catalogue in `foldkit-richtext`, as commands.** An entry does not need to
-      be a Message to be described — `{ type: 'RetypeBlock', to }` and
-      `{ type: 'ToggleMark', mark }` are the core's own commands — so the core can own
-      `slashQuery`, the entries, `matchingEntries`, and `slashMenu` with no dependency
-      pointing the wrong way, and the Bundle resolves Enter with
-      `slashMenu(...).highlighted?.command` and runs it. The family's
-      `slashEntries(wrap)` then becomes a thin map from the core's commands to the
-      caller's Messages, one catalogue rather than two, and `slashMove` + the view stay
-      in the family where the primitives and the slots are.
+   `EditorState`/`EditorView` gain `menuIndex`, the one thing a menu owns; the
+   application moves it with `slashMove` and the editor reads it. No new Message is
+   needed: the index is interaction state the parent owns, and the Link re-projects it.
 
-   So slice 3 starts with a move, not a feature: `slashQuery`, `matchingEntries`,
-   `SlashMenu`, and a command-valued `slashEntries` descend into `foldkit-richtext` with
-   their tests; `foldkit-mixins-richtext` keeps `slashMove` and the view and derives its
-   Message-valued entries from the core's. Then `EditorState` gains the index, a
-   `MenuMoved` Message moves it, and `Entered` resolves through the menu before it
-   splits.
+   One gap is deliberate and visible: choosing an entry does not remove the typed query,
+   because deleting a range and then running the entry is several commands that must
+   commit as one — the composed `EditorAction` of §124 §5. Until then the query text
+   stays in the block (a test pins that), and a choice shows as a retype or a stored mark.
+   Note also that the editor resolves Enter whenever the caret's text opens a query; an
+   application cannot switch the menu off, and a per-placement catalogue (so an
+   application can contribute entries, §124 §11) is not built yet.
 4. The skill and an example (the harness or a small demo) drive it.
 
 

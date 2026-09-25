@@ -47,7 +47,17 @@ check(
   typeof editor.toMessage === 'function' &&
     typeof editor.attachEditor === 'function' &&
     typeof editor.events === 'function' &&
-    typeof editor.patchEditor === 'function',
+    typeof editor.patchEditor === 'function' &&
+    typeof editor.slashQuery === 'function' &&
+    typeof editor.slashMenu === 'function' &&
+    Array.isArray(editor.slashEntries),
+)
+
+// §123: the catalogue is the editor's, and an entry carries the Message choosing it, so
+// the menu's choice is a Message the Bundle can re-enter itself with.
+check(
+  'the editor catalogue chooses an editor Message',
+  editor.slashMenu(editor.slashEntries, '/h2', 0)?.highlighted?.message?._tag === 'RetypedBlock',
 )
 
 const bundle = await import('foldkit-richtext-dom/editor-bundle')

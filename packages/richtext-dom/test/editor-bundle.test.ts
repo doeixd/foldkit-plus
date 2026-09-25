@@ -72,6 +72,7 @@ describe('one transition commits document and interaction state', () => {
     expect(Object.keys(after.editor).sort()).toEqual([
       'history',
       'hostId',
+      'menuIndex',
       'nextId',
       'selection',
       'storedMarks',
@@ -236,6 +237,7 @@ describe('rejection and external replacement', () => {
         nextId: before.editor.nextId,
         history: RichText.emptyHistory,
         storedMarks: null,
+        menuIndex: 0,
         hostId: before.editor.hostId,
       },
     }
@@ -334,6 +336,65 @@ describe('stored marks', () => {
     // Nothing is stored and nothing is typed, so the document and caret hold.
     expect(after).toEqual(before)
     expect(after.document).toBe(before.document)
+  })
+})
+
+describe('Enter in a live slash query (§123)', () => {
+  /** One paragraph holding `text`, with the caret after it. */
+  const asked = (text: string): Model => {
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 'a', text, marks: [] }] },
+      ],
+    })
+    const model = application.initial({ document }).model
+    return { ...model, editor: { ...model.editor, selection: caret('a', text.length) } }
+  }
+  const highlighted = (model: Model, index: number): Model => ({
+    ...model,
+    editor: { ...model.editor, menuIndex: index },
+  })
+
+  it('chooses the highlighted entry instead of splitting', () => {
+    const after = step(asked('/h2'), pressed('Entered'))
+    // No split: the one block became the heading the menu pointed at, and its
+    // identity and run survived. The typed query is still its text — removing it is
+    // a composed action (§124 §5), not the command Enter runs today.
+    expect(after.document.children).toHaveLength(1)
+    expect(after.document.children[0]).toMatchObject({ type: 'Heading', level: 2 })
+    expect(after.document.children[0]?.children[0]?.text).toBe('/h2')
+  })
+
+  it('takes the index the application moved, not the first match', () => {
+    const after = step(highlighted(asked('/head'), 1), pressed('Entered'))
+    expect(after.document.children[0]).toMatchObject({ type: 'Heading', level: 2 })
+  })
+
+  it('falls back to the first match when the remembered index is past the matches', () => {
+    const after = step(highlighted(asked('/h1'), 5), pressed('Entered'))
+    expect(after.document.children[0]).toMatchObject({ type: 'Heading', level: 1 })
+  })
+
+  it('updates the caret’s stored marks for a mark entry, without an edit', () => {
+    const before = asked('/bold')
+    const after = step(before, pressed('Entered'))
+    // Re-entering `update` is what makes this the toggle a click sends: the command
+    // layer treats a collapsed toggle as a no-op, and the caret keeps the format.
+    expect(after.editor.storedMarks).toEqual(['Bold'])
+    expect(after.document).toBe(before.document)
+    expect(after.document.children).toHaveLength(1)
+  })
+
+  it('splits when the query matches nothing, because nothing is chosen', () => {
+    const after = step(asked('/zzz'), pressed('Entered'))
+    expect(after.document.children).toHaveLength(2)
+    expect(after.document.children[0]?.children[0]?.text).toBe('/zzz')
+  })
+
+  it('splits when the text before the caret is not a query', () => {
+    const after = step(asked('plain text'), pressed('Entered'))
+    expect(after.document.children).toHaveLength(2)
   })
 })
 

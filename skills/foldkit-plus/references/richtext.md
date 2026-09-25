@@ -115,10 +115,23 @@ dispatch their Messages, each active when the caret carries it or every run the
 selection covers does (`markActive` is that rule on its own).
 `foldkit-mixins-richtext` draws that toolbar through Mixins slots instead
 (`MarkToolbarSlots`, `markToolbar<Message>()`), for an application that restyles or
-extends its parts. It also carries the slash menu's vocabulary (§123): `slashQuery`
-(the query the caret is in, read from `RichText.textBefore`), `slashEntries(wrap)` (the
-text blocks and marks a menu offers, each with a stable id, a label, search keywords,
-and the editor Message choosing it sends), and `matchingEntries(entries, query)`. `slashMenu(entries, textBefore, index)` is the one value a menu's view and an editor's `update` share — the query, the matches, and the entry Enter would send, with a stale index falling back to the first match — so the two cannot disagree. `slashMove(entries, textBefore, index, key, modifiers)` is the keys a menu owns: it returns the index the key moves to (or `undefined` when the key moves nothing), using `foldkit-primitives`' `RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as they do in any other list. `slashMenuView<Message>()` renders it — `SlashMenuSlots` (`root`, `list`, `item`), one `data-entry` item per match with `role="menuitem"`, `aria-current` on the highlighted one, and the entry's own Message on click — while the keys stay the application's, handled with `OnKeyDownPreventDefault` only while a query is live. The menu's view and vocabulary both live in the family package.
+extends its parts. The slash menu's vocabulary lives with the editor, in `foldkit-richtext-dom/editor`:
+`slashQuery` (the query the caret is in, read from `RichText.textBefore`), `slashEntries`
+(the text blocks and marks a menu offers, each with a stable id, a label, search keywords,
+and the editor Message choosing it), `matchingEntries(entries, query)`, and
+`slashMenu(entries, textBefore, index)` — the one value a menu's view and the editor's
+`update` share: the query, the matches, and the entry Enter would send, with a stale index
+falling back to the first match. The editor's Bundle carries `EditorState.menuIndex`, the
+highlighted entry the application moves with the keys, and its `update` resolves `Entered`
+against a live query by re-entering itself with the chosen entry — so the view never sends
+Enter, and a mark entry updates the caret's stored marks. `foldkit-mixins-richtext`
+re-exports that vocabulary, adds `slashEntries(wrap)` (the editor's catalogue with each
+Message wrapped for the caller, as the toolbar's `toggled` is) and `slashMove(entries,
+textBefore, index, key, modifiers)` — the keys a menu owns, using `foldkit-primitives`'
+`RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as in
+any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots` (`root`,
+`list`, `item`), one `data-entry` item per match with `role="menuitem"`, `aria-current` on
+the highlighted one, and the entry's own Message on click.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `RetypedBlock`, `Selected`, `Pasted`,
@@ -168,8 +181,9 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-Form integration (Phase 5), the rest of Phase 4 (toolbar, slash commands, keymaps),
-and collaboration remain
+Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
+real-browser verification; the toolbar and the slash menu are done), and collaboration
+remain
 unfinished. Nested children are done: a node block may carry nested `blocks`,
 which decode, round-trip, count, and survive an unknown kind, and commands reach
 a run inside one — typing, grapheme deletion, marks, and the clipboard work at

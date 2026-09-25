@@ -14,9 +14,9 @@ implement is still §27's:
 parent Model
   document        the authoritative Document
   editor          state the child cannot own: selection, nextId, history,
-                  storedMarks, and hostId (the element the view renders)
+                  storedMarks, menuIndex, and hostId (the element the view renders)
 
-editor Bundle reads  →  { document, selection, nextId, history, storedMarks, hostId }
+editor Bundle reads  →  { document, selection, nextId, history, storedMarks, menuIndex, hostId }
 editor Bundle writes →  the editor fields                (the document is not its own)
 editor Bundle renders →  the host element, with the editor's events as its mount
 editor Bundle emits  →  Edited { state } | Replaced { state } | Rejected { error }

@@ -13,7 +13,7 @@ import { Bundle, Link, type Wrapped } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
-import { events, Message, patchEditor } from './editor.js'
+import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import { placeRendering } from './host.js'
 
 /** Interaction state the parent owns beside the document. */
@@ -25,6 +25,12 @@ export const EditorState = Schema.Struct({
   history: RichText.History,
   /** Null inherits neighboring marks; an array explicitly sets them, even when empty. */
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
+  /**
+   * The highlighted entry in a live slash menu (§123). The document says whether the
+   * caret is in a query and what matches; this is the one thing the menu owns, and
+   * `update` resolves Enter against it.
+   */
+  menuIndex: Schema.Number,
   /**
    * The host element the view renders and the patch Command finds (§118). It is
    * per-placement, so it arrives as the Bundle's args and is carried here
@@ -47,6 +53,7 @@ export const EditorView = Schema.Struct({
   nextId: Schema.Number,
   history: RichText.History,
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
+  menuIndex: Schema.Number,
   hostId: Schema.String,
 })
 export type EditorView = typeof EditorView.Type
@@ -124,6 +131,15 @@ const patch = (hostId: string, state: RichText.EditorState, changeSet: RichText.
   ),
 })
 
+/**
+ * The text between the start of the caret's block and the caret, or `''` when the
+ * selection names no caret. A menu reads this; nothing about the query is stored.
+ */
+const textBeforeOf = (model: EditorView): string =>
+  model.selection?.type === 'Range'
+    ? RichText.textBefore(model.document, model.selection.anchor)
+    : ''
+
 export const Editor = Bundle.make({
   name: 'RichTextEditor',
   Model: EditorView,
@@ -140,11 +156,24 @@ export const Editor = Bundle.make({
       nextId: 0,
       history: RichText.emptyHistory,
       storedMarks: null,
+      menuIndex: 0,
       hostId: args.hostId,
     },
   }),
-  update: (model, message): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
+  update: (model, incoming): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
     const state: RichText.EditorState = { document: model.document, selection: model.selection }
+    // A live query decides what Enter means before anything else reads the message
+    // (§123): the highlighted entry is handled exactly as if its Message had arrived,
+    // instead of splitting, and falling back to `incoming` when nothing is chosen keeps
+    // `/zzz` splitting. Substituting it here rather than recursing is what makes a mark
+    // entry update the caret's stored marks through the path a toggle already uses, with
+    // no second copy of that logic. The typed query is not removed yet: deleting it is a
+    // composed action over several commands (§124 §5).
+    const message =
+      incoming._tag === 'Entered'
+        ? (slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)?.highlighted?.message ??
+          incoming)
+        : incoming
     // The patch Command's own completion: the render already happened.
     if (message._tag === 'Patched') return { model }
     if (message._tag === 'Undone' || message._tag === 'Redone') {
@@ -248,6 +277,7 @@ const editorLink: Link<
       nextId: parent.editor.nextId,
       history: parent.editor.history,
       storedMarks: parent.editor.storedMarks,
+      menuIndex: parent.editor.menuIndex,
       hostId: parent.editor.hostId,
     }),
   // Only interaction state is written back: the document is not the child's.
@@ -258,6 +288,7 @@ const editorLink: Link<
       nextId: child.nextId,
       history: child.history,
       storedMarks: child.storedMarks,
+      menuIndex: child.menuIndex,
       hostId: child.hostId,
     },
   }),

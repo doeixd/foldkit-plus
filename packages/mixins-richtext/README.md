@@ -53,13 +53,21 @@ can single one out.
 The view owns each button's click and its pressed state, so neither is in a slot's
 contract: a mixin cannot take them over.
 
-## The slash menu's vocabulary
+## The slash menu
 
-The menu itself is the next slice (§123 of the design). What has landed is the part a
-menu and an application drawing its own agree on, because none of it is state:
+The query, the catalogue, and the menu are the editor's
+(`foldkit-richtext-dom/editor`) and re-exported here, so an application that imports the
+chrome gets one vocabulary. The family adds the two things the editor cannot: the
+movement rule over `foldkit-primitives`, and the view.
 
 ```ts
-import { matchingEntries, slashEntries, slashQuery } from 'foldkit-mixins-richtext'
+import {
+  matchingEntries,
+  slashEntries,
+  slashMenu,
+  slashMove,
+  slashQuery,
+} from 'foldkit-mixins-richtext'
 
 slashQuery('see /head') // 'head' — opens at a block's start or after whitespace
 slashQuery('see/head') // undefined — that is text
@@ -68,8 +76,8 @@ slashQuery('see/head') // undefined — that is text
 const entries = slashEntries(message => edited(message))
 matchingEntries(entries, 'mono').map(entry => entry.label) // ['Code']
 
-// The one value a view and an update share: is there a menu, what matches, what Enter
-// would send. `index` is what the menu last highlighted.
+// The one value a view and the editor's `update` share: is there a menu, what matches,
+// what Enter would send. `index` is what the menu last highlighted.
 const menu = slashMenu(entries, 'see /head', 0)
 menu?.matches.length // 3
 menu?.highlighted?.label // 'Heading 1'
@@ -79,27 +87,22 @@ menu?.highlighted?.label // 'Heading 1'
 slashMove(entries, 'see /head', 0, 'ArrowDown', modifiers) // 1
 ```
 
-`slashMove` returns the index the key moves the highlight to, or `undefined` when the
-key moves nothing, and it starts from what `slashMenu` highlights rather than from a
-remembered index — a query that narrowed past it is not moved from a position the user
-cannot see.
-
-`slashMenu` is the decision both the menu's view and the editor's `update` read, so they
-cannot disagree about whether a menu is open or what `Enter` means. A stale index — one
-the query narrowed past, or a negative one — falls back to the first match, because
-narrowing must not leave Enter with nothing to send; a query that matches nothing is
-still a menu, with `highlighted` undefined, which is what keeps `/zzz` from sending
-anything.
+`slashEntries(wrap)` maps the editor's catalogue to the caller's Messages — the seam the
+toolbar's `toggled` is, because the caller usually dispatches a wrapper like `edited(...)`.
+`slashMove` returns the index the key moves the highlight to, or `undefined` when the key
+moves nothing, and it starts from what `slashMenu` highlights rather than from a remembered
+index: a query that narrowed past it is not moved from a position the user cannot see.
 
 `slashQuery` reads the text before the caret, so whether a menu is open is a read of the
-document (`RichText.textBefore`) rather than a flag. `slashEntries(wrap)` builds the
-catalogue — `Paragraph`, `Heading 1`–`3`, then every mark `foldkit-richtext` ships — each
-entry carrying a stable `id`, a `label`, the words a query may also match, and the editor
-Message choosing it sends, wrapped for the caller the way the toolbar's `toggled` is.
-`matchingEntries` is the filter, and an empty query offers everything.
+document (`RichText.textBefore`) rather than a flag. A stale index falls back to the first
+match, because narrowing must not leave Enter with nothing to choose; a query that matches
+nothing is still a menu, with `highlighted` undefined, which is what keeps `/zzz` from
+choosing anything.
 
 The highlighted entry is the menu's only state, and per §123 it belongs beside the
-editor's.
+editor's: `EditorState.menuIndex`. The application moves it with `slashMove`, and the
+editor's `update` resolves `Enter` against it — re-entering itself with the chosen entry,
+so the view never sends Enter, and a mark entry updates the caret's stored marks.
 
 `slashMenuView<Message>()` draws it:
 
@@ -110,7 +113,7 @@ Menus.slashMenuView<Message>()(
 )
 // Keys are the application's, because only it knows the caret: handle ArrowUp/Down,
 // Home/End, and Escape in `OnKeyDownPreventDefault` while `slashMenu` says a query is
-// live, moving with `slashMove` and closing on Escape.
+// live, moving with `slashMove` and writing the index back to `editor.menuIndex`.
 ```
 
 | Slot | Capability | Renders |

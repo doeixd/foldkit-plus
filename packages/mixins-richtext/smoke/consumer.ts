@@ -17,7 +17,14 @@ import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
 import { parseHtml } from 'foldkit-richtext-dom/html'
 import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
 import { markActive, marksToolbar, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
-import { events, Message, patchEditor, toMessage } from 'foldkit-richtext-dom/editor'
+import {
+  events,
+  Message,
+  patchEditor,
+  slashEntries as editorSlashEntries,
+  slashMenu as editorSlashMenu,
+  toMessage,
+} from 'foldkit-richtext-dom/editor'
 import { edited, editorAt, update } from 'foldkit-richtext-dom/editor-bundle'
 import {
   MarkToolbarSlots,
@@ -54,6 +61,8 @@ export type Surface = [
   typeof Message.Typed,
   typeof patchEditor,
   typeof toMessage,
+  typeof editorSlashEntries,
+  typeof editorSlashMenu,
   typeof editorAt,
   typeof edited,
   typeof update,

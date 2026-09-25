@@ -67,6 +67,126 @@ export const toMessage = (command: RichText.Command): EditorEvent | undefined =>
 }
 
 /**
+ * The slash menu's vocabulary (§123, §124 §11): what opens a menu, what it offers,
+ * what a query matches, and what a chosen entry sends. An entry carries one of this
+ * module's Messages, not a command, so the Bundle resolves Enter by re-entering its
+ * own `update` with the chosen entry — the same transition a click produces — which
+ * is also what makes a mark entry update the caret's stored marks rather than run a
+ * collapsed toggle the command layer treats as a no-op.
+ *
+ * Whether a caret is in a query is a read of the document (`RichText.textBefore`),
+ * not a flag. Nothing here holds state.
+ */
+export interface SlashEntry<Payload> {
+  /** Stable id, not the label: how a list keys the entry and moves by it. */
+  readonly id: string
+  /** What the menu shows. */
+  readonly label: string
+  /** Words a query may match besides the label. */
+  readonly keywords: ReadonlyArray<string>
+  /** What choosing this entry sends: an editor Message here, a caller's in a view. */
+  readonly message: Payload
+}
+
+/**
+ * The query the caret is in, or `undefined` when the text before it is not a slash
+ * command. A command opens at a block's start or after whitespace — `see /head` opens,
+ * `see/head` is text — and reads letters, digits, and `-`, so the query is a word
+ * rather than everything typed since the slash.
+ */
+export const slashQuery = (textBefore: string): string | undefined =>
+  /(?:^|\s)\/([\p{L}\p{N}-]*)$/u.exec(textBefore)?.[1]
+
+const HEADINGS: ReadonlyArray<{
+  readonly level: 1 | 2 | 3
+  readonly label: string
+  readonly keywords: ReadonlyArray<string>
+}> = [
+  { level: 1, label: 'Heading 1', keywords: ['h1', 'title'] },
+  { level: 2, label: 'Heading 2', keywords: ['h2', 'subtitle'] },
+  { level: 3, label: 'Heading 3', keywords: ['h3', 'section'] },
+]
+
+/** What a mark is also searched by, so a query can name the element or the habit. */
+const MARK_KEYWORDS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  Bold: ['strong', 'b'],
+  Italic: ['em', 'i'],
+  Code: ['monospace'],
+}
+
+/**
+ * The entries the editor offers, in menu order: the text blocks a caret can become,
+ * then the marks it can carry. Each is a Message this module already defines, so a
+ * chosen entry needs no editing vocabulary of its own.
+ */
+export const slashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
+  {
+    id: 'paragraph',
+    label: 'Paragraph',
+    keywords: ['text', 'body'],
+    message: Message.RetypedBlock({ block: { type: 'Paragraph' } }),
+  },
+  ...HEADINGS.map(heading => ({
+    id: `heading-${heading.level}`,
+    label: heading.label,
+    keywords: heading.keywords,
+    message: Message.RetypedBlock({ block: { type: 'Heading', level: heading.level } }),
+  })),
+  ...RichText.shippedMarks.map(definition => ({
+    id: definition.name.toLowerCase(),
+    label: definition.name,
+    keywords: MARK_KEYWORDS[definition.name] ?? [],
+    message: Message.ToggledMark({ mark: definition.name }),
+  })),
+]
+
+/**
+ * The entries whose label or keywords contain the query, case-insensitively; every
+ * entry when the query is empty, which is what `/` alone offers.
+ */
+export const matchingEntries = <Payload>(
+  entries: ReadonlyArray<SlashEntry<Payload>>,
+  query: string,
+): ReadonlyArray<SlashEntry<Payload>> => {
+  const needle = query.trim().toLowerCase()
+  return needle.length === 0
+    ? entries
+    : entries.filter(entry =>
+        [entry.label, ...entry.keywords].some(word => word.toLowerCase().includes(needle)),
+      )
+}
+
+/** What a menu shows for one caret: its query, what matches, and what Enter would send. */
+export interface SlashMenu<Payload> {
+  readonly query: string
+  readonly matches: ReadonlyArray<SlashEntry<Payload>>
+  /** The entry Enter would choose; undefined when nothing matches the query. */
+  readonly highlighted: SlashEntry<Payload> | undefined
+}
+
+/**
+ * The menu the caret is in, or `undefined` when its text is not a slash command — the
+ * one value that decides both whether to render a menu and what Enter means, so the
+ * view and `update` cannot disagree.
+ *
+ * `index` is what the menu last highlighted. A stale index — fewer matches than it
+ * named, or a negative one — falls back to the first match, because a query that
+ * narrows must not leave Enter with nothing to choose. A query that matches nothing is
+ * still a menu: it renders as empty, and `highlighted` is undefined, which is what
+ * keeps `/zzz` from choosing anything.
+ */
+export const slashMenu = <Payload>(
+  entries: ReadonlyArray<SlashEntry<Payload>>,
+  textBefore: string,
+  index: number,
+): SlashMenu<Payload> | undefined => {
+  const query = slashQuery(textBefore)
+  if (query === undefined) return undefined
+  const matches = matchingEntries(entries, query)
+  return { query, matches, highlighted: matches[index] ?? matches[0] }
+}
+
+/**
  * Attaches the translation to a host element and reports each Message through
  * `emit`. Separate from the mount so a test can drive the DOM without pulling a
  * stream, and so a caller embedding the editor directly can hand it a rendering

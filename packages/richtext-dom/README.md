@@ -156,6 +156,42 @@ an editor that went away while the transition was in flight, not an error.
 `Patched` is that Command's own completion, because a Foldkit Command must return
 a Message.
 
+## The slash menu
+
+The editor also owns the slash menu's vocabulary, because an entry is one of its own
+Messages and the Bundle resolves Enter by re-entering itself with it (§123):
+
+```ts
+import {
+  matchingEntries,
+  slashEntries,
+  slashMenu,
+  slashQuery,
+} from 'foldkit-richtext-dom/editor'
+
+slashQuery('see /head') // 'head' — opens at a block's start or after whitespace
+slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
+```
+
+`slashEntries` leads with the text blocks a caret can become (`Paragraph`, `Heading 1`–`3`)
+and then the marks it can carry, each with a stable `id`, a `label`, the words a query may
+also match, and the Message choosing it. `matchingEntries` filters; an empty query offers
+everything. `slashMenu(entries, textBefore, index)` is the one value a view and `update`
+share — whether a query is open, what matches, and what Enter would send — with a stale
+index falling back to the first match. `textBefore` is a read
+(`RichText.textBefore(document, position)`), not stored state, and `slashQuery` and
+`matchingEntries` work over any entries carrying a `message`, so an application's own
+catalogue reuses them.
+
+`EditorState.menuIndex` is the one thing a menu owns; the application moves it (with
+`slashMove` from `foldkit-mixins-richtext`) and the Link re-projects it. When `Entered`
+arrives and the caret's text opens a query, the Bundle re-enters its own `update` with the
+highlighted entry, so a mark entry updates the caret's stored marks and a retype replaces
+the block through the same paths a click or a chord uses. Choosing an entry does **not**
+remove the typed query yet — that is a composed action over several commands (§124 §5) —
+so the query stays in the block until it lands. The menu is resolved whenever the caret's
+text opens a query; there is no switch to turn it off.
+
 ## The read-only renderer
 
 `view` renders a document or a slice as ordinary Foldkit `Html` through
@@ -186,7 +222,9 @@ bare name (`DataAttribute('unknown', …)` → `data-unknown`).
 
 `editor-bundle` is the editor as a Bundle whose authoritative document may live in
 the parent (§27). `Editor` is the Bundle; `EditorState` and `EditorView` are the
-state the parent owns beside the document; `editorAt(hostId, renderer?)` places one
+state the parent owns beside the document — selection, stored marks, history, the
+menu highlight (`menuIndex`), and the identity counter; `editorAt(hostId, renderer?)`
+places one
 editor and binds it to the host element its view renders. A `renderer` is placed for
 that host id rather than passed as an arg, because a registry holds functions and the
 Bundle's args are schema-decoded (§122): `placeRendering` and `renderingFor` at
