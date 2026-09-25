@@ -369,10 +369,17 @@ export const rangeToPosition = (
   const located = RichText.locateRun(dom.content, id)
   if (located === undefined) return undefined
   let before = 0
+  let found = false
   for (const text of textNodesOf(element)) {
-    if (text === node) break
+    if (text === node) {
+      found = true
+      break
+    }
     before += text.length
   }
+  // A node the run the document names does not hold — a duplicated identity a mutation left
+  // behind — is refused rather than read as an offset into that run.
+  if (!found) return undefined
   const at = before + offset
   // A subtree the document does not have — a stray keystroke before repair, a browser
   // that split a text node — has no semantic position; undefined refuses rather than
@@ -430,9 +437,10 @@ const runMatches = (
  * Recovery, not domain state (§31): makes the subtree match the document again
  * after something outside the semantic pipeline touched it — a cancelled IME
  * composition leaves text the document never had, and a browser extension can
- * mutate anything. Blocks whose rendered text and element already match are left
- * alone, so this costs nothing in the normal case and returns the same `EditorDom`
- * when nothing was wrong.
+ * mutate anything. A block whose rendered text and element already match is left
+ * alone and the same `EditorDom` comes back, so nothing is rebuilt in the normal
+ * case; rendering each run once to compare it is the price of a check that cannot
+ * drift, paid when a composition ends rather than on every edit.
  */
 export const repair = (
   dom: EditorDom,

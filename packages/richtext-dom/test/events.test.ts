@@ -619,6 +619,17 @@ describe('reporting a caret move', () => {
     close(attachment)
   })
 
+  it('draws the decorations a sync brings, and drops them again', () => {
+    const { dom, attachment } = setup()
+    const run = () => attachment.current().elements.get(RichText.NodeId.make('a')) as HTMLElement
+    const state = { document: dom.content, selection: null }
+    attachment.sync(state, noChange, [{ from: at('a', 0), to: at('a', 2), kind: 'search' }])
+    expect(run().querySelector('[data-decoration]')?.getAttribute('data-decoration')).toBe('search')
+    attachment.sync(state, noChange, [])
+    expect(run().querySelector('[data-decoration]')).toBeNull()
+    close(attachment)
+  })
+
   it('stays quiet while an IME owns the caret', () => {
     const { dom, attachment, moves } = setup()
     dom.root.dispatchEvent(composition('compositionstart'))
