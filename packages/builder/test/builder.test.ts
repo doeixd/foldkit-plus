@@ -317,6 +317,14 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(stray.selected).toBe(model.selected)
   })
 
+  it('starts the layers’ keys from a selection made anywhere else', () => {
+    const { model, first } = twoSections()
+    const selected = send(model, Message.Selected({ id: first }))
+    expect(selected.layers.current).toBe(first)
+    const cleared = send(selected, Message.Selected({ id: null }))
+    expect(cleared.layers.current).toBe(first)
+  })
+
   it('says what an edit did, and says a refusal assertively', () => {
     const edited = step(
       insert(PageBuilder.initial, 'Section'),

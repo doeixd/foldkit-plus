@@ -13,6 +13,7 @@
     { "path": "./packages/metadata" },
     { "path": "./packages/composition" },
     { "path": "./packages/builder" },
+    { "path": "./packages/mixins-builder" },
     { "path": "./packages/ssr" },
     { "path": "./packages/entity" },
     { "path": "./packages/form" },

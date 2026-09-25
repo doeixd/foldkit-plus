@@ -70,7 +70,23 @@ version changed; `pnpm` skips versions already in the registry.
   shortcuts: Alt with the arrows moves the selected node among its siblings,
   out of its parent or into the node above; Mod+D duplicates; Delete removes;
   Mod+Z, Mod+Shift+Z and Mod+Y undo and redo. Structural edits, undo, redo and
-  refusals are announced to assistive technology.
+  refusals are announced to assistive technology. A selection made anywhere
+  else, such as an insert or a click on the page, is where the layers' keys
+  start from. `offered` lists the Blocks the palette offers, and
+  `inputWith(view)` is the form control drawn by another view.
+- **`foldkit-mixins-builder` (in development, not published): the page
+  Builder, drawn.** `BuilderView.define(builder)` draws a palette, the layers
+  as an ARIA tree, the selected node's actions and props, undo and redo, a
+  viewport picker, a refusal as an alert, a live region, and the page in edit
+  mode through the site's own Renderer. Every element is a `BuilderSlots`
+  Slot. The layers take `TreeNavigation` and the Builder's shortcuts, and the
+  canvas takes `Targets`, so hovering and clicking the page mark and select
+  its nodes. It adds no state and no Messages. The CMS example's page form
+  draws its Builder this way. Phase 7 of the page builder design.
+- **`foldkit-composition/foldkit`: the edit wrappers carry the marks.**
+  `render` in edit mode takes `selected` and `hovered`, and puts
+  `data-composition-selected` and `data-composition-hovered` on those nodes'
+  wrappers, so an editor's CSS draws the selection.
 - **`foldkit-primitives`: `TreeNavigation`, keyboard navigation of a tree.**
   After the WAI-ARIA tree pattern: Up and Down through the rows showing, Right
   opens or steps in, Left closes or steps out, Home and End. Rows are given in

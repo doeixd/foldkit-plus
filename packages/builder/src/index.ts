@@ -468,11 +468,18 @@ export const Builder = {
     const update = (model: Model, message: Message) => {
       const next = assembled(model, message)
       // Moving focus in the layers moves the selection with it.
-      if (message._tag !== Layers.wrapper.tag || message.message._tag !== 'Focused') return next
-      const id = NodeId.make(message.message.id)
-      return documentOf(next.model).nodes[id] === undefined
+      if (message._tag === Layers.wrapper.tag && message.message._tag === 'Focused') {
+        const id = NodeId.make(message.message.id)
+        return documentOf(next.model).nodes[id] === undefined
+          ? next
+          : { ...next, model: { ...next.model, selected: id } }
+      }
+      // A selection made elsewhere (an insert, the canvas, a row click) is where
+      // the layers' keys start from.
+      const selected = next.model.selected
+      return selected === null || selected === next.model.layers.current
         ? next
-        : { ...next, model: { ...next.model, selected: id } }
+        : { ...next, model: { ...next.model, layers: { ...next.model.layers, current: selected } } }
     }
 
     const view = Submodel.defineView<Model, Message>((model, h) => drawBuilder(model, h))
@@ -639,6 +646,15 @@ export const Builder = {
       return undefined
     }
 
+    /** The form control that places this Builder as a key, drawn by `view`. */
+    const inputWith = (drawn: Submodel.View<Model, Message, void>) =>
+      Input.bundle('Composition', {
+        bundle: bundle.pipe(Bundle.withView(drawn)),
+        value: documentOf,
+        fill: replace,
+        settled: settle,
+      })
+
     return {
       name,
       catalog,
@@ -646,12 +662,12 @@ export const Builder = {
       bundle,
       initial,
       /** The form control that places this Builder as a key: its value is the Document. */
-      input: Input.bundle('Composition', {
-        bundle,
-        value: documentOf,
-        fill: replace,
-        settled: settle,
-      }),
+      input: inputWith(view),
+      /**
+       * The same control, drawn by another view, such as
+       * `BuilderView.submodel(view)` from `foldkit-mixins-builder`.
+       */
+      inputWith,
       /** Where a new node of a Block goes, given the selection. */
       placeFor: (document: Document, selected: NodeId | null, block: Blocks['name']) =>
         placeFor(catalog, document, selected, block),
@@ -659,6 +675,10 @@ export const Builder = {
       replace,
       settle,
       keyCommand,
+      /** The Blocks a new node may be, in the Catalog's order: those with starting props. */
+      offered: catalog.blocks
+        .filter(block => starters[block.name] !== undefined)
+        .map(block => block.name),
       /** The Document a Builder Model is editing: its history's present. */
       document: documentOf,
     }

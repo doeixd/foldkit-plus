@@ -319,7 +319,7 @@ in a line.
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
 | Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |
-| Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (in development, not published) | [package README](./packages/builder) |
+| Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; in development, not published) | [package README](./packages/builder) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole
@@ -363,6 +363,7 @@ flowchart TB
   reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
   composition["foldkit-composition<br/>a page as Blocks in Regions · in development"]
   builder["foldkit-builder<br/>the page editor, as a form key · in development"]
+  mixinsBuilder["foldkit-mixins-builder<br/>the page editor, drawn · in development"]
 
   app -- "describe observation / capability" --> surface
   app --> mixins
@@ -399,6 +400,9 @@ flowchart TB
   composition --> builder
   bundle --> builder
   form --> builder
+  primitives --> builder
+  builder --> mixinsBuilder
+  mixins --> mixinsBuilder
   surface --> ssr
   remote -- "resume part" --> ssr
   app --> richtext --> richtextDom

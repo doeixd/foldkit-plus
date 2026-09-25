@@ -45,6 +45,9 @@ export interface Renderer<Blocks extends AnyBlock, Message> {
 export const NODE_ATTRIBUTE = 'composition-node'
 /** The attribute on a placeholder, naming the Block it stands for. */
 export const PLACEHOLDER_ATTRIBUTE = 'composition-placeholder'
+/** In edit mode, on the selected node's element and the hovered one's, for a stylesheet to outline. */
+export const SELECTED_ATTRIBUTE = 'composition-selected'
+export const HOVERED_ATTRIBUTE = 'composition-hovered'
 
 const make =
   <Message>() =>
@@ -72,7 +75,13 @@ const render = <Blocks extends AnyBlock, Message>(
   renderer: Renderer<Blocks, Message>,
   document: Document,
   h: HtmlBuilder<Message>,
-  options: { readonly mode?: Mode } = {},
+  options: {
+    readonly mode?: Mode
+    /** In edit mode, the node to mark selected. */
+    readonly selected?: NodeId | null
+    /** In edit mode, the node to mark hovered. */
+    readonly hovered?: NodeId | null
+  } = {},
 ): ReadonlyArray<Html> => {
   const mode = options.mode ?? 'view'
   const entries = renderer.entries as unknown as Readonly<
@@ -104,7 +113,15 @@ const render = <Blocks extends AnyBlock, Message>(
     const html = entries[block.name]!({ id, props: props.success, regions, h, mode })
     return mode === 'view'
       ? html
-      : h.div([h.DataAttribute(NODE_ATTRIBUTE, id), h.Style({ display: 'contents' })], [html])
+      : h.div(
+          [
+            h.DataAttribute(NODE_ATTRIBUTE, id),
+            h.Style({ display: 'contents' }),
+            ...(options.selected === id ? [h.DataAttribute(SELECTED_ATTRIBUTE, '')] : []),
+            ...(options.hovered === id ? [h.DataAttribute(HOVERED_ATTRIBUTE, '')] : []),
+          ],
+          [html],
+        )
   }
   return document.roots.map(draw)
 }

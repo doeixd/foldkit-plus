@@ -1017,6 +1017,18 @@ it, and meet a conflicting author. The Builder adds no CMS state.
 and drop, keyboard reorder with announcements, viewport frames, and rich-text
 editing on the canvas, with `A11y.validate` run for each Slot contract.
 
+> **Phase 7, as built.** Interaction came from `foldkit-primitives` rather than
+> the drawing package: `TreeNavigation` (keyboard focus in the layers, placed in
+> the Builder's Model) and `Targets` (the Mount of §13, reporting the node under
+> the pointer and a press). Keyboard reorder, duplicate, delete, undo and redo
+> are the Builder's `keyCommand`, and structural edits are announced through a
+> placed `LiveAnnounce`. The selection is drawn with CSS on the edit wrappers
+> (`data-composition-selected`, `data-composition-hovered`), not measured, so
+> §13's geometry is not needed yet. A form draws the drawn Builder through
+> `builder.inputWith(view)`, with no renderer. Two items wait: pointer drag and
+> drop, because `@foldkit/ui`'s DragAndDrop writes a listbox's roles and keys
+> onto rows that are a tree's, and rich text edited on the canvas.
+
 **Phase 8: appearance.** Recipe axes, token choices, responsive choices, and a
 test that a property a Behavior owns conflicts with an author's choice.
 

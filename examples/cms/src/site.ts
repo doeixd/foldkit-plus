@@ -7,6 +7,7 @@ import { Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
 import { Block, Catalog, Content, Region, Url } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
+import { BuilderView } from 'foldkit-mixins-builder'
 
 export const Section = Block.define('Section', {
   Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
@@ -41,3 +42,6 @@ export const PageBuilder = Builder.make('PageBuilder', {
     Button: { label: 'Read the blog', href: Url.make('/blog') },
   },
 })
+
+/** The Builder drawn: palette, layers, inspector, and the page in edit mode. */
+export const PageEditing = BuilderView.define(PageBuilder)

@@ -23,6 +23,7 @@
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
       "foldkit-builder": ["../../packages/builder/src/index.ts"],
+      "foldkit-mixins-builder": ["../../packages/mixins-builder/src/index.ts"],
       "foldkit-composition": ["../../packages/composition/src/index.ts"],
       "foldkit-composition/foldkit": ["../../packages/composition/src/foldkit/index.ts"]
     },
@@ -74,6 +75,9 @@
     },
     {
       "path": "../../packages/builder/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-builder/tsconfig.build.json"
     },
     {
       "path": "../../packages/composition/tsconfig.build.json"

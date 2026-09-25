@@ -1,9 +1,10 @@
-# foldkit-composition and foldkit-builder
+# foldkit-composition, foldkit-builder and foldkit-mixins-builder
 
-**In development, not published.** Phases 1 to 4 of the page builder design are
+**In development, not published.** Phases 1 to 7 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
-editing Operations, migrations, and a Foldkit renderer. The visual
-Builder is a later phase.
+editing Operations, migrations, a Foldkit renderer, the headless Builder, the
+CMS example's pages, and the drawn editor. Pointer drag and drop and rich text
+edited on the canvas are not.
 
 ## What it owns
 
@@ -117,6 +118,31 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   a test that runs Commands in turn skips the `LiveAnnounce.*` timers.
 - Its view is plain (palette, layers, text props, undo, the page in edit mode);
   `foldkit-mixins-form` draws it with the form. One node is selected at a time.
+  `PageBuilder.inputWith(view)` is the same control drawn by another view.
+
+## The drawn editor: `foldkit-mixins-builder`
+
+```ts
+import { BuilderView } from 'foldkit-mixins-builder'
+
+const PageEditing = BuilderView.define(PageBuilder) // a SlotView over BuilderSlots
+const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageEditing)))
+// or, as a form key:
+const PageForm = Form.make('PageForm', PageInput, {
+  inputs: { document: PageBuilder.inputWith(BuilderView.submodel(PageEditing)) },
+})
+```
+
+- Draws: palette (`Add <Block>`, disabled with no place), layers as
+  `role="tree"` rows (tab stop on the selected row), actions, inspector
+  (Boolean: checkbox; literals: select; Number, String: input; else JSON
+  shown), undo/redo, viewport frame, refusal as `role="alert"`, live region,
+  and the page via the site's Renderer in edit mode.
+- Behaviors: `TreeNavigation` on `tree`/`row`; `keyCommand` shortcuts on
+  `layers`; `Targets` on `canvas` (hover marks, press selects, a link does not
+  navigate). No state, no Messages of its own.
+- Style the selection with `[data-composition-selected]` and
+  `[data-composition-hovered]`, which the edit wrappers carry.
 
 ## Gotchas
 
@@ -138,4 +164,5 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
 
 - [Package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/composition/README.md)
 - [Builder README](https://github.com/doeixd/foldkit-plus/blob/main/packages/builder/README.md)
+- [Drawn Builder README](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-builder/README.md)
 - [Page builder design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/pagebuilder-DESIGN.md)

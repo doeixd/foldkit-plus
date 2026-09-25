@@ -9,8 +9,9 @@ import { Cms } from 'foldkit-cms'
 import { Composition } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
+import { BuilderView } from 'foldkit-mixins-builder'
 import { Mutation } from 'foldkit-remote'
-import { PageBuilder, Site } from './site.js'
+import { PageBuilder, PageEditing, Site } from './site.js'
 
 export const PageId = Schema.String.pipe(Schema.brand('PageId'))
 export type PageId = typeof PageId.Type
@@ -35,7 +36,10 @@ export const PageInput = Schema.Struct({
 })
 
 export const PageForm = Form.make('PageForm', Entity.input(Page, PageInput), {
-  inputs: { slug: Cms.slug('title', { prefix: '/' }), document: PageBuilder.input },
+  inputs: {
+    slug: Cms.slug('title', { prefix: '/' }),
+    document: PageBuilder.inputWith(BuilderView.submodel(PageEditing)),
+  },
   debounce: 0,
 })
 

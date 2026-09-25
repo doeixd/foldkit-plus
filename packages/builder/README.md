@@ -60,7 +60,9 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Its view is a plain editor: a palette of the Blocks with starting props, the
   layers with move, duplicate and delete for the selected node, the selected
   node's text props, undo and redo, and the page drawn in edit mode.
-  `foldkit-mixins-form` draws it with the rest of the form.
+  `foldkit-mixins-form` draws it with the rest of the form. For the full
+  editor, `PageBuilder.inputWith(BuilderView.submodel(view))` is the same
+  control drawn by [`foldkit-mixins-builder`](../mixins-builder/README.md).
 
 ## Messages
 
@@ -128,6 +130,8 @@ out, as it has no clock to wait on.
 - **filling** the key with a stored page replaces the Document and starts undo
   over, and a stored form shown again is **settled**: no hover, no undo, no
   refusal.
+
+`PageBuilder.inputWith(view)` is the same control drawn by another view.
 
 Placed alone, with `Bundle.withChild`, the same Bundle is a page editor whose
 parent owns the Model.

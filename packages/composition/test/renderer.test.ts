@@ -56,6 +56,21 @@ describe('drawing a Document', () => {
     expect(typeof inner === 'string' ? inner : classes(inner)).toEqual(['hero'])
   })
 
+  it('marks the selected and hovered nodes in edit mode, for a stylesheet to outline', () => {
+    const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, {
+      mode: 'edit',
+      selected: id('start'),
+      hovered: id('hero'),
+    })
+    const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
+    expect(marked.map(node => attr(node, 'data-composition-selected'))).toEqual([undefined, ''])
+    expect(marked.map(node => attr(node, 'data-composition-hovered'))).toEqual(['', undefined])
+    const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, { selected: id('start') })
+    expect(all(viewed).some(node => attr(node, 'data-composition-selected') !== undefined)).toBe(
+      false,
+    )
+  })
+
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {
     const broken = page(['s'], {
       s: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['old', 'bad', 'gone'] } },

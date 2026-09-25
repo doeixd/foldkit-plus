@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": ".tsbuild/build",
+    "tsBuildInfoFile": ".tsbuild/build/tsconfig.build.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../builder/tsconfig.build.json"
+    },
+    {
+      "path": "../composition/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../form/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../primitives/tsconfig.build.json"
+    }
+  ]
+}
