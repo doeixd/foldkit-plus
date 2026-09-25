@@ -90,6 +90,12 @@ version changed; `pnpm` skips versions already in the registry.
   `render` in edit mode takes `selected` and `hovered`, and puts
   `data-composition-selected` and `data-composition-hovered` on those nodes'
   wrappers, so an editor's CSS draws the selection.
+- **`foldkit-primitives`: `PointerDrag`, dragging one marked element onto
+  another.** A Mount and a Behavior on a container: a press that moves past
+  4px starts a drag, the element under the pointer is reported with the third
+  of it the pointer is in (`before`, `inside`, `after`), and a release drops
+  or Escape cancels. It writes no roles or keys, so it works on a tree's rows
+  as on a canvas, and it swallows the click a drop ends with.
 - **`foldkit-primitives`: `TreeNavigation`, keyboard navigation of a tree.**
   After the WAI-ARIA tree pattern: Up and Down through the rows showing, Right
   opens or steps in, Left closes or steps out, Home and End. Rows are given in

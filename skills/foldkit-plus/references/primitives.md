@@ -96,6 +96,12 @@ into a chord answer. Slices that must survive reload persist through
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.
+- **Dragging one item onto another** (reorder a tree or a canvas):
+  `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
+  (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px
+  threshold, `DraggedOver { over: { id, zone: 'before' | 'inside' | 'after' } | null }`,
+  `DragDropped { id, over }`, `DragCancelled { id }` (Escape). No roles or keys:
+  give the keyboard its own way. Swallows the click a drop ends with.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or

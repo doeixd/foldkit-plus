@@ -91,11 +91,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, PointerDrag, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, Targets, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -724,6 +724,22 @@ navigating inside an editor's canvas. The Mount is `Targets({ attribute,
 preventDefault })` in `foldkit-primitives/dom`; `Targets.behavior(Slots)<Input,
 Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
 `targetOf(container, from, attribute)` is the pure lookup.
+
+`PointerDrag` is dragging one marked descendant onto another, marked the way
+`Targets` marks them. A primary press on one that moves more than
+`DRAG_THRESHOLD` (4px) starts a drag (`DragStarted { id }`); then, once per
+change, `DraggedOver { over }` says which other marked descendant the pointer
+is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
+'after' }`, or `null`. Releasing is `DragDropped { id, over }`, and Escape or a
+cancelled pointer is `DragCancelled { id }`. The click a drop ends with is
+swallowed, so a `Targets` on the same container does not also press. It writes
+no roles, `tabindex` or keys, so it sits beside a tree's or a listbox's own;
+the keyboard's way to do what a drag does is yours to give. Boxes are measured
+as the pointer moves and never kept; an element drawn as `display: contents`
+is measured by its first child (`boxOf`). The Mount is
+`PointerDrag({ attribute })` in `foldkit-primitives/dom`;
+`PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
+attaches it, and `zoneOf(box, y)` is the pure split.
 
 `FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
 in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,
