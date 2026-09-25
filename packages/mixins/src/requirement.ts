@@ -1,5 +1,5 @@
 /**
- * Platform requirement tokens. Ported from `effect-atom-jsx/src/View.ts`
+ * Platform requirement tokens. Ported from `affect/src/View.ts`
  * `Requirement`.
  */
 import * as MetadataToken from './metadataToken.js'

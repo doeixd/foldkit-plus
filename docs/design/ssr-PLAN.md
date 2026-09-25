@@ -1018,7 +1018,7 @@ proposals for Foldkit, checked against its `main`, and says which are dropped:
   returns. None is an API. Each gets a test that fails the day it changes.
 - **The pre-boot window.** The event that boots the page is still in dispatch
   when the live page's listeners attach. A double dispatch or a lost event
-  there is the resumable track's likeliest bug, and effect-atom-jsx's first
+  there is the resumable track's likeliest bug, and affect's first
   audit found exactly that. Phase C's tests fire that event and count what
   the Model saw.
 - **Foldkit's server module is experimental**, and `handleRequest`,

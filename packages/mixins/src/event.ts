@@ -1,5 +1,5 @@
 /**
- * Slot event tokens. Ported from `effect-atom-jsx/src/View.ts` `Event`, plus
+ * Slot event tokens. Ported from `affect/src/View.ts` `Event`, plus
  * the extra names the Foldkit plan lists.
  */
 import * as MetadataToken from './metadataToken.js'

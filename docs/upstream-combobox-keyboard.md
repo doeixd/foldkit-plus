@@ -7,7 +7,7 @@ Combobox keyboard contract as Scene tests in
 `@foldkit/ui` 0.163.0. Line numbers refer to
 `dist/combobox/shared.js` in that build.
 
-The contract is the one effect-atom-jsx's research settled on, which is
+The contract is the one affect's research settled on, which is
 the WAI-ARIA Authoring Practices (APG) editable combobox with list
 autocomplete plus the conventions Downshift and React Aria share. Each
 note says where the contract comes from, so the rows that are APG can be

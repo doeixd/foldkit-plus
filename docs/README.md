@@ -77,7 +77,7 @@ Link and Placement to Connection and Segment, are in the
 If you want to understand where the architecture came from, read
 [Prior art and design lineage](./prior-art.md). It traces the foundational
 lineage from Elm, Foldkit, and Effect, then the subsystem influences from fate,
-Logux, nuqs, Remix mixins, StyleX, `effect-atom-jsx`, and Agent Native. It also
+Logux, nuqs, Remix mixins, StyleX, `affect`, and Agent Native. It also
 separates conceptual inspiration from code that is directly adapted under a
 third-party license.
 

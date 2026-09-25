@@ -1,5 +1,5 @@
 /**
- * Ported from `effect-atom-jsx/src/MetadataToken.ts`. Kinded name tokens so
+ * Ported from `affect/src/MetadataToken.ts`. Kinded name tokens so
  * Event, Attr, Requirement, and Capability share one witness instead of four
  * ad-hoc brands.
  */

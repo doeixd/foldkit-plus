@@ -1,5 +1,5 @@
 /**
- * Slot attribute tokens. Ported from `effect-atom-jsx/src/View.ts` `Attribute`,
+ * Slot attribute tokens. Ported from `affect/src/View.ts` `Attribute`,
  * plus ARIA names the Foldkit plan lists.
  */
 import * as MetadataToken from './metadataToken.js'

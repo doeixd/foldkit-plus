@@ -1,5 +1,5 @@
 /**
- * Slot witnesses. Ported from `effect-atom-jsx/src/View.ts` `Slot`, without
+ * Slot witnesses. Ported from `affect/src/View.ts` `Slot`, without
  * Handle binding. A slot is named metadata: capability, allowed events,
  * attributes, platform requirements, hidden, and Foldkit-only `protected`.
  */

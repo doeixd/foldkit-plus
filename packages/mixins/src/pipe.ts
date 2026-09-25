@@ -1,4 +1,4 @@
-/** Ported from `effect-atom-jsx/src/View.ts` `pipeSelf`. */
+/** Ported from `affect/src/View.ts` `pipeSelf`. */
 export const pipeSelf = (self: unknown, fns: ReadonlyArray<(value: any) => any>): unknown =>
   fns.reduce((acc, fn) => fn(acc), self)
 
