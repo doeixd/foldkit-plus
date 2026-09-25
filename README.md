@@ -86,9 +86,216 @@ register tools.
 
 The example is typechecked in
 [the root README fixture](./examples/todo-app/test/root-readme.test-d.ts).
-For a full composition of agents, replication, mirrors, and views, follow
-[the todo app](./examples/todo-app/README.md); for server-owned entities, follow
-[the Remote example](./examples/remote/README.md).
+
+## The same application, extended
+
+The fastest way to see how the packages compose is to watch several of them
+reuse one application declaration. Assume `Model`, `Message`, `initial`, and
+`update` are an ordinary Foldkit todo app you already wrote. Everything around
+them derives from the same state machine; none of it introduces a second
+reducer.
+
+```ts
+import { Schema } from 'effect'
+import { Agent } from 'foldkit-agent'
+import { Mirror } from 'foldkit-mirror'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { SurfaceView } from 'foldkit-mixins-surface'
+import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
+import { DocumentId, Sync } from 'foldkit-sync'
+
+type Principal = { readonly role: 'owner' | 'guest' }
+const isOwner = (principal: Principal) => principal.role === 'owner'
+
+// 1. This is still the application: one Model, one Message union, one update.
+// Surface adds typed references and inspection metadata; it does not add runtime state.
+const App = Surface.application({ Model, Message, initial, update })
+
+// 2. A Surface is a public boundary for a feature: what it may observe and cause.
+// A renderer bound to Board can only construct these two Messages.
+const Board = App.surface('Board', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
+  messages: [Message.ToggledTodo, Message.DeletedTodo],
+})
+
+// A read-only Surface can be reused by something that only needs context.
+const Overview = App.surface('Overview', {
+  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
+})
+
+// 3. Mixins separate "where customization is allowed" from "what gets attached there."
+//
+// BoardSlots is the view's public customization contract. It renders nothing by
+// itself. It only names the places the view agrees other code may extend later:
+// `root` will be the outer <section>; `list` will be the <ul>.
+// Capabilities describe what kind of element lives at each point so incompatible
+// Styles or Behaviors can be rejected instead of silently doing the wrong thing.
+const BoardSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  list: Slot.make({ capability: Capability.Collection }),
+})
+
+// Style is data written against that slot contract. Nothing is applied yet, and
+// BoardStyle cannot read or change application state. Because it is created with
+// `forSlots(BoardSlots)`, misspelling a slot or styling one Board never published
+// is a type error rather than a convention.
+const BoardStyle = Style.forSlots(BoardSlots)({
+  root: Style.class('todo-board'), // contribute a class to the `root` slot
+  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }), // style `list`
+})
+
+// SurfaceView.define ties three boundaries together:
+//   Board      -> the projected Model this view receives and the Messages it may emit
+//   BoardSlots -> the places outside customization may attach
+//   render fn  -> the actual markup
+//
+// So `model` is not the whole application Model; it is Board's { todos, filter }.
+// And `h` is typed to the Messages Board declared above.
+export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h) =>
+  h.section(
+    // `.attrs()` is the handoff point between markup and Mixins. It resolves the
+    // view's own attributes plus every Style/Behavior attached to `root` into
+    // ordinary Foldkit attributes for this <section>.
+    slots.root.attrs(),
+    [
+      h.ul(
+        // Same idea here: this exact DOM position is the published `list` slot.
+        slots.list.attrs(),
+        model.todos.map(todo => h.li([], [todo.title])),
+      ),
+    ],
+  ),
+).pipe(
+  // Attach appearance from the outside. BoardView never imports CSS decisions into
+  // its markup, so styles can be swapped/composed without copying the component or
+  // adding a growing collection of styling props.
+  Style.attach(BoardStyle),
+)
+
+// Behavior can attach element-level interaction through those same slots. It may
+// contribute attributes, event handlers, or a Mount, but it still owns no Model;
+// application state and transitions remain Model / Message / update.
+
+// 4. Sync declares ownership of one writable slice and the facts that change it.
+// Projection.pick is writable because checkpoints must install back into Model;
+// replay still runs these Messages through the application's own update.
+const TodoSync = Sync.forApplication(App)
+  .withPrincipal<Principal>()
+  .make({
+    documentId: DocumentId.make('todos'),
+    shared: Projection.pick(App.model.todos),
+    durable: MessageSet.make(App, [
+      Message.SubmittedTodo,
+      Message.ToggledTodo,
+      Message.DeletedTodo,
+    ]),
+    authorize: {
+      // Policy lives on the contract and is enforced by the server journal.
+      DeletedTodo: ({ principal }) => isOwner(principal),
+    },
+  })
+
+// The server gets codecs, empty snapshot, replay, and authorization from Sync.
+// There is no second server-side reducer to keep in agreement.
+TodoSync.journalContract()
+
+// 5. First specialize the Agent API to this application and Principal type.
+// `forApplication(...).withPrincipal(...)` does NOT create an agent; it creates
+// a typed builder whose helpers know App's Model, Message union, and Principal.
+const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
+
+// `make` creates the concrete agent contract that MCP/WebMCP/A2A/etc. can serve:
+// what this agent sees, which existing Messages it may cause, and their policy.
+const AssistantAgent = AgentBuilder.make({
+  context: Overview,
+  messages: AgentBuilder.expose(Message, {
+    RequestedTodo: Agent.variant({
+      name: 'add_todo',
+      description: 'Add a todo with the given title',
+
+      // The protocol input can be smaller than the internal Message.
+      input: Schema.Struct({ title: Schema.String }),
+      toMessage: ({ title }) => ({ title }),
+
+      // RequestedTodo is an intent. The tool call completes when update later
+      // applies the correlated durable fact produced by the application's Command.
+      completion: {
+        success: Message.SubmittedTodo,
+        correlate: (request, result) => request.title.trim() === result.title,
+      },
+    }),
+    ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },
+    DeletedTodo: {
+      name: 'delete_todo',
+      description: 'Delete a todo (owner only)',
+      // Same rule, checked early at the agent boundary; the journal still owns trust.
+      authorize: ({ principal }) => isOwner(principal),
+    },
+  }),
+})
+
+// 6. Mirrors do not own state. They are secondary representations of Model fields.
+const Filters = Mirror.url(App, {
+  name: 'filters',
+  fields: [App.model.filter], // linkable: ?filter=active
+})
+const Prefs = Mirror.kv(App, {
+  key: 'todo/prefs',
+  fields: [App.model.draft], // remembered on this device
+})
+
+// 7. The architecture itself is data. Validate ownership/capability relationships,
+// or turn the same declarations into documentation and tooling input.
+const Project = Module.make(App, [
+  Board,
+  Overview,
+  TodoSync,
+  AssistantAgent,
+  Filters.contract,
+  Prefs.contract,
+])
+
+Module.validate(Project) // []
+Module.toMermaid(Project) // architecture generated from the declarations above
+```
+
+The code is large because the point is composition, not because any one package
+requires all of it.
+
+1. **The application stays the center.** Model, Message, `update`, Commands,
+   Submodels, and Mounts still mean what they mean in Foldkit.
+2. **Surface makes boundaries explicit.** A Projection says what a consumer may
+   observe; a Message subset says what it may cause. Those declarations are data,
+   so other packages can reuse and inspect them.
+3. **Extensions reuse application semantics instead of copying them.** Agents
+   expose existing Messages, Sync replays them, Mirror represents Model fields
+   elsewhere, and Mixins extends views without owning state.
+4. **Ownership stays singular.** A URL mirror does not become a URL store; a
+   replica does not grow a second reducer; a Style does not become view state.
+5. **The architecture itself becomes inspectable.** `Module.validate` catches
+   conflicting ownership, and `Module.toMermaid` turns the declarations into
+   documentation or tooling input.
+
+State changes take exactly two paths, and they are not equal. Ordinary
+application transitions travel `Message → update`. Everything else, such as
+a Sync checkpoint, a Mirror restoration or a Remote cache write, installs an
+already-derived value through a structural seam (`ModelRef.set`/`modify`,
+`WritableProjection.set`). A setter is infrastructure, not a second update;
+see [Who changes application state, and how](./docs/state-model.md).
+
+The important part is what is **missing**: no agent reducer, sync reducer, URL
+store, persistence state machine, server copy of the shared schema, or forked
+component just to restyle it.
+
+`foldkit-remote` is deliberately not in this block. Remote is easiest to
+understand with an actual server-owned entity and query; see
+[the Remote example](./examples/remote/README.md) or the
+[`kitchen-sink`](./examples/kitchen-sink) for that path. For the running
+version of this app, follow [the todo app](./examples/todo-app/README.md).
+
+The sample above is typechecked in
+[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
+so the front page cannot quietly drift from the API.
 
 ## Which package do I need?
 
