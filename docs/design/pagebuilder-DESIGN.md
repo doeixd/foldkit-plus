@@ -1122,8 +1122,10 @@ resume plan.
   `LatestPages` Block in the CMS example read through an active. Since §30's
   decisions, the editor's canvas draws a Query Block's rows (the parent gives
   the Builder its reads as view inputs) and the inspector draws a relation prop
-  with a picker whose choices the parent gives. What remains: the CMS example's
-  `LatestPages` has no relation prop to pick, such as an author to filter by.
+  with a picker whose choices the parent gives. **Built:** `LatestPages` has
+  an `except` prop, a page to leave out, picked from the site's pages, which
+  the page app reads through the policy-checked worklist rather than a query
+  of its own, since that would bypass the CMS's read policy.
 - **9-2,** the Surface-backed and Bundle-backed Blocks, the latter placed with
   `Bundle.withEach` keyed by NodeId. **Bundle-backed built:** a Block is marked
   `stateful`, not given its Bundle, since the parent places the Bundle in its
