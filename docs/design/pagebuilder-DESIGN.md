@@ -1210,22 +1210,23 @@ a React Block beside a Foldkit Block        a static page whose envelope has no 
 > | a move into an incompatible Region, or that would create a cycle | `operation`: refuses an incompatible Region, and a node put inside itself |
 > | an empty Region and a required one | `composition`: requires the one child of a Region that is not optional |
 > | a duplicated subtree, with its id map; one whose map misses a node | `operation`: copies a subtree; refuses ids that miss a node |
-> | a removed subtree; an insert with a taken id | `operation`: removes the node and everything it holds; refuses what the insert would get wrong |
+> | a removed subtree; an insert with a taken id | `operation`: removes the node and everything it holds; refuses what the insert itself would get wrong |
 > | malformed input | `composition`: finds an orphan, a second parent and a cycle |
 > | an unknown Block that loads, moves, round-trips and blocks publishing | `migrate`: reads, round-trips and keeps its unknown Blocks |
 > | a prop schema evolved, a renamed Block, a migration that changes an id | `migrate`: a chain of migrations; throws when it breaks the structure |
 > | an old revision restored with a removed Block | `migrate`, and the CMS demo's restore |
 > | 1,000 nodes within §25's budgets | `bench/operations.bench.ts`, and TreeNavigation's call count |
-> | undo after a move, and undo cleared by a fill | `builder`: reorders and undoes; replaces the Document, starting undo over |
+> | undo after a move, and undo cleared by a fill | `builder`: selects what it drags, and moves it on the drop as one undoable, announced edit; replaces the Document from outside, starting undo over |
 > | preview of a partially edited page; a publish refused by the strict schema | the CMS demo; `composition`: publishes only one that fits |
 > | `javascript:` in an Image src | `renderer`: refuses an unsafe URL |
 > | a `when` over an undeclared context key | `composition`: checks a stored when |
-> | an agent Operation refused by a Region | `operation`: a shape the schema takes can still be refused by the page |
+> | an agent Operation refused by a Region | `operation`: refuses a Block the Catalog lacks, or props not shaped as its, before apply sees them (its last case: a Section the schema takes, which the Region refuses) |
 > | a React Block beside a Foldkit Block | `react`: its event running the node's action |
 > | a static page whose envelope has no Document | `renderer`: sends the browser none of the Document |
 > | a Surface Block beside a static one | `acceptance`: a page of static, data, feature and stateful Blocks, served by SSR |
 >
-> What waits: rich text edited on the canvas (7c-2). The relation picker and a
+> Re-checked after §30's items were built: each name above is a test's name as
+> it stands. What waits: rich text edited on the canvas (7c-2). The relation picker and a
 > Query Block's rows on the canvas (9-1) and the selection in the URL (10-3)
 > were built after §30 decided them.
 
