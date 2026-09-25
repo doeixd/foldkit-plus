@@ -140,8 +140,24 @@ version changed; `pnpm` skips versions already in the registry.
   a placed collection in step with the page shown, adding, removing, and
   starting again a node whose props changed; `Stateful.views` and
   `Stateful.html` draw each node with its own item.
-- **`foldkit-cms`: `placed.storedEntry(model)`,** the entry the server knows:
-  `null` while something new is not saved yet, so a link names only what exists.
+- **`foldkit-form`: a title given before a check names the key.** Effect
+  resolves a checked schema to its last check's annotations, so
+  `Schema.String.annotate({ title }).check(...)` lost its label; the form now
+  falls back to the schema's own annotations.
+- **`foldkit-composition`: a Query Block gets its own window,** cut to its
+  `first` even when another read of the same query loaded more rows.
+  `Composition.valid` describes itself with `expected`, not a `title` a form
+  would take for the field's label.
+- **`foldkit-cms-drizzle`: a publish patches the whole row back,** as the
+  handler left it, so the author's own screen shows what was published without
+  the handler returning a patch.
+- **`foldkit-mixins-builder`: an optional relation prop stored as `null` and
+  decoded to an `Option`** (`Schema.OptionFromNullOr`) offers its blank: the
+  inspector asks the stored side.
+- **`foldkit-mixins-ui`: `Recipes.Button` on a link** is not underlined.
+- **`foldkit-cms`: `placed.storedEntry(model)`,** the entry the server knows, as
+  an `Option`: none while something new is not saved yet, so a link names only
+  what exists.
 - **`foldkit-mixins-builder`: relation pickers for Block props.** A prop asks
   for `Input.relationOne(Entity)` or `Input.relationMany(Entity)` through
   `BuilderView.controls`, and its choices come in `BuilderView.inputs({ options

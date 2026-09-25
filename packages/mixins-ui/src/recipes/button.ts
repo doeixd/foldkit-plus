@@ -33,6 +33,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
         font: 'inherit',
         fontWeight: ref.weight.medium,
         lineHeight: ref.leading.tight,
+        // A link drawn as a button (`Anchor`) is not underlined like one in running text.
+        textDecoration: 'none',
         cursor: 'pointer',
         ...transition('background-color, border-color, color'),
       }),
