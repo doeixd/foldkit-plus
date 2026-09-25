@@ -9,7 +9,7 @@ of that is CMS-specific and none is repeated here.
 **Status: core, editor state, server.** `foldkit-cms` is roles, content types,
 three Entities, the operations as descriptors, the lifecycle, and `Cms.editor`.
 `foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
-publishing and unpublishing, the worklist, an entry's derived state. Neither is on npm. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
+publishing and unpublishing, the worklist, an entry's derived state. Both are on npm at 0.2.0. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
 
 ## Ownership
 
@@ -94,6 +94,9 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
 - `Opened` is the form as it was found; `Editing` means edits that are not saved.
 - Autosave: an edit rests (`rest`, 1s), then the form is saved, valid or not.
   Publish submits the form; invalid publishes nothing. A publish saves first.
+  An edit is `form.authoredChanged`, so an `Input.bundle` control autosaves when
+  its value changes, and the editor runs its Subscriptions and Resources while an
+  entry is open.
 - Opening resumes the draft: saved Model (same form name and `version`), else
   saved values key by key, else what is published. `resumed` is `Lost` when a
   draft fit nothing.

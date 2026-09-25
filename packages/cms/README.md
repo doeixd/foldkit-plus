@@ -167,6 +167,11 @@ PostEditor.pageId(model) // the row's id, or the entry's until there is a row: w
   asks `form.authoredChanged(before, after)`, so a blur, a refusal, or a repeated
   value starts no rest, while a control the editor has never heard of — a
   stateful or Bundle-backed one — autosaves exactly like a text field.
+- **A form control backed by a Bundle keeps running inside the editor.** Its
+  Subscriptions and Resources (see
+  [`Input.bundle`](../form/README.md#a-control-with-a-model-of-its-own)) run
+  while an entry is open and stop when the editor closes. A runtime that runs
+  the editor provides their Resources, as for any Bundle that has some.
 - **`Editing` means there are edits that are not saved yet**, and `Opened` means
   the form is as it was found. A draft the editor filled the form from is on the
   server already, so it reads `Saved`.

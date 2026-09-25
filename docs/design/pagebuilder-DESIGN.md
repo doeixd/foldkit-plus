@@ -4,7 +4,8 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Nothing here is built.
+which the first draft could assume. Phase 0 (`Input.bundle`) is built; nothing
+else is.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -467,8 +468,7 @@ const DocumentInput = Input.bundle('Composition', {
   bundle: PageBuilder,                            // an ordinary Bundle
   value: model => model.document,                 // what the key holds, validates and submits
   fill: (model, document) => Builder.replace(model, document), // clears history and selection
-  settled: model => Builder.settle(model),        // drag, hover and pending mints cleared
-  saved: model => Builder.saved(model),           // what a resumed draft keeps
+  settled: model => Builder.settle(model),        // drag, hover, history and pending mints cleared
 })
 
 const PageForm = Form.make('PageForm', PageInput, {
@@ -495,12 +495,17 @@ What follows from it:
   `PageBuilder` closes over them where it is defined:
   `Builder.make('PageBuilder', Site, SiteRenderer)`.
 
-Constraints known from the rich-text spike, and their answers here:
-`Bundle.withEach` refuses Managed Resources, so a Builder inside a repeated form
-row is unsupported, and `Form.make` says so when it resolves one. A resumed
-Form Model restores the control through `saved`, which keeps the Document and
-drops history, drag and pending mints (§30 asks whether it keeps the
-selection).
+Constraints known from the rich-text spike, and their answers here: a row of a
+nested form is plain data, so a nested form whose control has Subscriptions or
+Resources is refused when the outer form is made. A resumed Form Model restores
+the control through `settled`, which keeps the Document and the selection and
+drops history, drag and pending mints.
+
+> **Built (Phase 0).** `Input.bundle` shipped as specified, with one change:
+> the separate `saved` hook folded into `settled`, which Form already applied
+> to a stored Model shown again, so one hook says what a resumed control keeps.
+> Also as built: the Bundle may have no OutMessage and need no services, and a
+> key given such a control takes no `check`.
 
 ## 12. The Builder: headless, then drawn
 
@@ -911,10 +916,10 @@ consumer and becomes a package only when a real boundary appears.
 Each phase ends with its tests green, mutation-checked, its docs written to the
 repository's standard, and the skill reference updated if it adds public API.
 
-**Phase 0: `Input.bundle` in `foldkit-form`.** Shared with the rich-text design's
+**Phase 0: `Input.bundle` in `foldkit-form`. Done.** Shared with the rich-text design's
 §44 and built once for both. Acceptance: the `examples/form` color picker and a
 small structured control each work as a Form key, with fill, reset, partial,
-submit, settled, resume through `saved`, `authoredChanged`, validation on
+submit, resume through `settled`, `authoredChanged`, validation on
 `value`, and the control's own Messages, Commands and Subscriptions routed. CMS
 autosaves the color key without knowing its Messages. Nothing in the primitive
 mentions pages.
@@ -986,8 +991,6 @@ a React Block beside a Foldkit Block        a static page whose envelope has no 
 
 Each is answered by building, not by debate, and none changes the ownership model.
 
-- Should `Input.bundle`'s `saved` keep the selection across a resume, or is the
-  Document alone enough?
 - When a Block wants a Region's `max` to be configurable, does it belong in the
   Region or in the Block's props as a refinement?
 - For a large page, should `Composition.describe` give an agent every node's

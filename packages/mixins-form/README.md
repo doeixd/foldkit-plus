@@ -160,8 +160,17 @@ no renderer throws when it is drawn, naming the kind and the key.
 A number is a text input because its draft is text: `"4."` is a fine thing to
 have typed, and `type="number"` would refuse to report it.
 
+A control backed by a Bundle ([`Input.bundle`](../form/README.md#a-control-with-a-model-of-its-own))
+is drawn with the Bundle's own view when no renderer names its kind, inside the
+field's `control` slot, which carries the control's id and accessibility state.
+A renderer for its kind receives `bundle`: the Bundle's Model, and `send`, which
+turns one of the Bundle's Messages into the form's (wrapped for its row inside a
+nested form). Such a key has no draft, so `draft` and `input.field.value` are
+`''`; its validation state is `input.field`'s. A Bundle with no view needs a
+renderer.
+
 Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
-and `error`. `FormSlots` publishes `root` (the `form`), `errors` (failures that
+`error`, and `control` (around a Bundle's own view). `FormSlots` publishes `root` (the `form`), `errors` (failures that
 belong to no one field), `submit`, and the five slots of a nested key.
 
 A nested row's fields are drawn through the same field view, so a styled `field`

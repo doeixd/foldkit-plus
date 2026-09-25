@@ -180,6 +180,54 @@ Cents.is(control) && control.data.currency // 'USD'
   kind once it has a renderer for it; see
   [`foldkit-mixins-form`](../mixins-form/README.md#renderers).
 
+### A control with a Model of its own
+
+Some controls are more than a draft. A color picker has a popover that is open
+or closed and a palette it looked up; a page builder has a selection and an undo
+history; a rich-text editor has a document and a cursor. `Input.bundle` makes
+such a control out of an ordinary [Bundle](../bundle/README.md): the key's draft
+*is* the Bundle's Model, and the form carries everything else the Bundle has.
+
+```ts
+const ColorInput = Input.bundle('ColorPicker', {
+  bundle: ColorPicker, // Model { open, hex, recent }, its own Messages, a Command, a Subscription
+  value: model => model.hex, // what the key validates and submits
+  fill: (model, hex) => ({ ...model, hex }), // a value the form was given, written into the Model
+  settled: model => ({ ...model, open: false }), // a stored form shown again: nothing in flight
+})
+
+const PostForm = Form.make('PostForm', input, { inputs: { color: ColorInput } })
+const color = PostForm.control('color')
+
+color.field(model) // { _tag, value: { open, hex, recent } }: validation state, the Model as value
+color.send(ColorMessage.Opened()) // the form's Message carrying one of the picker's own
+```
+
+What the form does with it:
+
+- **The Bundle's Messages** travel as the form's `Control` Message, and
+  `color.send` builds one. One the Bundle does not take is dropped.
+- **An edit is a change of value.** A Message that changes `value(model)` is
+  validated against the key's schema, clears the last submit's failures, and
+  makes `authoredChanged` true, so a CMS autosaves it. A Message that changes
+  only the rest of the Model, such as opening the popover, is none of those.
+- **Its Commands, Subscriptions and Resources are the form's.** Commands come
+  back as `Control` Messages. The form's Bundle gains the control's
+  Subscriptions and Resources, keyed under the key (`ColorPicker@fields.color/…`),
+  and `init` starts the control's init Commands.
+- **`fill`, `partial`, `settled`, submit and `Reset`** all go through `value`,
+  `fill` and `settled`. `Reset` returns the Bundle's initial Model.
+- **Nothing entered** is `value` giving `undefined` or `null`, which a required
+  key refuses as it would an empty text box.
+- **Types follow the control.** `model.fields.color.value` is the picker's
+  Model, `color.send` takes only the picker's Messages, and `field` refuses the
+  key, whose draft is not text.
+
+The Bundle may not have an OutMessage, since a key has no parent to hand one
+to, and its Commands may need no services. A key given a control like this
+takes no `check`; say what is valid in its schema. A nested form whose control
+has Subscriptions or Resources is refused, because a row cannot run them yet.
+
 ### A key that follows another
 
 A slug is its title until the author decides otherwise. `Input.following` keeps
@@ -492,6 +540,9 @@ tags.
   application makes.
 - One `Changed` Message carries any draft, so a view can dispatch a draft of the
   wrong kind for a key. The form ignores it rather than storing it.
-- A key whose value is a struct is editable only as a nested input of a
-  relation's target; a free-standing struct has no control. Rows keep the order
-  they were added in; there is no reordering.
+- A key whose value is a struct is editable as a nested input of a relation's
+  target, or through a control backed by a Bundle (`Input.bundle`). Rows keep
+  the order they were added in; there is no reordering.
+- A control backed by a Bundle takes no `check`, its Bundle has no OutMessage
+  and needs no services, and inside a nested form's rows it may have no
+  Subscriptions or Resources.

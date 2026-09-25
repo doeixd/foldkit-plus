@@ -105,6 +105,15 @@ const RenameForm = Page.at(Slot, {
   then `inputs: { cents: Cents.of({ currency: 'USD' }) }` and `Cents.is(control)`.
   Draw it with `FormView.define(form, { renderers: { Cents: ctx => ... } })`; the
   same table replaces a shipped renderer.
+- **A control with a Model of its own** (a color picker with a popover, a page
+  builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled? })`
+  over an ordinary Bundle. The key's draft is the Bundle's Model
+  (`model.fields.color.value`, typed); `form.control('color').send(message)`
+  wraps one of its Messages as the form's `Control`; its Commands,
+  Subscriptions and Resources become the form's. A Message is an edit (validated,
+  autosaved by CMS) only when it changes `value(model)`. `FormView` draws it with
+  the Bundle's view unless a renderer names its kind; a renderer gets
+  `bundle: { model, send }`.
 - **Finish a form made elsewhere:** every option is a pipe step giving a new form:
   `AuthorForm.pipe(Form.inputs({ bio: Input.multiline() }), Form.checks({...}), Form.messages({...}))`;
   also `Form.nested` and `Form.debounce`. Keys are checked against the piped form.
@@ -220,7 +229,11 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 - `onOut` is required when placing; omitting it is a type error.
 - A `Changed` with a draft of the wrong kind for the key (a string for a toggle)
   is ignored, not stored.
-- A struct-valued key is editable only as a nested input (`Relation.nested`).
+- A struct-valued key is editable as a nested input (`Relation.nested`) or
+  through `Input.bundle`.
+- `Input.bundle`'s Bundle has no OutMessage and needs no services; its key takes
+  no `check`; `form.field` refuses its key (use `form.control(key).field`); a
+  nested form whose control has Subscriptions or Resources is refused.
 
 ## See also
 

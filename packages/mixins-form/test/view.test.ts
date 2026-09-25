@@ -1,7 +1,10 @@
 import { Schema } from 'effect'
-import { Entity } from 'foldkit-entity'
+import { Bundle } from 'foldkit-bundle'
+import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Attr, Behavior, Capability, SlotView, Style } from 'foldkit-mixins'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import { describe, expect, it } from 'vitest'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from '../src/index.js'
 import { Edit, options } from './fixture.js'
@@ -284,5 +287,101 @@ describe('renderers', () => {
     expect(() => draw(FormView.define(Rated))).toThrow(
       'FormView: no renderer for a "Stars" control ("stars"); pass one under "renderers"',
     )
+  })
+})
+
+describe('a control backed by a Bundle', () => {
+  const SwatchMessage = defineMessageUnion({ Chose: { hex: Schema.String } })
+  const Swatch = Bundle.make({
+    name: 'Swatch',
+    Model: Schema.Struct({ hex: Schema.String }),
+    Message: SwatchMessage,
+    init: () => ({ model: { hex: '#000000' } }),
+    update: (model: { readonly hex: string }, message: typeof SwatchMessage.Type) => ({
+      model: { ...model, hex: message.hex },
+    }),
+    view: Submodel.defineView<{ readonly hex: string }, typeof SwatchMessage.Type>((model, h) =>
+      h.button([h.OnClick(SwatchMessage.Chose({ hex: '#ffffff' }))], [model.hex]),
+    ),
+  })
+  const Painted = Form.make(
+    'Painted',
+    Entity.input(
+      Entity.define('Wall', Schema.Struct({ id: Schema.String, color: Schema.String })),
+      Schema.Struct({ color: Schema.String }),
+    ),
+    {
+      inputs: {
+        color: Input.bundle('Swatch', {
+          bundle: Swatch,
+          value: model => model.hex,
+          fill: (model, hex) => ({ ...model, hex }),
+        }),
+      },
+    },
+  )
+  const draw = (view: ReturnType<typeof FormView.define<never, any, any>>) =>
+    view({ model: Painted.initial, errors: [], canSubmit: true }, SlotView.inertBuilder()) as Node
+
+  it('gives a renderer the Bundle’s Model and the Message for one of its own', () => {
+    const sent: Array<unknown> = []
+    draw(
+      FormView.define(Painted, {
+        renderers: {
+          Swatch: ({ bundle, draft, state, h }) => {
+            sent.push(bundle?.send(SwatchMessage.Chose({ hex: '#ff0000' })))
+            return h.div(state, [String(bundle?.model === undefined), String(draft)])
+          },
+        },
+      }),
+    )
+    expect(sent).toEqual([
+      Painted.Message.Control({ key: 'color', message: SwatchMessage.Chose({ hex: '#ff0000' }) }),
+    ])
+  })
+
+  it('wraps the Message for its row when the control is inside a nested form', () => {
+    const Wall = Entity.define('Wall', Schema.Struct({ id: Schema.String, color: Schema.String }))
+    const Room = Entity.define('Room', Schema.Struct({ id: Schema.String, name: Schema.String }))
+    const House = Entity.relate({ Wall, Room }, { Room: { walls: Relation.many(Wall) } })
+    const WallInput = Entity.input(House.Wall, Schema.Struct({ color: Schema.String }))
+    const WallForm = Form.make('WallForm', WallInput, {
+      inputs: {
+        color: Input.bundle('Swatch', {
+          bundle: Swatch,
+          value: model => model.hex,
+          fill: (model, hex) => ({ ...model, hex }),
+        }),
+      },
+    })
+    const RoomForm = Form.make(
+      'RoomForm',
+      Entity.input(
+        House.Room,
+        Schema.Struct({ name: Schema.String, walls: Schema.Array(WallInput.schema) }),
+        { walls: Relation.nested(House.Room.relations.walls, WallInput) },
+      ),
+      { nested: { walls: WallForm } },
+    )
+    const withRow = RoomForm.bundle.update(
+      RoomForm.initial,
+      RoomForm.Message.RowAdded({ key: 'walls' }),
+      undefined,
+    ).model
+    const [row] = RoomForm.rows(withRow, 'walls')
+    const sent: Array<unknown> = []
+    FormView.define(RoomForm, {
+      renderers: {
+        Swatch: ({ bundle, state, h }) => {
+          sent.push(bundle?.send(SwatchMessage.Chose({ hex: '#ff0000' })))
+          return h.div(state, [])
+        },
+      },
+    })({ model: withRow, errors: [], canSubmit: true }, SlotView.inertBuilder())
+    expect(sent).toEqual([
+      RoomForm.row('walls', row?.id ?? '').send(
+        WallForm.control('color').send(SwatchMessage.Chose({ hex: '#ff0000' })),
+      ),
+    ])
   })
 })

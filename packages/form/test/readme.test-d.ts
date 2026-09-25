@@ -2,6 +2,7 @@
 import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
+import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { expectTypeOf } from 'vitest'
 import { Form, Input } from '../src/index.js'
@@ -163,4 +164,49 @@ expectTypeOf<typeof Current.schema.Type>().toEqualTypeOf<{
     }),
   ).model
   // model.saved contains the decoded input, with title "Hello" and id "".
+}
+
+// A control with a Model of its own
+{
+  const ColorModel = Schema.Struct({
+    open: Schema.Boolean,
+    hex: Schema.String,
+    recent: Schema.Array(Schema.String),
+  })
+  const ColorMessage = defineMessageUnion({ Opened: {}, Chose: { hex: Schema.String } })
+  const ColorPicker = Bundle.make({
+    name: 'ColorPicker',
+    Model: ColorModel,
+    Message: ColorMessage,
+    init: () => ({ model: { open: false, hex: '#000000', recent: [] } }),
+    update: (model: typeof ColorModel.Type, message: typeof ColorMessage.Type) =>
+      message._tag === 'Opened'
+        ? { model: { ...model, open: true } }
+        : { model: { ...model, hex: message.hex } },
+  })
+  const Colored = Entity.define(
+    'Colored',
+    Schema.Struct({ id: Schema.String, title: Schema.String, color: Schema.String }),
+  )
+  const input = Entity.input(
+    Colored,
+    Schema.Struct({ title: Colored.fields.title.schema, color: Colored.fields.color.schema }),
+  )
+
+  const ColorInput = Input.bundle('ColorPicker', {
+    bundle: ColorPicker,
+    value: model => model.hex,
+    fill: (model, hex) => ({ ...model, hex }),
+    settled: model => ({ ...model, open: false }),
+  })
+
+  const PostForm = Form.make('PostForm', input, { inputs: { color: ColorInput } })
+  const color = PostForm.control('color')
+
+  expectTypeOf(color.field(PostForm.initial).value).toEqualTypeOf<typeof ColorModel.Type>()
+  color.send(ColorMessage.Opened())
+  // @ts-expect-error the picker takes only its own Messages
+  color.send(PostForm.Message.Submitted())
+  // @ts-expect-error `color` holds the picker's Model, not a draft
+  PostForm.field(PostForm.initial, 'color')
 }

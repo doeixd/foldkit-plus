@@ -81,6 +81,12 @@ export interface FieldInput<Key extends string = string> {
         readonly searched: (text: string) => unknown
       }
     | undefined
+  /**
+   * Set for a key edited by a control backed by a Bundle (`Input.bundle`): the
+   * Bundle's Model, and the Message that carries one of its own. Such a key has
+   * no draft, so `field.value` is `''`; its validation state is `field`'s.
+   */
+  readonly bundle?: BundleInput | undefined
   /** What was typed to find a choice, for a relation picker that searches. */
   readonly search: string
   /**
@@ -88,6 +94,12 @@ export interface FieldInput<Key extends string = string> {
    * "regenerate" when it is not, by sending the key an empty draft.
    */
   readonly following: boolean
+}
+
+/** A control backed by a Bundle, as its field is drawn: its Model, and how its Messages leave. */
+export interface BundleInput {
+  readonly model: unknown
+  readonly send: (message: unknown) => unknown
 }
 
 /** What the form's own Style and Behavior attachments may read. */
@@ -123,6 +135,8 @@ export const FieldSlots = Slots.define({
     events: [Event.Change, Event.Blur],
     attributes: [Attr.AriaInvalid, Attr.AriaDescribedby],
   }),
+  /** Around the view of a control backed by a Bundle, when it is drawn with the Bundle's own view. */
+  control: Slot.make({ capability: Capability.Container }),
   /** A `RelationMany` picker: the group, and each thing in it. */
   choices: Slot.make({ capability: Capability.Collection }),
   choice: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
@@ -153,6 +167,10 @@ interface FormLike<Key extends string, Model, Message> {
   /** Every key, nested ones too; `Key` is the keys that hold a draft. */
   readonly controls: ReadonlyArray<FormControl>
   readonly field: (model: Model, key: Key) => FieldValidation.Field<Draft>
+  /** A key edited by a control backed by a Bundle. A form with none takes no key here. */
+  readonly control: (key: never) => {
+    readonly field: (model: Model) => FieldValidation.Field<unknown>
+  }
   /** The rows of a nested key. A form with none takes no key here. */
   readonly rows: (model: Model, key: never) => ReadonlyArray<FormRow>
   readonly search: (model: Model, key: Key) => string
@@ -165,6 +183,10 @@ interface FormLike<Key extends string, Model, Message> {
     readonly Blurred: (payload: { readonly key: Key }) => NoInfer<Message>
     readonly Searched: (payload: { readonly key: Key; readonly text: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
+    readonly Control: (payload: {
+      readonly key: never
+      readonly message: unknown
+    }) => NoInfer<Message>
     readonly Nested: (payload: {
       readonly key: string
       readonly row: string
@@ -185,6 +207,8 @@ interface FormLike<Key extends string, Model, Message> {
 interface Walk<Message> {
   readonly controls: ReadonlyArray<FormControl>
   readonly field: (key: string) => FieldValidation.Field<Draft>
+  /** The state of a key edited by a control backed by a Bundle, its Model as the value. */
+  readonly controlField: (key: string) => FieldValidation.Field<unknown>
   readonly rows: (key: string) => ReadonlyArray<FormRow>
   readonly search: (key: string) => string
   readonly following: (key: string) => boolean
@@ -201,6 +225,12 @@ const rowWalk = <Message>(
   controls: form.controls as ReadonlyArray<FormControl>,
   field: inner =>
     (form.field as (model: unknown, key: string) => FieldValidation.Field<Draft>)(row.model, inner),
+  controlField: inner =>
+    (
+      form.control as (key: string) => {
+        readonly field: (model: unknown) => FieldValidation.Field<unknown>
+      }
+    )(inner).field(row.model),
   rows: inner =>
     (form.rows as (model: unknown, key: string) => ReadonlyArray<FormRow>)(row.model, inner),
   search: inner => (form.search as (model: unknown, key: string) => string)(row.model, inner),
@@ -219,8 +249,21 @@ type FieldView<Key extends string, Message> = SlotView.SlotView<
   Message
 >
 
-const errorsOf = (field: FieldValidation.Field<Draft>): ReadonlyArray<string> =>
+const errorsOf = (field: FieldValidation.Field<unknown>): ReadonlyArray<string> =>
   field._tag === 'Invalid' ? field.errors : []
+
+/**
+ * The state of a key a control backed by a Bundle edits, as a field is drawn:
+ * its validation state, with no draft. The Bundle's Model travels as `bundle`.
+ */
+const withoutDraft = (field: FieldValidation.Field<unknown>): FieldValidation.Field<Draft> =>
+  field._tag === 'Invalid'
+    ? FieldValidation.Invalid({ value: '', errors: field.errors })
+    : field._tag === 'Valid'
+      ? FieldValidation.Valid({ value: '' })
+      : field._tag === 'Validating'
+        ? FieldValidation.Validating({ value: '' })
+        : FieldValidation.NotValidated({ value: '' })
 
 /** What a renderer draws one control from. */
 export interface RenderContext<Message> {
@@ -230,6 +273,12 @@ export interface RenderContext<Message> {
   readonly draft: Draft
   readonly change: (value: Draft) => Message
   readonly blurred: Message
+  /**
+   * For a control backed by a Bundle: its Model, and the Message carrying one of
+   * its own. Its `draft` is `''`.
+   */
+  readonly bundle:
+    { readonly model: unknown; readonly send: (message: unknown) => Message } | undefined
   /** The control's id and its accessibility state. Put them on the element that holds the value. */
   readonly state: ReadonlyArray<Attribute<Message>>
   readonly slots: SlotBuilders<typeof FieldSlots, Message>
@@ -238,6 +287,29 @@ export interface RenderContext<Message> {
 
 /** Draws the control of one kind. The label, description and error around it are the field's. */
 export type Renderer<Message> = (context: RenderContext<Message>) => Html
+
+/**
+ * A control backed by a Bundle that no renderer names is drawn with the
+ * Bundle's own view, inside the field's `control` slot, which carries the
+ * control's id and accessibility state. A Bundle with no view needs a renderer.
+ */
+const bundleRenderer =
+  <Message>(control: Control): Renderer<Message> =>
+  ({ bundle, input, state, slots, h }) => {
+    const view = Input.isBundle(control) ? control.data.bundle.view : undefined
+    if (bundle === undefined || view === undefined)
+      throw new Error(
+        `FormView: the "${control.kind}" control ("${input.control.key}") has no view; pass a renderer under "renderers"`,
+      )
+    return h.div(slots.control.attrs(state.filter(attribute => attribute._tag !== 'Name')), [
+      h.submodel({
+        slotId: input.id,
+        model: bundle.model,
+        view,
+        toParentMessage: bundle.send,
+      }),
+    ])
+  }
 
 /** Renderers by the `kind` of control they draw. */
 export type Renderers<Message> = Readonly<Record<string, Renderer<Message>>>
@@ -374,7 +446,15 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(required ? [h.AriaRequired(true)] : []),
         ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
       ]
-      const render = renderers[control.control.kind]
+      // The Message leaves the way the input says: wrapped for a row, or the form's own.
+      const held = input.bundle
+      const bundle =
+        held === undefined
+          ? undefined
+          : { model: held.model, send: (message: unknown) => held.send(message) as Message }
+      const render =
+        renderers[control.control.kind] ??
+        (bundle !== undefined ? bundleRenderer<Message>(control.control) : undefined)
       if (render === undefined)
         throw new Error(
           `FormView: no renderer for a "${control.control.kind}" control ("${key}"); pass one under "renderers"`,
@@ -385,6 +465,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         draft,
         change,
         blurred,
+        bundle,
         state,
         slots,
         h,
@@ -456,11 +537,19 @@ export const FormView = {
               const { key, label } = control
               const here = `${id}-${key}`
               if (!Input.Nested.is(control.control)) {
-                const state = walk.field(key)
+                const bundled = Input.isBundle(control.control)
+                const held = bundled ? walk.controlField(key) : walk.field(key)
+                const state = bundled ? withoutDraft(held) : (held as FieldValidation.Field<Draft>)
                 return fieldView(
                   {
                     control: control as FormControl<Key>,
                     field: state,
+                    bundle: bundled
+                      ? {
+                          model: held.value,
+                          send: message => walk.wrap((walk.make.Control as Make)({ key, message })),
+                        }
+                      : undefined,
                     invalid: FieldValidation.isInvalid(state),
                     errors: errorsOf(state),
                     options: options[`${path}${key}`] ?? [],
@@ -524,6 +613,7 @@ export const FormView = {
         const top: Walk<Message> = {
           controls: form.controls,
           field: key => form.field(input.model, key as Key),
+          controlField: key => form.control(key as never).field(input.model),
           rows: key => form.rows(input.model, key as never),
           search: key => form.search(input.model, key as Key),
           following: key => form.isFollowing(input.model, key as Key),

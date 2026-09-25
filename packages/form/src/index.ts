@@ -8,8 +8,8 @@
  * happens to it (a Remote mutation, a Sync operation, a plain `update`) is the
  * parent's.
  */
-import { Duration, Effect, Pipeable, Result, Schema } from 'effect'
-import { Bundle } from 'foldkit-bundle'
+import { Duration, Effect, Option, Pipeable, Result, Schema } from 'effect'
+import { Bundle, Link } from 'foldkit-bundle'
 import type { AnyEntity, EntityInput, InputMember, NestedInput } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { type Command, mapMessages } from 'foldkit/command'
@@ -19,6 +19,8 @@ import type * as Update from 'foldkit/update'
 import {
   Input,
   isControlChange,
+  type BundleControl,
+  type BundleData,
   type Control,
   type ControlChange,
   type Draft,
@@ -29,6 +31,9 @@ import {
 
 export {
   Input,
+  type BundleControl,
+  type BundleControlSpec,
+  type BundleData,
   type Control,
   type ControlChange,
   type ControlKind,
@@ -59,10 +64,43 @@ export type NestedModel<Member> =
     ? FormModel<Fields, Members>
     : never
 
-export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}> {
+/** The controls a form may be given under `inputs`, by key. */
+export type InputsFor<Fields extends Schema.Struct.Fields, Members> = {
+  readonly [K in Exclude<keyof Fields, NestedKey<Members>>]?: Control | ControlChange
+}
+
+/** The keys given a control backed by a Bundle, each with the Bundle's Model: that key's draft. */
+export type ControlsOf<Inputs> = {
+  readonly [
+    K in keyof Inputs as Inputs[K] extends BundleControl<any, any, any> ? K : never
+  ]: Inputs[K] extends BundleControl<infer Model, any, any> ? Model : never
+}
+
+/**
+ * Whether any control backed by a Bundle holds Resources: then the form's
+ * Bundle has Resources, and a runtime running it must provide them.
+ */
+export type ControlResourcesOf<Inputs> = true extends {
+  readonly [K in keyof Inputs]: Inputs[K] extends BundleControl<any, any, any, infer Resources>
+    ? [keyof Resources] extends [never]
+      ? false
+      : true
+    : false
+}[keyof Inputs]
+  ? Readonly<Record<string, never>>
+  : {}
+
+/** The Message of the Bundle behind a key's control. */
+export type ControlMessageOf<C> = C extends BundleControl<any, infer Message, any> ? Message : never
+
+export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}, Controls = {}> {
+  /**
+   * One `fieldValidation` Field per key that holds a draft. A key given a
+   * control backed by a Bundle holds that Bundle's Model as its draft.
+   */
   readonly fields: {
     readonly [K in keyof Fields as K extends NestedKey<Members> ? never : K]: FieldValidation.Field<
-      DraftOf<Schema.Schema.Type<Fields[K]>>
+      K extends keyof Controls ? Controls[K] : DraftOf<Schema.Schema.Type<Fields[K]>>
     >
   }
   /** The rows of each nested key, each a Model of the nested form. */
@@ -172,10 +210,11 @@ export interface FormFor<
   Fields extends Schema.Struct.Fields,
   Members,
   R = never,
+  Controls = any,
 > extends NestedForm {
   readonly input: EntityInput<any, Fields, Members>
   readonly bundle: {
-    readonly Model: Schema.Codec<FormModel<Fields, Members>, unknown>
+    readonly Model: Schema.Codec<FormModel<Fields, Members, Controls>, unknown>
     readonly Message: Schema.Codec<any, unknown>
     readonly update: (
       model: any,
@@ -186,7 +225,7 @@ export interface FormFor<
       readonly commands?: ReadonlyArray<Command<any, never, R>> | undefined
     }
   }
-  readonly initial: FormModel<Fields, Members>
+  readonly initial: FormModel<Fields, Members, Controls>
   readonly fill: (model: any, values: any) => { readonly model: any }
   readonly engine: {
     readonly submit: (model: any) => {
@@ -238,14 +277,14 @@ export interface FormOptions<
   Members,
   R,
   Nest extends NestedForms<Fields, Members, R> = {},
+  Inputs extends InputsFor<Fields, Members> = InputsFor<Fields, Members>,
 > {
   /**
    * The control for a key the resolver cannot decide, or should not: an unmapped
-   * key with an unusual schema, or text that wants a multiline control here only.
+   * key with an unusual schema, text that wants a multiline control here only,
+   * or a control backed by a Bundle (`Input.bundle`).
    */
-  readonly inputs?: {
-    readonly [K in Exclude<keyof Fields, NestedKey<Members>>]?: Control | ControlChange
-  }
+  readonly inputs?: Inputs
   /** The form's own words, and a rewrite of Schema's: for wording and for translation. */
   readonly messages?: FormMessages<keyof Fields & string>
   /** Rules answered outside the form, by key. The key reads `Validating` while one runs. */
@@ -350,6 +389,22 @@ interface Plan extends FormControl {
   readonly empty: Draft
   readonly check: (draft: Draft) => Checked
   readonly rules: FieldValidation.Rules<Draft>
+  /** For a control backed by a Bundle: the Bundle, and how the key's value lives in its Model. */
+  readonly bundled: BundleData | undefined
+}
+
+/** A control's Bundle placed where its key's draft is, as the form drives it. */
+interface PlacedControl<Model> {
+  readonly init: (model: Model) => { readonly commands?: ReadonlyArray<AnyCommand> | undefined }
+  readonly update: (
+    model: Model,
+    message: { readonly _tag: string },
+  ) => Option.Option<{
+    readonly model: Model
+    readonly commands?: ReadonlyArray<AnyCommand> | undefined
+  }>
+  readonly subscriptions: Readonly<Record<string, never>>
+  readonly resources: Readonly<Record<string, never>>
 }
 
 /** The drafts a key holds. `rows` is a nested key's, which holds rows instead. */
@@ -419,6 +474,17 @@ const nestedPlanOf = (
       `"${key}" is given a form of another input than the one it nests; make it from the input passed to Relation.nested`,
     )
   const form = given ?? makeNested(`${name}.${key}`, member.input, inherited)
+  // A row is plain data in this form's Model, so nothing would run a row's own
+  // listeners or hold its resources. Say so rather than drop them.
+  const lifecycle = form.bundle as {
+    readonly subscriptions?: unknown
+    readonly resources?: unknown
+  }
+  if (lifecycle.subscriptions !== undefined || lifecycle.resources !== undefined)
+    fail(
+      name,
+      `"${key}" nests a form with a control whose Bundle has Subscriptions or Resources, which rows cannot run yet`,
+    )
   return {
     key,
     ...wordsOf(key, schema, member),
@@ -457,7 +523,23 @@ const planOf = (
   const type = Schema.toType(schema) as Schema.Codec<unknown>
   const decode = Schema.decodeUnknownResult(type)
   const accepts = Schema.is(type)
-  const empty: Draft = kind === 'flag' ? false : kind === 'list' ? [] : ''
+  const bundled = Input.isBundle(control) ? control.data : undefined
+  // A control backed by a Bundle holds the Bundle's Model as its draft. Inside
+  // the form every draft is carried as a `Draft`; only this plan's own
+  // functions read it as the Bundle's Model.
+  const empty: Draft =
+    bundled !== undefined
+      ? (bundled.bundle.init(bundled.args).model as Draft)
+      : kind === 'flag'
+        ? false
+        : kind === 'list'
+          ? []
+          : ''
+  const blank = (draft: Draft): boolean => {
+    if (bundled === undefined) return isBlank(control, draft)
+    const value = bundled.value(draft)
+    return value === undefined || value === null
+  }
 
   // A control whose draft can never become the key's value is a wiring mistake.
   const samples: ReadonlyArray<unknown> =
@@ -475,15 +557,20 @@ const planOf = (
   }
 
   const check = (draft: Draft): Checked => {
-    if (isBlank(control, draft)) {
+    if (blank(draft)) {
       // What "nothing entered" submits is whatever the schema admits for it.
-      for (const nothing of [undefined, null, empty])
+      for (const nothing of bundled === undefined ? [undefined, null, empty] : [undefined, null])
         if (accepts(nothing)) return Result.succeed(nothing)
       return Result.fail(say.required)
     }
-    // A kind may read its text as something else before the schema sees it.
+    // A kind may read its text as something else before the schema sees it, and
+    // a control backed by a Bundle reads its value from its Model.
     const value =
-      control.parse !== undefined && typeof draft === 'string' ? control.parse(draft) : draft
+      bundled !== undefined
+        ? bundled.value(draft)
+        : control.parse !== undefined && typeof draft === 'string'
+          ? control.parse(draft)
+          : draft
     if (value === undefined) return Result.fail(say.unparsed)
     return Result.mapError(decode(value), error => say.invalid(error.message))
   }
@@ -499,8 +586,9 @@ const planOf = (
     member,
     label,
     description,
+    bundled,
     rules: FieldValidation.makeRules<Draft>({
-      isEmpty: draft => isBlank(control, draft),
+      isEmpty: blank,
       ...(required ? { required: say.required } : {}),
       rules: [
         [
@@ -559,16 +647,19 @@ const Core = {
     Members extends { readonly [K in keyof Fields]: InputMember },
     R = never,
     const Nest extends NestedForms<Fields, Members, R> = {},
+    const Inputs extends InputsFor<Fields, Members> = {},
   >(
     name: Name,
     input: EntityInput<E, Fields, Members>,
-    options: FormOptions<Fields, Members, R, Nest> = {},
+    options: FormOptions<Fields, Members, R, Nest, Inputs> = {},
   ) => {
     type AnyKey = keyof Fields & string
     type Key = Exclude<AnyKey, NestedKey<Members>>
     type RowsKey = Extract<AnyKey, NestedKey<Members>>
+    type ControlKey = keyof ControlsOf<Inputs> & Key
+    type DraftKey = Exclude<Key, ControlKey>
     type Value = Schema.Struct.Type<Fields>
-    type Model = FormModel<Fields, Members>
+    type Model = FormModel<Fields, Members, ControlsOf<Inputs>>
 
     const members: Readonly<Record<string, InputMember>> = input.members
     const everyKey = Object.keys(input.schema.fields) as ReadonlyArray<AnyKey>
@@ -595,6 +686,15 @@ const Core = {
       ]),
     ) as Readonly<Record<Key, Plan>>
 
+    // The keys whose control is backed by a Bundle: each holds that Bundle's Model.
+    const controlKeys = keys.filter(key => plans[key].bundled !== undefined)
+    for (const key of controlKeys)
+      if (options.checks !== undefined && key in options.checks)
+        fail(
+          name,
+          `"${key}" is edited by a control backed by a Bundle, which takes no check; say what is valid in its schema`,
+        )
+
     const givenForms: Readonly<Record<string, AnyForm | undefined>> = (options.nested ??
       {}) as never
     const nestedPlans = Object.fromEntries(
@@ -612,16 +712,18 @@ const Core = {
       ]),
     ) as Readonly<Record<RowsKey, NestedPlan>>
 
-    const draftSchema: Record<HeldDraft, Schema.Codec<Draft, any>> = {
+    const draftSchema: Record<Exclude<HeldDraft, 'model'>, Schema.Codec<Draft, any>> = {
       text: Schema.String,
       flag: Schema.Boolean,
       list: Schema.Array(Schema.String),
     }
+    const schemaOf = (plan: Plan): Schema.Codec<Draft, any> =>
+      plan.bundled !== undefined
+        ? (plan.bundled.bundle.Model as Schema.Codec<Draft, any>)
+        : draftSchema[plan.kind as Exclude<HeldDraft, 'model'>]
     const Model = Schema.Struct({
       fields: Schema.Struct(
-        Object.fromEntries(
-          keys.map(key => [key, FieldValidation.Field(draftSchema[plans[key].kind])]),
-        ),
+        Object.fromEntries(keys.map(key => [key, FieldValidation.Field(schemaOf(plans[key]))])),
       ),
       rows: Schema.Struct(
         Object.fromEntries(
@@ -648,6 +750,11 @@ const Core = {
         : Schema.Literals(keys as unknown as readonly [Key, ...Key[]])
     ) as Schema.Literals<readonly [Key, ...Key[]]>
     const DraftSchema = Schema.Union([Schema.String, Schema.Boolean, Schema.Array(Schema.String)])
+    const ControlKeySchema = (
+      controlKeys.length === 0
+        ? Schema.Never
+        : Schema.Literals(controlKeys as unknown as readonly [ControlKey, ...ControlKey[]])
+    ) as Schema.Literals<readonly [ControlKey, ...ControlKey[]]>
     const Message = defineMessageUnion({
       Changed: { key: KeySchema, value: DraftSchema },
       /** Validates the key as it stands, so a required key left empty says so. */
@@ -674,6 +781,12 @@ const Core = {
       Searched: { key: KeySchema, text: Schema.String },
       /** A Message of the nested form in one row of a nested key. One that row does not take is dropped. */
       Nested: { key: Schema.String, row: Schema.String, message: Schema.Unknown },
+      /**
+       * A Message of the control backed by a Bundle that edits `key`. One the
+       * Bundle does not take is dropped. It is an edit when it changes the key's
+       * value, and is then validated as `Changed` would be.
+       */
+      Control: { key: ControlKeySchema, message: Schema.Unknown },
       /** A new, empty row. A `one` that already has its row takes no other. */
       RowAdded: { key: Schema.String },
       /** Removes a row. A `one` that must be there stays. */
@@ -762,6 +875,42 @@ const Core = {
       mapMessages(commands, message => Message.Nested({ key, row, message })) as ReadonlyArray<
         Command<Message, never, R>
       >
+
+    /**
+     * Each control backed by a Bundle, placed where its key's draft is: its
+     * Subscriptions and Resources become the form's, keyed by the key, and its
+     * Messages travel as `Control`.
+     */
+    const placements = controlKeys.map(key => {
+      const bundled = plans[key].bundled!
+      const accepts = Schema.is(bundled.bundle.Message as Schema.Codec<unknown>)
+      const toParentMessage = (message: unknown): Message =>
+        Message.Control({ key: key as ControlKey, message })
+      const fromParentMessage = (message: { readonly _tag: string }): Option.Option<unknown> => {
+        const held = message as { readonly key?: unknown; readonly message?: unknown }
+        return message._tag === 'Control' && held.key === key && accepts(held.message)
+          ? Option.some(held.message)
+          : Option.none()
+      }
+      const link = Link.make({
+        read: (model: Model) => Option.some(drafts(model)[key].value),
+        // The draft changes and its validation state stays: `update` revalidates
+        // when the key's value changed.
+        write: (model: Model, child: Draft) =>
+          withField(model, key, { ...drafts(model)[key], value: child }),
+        wrapper: {
+          tag: 'Control',
+          Schema: Message.Control,
+          cases: {},
+          make: toParentMessage,
+          toParentMessage,
+          fromParentMessage,
+        } as never,
+        path: ['fields', key],
+      })
+      const placed = bundled.bundle.at(link as never, { args: bundled.args } as never)
+      return { key, bundled, placed: placed as unknown as PlacedControl<Model> }
+    })
 
     /**
      * Validates the draft of one key. A key with a check that passes its schema is
@@ -971,7 +1120,15 @@ const Core = {
         submitPending: false,
         fields: fieldsFrom(plan =>
           plan.key in given
-            ? FieldValidation.NotValidated({ value: draftOf(plan, given[plan.key]) })
+            ? FieldValidation.NotValidated({
+                value:
+                  plan.bundled !== undefined
+                    ? (plan.bundled.fill(
+                        drafts(model)[plan.key as Key].value,
+                        given[plan.key],
+                      ) as Draft)
+                    : draftOf(plan, given[plan.key]),
+              })
             : drafts(model)[plan.key as Key],
         ),
       }
@@ -992,10 +1149,35 @@ const Core = {
       }
     }
 
+    /** Whether a key's draft says the same thing in two Models: a control's by the value it holds. */
+    const sameValue = (key: Key, before: Draft, after: Draft): boolean => {
+      const bundled = plans[key].bundled
+      return bundled === undefined
+        ? sameDraft(before, after)
+        : Object.is(bundled.value(before), bundled.value(after))
+    }
+
+    /** The Subscriptions and Resources of the controls backed by a Bundle, which are the form's. */
+    const controlSubscriptions = Object.assign(
+      {},
+      ...placements.map(({ placed }) => placed.subscriptions),
+    ) as Readonly<Record<string, never>>
+    const controlResources = Object.assign(
+      {},
+      ...placements.map(({ placed }) => placed.resources),
+    ) as ControlResourcesOf<Inputs>
+
     const bundle = Bundle.make(name, {
       Model,
       Message,
-      init: () => ({ model: initial }),
+      // A control backed by a Bundle starts with its own init Commands.
+      init: () => ({
+        model: initial,
+        // `init` already wraps them as `Control`, through the placement's Link.
+        commands: placements.flatMap(
+          ({ placed }) => placed.init(initial).commands ?? [],
+        ) as Commands,
+      }),
       update: (
         model: Model,
         message: Message,
@@ -1052,6 +1234,20 @@ const Core = {
                 }
               : { model }
           }
+          case 'Control': {
+            const placement = placements.find(held => held.key === message.key)
+            if (placement === undefined) return { model }
+            const before = drafts(model)[message.key].value
+            const step = placement.placed.update(model, message)
+            if (Option.isNone(step)) return { model }
+            const { model: moved, commands = [] } = step.value
+            const after = drafts(moved)[message.key].value
+            // A Message that leaves the key's value as it was, such as a selection, is not an edit.
+            const lifted = commands as Commands
+            if (sameValue(message.key, before, after)) return { model: moved, commands: lifted }
+            const edit = changed(edited(moved), message.key, after)
+            return { model: edit.model, commands: [...lifted, ...edit.commands] }
+          }
           case 'Nested': {
             const plan: NestedPlan | undefined = nestedPlans[message.key as RowsKey]
             const row = rowsOf(model)[message.key]?.find(held => held.id === message.row)
@@ -1068,8 +1264,10 @@ const Core = {
                 held.id === row.id ? { id: row.id, model: answered.model } : held,
               ),
             )
+            const edit =
+              isEdit(inner) || plan.form.engine.authoredChanged(row.model, answered.model)
             return resume(
-              isEdit(inner) ? edited(next) : next,
+              edit ? edited(next) : next,
               lift(message.key, row.id, answered.commands ?? []),
             )
           }
@@ -1104,6 +1302,11 @@ const Core = {
         }
       },
       helpers: { fill },
+      // Only what the controls have: a form with none listens to nothing and holds nothing.
+      ...(Object.keys(controlSubscriptions).length === 0
+        ? {}
+        : { subscriptions: () => controlSubscriptions }),
+      ...(Object.keys(controlResources).length === 0 ? {} : { resources: () => controlResources }),
     })
 
     /**
@@ -1117,7 +1320,7 @@ const Core = {
       const beforeDrafts = drafts(before)
       const afterDrafts = drafts(after)
       for (const key of keys) {
-        if (!sameDraft(beforeDrafts[key].value, afterDrafts[key].value)) return true
+        if (!sameValue(key, beforeDrafts[key].value, afterDrafts[key].value)) return true
       }
       for (const key of rowsKeys) {
         const beforeRows = rowsOf(before)[key]!
@@ -1144,6 +1347,7 @@ const Core = {
         readonly Members: Members
         readonly R: R
         readonly Nest: Nest
+        readonly Inputs: Inputs
       },
       // Typed by `Pipeable`'s overloads, which read `this` at the call.
       ...({
@@ -1173,8 +1377,31 @@ const Core = {
        * `controls`. `model.fields.title` is the same value, typed to that key. A
        * nested key has rows and no draft.
        */
-      field: (model: Model, key: Key): FieldValidation.Field<Draft> =>
-        drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`),
+      field: (model: Model, key: DraftKey): FieldValidation.Field<Draft> => {
+        if (plans[key as Key]?.bundled !== undefined)
+          return fail(name, `"${key}" holds a control's Model, not a draft; read it with control`)
+        return (
+          drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`)
+        )
+      },
+      /**
+       * The key edited by a control backed by a Bundle, addressed: `field` is its
+       * state with the Bundle's Model as its value, and `send` gives the form's
+       * Message for one of the Bundle's own.
+       */
+      control: <K extends ControlKey>(
+        key: K,
+      ): {
+        readonly field: (model: Model) => Model['fields'][K]
+        readonly send: (message: ControlMessageOf<Inputs[K]>) => Message
+      } => {
+        if (plans[key]?.bundled === undefined)
+          fail(name, `"${key}" is not edited by a control backed by a Bundle`)
+        return {
+          field: model => model.fields[key],
+          send: message => Message.Control({ key, message }),
+        }
+      },
       /** What was typed to find a choice for a relation key that searches; `''` until something is. */
       search: (model: Model, key: Key): string => model.searches[key] ?? '',
       /** What the form is editing; `{}` while it creates. See `FormModel.subject`. */
@@ -1246,9 +1473,16 @@ const Core = {
         submitPending: false,
         fields: fieldsFrom(plan => {
           const field = drafts(model)[plan.key as Key]
-          return field._tag === 'Validating'
-            ? FieldValidation.NotValidated({ value: field.value })
-            : field
+          const held: FieldValidation.Field<Draft> =
+            plan.bundled === undefined
+              ? field
+              : ({
+                  ...field,
+                  value: plan.bundled.settled(field.value),
+                } as FieldValidation.Field<Draft>)
+          return held._tag === 'Validating'
+            ? FieldValidation.NotValidated({ value: held.value })
+            : held
         }),
         rows: Object.fromEntries(
           rowsKeys.map(key => [
@@ -1317,6 +1551,7 @@ interface FormTypes {
   readonly Members: any
   readonly R: unknown
   readonly Nest: any
+  readonly Inputs: any
 }
 
 /** A form as a pipe step takes it: what it was made from, and its type parameters. */
@@ -1329,7 +1564,7 @@ interface Remakeable<T extends FormTypes = FormTypes> {
 
 /** The form `Form.make` gives for these type parameters. */
 type Made<T extends FormTypes> = ReturnType<
-  typeof Core.make<T['Name'], T['E'], T['Fields'], T['Members'], T['R'], T['Nest']>
+  typeof Core.make<T['Name'], T['E'], T['Fields'], T['Members'], T['R'], T['Nest'], T['Inputs']>
 >
 
 type OptionsOf<T extends FormTypes> = FormOptions<T['Fields'], T['Members'], T['R'], T['Nest']>
@@ -1349,8 +1584,22 @@ const remake = (form: Remakeable, change: (options: Record<string, any>) => obje
 const steps = {
   /** Controls by key, beside the ones the form already names. */
   inputs:
-    <F extends Remakeable>(inputs: NonNullable<OptionsOf<F['types']>['inputs']>) =>
-    (form: F): F =>
+    <F extends Remakeable, const I extends InputsFor<F['types']['Fields'], F['types']['Members']>>(
+      inputs: I,
+    ) =>
+    (
+      form: F,
+    ): [keyof ControlsOf<I>] extends [never]
+      ? F
+      : Made<{
+          readonly Name: F['types']['Name']
+          readonly E: F['types']['E']
+          readonly Fields: F['types']['Fields']
+          readonly Members: F['types']['Members']
+          readonly R: F['types']['R']
+          readonly Nest: F['types']['Nest']
+          readonly Inputs: Omit<F['types']['Inputs'], keyof I> & I
+        }> =>
       remake(form, options => ({ inputs: { ...options.inputs, ...inputs } })),
 
   /** The form's words, beside the ones it already has. */
@@ -1380,6 +1629,7 @@ const steps = {
       readonly Members: F['types']['Members']
       readonly R: F['types']['R'] | RequirementOf<C>
       readonly Nest: F['types']['Nest']
+      readonly Inputs: F['types']['Inputs']
     }> =>
       remake(form, options => ({ checks: { ...options.checks, ...checks } })),
 
@@ -1400,6 +1650,7 @@ const steps = {
       readonly Members: F['types']['Members']
       readonly R: F['types']['R']
       readonly Nest: F['types']['Nest'] & N
+      readonly Inputs: F['types']['Inputs']
     }> =>
       remake(form, options => ({ nested: { ...options.nested, ...forms } })),
 }

@@ -7,6 +7,34 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-form`: `Input.bundle`, a control with a Model of its own.** A key's
+  draft can now be a Bundle's Model, such as a color picker with a popover, a
+  page builder, or a rich-text editor. `Input.bundle(kind, { bundle, value, fill, settled? })`
+  says how the key's value is read from the Model and written into it. The
+  Bundle's Messages travel as the form's new `Control` Message
+  (`form.control(key).send`), its Commands answer as `Control` Messages, and
+  its Subscriptions and Resources become the form's, keyed under the key. A
+  Message is an edit, validated and counted by `authoredChanged`, only when it
+  changes the key's value. `model.fields[key].value` is typed as the Bundle's
+  Model. The Bundle may have no OutMessage and need no services, the key takes
+  no `check`, and a nested form whose control has Subscriptions or Resources is
+  refused.
+- **`foldkit-mixins-form`: draws a control backed by a Bundle** with the
+  Bundle's own view inside a new `control` field slot, unless a renderer names
+  its kind. A renderer receives `bundle: { model, send }`, wrapped for its row
+  inside a nested form.
+- **`foldkit-cms`: the editor runs a form control's Subscriptions and
+  Resources** while an entry is open, and stops them when it closes.
+
+### Changed
+
+- **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
+  `control` and `Message.Control`. A switch over `DraftKind` handles the new
+  case, and a hand-written `NestedForm` adds the two members; forms made by
+  `Form.make` have them.
+
 ## 0.11.0
 
 `foldkit-remote`, `foldkit-remote-server` and `foldkit-remote-drizzle` 0.8.0;

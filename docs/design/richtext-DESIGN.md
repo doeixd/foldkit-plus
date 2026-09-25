@@ -2013,6 +2013,13 @@ Form delegates the child Bundle's Messages through its own Message union.
 
 # 44. Proposed Form model extension
 
+> **Built as `Input.bundle` (2026-09-25),** shared with the page builder's Phase 0.
+> A key's draft is the control Bundle's Model; its Messages travel as the form's
+> `Control` Message; its Commands, Subscriptions and Resources are the form's;
+> `value`, `fill` and `settled` are the hooks below, with `saved` folded into
+> `settled`. See [`foldkit-form`](../../packages/form/README.md#a-control-with-a-model-of-its-own).
+> The text below is the proposal as written.
+
 Conceptually:
 
 ```text

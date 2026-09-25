@@ -25,8 +25,10 @@ import type {
 } from 'foldkit-remote'
 import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
+import * as ManagedResource from 'foldkit/managedResource'
 import { defineMessageUnion } from 'foldkit/message'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import * as Subscription from 'foldkit/subscription'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import type { State } from './lifecycle.js'
@@ -110,7 +112,7 @@ export type EditorOut =
   | { readonly _tag: 'Overwrite' }
 
 /** The parts of a `Form.make` result the editor drives. */
-export interface EditorForm<FormModel, FormMessage, Value> {
+export interface EditorForm<FormModel, FormMessage, Value, Resources = {}> {
   readonly name: string
   readonly input: { readonly schema: Schema.Struct<any> }
   readonly bundle: {
@@ -121,6 +123,10 @@ export interface EditorForm<FormModel, FormMessage, Value> {
       message: FormMessage,
       args: void,
     ) => Update.ReturnWithOutMessage<FormModel, FormMessage, Submitted<Value>, any>
+    /** The Subscriptions of the form's controls backed by a Bundle, which the editor runs while open. */
+    readonly subscriptions?: (args: void) => Subscription.Subscriptions<FormModel, FormMessage, any>
+    /** Their Resources, which the editor holds while open. */
+    readonly resources?: (args: void) => Resources
   }
   readonly Message: {
     readonly Submitted: () => FormMessage
@@ -166,10 +172,10 @@ export interface EditorDomain<Root> {
   readonly contract: { readonly owner?: object | undefined }
 }
 
-export interface EditorContent<FormModel, FormMessage, Value> {
+export interface EditorContent<FormModel, FormMessage, Value, Resources = {}> {
   readonly name: string
   readonly entity: AnyEntity
-  readonly form: EditorForm<FormModel, FormMessage, Value>
+  readonly form: EditorForm<FormModel, FormMessage, Value, Resources>
   readonly roles: {
     readonly label: { readonly key: string } | undefined
     readonly slug: { readonly key: string } | undefined
@@ -252,10 +258,16 @@ export const makeEditor =
       >
     >
   }) =>
-  <const Name extends string, FormModel, FormMessage extends { readonly _tag: string }, Value>(
+  <
+    const Name extends string,
+    FormModel,
+    FormMessage extends { readonly _tag: string },
+    Value,
+    Resources = {},
+  >(
     name: Name,
     config: {
-      readonly content: EditorContent<FormModel, FormMessage, Value>
+      readonly content: EditorContent<FormModel, FormMessage, Value, Resources>
       /** How long after the last edit the draft is saved. Default: one second. */
       readonly rest?: Duration.Input
       /** Bumped when the form changes so that a saved Model no longer fits it. */
@@ -432,6 +444,26 @@ export const makeEditor =
         }),
         close: () => ({ model: closed }),
       },
+      // A form control backed by a Bundle may listen and hold resources: they
+      // run while an entry is open, and stop when the editor closes.
+      subscriptions: () =>
+        form.bundle.subscriptions === undefined
+          ? {}
+          : Subscription.lift(form.bundle.subscriptions(undefined))({
+              toChildModel: (model: Model) => model.form,
+              toParentMessage: (message: FormMessage): Message => message,
+              when: (model: Model) => model.mode !== 'closed',
+            }),
+      resources: () =>
+        (form.bundle.resources === undefined
+          ? {}
+          : ManagedResource.lift(
+              form.bundle.resources(undefined) as Readonly<Record<string, never>>,
+            )({
+              toChildModel: (model: Model) =>
+                model.mode === 'closed' ? Option.none() : Option.some(model.form),
+              toParentMessage: message => message as Message,
+            })) as [keyof Resources] extends [never] ? {} : Readonly<Record<string, never>>,
     })
 
     const EntryRead = Entity.select(

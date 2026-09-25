@@ -3,9 +3,12 @@
  * editor is driven end to end against a real server in `foldkit-cms-drizzle`;
  * this is the part that needs a failure arranged, so the domain is a stub.
  */
-import { Schema } from 'effect'
+import { Option, Schema, Stream } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
-import { Form } from 'foldkit-form'
+import { Form, Input } from 'foldkit-form'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
 import { Mutation, type MutationStatus } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { Cms } from '../src/index.js'
@@ -158,5 +161,97 @@ describe('telling the form which row it is editing', () => {
   it('says it once: settling again changes nothing', () => {
     const { placed, root } = world(undefined)
     expect(placed.sync(root).model.editor.form).toBe(root.editor.form)
+  })
+})
+
+describe('a form control backed by a Bundle', () => {
+  const Swatch = Bundle.make({
+    name: 'Swatch',
+    Model: Schema.Struct({ open: Schema.Boolean, hex: Schema.String }),
+    Message: defineMessageUnion({ Opened: {}, Chose: { hex: Schema.String } }),
+    init: () => ({ model: { open: false, hex: '#000000' } }),
+    update: (model, message) =>
+      message._tag === 'Opened'
+        ? { model: { ...model, open: true } }
+        : { model: { ...model, hex: message.hex } },
+    subscriptions: () =>
+      Subscription.make<
+        { readonly open: boolean; readonly hex: string },
+        { readonly _tag: 'Opened' }
+      >()(entry => ({
+        keys: entry(
+          { open: Schema.Boolean },
+          {
+            modelToDependencies: model => ({ open: model.open }),
+            dependenciesToStream: () => Stream.empty,
+          },
+        ),
+      })),
+  })
+  const ColorPost = Entity.define(
+    'ColorPost',
+    Schema.Struct({
+      id: Schema.String,
+      title: Schema.String,
+      slug: Schema.String,
+      color: Schema.String,
+      publishedAt: Schema.NullOr(Schema.String),
+    }),
+  ).pipe(Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }))
+  const ColorInput = Schema.Struct({
+    title: Schema.String,
+    slug: Schema.String,
+    color: Schema.String,
+  })
+  const ColorForm = Form.make('ColorForm', Entity.input(ColorPost, ColorInput), {
+    inputs: {
+      slug: Cms.slug('title'),
+      color: Input.bundle('Swatch', {
+        bundle: Swatch,
+        value: model => model.hex,
+        fill: (model, hex) => ({ ...model, hex }),
+      }),
+    },
+  })
+  const ColorPosts = Cms.content('colorPosts', {
+    entity: ColorPost,
+    form: ColorForm,
+    publish: {
+      create: Mutation.make('CreateColorPost', {
+        Input: ColorInput,
+        Output: { id: Schema.String },
+      }),
+      update: Mutation.make('UpdateColorPost', {
+        Input: { ...ColorInput.fields, id: Schema.String },
+        Output: {},
+      }),
+    },
+    words: { one: 'Post', many: 'Posts' },
+  })
+  const ColorEditor = Cms.editor('ColorEditor', { content: ColorPosts, rest: 0 })
+  const closed = ColorEditor.bundle.init(undefined).model
+  const open = { ...closed, mode: 'edit' as const, entry: 'e1' }
+  const color = ColorForm.control('color')
+  const rests = (commands: ReadonlyArray<{ readonly name: string }> | undefined) =>
+    (commands ?? []).filter(command => command.name === 'ColorEditor.rest').length
+
+  it('saves when the control changes the value, not when it only changes its own state', () => {
+    const opened = ColorEditor.bundle.update(open, color.send({ _tag: 'Opened' }), undefined)
+    expect(rests(opened.commands)).toBe(0)
+    const chosen = ColorEditor.bundle.update(
+      opened.model,
+      color.send({ _tag: 'Chose', hex: '#ff0000' }),
+      undefined,
+    )
+    expect(rests(chosen.commands)).toBe(1)
+  })
+
+  it('runs the control’s Subscription while an entry is open, and not while closed', () => {
+    const keys = ColorEditor.bundle.subscriptions?.(undefined)['Swatch@fields.color/keys']
+    expect(keys?.modelToDependencies(closed)).toEqual({ maybeDependencies: Option.none() })
+    // Lifted twice, by the form and by the editor: each gate wraps the one inside.
+    expect(keys?.modelToDependencies(open)).toEqual({
+      maybeDependencies: Option.some({ maybeDependencies: Option.some({ open: false }) }),
+    })
   })
 })

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 /**
- * Track 2 spike: what a stateful control needs from Form. The control itself
- * works (`colorPicker.ts`); these tests show how far the current Form API
- * carries it, so the missing pieces are evidence rather than guesswork.
+ * Track 2: a stateful control as a Form key. The control works on its own and
+ * under a plain parent (`colorPicker.ts`); the last block is the acceptance
+ * test for `Input.bundle`, which carries all of it through a form.
  */
 import { Option, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Bundle, Link } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
-import { Form, Input, type DraftKind } from 'foldkit-form'
+import { Form, Input } from 'foldkit-form'
 import { ColorPicker, Message as ColorMessage, Model as ColorModel } from '../src/colorPicker.js'
 
 describe('the control on its own', () => {
@@ -63,57 +63,79 @@ describe('the control under a plain parent', () => {
   })
 })
 
-describe('what Form cannot carry today', () => {
+describe('the control as a Form key, through Input.bundle', () => {
   const Post = Entity.define(
     'Post',
     Schema.Struct({ id: Schema.String, title: Schema.String, color: Schema.String }),
   )
   const PostInput = Schema.Struct({
-    id: Schema.String,
     title: Post.fields.title.schema,
-    color: Post.fields.color.schema,
+    color: Post.fields.color.schema.check(Schema.isPattern(/^#[0-9a-f]{6}$/)),
   })
-  const PostForm = Form.make('PostForm', Entity.input(Post, PostInput))
-
-  it('holds a draft, not a child Model: the key has no room for the picker’s state', () => {
-    const model = PostForm.bundle.init(undefined).model
-    const field = PostForm.field(model, 'color')
-    // A `FieldValidation.Field<string>`: the value is the text, and there is no
-    // place for `open`, `recent`, or a Resource's requirements.
-    expect(Object.keys(field).sort()).toEqual(['_tag', 'value'])
-    expect(typeof field.value).toBe('string')
+  const ColorInput = Input.bundle('ColorPicker', {
+    bundle: ColorPicker,
+    value: model => model.hex,
+    fill: (model, hex) => ({ ...model, hex }),
+    settled: model => ({ ...model, open: false }),
   })
+  const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
+    inputs: { color: ColorInput },
+  })
+  const color = PostForm.control('color')
+  type FormModel = typeof PostForm.initial
+  const update = (model: FormModel, message: typeof PostForm.Message.Type) =>
+    PostForm.bundle.update(model, message, undefined)
 
-  it('has no Message case a control could dispatch, so its intents cannot reach the form', () => {
-    const tags = Object.keys(PostForm.Message)
-    expect(tags).toEqual(
-      expect.arrayContaining([
-        'Changed',
-        'Blurred',
-        'Submitted',
-        'Reset',
-        'Checked',
-        'Searched',
-        'Nested',
-      ]),
-    )
-    // Nothing a control defines: an `Opened` or a `Chose` has no route in.
-    for (const tag of ['Opened', 'Closed', 'Chose', 'Resolved', 'Failed']) {
-      expect(tags).not.toContain(tag)
-    }
+  it('holds the picker’s Model as the key’s draft, with room for all of its state', () => {
+    expect(color.field(PostForm.initial).value).toEqual({
+      open: false,
+      hex: '#000000',
+      recent: [],
+    })
   })
 
-  it('declares no Subscriptions and no Resources, so a control’s cannot run', () => {
-    expect(PostForm.bundle.subscriptions).toBeUndefined()
-    expect(PostForm.bundle.resources).toBeUndefined()
+  it('routes the picker’s Messages, and lifts its Command as the form’s', () => {
+    const opened = update(PostForm.initial, color.send(ColorMessage.Opened())).model
+    expect(color.field(opened).value.open).toBe(true)
+    // Opening changes no value: not an edit, so nothing to autosave.
+    expect(PostForm.authoredChanged(PostForm.initial, opened)).toBe(false)
+
+    const chosen = update(opened, color.send(ColorMessage.Chose({ hex: '#ff0000' })))
+    expect(chosen.commands?.map(command => command.name)).toEqual(['palette.lookup'])
+    expect(PostForm.authoredChanged(opened, chosen.model)).toBe(true)
+    expect(color.field(chosen.model)._tag).toBe('Valid')
   })
 
-  it('refuses a draft that is not text, a flag, or a list of ids', () => {
-    // The type of `draft` is `'text' | 'flag' | 'list' | 'rows'`, so a control
-    // that holds a child Model cannot be declared at all.
-    const declared: ReadonlyArray<DraftKind> = ['text', 'flag', 'list', 'rows']
-    expect(declared).toHaveLength(4)
-    // @ts-expect-error A control's draft cannot be a child Model.
-    Input.kind('ColorPicker', { draft: 'model' })
+  it('runs the picker’s Subscription and Resource as the form’s', () => {
+    expect(Object.keys(PostForm.bundle.subscriptions?.(undefined) ?? {})).toEqual([
+      'ColorPicker@fields.color/keys',
+    ])
+    expect(Object.keys(PostForm.bundle.resources?.(undefined) ?? {})).toEqual([
+      'ColorPicker@fields.color/palette',
+    ])
+  })
+
+  it('validates, fills, submits and saves the key by the value the picker holds', () => {
+    const odd = update(PostForm.initial, color.send(ColorMessage.Chose({ hex: 'red' }))).model
+    expect(color.field(odd)._tag).toBe('Invalid')
+
+    const filled = PostForm.fill(PostForm.initial, { title: 'Hi', color: '#00ff00' }).model
+    expect(PostForm.partial(filled)).toEqual({ title: 'Hi', color: '#00ff00' })
+    expect(update(filled, PostForm.Message.Submitted()).outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { title: 'Hi', color: '#00ff00' },
+    })
+  })
+
+  it('resumes a stored form with the picker closed and its palette kept', () => {
+    const opened = update(PostForm.initial, color.send(ColorMessage.Opened())).model
+    const resolved = update(opened, color.send(ColorMessage.Resolved({ hex: '#123456' }))).model
+    const stored = Schema.encodeSync(PostForm.bundle.Model)(resolved)
+    const resumed = PostForm.settled(Schema.decodeUnknownSync(PostForm.bundle.Model)(stored))
+    expect(color.field(resumed).value).toEqual({
+      open: false,
+      hex: '#123456',
+      recent: ['#123456'],
+    })
   })
 })

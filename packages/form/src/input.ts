@@ -9,6 +9,7 @@
  * draws a kind is the application's.
  */
 import { Schema } from 'effect'
+import type { Bundle } from 'foldkit-bundle'
 import type { AnyEntity, InputMember } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 
@@ -18,8 +19,12 @@ import { Metadata } from 'foldkit-metadata'
  */
 export type Draft = string | boolean | ReadonlyArray<string>
 
-/** The draft a control holds. `rows` is a nested key: rows of a form, not a draft. */
-export type DraftKind = 'text' | 'flag' | 'list' | 'rows'
+/**
+ * The draft a control holds. `rows` is a nested key: rows of a form, not a
+ * draft. `model` is a control backed by a Bundle (`Input.bundle`): its draft is
+ * the Bundle's Model.
+ */
+export type DraftKind = 'text' | 'flag' | 'list' | 'rows' | 'model'
 
 /** What edits one key: the primitive every kind of control is a value of. */
 export interface Control<Data = unknown> {
@@ -92,8 +97,11 @@ export interface NestedForm {
   readonly rows: (model: never, key: never) => ReadonlyArray<FormRow>
   readonly search: (model: never, key: never) => string
   readonly isFollowing: (model: never, key: never) => boolean
+  /** A key edited by a control backed by a Bundle: its state, with the Bundle's Model as the value. */
+  readonly control: (key: never) => { readonly field: (model: never) => unknown }
   readonly Message: {
     readonly Changed: (payload: never) => unknown
+    readonly Control: (payload: never) => unknown
     readonly Blurred: (payload: never) => unknown
     readonly Searched: (payload: never) => unknown
     readonly Nested: (payload: never) => unknown
@@ -127,6 +135,58 @@ const kind = <Data = Record<string, never>>(
     }),
   is: (control): control is Control<Data> => control.kind === name,
 })
+
+/**
+ * What a control backed by a Bundle carries: the Bundle, its args, and how the
+ * key's value is read from its Model and written into it.
+ */
+export interface BundleData<Model = any, Value = any> {
+  readonly bundle: Bundle.AnyBundle
+  readonly args: unknown
+  /** The value the key validates and submits. `undefined` or `null` is nothing entered. */
+  readonly value: (model: Model) => Value | null | undefined
+  /** The Model showing a value the form was given, from the Model the control holds. */
+  readonly fill: (model: Model, value: Value) => Model
+  /** The Model with nothing in flight, for a stored form shown again. */
+  readonly settled: (model: Model) => Model
+}
+
+/**
+ * A control backed by a Bundle. Its draft is the Bundle's Model, its Messages
+ * reach it through the form, and its Commands, Subscriptions and Resources are
+ * the form's.
+ */
+export interface BundleControl<Model, Message, Value, Resources = {}> extends Control<
+  BundleData<Model, Value>
+> {
+  readonly draft: 'model'
+  /** Type-only: the Bundle's Message, for `form.control(key).send`. Never set. */
+  readonly Message?: Message
+  /** Type-only: the Bundle's Resources, which a runtime running the form must provide. Never set. */
+  readonly Resources?: Resources
+}
+
+/** What `Input.bundle` takes: the Bundle, then how the key's value lives in its Model. */
+export type BundleControlSpec<
+  Args,
+  Model,
+  Message extends { readonly _tag: string },
+  Value,
+  Resources extends Bundle.ResourceEntries<Model, Message> = {},
+> = {
+  /**
+   * The Bundle. Its Commands may need no services, and it has no OutMessage: a
+   * form key has no parent to hand one to, and an OutMessage is never dropped
+   * by omission.
+   */
+  readonly bundle: Bundle.Bundle<any, Args, Model, Message, never, never, any, any, Resources, any>
+  /** The value the key validates and submits. `undefined` or `null` is nothing entered. */
+  readonly value: (model: Model) => Value | null | undefined
+  /** The Model showing a value the form was given (`fill`), from the Model the control holds. */
+  readonly fill: (model: Model, value: Value) => Model
+  /** The Model with nothing in flight, for a stored form shown again. Default: as it is. */
+  readonly settled?: (model: Model) => Model
+} & ([Args] extends [void] ? { readonly args?: undefined } : { readonly args: Args })
 
 /** A relation picker: what it chooses from, and whether it searches. */
 export interface RelationData {
@@ -218,6 +278,41 @@ export const Input = {
   RelationOne,
   RelationMany,
   Nested,
+
+  /**
+   * A control backed by a Bundle, for a draft that is a Model of its own: a
+   * color picker with a popover, a page builder, a rich-text editor. The key's
+   * draft is the Bundle's Model; `value` reads what the key validates and
+   * submits from it, and `fill` writes a given value into it. The Bundle's
+   * Messages travel as the form's `Control` Message, and its Commands,
+   * Subscriptions and Resources become the form's.
+   */
+  bundle: <
+    Args,
+    Model,
+    Message extends { readonly _tag: string },
+    Value,
+    Resources extends Bundle.ResourceEntries<Model, Message> = {},
+  >(
+    kind: string,
+    spec: BundleControlSpec<Args, Model, Message, Value, Resources>,
+  ): BundleControl<Model, Message, Value, Resources> =>
+    Object.freeze({
+      kind,
+      draft: 'model' as const,
+      shown: true,
+      searches: false,
+      data: Object.freeze({
+        bundle: spec.bundle as Bundle.AnyBundle,
+        args: spec.args,
+        value: spec.value,
+        fill: spec.fill,
+        settled: spec.settled ?? ((model: Model) => model),
+      }),
+    }),
+
+  /** Whether a control is backed by a Bundle, whatever its kind is called. */
+  isBundle: (control: Control): control is Control<BundleData> => control.draft === 'model',
 
   text: (): Control => Text.of(nothing),
   /** Carried and submitted, not shown: the id of the thing being edited. Set it with `fill`. */
