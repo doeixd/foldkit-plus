@@ -6,10 +6,11 @@ The Document is stored like any other field, checked against a Catalog, and
 changed by the application's own transitions. This package performs no I/O,
 holds no state and draws nothing.
 
-> **Status: in development, not published.** Phases 1 and 2 of the
+> **Status: in development, not published.** Phases 1 to 3 of the
 > [page builder design](../../docs/design/pagebuilder-DESIGN.md) are built: the
-> vocabulary, the stored Document, its validation, editing Operations and undo
-> history. A Foldkit renderer and the visual Builder come in later phases.
+> vocabulary, the stored Document, its validation, editing Operations, undo
+> history and migrations. A Foldkit renderer and the visual Builder come in
+> later phases.
 
 ## What it owns
 
@@ -236,6 +237,41 @@ undo clears redo. A snapshot shares everything the edit did not touch. Whatever
 replaces the Document from outside the editor, such as a fill, a reset or a
 restored revision, should start a new `History.empty()`.
 
+## Migrations and unknown Blocks
+
+A Block that a deployment no longer has does not make its pages unreadable. Its
+nodes load, round-trip, render as a placeholder once a renderer exists, and can
+be reordered where they are or removed. `validate` reports them, so the strict
+check refuses to publish until they are dealt with. Migrations deal with them:
+
+```ts
+const { document, applied, unused } = Composition.migrate(stored, [
+  Composition.renameBlock('OldHeading', 'Heading'),
+  Composition.renameProp('Heading', 'alignment', 'align'),
+  Composition.promoteUnknown('LegacyVideo to Embed', 'LegacyVideo', Embed),
+  Composition.migration('DangerToCritical', 'Callout', node =>
+    node.props['tone'] === 'danger' ? { ...node, props: { ...node.props, tone: 'critical' } } : undefined,
+  ),
+])
+// applied: [{ name, node }] in the order made; unused: names that rewrote nothing
+```
+
+- **The list is the chain.** A later migration sees what an earlier one made.
+- **A migration rewrites a node, never its id,** and the Document's structure is
+  checked after each one that changed something: a Region pointing at nothing, a
+  node placed twice, a cycle or a stranded node throws, naming the migration.
+  What was already wrong before it ran is not held against it.
+- **The result is still content.** A rewritten node must decode as a Node.
+- **Declining is allowed.** Returning `undefined` keeps the node.
+  `promoteUnknown` declines for a node whose props do not decode as the target
+  Block's, so it stays as it was rather than half converted.
+- **They run where you choose,** such as on load, before a publish, or as an
+  explicit upgrade, never on every read.
+
+A Block the Catalog does not know can be reordered within the Region or the
+roots it is in, and removed. It cannot be moved elsewhere, and its props cannot
+be set, since nothing could check either.
+
 ## Performance
 
 `pnpm bench` measures a page of 1,000 nodes (`bench/operations.bench.ts`). On
@@ -263,5 +299,5 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 ## Limits
 
 - No renderer yet: drawing a Document is Phase 4 of the design.
-- No migrations yet: renaming a Block or a prop in stored pages is Phase 3.
+
 - Conditions, appearance and actions are stored but not interpreted.

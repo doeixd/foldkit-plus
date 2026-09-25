@@ -87,3 +87,27 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     { readonly history: History; readonly document: Document } | undefined
   >()
 }
+
+// Migrations and unknown Blocks
+{
+  const Embed = Block.define('Embed', {
+    Props: Schema.Struct({ url: Schema.String, height: Schema.Number }),
+    provides: [Content.Flow, Content.Media],
+  })
+  const stored = page
+  const { document, applied, unused } = Composition.migrate(stored, [
+    Composition.renameBlock('OldHeading', 'Heading'),
+    Composition.renameProp('Heading', 'alignment', 'align'),
+    Composition.promoteUnknown('LegacyVideo to Embed', 'LegacyVideo', Embed),
+    Composition.migration('DangerToCritical', 'Callout', node =>
+      node.props['tone'] === 'danger'
+        ? { ...node, props: { ...node.props, tone: 'critical' } }
+        : undefined,
+    ),
+  ])
+  expectTypeOf(document).toEqualTypeOf<Document>()
+  expectTypeOf(applied).toEqualTypeOf<
+    ReadonlyArray<{ readonly name: string; readonly node: NodeId }>
+  >()
+  expectTypeOf(unused).toEqualTypeOf<ReadonlyArray<string>>()
+}

@@ -4,8 +4,8 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Phases 0 to 2 are built: `Input.bundle`,
-the `foldkit-composition` core, and its Operations and History.
+which the first draft could assume. Phases 0 to 3 are built: `Input.bundle`,
+the `foldkit-composition` core, its Operations and History, and migrations.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -951,9 +951,16 @@ of §8, `rekey`, History (§9), and the benchmark (§25).
 > `Composition.newIds` mints ids as an Effect for the Builder's Command, and
 > `takeTree` and `rekey` carry a copy and paste.
 
-**Phase 3: migrations and unknown Blocks.** `migrate`, `renameBlock`, `migration`
+**Phase 3: migrations and unknown Blocks. Done.** `migrate`, `renameBlock`, `migration`
 and `promoteUnknown` with the enforced rules, and a restored old revision proving
 an unknown Block survives.
+
+> **As built.** A migration is given the node, not its id, so identity cannot
+> change; the structure is checked after each migration that rewrote something,
+> and only faults it introduced throw. `renameProp` joins the helpers. An
+> unknown Block can be reordered within the Region or roots it is in and
+> removed; moving it elsewhere is refused, since nothing can say the new place
+> accepts it.
 
 **Phase 4: the Foldkit renderer.** Hero, Section, Text, Image, Button and Columns
 through ordinary views; `Composition.Url`; placeholders; and a published route

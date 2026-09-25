@@ -39,7 +39,10 @@ version changed; `pnpm` skips versions already in the registry.
   insert a tree, remove, move, duplicate, set and unset a prop, the reserved
   fields, a batch), refusing what an Operation would cause with no partial
   result, and never minting an id itself. `History` keeps undo snapshots,
-  grouped without a clock. Phases 1 and 2 of the page builder design.
+  grouped without a clock. `Composition.migrate` moves stored pages forward
+  through named migrations (`renameBlock`, `renameProp`, `promoteUnknown`, or
+  one of your own), each rewriting a node or declining, and throws when one
+  breaks the Document's structure. Phases 1 to 3 of the page builder design.
 
 ### Changed
 

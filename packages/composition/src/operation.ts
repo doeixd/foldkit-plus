@@ -232,10 +232,20 @@ const checkIndex = (at: Position, array: ReadonlyArray<NodeId>): void => {
  * Whether `id` may go at `at`: the parent's Region accepts it and has room, or
  * the Catalog's roots accept it, and the index is within the array.
  */
-const checkPlacement = (catalog: Catalog, draft: Draft, id: NodeId, at: Position): void => {
+const checkPlacement = (
+  catalog: Catalog,
+  draft: Draft,
+  id: NodeId,
+  at: Position,
+  reorder = false,
+): void => {
   const array = arrayAt(catalog, draft, at)
   checkIndex(at, array)
-  const block = blockOf(catalog, nodeOf(draft, id), id)
+  const node = nodeOf(draft, id)
+  // A Block the Catalog does not know may be reordered where it already is,
+  // and nowhere else: nothing can say whether another place accepts it.
+  if (reorder && Catalog.block(catalog, node.block) === undefined) return
+  const block = blockOf(catalog, node, id)
   if (at._tag === 'Root') {
     if (!accepts(catalog.roots, block.provides))
       refuse(
@@ -463,14 +473,15 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
           `"${op.id}" cannot go inside itself, at ${describePosition(op.to)}`,
         )
       const to = op.to
-      // A reorder inside one Region never leaves it short.
-      unplace(
-        catalog,
-        draft,
-        op.id,
-        where => to._tag === 'Region' && where.parent === to.parent && where.region === to.region,
-      )
-      checkPlacement(catalog, draft, op.id, to)
+      const from = placeOf(draft, op.id)
+      // A reorder stays in the array it was in: it never leaves a Region short.
+      const reorder =
+        from !== undefined &&
+        (to._tag === 'Root'
+          ? from.parent === undefined
+          : from.parent === to.parent && from.region === to.region)
+      unplace(catalog, draft, op.id, () => reorder)
+      checkPlacement(catalog, draft, op.id, to, reorder)
       place(draft, op.id, to)
       return
     }

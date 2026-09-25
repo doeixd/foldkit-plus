@@ -7,6 +7,7 @@
  * and draws nothing.
  */
 import { describe } from './describe.js'
+import { migrate, migration, promoteUnknown, renameBlock, renameProp } from './migrate.js'
 import { Document, Node, NodeId, empty, index, newIds } from './document.js'
 import { Operation, Op, Position, Tree, apply, rekey, region, root, takeTree } from './operation.js'
 import { valid, validate } from './validate.js'
@@ -16,6 +17,7 @@ export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'
 export { History } from './history.js'
+export type { Migrated, Migration } from './migrate.js'
 export {
   Operation,
   Position,
@@ -61,4 +63,17 @@ export const Composition = {
   /** A subtree under new ids, every reference renamed; throws unless `ids` names each node once. */
   rekey,
   Tree,
+  /**
+   * Moves a stored Document forward through named migrations, in order. Each
+   * rewrites a node or declines; one that breaks the structure throws.
+   */
+  migrate,
+  /** A migration of one Block's nodes. */
+  migration,
+  /** Every node of one Block name becomes another. */
+  renameBlock,
+  /** A prop of one Block renamed, its value kept. */
+  renameProp,
+  /** Nodes of a Block the Catalog lost become a Block it has, when their props decode as its. */
+  promoteUnknown,
 }

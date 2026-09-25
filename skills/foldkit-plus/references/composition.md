@@ -1,9 +1,9 @@
 # foldkit-composition
 
-**In development, not published.** Phases 1 and 2 of the page builder design are
+**In development, not published.** Phases 1 to 3 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
-editing Operations and undo History. A renderer and the visual Builder are
-later phases.
+editing Operations, undo History and migrations. A renderer and the visual
+Builder are later phases.
 
 ## What it owns
 
@@ -67,6 +67,11 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `History.undo(history, current)`, `History.redo(...)`: snapshots, bounded at
   200; consecutive `setProp`s of one prop of one node are one step. Start a new
   History when the Document is replaced from outside (fill, reset, restore).
+- **Migrate stored pages:** `Composition.migrate(doc, [Composition.renameBlock(from, to),
+  Composition.renameProp(block, from, to), Composition.promoteUnknown(name, from, ToBlock),
+  Composition.migration(name, block, node => node | undefined)])` gives
+  `{ document, applied, unused }`. Run it on load, before publish or as an
+  upgrade. A migration that breaks the structure throws.
 
 ## Gotchas
 
@@ -81,7 +86,8 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
 - Regions are not Mixins Slots, and Content is not a Mixins capability.
 - `when`, `appearance` and `actions` are stored as JSON and not yet interpreted.
 - `apply` refuses only what the Operation causes; it keeps working beside an
-  unknown Block, but cannot set that Block's props.
+  unknown Block, which can be reordered where it is or removed, but not moved
+  elsewhere or have its props set.
 
 ## See also
 
