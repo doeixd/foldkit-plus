@@ -1267,12 +1267,16 @@ Each is answered by building, not by debate, and none changes the ownership mode
   Subscription over the read `PageBuilder.document`/`selected` replaces the URL
   when the selection changes. No Form or Mirror API is needed; the Builder
   README gets the recipe, and the CMS example uses it once it routes.
-- **A relation picker for a Block prop: the form's picker, fed the same way.**
+- **A relation picker for a Block prop: the form's picker, fed the same way. Built.**
   A Block asks for it with `BuilderView.controls({ category:
   Input.relationOne(...) })`, as it asks for a multiline box, and its choices
   come in the Builder's view inputs as `options`, keyed `'Block.prop'`, the way
   `FormViewInputs.nestedOptions` keys a nested picker by path. Loading them is
-  the application's query, as it is for any form picker.
+  the application's query, as it is for any form picker. *As built:* the
+  inspector draws its own `select` and checkboxes, since its fields are not a
+  form's; `Input.relationOne(Entity)` and `relationMany` are new in
+  `foldkit-form`. A blank is offered when the prop's Schema admits `null`, and
+  there is no search box.
 - **Rich text on the canvas (7c-2)** still waits for `foldkit-richtext-dom`'s
   editor Bundle and host to settle; the other session is changing them.
 - **Publishing** waits until the canvas data and the picker land, since both

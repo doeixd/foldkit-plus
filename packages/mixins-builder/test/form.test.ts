@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 /**
  * The drawn Builder as a form key, on a running page: a form view that gives
- * the key no inputs still draws it, and one that gives it the page's data
- * draws the canvas with that data.
+ * the key no inputs still draws it, one that gives it the page's data draws
+ * the canvas with that data, and one that gives it a relation prop's choices
+ * draws that prop's picker with them.
  */
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Composition, NodeId } from 'foldkit-composition'
+import { Composition, type Document, type Node, NodeId } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { FormView } from 'foldkit-mixins-form'
@@ -42,9 +43,8 @@ const Page = Bundle.parent({ Model, Message })
 const Placed = Page.at(Slot, { onOut: () => model => ({ model }) })
 const placements = Page.assemble(Placed)
 
-// A page holding one Feed, whose view draws what its node reads.
-const fed = PageBuilder.replace(
-  PageBuilder.initial,
+/** A page of one Section holding `node`, as `f`. */
+const holding = (node: Node) =>
   Composition.Document.make({
     format: 1,
     roots: [NodeId.make('s')],
@@ -54,12 +54,13 @@ const fed = PageBuilder.replace(
         props: { tone: 'plain' },
         regions: { body: [NodeId.make('f')] },
       },
-      [NodeId.make('f')]: { block: 'Feed', props: {}, regions: {} },
+      [NodeId.make('f')]: node,
     },
-  }),
-)
+  })
+// A Feed's view draws what its node reads.
+const fed = holding({ block: 'Feed', props: {}, regions: {} })
 
-const mount = (controls: Readonly<Record<string, unknown>> | undefined) => {
+const mount = (controls: Readonly<Record<string, unknown>> | undefined, page: Document = fed) => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
@@ -77,7 +78,7 @@ const mount = (controls: Readonly<Record<string, unknown>> | undefined) => {
         init: () => ({
           model: {
             ...initial,
-            page: PageForm.fill(initial.page, { document: fed.page.present }).model,
+            page: PageForm.fill(initial.page, { document: page }).model,
           },
         }),
         update: (model: Model, message: Message) => update(model, message),
@@ -104,6 +105,85 @@ it('draws the canvas with the page’s data the form view gives its key', async 
   const handle = mount({ document: BuilderView.inputs({ data: { f: 'three posts' } }) })
   try {
     await vi.waitFor(() => expect(feed()).toBe('three posts'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('draws a relation prop’s picker with the choices the form view gives the Builder', async () => {
+  const handle = mount(
+    {
+      document: BuilderView.inputs({
+        options: {
+          'Featured.category': [
+            { value: 'c1', label: 'Chairs' },
+            { value: 'c2', label: 'Tables' },
+          ],
+          'Featured.maker': [{ value: 'm1', label: 'Acme' }],
+          'Featured.tags': [
+            { value: 't1', label: 'Oak' },
+            { value: 't2', label: 'Pine' },
+          ],
+        },
+      }),
+    },
+    holding({
+      block: 'Featured',
+      props: { category: 'c1', maker: 'm1', tags: ['gone'] },
+      regions: {},
+    }),
+  )
+  const featured = () => document.querySelector('[aria-label="Page"] .featured')?.textContent
+  try {
+    await vi.waitFor(() => expect(featured()).toBe('c1: gone'))
+    // A click on the page selects its node, once the canvas's Behavior is attached.
+    await vi.waitFor(() => {
+      document.querySelector<HTMLElement>('[aria-label="Page"] .featured')?.click()
+      expect(document.querySelector('[data-builder-row="f"]')?.getAttribute('aria-selected')).toBe(
+        'true',
+      )
+    })
+    const category = await vi.waitFor(() => {
+      const select = document.querySelector<HTMLSelectElement>('select[id$="-f-category"]')
+      expect(select).not.toBeNull()
+      return select
+    })
+    // Optional, so it offers none; the choices by their names.
+    expect(Array.from(category?.options ?? [], option => option.text)).toEqual([
+      'none',
+      'Chairs',
+      'Tables',
+    ])
+    expect(category?.value).toBe('c1')
+    // Required, and chosen: nothing to go back to.
+    const maker = document.querySelector<HTMLSelectElement>('select[id$="-f-maker"]')
+    expect(Array.from(maker?.options ?? [], option => option.text)).toEqual(['Acme'])
+    if (category !== null) {
+      category.value = 'c2'
+      category.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    await vi.waitFor(() => expect(featured()).toBe('c2: gone'))
+    // A tag the choices lack stays chosen, shown, until it is let go.
+    const tags = () =>
+      Array.from(document.querySelectorAll<HTMLInputElement>('[aria-label="tags"] input'), box => [
+        box.parentElement?.textContent,
+        box.checked,
+      ])
+    expect(tags()).toEqual([
+      ['Oak', false],
+      ['Pine', false],
+      ['? gone', true],
+    ])
+    document.querySelector<HTMLElement>('[aria-label="tags"] input[value="t2"]')?.click()
+    await vi.waitFor(() => expect(featured()).toBe('c2: gone, t2'))
+    document.querySelector<HTMLElement>('[aria-label="tags"] input[value="gone"]')?.click()
+    await vi.waitFor(() => expect(featured()).toBe('c2: t2'))
+    const none = document.querySelector<HTMLSelectElement>('select[id$="-f-category"]')
+    if (none !== null) {
+      none.value = ''
+      none.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    await vi.waitFor(() => expect(featured()).toBe('none: t2'))
   } finally {
     handle.dispose()
   }

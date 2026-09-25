@@ -153,6 +153,10 @@ const Cms = Post.pipe(Entity.annotateMembers({ title: Input.of(Input.multiline()
 Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { id: Input.text() } })
 ```
 
+A key that holds an id without being a relation asks for a picker with
+`Input.relationOne(Author)` or `Input.relationMany(Tag)`, as the page Builder's
+Block props do.
+
 ### Your own kind of control
 
 The kinds above are made with `Input.kind`, and so is a date picker, a rich text

@@ -161,23 +161,29 @@ const contextValue = (control: Control | undefined, raw: string): ContextValue =
   return raw
 }
 
+/** Choices named by themselves. */
+const named = (values: ReadonlyArray<string>): ReadonlyArray<BuilderOption> =>
+  values.map(value => ({ value, label: value }))
+
 /**
  * A select's options: a blank, the choices, and a stored value the choices lack,
- * shown as `? value` and chosen, rather than the blank misreporting it.
+ * shown as `? value` and chosen, rather than the blank misreporting it. With no
+ * word for the blank, it is offered only while nothing is chosen.
  */
 const optionsOf = <Message>(
   h: HtmlBuilder<Message>,
-  blank: string,
-  choices: ReadonlyArray<string>,
+  blank: string | undefined,
+  choices: ReadonlyArray<BuilderOption>,
   current: string | undefined,
 ): ReadonlyArray<Html> => {
-  const stray = current !== undefined && current !== '' && !choices.includes(current)
+  const empty = current === undefined || current === ''
+  const stray = !empty && !choices.some(choice => choice.value === current)
   return [
-    ...['', ...choices].map(value =>
-      h.option(
-        [h.Value(value), h.Selected((current ?? '') === value)],
-        [value === '' ? blank : value],
-      ),
+    ...(blank !== undefined || empty
+      ? [h.option([h.Value(''), h.Selected(empty)], [blank ?? ''])]
+      : []),
+    ...choices.map(choice =>
+      h.option([h.Value(choice.value), h.Selected(current === choice.value)], [choice.label]),
     ),
     ...(stray ? [h.option([h.Value(current), h.Selected(true)], [`? ${current}`])] : []),
   ]
@@ -247,6 +253,17 @@ export interface BuilderViewInputs {
    * page's Query and Surface Blocks' values, so the canvas shows their rows.
    */
   readonly data?: Readonly<Record<string, unknown>> | undefined
+  /**
+   * The choices of a relation prop's picker, keyed `'Block.prop'`: the rows the
+   * application loaded for it, as a form's `options` are.
+   */
+  readonly options?: Readonly<Record<string, ReadonlyArray<BuilderOption>>> | undefined
+}
+
+/** One choice of a relation picker: what is stored, and what is shown. */
+export interface BuilderOption {
+  readonly value: string
+  readonly label: string
 }
 
 /** What the drawn Builder's Slots and Behaviors read: its Model and its inputs. */
@@ -370,7 +387,8 @@ export const BuilderView = {
               ]),
             ]
 
-      const inspector = selected === null ? [] : [inspect(document, selected, slots, h)]
+      const inspector =
+        selected === null ? [] : [inspect(document, selected, model.options ?? {}, slots, h)]
 
       const history = h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
         button(slots.undo, 'Undo', History.canUndo(model.page) ? Message.Undid() : undefined),
@@ -474,7 +492,7 @@ export const BuilderView = {
                 h.Id(fieldId),
                 h.OnChange(raw => send(contextValue(control, raw))),
               ]),
-              optionsOf(h, blank, choices, shown),
+              optionsOf(h, blank, named(choices), shown),
             ),
       ])
     }
@@ -489,9 +507,50 @@ export const BuilderView = {
         readonly control: Control | undefined
         readonly value: Schema.Json | undefined
         readonly set: (value: Schema.Json) => Message
+        /** A relation picker's choices; none until the application gives them. */
+        readonly options?: ReadonlyArray<BuilderOption> | undefined
+        /** Whether it may be left empty, stored as `null`: a relation picker offers a blank. */
+        readonly optional?: boolean | undefined
       },
     ): Html => {
-      const { id: fieldId, label, control, value, set } = field
+      const { id: fieldId, label, control, value, set, options = [] } = field
+      if (control !== undefined && Input.RelationMany.is(control)) {
+        const chosen = Array.isArray(value)
+          ? value.filter((each): each is string => typeof each === 'string')
+          : []
+        // A chosen value the choices lack stays, shown, so it can be let go.
+        const choices = [
+          ...options,
+          ...chosen
+            .filter(each => !options.some(option => option.value === each))
+            .map(stray => ({ value: stray, label: `? ${stray}` })),
+        ]
+        return h.div(slots.field.attrs([h.Id(fieldId), h.Role('group'), h.AriaLabel(label)]), [
+          h.span([], [label]),
+          ...choices.map(choice =>
+            h.label(
+              [],
+              [
+                h.input(
+                  slots.control.attrs([
+                    h.Type('checkbox'),
+                    h.Value(choice.value),
+                    h.Checked(chosen.includes(choice.value)),
+                    h.OnClick(
+                      set(
+                        chosen.includes(choice.value)
+                          ? chosen.filter(each => each !== choice.value)
+                          : [...chosen, choice.value],
+                      ),
+                    ),
+                  ]),
+                ),
+                choice.label,
+              ],
+            ),
+          ),
+        ])
+      }
       const input = (() => {
         if (control !== undefined && Input.Toggle.is(control))
           return h.input(
@@ -507,6 +566,19 @@ export const BuilderView = {
             slots.control.attrs([h.Id(fieldId), h.OnChange(choice => set(choice))]),
             control.data.options.map(option =>
               h.option([h.Value(option), h.Selected(option === value)], [option]),
+            ),
+          )
+        if (control !== undefined && Input.RelationOne.is(control))
+          return h.select(
+            slots.control.attrs([
+              h.Id(fieldId),
+              h.OnChange(choice => set(choice === '' ? null : choice)),
+            ]),
+            optionsOf(
+              h,
+              field.optional === true ? 'none' : undefined,
+              options,
+              typeof value === 'string' ? value : undefined,
             ),
           )
         if (control !== undefined && Input.Number.is(control))
@@ -545,6 +617,7 @@ export const BuilderView = {
     const inspect = (
       document: Document,
       id: NodeId,
+      options: Readonly<Record<string, ReadonlyArray<BuilderOption>>>,
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
     ): Html => {
@@ -578,6 +651,8 @@ export const BuilderView = {
           control,
           value: node.props[key],
           set: value => set(key, value),
+          options: options[`${node.block}.${key}`],
+          optional: Schema.is(schema)(null),
         }),
       )
       // The node's look: one choice per axis its Block offers, blank for the default,
@@ -620,7 +695,7 @@ export const BuilderView = {
             h.label([h.For(fieldId)], [point === 'base' ? axis : `${axis} at ${point}`]),
             h.select(
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
-              optionsOf(h, point === 'base' ? 'default' : 'unchanged', values, at[point]),
+              optionsOf(h, point === 'base' ? 'default' : 'unchanged', named(values), at[point]),
             ),
           ])
         })
@@ -687,7 +762,7 @@ export const BuilderView = {
             optionsOf(
               h,
               'nothing',
-              builder.catalog.actions.map(each => each.name),
+              named(builder.catalog.actions.map(each => each.name)),
               typeof ref['action'] === 'string' ? ref['action'] : undefined,
             ),
           ),

@@ -321,6 +321,14 @@ export const Input = {
   number: (): Control => Number_.of(nothing),
   toggle: (): Control => Toggle.of(nothing),
   select: (options: ReadonlyArray<string>): Control => Select.of({ options }),
+  /**
+   * A picker of one of `target`, for a value that is not a relation of the
+   * form's Entity: a page Builder's Block prop that holds an id. A relation key
+   * resolves to its picker without asking.
+   */
+  relationOne: (target: AnyEntity): Control => RelationOne.of({ target, search: false }),
+  /** A picker of any number of `target`, as `relationOne` is of one. */
+  relationMany: (target: AnyEntity): Control => RelationMany.of({ target, search: false }),
 
   /**
    * For a relation key, under `inputs`: its picker, with a search. Too many to

@@ -266,6 +266,10 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Inspector labels are the prop Schema's `title`, else the key. A Block asks
   for a control with
   `Block.annotate(BuilderView.controls({ body: Input.multiline(), ref: Input.hidden() }))`.
+  A prop holding an id takes `Input.relationOne(Category)` (a `select`) or
+  `Input.relationMany(Tag)` (checkboxes over an id array); its choices come in
+  `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,
+  loaded by the application.
 - `PointerDrag` on `tree` (rows carry `data-builder-row`) and `canvas`.
 - With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's
   `preview` Model field, `PreviewChosen({ key, value })`, seeded by

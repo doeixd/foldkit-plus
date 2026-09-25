@@ -3,6 +3,7 @@ import { Effect, Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
 import { Input } from 'foldkit-form'
 import { Block, Catalog, Content, Region } from 'foldkit-composition'
+import { Entity } from 'foldkit-entity'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { BuilderView } from 'foldkit-mixins-builder'
 
@@ -51,8 +52,31 @@ export const Feed = Block.define('Feed', {
   Props: Schema.Struct({}),
   provides: [Content.Flow],
 })
+/** What a Featured Block points at. */
+const Category = Entity.define(
+  'Category',
+  Schema.Struct({ id: Schema.String, name: Schema.String }),
+)
+const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema.String }))
+/** A Block whose props are ids of the application's things, chosen with pickers. Not offered. */
+export const Featured = Block.define('Featured', {
+  Props: Schema.Struct({
+    category: Schema.NullOr(Schema.String),
+    maker: Schema.String,
+    tags: Schema.Array(Schema.String),
+  }),
+  provides: [Content.Flow],
+}).pipe(
+  Block.annotate(
+    BuilderView.controls({
+      category: Input.relationOne(Category),
+      maker: Input.relationOne(Category),
+      tags: Input.relationMany(Tag),
+    }),
+  ),
+)
 export const Site = Catalog.make({
-  blocks: [Section, Heading, Banner, Quote, Feed],
+  blocks: [Section, Heading, Banner, Quote, Feed, Featured],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']), beta: Schema.Boolean }),
   actions: [Subscribe],
@@ -72,6 +96,8 @@ export const SiteRenderer = Renderer.make(Site, {
   Quote: ({ props, h }) => h.blockquote([], [props.text]),
   Feed: ({ data, h }) =>
     h.p([h.Class('feed')], [typeof data === 'string' ? data : 'waiting for its rows']),
+  Featured: ({ props, h }) =>
+    h.p([h.Class('featured')], [`${props.category ?? 'none'}: ${props.tags.join(', ')}`]),
 })
 
 export const PageBuilder = Builder.make('PageBuilder', {

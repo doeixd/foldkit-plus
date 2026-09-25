@@ -52,3 +52,25 @@ const Quote = Block.define('Quote', {
   provides: [Content.Flow],
 }).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
 expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()
+
+// What the page's parent gives the drawn Builder: each node's read, and a
+// relation prop's choices.
+{
+  const Category = Entity.define(
+    'Category',
+    Schema.Struct({ id: Schema.String, name: Schema.String }),
+  )
+  const Featured = Block.define('Featured', {
+    Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
+    provides: [Content.Flow],
+  }).pipe(Block.annotate(BuilderView.controls({ category: Input.relationOne(Category) })))
+  expectTypeOf(Featured.name).toEqualTypeOf<'Featured'>()
+
+  const categories: ReadonlyArray<{ readonly id: string; readonly name: string }> = []
+  expectTypeOf(
+    BuilderView.inputs({
+      data: { n1: ['three posts'] },
+      options: { 'Featured.category': categories.map(c => ({ value: c.id, label: c.name })) },
+    }),
+  ).toEqualTypeOf<BuilderViewInputs>()
+}

@@ -140,6 +140,12 @@ version changed; `pnpm` skips versions already in the registry.
   a placed collection in step with the page shown, adding, removing, and
   starting again a node whose props changed; `Stateful.views` and
   `Stateful.html` draw each node with its own item.
+- **`foldkit-mixins-builder`: relation pickers for Block props.** A prop asks
+  for `Input.relationOne(Entity)` or `Input.relationMany(Entity)` through
+  `BuilderView.controls`, and its choices come in `BuilderView.inputs({ options
+  })`, keyed `'Block.prop'`.
+- **`foldkit-form`: `Input.relationOne` and `Input.relationMany`,** a picker for
+  a key that holds ids without being a relation.
 - **`foldkit-mixins-form`: a Bundle control's view takes inputs,** from the
   form view's `controls`, by key. A key given none draws its view as before.
 - **`foldkit-mixins-builder`: the canvas draws the page's data.**

@@ -200,6 +200,36 @@ The hint is the inspector's, kept on the Block beside any other package's
 metadata; `foldkit-composition` does not read it. A later annotation's prop
 replaces an earlier one's.
 
+### A prop that points at the application's things
+
+A prop holding an id, such as the category a list shows, asks for a picker:
+`Input.relationOne(Category)` draws a `select`, and `Input.relationMany(Tag)`
+a group of checkboxes over a prop that is an array of ids. What they choose
+from is the application's rows, loaded by its own query as a form's picker
+options are; the page's parent gives them in the Builder's view inputs, keyed
+`'Block.prop'`:
+
+```ts
+const Featured = Block.define('Featured', {
+  Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(BuilderView.controls({ category: Input.relationOne(Category) })))
+
+EditorSlot.view(model, h, {
+  controls: {
+    document: BuilderView.inputs({
+      options: { 'Featured.category': categories.map(c => ({ value: c.id, label: c.name })) },
+    }),
+  },
+})
+```
+
+A `relationOne` offers a blank, stored as `null`, when its Schema admits
+`null`, and otherwise only while nothing is chosen. A chosen id the choices lack
+(a row since deleted, or choices not loaded yet) is shown as `? id`; in a
+`relationMany` it stays chosen until it is unchecked. The inspector lists the
+choices it is given and has no search box.
+
 Each edit is one `setProp`, checked by the Block's Schema; a refused edit shows
 in the alert and changes nothing. A node whose Block the Catalog does not know
 is shown, with its props, but not edited. A stored value a `select` does not

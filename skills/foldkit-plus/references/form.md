@@ -81,6 +81,8 @@ const RenameForm = Page.at(Slot, {
   for this form; `Entity.annotateMembers({ body: Input.of(Input.multiline()) })`
   for the member everywhere. Otherwise: the relation the key writes, then the
   schema's shape. No match throws at `Form.make`, naming the key.
+  A key holding ids that is not a relation: `Input.relationOne(Author)`,
+  `Input.relationMany(Tag)`.
 - **Label:** `Schema.String.annotate({ title, description })` on the input key or
   the Entity field. A relation takes `Form.label('Author')` as Entity metadata.
 - **Ask something outside the form** (is this slug taken?): `checks: { slug: (slug, { values }) => Effect }`
