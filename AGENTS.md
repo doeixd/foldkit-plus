@@ -360,6 +360,10 @@ package owns, when to use it, and basic examples. Users install it with
 ([skills.sh](https://skills.sh)), which looks for `skills/<name>/SKILL.md`.
 It is published documentation: treat it like a README.
 
+Use it yourself, too: for what each package is for and a basic example of
+each, read `SKILL.md` and the `references/` file for the package at hand
+before changing it.
+
 - **Layout.** `SKILL.md` is the map: what Foldkit Plus is, which package owns
   which state, how they connect, one small example. It stays under ~150 lines,
   because an agent loads all of it once the skill triggers. Depth lives in
