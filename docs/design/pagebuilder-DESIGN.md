@@ -1119,10 +1119,11 @@ resume plan.
 - **9-1,** a "Latest posts" Block over `Cms.Entries` in `examples/cms`, its
   relation prop drawn with the form's relation picker, its read resumed by
   `Remote.resume`. **Built, in part:** `QueryBlock` and `reads`, and a
-  `LatestPages` Block in the CMS example read through an active. Two things
-  wait: a relation prop drawn with the form's relation picker (the inspector
-  has no way to load a picker's rows), and the editor's canvas drawing a Query
-  Block's rows, since the drawn Builder sees only the Builder's Model.
+  `LatestPages` Block in the CMS example read through an active. Since §30's
+  decisions, the editor's canvas draws a Query Block's rows (the parent gives
+  the Builder its reads as view inputs) and the inspector draws a relation prop
+  with a picker whose choices the parent gives. What remains: the CMS example's
+  `LatestPages` has no relation prop to pick, such as an author to filter by.
 - **9-2,** the Surface-backed and Bundle-backed Blocks, the latter placed with
   `Bundle.withEach` keyed by NodeId. **Bundle-backed built:** a Block is marked
   `stateful`, not given its Bundle, since the parent places the Bundle in its
@@ -1167,8 +1168,9 @@ resume plan.
   whole text, props included; reading props on demand waits for pages large
   enough to need it.
 - **10-3,** the selected node and panel mirrored into the URL with `Mirror.url`.
-  **Waits:** the Builder's selection lives inside a form control's Model, and
-  Form offers no writable projection into one (see the audit under §29).
+  **Built as a recipe** instead (§30): a navigation is sent to the Builder as
+  `Selected`, and a Subscription writes its selection into the URL, so no
+  writable projection is needed. The CMS example uses it once it routes.
 
 **Then stable.** §29's list is audited against the tests and its gaps filled (a
 React Block beside a Foldkit Block, a preview of a partly edited page, a Surface
@@ -1221,12 +1223,9 @@ a React Block beside a Foldkit Block        a static page whose envelope has no 
 > | a static page whose envelope has no Document | `renderer`: sends the browser none of the Document |
 > | a Surface Block beside a static one | `acceptance`: a page of static, data, feature and stateful Blocks, served by SSR |
 >
-> What waits: rich text edited on the canvas (7c-2), a
-> relation picker for a Block prop and a Query Block's rows on the editor's
-> canvas (9-1), and the selection in the URL (10-3), which needs Form to offer a
-> writable projection into a control's Model, since `Mirror.url` writes back
-> through one and anything else would set the Builder's selection behind its
-> `update`.
+> What waits: rich text edited on the canvas (7c-2). The relation picker and a
+> Query Block's rows on the canvas (9-1) and the selection in the URL (10-3)
+> were built after §30 decided them.
 
 ## 30. Open questions
 
