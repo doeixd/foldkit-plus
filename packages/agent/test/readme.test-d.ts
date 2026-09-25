@@ -4,7 +4,7 @@
  */
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface, type Wiring } from 'foldkit-surface'
+import { Action, Projection, Surface, type Wiring } from 'foldkit-surface'
 import { Agent } from '../src/index.js'
 
 const Todo = Schema.Struct({
@@ -70,3 +70,21 @@ const result = await Effect.runPromise(
   agentRuntime.messages.dispatch(Message.RequestedCreateTodo, { title: 'Read the guide' }),
 )
 void result
+
+// An Action exposed as a capability.
+{
+  const Cart = defineMessageUnion({ AddedToCart: { productId: Schema.String } })
+  const AddToCart = Action.define({
+    name: 'addToCart',
+    description: 'Add a product to the cart',
+    input: Schema.Struct({ productId: Schema.String }),
+    toMessage: input => Cart.AddedToCart(input),
+  })
+  const exposed = Agent.expose(Cart, {
+    AddedToCart: Agent.action(AddToCart, {
+      authorize: ({ principal }: { readonly principal: { readonly canBuy: boolean } }) =>
+        principal.canBuy,
+    }),
+  })
+  void exposed
+}

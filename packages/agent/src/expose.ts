@@ -1,7 +1,7 @@
 import type { Duration } from 'effect'
 import { Schema } from 'effect'
 import type { MessageUnion } from 'foldkit/message'
-import type { MessageSet } from 'foldkit-surface'
+import type { Action, MessageSet } from 'foldkit-surface'
 import { toJsonSchema } from './jsonSchema.js'
 import { messageTag } from './tag.js'
 import { type CompiledCompletion, compileCompletion } from './completion.js'
@@ -321,6 +321,54 @@ export const variant = <
   // an optional `name?: string` behind: that would widen the capability's key.
   (undefined extends Name ? { readonly name?: undefined } : { readonly name: Name }) =>
   config as never
+
+/**
+ * A `foldkit-surface` Action as a variant: its name, description and input,
+ * ending in the Message it makes. `extras` adds what only an agent needs,
+ * `available` and `authorize`. Expose it under the tag of the Message it makes:
+ *
+ * ```ts
+ * Agent.expose(Message, { AddedToCart: Agent.action(AddToCart, { authorize }) })
+ * ```
+ *
+ * The same Action can be a page Block's button, so a capability is declared
+ * once for every consumer that may cause it.
+ */
+export const action = <
+  const Name extends string,
+  Input,
+  Encoded,
+  ActionMessage extends { readonly _tag: string },
+  Model = any,
+  Principal = any,
+>(
+  action: Action<Name, Input, Encoded, ActionMessage>,
+  extras: {
+    readonly available?: ((model: Model) => boolean) | undefined
+    readonly authorize?:
+      VariantConfig<Omit<ActionMessage, '_tag'>, Input, Model, Principal>['authorize'] | undefined
+  } = {},
+) =>
+  variant<
+    Input,
+    Encoded,
+    Omit<ActionMessage, '_tag'>,
+    MessageConstructor,
+    never,
+    Name,
+    Model,
+    Principal
+  >({
+    name: action.name,
+    description: action.description,
+    input: action.input,
+    // The variant's constructor tags the payload, as for any mapped variant.
+    toMessage: input => {
+      const { _tag, ...payload } = action.toMessage(input)
+      return payload
+    },
+    ...extras,
+  })
 
 /** Strips the `_tag` literal so only the agent-facing payload fields remain. */
 const payloadSchemaOf = (

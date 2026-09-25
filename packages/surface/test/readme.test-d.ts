@@ -3,9 +3,9 @@
  * type-checked so the documentation cannot drift from the API. `todosById`
  * is added to the Model for the dynamic-lookup example.
  */
-import { Option, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from '../src/index.js'
+import { Action, Projection, Surface } from '../src/index.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 const Model = Schema.Struct({
@@ -68,3 +68,18 @@ const Explicit = Surface.make(App, 'TodoDetailExplicit', {
   messages: [Message.ToggledTodo],
 })
 void Explicit
+
+// Actions
+{
+  const Message = defineMessageUnion({ AddedToCart: { productId: Schema.String } })
+  const AddToCart = Action.define({
+    name: 'addToCart',
+    description: 'Add a product to the cart',
+    input: Schema.Struct({ productId: Schema.String }),
+    toMessage: input => Message.AddedToCart(input),
+  })
+  const made: Result.Result<typeof Message.Type, Schema.SchemaError> = Action.run(AddToCart, {
+    productId: 'p1',
+  })
+  void made
+}

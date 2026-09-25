@@ -1078,6 +1078,58 @@ export const MessageSet = {
   },
 }
 
+// ===========================================================================
+// Action: a named capability that ends in an existing Message
+// ===========================================================================
+
+/**
+ * A capability a consumer may invoke by name with data, such as an agent's
+ * tool or a page Block's button. It ends in one of the application's own
+ * Messages, so `update` stays the only place a Message has effects, and its
+ * input is decoded by its Schema before `toMessage` sees it: stored or
+ * untrusted data never executes.
+ */
+export interface Action<
+  Name extends string = string,
+  Input = any,
+  Encoded = any,
+  Message = unknown,
+> {
+  readonly _tag: 'Action'
+  readonly name: Name
+  /** What it does, for a person choosing it or an agent deciding to. */
+  readonly description: string
+  readonly input: Schema.Codec<Input, Encoded, never, never>
+  readonly toMessage: (input: Input) => Message
+}
+
+export const Action = {
+  /** An Action: `Action.define({ name: 'addToCart', description, input, toMessage })`. */
+  define: <const Name extends string, Input, Encoded, Message>(config: {
+    readonly name: Name
+    readonly description: string
+    readonly input: Schema.Codec<Input, Encoded, never, never>
+    readonly toMessage: (input: Input) => Message
+  }): Action<Name, Input, Encoded, Message> => {
+    if (config.name.length === 0) throw new Error('Action.define: an Action needs a name')
+    return Object.freeze({ _tag: 'Action', ...config })
+  },
+
+  /** Whether a value is an Action. */
+  is: (value: unknown): value is Action =>
+    typeof value === 'object' && value !== null && (value as { _tag?: unknown })._tag === 'Action',
+
+  /**
+   * The Message an Action makes of `data`, decoded as its input first; a
+   * failure says why the input was refused and makes no Message.
+   */
+  run: <Input, Encoded, Message>(
+    action: Action<string, Input, Encoded, Message>,
+    data: unknown,
+  ): Result.Result<Message, Schema.SchemaError> =>
+    Result.map(Schema.decodeUnknownResult(action.input)(data), action.toMessage),
+}
+
 export const Surface = {
   application,
 

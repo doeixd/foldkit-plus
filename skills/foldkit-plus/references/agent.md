@@ -117,6 +117,7 @@ const ownedRuntime = OwnedAgent.bind({
 - `input` without `toMessage` is a type error and a runtime error.
 - Input is typed as the schema's **encoded** side. For example, `NumberFromString` is sent as a string and reaches `update` as a number.
 - A tag with an acronym normalizes badly (every capital starts a word), so give it an explicit `name`.
+- A `foldkit-surface` Action (`Action.define`) is exposed with `Agent.action(action, { available?, authorize? })` under the tag of the Message it makes (another tag is a type error).
 - `MessageSet.make(App, [...])` with `Agent.exposeSubset(subset, variants)` exposes a subset. `Agent.forModel<Model, Principal>()` covers the case where there is no `Surface.application`.
 
 ### Completion: resolve on the fact, not on receipt

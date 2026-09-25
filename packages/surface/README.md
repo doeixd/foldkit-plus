@@ -198,6 +198,30 @@ application, a duplicate tag, or a subset from another application throws.
 Surface does not label a subset durable, agent-visible, or presence; `Sync` and
 `Agent` attach those policies to the same value.
 
+## Actions
+
+An Action is a capability a consumer may invoke by name with data: an agent's
+tool, a page Block's button. It ends in one of the application's own Messages,
+so `update` stays the only place a Message has effects:
+
+```ts
+import { Action } from 'foldkit-surface'
+
+const AddToCart = Action.define({
+  name: 'addToCart',
+  description: 'Add a product to the cart',
+  input: Schema.Struct({ productId: ProductId }),
+  toMessage: input => Message.AddedToCart(input),
+})
+
+Action.run(AddToCart, { productId: 'p1' }) // Result: the Message, or why the input was refused
+```
+
+`Action.run` decodes the data as the Action's input before `toMessage` sees it,
+so data from a Document or a tool call never executes. The Action is declared
+once: `Agent.action(AddToCart)` exposes it to an agent, and a page's Catalog
+lists it for Blocks to reference by name.
+
 ## Surfaces
 
 A Surface binds a projection and the Messages a feature may use into a named,
@@ -467,6 +491,7 @@ that may observe across those runtime boundaries without creating another one.
   interpreter metadata (`Metadata.key`).
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
+- Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
 
 ## Limits

@@ -10,6 +10,7 @@ export {
   UnknownCapabilityError,
 } from './errors.js'
 export {
+  action,
   expose,
   exposeSubset,
   variant,

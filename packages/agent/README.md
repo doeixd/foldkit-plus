@@ -168,6 +168,7 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.expose(Message, variants)` | The capability boundary: what an agent may do. |
 | `Agent.exposeSubset(subset, variants)` | The same, restricted to a `MessageSet.make` subset. |
 | `Agent.variant(config)` | A mapped variant whose callbacks are inferred from its `input`. |
+| `Agent.action(action, { available?, authorize? })` | A `foldkit-surface` Action as a variant: its name, description, input and Message. |
 | `Agent.resource(name, options)` | A named read-only projection of Model state. |
 | `Agent.make({ context, messages, resources })` | The protocol-neutral contract; `context` is a `Projection`, a `Projection.pick`, or a feature Surface. |
 | `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type. |
@@ -221,6 +222,16 @@ RequestedDeleteTodo: Agent.variant({
 
 Reach for it when a completion contract's `correlate` should be checked against
 the Messages it names. Otherwise write the variant inline.
+
+A capability already declared as a `foldkit-surface` Action, because a page
+Block's button causes it too, is exposed with `Agent.action` under the tag of
+the Message it makes; exposing it under another tag is a type error:
+
+```ts
+Agent.expose(Message, {
+  AddedToCart: Agent.action(AddToCart, { authorize: ({ principal }) => principal.canBuy }),
+})
+```
 
 Without an explicit `name`, the tag is normalized: `RequestedDeleteTodo` becomes
 `requested_delete_todo`. Every capital starts a word, with no special case for

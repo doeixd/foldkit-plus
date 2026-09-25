@@ -144,6 +144,17 @@ const AllChanges = MessageSet.union(TodoChanges, SelectionChanges)
 AllChanges.includes(message)      // type guard; also .tags, .schema, .constructors
 ```
 
+**A capability by name, ending in a Message** (an agent tool, a page Block's button):
+
+```ts
+import { Action } from 'foldkit-surface'
+
+const AddToCart = Action.define({ name: 'addToCart', description, input, toMessage: i => Message.AddedToCart(i) })
+Action.run(AddToCart, data) // Result<Message, SchemaError>: input decoded first
+```
+
+`Agent.action(AddToCart)` exposes it; a composition Catalog lists it for Blocks.
+
 **Checking all of an app's contracts** (in a test or a build step):
 
 ```ts
