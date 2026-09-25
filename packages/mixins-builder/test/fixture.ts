@@ -1,5 +1,5 @@
 /** A small site: Sections of Headings and Banners, and a Builder over it. */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
 import { Input } from 'foldkit-form'
 import { Block, Catalog, Content, Region } from 'foldkit-composition'
@@ -61,7 +61,8 @@ const Tag = Entity.define('Tag', Schema.Struct({ id: Schema.String, name: Schema
 /** A Block whose props are ids of the application's things, chosen with pickers. Not offered. */
 export const Featured = Block.define('Featured', {
   Props: Schema.Struct({
-    category: Schema.NullOr(Schema.String),
+    // Stored as `null` when none is chosen, drawn as an Option.
+    category: Schema.OptionFromNullOr(Schema.String),
     maker: Schema.String,
     tags: Schema.Array(Schema.String),
   }),
@@ -97,7 +98,10 @@ export const SiteRenderer = Renderer.make(Site, {
   Feed: ({ data, h }) =>
     h.p([h.Class('feed')], [typeof data === 'string' ? data : 'waiting for its rows']),
   Featured: ({ props, h }) =>
-    h.p([h.Class('featured')], [`${props.category ?? 'none'}: ${props.tags.join(', ')}`]),
+    h.p(
+      [h.Class('featured')],
+      [`${Option.getOrElse(props.category, () => 'none')}: ${props.tags.join(', ')}`],
+    ),
 })
 
 export const PageBuilder = Builder.make('PageBuilder', {

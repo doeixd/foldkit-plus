@@ -652,7 +652,8 @@ export const BuilderView = {
           value: node.props[key],
           set: value => set(key, value),
           options: options[`${node.block}.${key}`],
-          optional: Schema.is(schema)(null),
+          // Asked of what is stored: a prop decoded to an `Option` is stored as `null`.
+          optional: Schema.is(Schema.toEncoded(schema))(null),
         }),
       )
       // The node's look: one choice per axis its Block offers, blank for the default,
