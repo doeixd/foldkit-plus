@@ -140,6 +140,11 @@ Slop is also code that looks finished and is wrong. Look for these too:
     moved and applied on release).
   - A positional parameter list that callers must count.
   - A cast that makes a type promise nothing enforces.
+  - Markup a package draws outside a Slot. A stylist reaches only Slots, so a
+    bare `span` leaves a data-attribute selector into the package as the only
+    handle (the CMS slug's prefix did). A structural fact a stylist needs, such
+    as depth, state or position, goes on a Slot, as a custom property
+    (`--fk-tree-level`) or a data attribute.
 - **Bad performance.**
   - Work repeated for every row that depends only on the whole (every row
     recomputing the tree).
@@ -785,6 +790,12 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   `examples/entity` failed CI this way with the dependency declared. To
   reproduce locally, move the package's `dist` aside and run
   `npx tsc -b --force <example>`.
+- **Vite serves a pre-bundled copy of a workspace package.** After a
+  package's `pnpm build`, a running example kept the old code from
+  `node_modules/.vite`, and a stale `dist` from before an API change left the
+  site on "Loading…" with no error, which looked like a regression. Rebuild
+  every package the change touched, then restart the dev server with
+  `node_modules/.vite` deleted, before judging the browser.
 
 ## Repository
 
