@@ -67,7 +67,20 @@ slashQuery('see/head') // undefined — that is text
 // Entries lead with the text blocks a caret can become, then the marks it can carry.
 const entries = slashEntries(message => edited(message))
 matchingEntries(entries, 'mono').map(entry => entry.label) // ['Code']
+
+// The one value a view and an update share: is there a menu, what matches, what Enter
+// would send. `index` is what the menu last highlighted.
+const menu = slashMenu(entries, 'see /head', 0)
+menu?.matches.length // 3
+menu?.highlighted?.label // 'Heading 1'
 ```
+
+`slashMenu` is the decision both the menu's view and the editor's `update` read, so they
+cannot disagree about whether a menu is open or what `Enter` means. A stale index — one
+the query narrowed past, or a negative one — falls back to the first match, because
+narrowing must not leave Enter with nothing to send; a query that matches nothing is
+still a menu, with `highlighted` undefined, which is what keeps `/zzz` from sending
+anything.
 
 `slashQuery` reads the text before the caret, so whether a menu is open is a read of the
 document (`RichText.textBefore`) rather than a flag. `slashEntries(wrap)` builds the

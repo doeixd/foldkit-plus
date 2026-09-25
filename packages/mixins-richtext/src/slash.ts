@@ -91,3 +91,33 @@ export const matchingEntries = <Message>(
         [entry.label, ...entry.keywords].some(word => word.toLowerCase().includes(needle)),
       )
 }
+
+/** What a menu shows for one caret: its query, what matches, and what Enter would send. */
+export interface SlashMenu<Message> {
+  readonly query: string
+  readonly matches: ReadonlyArray<SlashEntry<Message>>
+  /** The entry Enter would choose; undefined when nothing matches the query. */
+  readonly highlighted: SlashEntry<Message> | undefined
+}
+
+/**
+ * The menu the caret is in, or `undefined` when its text is not a slash command — the
+ * one value that decides both whether to render a menu and what a key means, so the
+ * view and `update` cannot disagree.
+ *
+ * `index` is what the menu last highlighted. A stale index — fewer matches than it
+ * named, or a negative one — falls back to the first match, because a query that
+ * narrows must not leave Enter with nothing to choose. A query that matches nothing is
+ * still a menu: it renders as empty, and `highlighted` is undefined, which is what
+ * keeps `/zzz` from sending anything.
+ */
+export const slashMenu = <Message>(
+  entries: ReadonlyArray<SlashEntry<Message>>,
+  textBefore: string,
+  index: number,
+): SlashMenu<Message> | undefined => {
+  const query = slashQuery(textBefore)
+  if (query === undefined) return undefined
+  const matches = matchingEntries(entries, query)
+  return { query, matches, highlighted: matches[index] ?? matches[0] }
+}

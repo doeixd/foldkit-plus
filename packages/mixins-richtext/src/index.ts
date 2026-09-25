@@ -71,4 +71,11 @@ export const markToolbar = <Message>(): SlotView.SlotView<
  * The slash menu's vocabulary (§123) travels with the chrome it belongs to, so an
  * application importing the family gets the entries and the query rule too.
  */
-export { matchingEntries, slashEntries, slashQuery, type SlashEntry } from './slash.js'
+export {
+  matchingEntries,
+  slashEntries,
+  slashMenu,
+  slashQuery,
+  type SlashEntry,
+  type SlashMenu,
+} from './slash.js'

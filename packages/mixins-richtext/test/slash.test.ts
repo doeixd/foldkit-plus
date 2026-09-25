@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { Message, type EditorEvent } from 'foldkit-richtext-dom/editor'
-import { matchingEntries, slashEntries, slashQuery } from '../src/slash.js'
+import { matchingEntries, slashEntries, slashMenu, slashQuery } from '../src/slash.js'
 
 describe('the query a caret is in', () => {
   it.each([
@@ -80,5 +80,41 @@ describe('filtering the entries', () => {
 
   it('offers nothing when nothing matches, rather than everything', () => {
     expect(matchingEntries(entries, 'zzz')).toEqual([])
+  })
+})
+
+describe('the menu a caret is in', () => {
+  const entries = slashEntries((message: EditorEvent) => message)
+  const label = (textBefore: string, index: number) =>
+    slashMenu(entries, textBefore, index)?.highlighted?.label
+
+  it('is nothing at all when the text is not a query', () => {
+    expect(slashMenu(entries, 'a sentence', 0)).toBeUndefined()
+    expect(slashMenu(entries, '', 0)).toBeUndefined()
+  })
+
+  it('is the whole catalogue for a lone slash, and narrows as the query grows', () => {
+    const bare = slashMenu(entries, '/', 0)
+    expect(bare?.query).toBe('')
+    expect(bare?.matches).toHaveLength(entries.length)
+    // A query is a word, so a multi-word label is reached by its keywords: `h1` and
+    // `title` both mean Heading 1.
+    const narrowed = slashMenu(entries, '/h1', 0)
+    expect(narrowed?.matches.map(entry => entry.label)).toEqual(['Heading 1'])
+    expect(narrowed?.highlighted?.label).toBe('Heading 1')
+  })
+
+  it('reads an index from the text before the caret, whatever the caller last had', () => {
+    expect(label('/head', 1)).toBe('Heading 2')
+    // The query narrowed past the remembered index: the highlight returns to the top
+    // rather than leaving Enter with nothing.
+    expect(label('/h1', 3)).toBe('Heading 1')
+    expect(label('/head', -1)).toBe('Heading 1')
+  })
+
+  it('is a menu with nothing to choose when the query matches nothing', () => {
+    const empty = slashMenu(entries, '/zzz', 0)
+    expect(empty?.matches).toEqual([])
+    expect(empty?.highlighted).toBeUndefined()
   })
 })

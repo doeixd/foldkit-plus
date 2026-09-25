@@ -5453,9 +5453,10 @@ Slices:
 2. `foldkit-mixins-richtext` gains the menu as a slot view over `ListNavigation`:
    entries that emit `RetypedBlock` and mark Messages, and a container whose
    `OnKeyDownPreventDefault` handles the arrows and Escape only while a query is live.
-   — **started**: the vocabulary landed (`slashQuery`, `slashEntries`, `matchingEntries`
-   in `packages/mixins-richtext/src/slash.ts`, re-exported from the package). The slot
-   view and the `ListNavigation` Behavior are what remain.
+   — **started**: the vocabulary landed (`slashQuery`, `slashEntries`, `matchingEntries`,
+   and `slashMenu` — the one value a view and an `update` share — in
+   `packages/mixins-richtext/src/slash.ts`, re-exported from the package). The slot view
+   and the `ListNavigation` Behavior are what remain.
 3. `EditorState` gains the highlighted entry, and the Bundle's `update` resolves
    `Entered` against a live query before it splits.
 4. The skill and an example (the harness or a small demo) drive it.
