@@ -86,6 +86,23 @@ own paragraph, because a block holds no line break), and an image inside a parag
 `print(parse(markdown))` returns the same Markdown and `parse(print(document))` a document
 that prints the same, which is how the two directions are tested against each other.
 
+## Input rules
+
+`markdownInputRules` retypes a block when a heading marker is completed at its start — `# `
+through `###### ` — which is the set the command vocabulary can carry out. `foldkit-richtext-dom`
+places and applies them, so this package holds no editor state and the editor holds no
+Markdown:
+
+```ts
+import { placeInputRules } from 'foldkit-richtext-dom/host'
+
+placeInputRules('article-body', markdownInputRules)
+```
+
+The markers that need a block *wrapped* in a container or *replaced* by an atom — `> `,
+`- `, `1. `, and a fence — are not rules yet, because the command vocabulary has no such
+command. Until it does, those markers stay text.
+
 ## Limits
 
 - **A table's header.** The model does not say which row is one, so the first row is

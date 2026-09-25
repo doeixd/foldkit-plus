@@ -9,5 +9,6 @@
  * arrives when a custom syntax needs both directions at once.
  */
 export { type MarkdownDiagnostic } from './diagnostic.js'
+export { markdownInputRules } from './input.js'
 export { print, type PrintedMarkdown } from './print.js'
 export { parse, type ParseOptions, type ParsedMarkdown } from './parse.js'

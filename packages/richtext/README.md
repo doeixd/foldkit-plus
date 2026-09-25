@@ -128,6 +128,20 @@ union of its commands'), and one identity stream. It stops at the first refusal 
 returns that command's error; state is a value, so nothing partial escapes. One command
 behaves exactly as `run` does.
 
+An *input rule* turns what was just typed into such an action:
+
+```ts
+interface InputRule {
+  name: string
+  match: (textBefore: string) => { remove: number; commands: Action } | undefined
+}
+```
+
+`applyInputRules(rules, textBefore, text, insertion)` builds the action — the insertion,
+one `DeleteBackward` per character the rule consumed, then the rule's commands. The deletes
+are what let a rule work without a range: `# ` is not in the document until the insertion
+that completes it has run, so a range read before that would be the wrong range.
+
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
 survive; a node block or preserved content is refused, because its content is not

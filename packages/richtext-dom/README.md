@@ -248,7 +248,9 @@ placement without one renders with the default. `editorAt(hostId, renderer?, voc
 takes a vocabulary too — `{ marks, nodes }` — and `placeVocabulary`/`vocabularyFor` are
 its record: the child's `update` passes those registries to `RichText.runAction`, so an
 edit a declaration forbids is refused here, not only reported by `validate` (§125).
-The Link's `read` projects the
+`placeInputRules` / `inputRulesFor` are a third record of the same kind: the rules the
+editor applies to what is typed, so a marker can turn into a block change as it is completed
+(§128) while the editor carries no syntax of any format. The Link's `read` projects the
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /

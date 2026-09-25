@@ -5911,6 +5911,12 @@ emoji replacements
 
 without turning normalization into a bag of UX behavior.
 
+> **Built (2026-09-25), as §128.** The core has `InputRule` and `applyInputRules`; the
+> Markdown package supplies `markdownInputRules` (`# ` through `###### `, which need only
+> `RetypeBlock`); and the editor applies the rules placed for its host, so it carries no
+> syntax. The markers that need a block wrapped or replaced — `> `, `- `, `1. `, a fence —
+> wait on a command §21 does not have; §128 records both.
+
 ---
 
 ## 5. Add atomic `EditorAction` / command composition
@@ -6970,4 +6976,62 @@ paragraph, because a block holds no break).
   own line and a paragraph holding only an image is hoisted back to an `Image` block; an
   image among other content is reported and skipped. The asymmetry belongs to §116's
   deferred inline content.
+
+---
+
+# 128. Input rules
+
+§124 §4 asks for Markdown shortcuts as editor rules rather than as Transforms. The core now
+has the contract and the composition, the Markdown package has the block rules the
+vocabulary can carry out, and the editor applies whatever its placement gives it.
+
+## The contract
+
+```ts
+interface InputRule {
+  readonly name: string
+  readonly match: (textBefore: string) => InputMatch | undefined
+}
+
+interface InputMatch {
+  readonly remove: number
+  readonly commands: Action
+}
+```
+
+A rule is a pure read of the text before the caret: it sees that text and nothing else, so
+it cannot depend on a selection, a clock, or the Model. `remove` is how many characters it
+consumed; `commands` is what to do. `applyInputRules(rules, textBefore, text, insertion)`
+returns the whole action — the insertion, one `DeleteBackward` per consumed character, then
+the rule's commands — so one transition and one undo step cover typing the marker and the
+change it made.
+
+Consumption is by deleting backwards rather than by a range. A range would have to be
+computed against a state the *earlier* commands have not produced yet: `# ` is only in the
+document after the insertion that completes it, so a range read before that is the wrong
+range, and the command layer has no way to say "delete what this action is about to insert".
+The deletes resolve one at a time as the action runs, which is what `runAction` is for
+(§124 §5).
+
+## It is not a Transform
+
+§23's transforms normalize a document whenever they run. A rule is about a moment: `# ` at
+a block's start means "make this a heading" only when someone typed the space, and never on
+a document loaded from storage or arriving from a peer. So the editor applies it at the
+edit, and the transform layer is untouched.
+
+## What is wired, and what is not
+
+`foldkit-richtext-dom`'s Bundle applies the rules placed for its host (`placeInputRules` /
+`inputRulesFor`, the same pattern as a rendering registry or a vocabulary), so the editor
+carries no syntax of any format. `foldkit-richtext-markdown` supplies
+`markdownInputRules`: `# ` through `###### `, which need only `RetypeBlock`.
+
+The other markers need vocabulary that does not exist yet: `> `, `- `, `1. `, and a fence
+each require the block *wrapped* in a container or *replaced* by an atom, and §21's
+operation list has no wrap. That is a command to design — what a caret inside a block does
+when its block becomes a child of a new one — not a rule to add, so those markers stay text
+and no rule claims them. The inline shortcuts (`**foo**` as the closing run is typed) are the
+same story from the other side: they need the text *after* the caret too, which the contract
+deliberately does not read.
 

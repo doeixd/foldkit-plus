@@ -228,6 +228,11 @@ distinguish one. `parse(markdown, { mint })` returns `{ document, diagnostics }`
 micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote,
 and a hard line break are reported rather than guessed at. The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
+`markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
+`###### ` retype a block as the space is typed — where the editor applies the rules placed
+for it (`foldkit-richtext-dom/host`'s `placeInputRules`), so it carries no Markdown itself.
+A marker needing the block wrapped or replaced is not a rule yet, because no command does
+that.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable

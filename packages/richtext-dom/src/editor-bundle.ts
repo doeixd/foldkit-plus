@@ -14,7 +14,13 @@ import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
-import { placeRendering, placeVocabulary, vocabularyFor, type Vocabulary } from './host.js'
+import {
+  inputRulesFor,
+  placeRendering,
+  placeVocabulary,
+  vocabularyFor,
+  type Vocabulary,
+} from './host.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -239,9 +245,18 @@ export const Editor = Bundle.make({
         : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
     const result = RichText.runAction(
       state,
-      queryRange === undefined
-        ? [command]
-        : [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command],
+      // What is typed can be a block marker (§124 §4): the rules are the placement's own,
+      // so the editor carries none of any syntax's vocabulary itself.
+      queryRange !== undefined
+        ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
+        : message._tag === 'Typed'
+          ? RichText.applyInputRules(
+              inputRulesFor(model.hostId),
+              textBeforeOf(model),
+              message.text,
+              command,
+            )
+          : [command],
       { mint: () => `e${nextId++}` },
       { marks: vocabulary.marks, nodes: vocabulary.nodes },
     )

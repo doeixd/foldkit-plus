@@ -39,6 +39,8 @@ import {
 export type Surface = [
   typeof RichText.marksInRange,
   typeof RichText.runAction,
+  typeof RichText.applyInputRules,
+  RichText.InputRule,
   typeof RichText.textRangeBefore,
   typeof RichText.nodeRegistry,
   typeof RichText.blocksOf,

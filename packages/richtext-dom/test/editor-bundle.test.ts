@@ -20,7 +20,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { renderingFor } from '../src/host.js'
+import { placeInputRules, renderingFor } from '../src/host.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -476,5 +476,42 @@ describe('placing a vocabulary with the Bundle (§125)', () => {
       editor: { ...constrained.editor, hostId: 'unconstrained-editor' },
     }
     expect(update(free, toggled('Bold')).model.document).not.toBe(free.document)
+  })
+})
+
+describe('an input rule placed for the editor (§124 §4)', () => {
+  // The editor carries no syntax of its own: what a marker means is the placement's rule.
+  const heading: RichText.InputRule = {
+    name: 'heading-1',
+    match: textBefore =>
+      textBefore === '# '
+        ? { remove: 2, commands: [{ type: 'RetypeBlock', to: { type: 'Heading', level: 1 } }] }
+        : undefined,
+  }
+
+  it('runs the rule as the marker is completed, in the same transition', () => {
+    placeInputRules('rule-editor', [heading])
+    const initial = start(caret('a', 0))
+    const placed: Model = { ...initial, editor: { ...initial.editor, hostId: 'rule-editor' } }
+    // The hash alone is text; the space is what completes the marker.
+    const hash = step(placed, typed('#'))
+    expect(hash.document.children[0]?.children.map(run => run.text).join('')).toBe('#ab')
+
+    const after = step(hash, typed(' '))
+    expect(after.document.children[0]).toMatchObject({ type: 'Heading', level: 1 })
+    // The marker is gone and the text that was there is kept, with the caret at its start.
+    expect(after.document.children[0]?.children.map(run => run.text).join('')).toBe('ab')
+    expect(after.editor.selection).toMatchObject({
+      type: 'Range',
+      anchor: { node: 'a', offset: 0 },
+    })
+    // One undo step covers the marker and the change it made.
+    expect(RichText.inspectHistory(after.editor.history).past).toBe(1)
+  })
+
+  it('leaves the text alone when the placement placed no rule', () => {
+    const after = step(step(start(caret('a', 0)), typed('#')), typed(' '))
+    expect(after.document.children[0]).toMatchObject({ type: 'Paragraph' })
+    expect(after.document.children[0]?.children.map(run => run.text).join('')).toBe('# ab')
   })
 })

@@ -34,6 +34,22 @@ export const placeVocabulary = (hostId: string, vocabulary: Vocabulary): void =>
 /** The vocabulary placed for a host id, or none — `run` then uses its own defaults. */
 export const vocabularyFor = (hostId: string): Vocabulary => vocabularies.get(hostId) ?? {}
 
+const ruleSets = new Map<string, ReadonlyArray<RichText.InputRule>>()
+
+/**
+ * Records the input rules a placement's editor applies to what is typed, by host id, for
+ * the same reason a vocabulary is placed: a rule holds a function, so it cannot ride in the
+ * Bundle's schema-decoded args (§124 §4). The editor itself carries no syntax; an
+ * application places the rules it wants, such as `markdownInputRules`.
+ */
+export const placeInputRules = (hostId: string, rules: ReadonlyArray<RichText.InputRule>): void => {
+  ruleSets.set(hostId, rules)
+}
+
+/** The rules placed for a host id, or none — typing is then only an insertion. */
+export const inputRulesFor = (hostId: string): ReadonlyArray<RichText.InputRule> =>
+  ruleSets.get(hostId) ?? []
+
 /**
  * Records how a placement's host id renders (§122). A registry holds functions,
  * so it cannot ride in a Bundle's args or Model; it is placed by host id because
