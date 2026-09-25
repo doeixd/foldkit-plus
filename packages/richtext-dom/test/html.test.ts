@@ -350,3 +350,146 @@ describe('what import refuses', () => {
     expect(empty.diagnostics).toEqual([])
   })
 })
+
+describe('importing the standard vocabulary (§70, §125)', () => {
+  const standard = RichText.kit({ nodes: RichText.standardNodes, marks: RichText.standardMarks })
+  const nodeBlock = (block: RichText.Block | undefined) => {
+    if (block?.type !== 'Node') throw new Error('expected a node block')
+    return block
+  }
+
+  it('maps the block elements a serialized standard document uses', () => {
+    const parsed = parse(
+      '<blockquote><p>quoted</p></blockquote><hr><img src="/a.png" alt="a">',
+      standard,
+    )
+    const quote = nodeBlock(parsed.blocks[0])
+    expect(quote.kind).toBe('Quote')
+    expect(quote.blocks?.[0]).toMatchObject({ type: 'Paragraph' })
+    expect(nodeBlock(parsed.blocks[1]).kind).toBe('ThematicBreak')
+    const image = nodeBlock(parsed.blocks[2])
+    expect(image.kind).toBe('Image')
+    expect(image.props).toEqual({ src: '/a.png', alt: 'a' })
+    expect(parsed.diagnostics).toEqual([])
+  })
+
+  it('reads a code block verbatim, with the language it names', () => {
+    const labelled = nodeBlock(
+      parse('<pre data-language="ts">const x = 1</pre>', standard).blocks[0],
+    )
+    expect(labelled.kind).toBe('CodeBlock')
+    expect(labelled.props).toEqual({ language: 'ts' })
+    expect(labelled.children.map(run => run.text)).toEqual(['const x = 1'])
+    expect(labelled.children[0]?.marks).toEqual([])
+    // A fence usually names its language in a class, and its first newline is convention.
+    const classed = nodeBlock(
+      parse('<pre>\n<code class="language-js">y</code></pre>', standard).blocks[0],
+    )
+    expect(classed.props).toEqual({ language: 'js' })
+    expect(classed.children.map(run => run.text)).toEqual(['y'])
+  })
+
+  it('reads a strikethrough and a link, which the shipped marks do not carry', () => {
+    const parsed = parse('<p>a <s>gone</s> and <a href="/x?a=1&amp;b=2">here</a></p>', standard)
+    expect(
+      parsed.blocks[0]?.type === 'Paragraph' && parsed.blocks[0].children.map(r => r.marks),
+    ).toEqual([[], ['Strikethrough'], [], [{ name: 'Link', props: { href: '/x?a=1&b=2' } }]])
+    expect(parsed.diagnostics).toEqual([])
+  })
+
+  it('refuses a URL the scheme policy does not allow, and keeps the text', () => {
+    const unsafe = parse('<p><a href="javascript:alert(1)">click</a></p>', standard)
+    expect(shape(unsafe.blocks)[0]).toEqual({ type: 'Paragraph', text: 'click', marks: [[]] })
+    expect(unsafe.diagnostics).toEqual([{ code: 'UnsafeAttribute', detail: 'a:href' }])
+    // A control character inside the scheme does not walk past the check.
+    expect(parse('<p><a href="java\tscript:alert(1)">x</a></p>', standard).diagnostics).toEqual([
+      { code: 'UnsafeAttribute', detail: 'a:href' },
+    ])
+    // An image with no usable source has nothing to keep.
+    const inline = parse('<img src="data:image/png;base64,AAAA">', standard)
+    expect(inline.blocks).toEqual([])
+    expect(inline.diagnostics).toEqual([{ code: 'UnsafeAttribute', detail: 'img:src' }])
+  })
+
+  it('keeps the content of a kind the Kit does not declare, and says so', () => {
+    const withoutQuote = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
+    const parsed = parse('<blockquote><p>quoted</p></blockquote>', withoutQuote)
+    expect(parsed.diagnostics).toEqual([{ code: 'Undeclared', detail: 'Quote' }])
+    expect(parsed.blocks.map(block => block.type)).toEqual(['Paragraph'])
+  })
+
+  it('reads back what the serializer wrote', () => {
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'q-p',
+              children: [{ type: 'Text', id: 'q-t', text: 'quoted', marks: [] }],
+            },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'ListItem',
+              id: 'li',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'li-p',
+                  children: [
+                    { type: 'Text', id: 'li-t', text: 'one ', marks: ['Strikethrough'] },
+                    {
+                      type: 'Text',
+                      id: 'li-t2',
+                      text: 'two',
+                      marks: [{ name: 'Link', props: { href: '/x' } }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'Image',
+          id: 'img',
+          props: { src: '/a.png', alt: 'a' },
+          children: [],
+        },
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'code',
+          props: { language: 'ts' },
+          children: [{ type: 'Text', id: 'code-t', text: 'const x = 1', marks: [] }],
+        },
+        { type: 'Node', kind: 'ThematicBreak', id: 'hr', props: {}, children: [] },
+      ],
+    })
+    const html = RichText.documentToHtml(document, RichText.standardRendering)
+    const parsed = parse(html, standard)
+    const again = RichText.documentToHtml(
+      RichText.decodeDocument({ version: 1, children: parsed.blocks }),
+      RichText.standardRendering,
+    )
+    expect(again).toBe(html)
+  })
+})

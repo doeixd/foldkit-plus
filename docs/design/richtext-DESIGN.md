@@ -3152,9 +3152,12 @@ markup. `toText` / `documentToText` give the plain-text projection.
 Import is a whitelist walk over a `DOMParser` tree (in `packages/richtext-dom`,
 because the core package stays DOM-free): known block and inline tags map to
 semantic blocks and marks, our own `data-*` attributes round-trip, every other
-element is unwrapped or dropped with a diagnostic, no attribute is ever
-interpreted, and `script`/`style`/`iframe` and friends are dropped with their
-content. A Kit passed to the adapter degrades any node kind the vocabulary does
+element is unwrapped or dropped with a diagnostic, and `script`/`style`/`iframe` and
+friends are dropped with their content. Only a fixed few attributes are ever read —
+a link's `href`, an image's `src` and `alt`, a code fence's language — and each passes
+a scheme policy first (`safeUrl`), so a pasted `javascript:` URL is refused with an
+`UnsafeAttribute` diagnostic rather than carried into props; `style`, `onclick`, and
+every other attribute are still never read. A Kit passed to the adapter degrades any node kind the vocabulary does
 not declare. Paste resolves slice → HTML → plain text; nothing parses HTML into
 authority without that walk.
 
@@ -6306,6 +6309,15 @@ unknown arbitrary attrs
 but allow known semantic attributes under explicit schemas/policies.
 
 That brings HTML, Markdown, clipboard, and RichText into alignment.
+
+> **Partly built (2026-09-25).** The importer now maps the standard vocabulary's elements
+> — `blockquote`, `pre` (language from `data-language` or a `language-…` class, text
+> verbatim, no marks), `hr`, `img` (`src`/`alt`), `s`/`del`, and `a` — and reads only a
+> fixed few attributes, each through `safeUrl`, which refuses a scheme outside
+> http/https/mailto/tel after removing control characters (so `java\tscript:` cannot walk
+> past it) and leaving a relative URL alone. What is still the sketch below: a per-Kit
+> *declared* attribute schema (`HtmlImport.make({ marks: { Link: { attributes: { href:
+> Url.safe } } } })`) rather than one fixed allowlist, and `title` on a link.
 
 ---
 

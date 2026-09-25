@@ -1,15 +1,16 @@
 /**
- * HTML import, constrained by a Kit (§70). The parser walks a `DOMParser` tree
- * with a whitelist: known block tags become blocks, known inline tags become
- * marks, our own `data-*` attributes round-trip, and everything else is either
- * unwrapped or dropped with a diagnostic. No attribute is ever interpreted, so
- * a pasted `style`, `href`, or `onclick` cannot survive as anything executable —
- * and `script`/`style`/`iframe` content is dropped along with its element.
+ * HTML import, constrained by a Kit (§70, §124 §10). The parser walks a `DOMParser` tree
+ * with a whitelist: known block tags become blocks, known inline tags become marks, our
+ * own `data-*` attributes round-trip, and everything else is unwrapped or dropped with a
+ * diagnostic. Only a fixed few attributes are ever read — a link's `href`, an image's
+ * `src` and `alt` — and each passes a scheme policy first (`safeUrl`), so a pasted
+ * `style`, `onclick`, or `javascript:` URL cannot survive as anything executable, and
+ * `script`/`style`/`iframe` content is dropped along with its element.
  */
 import * as RichText from 'foldkit-richtext'
 
 export interface HtmlDiagnostic {
-  readonly code: 'Dropped' | 'Unwrapped' | 'Undeclared'
+  readonly code: 'Dropped' | 'Unwrapped' | 'Undeclared' | 'UnsafeAttribute'
   readonly detail: string
 }
 
@@ -60,6 +61,9 @@ const BLOCK_TAGS = new Set([
   'header',
   'footer',
   'aside',
+  // A void block with no content of its own, but a block all the same.
+  'hr',
+  'img',
 ])
 
 const MARK_TAGS: Readonly<Record<string, string>> = {
@@ -68,6 +72,28 @@ const MARK_TAGS: Readonly<Record<string, string>> = {
   em: 'Italic',
   i: 'Italic',
   code: 'Code',
+  s: 'Strikethrough',
+  del: 'Strikethrough',
+  strike: 'Strikethrough',
+}
+
+/** Schemes a link or a source may carry; anything else — `javascript:`, `data:` — is refused. */
+const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel'])
+
+/**
+ * A URL safe to carry into props, or `undefined` when it is not. Control characters are
+ * removed first, because `java\tscript:` and a leading NUL are how a scheme check is
+ * usually walked past; then a URL that names a scheme outside the allowlist is refused,
+ * and one with no scheme — a relative path, a fragment, a protocol-relative URL — is
+ * kept. The value is never interpreted, only copied, so what a policy leaves through is
+ * still the application's to trust.
+ */
+export const safeUrl = (value: string | null): string | undefined => {
+  if (value === null) return undefined
+  const cleaned = value.replace(/[\u0000-\u001F\u007F]/g, '').trim()
+  if (cleaned.length === 0) return undefined
+  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(cleaned)?.[1]?.toLowerCase()
+  return scheme === undefined || SAFE_SCHEMES.has(scheme) ? cleaned : undefined
 }
 
 const headingLevel = (tag: string): number | undefined => {
@@ -81,7 +107,8 @@ const isBlockElement = (tag: string): boolean =>
 
 interface Piece {
   readonly text: string
-  readonly marks: ReadonlyArray<string>
+  /** Names, or values when a mark carries props — a link's `href` arrives here. */
+  readonly marks: ReadonlyArray<RichText.RunMark>
 }
 
 type Lines = ReadonlyArray<ReadonlyArray<Piece>>
@@ -98,7 +125,7 @@ const mergePiece = (pieces: ReadonlyArray<Piece>, piece: Piece): ReadonlyArray<P
 const appendText = (
   lines: Array<ReadonlyArray<Piece>>,
   text: string,
-  marks: ReadonlyArray<string>,
+  marks: ReadonlyArray<RichText.RunMark>,
 ): void => {
   if (text.length === 0) return
   const current = lines[lines.length - 1] ?? []
@@ -113,7 +140,7 @@ const appendText = (
  */
 const collectNode = (
   node: Node,
-  marks: ReadonlyArray<string>,
+  marks: ReadonlyArray<RichText.RunMark>,
   lines: Array<ReadonlyArray<Piece>>,
   diagnostics: Array<HtmlDiagnostic>,
 ): void => {
@@ -132,14 +159,28 @@ const collectNode = (
     lines.push([])
     return
   }
+  // The model has no inline atoms yet (§116), so a void element inside a paragraph
+  // cannot be kept; it is reported rather than silently lost.
+  if (tag === 'img' || tag === 'hr') {
+    diagnostics.push({ code: 'Dropped', detail: tag })
+    return
+  }
+  const added: Array<RichText.RunMark> = []
   const mark = MARK_TAGS[tag]
+  if (mark !== undefined) added.push(mark)
+  if (tag === 'a') {
+    // A link is imported only through its `href`, and only when the scheme passes the
+    // policy; an anchor with no usable href stays plain text (§70, §124 §10).
+    const href = safeUrl(element.getAttribute('href'))
+    if (href === undefined && element.hasAttribute('href')) {
+      diagnostics.push({ code: 'UnsafeAttribute', detail: 'a:href' })
+    }
+    if (href !== undefined) added.push({ name: 'Link', props: { href } })
+  }
   const declared = element.getAttribute('data-marks')
-  const added =
-    mark !== undefined
-      ? [mark]
-      : tag === 'span' && declared !== null && declared.trim().length > 0
-        ? declared.trim().split(/\s+/)
-        : []
+  if (added.length === 0 && tag === 'span' && declared !== null && declared.trim().length > 0) {
+    added.push(...declared.trim().split(/\s+/))
+  }
   if (added.length === 0 && (BLOCK_TAGS.has(tag) || headingLevel(tag) !== undefined)) {
     diagnostics.push({ code: 'Unwrapped', detail: tag })
   }
@@ -150,7 +191,7 @@ const collectNode = (
 
 const collectLines = (
   element: Element,
-  marks: ReadonlyArray<string>,
+  marks: ReadonlyArray<RichText.RunMark>,
   lines: Array<ReadonlyArray<Piece>>,
   diagnostics: Array<HtmlDiagnostic>,
 ): void => {
@@ -160,12 +201,20 @@ const collectLines = (
 const runsFrom = (pieces: ReadonlyArray<Piece>, mint: () => string): ReadonlyArray<RichText.Text> =>
   pieces
     .filter(piece => piece.text.length > 0)
-    .map(piece => ({
-      type: 'Text' as const,
-      id: RichText.NodeId.make(mint()),
-      text: piece.text,
-      marks: [...new Set(piece.marks)],
-    }))
+    .map(piece => {
+      // A run carries a name at most once, and the value is the first one seen.
+      const marks: Array<RichText.RunMark> = []
+      for (const mark of piece.marks) {
+        const name = RichText.markName(mark)
+        if (!marks.some(held => RichText.markName(held) === name)) marks.push(mark)
+      }
+      return {
+        type: 'Text' as const,
+        id: RichText.NodeId.make(mint()),
+        text: piece.text,
+        marks,
+      }
+    })
 
 const paragraphBlocks = (lines: Lines, mint: () => string): ReadonlyArray<RichText.Block> =>
   lines.map(line => ({
@@ -274,6 +323,61 @@ const nodeBlockFrom = (
 const listKindOf = (tag: string): string | undefined =>
   tag === 'ul' || tag === 'ol' ? 'List' : tag === 'li' ? 'ListItem' : undefined
 
+/** Whether a mapping may be used: a kind the Kit declares, or any when no Kit was given. */
+const mapsTo = (kit: RichText.Kit | undefined, kind: string): boolean =>
+  kit === undefined || kit.nodes.some(candidate => candidate.name === kind)
+
+/**
+ * A void element imported as an atom. `hr` carries nothing; an `img` carries what its
+ * allowlisted attributes say, and is dropped when its source does not pass the policy —
+ * there is no content to fall back to.
+ */
+const atomFrom = (
+  element: Element,
+  tag: string,
+  kind: string,
+  mint: () => string,
+  diagnostics: Array<HtmlDiagnostic>,
+): RichText.Block | undefined => {
+  const block = (props: Readonly<Record<string, string>>): RichText.Block => ({
+    type: 'Node',
+    kind,
+    id: RichText.NodeId.make(mint()),
+    props,
+    children: [],
+  })
+  if (tag === 'hr') return block({})
+  const src = safeUrl(element.getAttribute('src'))
+  if (src === undefined) {
+    diagnostics.push({ code: 'UnsafeAttribute', detail: 'img:src' })
+    return undefined
+  }
+  const alt = element.getAttribute('alt') ?? ''
+  return block(alt.length > 0 ? { src, alt } : { src })
+}
+
+/**
+ * A `pre` becomes a code block: its text verbatim, in one run with no marks — inside
+ * code, markup is content, not formatting — and its language when one is named, from our
+ * own `data-language` or the `language-…` class a fenced block usually carries.
+ */
+const codeBlockFrom = (element: Element, mint: () => string): RichText.Block => {
+  const code = element.querySelector('code')
+  const className = code?.getAttribute('class') ?? ''
+  const named =
+    element.getAttribute('data-language')?.trim() ||
+    /(?:^|\s)language-([\w+#.-]+)/.exec(className)?.[1]
+  // One leading newline is the HTML convention around code, not content.
+  const text = (code?.textContent ?? element.textContent ?? '').replace(/^\n/, '')
+  return {
+    type: 'Node',
+    kind: 'CodeBlock',
+    id: RichText.NodeId.make(mint()),
+    props: named === undefined || named.length === 0 ? {} : { language: named },
+    children: [{ type: 'Text', id: RichText.NodeId.make(mint()), text, marks: [] }],
+  }
+}
+
 /** Blocks of one element, including our own preserved, application-node, and list elements. */
 const blocksFrom = (
   element: Element,
@@ -295,10 +399,37 @@ const blocksFrom = (
       },
     ]
   }
+  const named = tag === 'blockquote' ? 'Quote' : tag === 'pre' ? 'CodeBlock' : undefined
+  if (named !== undefined) {
+    if (mapsTo(kit, named)) {
+      if (tag === 'pre') return [codeBlockFrom(element, mint)]
+      return [
+        {
+          type: 'Node' as const,
+          kind: named,
+          id: RichText.NodeId.make(mint()),
+          props: {},
+          children: [],
+          blocks: childBlocks(element, mint, diagnostics, kit),
+        },
+      ]
+    }
+    diagnostics.push({ code: 'Undeclared', detail: named })
+    // Fall through: the content survives as ordinary blocks.
+  }
+  if (tag === 'img' || tag === 'hr') {
+    const kind = tag === 'img' ? 'Image' : 'ThematicBreak'
+    if (!mapsTo(kit, kind)) {
+      diagnostics.push({ code: 'Undeclared', detail: kind })
+      return []
+    }
+    const atom = atomFrom(element, tag, kind, mint, diagnostics)
+    return atom === undefined ? [] : [atom]
+  }
   const kind = element.getAttribute('data-node')?.trim() ?? listKindOf(tag)
   if (kind !== undefined && kind.length > 0) {
     const declaredNode = kit?.nodes.find(candidate => candidate.name === kind)
-    if (kit === undefined || declaredNode !== undefined) {
+    if (mapsTo(kit, kind)) {
       return [nodeBlockFrom(element, kind, declaredNode, mint, diagnostics, kit)]
     }
     diagnostics.push({ code: 'Undeclared', detail: kind })

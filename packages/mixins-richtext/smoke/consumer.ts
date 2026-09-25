@@ -16,7 +16,7 @@ import {
   vocabularyFor,
 } from 'foldkit-richtext-dom/host'
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
-import { parseHtml } from 'foldkit-richtext-dom/html'
+import { parseHtml, safeUrl } from 'foldkit-richtext-dom/html'
 import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
 import { markActive, marksToolbar, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
 import {
@@ -70,6 +70,7 @@ export type Surface = [
   typeof intentFor,
   KeyBinding,
   typeof parseHtml,
+  typeof safeUrl,
   typeof renderDocument,
   typeof markActive,
   typeof marksToolbar,

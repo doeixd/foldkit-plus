@@ -102,9 +102,14 @@ Read the calls literally:
   (`after` at a run's end, `before` elsewhere) rather than pretending to
   round-trip it.
 - `parseHtml(html, { kit, mint })` at `foldkit-richtext-dom/html` is the clipboard
-  fallback: a whitelist walk over a `DOMParser` tree that mints fresh identities,
-  so a pasted `style`, `href`, or `onclick` can never survive as anything
-  executable.
+  fallback: a whitelist walk over a `DOMParser` tree that mints fresh identities. It maps
+  the standard vocabulary's elements — `blockquote`, `pre` (language from `data-language`
+  or a `language-…` class, text verbatim with no marks), `hr`, `img` (`src`/`alt`),
+  `s`/`del`, `a` — and reads only a fixed few attributes, each through `safeUrl`, which
+  refuses a scheme outside http/https/mailto/tel *after* removing control characters (so
+  `java\tscript:` cannot walk past it) and leaves a relative URL alone. A `style`,
+  `onclick`, or `javascript:` URL therefore still cannot survive as anything executable,
+  and an element it cannot map keeps its text and reports a diagnostic.
 
 ## Mounting into a view
 

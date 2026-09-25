@@ -104,10 +104,14 @@ and a tag or attribute name that would end the markup is refused.
 
 HTML import and the editable adapter live in `foldkit-richtext-dom`,
 because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
-`DOMParser` tree: known tags map to blocks and marks, `data-marks`/`data-unknown`
-round-trip, other elements are unwrapped or dropped with a diagnostic, attributes
-are never interpreted, and `script`/`style`/`iframe` are dropped with their
-content. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
+`DOMParser` tree: known tags map to blocks and marks — including the standard
+vocabulary's `blockquote`, `pre`, `hr`, `img`, `s`/`del`, and `a` — `data-marks`/
+`data-unknown` round-trip, other elements are unwrapped or dropped with a diagnostic,
+and `script`/`style`/`iframe` are dropped with their content. Only a fixed few
+attributes are read — a link's `href`, an image's `src`/`alt`, a fence's language — and
+each passes `safeUrl`, which refuses a scheme outside http/https/mailto/tel after
+removing control characters and leaves a relative URL alone; `style` and `onclick` are
+never read. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
 `contenteditable` subtree and takes the same `rendering(...)` registry — as do
 `mountInto` and `attachEditor` — so each mark
 nests as an element inside its run element exactly as the read-only view nests it,
