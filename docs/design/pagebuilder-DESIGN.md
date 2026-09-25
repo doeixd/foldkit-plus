@@ -1241,29 +1241,37 @@ Each is answered by building, not by debate, and none changes the ownership mode
   Actions, or stay separate? *They stay separate: an Action ends in a Message
   and `Agent.action` exposes it as a variant; nothing yet asks for a set.*
 
-### Open after Phase 10
+### Open after Phase 10, and decided
 
-These need a decision, not only more building:
-
-- **Canvas data.** The drawn Builder draws from the Builder's Model alone, so a
-  Query or Surface Block on the editor's canvas shows its waiting state. Giving
-  it the application's reads means a view input carried from the page parent
-  through the CMS editor's view, `FormView`, the form's control renderer and
-  `BuilderView` (`h.submodel` already takes `viewInputs`). Is a per-control
-  view input the right seam in `foldkit-mixins-form`, or should a Bundle
-  control's view read something else?
-- **The selection in the URL (10-3).** `Mirror.url` writes back through field
-  refs or a writable Projection, and the Builder's Model lives inside a form
-  control's Model, which Form exposes read-only. Should Form offer a writable
-  projection into a control's Model, or should the Builder mirror its own
-  selection through a Message the parent sends on navigation?
-- **A relation picker for a Block prop.** A prop that references an Entity (a
-  category, an author) wants the form's relation picker, whose choices are a
-  query the application loads. The inspector has no way to load one. Where do
-  a Block prop's picker choices come from?
-- **Rich text on the canvas (7c-2).** Waits for `foldkit-richtext-dom`'s editor
-  Bundle and host to settle; the other session owns them.
-- **Publishing.** `foldkit-composition`, `foldkit-builder` and
-  `foldkit-mixins-builder` are private; §29 is complete. `foldkit-surface`
-  (`Action`) and `foldkit-agent` (`Agent.action`) gained public API that is
-  unreleased. Publishing is the owner's call.
+- **Canvas data: a per-key view input through the form.** `FormViewInputs`
+  already carries `options` by key, and `Cms.editorView` passes its inputs
+  through unchanged; only the Bundle control's renderer drops them, calling
+  `h.submodel` without `viewInputs`. So `FormViewInputs` gains
+  `controls?: { [key]?: unknown }`, the Bundle renderer hands a control its
+  entry, and `BuilderView.submodel` takes `{ data?, options? }`, drawing the
+  canvas with `data` as a published page is drawn. `builder.inputWith` accepts
+  a view with inputs. The parent reads the Query and Surface Blocks once, as it
+  already must to publish or preview, and passes the result down: data stays
+  the application's, and the Builder keeps no copy.
+- **The selection in the URL: a Message in, a read out.** A writable
+  projection into the control's Model would let `Mirror.url` set `selected`
+  behind the Builder's `update`, skipping what a selection does there (the
+  layers' focus and the rows above it opened). The Builder owns its selection,
+  so the URL is its mirror, not a second owner: on navigation the parent sends
+  `form.control('document').send(Message.Selected({ id }))`, and a
+  Subscription over the read `PageBuilder.document`/`selected` replaces the URL
+  when the selection changes. No Form or Mirror API is needed; the Builder
+  README gets the recipe, and the CMS example uses it once it routes.
+- **A relation picker for a Block prop: the form's picker, fed the same way.**
+  A Block asks for it with `BuilderView.controls({ category:
+  Input.relationOne(...) })`, as it asks for a multiline box, and its choices
+  come in the Builder's view inputs as `options`, keyed `'Block.prop'`, the way
+  `FormViewInputs.nestedOptions` keys a nested picker by path. Loading them is
+  the application's query, as it is for any form picker.
+- **Rich text on the canvas (7c-2)** still waits for `foldkit-richtext-dom`'s
+  editor Bundle and host to settle; the other session is changing them.
+- **Publishing** waits until the canvas data and the picker land, since both
+  change `foldkit-mixins-form`'s and `foldkit-mixins-builder`'s public API.
+  Then `foldkit-composition`, `foldkit-builder` and `foldkit-mixins-builder`
+  go out together at 0.1.0, beside the unreleased `Action` and `Agent.action`.
+  It remains the owner's call to publish.
