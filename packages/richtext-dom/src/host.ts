@@ -50,12 +50,16 @@ export const mountInto = (
 /** The attachment a host owns, for a patch Command that has only the element. */
 export const attachmentIn = (host: Element): Attachment | undefined => attachments.get(host)
 
-/** Detaches a host's listeners and removes its subtree. Safe to call twice. */
+/**
+ * Detaches a host's listeners and removes its subtree. Safe to call twice. What a
+ * placement recorded is not forgotten here: it belongs to the host id the view's
+ * author placed, not to one mount of it, so a host that unmounts and mounts again
+ * (a route returning, a row re-rendered) renders the same way it did (§122).
+ */
 export const releaseMount = (host: Element): void => {
   const attachment = attachments.get(host)
   if (attachment === undefined) return
   attachments.delete(host)
-  renderings.delete(host.id)
   attachment.detach()
   attachment.current().root.remove()
 }

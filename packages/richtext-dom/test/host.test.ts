@@ -156,14 +156,15 @@ describe('a rendering registry placed for a host id (§122)', () => {
     expect(renderingFor('registry-2')).toBe(second)
   })
 
-  it('forgets the registry when the host it belongs to is released', () => {
+  it('keeps the registry a placement recorded when its host releases', () => {
     const element = host()
     element.id = 'registry-3'
     const placed = registry('a')
     placeRendering('registry-3', placed)
     mountInto(element, content(), { onIntent: () => {} }, placed)
-    expect(renderingFor('registry-3')).toBe(placed)
     releaseMount(element)
-    expect(renderingFor('registry-3')).toBe(RichText.noRendering)
+    // A host can unmount and mount again; the placement is the view author's, so
+    // the id still renders the way it was placed (§122).
+    expect(renderingFor('registry-3')).toBe(placed)
   })
 })

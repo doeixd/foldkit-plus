@@ -5333,30 +5333,35 @@ and `editorAt(hostId, registry)` would make every placement's *args* carry a val
 the schema cannot describe, typed `unknown` and cast at the boundary.
 
 So the registry registers where the package already keeps per-placement state: the
-host. `editorAt(hostId, registry?)` records it for that id, the mount looks it up when
-`events` executes, and `releaseMount` forgets it — the shape `host.ts` already uses
-for attachments, with the id standing in for the element because the placement happens
-before the element exists. Nothing enters the Model or the args, the mount keeps its
-default when no registry was placed, and a re-placement of the same id replaces the
-entry rather than accumulating one.
+host. `editorAt(hostId, registry?)` records it for that id and the mount looks it up
+when `events` executes — the shape `host.ts` already uses for attachments, with the
+id standing in for the element because the placement happens before the element
+exists. Nothing enters the Model or the args, the mount keeps its default when no
+registry was placed, and a re-placement of the same id replaces the entry rather
+than accumulating one.
 
-The one risk to keep visible: an entry whose placement never mounts is not released,
-so the map is keyed by host id and is only as bounded as placements are. That is
-acceptable for a per-id registry written by the view's own author, and it is the
-reason this does not become a general-purpose service location.
+The one risk to keep visible: the map is keyed by host id and is bounded by the
+placements an application makes, not by mounts, so a view that places a distinct id
+per row keeps one small record per row it has ever placed. That is acceptable for a
+per-id registry written by the view's own author, and it is the reason this does not
+become a general-purpose service location.
+
+An earlier draft of this section had `releaseMount` forget the entry, to bound the
+map by mounts instead. That is wrong, and the tests now say why: a placement is the
+application's, so a host that unmounts and mounts again — a route returning, a row
+re-rendered — reads its id a second time, and forgetting would render that second
+mount with the default. The record belongs to the placement, not to one mount of it.
 
 Slices:
 
-1. `host.ts` gains `placeRendering(hostId, rendering)` and `renderingFor(hostId)`,
-   and `releaseMount` forgets the entry for the element's id. — **done.**
+1. `host.ts` gains `placeRendering(hostId, rendering)` and `renderingFor(hostId)`.
+   — **done**, and a release deliberately keeps the record.
 2. `events` reads the registry for `element.id` and hands it to `attachEditor`;
    `editorAt(hostId, registry?)` places it. — **done.**
 3. A test that a Link placed through `editorAt` renders as `<a href>` in the editable
-   subtree, and that a mount with no placement keeps the default. — **done.**
+   subtree, and that a mount with no placement keeps the default. — **done**, plus a
+   re-mount after a release, which is what caught the forgetting.
 
-Implemented as decided, with two details the code settled: `editorAt` always places,
+Implemented as decided, with one detail the code settled: `editorAt` always places,
 defaulting to `noRendering` when given none, so "re-placement replaces" needs no
-special case; and a host released without ever mounting never forgets its entry —
-consistent, because a mount that never happened has no release either. The mount
-reads `renderingFor(element.id)` in `events`, so the whole Bundle path now renders
-through an application's registry.
+special case.

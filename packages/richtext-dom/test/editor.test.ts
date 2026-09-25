@@ -277,4 +277,24 @@ describe('the mount reading a registry placed for its host id (§122)', () => {
     expect(run.getAttribute('data-marks')).toBe('Link')
     await end()
   })
+
+  it('renders through the placed registry again after its mount released', async () => {
+    const element = host()
+    element.id = 'remounted-editor'
+    placeRendering(
+      'remounted-editor',
+      RichText.rendering({ marks: { Link: { tag: 'a', attributes: { href: '/x' } } } }),
+    )
+    const first = await mounted(element)
+    await first.end()
+    // The placement is the application's, not the element's: a host that unmounts
+    // and mounts again — a route returning, a row re-rendered — reads the same id.
+    expect(element.children.length).toBe(0)
+
+    const second = await mounted(element)
+    const run = element.querySelector('[data-run]') as HTMLElement
+    expect(run.firstChild).toBeInstanceOf(HTMLAnchorElement)
+    expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
+    await second.end()
+  })
 })

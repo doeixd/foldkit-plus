@@ -214,10 +214,10 @@ renderer that draws its own buttons.
 
 - It does not run commands or resolve domain state. A caller runs `RichText.run`
   and hands the result here; `attach` reports intent and stops.
-- A registry placed for a host id is forgotten when that host releases, but a
-  placement that never mounts never releases, so the map is only as bounded as
-  placements are (§122). It is a per-id record the view's author writes, not a
-  service locator.
+- A registry placed for a host id is kept for that id, not released with a host, so
+  a host that unmounts and mounts again renders the same way; the record is bounded
+  by the placements an application makes, not by mounts (§122). It is a per-id
+  record the view's author writes, not a service locator.
 - It does not patch nested structural changes item by item: a container whose item
   list changed is re-rendered where it stood, so its surviving items are rebuilt
   rather than patched individually. Correct, and a follow-up for identity
