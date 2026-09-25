@@ -261,8 +261,8 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     `text.link` before. A tone's `ink` is right on the base surface and wrong
     on a band, the same situation as headings (F17). *Proposed:* the recipes'
     unfilled variants read `var(--fk-ink, <tone ink>)`, so a band that sets
-    `--fk-ink: currentColor` (beside `--fk-heading`) recolors them too. Status:
-    open.
+    `--fk-ink: currentColor` (beside `--fk-heading`) recolors them too.
+    **Fixed** (plan area 2c): they do, and the Hero's tones set both.
 
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
 

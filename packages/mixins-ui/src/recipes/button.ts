@@ -20,6 +20,13 @@ import {
 const size = (block: string, inline: string, font: string) =>
   variant(Style.self({ paddingBlock: block, paddingInline: inline, fontSize: font }))
 
+/**
+ * Text on a button with no fill: the tone's ink, unless a container drawn in a
+ * color of its own sets `--fk-ink` (as it sets `--fk-heading`), where the ink
+ * would not read.
+ */
+const unfilledInk = `var(--fk-ink, ${toneVar('ink')})`
+
 export const Button = Style.recipeFor(ButtonSlots)({
   base: {
     button: component(
@@ -59,7 +66,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
         button: variant(
           Style.self({
             background: 'transparent',
-            color: toneVar('ink'),
+            color: unfilledInk,
             borderColor: toneVar('fill'),
           }),
           hover({ background: toneVar('wash') }),
@@ -67,7 +74,7 @@ export const Button = Style.recipeFor(ButtonSlots)({
       },
       ghost: {
         button: variant(
-          Style.self({ background: 'transparent', color: toneVar('ink') }),
+          Style.self({ background: 'transparent', color: unfilledInk }),
           hover({ background: toneVar('wash') }),
         ),
       },

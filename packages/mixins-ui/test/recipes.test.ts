@@ -22,11 +22,13 @@ import {
 import { attributeOf, h, message, type TestMessage } from './fixture.js'
 
 const palette = Theme.compose(Theme.tokens, Theme.oklch({ accent: { h: 280, c: 0.15, l: '60%' } }))
-const defined = new Set(
-  Object.entries(palette).flatMap(([group, names]) =>
+const defined = new Set([
+  ...Object.entries(palette).flatMap(([group, names]) =>
     Object.keys(names).map(name => `${group}-${name}`),
   ),
-)
+  // Set by a container drawn in its own color, not by a theme.
+  'ink',
+])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
 const selections = (variants: Readonly<Record<string, Readonly<Record<string, unknown>>>>) => [
@@ -97,6 +99,15 @@ describe('Recipes', () => {
     )
     expect(references.length).toBeGreaterThan(0)
     expect(references.filter(reference => !defined.has(reference))).toEqual([])
+  })
+
+  it('draws an unfilled button’s text in a band’s --fk-ink before its tone’s', () => {
+    for (const variant of ['outline', 'ghost'] as const) {
+      const css = Style.forSlots(ButtonSlots)(Recipes.Button({ variant })).css
+      expect(css).toContain('color:var(--fk-ink, var(--_fk-tone-ink))')
+    }
+    const solid = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'solid' })).css
+    expect(solid).not.toContain('--fk-ink')
   })
 
   it.each(Object.entries(compiled))('%s emits every rule inside a layer', (_, sheets) => {

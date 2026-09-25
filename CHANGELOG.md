@@ -262,6 +262,9 @@ version changed; `pnpm` skips versions already in the registry.
   `text['on-accent']`, the same value as `accent['on-fill']`, is removed.
   Prose's `mark` drew its text in the on-fill color over the accent's tint; it
   uses `ink`.
+- **`foldkit-mixins-ui`: `outline` and `ghost` buttons read `--fk-ink` first,**
+  so on a band that sets `--fk-ink: currentColor` their text is the band's
+  color instead of the tone's ink, which does not read there.
 - **`foldkit-mixins`: `Defaults.headings` reads `--fk-heading` first,** so a
   container drawn in its own color sets `--fk-heading: currentColor` and its
   headings take its color; elsewhere they stay `text-overt`.

@@ -392,7 +392,8 @@ distinct value is its own class. `sidebar` and `switcher` are flex math and need
 under `:where()` over `--fk-*` tokens with a fallback, so a class rule always beats it and it reads
 with or without a theme. Headings are `text-overt` unless a container sets `--fk-heading`: a band
 drawn in its own color writes `Style.vars({ '--fk-heading': 'currentColor' })` and the headings
-inside take its color, with no rule on the heading. `foldkit-mixins/prose` is the longform contract: `Prose.style({ measure?,
+inside take its color, with no rule on the heading. `foldkit-mixins-ui`'s unfilled buttons read
+`--fk-ink` the same way. `foldkit-mixins/prose` is the longform contract: `Prose.style({ measure?,
 rhythm? })` is one class for every caller (the rhythm between unlike elements: heading to
 paragraph, list to paragraph, around figures) whose options are `--fk-prose-*` variables on the
 element. Both are unlayered; the page places them:

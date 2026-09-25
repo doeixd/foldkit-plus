@@ -66,8 +66,8 @@ const HeroSlots = Slots.define({
   lead: part,
   actions: part,
 })
-// On a band of its own color, headings take the band's color instead of their own.
-const onBand = Style.vars({ '--fk-heading': 'currentColor' })
+// On a band of its own color, headings and unfilled buttons take the band's color.
+const onBand = Style.vars({ '--fk-heading': 'currentColor', '--fk-ink': 'currentColor' })
 const HeroLook = Appearance.make(HeroSlots, {
   layer: components,
   recipe: Style.recipeFor(HeroSlots)({
