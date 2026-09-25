@@ -298,8 +298,13 @@ const nodeBlockFrom = (
   diagnostics: Array<HtmlDiagnostic>,
   kit: RichText.Kit | undefined,
 ): RichText.Block => {
+  // A constrained declaration (`blocksOf(…)`) is block content too: the mode is what
+  // decides, and the markup only settles a kind no declaration describes.
+  const declaresBlocks =
+    declared?.kind === 'node' &&
+    (declared.children === RichText.blockContent || typeof declared.children === 'object')
   const holdsBlocks =
-    (declared?.kind === 'node' && declared.children === RichText.blockContent) ||
+    declaresBlocks ||
     Array.from(element.children).some(child => isBlockElement(child.tagName.toLowerCase()))
   return holdsBlocks
     ? {

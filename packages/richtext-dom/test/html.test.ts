@@ -418,6 +418,21 @@ describe('importing the standard vocabulary (§70, §125)', () => {
     expect(parsed.blocks.map(block => block.type)).toEqual(['Paragraph'])
   })
 
+  it('treats a constrained kind as block content, not as a run holder', () => {
+    const constrained = RichText.kit({
+      nodes: [
+        RichText.node('List', { children: RichText.blocksOf('ListItem') }),
+        RichText.node('ListItem', { children: RichText.blockContent }),
+        RichText.block('Paragraph'),
+      ],
+      marks: [],
+    })
+    // Our own serialized form, for an application that renders the kind itself.
+    const list = nodeBlock(parse('<div data-node="List">text</div>', constrained).blocks[0])
+    expect(list.children).toEqual([])
+    expect(list.blocks?.map(block => block.type)).toEqual(['Paragraph'])
+  })
+
   it('reads back what the serializer wrote', () => {
     const document = RichText.decodeDocument({
       version: 1,
