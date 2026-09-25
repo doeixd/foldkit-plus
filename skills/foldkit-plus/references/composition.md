@@ -96,6 +96,16 @@ no context means a node with conditions is hidden (fails closed); edit mode
 draws it marked `data-composition-hidden`. `Composition.holds(when, context)`.
 Presentation, not authorization.
 
+## Stateful Blocks
+
+`Block.define(name, { ..., stateful: true })`; the parent places a Bundle per
+node: `Bundle.declareEach(Bundle, 'field')` + `Page.each(...)`.
+`Stateful.sync(Placed, Site, Block, { before, after }, (model, props) => model)`
+(from `/foldkit`) is the Step that adds, removes and restarts (props changed,
+compared by value); `Renderer.render(..., { data: Stateful.views(Placed, Site,
+Block, doc, model, h) })` and in the Renderer `Stateful.html(data)`. An item's
+view needs a runtime. `Composition.statefulNodes(catalog, doc, block?)`.
+
 ## Data: `foldkit-composition/remote`
 
 `QueryBlock.define(name, { Props, provides, query, input: props => queryInput,

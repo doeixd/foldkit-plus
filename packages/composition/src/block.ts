@@ -29,6 +29,12 @@ export interface Block<
   /** The appearance choices a node may store, by axis: none unless a look is attached. */
   readonly appearance: AppearanceAxes
   /**
+   * Whether each node of this Block has state of its own, a Bundle the page's
+   * parent places once per node (`Composition.statefulNodes`). Most Blocks are
+   * pure rendering and are not.
+   */
+  readonly stateful: boolean
+  /**
    * Checks the decoded props go through beyond their Schema, such as a rich-text
    * body against its Kit. Each finding has a path inside the props.
    */
@@ -102,6 +108,8 @@ const define = <
     readonly check?: (props: Props['Type']) => ReadonlyArray<PropsFinding>
     /** The appearance choices a node may store. Usually attached by a look instead. */
     readonly appearance?: AppearanceAxes
+    /** Each node has state of its own: a carousel, an accordion, a configurator. */
+    readonly stateful?: boolean
   },
 ): Block<Name, Props, Regions> => {
   if (name.length === 0) throw new Error('Block.define: a Block needs a name')
@@ -120,6 +128,7 @@ const define = <
     provides: Object.freeze([...config.provides]),
     metadata: Metadata.empty,
     appearance: Object.freeze({ ...config.appearance }),
+    stateful: config.stateful ?? false,
     check: config.check ?? (() => []),
   })
 }

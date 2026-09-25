@@ -13,10 +13,12 @@
  */
 import { Result } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import * as Update from 'foldkit/update'
 import { Block, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
 import { Catalog } from '../catalog.js'
 import { holds } from '../condition.js'
 import type { Document, NodeId } from '../document.js'
+import { statefulNodes } from '../stateful.js'
 
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
 export type Mode = 'view' | 'edit'
@@ -175,4 +177,94 @@ export const Renderer = {
   /** A Renderer whose views may dispatch the application's Messages. */
   forMessages: <Message>() => ({ make: make<Message>() }),
   render,
+}
+
+/** Whether two stored JSON values are equal, whatever the order of their keys. */
+const sameJson = (left: unknown, right: unknown): boolean => {
+  if (left === right) return true
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
+    return false
+  if (Array.isArray(left) !== Array.isArray(right)) return false
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      key =>
+        Object.hasOwn(right, key) &&
+        sameJson(
+          (left as Readonly<Record<string, unknown>>)[key],
+          (right as Readonly<Record<string, unknown>>)[key],
+        ),
+    )
+  )
+}
+
+/** What a placed collection (`Page.each(...)`) offers that `Stateful` uses. */
+export interface StatefulCollection<Parent, ParentMessage, R, Model> {
+  // Method syntax: a collection keyed by a narrower id still fits.
+  add(key: string, prepare?: (model: Model) => Model): Update.Step<Parent, ParentMessage, R>
+  remove(key: string): Update.Step<Parent, ParentMessage, never>
+  view(parent: Parent, h: HtmlBuilder<ParentMessage>, key: string): Html
+}
+
+/**
+ * A page's stateful nodes, as a placed collection holds them: one Bundle per
+ * node, keyed by its id, the parent's own Model.
+ */
+export const Stateful = {
+  /**
+   * The Step that keeps `collection` in step with a page's nodes of `block`,
+   * from the page it showed (`before`, `undefined` at first) to the one it
+   * shows now: a new node is added, its Model prepared from its props, a gone
+   * one removed, and one whose props changed started again with the new ones.
+   */
+  sync: <Parent, ParentMessage, R, Model, B extends AnyBlock>(
+    collection: StatefulCollection<Parent, ParentMessage, R, Model>,
+    catalog: Catalog,
+    block: B,
+    pages: { readonly before: Document | undefined; readonly after: Document },
+    prepare: (model: Model, props: PropsOf<B>) => Model,
+  ): Update.Step<Parent, ParentMessage, R> => {
+    const of = (document: Document | undefined) =>
+      document === undefined ? [] : statefulNodes(catalog, document, block.name)
+    const before = new Map(of(pages.before).map(node => [node.id, node]))
+    const after = of(pages.after)
+    const stored = (document: Document | undefined, id: NodeId) => document?.nodes[id]?.props
+    return Update.combine([
+      ...[...before.keys()]
+        .filter(id => !after.some(node => node.id === id))
+        .map(id => collection.remove(id)),
+      ...after
+        .filter(
+          node =>
+            !before.has(node.id) ||
+            // By value: a page loaded again is new objects with the same props.
+            !sameJson(stored(pages.before, node.id), stored(pages.after, node.id)),
+        )
+        // The props of a node of `block`, decoded by its Schema.
+        .map(node => collection.add(node.id, model => prepare(model, node.props as PropsOf<B>))),
+    ])
+  },
+
+  /** Each of a page's nodes of `block`, drawn by its item, by id: for `Renderer.render`'s `data`. */
+  views: <Parent, ParentMessage>(
+    collection: Pick<StatefulCollection<Parent, ParentMessage, never, unknown>, 'view'>,
+    catalog: Catalog,
+    block: AnyBlock,
+    document: Document,
+    parent: Parent,
+    h: HtmlBuilder<ParentMessage>,
+  ): Readonly<Record<string, Html>> =>
+    Object.fromEntries(
+      statefulNodes(catalog, document, block.name).map(node => [
+        node.id,
+        collection.view(parent, h, node.id),
+      ]),
+    ),
+
+  /** A stateful node's drawn Bundle, from the `data` `views` gave it; nothing until it is placed. */
+  html: (data: unknown): Html =>
+    // `views` hands each node its item's Html.
+    data === undefined ? null : (data as Html),
 }

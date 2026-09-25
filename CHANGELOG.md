@@ -107,6 +107,12 @@ version changed; `pnpm` skips versions already in the registry.
   is `mixins:style-property-conflict`. A layout Block is a Mixins layout this way: the test site's Columns is
   `Layout.switcher`, with its ratio, when it stacks, and its gap as choices.
   Phase 8 of the page builder design.
+- **`foldkit-composition`: stateful Blocks.** A Block marked `stateful` is
+  backed by a Bundle the page's parent places once per node, keyed by its id.
+  `Composition.statefulNodes` lists them; `Stateful.sync` (in `/foldkit`) keeps
+  a placed collection in step with the page shown, adding, removing, and
+  starting again a node whose props changed; `Stateful.views` and
+  `Stateful.html` draw each node with its own item.
 - **`foldkit-composition/remote`: Query Blocks.** `QueryBlock.define` makes a
   Block that names a `foldkit-remote` query and derives its input from props;
   `QueryBlock.reads(Data, catalog, document)` is the page's reads as one

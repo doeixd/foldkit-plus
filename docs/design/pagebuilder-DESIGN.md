@@ -1124,7 +1124,16 @@ resume plan.
   has no way to load a picker's rows), and the editor's canvas drawing a Query
   Block's rows, since the drawn Builder sees only the Builder's Model.
 - **9-2,** the Surface-backed and Bundle-backed Blocks, the latter placed with
-  `Bundle.withEach` keyed by NodeId.
+  `Bundle.withEach` keyed by NodeId. **Bundle-backed built:** a Block is marked
+  `stateful`, not given its Bundle, since the parent places the Bundle in its
+  own code; `Composition.statefulNodes`, and `Stateful.sync` / `views` / `html`
+  in `/foldkit`. `withEach` gives every item the same `args`, so a node's props
+  reach its item through `add`'s `prepare`, and a node whose props change is
+  started again. **Surface-backed waits:** a Surface's type carries the
+  application's Model, so a Block holding one makes the Catalog's type circular
+  where the Builder is in the Model, as a Block closing over `Data` would; it
+  wants the Query Block's shape, a read named in the Block and resolved when the
+  page's reads are built.
 - **9-3,** the acceptance page above.
 
 **Phase 10: actions and agents.**

@@ -415,6 +415,42 @@ const SiteRenderer = Renderer.make(Site, {
 
 It needs `foldkit-mixins` installed; the core does not.
 
+### Blocks with state of their own
+
+Most Blocks are pure rendering. One that truly has state, such as a carousel
+or an accordion, is marked `stateful` and backed by an ordinary Bundle, which
+the page's parent places once per node, keyed by its id. Each instance is an
+ordinary child Model in the application's Model; nothing keeps per-node state
+anywhere else:
+
+```ts
+const Carousel = Block.define('Carousel', { Props, provides: [Content.Flow], stateful: true })
+
+const Carousels = Bundle.declareEach(CarouselBundle, 'carousels') // in the parent's Model
+const Placed = Page.each(Carousels)
+
+// When the page shown changes, keep the collection in step with it:
+Stateful.sync(Placed, Site, Carousel, { before, after }, (model, props) => ({
+  ...model,
+  interval: props.interval,
+}))
+
+// Drawing, each node is drawn by its own item:
+Renderer.render(SiteRenderer, page, h, {
+  data: Stateful.views(Placed, Site, Carousel, page, model, h),
+})
+// and in the Renderer: Carousel: ({ data }) => Stateful.html(data)
+```
+
+- **`Composition.statefulNodes(catalog, document, block?)`** lists the stateful
+  nodes a page draws, with their decoded props.
+- **`Stateful.sync`** (in `/foldkit`) is the Step that adds a new node's item,
+  its Model prepared from its props, removes a gone node's, and starts again
+  one whose props changed; props are compared by value, so a page loaded again
+  keeps what its nodes hold.
+- A Bundle placed per key cannot have Managed Resources: a Block that needs one
+  is not stateful this way.
+
 ### Blocks that read data: `foldkit-composition/remote`
 
 A Query Block names a [`foldkit-remote`](../remote/README.md) query and says how

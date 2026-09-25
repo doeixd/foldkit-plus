@@ -13,6 +13,7 @@
       "foldkit-composition/appearance": ["./src/appearance/index.ts"],
       "foldkit-composition/remote": ["./src/remote/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
       "foldkit-mixins/layers": ["../mixins/src/layers.ts"],
@@ -50,6 +51,9 @@
     },
     {
       "path": "../remote/tsconfig.build.json"
+    },
+    {
+      "path": "../bundle/tsconfig.build.json"
     }
   ]
 }
