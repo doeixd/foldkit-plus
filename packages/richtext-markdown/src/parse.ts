@@ -155,16 +155,17 @@ const listBlock = (
   return container('List', props, items, mint)
 }
 
-/** A GFM table: a row per `tableRow`, a cell holding one paragraph of its inline content. */
+/** A GFM table: a row per `tableRow`, a cell holding one paragraph of its inline content.
+ *  GFM's first row is the header, so it is marked as one. */
 const tableBlock = (
   node: Table,
   diagnostics: Array<MarkdownDiagnostic>,
   mint: () => string,
 ): RichText.Block => {
-  const rows = node.children.map(row =>
+  const rows = node.children.map((row, index) =>
     container(
       'TableRow',
-      {},
+      index === 0 ? { header: true } : {},
       row.children.map(cell =>
         container(
           'TableCell',

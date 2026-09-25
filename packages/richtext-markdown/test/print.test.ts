@@ -151,6 +151,18 @@ describe('printing a document as Markdown', () => {
     expect(print(document).markdown).toBe('---\n\n![a](/a.png)\n\n| head |\n| --- |\n| cell |\n')
   })
 
+  it('reports a header row GFM cannot place, and prints the first row as the header', () => {
+    const cell = (id: string, value: string) =>
+      node('TableCell', id, {}, [paragraph(`${id}-p`, [text(`${id}-t`, value, [])])])
+    const table = node('Table', 'tbl', {}, [
+      node('TableRow', 'r1', {}, [cell('c1', 'a')]),
+      node('TableRow', 'r2', { header: true }, [cell('c2', 'b')]),
+    ])
+    const printed = print(decode([table]))
+    expect(printed.markdown).toBe('| a |\n| --- |\n| b |\n')
+    expect(printed.diagnostics).toEqual([{ code: 'UnsupportedNode', detail: 'Table', node: 'tbl' }])
+  })
+
   it('escapes what Markdown would read as markup, or as a block marker', () => {
     expect(print(inline('a', '2 * 3 = [4]')).markdown).toBe('2 \\* 3 = \\[4\\]\n')
     expect(print(inline('a', 'a_b_c')).markdown).toBe('a\\_b\\_c\n')

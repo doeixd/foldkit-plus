@@ -406,6 +406,8 @@ describe('importing the standard vocabulary (§70, §125)', () => {
     expect(table.kind).toBe('Table')
     const rows = (table.blocks ?? []).map(nodeBlock)
     expect(rows.map(row => row.kind)).toEqual(['TableRow', 'TableRow'])
+    // A `th` marks its row as the header; the row of `td`s does not.
+    expect(rows.map(row => row.props)).toEqual([{ header: true }, {}])
     const header = nodeBlock(rows[0]?.blocks?.[0])
     expect(header.kind).toBe('TableCell')
     expect(header.blocks?.[0]).toMatchObject({ type: 'Paragraph' })
@@ -528,7 +530,7 @@ describe('importing the standard vocabulary (§70, §125)', () => {
               type: 'Node',
               kind: 'TableRow',
               id: 'tr',
-              props: {},
+              props: { header: true },
               children: [],
               blocks: [
                 {

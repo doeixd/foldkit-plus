@@ -58,7 +58,7 @@ skipped, because its payload is opaque.
 | `CodeBlock` | a fence, its `language`, the text verbatim, and a fence longer than any backticks inside |
 | `ThematicBreak` | `---` |
 | `Image` | `![alt](src)` on its own line |
-| `Table`, `TableRow`, `TableCell` | a GFM pipe table, first row as the header |
+| `Table`, `TableRow`, `TableCell` | a GFM pipe table, the first row as its header (`TableRow.header`) |
 | `Bold`, `Italic`, `Code`, `Strikethrough`, `Link` | `**`, `*`, backticks, `~~`, `[label](href)`, with the link outermost |
 
 Text is escaped so it cannot become markup: a backslash before an inline delimiter, and
@@ -105,8 +105,10 @@ command. Until it does, those markers stay text.
 
 ## Limits
 
-- **A table's header.** The model does not say which row is one, so the first row is
-  printed as the header. A cell's blocks are inlined with a space between them.
+- **A table's header.** GFM's header is the first row, so that row is printed as the header
+  whether or not the document marks one; a row marked as the header anywhere else is
+  reported, because GFM cannot place it. A cell's blocks are inlined with a space between
+  them.
 - **Inline atoms.** The model has no inline image or break, so an `Image` is a block and
   prints as its own line — which a parser reads back as a paragraph holding an image.
 - **A link with no `href`** prints as its label, with an `UnsupportedMark` diagnostic.

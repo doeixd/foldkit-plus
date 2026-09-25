@@ -89,6 +89,11 @@ describe('parsing Markdown into a document', () => {
     const table = at('| head |\n| --- |\n| cell |\n')
     expect(table.kind).toBe('Table')
     expect(table.blocks?.map(kindOf)).toEqual(['TableRow', 'TableRow'])
+    // GFM's first row is the header, and the document now says so.
+    expect(table.blocks?.map(row => (row.type === 'Node' ? row.props : {}))).toEqual([
+      { header: true },
+      {},
+    ])
     const cell = asNode(asNode(table.blocks?.[0]).blocks?.[0])
     expect(cell.kind).toBe('TableCell')
     expect(runs(cell.blocks?.[0]).map(run => run.text)).toEqual(['head'])

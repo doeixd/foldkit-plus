@@ -400,6 +400,15 @@ const codeBlockFrom = (element: Element, mint: () => string): RichText.Block => 
   }
 }
 
+/** A table row is a header when a cell says so, or when our own rendering said so. */
+const isHeaderRow = (row: Element): boolean =>
+  row.getAttribute('data-header') !== null ||
+  Array.from(row.children).some(child => child.tagName.toLowerCase() === 'th')
+
+/** The same row, carrying the header prop the table vocabulary has for it. */
+const asHeaderRow = (block: RichText.Block): RichText.Block =>
+  block.type === 'Node' ? { ...block, props: { ...block.props, header: true } } : block
+
 /** Blocks of one element, including our own preserved, application-node, and list elements. */
 const blocksFrom = (
   element: Element,
@@ -439,7 +448,8 @@ const blocksFrom = (
   if (kind !== undefined && kind.length > 0) {
     const declaredNode = kit?.nodes.find(candidate => candidate.name === kind)
     if (mapsTo(kit, kind)) {
-      return [nodeBlockFrom(element, kind, declaredNode, mint, diagnostics, kit)]
+      const block = nodeBlockFrom(element, kind, declaredNode, mint, diagnostics, kit)
+      return kind === 'TableRow' && isHeaderRow(element) ? [asHeaderRow(block)] : [block]
     }
     diagnostics.push({ code: 'Undeclared', detail: kind })
     // Degrade to its content rather than keeping a kind the Kit refuses.

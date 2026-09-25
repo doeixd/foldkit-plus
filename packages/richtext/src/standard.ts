@@ -74,7 +74,12 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
     Props: Schema.Struct({ src: Schema.String, alt: Schema.optional(Schema.String) }),
   }),
   node('Table', { children: blocksOf('TableRow') }),
-  node('TableRow', { children: blocksOf('TableCell') }),
+  node('TableRow', {
+    // GFM's first row is the header; saying so explicitly is what lets HTML and Markdown
+    // agree about it instead of each assuming.
+    Props: Schema.Struct({ header: Schema.optional(Schema.Boolean) }),
+    children: blocksOf('TableCell'),
+  }),
   node('TableCell', { children: blockContent }),
 ]
 
@@ -122,7 +127,11 @@ export const standardRendering: Rendering = rendering({
       },
     }),
     Table: { tag: 'table', attributes: {} },
-    TableRow: { tag: 'tr', attributes: {} },
+    // A row says it is the header; its cells do not have to be told apart by their parent.
+    TableRow: block =>
+      block.props.header === true
+        ? { tag: 'tr', attributes: { 'data-header': '' } }
+        : { tag: 'tr', attributes: {} },
     TableCell: { tag: 'td', attributes: {} },
   },
 })

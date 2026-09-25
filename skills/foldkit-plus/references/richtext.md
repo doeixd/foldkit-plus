@@ -226,8 +226,9 @@ refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 `{ markdown, diagnostics }` — CommonMark plus GFM's lists, tasks, strikethrough, and tables,
 and a diagnostic for a kind or mark it has no syntax for (a kind with no syntax prints its
 content; a preserved `Unknown` block is reported and skipped). Text is escaped so it cannot
-become markup, and a table's first row is printed as its header because the model does not
-distinguish one. `parse(markdown, { mint })` returns `{ document, diagnostics }` through
+become markup, and a table's first row is printed as its header, which is where GFM puts it;
+`TableRow` carries a `header` prop that HTML round-trips as `data-header`, and a header row
+anywhere but first is reported. `parse(markdown, { mint })` returns `{ document, diagnostics }` through
 micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote,
 and a hard line break are reported rather than guessed at. The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.

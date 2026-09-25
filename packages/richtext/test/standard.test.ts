@@ -155,6 +155,10 @@ describe('how the standard vocabulary renders', () => {
     expect(render('ThematicBreak')).toEqual({ tag: 'hr', attributes: {} })
     expect(render('Table')).toEqual({ tag: 'table', attributes: {} })
     expect(render('TableRow')).toEqual({ tag: 'tr', attributes: {} })
+    expect(render('TableRow', { header: true })).toEqual({
+      tag: 'tr',
+      attributes: { 'data-header': '' },
+    })
     expect(render('TableCell')).toEqual({ tag: 'td', attributes: {} })
   })
 

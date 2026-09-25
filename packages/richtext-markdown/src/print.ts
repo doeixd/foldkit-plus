@@ -145,9 +145,10 @@ const image = (block: RichText.NodeBlock, diagnostics: Array<MarkdownDiagnostic>
 }
 
 /**
- * A GFM pipe table. The model does not say which row is a header, so the first one is
- * printed as the header, which is the reading a GFM table has; a `|` inside a cell is
- * escaped so it cannot open another cell.
+ * A GFM pipe table. GFM's header row is the first one, so that row is printed as the header
+ * whether or not the document marks it; a row that says it is a header anywhere else is
+ * reported, because GFM cannot place it. A `|` inside a cell is escaped so it cannot open
+ * another cell.
  */
 const table = (
   block: RichText.NodeBlock,
@@ -172,6 +173,10 @@ const table = (
   }
   const lines = rows.map(cells => row((cells.blocks ?? []).map(cellText)))
   const separator = `| ${Array(columns).fill('---').join(' | ')} |`
+  // GFM puts the header first, so a row marked as one anywhere else cannot be said.
+  if (rows.findIndex(candidate => candidate.props.header === true) > 0) {
+    diagnostics.push({ code: 'UnsupportedNode', detail: 'Table', node: block.id })
+  }
   return [lines[0]!, separator, ...lines.slice(1)]
 }
 

@@ -558,7 +558,8 @@ RichText.kit({
 is the shipped three plus `Strikethrough` and `Link`. `standardRendering` gives each kind
 its element — a `List` an `ol` or `ul`, an `Image` an `img` with its `src`, a `TaskItem` its
 `data-task` — and `renderingOver(base, extra)` builds a registry over another, so an
-application adds its own kinds beside the standard ones.
+application adds its own kinds beside the standard ones. A `TableRow` that is the header
+renders `data-header`.
 
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
 those block kinds, and `marks: 'none'` forbids marks on the kind's own runs:

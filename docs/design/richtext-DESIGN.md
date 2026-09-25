@@ -6329,9 +6329,9 @@ That brings HTML, Markdown, clipboard, and RichText into alignment.
 > `a` — and reads only a
 > fixed few attributes, each through `safeUrl`, which refuses a scheme outside
 > http/https/mailto/tel after removing control characters (so `java\tscript:` cannot walk
-> past it) and leaving a relative URL alone. A `th` becomes an ordinary `TableCell`:
-> header-ness is a GFM/HTML distinction the vocabulary does not carry yet, and it belongs
-> with the Markdown work that needs it. What is still the sketch below: a per-Kit
+> past it) and leaving a relative URL alone. A `th` now marks its row: `TableRow` carries a
+> `header` prop, the importer reads a `th` cell or our own `data-header`, the rendering writes
+> `data-header`, and the printer reports a header row GFM cannot place. What is still the sketch below: a per-Kit
 > *declared* attribute schema (`HtmlImport.make({ marks: { Link: { attributes: { href:
 > Url.safe } } } })`) rather than one fixed allowlist, and `title` on a link.
 
@@ -6781,7 +6781,7 @@ Three decisions worth keeping:
 `standardRendering` is the companion half: the element each kind is, with the props that
 belong in attributes read from the block — a `Link` is an `<a href>`, an `Image` carries
 its source, a `List` is an `<ol>` when it is ordered, with where its numbering starts, or a
-`<ul>` when it is not. The shipped marks already nest in `strong`/`em`/`code`; this adds the
+`<ul>` when it is not, and a `TableRow` that is the header renders `data-header`. The shipped marks already nest in `strong`/`em`/`code`; this adds the
 two that do not. `renderingOver(base, extra)` builds a registry over another, so an
 application extends the standard look without restating it. Two small things came with it:
 `List` gained `ordered`/`start` props for the two list forms Markdown distinguishes, and
@@ -6944,7 +6944,7 @@ CodeBlock                   a fence, its language, the text verbatim, a fence lo
                             any backtick run inside it
 ThematicBreak               ---
 Image                       ![alt](src), on its own line
-Table, TableRow, TableCell  a GFM pipe table, first row as the header
+Table, TableRow, TableCell  a GFM pipe table, first row as the header (`TableRow.header`)
 Bold, Italic, Code,         **, *, backticks, ~~, [label](href); the link is outermost,
 Strikethrough, Link         decided by a rank table rather than a chain of tests
 ```
