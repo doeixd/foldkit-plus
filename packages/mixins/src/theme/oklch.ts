@@ -51,6 +51,8 @@ const rehue = (color: string, hue: string) => `oklch(from ${color} l c ${hue})`
 /** Near-black or near-white text over `color`. */
 const contrast = (color: string) =>
   `oklch(from ${color} clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`
+/** `color` as text on the base surface: dark in a light scheme, light in a dark one. */
+const ink = (color: string) => ld(from(color, '0.5', 'c'), from(color, '0.8', 'c'))
 /** `color` tinted onto the base surface, the same in both schemes. */
 const tint = (color: string, percent: number) =>
   `color-mix(in oklch, ${v('surface', 'base')} ${percent}%, ${color})`
@@ -88,7 +90,8 @@ const family = (name: string, defaultValue: string) => {
     hover: shift(color, -0.06, 0),
     active: shift(color, -0.1, 0.05),
     subtle: tint(color, 85),
-    text: contrast(color),
+    'on-fill': contrast(color),
+    ink: ink(color),
   }
 }
 
@@ -97,7 +100,8 @@ const feedback = (name: string, l: number, c: number) => {
   return {
     default: `oklch(${l}% ${c} ${v('knob', `${name}-h`)})`,
     subtle: tint(color, 85),
-    text: contrast(color),
+    'on-fill': contrast(color),
+    ink: ink(color),
     outline: shift(color, -0.05, 0),
   }
 }
@@ -150,7 +154,6 @@ export const oklch = (knobs: OklchKnobs) => {
       muted: text([45, 1.5], [65, 1.2]),
       subtle: text([35, 1.8], [75, 1]),
       overt: text([10, 2.2], [95, 0.6]),
-      'on-accent': contrast(accent),
       link: shift(accent, 0.1, 0.05),
       'link-hover': shift(v('text', 'link'), -0.1, 0),
     },

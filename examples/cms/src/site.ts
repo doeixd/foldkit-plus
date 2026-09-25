@@ -103,7 +103,7 @@ const HeroLook = Appearance.make(HeroSlots, {
           root: Style.compose(
             Style.self({
               background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 55%, ${t.tertiary.default}))`,
-              color: t.text['on-accent'],
+              color: t.accent['on-fill'],
             }),
             onBand,
           ),
@@ -327,10 +327,9 @@ export const Quote = Block.define('Quote', {
 )
 
 const CalloutSlots = Slots.define({ root: part, title: part, body: part })
-// `t[family].text` is the text on the family's full color, not on its subtle tint.
 const calloutTone = (family: 'info' | 'success' | 'warning') => ({
   root: Style.self({ background: t[family].subtle, borderColor: t[family].outline }),
-  title: Style.self({ color: t[family].default }),
+  title: Style.self({ color: t[family].ink }),
 })
 const CalloutLook = Appearance.make(CalloutSlots, {
   layer: components,
@@ -442,7 +441,7 @@ const PostsLook = Appearance.make(PostsSlots, {
           overflow: 'hidden',
         }),
         Style.nest('a', { color: 'inherit', textDecoration: 'none' }),
-        Style.nest('a:hover', { color: t.accent.default }),
+        Style.nest('a:hover', { color: t.accent.ink }),
       ),
       cover: Style.self({ aspectRatio: '16 / 9' }),
       title: Style.self({
@@ -525,7 +524,7 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
       cover: Style.self({ minHeight: '14rem' }),
       body: Style.compose(Layout.stack({ gap: t.space.sm }), Style.self({ padding: t.space.xl })),
       eyebrow: Style.self({
-        color: t.accent.default,
+        color: t.accent.ink,
         fontSize: t.size.sm,
         fontWeight: t.weight.semibold,
         margin: '0',
@@ -533,7 +532,7 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
       }),
       title: Style.self({ fontFamily: t.font.heading, fontSize: t.size['2xl'], margin: '0' }),
       excerpt: Style.self({ color: t.text.muted, margin: '0' }),
-      link: Style.self({ color: t.accent.default, fontWeight: t.weight.semibold }),
+      link: Style.self({ color: t.accent.ink, fontWeight: t.weight.semibold }),
     },
   }),
 })

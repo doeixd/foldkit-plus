@@ -96,7 +96,7 @@ const navLink = Style.compose(
     textDecoration: 'none',
   }),
   Style.pseudo(':hover', { background: t.surface.muted, color: t.text.default }),
-  Style.nest('&[aria-current="page"]', { background: t.accent.subtle, color: t.accent.default }),
+  Style.nest('&[aria-current="page"]', { background: t.accent.subtle, color: t.accent.ink }),
 )
 
 /** The state of an entry, by its tag, in the colors its family says. */
@@ -184,7 +184,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     danger: button({ tone: 'danger', variant: 'outline', size: 'sm' }),
     status: Style.compose(
       Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
-      Style.nest('&[data-tone="error"]', { color: t.error.default }),
+      Style.nest('&[data-tone="error"]', { color: t.error.ink }),
     ),
     muted: Style.self({ color: t.text.muted, margin: '0' }),
     list: Style.self({
@@ -213,7 +213,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.pseudo(':hover', { background: t.surface.muted }),
       Style.nest('&[aria-current="page"]', {
         background: t.accent.subtle,
-        color: t.accent.default,
+        color: t.accent.ink,
         fontWeight: t.weight.semibold,
       }),
     ),
@@ -247,7 +247,7 @@ export const FieldStyle = Style.forSlots(FieldSlots)(
     affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
     label: Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
     description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
-    error: Style.self({ color: t.error.default, fontSize: t.size.sm, margin: '0' }),
+    error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
     text: field,
     number: field,
     select: field,
@@ -260,7 +260,7 @@ export const FieldStyle = Style.forSlots(FieldSlots)(
 export const FormStyle = Style.forSlots(FormSlots)(
   {
     root: L.in('layouts', Layout.stack({ gap: t.space.md })),
-    errors: Style.self({ color: t.error.default }),
+    errors: Style.self({ color: t.error.ink }),
     submit: Style.compose(
       button({ tone: 'accent', variant: 'solid', size: 'md' }),
       // A stack's children are full width unless they say otherwise.
@@ -300,7 +300,7 @@ export const ListStyle = Style.forSlots(ListSlots)(
         padding: '0',
         textAlign: 'start',
       }),
-      Style.pseudo(':hover', { color: t.accent.default, textDecoration: 'underline' }),
+      Style.pseudo(':hover', { color: t.accent.ink, textDecoration: 'underline' }),
     ),
     status: Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
     more: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
@@ -356,7 +356,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.pseudo(':hover', { background: t.surface.muted }),
       Style.nest('&[aria-selected="true"]', {
         background: t.accent.subtle,
-        color: t.accent.default,
+        color: t.accent.ink,
       }),
       Style.nest('&[data-builder-dragging]', { opacity: '0.5' }),
       Style.nest('&[data-builder-drop]', { boxShadow: `inset 0 0 0 2px ${t.accent.default}` }),
@@ -388,14 +388,14 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
       Style.nest('&[aria-pressed="true"]', {
         background: t.accent.subtle,
-        color: t.accent.default,
+        color: t.accent.ink,
       }),
     ),
     preview: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     alert: Style.self({
       background: t.error.subtle,
       borderRadius: t.radius.md,
-      color: t.error.default,
+      color: t.error.ink,
       fontSize: t.size.sm,
       margin: '0',
       padding: t.space.xs,
@@ -535,7 +535,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
       L.in('components', Prose.style({ measure: '68ch' })),
       Style.self({ fontSize: t.size.lg }),
     ),
-    back: Style.self({ color: t.accent.default, fontWeight: t.weight.semibold }),
+    back: Style.self({ color: t.accent.ink, fontWeight: t.weight.semibold }),
     status: Style.self({
       color: t.text.muted,
       padding: `${t.space['3xl']} 0`,

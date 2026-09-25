@@ -153,7 +153,11 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     had the same mistake. mixins-ui's own recipes use it correctly, as
     `onFill`. *Proposed:* rename it `onFill` (or `on`), matching the recipes, and
     say in the theme docs which token is for colored text (`default`, or a
-    `text` that means it). Status: example fixed (uses `default`).
+    `text` that means it). **Fixed** (plan area 2c): the token is `on-fill`,
+    each family gains `ink` (its color as text on the base surface), the
+    duplicate `text.on-accent` goes, and the examples' colored text is `ink`.
+    Prose's `mark` had the same mistake (`accent-text` on the accent's subtle
+    tint) and now uses `ink`.
 
 16. **The button recipe left a link underlined.** `Recipes.Button` on an `<a>`
     (mixins-ui's `Anchor`, or a Block's link button) kept the element
@@ -250,6 +254,15 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     last check's annotations (F20), so a prop written
     `Schema.String.annotate({ title }).check(…)` is labelled by its key.
     *Proposed:* one shared `Words.of(schema)` (plan, area 4a). Status: open.
+
+27. **An outline button on a colored band draws its text in the family's ink.**
+    Found checking area 2c: the Hero's second action, an outline Button, has
+    dark accent text on the accent band ("About this site"), as it had with
+    `text.link` before. A tone's `ink` is right on the base surface and wrong
+    on a band, the same situation as headings (F17). *Proposed:* the recipes'
+    unfilled variants read `var(--fk-ink, <tone ink>)`, so a band that sets
+    `--fk-ink: currentColor` (beside `--fk-heading`) recolors them too. Status:
+    open.
 
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
 

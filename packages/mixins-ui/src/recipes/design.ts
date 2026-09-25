@@ -76,8 +76,8 @@ export const tones = {
   accent: tone({
     fill: ref.accent.default,
     fillHover: ref.accent.hover,
-    onFill: ref.accent.text,
-    ink: ref.text.link,
+    onFill: ref.accent['on-fill'],
+    ink: ref.accent.ink,
     wash: ref.accent.subtle,
   }),
   neutral: tone({
@@ -90,8 +90,8 @@ export const tones = {
   danger: tone({
     fill: ref.error.default,
     fillHover: ref.error.outline,
-    onFill: ref.error.text,
-    ink: ref.error.outline,
+    onFill: ref.error['on-fill'],
+    ink: ref.error.ink,
     wash: ref.error.subtle,
   }),
 } as const

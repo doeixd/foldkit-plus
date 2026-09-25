@@ -306,7 +306,11 @@ an accent color and a few knobs (hue shifts, surface saturation and contrast, a 
 feedback hues) and returns typed tokens for surfaces, text, outlines, and the accent, secondary,
 tertiary and feedback families. Only the `knob` group holds literals; every other value is a CSS
 expression over other tokens (`oklch(from …)`, `color-mix()`, `light-dark()`), so the browser does
-the derivation and one knob override recolors everything below it. `Theme.tokens` is the
+the derivation and one knob override recolors everything below it. Each family (`accent`,
+`secondary`, `tertiary`, `success`, `warning`, `error`, `info`) has a fill, `default`, and two
+text colors named for where they go: `on-fill` is text on that fill (near white on a mid accent),
+and `ink` is text in the family's color on the base surface, dark enough to read in a light scheme
+and light enough in a dark one. Colored text is `ink`, never `default`. `Theme.tokens` is the
 non-color scales, with `space` and `radius` multiplied by the `density` and `radius-factor` knobs.
 
 A theme reaches the page as pieces, and the page chooses the layers:

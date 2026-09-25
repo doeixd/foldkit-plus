@@ -65,7 +65,7 @@ const rules: StyleValue = compose(
   nest('mark', {
     padding: '0 0.2em',
     background: 'var(--fk-accent-subtle, Mark)',
-    color: 'var(--fk-accent-text, MarkText)',
+    color: 'var(--fk-accent-ink, MarkText)',
   }),
   nest('abbr[title]', { textDecorationStyle: 'dotted', cursor: 'help' }),
   nest(':not(pre) > code', { overflowWrap: 'anywhere' }),

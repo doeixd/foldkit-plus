@@ -255,6 +255,13 @@ version changed; `pnpm` skips versions already in the registry.
     and the `documentOf` of their `active` are `Option`s; the reads gain
     `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
     key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-mixins`: a family's `text` token is `on-fill`, and each family
+  gains `ink`.** `accent.text` read as "accent-colored text" and was the text
+  *on* the accent's fill. It is now `accent['on-fill']` (`--fk-accent-on-fill`),
+  and `accent.ink` is the accent as text on the base surface, for every family.
+  `text['on-accent']`, the same value as `accent['on-fill']`, is removed.
+  Prose's `mark` drew its text in the on-fill color over the accent's tint; it
+  uses `ink`.
 - **`foldkit-mixins`: `Defaults.headings` reads `--fk-heading` first,** so a
   container drawn in its own color sets `--fk-heading: currentColor` and its
   headings take its color; elsewhere they stay `text-overt`.
