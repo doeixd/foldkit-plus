@@ -255,6 +255,10 @@ version changed; `pnpm` skips versions already in the registry.
     and the `documentOf` of their `active` are `Option`s; the reads gain
     `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
     key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-mixins-form`: `FieldSlots` gains `group` and `affix`,** for a
+  control drawn with text beside it; `foldkit-cms`'s slug renderer draws its
+  prefix and input in them instead of in bare spans with a
+  `data-cms-slug-prefix` attribute.
 - **`foldkit-primitives`: `TreeNavigation` writes each row's level as
   `--fk-tree-level`** beside `aria-level`, so one `calc` indents any depth.
 - **`foldkit-composition`: the edit marks are one attribute.**

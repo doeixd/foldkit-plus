@@ -108,7 +108,11 @@ export interface ControlContext<Message> {
   readonly change: (value: Draft) => Message
   readonly blurred: Message
   readonly state: ReadonlyArray<Attribute<Message>>
-  readonly slots: { readonly text: { readonly attrs: (attrs: ReadonlyArray<any>) => any } }
+  readonly slots: {
+    readonly text: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
+    readonly group: { readonly attrs: () => any }
+    readonly affix: { readonly attrs: () => any }
+  }
   readonly h: HtmlBuilder<Message>
 }
 
@@ -161,24 +165,18 @@ export const Kinds = {
     Record<string, (context: ControlContext<Message>) => Html>
   > => ({
     [Slug.kind]: ({ control, state, draft, change, blurred, slots, h }) =>
-      h.span(
-        [],
-        [
-          h.span(
-            [h.DataAttribute('cms-slug-prefix', '')],
-            [Slug.is(control) ? control.data.prefix : ''],
-          ),
-          h.input(
-            slots.text.attrs([
-              ...state,
-              h.Type('text'),
-              h.Value(String(draft)),
-              h.OnInput(change),
-              h.OnBlur(blurred),
-            ]),
-          ),
-        ],
-      ),
+      h.div(slots.group.attrs(), [
+        h.span(slots.affix.attrs(), [Slug.is(control) ? control.data.prefix : '']),
+        h.input(
+          slots.text.attrs([
+            ...state,
+            h.Type('text'),
+            h.Value(String(draft)),
+            h.OnInput(change),
+            h.OnBlur(blurred),
+          ]),
+        ),
+      ]),
     [DateTime.kind]: ({ state, draft, change, blurred, slots, h }) =>
       h.input(
         slots.text.attrs([

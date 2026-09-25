@@ -242,16 +242,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
 
 export const FieldStyle = Style.forSlots(FieldSlots)(
   {
-    root: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
-      // The CMS's address control is a prefix and an input in a bare span: no Slot to
-      // style, so the prefix is found by its data attribute (FINDINGS, item 18).
-      Style.nest('span:has(> [data-cms-slug-prefix])', { alignItems: 'center', display: 'flex' }),
-      Style.nest('[data-cms-slug-prefix]', {
-        color: t.text.muted,
-        paddingInlineEnd: t.space['3xs'],
-      }),
-    ),
+    root: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    group: Style.self({ alignItems: 'center', display: 'flex' }),
+    affix: Style.self({ color: t.text.muted, paddingInlineEnd: t.space['3xs'] }),
     label: Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
     description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
     error: Style.self({ color: t.error.default, fontSize: t.size.sm, margin: '0' }),

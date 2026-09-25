@@ -170,7 +170,9 @@ nested form). Such a key has no draft, so `draft` and `input.field.value` are
 renderer.
 
 Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
-`error`, and `control` (around a Bundle's own view). `FormSlots` publishes `root` (the `form`), `errors` (failures that
+`error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
+renderer that draws text beside its control (a prefix, a unit) with the two
+together. `FormSlots` publishes `root` (the `form`), `errors` (failures that
 belong to no one field), `submit`, and the five slots of a nested key.
 
 A Bundle's own view that takes inputs gets them from the view input

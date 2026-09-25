@@ -2,9 +2,9 @@ import { Schema } from 'effect'
 import { Crud, Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { SlotView } from 'foldkit-mixins'
+import { SlotView, Style } from 'foldkit-mixins'
 import { ListView } from 'foldkit-mixins-crud'
-import { FormView } from 'foldkit-mixins-form'
+import { FieldSlots, FormView } from 'foldkit-mixins-form'
 import { describe, expect, it } from 'vitest'
 import { Cms, type State } from '../src/index.js'
 
@@ -14,6 +14,7 @@ interface Node {
   readonly data?: {
     readonly props?: Readonly<Record<string, unknown>>
     readonly attrs?: Readonly<Record<string, unknown>>
+    readonly class?: Readonly<Record<string, boolean>>
   }
   readonly children?: ReadonlyArray<Node>
 }
@@ -184,6 +185,26 @@ describe('the renderers, beside the mixins’ own', () => {
     expect(new Date(String(moment?.data?.props?.value)).toISOString()).toBe(at)
     // The shipped renderers still draw the rest.
     expect(byId('PostForm-title')?.sel).toBe('input')
+  })
+
+  it('draw a slug’s address and input in the field’s group and affix Slots', () => {
+    const Field = FormView.field(PostForm, { renderers: Cms.controlRenderers() }).pipe(
+      Style.attach(
+        Style.forSlots(FieldSlots)({ group: Style.class('group'), affix: Style.class('affix') }),
+      ),
+    )
+    const View = FormView.define(PostForm, { field: Field })
+    const model = send(change('title', 'Hello'))
+    const root = View(
+      { model, errors: model.errors, canSubmit: true },
+      SlotView.inertBuilder(),
+    ) as unknown as Node
+    const group = all(root).find(node => node.data?.class?.['group'] === true)
+    expect(group?.children?.map(child => [child.sel, text(child)])).toEqual([
+      ['span', '/blog/'],
+      ['input', ''],
+    ])
+    expect(group?.children?.[0]?.data?.class?.['affix']).toBe(true)
   })
 
   it('draw an entry’s state as a badge and its times as times, with nothing said in the list', () => {

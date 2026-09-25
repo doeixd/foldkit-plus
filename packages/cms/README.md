@@ -237,7 +237,7 @@ EntryTable({ page, renderers: Cms.displayRenderers() }, h)
 
 | Kind | What it is |
 | --- | --- |
-| `Cms.Input.Slug` | Text shown after the address it completes. `Cms.slug(from, { prefix?, through? })` makes one that follows `from` through `Cms.slugify`. A form filled with a published slug does not follow: an address must not move because its title did. |
+| `Cms.Input.Slug` | Text shown after the address it completes. `Cms.slug(from, { prefix?, through? })` makes one that follows `from` through `Cms.slugify`. A form filled with a published slug does not follow: an address must not move because its title did. Drawn as the prefix in `FieldSlots.affix` and the input in `text`, together in `group`. |
 | `Cms.Input.DateTime` | A moment. Text that is none is `Invalid`, not submitted. |
 | `Cms.Display.State` | An entry's state as words: `Changed, scheduled`, `New, overdue`. `of({ words })` takes yours. Its renderer is a `span` with `data-cms-state` and `data-cms-schedule` to style. |
 | `Cms.Display.Moment` | A time. `of({ now })` reads relative to that clock (`3 days ago`), and you decide how often it moves; without one it is the date and time. Its renderer is a `time`. |

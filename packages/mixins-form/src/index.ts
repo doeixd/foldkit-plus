@@ -147,6 +147,10 @@ export const FieldSlots = Slots.define({
   }),
   /** Around the view of a control backed by a Bundle, when it is drawn with the Bundle's own view. */
   control: Slot.make({ capability: Capability.Container }),
+  /** Around a control and its affixes, such as an address's prefix and its input. */
+  group: Slot.make({ capability: Capability.Container }),
+  /** Text beside a control, before or after it: a prefix, or a unit. */
+  affix: Slot.make({ capability: Capability.Base }),
   /** A `RelationMany` picker: the group, and each thing in it. */
   choices: Slot.make({ capability: Capability.Collection }),
   choice: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),

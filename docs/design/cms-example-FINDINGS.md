@@ -174,8 +174,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     sat on its own line above it, and the only handle to fix that was the
     `data-cms-slug-prefix` attribute. *Proposed:* publish the group and the
     prefix as Slots (or draw them in `FieldSlots.control`), so an application
-    styles them like any other part. Status: worked around with a nested
-    selector in the example's `FieldStyle`.
+    styles them like any other part. **Fixed** (plan area 2b): `FieldSlots`
+    has `group` and `affix`, the slug is drawn in them, and the example styles
+    them as Slots.
 
 19. **After a publish, the author's own screen kept the old content.**
     Publishing a changed title in the studio said "Published", but the
