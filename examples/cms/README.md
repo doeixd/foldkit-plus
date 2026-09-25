@@ -82,6 +82,8 @@ and the Builder adds no CMS state.
 | `revisions: 1, 2 … restored as a draft … discarded` | Revisions, restore and discard are the CMS's, for a page as for a post. |
 | `in the morning a visitor reads: Good morning …` | A scheduled page goes out when the host asks what is due. |
 | `writer: Saved; editor: Conflict` | Two people on one page meet the CMS's conflict rule. |
+| `at once, from the pages the editor read to pick from … read through Remote` | `LatestPages` is a Query Block: it reads the worklist through Remote, as the reader may see it. The editor had already read the site's pages for the inspector's picker, so the canvas draws them at once. |
+| `it may leave out one of: none, Home … leaving out the page it is on` | Its `except` prop is `Input.relationOne(Cms.Entities.Entry)`. `pageApp.ts` reads the site's pages and gives them to the Builder as the picker's choices (`builderInputs`); the Block stores the chosen entry's id. |
 
 The page column is JSON (`text('document', { mode: 'json' })`), read back through
 the composition's tolerant codec, so a stored page always reads. What a publish

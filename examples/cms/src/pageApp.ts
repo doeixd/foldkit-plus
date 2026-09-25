@@ -8,7 +8,7 @@ import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
-import { BuilderView } from 'foldkit-mixins-builder'
+import { BuilderView, type BuilderViewInputs } from 'foldkit-mixins-builder'
 import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
@@ -70,12 +70,29 @@ export const revisions = (model: Model) => {
 export const editing = (model: Model): Document =>
   PageBuilder.document(PageForm.control('document').field(model.editor.form).value)
 
+/** The site's pages, as the choices of a Block prop that names one: read while a page is open. */
+const PageChoice = Entity.select(Cms.Entities.Entry, { id: true, label: true })
+export const pageChoices = (model: Model) =>
+  PageEditor.entry(model) === null
+    ? undefined
+    : Data.query(
+        Cms.Entries,
+        { type: 'pages', search: '', archived: false },
+        { select: PageChoice, first: 50 },
+      )
+
 /** What the page's Query Blocks read, as one Projection: fetched while the page is open. */
 export const blockReads = (model: Model) => QueryBlock.reads(Data, Site, editing(model))
 
 export const actives = {
   ...PageEditor.actives,
   blocks: QueryBlock.active('PageBlocks', App.owner, Data, Site, editing),
+  choices: {
+    name: 'PageChoices',
+    owner: Data.contract.owner ?? {},
+    messages: [],
+    projectionOf: pageChoices,
+  },
   revisions: {
     name: 'Revisions',
     owner: Data.contract.owner ?? {},
@@ -126,14 +143,27 @@ export const update = PageEditor.after(placed)
 export const initial: Model = placements.initial({ remote: Remote.initial }).model
 
 /**
- * The page editor drawn: the form, with the Builder's canvas given what the
- * page's Blocks read, so a Query Block shows its rows as the published page
- * would. The reads are the active's, fetched while the page is open.
+ * What the drawn Builder is given: what the page's Blocks read, so the canvas
+ * shows a Query Block's rows as the published page would, and the site's pages
+ * for the inspector to pick from. Both are actives' reads, fetched while the
+ * page is open.
  */
+export const builderInputs = (model: Model): BuilderViewInputs => {
+  const pages = pageChoices(model)?.read(model)
+  return BuilderView.inputs({
+    data: actives.blocks.projectionOf(model)?.read(model),
+    options: {
+      'LatestPages.except':
+        pages?._tag === 'Ready' || pages?._tag === 'Refreshing'
+          ? pages.value.items.map(page => ({ value: page.id, label: page.label }))
+          : [],
+    },
+  })
+}
+
+/** The page editor drawn: the form, the Builder in it drawn with `builderInputs`. */
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   EditorSlot.view(model, h, {
     words: { submit: 'Publish' },
-    controls: {
-      document: BuilderView.inputs({ data: actives.blocks.projectionOf(model)?.read(model) }),
-    },
+    controls: { document: builderInputs(model) },
   })

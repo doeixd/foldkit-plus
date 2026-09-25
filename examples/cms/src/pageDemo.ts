@@ -13,6 +13,7 @@ import { Cms } from 'foldkit-cms'
 import { Composition, type Document } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Display } from 'foldkit-crud'
+import { SlotView } from 'foldkit-mixins'
 import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemotePolicy } from 'foldkit-remote'
 import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -27,13 +28,14 @@ import {
   editing,
   initial,
   pageView,
+  builderInputs,
   update,
   type Model,
 } from './pageApp.js'
 import { PageAgent } from './pageAgent.js'
 import { PageForm, Pages } from './pageDomain.js'
 import { openServer, type Principal } from './server.js'
-import { PageBuilder, Site, SiteRenderer } from './site.js'
+import { PageBuilder, PageEditing, Site, SiteRenderer } from './site.js'
 
 /**
  * A drawn page as a visitor would read it: its text, element by element, with
@@ -58,6 +60,12 @@ const read = (document: Document, data?: Readonly<Record<string, unknown>>): str
 }
 
 /** The page as an indented outline, one Block per line, on one line of the transcript. */
+/** Every element drawn, depth first. */
+const elements = (node: Html | string): ReadonlyArray<Exclude<Html, null>> =>
+  node === null || typeof node === 'string'
+    ? []
+    : [node, ...(node.children ?? []).flatMap(elements)]
+
 const outline = (document: Document): string =>
   Composition.describe(Site, document)
     .split('\n')
@@ -136,6 +144,36 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     const builder = (): BuilderModel => document.field(model.editor.form).value
     /** One of the Builder's own Messages, carried by the form and the editor. */
     const build = (message: BuilderMessage) => editor(document.send(message))
+    /** Sets a prop of the selected Block, as typing in the inspector does. */
+    const set = (prop: string, value: string) => {
+      const selected = builder().selected
+      return selected === null
+        ? Promise.resolve()
+        : build(BuilderMessage.Applied({ op: Composition.Op.setProp(selected, prop, value) }))
+    }
+    /** The options of the inspector's select for a prop of the selected Block, drawn as the editor draws it. */
+    const pickerOf = (prop: string) => {
+      const selected = builder().selected
+      const drawn = elements(
+        PageEditing(
+          { ...builder(), ...builderInputs(model) },
+          SlotView.inertBuilder<BuilderMessage>(),
+        ),
+      )
+      const picker = drawn.find(
+        node =>
+          node.sel === 'select' &&
+          String(node.data?.props?.['id']).endsWith(`-${selected}-${prop}`),
+      )
+      return elements(picker ?? null)
+        .filter(node => node.sel === 'option')
+        .map(option => ({
+          value: String(option.data?.props?.['value']),
+          label: (option.children ?? [])
+            .map(child => (typeof child === 'string' ? child : (child?.text ?? '')))
+            .join(''),
+        }))
+    }
 
     return {
       send,
@@ -149,12 +187,16 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
           ? Promise.resolve()
           : build(BuilderMessage.InsertAsked({ block, at }))
       },
-      /** Sets a prop of the selected Block, as typing in the inspector does. */
-      set: (prop: string, value: string) => {
-        const selected = builder().selected
-        return selected === null
-          ? Promise.resolve()
-          : build(BuilderMessage.Applied({ op: Composition.Op.setProp(selected, prop, value) }))
+      set,
+      /** What the inspector's picker for a prop of the selected Block offers, as drawn. */
+      offered: (prop: string) =>
+        pickerOf(prop)
+          .map(option => option.label)
+          .join(', ') || 'nothing',
+      /** Chooses in that picker by what it shows, as a person does. */
+      choose: (prop: string, label: string) => {
+        const value = pickerOf(prop).find(option => option.label === label)?.value
+        return value === undefined ? Promise.resolve() : set(prop, value)
       },
       /** Selects the first Block of a kind, as clicking it in the layers does. */
       select: (block: string) => {
@@ -327,9 +369,14 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   say('— a Block that lists the site’s pages —')
   await edda.select('Section')
   await edda.add('LatestPages')
-  say(`before its read arrives: ${edda.drawn()}`)
+  // The editor already read the site's pages for the inspector's picker.
+  say(`at once, from the pages the editor read to pick from: ${edda.drawn()}`)
   await edda.look()
   say(`read through Remote, as the editor may see it: ${edda.drawn()}`)
+  say(`it may leave out one of: ${edda.offered('except')}`)
+  await edda.choose('except', 'Home')
+  await edda.look()
+  say(`leaving out the page it is on: ${edda.drawn()}`)
 
   say('— an agent edits the page, as a person does —')
   const inSection = { _tag: 'Region', parent: edda.idOf('Section'), region: 'body', index: 0 }

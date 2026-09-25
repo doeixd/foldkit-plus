@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runPageDemo } from '../src/pageDemo.js'
 
 describe('a page in foldkit-cms, built with foldkit-builder', () => {
-  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads and takes an agent’s edit', async () => {
+  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads, picks and takes an agent’s edit', async () => {
     const page =
       'Section {"tone":"plain"} > body: > Heading {"text":"Welcome"} > Button {"href":"/blog","label":"Read the blog"}'
     expect(await runPageDemo()).toEqual([
@@ -35,13 +35,15 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       'writer: Saved; editor: Conflict',
       'the editor saves over it: Saved',
       '— a Block that lists the site’s pages —',
-      'before its read arrives: Good morning | News | All posts | Loading pages',
+      'at once, from the pages the editor read to pick from: Good morning | News | All posts | Home',
       'read through Remote, as the editor may see it: Good morning | News | All posts | Home',
+      'it may leave out one of: none, Home',
+      'leaving out the page it is on: Good morning | News | All posts',
       '— an agent edits the page, as a person does —',
       'it adds a heading: done',
-      'the page: Written by an agent | Good morning | News | All posts | Home',
+      'the page: Written by an agent | Good morning | News | All posts',
       'a Block outside the Catalog: AgentInvalidInputError',
-      "and undo takes the agent's edit back: Good morning | News | All posts | Home",
+      "and undo takes the agent's edit back: Good morning | News | All posts",
       'and the row holds only what was published: [{"id":"page-1","title":"Home","slug":"home","published_at":"2026-03-01T09:00:00.000Z"}]',
     ])
   })
