@@ -91,11 +91,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, FocusScope, Press, LongPress, Move, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, Targets, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -620,6 +620,34 @@ const Keys = GridNavigation.behavior(Cells, args)(CalendarSlots)<Model, Message>
 })
 ```
 
+`TreeNavigation` is the tree counterpart, after the WAI-ARIA tree pattern,
+for a file explorer, a page's layers, or a nested menu: Up and Down through
+the rows that are showing, Right opens a row or steps into it, Left closes it or
+steps out to its parent, Home and End go to the first and last row. The view
+gives every row, open or not, in tree order, each with its `parent` and whether
+it is a `branch`; `TreeNavigation.shown(rows, model, args)` is the rows that are
+showing, with their level and place among their siblings. The Model slice is
+`{ current, toggled }`: openness is stored as the rows toggled away from
+`openByDefault`, so a layers panel that starts open and a file tree that starts
+closed are one bundle with a different arg. The Behavior writes each showing
+row's `id` (through `domId`, by default the row's own), `role="treeitem"`,
+`aria-level`, `aria-posinset`, `aria-setsize`, `aria-expanded` on a branch,
+`aria-disabled`, a roving `tabindex` and `OnFocus`; the container's keys move
+focus by id, or open and close the current row in place.
+
+```ts
+const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')
+// place with { args: { openByDefault: true } }
+const Keys = TreeNavigation.behavior(Layers, { openByDefault: true })(TreeSlots)<Model, Message>({
+  container: 'tree',
+  item: 'row',
+  rows: model => model.folders.map(folder => ({ id: folder.id, parent: folder.parent, branch: folder.hasChildren })),
+})
+```
+
+The pure `move(shown, current, key, modifiers, model, args, direction?)` answers
+with `Focus`, `Open` or `Close`, for a view that wires its own.
+
 `FocusScope` is the one entry here that is a Mount, not a Bundle: which
 element has focus is a DOM fact, so nothing crosses to the Model. The Mount
 lives in `foldkit-primitives/dom`; `FocusScope.behavior(Slots)<Input,
@@ -683,6 +711,19 @@ and a secondary button are ignored; capture is released with the Mount.
 `Move.behavior(Slots)<Input, Message>({ handle, toMessage })` attaches it to a
 `Draggable` slot and maps each fact into the view's Messages; a drag's meaning
 (a threshold, a snap, a reorder) is the parent's `update`.
+
+`Targets` is which marked descendant of a container the pointer is over, and
+which one was pressed, as one Mount on the container rather than one per item.
+A descendant is marked by an attribute holding its id (a canvas's
+`data-composition-node`, a table's `data-row`), and the nearest marked ancestor
+of the event's target, inside the container, is the one reported:
+`TargetHovered { id }` once per change, `null` when there is none or the
+pointer leaves, and `TargetPressed { id, shiftKey, altKey, ctrlKey, metaKey }`
+on a click. `preventDefault: true` stops a press's default, such as a link
+navigating inside an editor's canvas. The Mount is `Targets({ attribute,
+preventDefault })` in `foldkit-primitives/dom`; `Targets.behavior(Slots)<Input,
+Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
+`targetOf(container, from, attribute)` is the pure lookup.
 
 `FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
 in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,

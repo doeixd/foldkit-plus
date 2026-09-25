@@ -88,6 +88,14 @@ into a chord answer. Slices that must survive reload persist through
   One placement, one key handler: `RovingTabindex` and `Typeahead` on one host are
   refused by the resolver (one owner per event), and under `virtual` a typed key
   must move the pointer and extend the query in one transition.
+- **A tree** (layers, a file explorer): `TreeNavigation.bundle` (`{ openByDefault }`) with
+  `TreeNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, rows: model => [{ id, parent, branch, disabled? }], domId?, direction? })`,
+  rows in tree order. Model `{ current, toggled }` (toggled away from the default);
+  `TreeNavigation.shown(rows, model, args)` is what shows, with level and place.
+  Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes.
+- **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
+  (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
+  `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or

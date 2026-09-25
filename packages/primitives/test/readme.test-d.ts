@@ -9,6 +9,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { MediaQuery, PrefersDark, PrefersReducedMotion } from '../src/media/index.js'
 import { history } from '../src/state/index.js'
+import { TreeNavigation } from '../src/interaction/index.js'
+import { Capability, Slot, Slots } from 'foldkit-mixins'
 
 const Page = Bundle.compose({ theme: Schema.String }).pipe(
   Bundle.withMessages({ ThemeSet: { theme: Schema.String } }),
@@ -187,3 +189,33 @@ const saveStep = (
 })
 
 void saveStep
+
+// TreeNavigation, from the Interaction section
+{
+  interface Folder {
+    readonly id: string
+    readonly parent: string | null
+    readonly hasChildren: boolean
+  }
+  const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')
+  const TreeModel = Schema.Struct({ ...Layers.fields })
+  type TreeModel = typeof TreeModel.Type & { readonly folders: ReadonlyArray<Folder> }
+  const TreeMessage = defineMessageUnion({ ...Layers.cases })
+  const TreeSlots = Slots.define({
+    tree: Slot.make({ capability: Capability.Container }),
+    row: Slot.make({ capability: Capability.Focusable }),
+  })
+  TreeNavigation.behavior(Layers, { openByDefault: true })(TreeSlots)<
+    TreeModel,
+    typeof TreeMessage.Type
+  >({
+    container: 'tree',
+    item: 'row',
+    rows: model =>
+      model.folders.map(folder => ({
+        id: folder.id,
+        parent: folder.parent,
+        branch: folder.hasChildren,
+      })),
+  })
+}

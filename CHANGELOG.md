@@ -64,6 +64,16 @@ version changed; `pnpm` skips versions already in the registry.
   resumed draft, a preview drawn by the site's own views, publish, revisions,
   restore, a schedule and a conflict, with no CMS state added. Phase 6 of the
   page builder design.
+- **`foldkit-primitives`: `TreeNavigation`, keyboard navigation of a tree.**
+  After the WAI-ARIA tree pattern: Up and Down through the rows showing, Right
+  opens or steps in, Left closes or steps out, Home and End. Rows are given in
+  tree order with their parent; openness is stored as what was toggled away from
+  `openByDefault`. Its Behavior writes the tree's ARIA attributes and a roving
+  tab stop. For a file explorer, a page's layers or a nested menu.
+- **`foldkit-primitives`: `Targets`, which marked descendant is under the
+  pointer or was pressed.** One Mount on a container reports `TargetHovered`
+  once per change and `TargetPressed` with its modifiers, for the nearest
+  descendant carrying a marking attribute, and can stop a press's default.
 - **`foldkit-primitives`: an undo `history` groups steps.** A `Push` may name
   a `group`, and consecutive pushes of the same group are one step, so typing a
   word undoes as a whole without a clock. The steps are exported as pure
