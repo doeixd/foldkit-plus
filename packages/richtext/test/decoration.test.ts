@@ -97,4 +97,42 @@ describe('projecting decorations over a document', () => {
       },
     )
   })
+
+  it('keeps a nested run where the document puts it when a decoration crosses it', () => {
+    // A container's runs sit between its siblings' runs in document order, which is the
+    // order the index has to agree with.
+    const nested = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'ab', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'qp',
+              children: [{ type: 'Text', id: 'n', text: 'cd', marks: [] }],
+            },
+          ],
+        },
+        {
+          type: 'Paragraph',
+          id: 'r',
+          children: [{ type: 'Text', id: 'z', text: 'ef', marks: [] }],
+        },
+      ],
+    })
+    const projected = RichText.decorationsIn(nested, [decoration(['a', 0], ['z', 1])])
+    expect([...projected.keys()]).toEqual(['a', 'n', 'z'])
+    expect(projected.get(id('n'))?.map(span => [span.from, span.to])).toEqual([[0, 2]])
+    expect(projected.get(id('z'))?.map(span => [span.from, span.to])).toEqual([[0, 1]])
+  })
 })

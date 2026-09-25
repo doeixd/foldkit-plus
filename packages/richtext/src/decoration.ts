@@ -10,14 +10,7 @@
  * run, and where", so they compute it once, in the core, rather than each cutting ranges
  * their own way.
  */
-import {
-  compareRunPlaces,
-  eachBlock,
-  locateRun,
-  type Document,
-  type NodeId,
-  type Position,
-} from './document.js'
+import { eachBlock, type Document, type NodeId, type Position } from './document.js'
 
 /**
  * One decoration over a document range. `kind` is a fixed word the presentation is
@@ -47,42 +40,44 @@ export interface DecorationSpan<Data = unknown> {
  * document order; a decoration whose endpoints do not resolve is skipped rather than
  * guessed at, the way every other read treats a position it cannot resolve, and a
  * direction is honoured rather than required to run forwards.
+ *
+ * The runs are indexed once, so a decoration costs the runs it covers: a hundred search
+ * matches over a long document is one walk, not a hundred.
  */
 export const decorationsIn = <Data>(
   document: Document,
   set: DecorationSet<Data>,
 ): ReadonlyMap<NodeId, ReadonlyArray<DecorationSpan<Data>>> => {
   const spans = new Map<NodeId, Array<DecorationSpan<Data>>>()
+  if (set.length === 0) return spans
+  // Document order is depth-first, which is what `compareRunPlaces` orders by too.
+  const runs: Array<{ readonly id: NodeId; readonly length: number }> = []
+  const indexByRun = new Map<NodeId, number>()
+  eachBlock(document.children, block => {
+    for (const run of block.children) {
+      indexByRun.set(run.id, runs.length)
+      runs.push({ id: run.id, length: run.text.length })
+    }
+  })
   for (const decoration of set) {
-    const anchor = locateRun(document, decoration.from.node)
-    const focus = locateRun(document, decoration.to.node)
+    const anchor = indexByRun.get(decoration.from.node)
+    const focus = indexByRun.get(decoration.to.node)
     if (anchor === undefined || focus === undefined) continue
-    const forward =
-      compareRunPlaces(
-        { path: anchor.path, index: anchor.index },
-        { path: focus.path, index: focus.index },
-      ) <= 0
-    const start = forward ? anchor : focus
-    const startOffset = forward ? decoration.from.offset : decoration.to.offset
-    const end = forward ? focus : anchor
-    const endOffset = forward ? decoration.to.offset : decoration.from.offset
-    const startPlace = { path: start.path, index: start.index }
-    const endPlace = { path: end.path, index: end.index }
-    eachBlock(document.children, (block, path) => {
-      for (const [index, run] of block.children.entries()) {
-        const place = { path, index }
-        const before = compareRunPlaces(place, startPlace)
-        const after = compareRunPlaces(place, endPlace)
-        if (before < 0 || after > 0) continue
-        const from = Math.max(0, before === 0 ? startOffset : 0)
-        const to = Math.min(run.text.length, after === 0 ? endOffset : run.text.length)
-        if (from >= to) continue
-        const covered = spans.get(run.id)
-        const span = { from, to, decoration }
-        if (covered === undefined) spans.set(run.id, [span])
-        else covered.push(span)
-      }
-    })
+    const forward = anchor <= focus
+    const first = forward ? anchor : focus
+    const last = forward ? focus : anchor
+    const firstOffset = forward ? decoration.from.offset : decoration.to.offset
+    const lastOffset = forward ? decoration.to.offset : decoration.from.offset
+    for (let index = first; index <= last; index += 1) {
+      const run = runs[index]!
+      const from = Math.max(0, index === first ? firstOffset : 0)
+      const to = Math.min(run.length, index === last ? lastOffset : run.length)
+      if (from >= to) continue
+      const covered = spans.get(run.id)
+      const span = { from, to, decoration }
+      if (covered === undefined) spans.set(run.id, [span])
+      else covered.push(span)
+    }
   }
   // A renderer walks a run's text forwards, so its spans are in that order.
   for (const covered of spans.values()) covered.sort((left, right) => left.from - right.from)
