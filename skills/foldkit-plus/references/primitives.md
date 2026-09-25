@@ -100,8 +100,10 @@ into a chord answer. Slices that must survive reload persist through
   `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
   (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px
   threshold, `DraggedOver { over: { id, zone: 'before' | 'inside' | 'after' } | null }`,
-  `DragDropped { id, over }`, `DragCancelled { id }` (Escape). No roles or keys:
-  give the keyboard its own way. Swallows the click a drop ends with.
+  `DragDropped { id, over }`, `DragCancelled { id }` (Escape, `pointercancel`, a
+  button found released). One pointer; touch and pen work by position (give the
+  marked elements `touch-action: none`). No roles or keys: give the keyboard
+  its own way. Swallows the click a drop ends with.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
   `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or

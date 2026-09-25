@@ -100,10 +100,15 @@ export interface Shown extends Row {
  */
 export const shown = (rows: ReadonlyArray<Row>, model: Model, args: Args): ReadonlyArray<Shown> => {
   const byId = new Map(rows.map(row => [row.id, row]))
-  const siblingsOf = new Map<string | null, Array<string>>()
+  // Each row's place among its siblings, counted once: a page of a thousand rows
+  // under one parent is not a million steps.
+  const siblingsOf = new Map<string | null, number>()
+  const positionOf = new Map<string, number>()
   for (const row of rows) {
     const parent = row.parent !== null && byId.has(row.parent) ? row.parent : null
-    siblingsOf.set(parent, [...(siblingsOf.get(parent) ?? []), row.id])
+    const count = (siblingsOf.get(parent) ?? 0) + 1
+    siblingsOf.set(parent, count)
+    positionOf.set(row.id, count)
   }
   const levels = new Map<string, number>()
   const showing = new Map<string, boolean>()
@@ -115,12 +120,11 @@ export const shown = (rows: ReadonlyArray<Row>, model: Model, args: Args): Reado
     const visible = parent === null || (showing.get(parent) === true && isOpen(model, args, parent))
     showing.set(row.id, visible)
     if (!visible) continue
-    const siblings = siblingsOf.get(parent) ?? []
     result.push({
       ...row,
       level,
-      position: siblings.indexOf(row.id) + 1,
-      siblings: siblings.length,
+      position: positionOf.get(row.id) ?? 1,
+      siblings: siblingsOf.get(parent) ?? 1,
     })
   }
   return result
@@ -195,6 +199,14 @@ export interface BehaviorOptions<Input, Slots> {
   readonly direction?: (input: Input) => 'ltr' | 'rtl'
 }
 
+/** The rows showing for one input, with what each row's attributes look up. */
+interface Prepared {
+  readonly model: Model
+  readonly rows: ReadonlyArray<Shown>
+  readonly byId: ReadonlyMap<string, Shown>
+  readonly stop: string | undefined
+}
+
 /**
  * Wires a placed `TreeNavigation` to the slots. The container's keys move focus
  * to the row they pick, or open or close the current row with focus left where
@@ -203,13 +215,6 @@ export interface BehaviorOptions<Input, Slots> {
  * `aria-disabled` when disabled, a roving `tabindex`, and `OnFocus` reporting
  * it current. Every handled key is default-prevented.
  */
-/** The rows showing for one input, with what each row's attributes look up. */
-interface Prepared {
-  readonly model: Model
-  readonly rows: ReadonlyArray<Shown>
-  readonly byId: ReadonlyMap<string, Shown>
-  readonly stop: string | undefined
-}
 
 export const behavior =
   <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>

@@ -730,8 +730,12 @@ Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
 `DRAG_THRESHOLD` (4px) starts a drag (`DragStarted { id }`); then, once per
 change, `DraggedOver { over }` says which other marked descendant the pointer
 is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
-'after' }`, or `null`. Releasing is `DragDropped { id, over }`, and Escape or a
-cancelled pointer is `DragCancelled { id }`. The click a drop ends with is
+'after' }`, or `null`. Releasing is `DragDropped { id, over }`, and Escape, a
+cancelled pointer, or a button found released mid-drag is `DragCancelled { id }`.
+It follows the pointer that pressed and ignores a second one; the element under
+it is found by position, so a touch or a pen, which the browser captures to
+where it went down, drags too, once the marked elements have `touch-action:
+none` so a finger drags rather than scrolls. The click a drop ends with is
 swallowed, so a `Targets` on the same container does not also press. It writes
 no roles, `tabindex` or keys, so it sits beside a tree's or a listbox's own;
 the keyboard's way to do what a drag does is yours to give. Boxes are measured

@@ -76,6 +76,8 @@ type Positioned = Event & {
   readonly clientX?: number
   readonly clientY?: number
   readonly button?: number
+  readonly buttons?: number
+  readonly pointerId?: number
   readonly key?: string
 }
 
@@ -95,19 +97,33 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             const marked = from.closest(`[${attribute}]`)
             return marked !== null && element.contains(marked) ? marked : null
           }
-          // A press not yet a drag, or a drag under way.
-          let pressed: { readonly id: string; readonly x: number; readonly y: number } | null = null
+          // A press not yet a drag, or a drag under way: one pointer's, the first down.
+          let pressed: {
+            readonly id: string
+            readonly pointer: number | undefined
+            readonly x: number
+            readonly y: number
+          } | null = null
           let dragging: string | null = null
           let over: DragPlace | null = null
           // The click that ends a drag is not a press on what it ends over.
           let swallowClick = false
 
           const placeAt = (event: Positioned): DragPlace | null => {
-            const marked = find(event.target)
+            // Touch and pen capture the pointer to where it went down, so the
+            // event's target is the dragged element: ask what is under it instead.
+            const under =
+              typeof owner.elementFromPoint === 'function' && event.clientX !== undefined
+                ? owner.elementFromPoint(event.clientX, event.clientY ?? 0)
+                : null
+            const marked = find(under ?? event.target)
             const id = marked?.getAttribute(attribute) ?? null
             if (marked === null || id === null || id === dragging) return null
             return { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
           }
+          const ours = (event: Positioned) =>
+            pressed !== null &&
+            (pressed.pointer === undefined || event.pointerId === pressed.pointer)
           // `inside`: the release was on the container, so its click will reach it.
           const end = (dropped: boolean, inside = false) => {
             const id = dragging
@@ -115,6 +131,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             dragging = null
             const last = over
             over = null
+            release()
             if (id === null) return
             swallowClick = dropped && inside
             Queue.offerUnsafe(
@@ -123,38 +140,15 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             )
           }
 
-          const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [
-            [
-              'pointerdown',
-              event => {
-                const positioned = event as Positioned
-                if ((positioned.button ?? 0) !== 0) return
-                const id = targetOf(element, event.target, attribute)
-                if (id === null) return
-                swallowClick = false
-                pressed = { id, x: positioned.clientX ?? 0, y: positioned.clientY ?? 0 }
-              },
-              false,
-            ],
-            [
-              'click',
-              event => {
-                if (!swallowClick) return
-                swallowClick = false
-                event.preventDefault()
-                event.stopImmediatePropagation()
-              },
-              true,
-            ],
-            // A link or an image would start the browser's own drag instead.
-            ['dragstart', event => event.preventDefault(), false],
-          ]
           const onDocument: ReadonlyArray<readonly [string, (event: Event) => void]> = [
             [
               'pointermove',
               event => {
                 const positioned = event as Positioned
-                if (pressed === null) return
+                if (!ours(positioned) || pressed === null) return
+                // Released where no pointerup reached us, such as over a frame.
+                if (positioned.buttons !== undefined && (positioned.buttons & 1) === 0)
+                  return end(false)
                 if (dragging === null) {
                   const moved = Math.hypot(
                     (positioned.clientX ?? 0) - pressed.x,
@@ -174,30 +168,83 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             [
               'pointerup',
               event => {
-                if (dragging === null) pressed = null
+                if (!ours(event as Positioned)) return
+                if (dragging === null) end(false)
                 else end(true, event.target instanceof Node && element.contains(event.target))
               },
             ],
-            ['pointercancel', () => end(false)],
+            [
+              'pointercancel',
+              event => {
+                if (ours(event as Positioned)) end(false)
+              },
+            ],
             [
               'keydown',
               event => {
-                if (dragging === null || (event as Positioned).key !== 'Escape') return
+                if (pressed === null || (event as Positioned).key !== 'Escape') return
                 event.preventDefault()
                 end(false)
               },
             ],
           ]
+          // The document is listened to only while a press is under way.
+          let listening = false
+          const listen = () => {
+            if (listening) return
+            listening = true
+            for (const [type, listener] of onDocument) owner.addEventListener(type, listener)
+          }
+          const release = () => {
+            if (!listening) return
+            listening = false
+            for (const [type, listener] of onDocument) owner.removeEventListener(type, listener)
+          }
+
+          const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [
+            [
+              'pointerdown',
+              event => {
+                const positioned = event as Positioned
+                // Any press is past the drop a swallowed click was waiting for.
+                swallowClick = false
+                // A second pointer while one is down is not a new drag.
+                if (pressed !== null) return
+                if ((positioned.button ?? 0) !== 0) return
+                const id = targetOf(element, event.target, attribute)
+                if (id === null) return
+                pressed = {
+                  id,
+                  pointer: positioned.pointerId,
+                  x: positioned.clientX ?? 0,
+                  y: positioned.clientY ?? 0,
+                }
+                listen()
+              },
+              false,
+            ],
+            [
+              'click',
+              event => {
+                if (!swallowClick) return
+                swallowClick = false
+                event.preventDefault()
+                event.stopImmediatePropagation()
+              },
+              true,
+            ],
+            // A link or an image would start the browser's own drag instead.
+            ['dragstart', event => event.preventDefault(), false],
+          ]
           for (const [type, listener, capture] of onElement)
             element.addEventListener(type, listener, capture)
-          for (const [type, listener] of onDocument) owner.addEventListener(type, listener)
-          return { onElement, onDocument, owner }
+          return { onElement, release }
         }),
-        ({ onElement, onDocument, owner }) =>
+        ({ onElement, release }) =>
           Effect.sync(() => {
             for (const [type, listener, capture] of onElement)
               element.removeEventListener(type, listener, capture)
-            for (const [type, listener] of onDocument) owner.removeEventListener(type, listener)
+            release()
           }),
       ),
     ),

@@ -178,6 +178,67 @@ describe('PointerDrag', () => {
     }))
 })
 
+describe('PointerDrag, one pointer at a time', () => {
+  it('follows the pointer that pressed, not a second one, and ends when its button is up', () =>
+    withList(async ({ list, a, b, c }) => {
+      const facts = await run(list, 3, () => {
+        fire(a, 'pointerdown', { button: 0, pointerId: 1, clientX: 10, clientY: 10 })
+        // A second finger neither starts a drag nor moves this one.
+        fire(b, 'pointerdown', { button: 0, pointerId: 2, clientX: 10, clientY: 40 })
+        fire(c, 'pointermove', { pointerId: 2, buttons: 1, clientX: 10, clientY: 75 })
+        fire(b, 'pointermove', { pointerId: 1, buttons: 1, clientX: 10, clientY: 45 })
+        // Released where no pointerup reached the page: the next move says so.
+        fire(c, 'pointermove', { pointerId: 1, buttons: 0, clientX: 10, clientY: 75 })
+      })
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'a' }),
+        DraggedOver.make({ over: { id: 'b', zone: 'inside' } }),
+        DragCancelled.make({ id: 'a' }),
+      ])
+    }))
+
+  it('drops Escape’s press before it is a drag, and clears a waiting swallow on any press', () =>
+    withList(async ({ list, a, b, c }) => {
+      let later: Event | undefined
+      const facts = await run(list, 3, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(document, 'keydown', { key: 'Escape' })
+        fire(b, 'pointermove', { clientX: 10, clientY: 45 })
+        // A drop inside waits to swallow its click; a press on nothing marked comes first.
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(c, 'pointermove', { clientX: 10, clientY: 75 })
+        fire(c, 'pointerup')
+        fire(list, 'pointerdown', { button: 0, clientX: 200, clientY: 200 })
+        later = fire(b, 'click')
+      })
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'a' }),
+        DraggedOver.make({ over: { id: 'c', zone: 'inside' } }),
+        DragDropped.make({ id: 'a', over: { id: 'c', zone: 'inside' } }),
+      ])
+      expect(later?.defaultPrevented).toBe(false)
+    }))
+
+  it('finds what is under a touch by its position, not its captured target', () =>
+    withList(async ({ list, a, c }) => {
+      const touchedAt = document.elementFromPoint
+      document.elementFromPoint = () => c
+      try {
+        const facts = await run(list, 2, () => {
+          fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+          // Captured, the move targets the pressed row, though it is over c.
+          fire(a, 'pointermove', { clientX: 10, clientY: 85 })
+        })
+        expect(facts).toEqual([
+          DragStarted.make({ id: 'a' }),
+          DraggedOver.make({ over: { id: 'c', zone: 'after' } }),
+        ])
+      } finally {
+        document.elementFromPoint = touchedAt
+      }
+    }))
+})
+
 describe('PointerDrag behavior', () => {
   it('attaches the Mount to the container slot', () => {
     const ListSlots = Slots.define({ list: Slot.make({ capability: Capability.Container }) })
