@@ -213,7 +213,36 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     last, in a warm color). *Proposed:* the mixins-builder README's CSS snippet
     orders the two rules this way and says why.
 
+24. **An inserted Block is selected but not shown.** Adding a Quote to the
+    last Section of the home page selected it (the address named it), but
+    neither the layers panel (a scrolling list) nor the canvas scrolled to it,
+    so the new Block was out of view in both. *Proposed:* the Builder's
+    layers and canvas Behaviors bring the selected row and node into view when
+    the selection changes (`scrollIntoView({ block: 'nearest' })`). Status:
+    proposed.
+
+25. **Publish is offered to someone who may not publish.** A writer sees the
+    same Publish button as an editor and learns on clicking that "This author
+    may not publish this entry". The refusal is right, and said well, but the
+    client could know before: `allow` is the server's, and `Cms.offers` says
+    what an entry offers, not what this principal may do. *Proposed:* the
+    editor exposes what the signed-in principal may do (the server says so with
+    the entry), so an application can hide or disable what would be refused.
+    Status: proposed.
+
 ## Checked in the browser
+
+Everything below was driven in Chrome against `pnpm dev`:
+
+- The public site: home, blog, a post, About, a page made in the studio, a
+  missing address, and dark mode (`light-dark()` throughout).
+- The studio's posts: open a seeded post, edit, autosave, publish, the
+  worklist and preview following.
+- The page Builder: open by link, select on the canvas and in the layers,
+  change a look (Hero tone), insert a Block, pick a FeaturedPost, publish, and
+  see it on the site; a writer's publish refused with its reason; a new page
+  from nothing to live.
+- Not checked: a phone-width window (the browser window would not resize).
 
 - Links on the Builder's canvas (a Button, a post card) are real `<a>`s, and
   the page editor's routing turns a followed link into a navigation. A click on
