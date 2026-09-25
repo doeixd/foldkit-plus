@@ -157,7 +157,8 @@ Slop is also code that looks finished and is wrong. Look for these too:
   - State threaded through closures where a value would do.
   - `null` or `undefined` standing for "nothing here". A value that may be
     absent is an Effect `Option`: `Option.none()`, `Option.some(x)`,
-    `Option.match`, and `Schema.Option` in a Model. `T | null` and
+    `Option.match`, and `Schema.Option` in a Model that is never stored.
+    `T | null` and
     `T | undefined` make every reader remember to check, and a forgotten check
     type-checks as long as the value is only passed along. Keep `null` only at
     a boundary that speaks it (JSON, a database column, the DOM, a foreign
@@ -496,6 +497,20 @@ against `LazyArg<unknown>` and fails at runtime with "initial is not a
 function". Check the installed `.d.ts` before reaching for a remembered API.
 
 **Types**
+
+- **An `Option` compared with `undefined` or `null` type-checks and is always
+  unequal.** Moving `projectionOf` to `Option` left `projection === undefined`
+  in a test helper; it compiled, never matched, and failed 27 cms-drizzle
+  tests far from the change. Interpolating one in a template string compiles
+  too, and made a picker id of `[object Object]`. After changing a return to
+  `Option`, grep its callers for `=== undefined`, `=== null`, `?.` and `${`.
+- **`Schema.Option`'s encoded side is an Option, not JSON.** A Builder Model
+  with `Schema.Option` fields failed to round-trip through a saved CMS draft
+  ("Expected Option"). A Model that is stored or sent uses
+  `Schema.OptionFromNullOr`: `Option` in code, `null` on the wire.
+- **`tsc -p` in a project with references reads the stale `.d.ts`.** It checks
+  one project against whatever the referenced packages last emitted, so it
+  passes code that the change it depends on broke. Use `tsc -b`.
 
 - **Capability names can be object prototype keys.** `__proto__` passes name
   validation but assigning it to `{}` loses the registry entry. Use a `Map` or
