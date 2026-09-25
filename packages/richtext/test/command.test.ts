@@ -405,3 +405,67 @@ describe('set selection commands', () => {
     ).toBeNull()
   })
 })
+
+describe('retyping the block the caret is in', () => {
+  it('makes the caret\u2019s paragraph a heading, keeping its runs and the caret', () => {
+    const before = state(caret('b', 1))
+    const result = success(run(before, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }))
+    expect(result.state.document.children[0]).toEqual({
+      type: 'Heading',
+      id: 'p',
+      level: 2,
+      children: [
+        { type: 'Text', id: 'a', text: 'ab', marks: [] },
+        { type: 'Text', id: 'b', text: 'cd', marks: ['Bold'] },
+      ],
+    })
+    // The runs are the same objects and the caret still addresses one of them.
+    expect(result.state.document.children[0]?.children).toBe(before.document.children[0]?.children)
+    expect(result.state.selection).toEqual(caret('b', 1))
+    expect(result.changeSet.dirtyNodes).toEqual(new Set(['p']))
+    expect(result.changeSet.structureChanged).toBe(true)
+  })
+
+  it('makes a heading a paragraph again', () => {
+    const heading = success(
+      run(state(caret('c', 1)), { type: 'RetypeBlock', to: { type: 'Heading', level: 1 } }),
+    )
+    const back = success(
+      run(
+        { ...heading.state, selection: caret('c', 1) },
+        { type: 'RetypeBlock', to: { type: 'Paragraph' } },
+      ),
+    )
+    expect(back.state.document.children[1]).toEqual({
+      type: 'Paragraph',
+      id: 'q',
+      children: [{ type: 'Text', id: 'c', text: 'ef', marks: [] }],
+    })
+    expect(back.state.selection).toEqual(caret('c', 1))
+  })
+
+  it('retypes the block the selection starts in, not every block it covers', () => {
+    const result = success(
+      run(state(range(['b', 0], ['c', 1])), {
+        type: 'RetypeBlock',
+        to: { type: 'Heading', level: 3 },
+      }),
+    )
+    expect(result.state.document.children.map(block => block.type)).toEqual([
+      'Heading',
+      'Paragraph',
+    ])
+    // The selection survives, because no identity changed.
+    expect(result.state.selection).toEqual(range(['b', 0], ['c', 1]))
+  })
+
+  it('refuses when there is no text block under the selection', () => {
+    expect(run(state(null), { type: 'RetypeBlock', to: { type: 'Paragraph' } })).toEqual({
+      ok: false,
+      error: 'InvalidSelection',
+    })
+    expect(
+      run(state(caret('missing', 0)), { type: 'RetypeBlock', to: { type: 'Paragraph' } }),
+    ).toEqual({ ok: false, error: 'MissingText' })
+  })
+})

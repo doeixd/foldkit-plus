@@ -115,10 +115,12 @@ describe('move blocks', () => {
   )
 })
 
-describe('heading levels', () => {
+describe('retyping a text block', () => {
   it('retypes the heading while sharing run values', () => {
     const state = initial()
-    const result = success(RichText.apply(state, [RichText.Edit.setNodeProps(id('h'), 1)]))
+    const result = success(
+      RichText.apply(state, [RichText.Edit.retypeBlock(id('h'), { type: 'Heading', level: 1 })]),
+    )
     expect(result.state.document.children[2]).toEqual({
       type: 'Heading',
       id: 'h',
@@ -138,45 +140,101 @@ describe('heading levels', () => {
     })
   })
 
-  it('treats the same level as a no-op preserving state identity', () => {
+  it('makes a paragraph of a heading, and a heading of a paragraph, keeping runs', () => {
     const state = initial()
-    const result = success(RichText.apply(state, [RichText.Edit.setNodeProps(id('h'), 2)]))
+    const paragraph = success(
+      RichText.apply(state, [RichText.Edit.retypeBlock(id('h'), { type: 'Paragraph' })]),
+    )
+    expect(paragraph.state.document.children[2]).toEqual({
+      type: 'Paragraph',
+      id: 'h',
+      children: [{ type: 'Text', id: 'w', text: 'Hi', marks: [] }],
+    })
+    const heading = success(
+      RichText.apply(paragraph.state, [
+        RichText.Edit.retypeBlock(id('h'), { type: 'Heading', level: 3 }),
+      ]),
+    )
+    expect(heading.state.document.children[2]).toEqual({
+      type: 'Heading',
+      id: 'h',
+      level: 3,
+      children: [{ type: 'Text', id: 'w', text: 'Hi', marks: [] }],
+    })
+    // The paragraph kept the heading's run, and the heading kept the paragraph's.
+    expect(heading.state.document.children[2]?.children[0]).toBe(
+      paragraph.state.document.children[2]?.children[0],
+    )
+  })
+
+  it('treats the same shape as a no-op preserving state identity', () => {
+    const state = initial()
+    const result = success(
+      RichText.apply(state, [RichText.Edit.retypeBlock(id('h'), { type: 'Heading', level: 2 })]),
+    )
     expect(result.state).toBe(state)
     expect(result.changeSet.structureChanged).toBe(false)
   })
 
   it('builds the documented wire shape from ids or references', () => {
-    expect(RichText.Edit.setNodeProps(id('h'), 3)).toEqual({
-      type: 'SetNodeProps',
+    expect(RichText.Edit.retypeBlock(id('h'), { type: 'Heading', level: 3 })).toEqual({
+      type: 'RetypeBlock',
       node: 'h',
-      level: 3,
+      to: { type: 'Heading', level: 3 },
     })
-    expect(RichText.Edit.setNodeProps(RichText.Node.make('h'), 3)).toEqual(
-      RichText.Edit.setNodeProps(id('h'), 3),
+    expect(RichText.Edit.retypeBlock(RichText.Node.make('h'), { type: 'Paragraph' })).toEqual(
+      RichText.Edit.retypeBlock(id('h'), { type: 'Paragraph' }),
     )
   })
 
-  it.each([
-    [{ type: 'SetNodeProps', node: id('missing'), level: 1 }, 'MissingNode'],
-    [{ type: 'SetNodeProps', node: id('p'), level: 1 }, 'InvalidRange'],
-  ] satisfies ReadonlyArray<readonly [RichText.Operation, string]>)(
-    'rejects atomically: %j',
-    (operation, error) => {
-      const state = initial()
-      expect(RichText.apply(state, [operation])).toEqual({ ok: false, error })
-      expect(state.document.children[2]).toEqual({
-        type: 'Heading',
-        id: 'h',
-        level: 2,
-        children: [{ type: 'Text', id: 'w', text: 'Hi', marks: [] }],
-      })
-    },
-  )
+  it('rejects an unknown block atomically', () => {
+    const state = initial()
+    expect(
+      RichText.apply(state, [
+        { type: 'RetypeBlock', node: id('missing'), to: { type: 'Paragraph' } },
+      ]),
+    ).toEqual({ ok: false, error: 'MissingNode' })
+    expect(state.document.children[2]).toEqual({
+      type: 'Heading',
+      id: 'h',
+      level: 2,
+      children: [{ type: 'Text', id: 'w', text: 'Hi', marks: [] }],
+    })
+  })
+
+  it('refuses a block whose content is not runs', () => {
+    const nested = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'li',
+              children: [{ type: 'Text', id: 'x', text: 'one', marks: [] }],
+            },
+          ],
+        },
+      ],
+    })
+    expect(
+      RichText.apply({ document: nested, selection: null }, [
+        RichText.Edit.retypeBlock(id('list'), { type: 'Paragraph' }),
+      ]),
+    ).toEqual({ ok: false, error: 'InvalidRange' })
+  })
 
   it('rejects an out-of-vocabulary level at the boundary', () => {
     expect(
-      // @ts-expect-error Deliberately invalid level.
-      RichText.apply(initial(), [{ type: 'SetNodeProps', node: id('h'), level: 7 }]),
+      RichText.apply(initial(), [
+        // @ts-expect-error Deliberately invalid level.
+        { type: 'RetypeBlock', node: id('h'), to: { type: 'Heading', level: 7 } },
+      ]),
     ).toEqual({ ok: false, error: 'InvalidInput' })
   })
 })

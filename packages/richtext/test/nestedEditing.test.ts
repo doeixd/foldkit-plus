@@ -143,7 +143,11 @@ describe('editing inside a nested block', () => {
   })
 
   it('changes a nested heading level, which moves no block', () => {
-    const raised = success(RichText.apply(state(null), [RichText.Edit.setNodeProps(id('li2'), 4)]))
+    const raised = success(
+      RichText.apply(state(null), [
+        RichText.Edit.retypeBlock(id('li2'), { type: 'Heading', level: 4 }),
+      ]),
+    )
     expect(blockAt(raised.state.document, 0, 1)).toMatchObject({ type: 'Heading', level: 4 })
     expect(raised.changeSet.structureChanged).toBe(true)
   })

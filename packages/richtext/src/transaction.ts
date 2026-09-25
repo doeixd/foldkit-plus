@@ -68,10 +68,20 @@ const MoveNodeOperation = Schema.Struct({
   /** The block list to move into: a node block's, or the document's when absent. */
   parent: Schema.optionalKey(NodeId),
 })
-const SetNodePropsOperation = Schema.Struct({
-  type: Schema.Literal('SetNodeProps'),
+/**
+ * What a text block retypes to: a paragraph, or a heading at a level. Its runs are
+ * its own and survive the change; only the block's type does not.
+ */
+export const TextBlock = Schema.Union([
+  Schema.Struct({ type: Schema.Literal('Paragraph') }),
+  Schema.Struct({ type: Schema.Literal('Heading'), level: Schema.Literals([1, 2, 3, 4, 5, 6]) }),
+])
+export type TextBlock = typeof TextBlock.Type
+
+const RetypeBlockOperation = Schema.Struct({
+  type: Schema.Literal('RetypeBlock'),
   node: NodeId,
-  level: Schema.Literals([1, 2, 3, 4, 5, 6]),
+  to: TextBlock,
 })
 const InsertNodeOperation = Schema.Struct({
   type: Schema.Literal('InsertNode'),
@@ -100,7 +110,7 @@ export const Operation = Schema.Union([
   SplitNodeOperation,
   JoinNodeOperation,
   MoveNodeOperation,
-  SetNodePropsOperation,
+  RetypeBlockOperation,
   InsertNodeOperation,
   DeleteNodeOperation,
   SplitRunOperation,
@@ -189,11 +199,11 @@ export const Edit = {
       ...(parent === undefined ? {} : { parent: targetId(parent) }),
     }),
 
-  setNodeProps: (
+  retypeBlock: (
     node: TextTarget,
-    level: 1 | 2 | 3 | 4 | 5 | 6,
-  ): Extract<Operation, { readonly type: 'SetNodeProps' }> =>
-    SetNodePropsOperation.make({ type: 'SetNodeProps', node: targetId(node), level }),
+    to: TextBlock,
+  ): Extract<Operation, { readonly type: 'RetypeBlock' }> =>
+    RetypeBlockOperation.make({ type: 'RetypeBlock', node: targetId(node), to }),
 
   insertBlock: (
     block: Block,
@@ -711,15 +721,27 @@ export const apply = (
       structureChanged = true
       continue
     }
-    if (operation.type === 'SetNodeProps') {
+    if (operation.type === 'RetypeBlock') {
       const path = blockPaths.get(operation.node)
       if (path === undefined) return { ok: false, error: 'MissingNode' }
       const target = blockAt(path)
-      if (target === undefined || target.type !== 'Heading') {
+      // Only a text block retypes: a node kind's content is its Kit's contract, and
+      // preserved content is never rewritten.
+      if (target === undefined || (target.type !== 'Paragraph' && target.type !== 'Heading')) {
         return { ok: false, error: 'InvalidRange' }
       }
-      if (target.level === operation.level) continue
-      writeBlock(path, { ...target, level: operation.level })
+      const to = operation.to
+      const already =
+        to.type === 'Paragraph'
+          ? target.type === 'Paragraph'
+          : target.type === 'Heading' && target.level === to.level
+      if (already) continue
+      writeBlock(
+        path,
+        to.type === 'Paragraph'
+          ? { type: 'Paragraph', id: target.id, children: target.children }
+          : { type: 'Heading', id: target.id, level: to.level, children: target.children },
+      )
       dirtyNodes.add(target.id)
       structureChanged = true
       continue

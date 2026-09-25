@@ -130,12 +130,14 @@ void joinedInto
 
 const moved = RichText.Edit.moveBlock(reference, 0)
 const movedNode: RichText.NodeId = moved.node
-const leveled = RichText.Edit.setNodeProps(reference, 1)
-const leveledNode: RichText.NodeId = leveled.node
-RichText.apply({ document, selection: null }, [moved, leveled])
+const retyped = RichText.Edit.retypeBlock(reference, { type: 'Heading', level: 1 })
+const retypedNode: RichText.NodeId = retyped.node
+RichText.apply({ document, selection: null }, [moved, retyped])
 // @ts-expect-error Heading levels are 1 through 6.
-RichText.Edit.setNodeProps(reference, 7)
-void [movedNode, leveledNode]
+RichText.Edit.retypeBlock(reference, { type: 'Heading', level: 7 })
+// @ts-expect-error A text block is a paragraph or a heading.
+RichText.Edit.retypeBlock(reference, { type: 'Node', kind: 'List' })
+void [movedNode, retypedNode]
 
 const inserted = RichText.Edit.insertBlock(paragraph, 0)
 const insertedBlock: RichText.Block = inserted.block

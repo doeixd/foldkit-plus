@@ -25,7 +25,13 @@ import {
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
-import { Edit, apply, type Operation, type TransactionResult } from './transaction.js'
+import {
+  Edit,
+  apply,
+  type Operation,
+  type TextBlock,
+  type TransactionResult,
+} from './transaction.js'
 
 /**
  * Editor intent: what the user is trying to do. Commands resolve against the
@@ -46,6 +52,8 @@ export type Command =
   | { readonly type: 'ToggleMark'; readonly mark: string | MarkValue }
   | { readonly type: 'SetSelection'; readonly selection: Selection | null }
   | { readonly type: 'Paste'; readonly slice: Slice }
+  /** Retypes the block the selection starts in: a paragraph, or a heading. */
+  | { readonly type: 'RetypeBlock'; readonly to: TextBlock }
 
 /** Caller-owned identity source. Live edits mint; replay applies transactions. */
 export interface CommandIds {
@@ -387,6 +395,19 @@ export const run = (
       }
     }
     return apply(state, operations)
+  }
+
+  if (command.type === 'RetypeBlock') {
+    // A block-level intent acts on the block the selection starts in: the caret's
+    // own block, or the first block of a range. Retyping every block a range covers
+    // would be a surprise, and a menu opens at a caret anyway.
+    const start = isCollapsed(selection)
+      ? selection.anchor
+      : ordered(state.document, selection)?.start
+    if (start === undefined) return failure('InvalidSelection')
+    const at = locate(state.document, start.node)
+    if (at === undefined) return failure('MissingText')
+    return apply(state, [Edit.retypeBlock(at.blockId, command.to)])
   }
 
   if (command.type === 'DeleteBackward' || command.type === 'DeleteForward') {

@@ -284,7 +284,11 @@ describe('patching only what changed', () => {
     const heading = before.elements.get(id('h')) as HTMLElement
     expect(heading.tagName.toLowerCase()).toBe('h2')
     // The heading keeps its identity and both its runs; only its level moved.
-    const result = success(RichText.apply(state(null), [RichText.Edit.setNodeProps(id('h'), 3)]))
+    const result = success(
+      RichText.apply(state(null), [
+        RichText.Edit.retypeBlock(id('h'), { type: 'Heading', level: 3 }),
+      ]),
+    )
     const after = patch(before, result.state.document, result.changeSet)
     const demoted = after.elements.get(id('h')) as HTMLElement
     expect(demoted.tagName.toLowerCase()).toBe('h3')
