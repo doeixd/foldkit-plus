@@ -6,6 +6,7 @@
  * unknown Block is reported and still walked, so what it holds is checked too.
  */
 import { Result, Schema } from 'effect'
+import { checkActions } from './action.js'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
 import { check as checkWhen } from './condition.js'
@@ -29,6 +30,8 @@ export type DiagnosticCode =
   | 'composition:unknown-token'
   | 'composition:invalid-condition'
   | 'composition:unknown-context'
+  | 'composition:invalid-action'
+  | 'composition:unknown-action'
 
 export interface Diagnostic {
   readonly code: DiagnosticCode
@@ -115,6 +118,13 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
             [...here, 'props', ...finding.path],
             `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
           )
+      for (const finding of checkActions(catalog.actions, block, node.actions))
+        say(
+          finding.code,
+          id,
+          [...here, ...finding.path],
+          `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
+        )
       for (const finding of Block.checkAppearance(block, node.appearance))
         say(
           finding.code,

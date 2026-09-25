@@ -101,6 +101,7 @@ describe('the vocabulary', () => {
         props: ['title'],
         regions: { actions: { accepts: ['Interactive'], holds: '0 to 2' } },
         metadata: [{ name: 'test/palette', entries: ['Marketing'] }],
+        events: [],
       },
     ])
     // Annotating gives a new Block and leaves the first as it was.
@@ -228,6 +229,33 @@ describe('validate', () => {
     expect(codes(found)).toEqual(['composition:invalid-props', 'composition:invalid-props'])
     expect(found[0]?.path).toEqual(['nodes', 'section-1', 'props'])
     expect(found[0]?.message).toContain('"section-1"\'s props are not a Section\'s')
+  })
+
+  it('checks a node’s actions against its Block’s events and the Catalog’s actions', () => {
+    const Press = Block.define('Press', {
+      Props: Schema.Struct({}),
+      provides: [Content.Section],
+      events: ['press'],
+    })
+    const Noop = {
+      name: 'noop',
+      description: 'Nothing',
+      input: Schema.Struct({}),
+      toMessage: () => 'noop',
+    }
+    const Pressing = Catalog.make({ blocks: [Press], roots: [Content.Section], actions: [Noop] })
+    const found = Composition.validate(
+      Pressing,
+      page(['p', 'q'], {
+        p: { block: 'Press', props: {}, regions: {}, actions: { press: { action: 'noop' } } },
+        q: { block: 'Press', props: {}, regions: {}, actions: { press: { action: 'boom' } } },
+      }),
+    )
+    expect(codes(found)).toEqual(['composition:unknown-action'])
+    expect(found[0]?.path).toEqual(['nodes', 'q', 'actions', 'press'])
+    expect(() =>
+      Catalog.make({ blocks: [Press], roots: [Content.Section], actions: [Noop, Noop] }),
+    ).toThrow('two actions are named "noop"')
   })
 
   it('checks a stored when against the context the Catalog declares', () => {

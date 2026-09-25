@@ -7,6 +7,7 @@
  */
 import { Schema } from 'effect'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
+import type { CatalogAction } from './action.js'
 import type { AnyBlock } from './block.js'
 import type { Content } from './content.js'
 import { bounds } from './region.js'
@@ -22,6 +23,8 @@ export interface Catalog<Blocks extends AnyBlock = AnyBlock> {
    * fields a node's `when` may name; `undefined` when a page has no context.
    */
   readonly context: Schema.Top | undefined
+  /** The actions a node's events may run, by name: `foldkit-surface` Actions. */
+  readonly actions: ReadonlyArray<CatalogAction>
 }
 
 /** A Block's name, from a Catalog. */
@@ -37,6 +40,8 @@ export interface BlockDescription {
     Record<string, { readonly accepts: ReadonlyArray<string>; readonly holds: string }>
   >
   readonly metadata: ReadonlyArray<MetadataSummary>
+  /** The events a node may give an action to run. */
+  readonly events: ReadonlyArray<string>
 }
 
 const keysOf = (schema: Schema.Top): ReadonlyArray<string> => {
@@ -50,6 +55,8 @@ export const Catalog = {
     readonly roots: ReadonlyArray<Content>
     /** The context a node's `when` may name: `Schema.Struct({ audience: ..., locale: ... })`. */
     readonly context?: Schema.Top
+    /** The actions a node's events may run: `[AddToCart, Subscribe]`. */
+    readonly actions?: ReadonlyArray<CatalogAction>
   }): Catalog<Blocks> => {
     if (config.roots.length === 0)
       throw new Error('Catalog.make: `roots` names no Content, so no Document could have a root')
@@ -59,12 +66,19 @@ export const Catalog = {
         throw new Error(`Catalog.make: two Blocks are named "${block.name}"`)
       byName.set(block.name, block)
     }
+    const actionNames = new Set<string>()
+    for (const action of config.actions ?? []) {
+      if (actionNames.has(action.name))
+        throw new Error(`Catalog.make: two actions are named "${action.name}"`)
+      actionNames.add(action.name)
+    }
     return Object.freeze({
       _tag: 'Catalog',
       blocks: Object.freeze([...config.blocks]),
       roots: Object.freeze([...config.roots]),
       byName,
       context: config.context,
+      actions: Object.freeze([...(config.actions ?? [])]),
     })
   },
 
@@ -85,5 +99,6 @@ export const Catalog = {
         ]),
       ),
       metadata: Metadata.summarize(block.metadata),
+      events: block.events,
     })),
 }

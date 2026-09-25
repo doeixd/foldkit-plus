@@ -1,12 +1,12 @@
 import { Effect, Result, Schema } from 'effect'
 import { inertHtml, type Html } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from 'foldkit-surface'
+import { Action, Projection, Surface } from 'foldkit-surface'
 import { SSR } from 'foldkit-ssr'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Block, Catalog, Composition, Content, NodeId, isSafeUrl } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
-import { Style } from 'foldkit-mixins'
+import { SlotView, Style } from 'foldkit-mixins'
 import { ArticleKit, Columns, ColumnsLook, Site, SiteRenderer, body, homePage } from './site.js'
 
 type Node = Exclude<Html, null>
@@ -123,6 +123,47 @@ describe('drawing a Document', () => {
       context: { audience: 'member' },
     })
     expect(attr(all(shown)[0], 'data-composition-hidden')).toBeUndefined()
+  })
+
+  it('hands a view the Message its node’s action makes, checked first', () => {
+    const Message = defineMessageUnion({ Subscribed: { list: Schema.String } })
+    const Subscribe = Action.define({
+      name: 'subscribe',
+      description: 'Subscribe to the newsletter',
+      input: Schema.Struct({ list: Schema.String }),
+      toMessage: input => Message.Subscribed(input),
+    })
+    const Cta = Block.define('Cta', {
+      Props: Schema.Struct({ label: Schema.String }),
+      provides: [Content.Section],
+      events: ['press'],
+    })
+    const Actions = Catalog.make({ blocks: [Cta], roots: [Content.Section], actions: [Subscribe] })
+    const h = SlotView.inertBuilder<typeof Message.Type>()
+    const pressed: Array<typeof Message.Type | undefined> = []
+    const Drawn = Renderer.forMessages<typeof Message.Type>().make(Actions, {
+      Cta: ({ props, on, h }) => {
+        pressed.push(on('press'), on('hover'))
+        return h.p([], [props.label])
+      },
+    })
+    const cta = (actions: unknown) =>
+      page(['c'], { c: { block: 'Cta', props: { label: 'Join' }, regions: {}, actions } })
+    Renderer.render(Drawn, cta({ press: { action: 'subscribe', input: { list: 'news' } } }), h)
+    Renderer.render(Drawn, cta({ press: { action: 'subscribe', input: { list: 3 } } }), h)
+    Renderer.render(Drawn, cta({ press: { action: 'gone' } }), h)
+    // An event the Block does not have runs nothing, whatever is stored for it.
+    Renderer.render(Drawn, cta({ hover: { action: 'subscribe', input: { list: 'x' } } }), h)
+    expect(pressed).toEqual([
+      Message.Subscribed({ list: 'news' }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ])
   })
 
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {

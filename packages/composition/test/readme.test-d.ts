@@ -3,6 +3,8 @@ import { Result, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import * as RichText from 'foldkit-richtext'
 import { inertHtml, type Html } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Action } from 'foldkit-surface'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { RichTextBlock } from 'foldkit-composition/richtext'
 import { Appearance } from 'foldkit-composition/appearance'
@@ -169,4 +171,38 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
   void Audience
   void op
   void shown
+}
+
+// Actions
+{
+  const Message = defineMessageUnion({ AddedToCart: { productId: Schema.String } })
+  const AddToCart = Action.define({
+    name: 'addToCart',
+    description: 'Add a product to the cart',
+    input: Schema.Struct({ productId: Schema.String }),
+    toMessage: input => Message.AddedToCart(input),
+  })
+  const Button = Block.define('Button', {
+    Props: Schema.Struct({ label: Schema.String }),
+    provides: [Content.Flow],
+    events: ['press'],
+  })
+  const Shop = Catalog.make({
+    blocks: [Section, Button],
+    roots: [Content.Section],
+    actions: [AddToCart],
+  })
+  const op = Composition.Op.setAction(NodeId.make('b'), 'press', {
+    action: 'addToCart',
+    input: { productId: 'p1' },
+  })
+  const ShopRenderer = Renderer.forMessages<typeof Message.Type>().make(Shop, {
+    Section: ({ regions, h }) => h.section([], [...regions.body]),
+    Button: ({ props, on, h }) => {
+      const pressed = on('press')
+      return h.button(pressed === undefined ? [] : [h.OnClick(pressed)], [props.label])
+    },
+  })
+  void op
+  void ShopRenderer
 }

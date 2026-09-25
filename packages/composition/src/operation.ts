@@ -12,6 +12,7 @@
  * so an author keeps working around content the deployment no longer knows.
  */
 import { Result, Schema } from 'effect'
+import { checkActions } from './action.js'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
 import { check as checkWhen } from './condition.js'
@@ -115,6 +116,8 @@ export type RefusalCode =
   | 'composition:unknown-token'
   | 'composition:invalid-condition'
   | 'composition:unknown-context'
+  | 'composition:invalid-action'
+  | 'composition:unknown-action'
 
 /** Why an Operation was refused. The Document is as it was. */
 export interface Refusal {
@@ -536,6 +539,13 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
     }
     case 'SetAction': {
       const node = nodeOf(draft, op.id)
+      if (op.action !== null) {
+        const [finding] = checkActions(catalog.actions, blockOf(catalog, node, op.id), {
+          [op.name]: op.action,
+        })
+        if (finding !== undefined)
+          refuse(finding.code, `"${op.id}"'s ${finding.path.join('.')}: ${finding.message}`)
+      }
       const { [op.name]: _, ...others } = node.actions ?? {}
       const actions = op.action === null ? others : { ...others, [op.name]: op.action }
       const { actions: __, ...rest } = node

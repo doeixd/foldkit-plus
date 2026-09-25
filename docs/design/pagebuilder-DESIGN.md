@@ -1146,7 +1146,11 @@ resume plan.
 - **10-1,** `Action` in `foldkit-surface`, with `Agent.variant` re-expressed over
   it and its API unchanged; the Catalog's actions; `composition:unknown-action`;
   the Renderer dispatching `toMessage(input)`; an action picker in the
-  inspector.
+  inspector. **Built, but for the picker:** `Action.define` / `Action.run`, and
+  `Agent.action` building on `Agent.variant`, which is unchanged; a Block's
+  `events`, a Catalog's `actions` checked structurally so the core needs no
+  `foldkit-surface`, `composition:invalid-action` beside `unknown-action`, and
+  a Renderer view's `on(event)`.
 - **10-2,** `Composition.operationSchema(Site)` and an `edit_page` tool in
   `examples/cms`, whose context is an outline of the page, with a node's props
   read on demand (this answers §30's second question). "Add a hero above the

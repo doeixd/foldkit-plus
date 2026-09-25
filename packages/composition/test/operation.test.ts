@@ -1,4 +1,5 @@
 import { Effect, Result, Schema } from 'effect'
+import { Action } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   Block,
@@ -28,6 +29,13 @@ const Heading = Block.define('Heading', {
 const Button = Block.define('Button', {
   Props: Schema.Struct({ label: Schema.String }),
   provides: [Content.Flow, Content.Interactive],
+  events: ['press'],
+})
+const AddToCart = Action.define({
+  name: 'addToCart',
+  description: 'Add a product to the cart',
+  input: Schema.Struct({ productId: Schema.String }),
+  toMessage: input => ({ _tag: 'AddedToCart', ...input }),
 })
 const Hero = Block.define('Hero', {
   Props: Schema.Struct({ title: Schema.String }),
@@ -48,6 +56,7 @@ const Site = Catalog.make({
   blocks: [Heading, Button, Hero, Section, Frame],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
+  actions: [AddToCart],
 })
 
 const id = NodeId.make
@@ -382,14 +391,16 @@ describe('props and the reserved fields', () => {
       Op.batch([
         Op.setWhen(id('a'), [Composition.when.eq('audience', 'member')]),
         Op.setAppearance(id('a'), { tone: 'accent' }),
-        Op.setAction(id('c'), 'press', { action: 'addToCart' }),
+        Op.setAction(id('c'), 'press', { action: 'addToCart', input: { productId: 'p1' } }),
       ]),
     ).document
     expect(set.nodes[id('a')]).toMatchObject({
       when: [{ eq: ['audience', 'member'] }],
       appearance: { tone: 'accent' },
     })
-    expect(set.nodes[id('c')]?.actions).toEqual({ press: { action: 'addToCart' } })
+    expect(set.nodes[id('c')]?.actions).toEqual({
+      press: { action: 'addToCart', input: { productId: 'p1' } },
+    })
     const cleared = applied(
       set,
       Op.batch([
@@ -399,6 +410,22 @@ describe('props and the reserved fields', () => {
       ]),
     ).document
     expect(cleared).toEqual(start)
+  })
+
+  it('refuses an action on an event the Block lacks, not offered, or given bad input', () => {
+    const refusal = (node: string, event: string, action: Schema.Json) =>
+      refused(start, Op.setAction(id(node), event, action))
+    expect(refusal('c', 'hover', { action: 'addToCart' }).message).toBe(
+      `"c"'s actions.hover: a Button has no event "hover"`,
+    )
+    expect(refusal('a', 'press', { action: 'addToCart' }).code).toBe('composition:invalid-action')
+    expect(refusal('c', 'press', { action: 'deleteAll' }).code).toBe('composition:unknown-action')
+    expect(refusal('c', 'press', { action: 'addToCart', input: { productId: 7 } }).code).toBe(
+      'composition:invalid-action',
+    )
+    expect(refusal('c', 'press', 'addToCart').message).toBe(
+      `"c"'s actions.press: is not an { action, input } reference`,
+    )
   })
 
   it('refuses a condition that is malformed, or over what the context does not declare', () => {

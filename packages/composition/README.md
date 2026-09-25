@@ -130,9 +130,9 @@ const PublishPage = Entity.input(Page, Schema.Struct({
 
 `appearance` holds a node's look as names, such as `{ tone: 'accent' }`,
 checked against the axes its Block offers ([Appearance](#appearance-foldkit-compositionappearance)).
-`when` lists the conditions a node shows under ([Conditions](#conditions)).
-`actions` is reserved on every node, stored as JSON, for event actions in a
-later phase.
+`when` lists the conditions a node shows under ([Conditions](#conditions)),
+and `actions` what its events run ([Actions](#actions)), as names and literal
+input.
 
 ## What validation finds
 
@@ -152,6 +152,8 @@ later phase.
 | `composition:unknown-token` | a token axis naming a token the theme does not have |
 | `composition:invalid-condition` | a `when` that is not a list of conditions |
 | `composition:unknown-context` | a condition over a key the Catalog's `context` does not declare, or a value that key cannot have |
+| `composition:invalid-action` | an event the Block does not have, a reference that is not `{ action, input }`, or input the action's Schema refuses |
+| `composition:unknown-action` | an action the Catalog does not offer |
 
 Props are decoded strictly, so a prop an old version left behind is found
 rather than silently kept.
@@ -191,6 +193,36 @@ Renderer.render(SiteRenderer, page, h, { context: { audience: 'guest' } }) // le
   server-authorized read.
 - Viewport is not a condition: the server cannot know it. A node hidden on
   narrow screens is an appearance.
+
+## Actions
+
+A Button must eventually do something, and a capability ends in an existing
+Message. A Block names its events, a Catalog lists the actions its pages may
+reference, each a `foldkit-surface` Action, and a node stores only which action
+an event runs, with its input as literals:
+
+```ts
+const Button = Block.define('Button', { Props, provides: [Content.Flow], events: ['press'] })
+const Site = Catalog.make({ blocks, roots: [Content.Section], actions: [AddToCart] })
+
+Composition.Op.setAction(id, 'press', { action: 'addToCart', input: { productId: 'p1' } })
+
+const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
+  Button: ({ props, on, h }) => {
+    const pressed = on('press') // the Message addToCart makes, or undefined
+    return h.button(pressed === undefined ? [] : [h.OnClick(pressed)], [props.label])
+  },
+})
+```
+
+- **Checked,** by `validate` and by `setAction`: an event the Block does not
+  have or input the action's Schema refuses is `composition:invalid-action`,
+  and an action the Catalog lacks is `composition:unknown-action`.
+- **Nothing stored runs.** `on(event)` decodes the stored input by the action's
+  Schema and makes its Message, or gives `undefined`; `update` stays the only
+  place a Message has effects.
+- The same Action is an agent's capability through `Agent.action`, declared
+  once for both.
 
 ## Reading a Document
 
@@ -572,7 +604,6 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 ## Limits
 
 
-- Actions are stored but not interpreted.
 - A condition is one of four operations over one context key; there is no
   `or` and no `not`, as in `Expr`.
 - Only a token choice is responsive; a variant is one value for every viewport.

@@ -96,6 +96,15 @@ no context means a node with conditions is hidden (fails closed); edit mode
 draws it marked `data-composition-hidden`. `Composition.holds(when, context)`.
 Presentation, not authorization.
 
+## Actions
+
+`Block.define(..., { events: ['press'] })`; `Catalog.make({ ..., actions: [AddToCart] })`
+(a `foldkit-surface` Action); `Op.setAction(id, 'press', { action: 'addToCart',
+input })`; in a `Renderer.forMessages<Message>()` view, `on('press')` is the
+Message (input decoded first) or `undefined`. Codes:
+`composition:invalid-action`, `composition:unknown-action`. `Catalog.describe`
+lists each Block's `events`.
+
 ## Stateful Blocks
 
 `Block.define(name, { ..., stateful: true })`; the parent places a Bundle per
@@ -242,7 +251,6 @@ const PageForm = Form.make('PageForm', PageInput, {
 - A node is in exactly one place; a second parent, a cycle, an orphan and a
   missing id are each their own diagnostic.
 - Regions are not Mixins Slots, and Content is not a Mixins capability.
-- `when`, `appearance` and `actions` are stored as JSON and not yet interpreted.
 - `apply` refuses only what the Operation causes; it keeps working beside an
   unknown Block, which can be reordered where it is or removed, but not moved
   elsewhere or have its props set.

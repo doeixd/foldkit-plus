@@ -37,6 +37,7 @@ export {
   type Refusal,
   type RefusalCode,
 } from './operation.js'
+export { ActionRef, type ActionFinding, type CatalogAction } from './action.js'
 export { Condition, When, type ConditionFinding } from './condition.js'
 export type { StatefulNode } from './stateful.js'
 export { Region } from './region.js'

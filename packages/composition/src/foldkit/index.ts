@@ -16,6 +16,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Update from 'foldkit/update'
 import { Block, type AnyBlock, type AppearanceChoice, type PropsOf } from '../block.js'
 import { Catalog } from '../catalog.js'
+import { messageOf } from '../action.js'
 import { holds } from '../condition.js'
 import type { Document, NodeId } from '../document.js'
 import { statefulNodes } from '../stateful.js'
@@ -37,6 +38,12 @@ export interface RenderContext<B extends AnyBlock, Message> {
    * `HeroLook.draw({ appearance, h })`.
    */
   readonly appearance: Readonly<Record<string, AppearanceChoice>>
+  /**
+   * The Message the action this node gives `event` makes, such as a button's
+   * `on('press')`; `undefined` when it gives none. Stored input never runs: it
+   * is decoded by the action's Schema first.
+   */
+  readonly on: (event: string) => Message | undefined
   /**
    * What the page's reads hold for this node, from the render option `data`;
    * `undefined` when there is none. A Query Block reads it with `rows(data)`.
@@ -151,6 +158,9 @@ const render = <Blocks extends AnyBlock, Message>(
       mode,
       appearance: Block.offeredAppearance(block, node.appearance),
       data: options.data?.[id],
+      // The Catalog's actions end in this Renderer's Messages.
+      on: event =>
+        messageOf(renderer.catalog.actions, block, node.actions, event) as Message | undefined,
     })
     return mode === 'view'
       ? html

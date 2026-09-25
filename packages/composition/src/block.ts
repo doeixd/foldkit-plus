@@ -35,6 +35,11 @@ export interface Block<
    */
   readonly stateful: boolean
   /**
+   * The events a node of this Block may give an action to run, such as a
+   * button's `press`; none for most Blocks.
+   */
+  readonly events: ReadonlyArray<string>
+  /**
    * Checks the decoded props go through beyond their Schema, such as a rich-text
    * body against its Kit. Each finding has a path inside the props.
    */
@@ -110,6 +115,8 @@ const define = <
     readonly appearance?: AppearanceAxes
     /** Each node has state of its own: a carousel, an accordion, a configurator. */
     readonly stateful?: boolean
+    /** The events a node may give an action to run: `['press']`. */
+    readonly events?: ReadonlyArray<string>
   },
 ): Block<Name, Props, Regions> => {
   if (name.length === 0) throw new Error('Block.define: a Block needs a name')
@@ -129,6 +136,7 @@ const define = <
     metadata: Metadata.empty,
     appearance: Object.freeze({ ...config.appearance }),
     stateful: config.stateful ?? false,
+    events: Object.freeze([...(config.events ?? [])]),
     check: config.check ?? (() => []),
   })
 }
