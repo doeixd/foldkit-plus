@@ -332,7 +332,7 @@ flowchart TB
   app["Foldkit application<br/>Model · Message · update · Commands"]
   surface["foldkit-surface<br/>Projection · field refs · Message subsets · Module"]
   agent["foldkit-agent"]
-  agentAdapters["webmcp · mcp · a2a · native"]
+  agentAdapters["foldkit-agent-webmcp · foldkit-agent-mcp<br/>foldkit-agent-a2a · foldkit-agent-native"]
   remote["foldkit-remote<br/>normalized server cache"]
   server["foldkit-remote-server"]
   drizzle["foldkit-remote-drizzle"]
@@ -352,6 +352,13 @@ flowchart TB
   cms["foldkit-cms<br/>drafts beside the row · derived state"]
   cmsDrizzle["foldkit-cms-drizzle<br/>audience boundary · drafts · publish"]
   crud["foldkit-crud<br/>editor · list · detail · remover"]
+  metadata["foldkit-metadata<br/>opaque typed metadata"]
+  ssr["foldkit-ssr<br/>server render · Model handover · resume"]
+  richtext["foldkit-richtext<br/>semantic documents · transactions"]
+  richtextDom["foldkit-richtext-dom<br/>contenteditable adapter · editor Bundle"]
+  mixinsRichtext["foldkit-mixins-richtext"]
+  react["foldkit-react<br/>React islands · Foldkit in React"]
+  reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
 
   app -- "describe observation / capability" --> surface
   app --> mixins
@@ -382,6 +389,16 @@ flowchart TB
   drizzle --> cmsDrizzle
   mixins --> mixinsCrud
   remote --> crud
+  metadata --> surface
+  metadata --> entity
+  surface --> ssr
+  remote -- "resume part" --> ssr
+  app --> richtext --> richtextDom
+  bundle --> richtextDom
+  richtextDom --> mixinsRichtext
+  mixins --> mixinsRichtext
+  app --> react
+  app -- "views read as source" --> reactCodegen
 ```
 
 The arrows are integration boundaries, not new application state machines.
