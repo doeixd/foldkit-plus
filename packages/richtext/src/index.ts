@@ -85,6 +85,7 @@ export {
   noRendering,
   runRendering,
   nodeRendering,
+  renderingOver,
 } from './rendering.js'
 export {
   type Decoration,
@@ -121,7 +122,7 @@ export {
   inspectKit,
   validate,
 } from './kit.js'
-export { Strikethrough, Link, standardMarks, standardNodes } from './standard.js'
+export { Strikethrough, Link, standardMarks, standardNodes, standardRendering } from './standard.js'
 export {
   type Migration,
   type MigrationApplied,

@@ -4702,12 +4702,14 @@ scheduled publication.
 ## Phase 7 — richer Nodes
 
 Partially done: the standard vocabulary declares lists, links, quotes, code, images, and
-tables (`standardNodes`/`standardMarks`, §125), and all three interpreters render a
-declared kind through one registry (§121 slices 1–4). Link marks carry a real href (§121).
+tables (`standardNodes`/`standardMarks`) and gives each kind its element
+(`standardRendering`), so all three interpreters render a declared kind through one
+registry (§121 slices 1–4, §125). Link marks carry a real href.
 
 Not done: mentions, callouts as a declared kind, custom embeds, and the Surface-backed and
-React-backed node proofs. The vocabulary is declarations; the command layer does not yet
-refuse an edit a constraint forbids (§125).
+React-backed node proofs. These are declarations and renderings; `validate` checks a
+document against a Kit, and `run` refuses an edit a constraint forbids when the caller gives
+it the vocabulary (§125).
 
 ## Phases 8–12
 
@@ -6747,6 +6749,20 @@ Three decisions worth keeping:
 - **The vocabulary lives in the main entry, not a subpath or a new package.** It is
   semantic data with the same dependency shape as `shippedMarks` and nothing consumes it
   differently; a `foldkit-richtext/standard` subpath is a cheap move if that changes.
+
+`standardRendering` is the companion half: the element each kind is, with the props that
+belong in attributes read from the block — a `Link` is an `<a href>`, an `Image` carries
+its source, a `List` is an `<ol>` when it is ordered, with where its numbering starts, or a
+`<ul>` when it is not. The shipped marks already nest in `strong`/`em`/`code`; this adds the
+two that do not. `renderingOver(base, extra)` builds a registry over another, so an
+application extends the standard look without restating it. Two small things came with it:
+`List` gained `ordered`/`start` props for the two list forms Markdown distinguishes, and
+the serializer now leaves a void element (`img`, `hr`) open rather than writing
+`<img></img>`.
+
+Declaring the kinds without this would have left every one of them rendering as `<div
+data-node="Kind">`; a vocabulary an application still has to hand-render is half a
+vocabulary.
 
 ## Content rules
 

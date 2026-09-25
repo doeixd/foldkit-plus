@@ -19,7 +19,8 @@
 import { Schema } from 'effect'
 import { blockContent, textContent } from './document.js'
 import { atom, block, blocksOf, node, type NodeDefinition } from './kit.js'
-import { Bold, Code, Italic, mark, type MarkDef } from './marks.js'
+import { Bold, Code, Italic, mark, markProps, type MarkDef } from './marks.js'
+import { rendering, type Rendering } from './rendering.js'
 
 /**
  * A struck-through span. It expands `after`, so typing at its edge continues it, as
@@ -50,7 +51,14 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
   block('Paragraph'),
   block('Heading'),
   node('Quote', { children: blockContent }),
-  node('List', { children: blocksOf('ListItem', 'TaskItem') }),
+  node('List', {
+    // An ordered list, and where its numbering starts; both are Markdown's.
+    Props: Schema.Struct({
+      ordered: Schema.optional(Schema.Boolean),
+      start: Schema.optional(Schema.Number),
+    }),
+    children: blocksOf('ListItem', 'TaskItem'),
+  }),
   node('ListItem', { children: blockContent }),
   node('TaskItem', {
     Props: Schema.Struct({ checked: Schema.Boolean }),
@@ -69,3 +77,52 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
   node('TableRow', { children: blocksOf('TableCell') }),
   node('TableCell', { children: blockContent }),
 ]
+
+/**
+ * How the standard vocabulary renders (§121): the element each kind is, with the props
+ * that belong in attributes read from the block, so a `Link` is an `<a href>`, an `Image`
+ * carries its source, and a `List` is an `<ol>` or a `<ul>`. The shipped marks already
+ * nest in `strong`/`em`/`code`; this adds the two that do not. An application composes it
+ * with `renderingOver` and names its own kinds beside it:
+ *
+ * ```ts
+ * renderingOver(RichText.standardRendering, { nodes: { Callout: { tag: 'aside' } } })
+ * ```
+ */
+export const standardRendering: Rendering = rendering({
+  marks: {
+    Strikethrough: { tag: 's', attributes: {} },
+    Link: mark => ({ tag: 'a', attributes: { href: String(markProps(mark)?.href ?? '') } }),
+  },
+  nodes: {
+    Quote: { tag: 'blockquote', attributes: {} },
+    List: block => {
+      const ordered = block.props.ordered === true
+      const start = block.props.start
+      return {
+        tag: ordered ? 'ol' : 'ul',
+        attributes: ordered && typeof start === 'number' ? { start: String(start) } : {},
+      }
+    },
+    ListItem: { tag: 'li', attributes: {} },
+    TaskItem: block => ({
+      tag: 'li',
+      attributes: { 'data-task': block.props.checked === true ? 'checked' : 'unchecked' },
+    }),
+    CodeBlock: block => ({
+      tag: 'pre',
+      attributes: { 'data-language': String(block.props.language ?? '') },
+    }),
+    ThematicBreak: { tag: 'hr', attributes: {} },
+    Image: block => ({
+      tag: 'img',
+      attributes: {
+        src: String(block.props.src ?? ''),
+        alt: String(block.props.alt ?? ''),
+      },
+    }),
+    Table: { tag: 'table', attributes: {} },
+    TableRow: { tag: 'tr', attributes: {} },
+    TableCell: { tag: 'td', attributes: {} },
+  },
+})

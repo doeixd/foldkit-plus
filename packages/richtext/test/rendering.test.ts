@@ -137,3 +137,34 @@ describe('a renderer as a boundary', () => {
     )
   })
 })
+
+describe('building a registry over another', () => {
+  const base = RichText.rendering({
+    marks: {
+      Link: mark => ({
+        tag: 'a',
+        attributes: { href: String(RichText.markProps(mark)?.href ?? '') },
+      }),
+    },
+    nodes: { Callout: { tag: 'aside', attributes: { tone: 'info' } } },
+  })
+  const linkDoc = () => decode([paragraph([text('a', 'x', [link('/a')])])])
+  const calloutDoc = () => decode([node('Callout', { tone: 'info' }, [text('a', 'x')])])
+
+  it('lets the extra override a mark and a node the base names', () => {
+    const extended = RichText.renderingOver(base, {
+      marks: { Link: { tag: 'span', attributes: {} } },
+      nodes: { Callout: { tag: 'section', attributes: {} } },
+    })
+    expect(RichText.documentToHtml(linkDoc(), extended)).toBe('<p><span>x</span></p>')
+    expect(RichText.documentToHtml(calloutDoc(), extended)).toBe('<section>x</section>')
+  })
+
+  it('keeps the base’s node and mark entries the extra does not name', () => {
+    const extended = RichText.renderingOver(base, {
+      nodes: { Card: { tag: 'article', attributes: {} } },
+    })
+    expect(RichText.documentToHtml(linkDoc(), extended)).toBe('<p><a href="/a">x</a></p>')
+    expect(RichText.documentToHtml(calloutDoc(), extended)).toBe('<aside tone="info">x</aside>')
+  })
+})

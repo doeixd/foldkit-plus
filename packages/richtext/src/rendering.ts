@@ -73,6 +73,23 @@ export const rendering = (
 /** The behaviour without a renderer: shipped tags for shipped marks, names otherwise. */
 export const noRendering: Rendering = rendering()
 
+/**
+ * A registry built over another: an entry named here wins, and every name the base
+ * renders keeps its entry, so an application extends a vocabulary like the standard one
+ * without restating it.
+ */
+export const renderingOver = (
+  base: Rendering,
+  definition: {
+    readonly marks?: Readonly<Record<string, RenderingEntry<RunMark>>>
+    readonly nodes?: Readonly<Record<string, RenderingEntry<NodeBlock>>>
+  } = {},
+): Rendering =>
+  rendering({
+    marks: { ...base.marks, ...definition.marks },
+    nodes: { ...base.nodes, ...definition.nodes },
+  })
+
 /** What a run's marks nest in, and which names nest nowhere. */
 export interface RunRendering {
   /** Elements to wrap the run's text in, innermost first. */

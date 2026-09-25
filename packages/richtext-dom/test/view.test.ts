@@ -383,3 +383,61 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(renderDocument(document())).toEqual(renderDocument(document(), RichText.noRendering, []))
   })
 })
+
+describe('the standard vocabulary through the read-only renderer', () => {
+  it('builds each kind’s element, including the void ones', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'l',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'ListItem',
+              id: 'li',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Paragraph',
+                  id: 'p',
+                  children: [{ type: 'Text', id: 't', text: 'one', marks: [] }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'q-p',
+              children: [{ type: 'Text', id: 'q-t', text: 'quoted', marks: [] }],
+            },
+          ],
+        },
+        { type: 'Node', kind: 'ThematicBreak', id: 'hr', props: {}, children: [] },
+        {
+          type: 'Node',
+          kind: 'Image',
+          id: 'img',
+          props: { src: '/a.png', alt: 'a' },
+          children: [],
+        },
+      ],
+    })
+    const rendered = renderDocument(content, RichText.standardRendering) as unknown as VNode
+    expect(tags(rendered)).toEqual(['div', 'ul', 'li', 'p', 'blockquote', 'p', 'hr', 'img'])
+    expect(attr(rendered.children?.[3] ?? null, 'src')).toBe('/a.png')
+  })
+})

@@ -434,7 +434,9 @@ renders the shipped way, and that is also the default (`noRendering`):
 `strong`/`em`/`code` for the shipped marks, `p`/`h1`–`h6` and
 `<div data-node="Kind">` for blocks, `data-marks` for anything else. Entries nest
 outside the shipped marks and in alphabetical order, so the same set of marks
-serializes the same way however it was assembled. `runRendering(renderer, run)` and
+serializes the same way however it was assembled. A rendering that names a void element —
+the standard `Image` is an `img`, a `ThematicBreak` an `hr` — is written as one open tag
+rather than `<img></img>`. `runRendering(renderer, run)` and
 `nodeRendering(renderer, block)` are the lookups, exported so the view and the
 interpreter share this one answer.
 
@@ -539,7 +541,10 @@ RichText.kit({
 
 `standardNodes` is `Paragraph`, `Heading`, `Quote`, `List`, `ListItem`, `TaskItem`,
 `CodeBlock`, `ThematicBreak`, `Image`, `Table`, `TableRow`, `TableCell`; `standardMarks`
-is the shipped three plus `Strikethrough` and `Link`.
+is the shipped three plus `Strikethrough` and `Link`. `standardRendering` gives each kind
+its element — a `List` an `ol` or `ul`, an `Image` an `img` with its `src`, a `TaskItem` its
+`data-task` — and `renderingOver(base, extra)` builds a registry over another, so an
+application adds its own kinds beside the standard ones.
 
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
 those block kinds, and `marks: 'none'` forbids marks on the kind's own runs:

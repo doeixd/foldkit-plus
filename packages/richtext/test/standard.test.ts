@@ -104,3 +104,82 @@ describe('the standard vocabulary', () => {
     ])
   })
 })
+
+describe('how the standard vocabulary renders', () => {
+  const nodeBlock = (kind: string, props: Record<string, unknown> = {}) => {
+    const block = doc([container(kind, 'n', props)]).children[0]
+    if (block === undefined || block.type !== 'Node') throw new Error('expected a node block')
+    return block
+  }
+  const render = (kind: string, props: Record<string, unknown> = {}) =>
+    RichText.nodeRendering(RichText.standardRendering, nodeBlock(kind, props))
+  const textRun = (marks: ReadonlyArray<unknown>) => {
+    const block = doc([paragraph('p', marks)]).children[0]
+    if (block === undefined || block.type !== 'Paragraph') throw new Error('expected a paragraph')
+    const run = block.children[0]
+    if (run === undefined) throw new Error('expected a run')
+    return run
+  }
+
+  it('renders a list as ordered or unordered, with where it starts', () => {
+    expect(render('List')).toEqual({ tag: 'ul', attributes: {} })
+    expect(render('List', { ordered: true })).toEqual({ tag: 'ol', attributes: {} })
+    expect(render('List', { ordered: true, start: 3 })).toEqual({
+      tag: 'ol',
+      attributes: { start: '3' },
+    })
+  })
+
+  it('reads an image’s props into attributes and a task’s state into one', () => {
+    expect(render('Image', { src: '/a.png', alt: 'a' })).toEqual({
+      tag: 'img',
+      attributes: { src: '/a.png', alt: 'a' },
+    })
+    expect(render('TaskItem', { checked: true })).toEqual({
+      tag: 'li',
+      attributes: { 'data-task': 'checked' },
+    })
+    expect(render('TaskItem', { checked: false })).toEqual({
+      tag: 'li',
+      attributes: { 'data-task': 'unchecked' },
+    })
+    expect(render('CodeBlock', { language: 'ts' })).toEqual({
+      tag: 'pre',
+      attributes: { 'data-language': 'ts' },
+    })
+  })
+
+  it('renders the structural kinds as their own elements', () => {
+    expect(render('Quote')).toEqual({ tag: 'blockquote', attributes: {} })
+    expect(render('ListItem')).toEqual({ tag: 'li', attributes: {} })
+    expect(render('ThematicBreak')).toEqual({ tag: 'hr', attributes: {} })
+    expect(render('Table')).toEqual({ tag: 'table', attributes: {} })
+    expect(render('TableRow')).toEqual({ tag: 'tr', attributes: {} })
+    expect(render('TableCell')).toEqual({ tag: 'td', attributes: {} })
+  })
+
+  it('renders the two marks the shipped tags do not carry', () => {
+    expect(
+      RichText.runRendering(RichText.standardRendering, textRun(['Strikethrough'])).nest,
+    ).toEqual([{ tag: 's', attributes: {} }])
+    expect(
+      RichText.runRendering(
+        RichText.standardRendering,
+        textRun([{ name: 'Link', props: { href: '/x' } }]),
+      ).nest,
+    ).toEqual([{ tag: 'a', attributes: { href: '/x' } }])
+  })
+
+  it('serializes as those elements, leaving a void one open', () => {
+    const built = doc([
+      container('List', 'l', { ordered: true, start: 2 }, [
+        container('ListItem', 'li', {}, [paragraph('p')]),
+      ]),
+      container('Image', 'img', { src: '/a.png', alt: 'a' }),
+      container('ThematicBreak', 'hr'),
+    ])
+    expect(RichText.documentToHtml(built, RichText.standardRendering)).toBe(
+      '<ol start="2"><li><p>x</p></li></ol><img src="/a.png" alt="a"><hr>',
+    )
+  })
+})

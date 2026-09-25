@@ -77,7 +77,10 @@ and marks a document uses to mean what Markdown and HTML also mean (`Quote`, `Li
 `ListItem`, `TaskItem`, `CodeBlock`, `ThematicBreak`, `Image`, `Table`, `TableRow`,
 `TableCell`; `Bold`, `Italic`, `Code`, `Strikethrough`, `Link`) — spread into an
 application's Kit. `Code` is the inline-code mark, so there is no `InlineCode`, and
-`HardBreak` is absent until inline atoms exist.
+`HardBreak` is absent until inline atoms exist. `RichText.standardRendering` gives each
+kind its element (a `List` an `ol`/`ul`, an `Image` an `img` with its `src`), and
+`renderingOver(base, extra)` builds a registry over another, so an application adds its own
+kinds beside the standard ones.
 
 `History` is snapshot undo over `EditorState`, kept in the application Model:
 `commit(history, previous, { group })`, `undo`, `redo`, with `groupFor(command)`

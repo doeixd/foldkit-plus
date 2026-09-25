@@ -32,6 +32,27 @@ const TAG = /^[A-Za-z][-A-Za-z0-9]*$/
 const ATTRIBUTE = /^[A-Za-z_:][-A-Za-z0-9_:.]*$/
 
 /**
+ * HTML void elements: they have no closing tag, so a rendering that names one — a
+ * standard `Image` is an `img`, a `ThematicBreak` an `hr` — writes one tag and no
+ * children rather than `<img></img>`.
+ */
+const VOID_ELEMENTS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+])
+
+/**
  * Writes an element. An attribute *value* is content and is escaped; a tag or
  * attribute *name* is refused rather than written when malformed, because a name
  * cannot be escaped — one holding a quote, a space, or `>` would end the attribute
@@ -47,6 +68,7 @@ const renderElement = (element: ElementRendering, inner: string): string => {
       return ` ${name}="${escapeAttribute(value)}"`
     })
     .join('')
+  if (VOID_ELEMENTS.has(element.tag.toLowerCase())) return `<${element.tag}${attributes}>`
   return `<${element.tag}${attributes}>${inner}</${element.tag}>`
 }
 

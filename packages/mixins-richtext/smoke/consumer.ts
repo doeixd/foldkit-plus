@@ -45,6 +45,8 @@ export type Surface = [
   typeof RichText.blockKind,
   typeof RichText.standardNodes,
   typeof RichText.standardMarks,
+  typeof RichText.standardRendering,
+  typeof RichText.renderingOver,
   typeof RichText.decorationsIn,
   RichText.Decoration,
   RichText.DecorationSet,

@@ -194,6 +194,42 @@ check(
   projected.get(richtext.NodeId.make('a'))?.[0]?.to === 2,
 )
 
+// §125: the standard vocabulary's rendering, which is what makes a declared kind an
+// element rather than a placeholder — and a void one stays open.
+const standard = richtext.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Node',
+      kind: 'List',
+      id: 'sl',
+      props: { ordered: true, start: 2 },
+      children: [],
+      blocks: [
+        {
+          type: 'Node',
+          kind: 'ListItem',
+          id: 'sli',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'sp',
+              children: [{ type: 'Text', id: 'st', text: 'one', marks: [] }],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+})
+check(
+  'the standard rendering through the build',
+  richtext.documentToHtml(standard, richtext.standardRendering) ===
+    '<ol start="2"><li><p>one</p></li></ol>',
+)
+
 const consumer = fileURLToPath(new URL('./consumer.ts', import.meta.url))
 let types = true
 try {
