@@ -219,12 +219,15 @@ position map. `defaultTransforms` ships `mergeAdjacentRuns`; a transform may
 merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
-`foldkit-richtext-markdown` prints a document as Markdown: `print(document)` returns
+`foldkit-richtext-markdown` reads and writes Markdown. `print(document)` returns
 `{ markdown, diagnostics }` — CommonMark plus GFM's lists, tasks, strikethrough, and tables,
-and a diagnostic for a kind or mark it has no syntax for. A kind with no syntax prints its
-content; a preserved `Unknown` block is reported and skipped. Text is escaped so it cannot
+and a diagnostic for a kind or mark it has no syntax for (a kind with no syntax prints its
+content; a preserved `Unknown` block is reported and skipped). Text is escaped so it cannot
 become markup, and a table's first row is printed as its header because the model does not
-distinguish one. Parsing is not built: it needs a parser stack, and it is the next slice.
+distinguish one. `parse(markdown, { mint })` returns `{ document, diagnostics }` through
+micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote,
+and a hard line break are reported rather than guessed at. The two directions are tested
+against each other: `print(parse(markdown))` returns the Markdown it started from.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable

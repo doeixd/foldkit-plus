@@ -1506,6 +1506,34 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/richtext-markdown:
+    dependencies:
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../richtext
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
+      mdast-util-gfm:
+        specifier: ^3.1.0
+        version: 3.1.0
+      micromark-extension-gfm:
+        specifier: ^3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/ssr:
     dependencies:
       foldkit-surface:

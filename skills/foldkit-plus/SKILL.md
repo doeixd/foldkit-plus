@@ -49,7 +49,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A semantic rich-text document and pure text edits | the local Model | `foldkit-richtext` (0.1.0, foundation only) | [richtext.md](references/richtext.md) |
 | An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (0.1.0, early) | [richtext.md](references/richtext.md) |
 | Rich-text editor chrome — the marks toolbar — drawn through slots | the view contract | `foldkit-mixins-richtext` (0.1.0, early) | [richtext.md](references/richtext.md) |
-| Markdown in and out of a semantic rich-text document | the document; this package only maps its syntax | `foldkit-richtext-markdown` (0.1.0, printing only) | [richtext.md](references/richtext.md) |
+| Markdown in and out of a semantic rich-text document | the document; this package only maps its syntax | `foldkit-richtext-markdown` (0.1.0, early) | [richtext.md](references/richtext.md) |
 
 Install the peers with the packages you pick, for example
 `pnpm add effect foldkit foldkit-surface foldkit-sync`. `foldkit-durable` needs

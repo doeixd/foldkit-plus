@@ -5658,10 +5658,11 @@ Agent
 
 None of these belong *inside* the Kit.
 
-> **Started (2026-09-25), as §127.** `foldkit-richtext-markdown` exists and prints:
-> `print(document)` returns `{ markdown, diagnostics }`. Parsing waits for the
-> micromark/mdast stack it needs; printing needed none, so it came first. §127 records the
-> mapping, the escapes, and the limits.
+> **Built (2026-09-25), as §127.** `foldkit-richtext-markdown` exists both ways:
+> `print(document)` returns `{ markdown, diagnostics }`, and `parse(markdown, { mint })`
+> returns `{ document, diagnostics }`. Printing came first because it needs no parser;
+> parsing then arrived with micromark/mdast and GFM's extension. §127 records the mapping
+> and the escapes, and the round trip that tests the two directions against each other.
 
 ---
 
@@ -6907,16 +6908,21 @@ nothing here changes for that — a stable selection resolved against a replica 
 and prints; parsing is the next slice. This records why the order is print-first and what
 the mapping does with each shape.
 
-## Why printing first
+## Both directions, printing first
 
-Parsing needs `micromark`/`mdast` — a dependency, a lockfile change, and a package that
-cannot build without it. Printing needs nothing, and it is a product surface on its own:
-Markdown export, and the source mode §124 §8 describes. So the package starts with the
-direction that has no dependency, and the parser arrives with `parse` beside it.
+Parsing needs `micromark`/`mdast` — a dependency and a package that cannot build without
+it. Printing needs nothing, and it is a product surface on its own: Markdown export, and
+the source mode §124 §8 describes. So printing landed first and parsing followed with the
+stack — `mdast-util-from-markdown` and GFM's extension, the one grammar §124 §1 asked for,
+so both directions answer to the same parser rather than two grammars kept in step.
 
-The API is `print(document)` → `{ markdown, diagnostics }`. There is no profile yet: a
-profile is for custom syntax, and custom syntax has no meaning until both directions share
-it, which is when parsing lands.
+`print(document)` → `{ markdown, diagnostics }`; `parse(markdown, { mint })` →
+`{ document, diagnostics }`, with identities from the caller as everywhere else. The
+document a parse builds goes through `decodeDocument`, so a bad construction fails loudly
+instead of reaching an editor.
+
+There is no profile yet: a profile is for custom syntax, and custom syntax needs both
+directions at once, which is when the first application declares one.
 
 ## What the mapping does
 
@@ -6949,15 +6955,19 @@ block is reported and skipped, because its payload is opaque and printing it wou
 shape. A mark with no syntax is reported and its text kept. A link with no `href` is
 reported, because there is nothing to link to.
 
+The two directions are tested against each other: `print(parse(markdown))` returns the
+Markdown and `parse(print(document))` a document that prints the same — §124 §14's
+property, without a second parser to trust. What the model cannot hold, parsing reports
+too: raw HTML, a link definition, a footnote, and a hard line break (which ends the
+paragraph, because a block holds no break).
+
 ## Limits worth naming
 
 - **A table's header row.** The model does not say which row is one, so the first is printed
   as it — which is how GFM reads a table. Making it explicit is a vocabulary decision for
   the GFM work.
 - **Inline atoms.** The model has no inline image or break, so a block `Image` prints as its
-  own line; a parser reads that back as a paragraph holding an image, not as an `Image`
-  block. The asymmetry belongs to §116's deferred inline content.
-- **Not verified by round trip yet.** The output is checked against expected Markdown;
-  `parse(print(document))` becomes a test when parsing lands, which is §124 §14's own
-  property list.
+  own line and a paragraph holding only an image is hoisted back to an `Image` block; an
+  image among other content is reported and skipped. The asymmetry belongs to §116's
+  deferred inline content.
 
