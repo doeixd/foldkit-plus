@@ -230,6 +230,15 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     the entry), so an application can hide or disable what would be refused.
     Status: proposed.
 
+26. **The inspector loses a Block prop's title given before a check.** Found
+    while writing the plan: mixins-builder's `labelFor` reads
+    `Schema.resolveAnnotations(schema)?.title`, which under Effect 4 is the
+    last check's annotations (F20), so a prop written
+    `Schema.String.annotate({ title }).check(…)` is labelled by its key.
+    *Proposed:* one shared `Words.of(schema)` (plan, area 4a). Status: open.
+
+What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
+
 ## Checked in the browser
 
 Everything below was driven in Chrome against `pnpm dev`:
