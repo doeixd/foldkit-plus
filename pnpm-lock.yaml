@@ -875,6 +875,9 @@ importers:
         specifier: workspace:*
         version: link:../metadata
     devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
       effect:
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116
@@ -890,6 +893,9 @@ importers:
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
+      foldkit-react:
+        specifier: workspace:*
+        version: link:../react
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote
@@ -905,6 +911,15 @@ importers:
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface
+      jsdom:
+        specifier: 26.1.0
+        version: 26.1.0
+      react:
+        specifier: 19.2.0
+        version: 19.2.0
+      react-dom:
+        specifier: 19.2.0
+        version: 19.2.0(react@19.2.0)
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

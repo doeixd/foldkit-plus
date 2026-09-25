@@ -1166,6 +1166,8 @@ resume plan.
   whole text, props included; reading props on demand waits for pages large
   enough to need it.
 - **10-3,** the selected node and panel mirrored into the URL with `Mirror.url`.
+  **Waits:** the Builder's selection lives inside a form control's Model, and
+  Form offers no writable projection into one (see the audit under §29).
 
 **Then stable.** §29's list is audited against the tests and its gaps filled (a
 React Block beside a Foldkit Block, a preview of a partly edited page, a Surface
@@ -1193,6 +1195,37 @@ javascript: in an Image src, refused        a when over an undeclared context ke
 an agent Operation refused by a Region      a Surface Block beside a static one
 a React Block beside a Foldkit Block        a static page whose envelope has no Document
 ```
+
+> **Audited (after Phase 10).** Where each is tested, in `packages/composition/test`
+> unless named:
+>
+> | Test | Where |
+> | --- | --- |
+> | nested Columns three deep | `renderer`: holds Columns three deep |
+> | a move into an incompatible Region, or that would create a cycle | `operation`: refuses an incompatible Region, and a node put inside itself |
+> | an empty Region and a required one | `composition`: requires the one child of a Region that is not optional |
+> | a duplicated subtree, with its id map; one whose map misses a node | `operation`: copies a subtree; refuses ids that miss a node |
+> | a removed subtree; an insert with a taken id | `operation`: removes the node and everything it holds; refuses what the insert would get wrong |
+> | malformed input | `composition`: finds an orphan, a second parent and a cycle |
+> | an unknown Block that loads, moves, round-trips and blocks publishing | `migrate`: reads, round-trips and keeps its unknown Blocks |
+> | a prop schema evolved, a renamed Block, a migration that changes an id | `migrate`: a chain of migrations; throws when it breaks the structure |
+> | an old revision restored with a removed Block | `migrate`, and the CMS demo's restore |
+> | 1,000 nodes within §25's budgets | `bench/operations.bench.ts`, and TreeNavigation's call count |
+> | undo after a move, and undo cleared by a fill | `builder`: reorders and undoes; replaces the Document, starting undo over |
+> | preview of a partially edited page; a publish refused by the strict schema | the CMS demo; `composition`: publishes only one that fits |
+> | `javascript:` in an Image src | `renderer`: refuses an unsafe URL |
+> | a `when` over an undeclared context key | `composition`: checks a stored when |
+> | an agent Operation refused by a Region | `operation`: a shape the schema takes can still be refused by the page |
+> | a React Block beside a Foldkit Block | `react`: its event running the node's action |
+> | a static page whose envelope has no Document | `renderer`: sends the browser none of the Document |
+> | a Surface Block beside a static one | **missing**: Surface-backed Blocks are not built (9-2) |
+>
+> Besides that one, what waits: rich text edited on the canvas (7c-2), a
+> relation picker for a Block prop and a Query Block's rows on the editor's
+> canvas (9-1), and the selection in the URL (10-3), which needs Form to offer a
+> writable projection into a control's Model, since `Mirror.url` writes back
+> through one and anything else would set the Builder's selection behind its
+> `update`.
 
 ## 30. Open questions
 

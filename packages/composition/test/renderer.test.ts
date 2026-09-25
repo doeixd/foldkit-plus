@@ -90,6 +90,40 @@ describe('drawing a Document', () => {
     expect(Columns.appearance['gap']?.kind).toBe('token')
   })
 
+  it('holds Columns three deep, draws each level, and moves across them', () => {
+    const deep = page(['s'], {
+      s: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['c1'] } },
+      c1: { block: 'Columns', props: {}, regions: { left: ['c2'], right: [] } },
+      c2: { block: 'Columns', props: {}, regions: { left: ['c3'], right: [] } },
+      c3: { block: 'Columns', props: {}, regions: { left: ['img'], right: [] } },
+      img: { block: 'Image', props: { src: '/a.png', alt: 'A' }, regions: {} },
+    })
+    expect(Composition.validate(Site, deep)).toEqual([])
+    const [section] = Renderer.render(SiteRenderer, deep, inertHtml)
+    expect(all(section).filter(node => node.sel === 'img')).toHaveLength(1)
+    // Each level is a layout of its own, the image inside the third.
+    const [layout] = classes(
+      all(section).find(node => node.sel === 'div' && classes(node).length > 0),
+    )
+    expect(
+      all(section).filter(node => node.sel === 'div' && classes(node).includes(layout ?? '')),
+    ).toHaveLength(3)
+    const moved = Composition.apply(
+      Site,
+      deep,
+      Composition.Op.move(id('img'), Composition.region(id('c1'), 'right', 0)),
+    )
+    expect(
+      Result.isSuccess(moved) && moved.success.document.nodes[id('c1')]?.regions['right'],
+    ).toEqual([id('img')])
+    const cycle = Composition.apply(
+      Site,
+      deep,
+      Composition.Op.move(id('c1'), Composition.region(id('c3'), 'right', 0)),
+    )
+    expect(Result.isFailure(cycle) && cycle.failure.code).toBe('composition:cycle')
+  })
+
   it('leaves out a node whose when does not hold, and marks it for an author', () => {
     const Audience = Catalog.make({
       blocks: Site.blocks,

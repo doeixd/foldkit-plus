@@ -559,6 +559,10 @@ describe('the Operations an agent may send', () => {
     expect(Result.isFailure(decode(insert('Carousel', {})))).toBe(true)
     expect(Result.isFailure(decode(insert('Heading', { text: 3, level: 2 })))).toBe(true)
     expect(Result.isFailure(decode({ _tag: 'Batch', ops: [insert('Carousel', {})] }))).toBe(true)
+    // A shape the schema takes can still be refused by the page: a Section is no Flow.
+    const section = decode({ _tag: 'Insert', id: 'n', block: 'Section', props: {}, at })
+    if (Result.isFailure(section)) throw new Error('the schema refused a Section')
+    expect(refused(start, section.success).code).toBe('composition:region-rejects')
     // A whole subtree is left to code.
     expect(
       Result.isFailure(decode({ _tag: 'InsertTree', tree: { root: 'x', nodes: {} }, at })),
