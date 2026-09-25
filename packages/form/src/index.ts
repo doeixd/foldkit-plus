@@ -432,8 +432,19 @@ const isBlank = (control: Control, draft: Draft): boolean =>
   isEmpty(draft) ||
   (control.parse !== undefined && typeof draft === 'string' && draft.trim() === '')
 
-const annotationsOf = (schema: Schema.Top): { title?: unknown; description?: unknown } =>
-  Schema.resolveAnnotations(schema) ?? {}
+/**
+ * A schema's words. With checks, Effect resolves to the last check's
+ * annotations, which carry what the check expects and no `title`: a title given
+ * before the check is on the schema's own annotations, and still names the key.
+ */
+const annotationsOf = (schema: Schema.Top): { title?: unknown; description?: unknown } => {
+  const resolved = Schema.resolveAnnotations(schema) ?? {}
+  const own = schema.ast.annotations ?? {}
+  return {
+    title: resolved.title ?? own['title'],
+    description: resolved.description ?? own['description'],
+  }
+}
 
 /** The schema's `title`, else `Form.label` metadata on the member, else the key. */
 const wordsOf = (
