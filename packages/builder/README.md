@@ -19,6 +19,8 @@ submits it, and a CMS autosaves it.
 | The page being edited | the Builder's Model, as the form key's value |
 | Undo | the Builder's Model: the page is kept as a `foldkit-primitives/state` history |
 | What is selected, the open panel, the viewport | the Builder's Model, beside the page |
+| The layers' keyboard focus and which rows are open | the Builder's Model, as a `TreeNavigation` placement |
+| What the editor last said to assistive technology | the Builder's Model, as a `LiveAnnounce` placement |
 | Saving, revisions, publishing | the form, and `foldkit-cms` around it |
 
 The Catalog and the Renderer are vocabulary, not state. The Builder closes over
@@ -71,6 +73,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Selected({ id })`, `Hovered({ id })` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
+| `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
   and an Operation always carries the ids it creates. Nothing changes until
@@ -82,6 +85,37 @@ const PageForm = Form.make('PageForm', PageInput, {
 - **A refused edit** leaves the page as it was and says why in `refused`, until
   the next edit goes through.
 - **A new node is selected**, and a removed one is no longer.
+
+## The keyboard, the layers, and what the editor says
+
+The Builder places two `foldkit-primitives/interaction` bundles in its Model:
+`TreeNavigation` for the layers panel (`Layers`, open by default) and
+`LiveAnnounce` for a live region (`Announcer`). A view attaches their
+Behaviors; `foldkit-mixins-builder` does.
+
+- **Moving keyboard focus in the layers selects the node** it lands on.
+- **`PageBuilder.keyCommand(model, key, modifiers)`** is the editor's shortcuts
+  as the Message they send, or `undefined`:
+
+  | Keys | What they do to the selected node |
+  | --- | --- |
+  | Alt+Up, Alt+Down | move it among its siblings |
+  | Alt+Left | move it out of its parent, to just after it |
+  | Alt+Right | move it into the node above it, last in the first Region that takes it |
+  | Mod+D | duplicate it, just after it |
+  | Delete, Backspace | remove it |
+  | Mod+Z; Mod+Shift+Z or Mod+Y | undo; redo |
+
+  Attach it to the layers panel, not the whole editor, so Delete in a text box
+  edits the text. A move the page refuses is refused as any edit is.
+- **Every structural edit is announced**, such as "Moved Heading, 2 of 3 in
+  Section body", and so are undo, redo, and a refusal, assertively. A prop
+  edit is not: the field being typed in already says it.
+
+The announcer debounces and clears on Effect's clock through Commands named
+`LiveAnnounce.read` and `LiveAnnounce.clear`. A runtime runs them beside
+everything else; a test that follows each Command in turn should leave them
+out, as it has no clock to wait on.
 
 ## As a form key
 
@@ -111,7 +145,8 @@ parent owns the Model.
 ## Limits
 
 - One node is selected at a time.
-- The canvas does not yet report the node under the pointer or accept a drop;
-  that, keyboard reordering, and an inspector that draws every kind of prop are
-  Phase 7.
+- Reordering is by keyboard and the node actions. Pointer drag and drop is not
+  here: `@foldkit/ui`'s DragAndDrop writes a listbox's roles and keys, which a
+  tree's rows cannot also carry.
+- The plain view is plain. The drawn editor is `foldkit-mixins-builder`.
 - A starting props value must encode with its Block's Schema.

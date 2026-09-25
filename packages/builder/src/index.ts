@@ -30,16 +30,27 @@ import {
 } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
+import { LiveAnnounce, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History, HistoryModel } from 'foldkit-primitives/state'
 import type { Command } from 'foldkit/command'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import { inertHtml, type Html, type HtmlBuilder, type KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Submodel from 'foldkit/submodel'
 
 export const Panel = Schema.Literals(['insert', 'layers', 'properties'])
 export const Viewport = Schema.Literals(['wide', 'medium', 'narrow'])
 
+/** The layers panel's keyboard focus and which rows are open: a tree that starts open. */
+export const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')
+export const layersArgs: TreeNavigation.Args = { openByDefault: true }
+
+/** What the editor says to assistive technology: a move, an insert, a refusal. */
+export const Announcer = Bundle.declare(LiveAnnounce.bundle, 'announcer')
+const announcerArgs: LiveAnnounce.Args = { debounceMs: 150, clearAfterMs: 5000 }
+
 export const Model = Schema.Struct({
+  ...Layers.fields,
+  ...Announcer.fields,
   /** The page and its undo steps: `page.present` is the Document being edited. */
   page: HistoryModel(Composition.Document),
   /** The node the inspector and the node actions work on. */
@@ -59,6 +70,8 @@ const Request = Schema.Union([
 ])
 
 export const Message = defineMessageUnion({
+  ...Layers.cases,
+  ...Announcer.cases,
   Selected: { id: Schema.NullOr(NodeId) },
   Hovered: { id: Schema.NullOr(NodeId) },
   /** An Operation, from a button, a key, a drag, or an agent. */
@@ -75,6 +88,13 @@ export const Message = defineMessageUnion({
   ViewportChosen: { viewport: Viewport },
 })
 export type Message = typeof Message.Type
+
+const Parent = Bundle.parent({ Model, Message })
+/** The layers' tree and the announcer, placed in the Builder's own Model. */
+const placements = Parent.assemble(
+  Parent.at(Layers, { args: layersArgs }),
+  Parent.at(Announcer, { args: announcerArgs }),
+)
 
 /** Props as a Document stores them, read from what a Block's Schema encoded. */
 const storedProps = Schema.decodeUnknownResult(Composition.Node.fields.props)
@@ -146,6 +166,89 @@ const documentOf = (model: Model): Document => model.page.present
 const groupOf = (op: Operation): string | null =>
   op._tag === 'SetProp' ? `SetProp:${op.id}:${op.prop}` : null
 
+/** The position right after a node, among its siblings. */
+const after = (document: Document, id: NodeId): Position | undefined => {
+  const place = Composition.index(document).get(id)
+  if (place === undefined) return undefined
+  return place.parent === undefined
+    ? Composition.root(place.index + 1)
+    : Composition.region(place.parent, place.region ?? '', place.index + 1)
+}
+
+/** The Operation that moves a node out of its parent, to just after it; `undefined` at the top. */
+const outdent = (document: Document, id: NodeId): Operation | undefined => {
+  const parent = Composition.index(document).get(id)?.parent
+  if (parent === undefined) return undefined
+  const to = after(document, parent)
+  return to === undefined ? undefined : Composition.Op.move(id, to)
+}
+
+/**
+ * The Operation that moves a node into the sibling above it, last in the first
+ * of its Regions that accepts it; `undefined` when there is none. Whether it
+ * fits is `apply`'s to check; this only picks the Region.
+ */
+const indent = (catalog: Catalog, document: Document, id: NodeId): Operation | undefined => {
+  const place = Composition.index(document).get(id)
+  const node = document.nodes[id]
+  if (place === undefined || node === undefined || place.index === 0) return undefined
+  const siblings =
+    place.parent === undefined
+      ? document.roots
+      : (document.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+  const above = siblings[place.index - 1]
+  const target = above === undefined ? undefined : document.nodes[above]
+  const block = Catalog.block(catalog, node.block)
+  const owner = target === undefined ? undefined : Catalog.block(catalog, target.block)
+  if (above === undefined || target === undefined || block === undefined || owner === undefined)
+    return undefined
+  const region = Object.entries(owner.regions).find(([, candidate]) =>
+    block.provides.some(content => candidate.accepts.includes(content)),
+  )
+  if (region === undefined) return undefined
+  const [regionName] = region
+  return Composition.Op.move(
+    id,
+    Composition.region(above, regionName, (target.regions[regionName] ?? []).length),
+  )
+}
+
+/** What an applied edit says to assistive technology, or `undefined` for a prop change. */
+const describeEdit = (before: Document, after: Document, op: Operation): string | undefined => {
+  const blockOf = (document: Document, id: NodeId) => document.nodes[id]?.block ?? 'Block'
+  const where = (id: NodeId): string => {
+    const place = Composition.index(after).get(id)
+    if (place === undefined) return ''
+    const siblings =
+      place.parent === undefined
+        ? after.roots.length
+        : (after.nodes[place.parent]?.regions[place.region ?? '']?.length ?? 0)
+    const container =
+      place.parent === undefined
+        ? 'the page'
+        : `${blockOf(after, place.parent)} ${place.region ?? ''}`.trim()
+    return `, ${place.index + 1} of ${siblings} in ${container}`
+  }
+  switch (op._tag) {
+    case 'Move':
+      return `Moved ${blockOf(after, op.id)}${where(op.id)}`
+    case 'Insert':
+      return `Added ${blockOf(after, op.id)}${where(op.id)}`
+    case 'InsertTree':
+      return `Added ${blockOf(after, op.tree.root)}${where(op.tree.root)}`
+    case 'Duplicate': {
+      const copy = op.ids[op.id]
+      return copy === undefined ? undefined : `Duplicated ${blockOf(after, copy)}${where(copy)}`
+    }
+    case 'Remove':
+      return `Removed ${blockOf(before, op.id)}`
+    case 'Batch':
+      return op.ops.length === 0 ? undefined : 'Edited the page'
+    default:
+      return undefined
+  }
+}
+
 /** The Model showing another Document: what a fill, a reset or a restored revision does. */
 const replace = (model: Model, document: Document): Model => ({
   ...model,
@@ -195,25 +298,41 @@ export const Builder = {
     type Commands = ReadonlyArray<Command<Message>>
 
     const capacity = config.capacity ?? 200
-    const initial: Model = {
+    const initial: Model = placements.initial({
       page: History.start(Composition.empty()),
       selected: null,
       hovered: null,
       panel: 'insert',
       viewport: 'wide',
       refused: null,
-    }
+    }).model
 
-    const refuse = (model: Model, refusal: Refusal): { readonly model: Model } => ({
+    /** Says `text` to assistive technology, once the Builder's transition is done. */
+    const announce = (text: string, politeness: LiveAnnounce.Politeness = 'polite'): Commands => [
+      {
+        name: `${name}.announce`,
+        effect: Effect.succeed(LiveAnnounce.say(Announcer)<Message>(text, politeness)),
+      },
+    ]
+
+    const refuse = (
+      model: Model,
+      refusal: Refusal,
+    ): { readonly model: Model; readonly commands: Commands } => ({
       model: { ...model, refused: refusal },
+      commands: announce(refusal.message, 'assertive'),
     })
 
-    const applyOp = (model: Model, op: Operation): { readonly model: Model } => {
+    const applyOp = (
+      model: Model,
+      op: Operation,
+    ): { readonly model: Model; readonly commands?: Commands } => {
       const result = Composition.apply(catalog, documentOf(model), op)
       if (Result.isFailure(result)) return refuse(model, result.failure)
       const { document, removed } = result.success
       const kept =
         model.selected !== null && removed.includes(model.selected) ? null : model.selected
+      const said = describeEdit(documentOf(model), document, op)
       return {
         model: {
           ...model,
@@ -221,6 +340,7 @@ export const Builder = {
           selected: created(op) ?? kept,
           refused: null,
         },
+        ...(said === undefined ? {} : { commands: announce(said) }),
       }
     }
 
@@ -232,7 +352,7 @@ export const Builder = {
       },
     ]
 
-    const update = (
+    const own = (
       model: Model,
       message: Message,
     ): { readonly model: Model; readonly commands?: Commands } => {
@@ -332,13 +452,27 @@ export const Builder = {
                   : null,
               refused: null,
             },
+            commands: announce(message._tag === 'Undid' ? 'Undone' : 'Redone'),
           }
         }
         case 'PanelChosen':
           return { model: { ...model, panel: message.panel } }
         case 'ViewportChosen':
           return { model: { ...model, viewport: message.viewport } }
+        default:
+          return { model }
       }
+    }
+
+    const assembled = placements.update(own)
+    const update = (model: Model, message: Message) => {
+      const next = assembled(model, message)
+      // Moving focus in the layers moves the selection with it.
+      if (message._tag !== Layers.wrapper.tag || message.message._tag !== 'Focused') return next
+      const id = NodeId.make(message.message.id)
+      return documentOf(next.model).nodes[id] === undefined
+        ? next
+        : { ...next, model: { ...next.model, selected: id } }
     }
 
     const view = Submodel.defineView<Model, Message>((model, h) => drawBuilder(model, h))
@@ -397,13 +531,10 @@ export const Builder = {
                   button(
                     'Duplicate',
                     (() => {
-                      const place = Composition.index(documentOf(model)).get(selected)
-                      if (place === undefined) return undefined
-                      const at =
-                        place.parent === undefined
-                          ? Composition.root(place.index + 1)
-                          : Composition.region(place.parent, place.region ?? '', place.index + 1)
-                      return Message.DuplicateAsked({ id: selected, at })
+                      const at = after(documentOf(model), selected)
+                      return at === undefined
+                        ? undefined
+                        : Message.DuplicateAsked({ id: selected, at })
                     })(),
                   ),
                   button('Delete', Message.Applied({ op: Composition.Op.remove(selected) })),
@@ -467,6 +598,47 @@ export const Builder = {
       view,
     })
 
+    /**
+     * The editor's keyboard shortcuts, for the layers panel: Alt with an arrow
+     * moves the selected node up, down, out of its parent or into the node
+     * above it; Mod+D duplicates it; Delete removes it; Mod+Z undoes, and
+     * Mod+Shift+Z or Mod+Y redoes. `undefined` for a key it does not handle.
+     */
+    const keyCommand = (
+      model: Model,
+      key: string,
+      modifiers: KeyboardModifiers,
+    ): Message | undefined => {
+      const mod = modifiers.ctrlKey || modifiers.metaKey
+      const lower = key.toLowerCase()
+      if (mod && !modifiers.altKey && lower === 'z')
+        return modifiers.shiftKey ? Message.Redid() : Message.Undid()
+      if (mod && !modifiers.altKey && lower === 'y') return Message.Redid()
+      const selected = model.selected
+      if (selected === null) return undefined
+      const document = documentOf(model)
+      if (modifiers.altKey && !mod) {
+        const op =
+          key === 'ArrowUp'
+            ? moveBy(document, selected, -1)
+            : key === 'ArrowDown'
+              ? moveBy(document, selected, 1)
+              : key === 'ArrowLeft'
+                ? outdent(document, selected)
+                : key === 'ArrowRight'
+                  ? indent(catalog, document, selected)
+                  : undefined
+        return applied(op)
+      }
+      if (mod && lower === 'd') {
+        const at = after(document, selected)
+        return at === undefined ? undefined : Message.DuplicateAsked({ id: selected, at })
+      }
+      if (!mod && !modifiers.altKey && (key === 'Delete' || key === 'Backspace'))
+        return Message.Applied({ op: Composition.Op.remove(selected) })
+      return undefined
+    }
+
     return {
       name,
       catalog,
@@ -486,6 +658,7 @@ export const Builder = {
       moveBy,
       replace,
       settle,
+      keyCommand,
       /** The Document a Builder Model is editing: its history's present. */
       document: documentOf,
     }

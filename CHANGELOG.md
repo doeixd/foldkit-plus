@@ -64,6 +64,13 @@ version changed; `pnpm` skips versions already in the registry.
   resumed draft, a preview drawn by the site's own views, publish, revisions,
   restore, a schedule and a conflict, with no CMS state added. Phase 6 of the
   page builder design.
+- **`foldkit-builder`: the keyboard, the layers and announcements.** The
+  Builder places `TreeNavigation` and `LiveAnnounce` in its Model; moving focus
+  in the layers selects the node. `keyCommand(model, key, modifiers)` gives the
+  shortcuts: Alt with the arrows moves the selected node among its siblings,
+  out of its parent or into the node above; Mod+D duplicates; Delete removes;
+  Mod+Z, Mod+Shift+Z and Mod+Y undo and redo. Structural edits, undo, redo and
+  refusals are announced to assistive technology.
 - **`foldkit-primitives`: `TreeNavigation`, keyboard navigation of a tree.**
   After the WAI-ARIA tree pattern: Up and Down through the rows showing, Right
   opens or steps in, Left closes or steps out, Home and End. Rows are given in

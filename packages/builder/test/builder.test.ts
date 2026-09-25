@@ -4,8 +4,9 @@ import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { describe, expect, it } from 'vitest'
-import { Message, Model } from 'foldkit-builder'
-import { PageBuilder, Site, answer } from './fixture.js'
+import { Layers, Message, Model } from 'foldkit-builder'
+import { TreeNavigation } from 'foldkit-primitives/interaction'
+import { PageBuilder, Site, answer, isTimer } from './fixture.js'
 
 const { update } = PageBuilder.bundle
 const step = (model: Model, message: Message) => update(model, message, undefined)
@@ -19,10 +20,9 @@ const required = <A>(value: A | undefined, what: string): A => {
 /** Sends a Message, and the Message each Command answers with, until none is left. */
 const send = (model: Model, message: Message): Model => {
   const result = step(model, message)
-  return (result.commands ?? []).reduce(
-    (next, command) => send(next, answer(command)),
-    result.model,
-  )
+  return (result.commands ?? [])
+    .filter(command => !isTimer(command))
+    .reduce((next, command) => send(next, answer(command)), result.model)
 }
 type Offered = 'Section' | 'Heading'
 const at = (model: Model, block: Offered) =>
@@ -161,10 +161,9 @@ describe('the Builder as a form key', () => {
   type FormModel = typeof PageForm.initial
   const formSend = (model: FormModel, message: typeof PageForm.Message.Type): FormModel => {
     const result = PageForm.bundle.update(model, message, undefined)
-    return (result.commands ?? []).reduce(
-      (next, command) => formSend(next, answer(command)),
-      result.model,
-    )
+    return (result.commands ?? [])
+      .filter(command => !isTimer(command))
+      .reduce((next, command) => formSend(next, answer(command)), result.model)
   }
 
   it('edits the page through the form, and only a change of the page is authored', () => {
@@ -205,5 +204,134 @@ describe('the Builder as a form key', () => {
     expect(document.field(filled).value.page.past).toEqual([])
     const decoded = Schema.decodeUnknownResult(PageInput.schema)({ title: 'x', document: stored })
     expect(Result.isSuccess(decoded)).toBe(true)
+  })
+})
+
+describe('the keyboard, the layers and the announcer', () => {
+  const plain = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }
+  const alt = { ...plain, altKey: true }
+  const ctrl = { ...plain, ctrlKey: true }
+  const press = (model: Model, key: string, modifiers = plain): Model => {
+    const message = PageBuilder.keyCommand(model, key, modifiers)
+    return message === undefined ? model : send(model, message)
+  }
+  // Two sections: the first holds two headings.
+  const twoSections = () => {
+    let model = insert(insert(insert(PageBuilder.initial, 'Section'), 'Heading'), 'Heading')
+    const first = only(model.page.present, 'Section')
+    model = send(model, Message.Selected({ id: first }))
+    model = insert(model, 'Section')
+    return { model, first }
+  }
+  const body = (model: Model, section: NodeId) =>
+    required(model.page.present.nodes[section]?.regions['body'], 'a body')
+
+  it('moves the selected node with Alt and the arrows, out of its parent and into the one above', () => {
+    const { model, first } = twoSections()
+    const [upper, lower] = body(model, first)
+    const selectedLower = send(
+      model,
+      Message.Selected({ id: required(lower, 'the lower heading') }),
+    )
+    const raised = press(selectedLower, 'ArrowUp', alt)
+    expect(body(raised, first)).toEqual([lower, upper])
+    // Out of the Section is refused: a heading cannot be a root, and nothing changes.
+    const out = press(raised, 'ArrowLeft', alt)
+    expect(out.page.present).toBe(raised.page.present)
+    expect(out.refused?.code).toBe('composition:root-rejects')
+    // Into the node above: the upper heading holds nothing, so nothing to move into.
+    expect(PageBuilder.keyCommand(selectedLower, 'ArrowRight', alt)).toBeUndefined()
+  })
+
+  it('moves a node into the node above it, last in a Region that takes it, and back out', () => {
+    const { model, first } = twoSections()
+    const [upper] = body(model, first)
+    // Put a Group between the two headings, then select the last heading.
+    const withGroup = send(
+      model,
+      Message.Applied({
+        op: Composition.Op.insert({
+          id: NodeId.make('group'),
+          block: 'Group',
+          props: {},
+          at: Composition.region(first, 'body', 1),
+        }),
+      }),
+    )
+    const last = required(body(withGroup, first)[2], 'the last heading')
+    const into = press(send(withGroup, Message.Selected({ id: last })), 'ArrowRight', alt)
+    expect(into.page.present.nodes[NodeId.make('group')]?.regions['items']).toEqual([last])
+    expect(into.announcer.pending?.message).toBe('Moved Heading, 1 of 1 in Group items')
+    // A second heading goes in last, after the first.
+    const another = send(
+      into,
+      Message.Applied({
+        op: Composition.Op.insert({
+          id: NodeId.make('another'),
+          block: 'Heading',
+          props: { text: 'Another' },
+          at: Composition.region(first, 'body', 2),
+        }),
+      }),
+    )
+    const both = press(another, 'ArrowRight', alt)
+    expect(both.page.present.nodes[NodeId.make('group')]?.regions['items']).toEqual([
+      last,
+      NodeId.make('another'),
+    ])
+    const outAgain = press(into, 'ArrowLeft', alt)
+    expect(body(outAgain, first)).toEqual([upper, NodeId.make('group'), last])
+  })
+
+  it('offers no move into the node above when none of its Regions would take the node', () => {
+    const { model } = twoSections()
+    const second = required(model.page.present.roots[1], 'the second section')
+    const selected = send(model, Message.Selected({ id: second }))
+    // A Section body takes Flow, and a Section is not Flow.
+    expect(PageBuilder.keyCommand(selected, 'ArrowRight', alt)).toBeUndefined()
+  })
+
+  it('duplicates with Mod+D, removes with Delete, and undoes and redoes with Mod+Z and Mod+Y', () => {
+    const { model } = twoSections()
+    const second = required(model.page.present.roots[1], 'the second section')
+    const selected = send(model, Message.Selected({ id: second }))
+    const copied = press(selected, 'd', ctrl)
+    expect(copied.page.present.roots).toHaveLength(3)
+    const removed = press(copied, 'Delete')
+    expect(removed.page.present.roots).toHaveLength(2)
+    expect(press(removed, 'z', ctrl).page.present).toBe(copied.page.present)
+    expect(press(press(removed, 'z', ctrl), 'Z', { ...ctrl, shiftKey: true }).page.present).toBe(
+      removed.page.present,
+    )
+    expect(press(press(removed, 'z', ctrl), 'y', ctrl).page.present).toBe(removed.page.present)
+    expect(PageBuilder.keyCommand({ ...removed, selected: null }, 'Delete', plain)).toBeUndefined()
+    expect(PageBuilder.keyCommand(removed, 'a', plain)).toBeUndefined()
+  })
+
+  it('selects the node the layers’ keyboard focus moves to', () => {
+    const { model, first } = twoSections()
+    const focused = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: first })))
+    expect(focused.selected).toBe(first)
+    expect(focused.layers.current).toBe(first)
+    const stray = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: 'gone' })))
+    expect(stray.selected).toBe(model.selected)
+  })
+
+  it('says what an edit did, and says a refusal assertively', () => {
+    const edited = step(
+      insert(PageBuilder.initial, 'Section'),
+      Message.InsertAsked({ block: 'Heading', at: Composition.root(0) }),
+    )
+    const minted = send(edited.model, answer(required(edited.commands?.[0], 'the mint')))
+    expect(minted.refused?.code).toBe('composition:root-rejects')
+    expect(minted.announcer.pending).toEqual({
+      message: minted.refused?.message,
+      politeness: 'assertive',
+    })
+    const added = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
+    expect(added.announcer.pending).toEqual({
+      message: 'Added Heading, 1 of 1 in Section body',
+      politeness: 'polite',
+    })
   })
 })

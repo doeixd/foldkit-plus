@@ -81,7 +81,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     const send = async (message: Message): Promise<void> => {
       const next = update(model, message)
       model = next.model
-      for (const command of next.commands ?? []) await send(await run(command.effect))
+      for (const command of next.commands ?? []) {
+        // The live region's timers read and clear what the Builder announces.
+        // A runtime runs them beside everything else; this story follows each
+        // Command in turn and has no clock to wait on, so it leaves them out.
+        if (command.name.startsWith('LiveAnnounce.')) continue
+        await send(await run(command.effect))
+      }
     }
     const look = async (): Promise<void> => {
       for (let round = 0; round < 2; round++) {

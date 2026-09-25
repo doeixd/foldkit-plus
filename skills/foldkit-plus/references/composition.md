@@ -109,6 +109,12 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   selection is not; fill replaces the page and starts undo over.
 - Helpers: `PageBuilder.placeFor(doc, selected, block)`,
   `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.replace`, `PageBuilder.settle`.
+- Places `TreeNavigation` (`Layers`, open by default) and `LiveAnnounce`
+  (`Announcer`) in its Model; layers focus selects the node. Shortcuts:
+  `PageBuilder.keyCommand(model, key, modifiers)` (Alt+arrows move, out of and
+  into parents; Mod+D duplicate; Delete remove; Mod+Z / Mod+Shift+Z / Mod+Y) —
+  attach to the layers panel. Structural edits, undo and refusals are announced;
+  a test that runs Commands in turn skips the `LiveAnnounce.*` timers.
 - Its view is plain (palette, layers, text props, undo, the page in edit mode);
   `foldkit-mixins-form` draws it with the form. One node is selected at a time.
 
