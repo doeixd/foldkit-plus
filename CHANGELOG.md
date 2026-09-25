@@ -126,6 +126,11 @@ version changed; `pnpm` skips versions already in the registry.
   `composition:unknown-action`), and a Renderer's view gets `on(event)`, the
   Message the action makes from input its Schema decoded first. The drawn
   Builder's inspector picks each event's action and edits its input.
+- **`foldkit-composition/surface`: Surface Blocks.** `SurfaceBlock.define`
+  places a `foldkit-surface` Surface where an author puts it, with params from
+  its props; `SurfaceBlock.reads` and `SurfaceBlock.active` read the page's
+  Surface Blocks as a Query Block's reads are, and `value(data)` reads a node's
+  typed.
 - **`foldkit-composition`: stateful Blocks.** A Block marked `stateful` is
   backed by a Bundle the page's parent places once per node, keyed by its id.
   `Composition.statefulNodes` lists them; `Stateful.sync` (in `/foldkit`) keeps

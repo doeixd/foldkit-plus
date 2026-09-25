@@ -552,6 +552,32 @@ const SiteRenderer = Renderer.make(Site, {
 
 It needs `foldkit-remote` and `foldkit-surface` installed; the core does not.
 
+### Blocks that show a feature: `foldkit-composition/surface`
+
+A Surface Block places a `foldkit-surface` Surface, such as a cart summary,
+where an author puts it, with params its props give. The Surface still owns
+what it reads and which Messages it may send:
+
+```ts
+import { SurfaceBlock } from 'foldkit-composition/surface'
+
+const Cart = SurfaceBlock.define('Cart', {
+  Props: Schema.Struct({ caption: Schema.String }),
+  provides: [Content.Flow],
+  surface: CartSummary,
+  params: props => ({ caption: props.caption }),
+})
+// In the Renderer: Cart: ({ data, h }) => { const cart = Cart.value(data); ... }
+```
+
+`SurfaceBlock.reads(catalog, document)` and `SurfaceBlock.active(name,
+App.owner, catalog, model => document)` are the page's Surface Blocks as one
+Projection, or an active Surface, exactly as a Query Block's are, and their
+values reach the Renderer the same way, through `data`. The Block holds its
+Surface, whose type carries the application's Model: where the Catalog is part
+of that Model, as it is when a form places the page Builder, a Block names what
+it reads instead, as a Query Block does.
+
 ### Serving a published page
 
 Most of a composed page is content no Message changes, which is what

@@ -1,8 +1,9 @@
 /**
- * Phase 9's acceptance page: a static Block, a Query Block and a stateful Block
- * on one page, served by foldkit-ssr. The Query Block's read is an active
- * Surface of the plan, so Remote.resume carries exactly what it selected; the
- * stateful Block's item is ordinary browser state; the static Block is drawn.
+ * Phase 9's acceptance page: a static Block, a Query Block, a Surface Block and
+ * a stateful Block on one page, served by foldkit-ssr. The Query Block's read is
+ * an active Surface of the plan, so Remote.resume carries exactly what it
+ * selected; the Surface Block shows a feature's Surface; the stateful Block's
+ * item is ordinary browser state; the static Block is drawn.
  */
 import { Effect, Layer, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
@@ -16,6 +17,7 @@ import { describe, expect, it } from 'vitest'
 import { Block, Catalog, Composition, Content, Region, type Document } from '../src/index.js'
 import { Renderer, Stateful } from '../src/foldkit/index.js'
 import { QueryBlock } from '../src/remote/index.js'
+import { SurfaceBlock } from '../src/surface/index.js'
 
 const Project = Entity.make(
   'Project',
@@ -60,12 +62,12 @@ const Votes = Block.define('Votes', {
   provides: [Content.Flow],
   stateful: true,
 })
-const Site = Catalog.make({ blocks: [Section, Heading, Projects, Votes], roots: [Content.Section] })
 
 const VotesDeclared = Bundle.declareEach(Counter, 'votes')
 const Model = Schema.Struct({
   page: Composition.Document,
   remote: Remote.Model,
+  cartCount: Schema.Number,
   ...VotesDeclared.fields,
 })
 type Model = typeof Model.Type
@@ -73,8 +75,32 @@ const Message = defineMessageUnion({ ...Remote.messages, ...VotesDeclared.cases 
 type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
 const Placed = Page.each(VotesDeclared)
-const initial: Model = { page: Composition.empty(), remote: Remote.initial, votes: {} }
+const initial: Model = {
+  page: Composition.empty(),
+  remote: Remote.initial,
+  cartCount: 2,
+  votes: {},
+}
 const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
+
+/** A feature the page shows where an author puts it: the cart, captioned as the node says. */
+const CartSummary = App.surface('CartSummary', {
+  params: { caption: Schema.String },
+  model: ({ model, params }) => ({
+    count: model.cartCount,
+    caption: Projection.fromReader(Schema.String, () => params.caption),
+  }),
+})
+const Cart = SurfaceBlock.define('Cart', {
+  Props: Schema.Struct({ caption: Schema.String }),
+  provides: [Content.Flow],
+  surface: CartSummary,
+  params: props => ({ caption: props.caption }),
+})
+const Site = Catalog.make({
+  blocks: [Section, Heading, Projects, Cart, Votes],
+  roots: [Content.Section],
+})
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
@@ -85,9 +111,10 @@ const home: Document = Schema.decodeUnknownSync(Composition.Document)({
   format: 1,
   roots: ['s'],
   nodes: {
-    s: { block: 'Section', props: {}, regions: { body: ['title', 'list', 'poll'] } },
+    s: { block: 'Section', props: {}, regions: { body: ['title', 'list', 'cart', 'poll'] } },
     title: { block: 'Heading', props: { text: 'Our work' }, regions: {} },
     list: { block: 'Projects', props: { owner: 'u1' }, regions: {} },
+    cart: { block: 'Cart', props: { caption: 'In your cart' }, regions: {} },
     poll: { block: 'Votes', props: { start: 4 }, regions: {} },
   },
 })
@@ -104,10 +131,15 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
         )
       : h.p([], ['Loading'])
   },
+  Cart: ({ data, h }) => {
+    const cart = Cart.value(data)
+    return h.p([], [cart === undefined ? '' : `${cart.caption}: ${cart.count}`])
+  },
   Votes: ({ data }) => Stateful.html(data),
 })
 
 const reads = QueryBlock.active('PageReads', Data, Site, (model: Model) => model.page)
+const features = SurfaceBlock.active('PageFeatures', App.owner, Site, (model: Model) => model.page)
 
 /** The server's store: two of u1's projects, with a budget no Block selects. */
 const server = Layer.succeed(RemoteClient, {
@@ -130,8 +162,8 @@ const server = Layer.succeed(RemoteClient, {
   live: () => Stream.empty,
 })
 
-describe('a page of static, data and stateful Blocks, served by SSR', () => {
-  it('draws all three, and sends the browser the read and the state, not the store', async () => {
+describe('a page of static, data, feature and stateful Blocks, served by SSR', () => {
+  it('draws all four, and sends the browser the read and the state, not the store', async () => {
     const withPage: Model = Stateful.sync(
       Placed,
       Site,
@@ -159,6 +191,7 @@ describe('a page of static, data and stateful Blocks, served by SSR', () => {
           Renderer.render(SiteRenderer, model.page, h, {
             data: {
               ...(reads.projectionOf(model)?.read(model) ?? {}),
+              ...(features.projectionOf(model)?.read(model) ?? {}),
               ...Stateful.views(Placed, Site, Votes, model.page, model, h),
             },
           }),
@@ -168,8 +201,8 @@ describe('a page of static, data and stateful Blocks, served by SSR', () => {
     }
     const plan = SSR.plan(App, {
       id: 'home',
-      state: Projection.pick(App.model.page, App.model.votes),
-      surfaces: [reads],
+      state: Projection.pick(App.model.page, App.model.votes, App.model.cartCount),
+      surfaces: [reads, features],
       parts: [Remote.resume(Data)],
     })
     const result = await Effect.runPromise(SSR.render(config, plan, { buildId: 'b' }))
@@ -177,7 +210,7 @@ describe('a page of static, data and stateful Blocks, served by SSR', () => {
       '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>',
       result,
     )
-    for (const drawn of ['Our work', 'Project p1', 'Project p2', 'Votes: 4'])
+    for (const drawn of ['Our work', 'Project p1', 'Project p2', 'In your cart: 2', 'Votes: 4'])
       expect(html).toContain(drawn)
     // The read crosses as what it selected; the store's other fields do not.
     expect(result.envelope).toContain('Project p1')

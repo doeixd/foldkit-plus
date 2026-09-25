@@ -115,6 +115,14 @@ Catalog's Blocks only (name literal, props' encoded Schema); use it as an
 The agent mints ids; context: `Composition.describe(Site, doc)`. See
 `examples/cms/src/pageAgent.ts`.
 
+## Surface Blocks: `foldkit-composition/surface`
+
+`SurfaceBlock.define(name, { Props, provides, surface, params: props => params })`;
+`SurfaceBlock.reads(Site, doc)` / `SurfaceBlock.active(name, App.owner, Site,
+m => doc)`; values reach the Renderer through `data`, read with
+`Cart.value(data)`. Not where the Catalog is in the Model (circular types):
+use a Query Block's shape there.
+
 ## Stateful Blocks
 
 `Block.define(name, { ..., stateful: true })`; the parent places a Bundle per

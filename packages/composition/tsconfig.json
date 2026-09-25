@@ -12,6 +12,7 @@
       "foldkit-composition/richtext": ["./src/richtext/index.ts"],
       "foldkit-composition/appearance": ["./src/appearance/index.ts"],
       "foldkit-composition/remote": ["./src/remote/index.ts"],
+      "foldkit-composition/surface": ["./src/surface/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-react": ["../react/src/index.ts"],

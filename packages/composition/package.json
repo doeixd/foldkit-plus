@@ -44,6 +44,10 @@
     "./remote": {
       "types": "./dist/remote.d.mts",
       "import": "./dist/remote.mjs"
+    },
+    "./surface": {
+      "types": "./dist/surface.d.mts",
+      "import": "./dist/surface.mjs"
     }
   },
   "files": [

@@ -1129,17 +1129,18 @@ resume plan.
   own code; `Composition.statefulNodes`, and `Stateful.sync` / `views` / `html`
   in `/foldkit`. `withEach` gives every item the same `args`, so a node's props
   reach its item through `add`'s `prepare`, and a node whose props change is
-  started again. **Surface-backed waits:** a Surface's type carries the
-  application's Model, so a Block holding one makes the Catalog's type circular
-  where the Builder is in the Model, as a Block closing over `Data` would; it
-  wants the Query Block's shape, a read named in the Block and resolved when the
-  page's reads are built.
+  started again. **Surface-backed built** in a `/surface` subpath:
+  `SurfaceBlock.define` holds its Surface and params from props, with `reads`
+  and `active` as a Query Block's. A Surface's type carries the application's
+  Model, so where the Catalog is part of that Model (the Builder in a form) the
+  types are circular, and a Block there names its read as a Query Block does.
 - **9-3,** the acceptance page above. **Built** with a static, a Query and a
   stateful Block (`test/acceptance.test.ts`): the Query Block's read is the
   plan's active Surface through `QueryBlock.active`, `Remote.resume` carries
   what it selected and none of the store's other fields, and the stateful
   Block's item is browser state. A Surface-backed Block joins it when 9-2's
-  second half is built.
+  second half is built. **Joined:** a Surface Block showing a cart, through
+  `SurfaceBlock.active` beside the Query Block's.
 
 **Phase 10: actions and agents.**
 
@@ -1218,9 +1219,9 @@ a React Block beside a Foldkit Block        a static page whose envelope has no 
 > | an agent Operation refused by a Region | `operation`: a shape the schema takes can still be refused by the page |
 > | a React Block beside a Foldkit Block | `react`: its event running the node's action |
 > | a static page whose envelope has no Document | `renderer`: sends the browser none of the Document |
-> | a Surface Block beside a static one | **missing**: Surface-backed Blocks are not built (9-2) |
+> | a Surface Block beside a static one | `acceptance`: a page of static, data, feature and stateful Blocks, served by SSR |
 >
-> Besides that one, what waits: rich text edited on the canvas (7c-2), a
+> What waits: rich text edited on the canvas (7c-2), a
 > relation picker for a Block prop and a Query Block's rows on the editor's
 > canvas (9-1), and the selection in the URL (10-3), which needs Form to offer a
 > writable projection into a control's Model, since `Mirror.url` writes back

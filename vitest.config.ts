@@ -84,6 +84,9 @@ export default defineConfig({
       'foldkit-composition/remote': fileURLToPath(
         new URL('./packages/composition/src/remote/index.ts', import.meta.url),
       ),
+      'foldkit-composition/surface': fileURLToPath(
+        new URL('./packages/composition/src/surface/index.ts', import.meta.url),
+      ),
       'foldkit-composition': fileURLToPath(
         new URL('./packages/composition/src/index.ts', import.meta.url),
       ),

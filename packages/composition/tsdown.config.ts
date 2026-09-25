@@ -7,6 +7,7 @@ export default defineConfig({
     richtext: 'src/richtext/index.ts',
     appearance: 'src/appearance/index.ts',
     remote: 'src/remote/index.ts',
+    surface: 'src/surface/index.ts',
   },
   format: ['esm'],
   dts: true,
