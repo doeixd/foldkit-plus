@@ -42,52 +42,6 @@ intent → Message → update → Model → Projection / Surface → consumer
 ## Sixty seconds of code
 
 Start with one mechanism: an inspectable boundary around an existing Model.
-Install `foldkit-surface` alongside the workspace-compatible `foldkit` and
-`effect` versions listed under [Install](#install).
-
-```ts
-import { Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import { modifyFields } from 'foldkit/struct'
-import { Surface } from 'foldkit-surface'
-
-const Model = Schema.Struct({ count: Schema.Number, internalNote: Schema.String })
-const Message = defineMessageUnion({ Incremented: {} })
-const initial: typeof Model.Type = { count: 0, internalNote: 'Only the app reads this' }
-const update = (model: typeof Model.Type, _message: typeof Message.Type) => ({
-  model: modifyFields(model, { count: count => count + 1 }),
-})
-const App = Surface.application({ Model, Message, initial, update })
-
-const Counter = App.surface('Counter', {
-  model: ({ model }) => ({ count: model.count }),
-  messages: [Message.Incremented],
-})
-
-Surface.read(Counter, initial) // { count: 0 }
-const next = update(initial, Message.Incremented()).model
-Surface.read(Counter, next) // { count: 1 }
-```
-
-`Surface.application` records the schemas and, here, the existing initial value
-and reducer. `App.surface` describes what the counter reads and which Message
-its consumers may emit. `Surface.read` is a pure projection: it returns `count`
-and leaves `internalNote` out. It performs no I/O and dispatches nothing.
-
-The state changes only when `update` handles `Incremented`. This example calls
-the reducer directly to expose that loop; a mounted Foldkit application routes
-view events and Command results through it. No browser runtime is needed to
-try these reads.
-
-That same boundary can later become an agent's context, a view's input, or a
-part of an ownership manifest. Add the package that interprets the boundary
-when you need that behavior; a Surface alone does not fetch, replicate, or
-register tools.
-
-The example is typechecked in
-[the root README fixture](./examples/todo-app/test/root-readme.test-d.ts).
-
-## The same application, extended
 
 The fastest way to see how the packages compose is to watch several of them
 reuse one application declaration. Assume `Model`, `Message`, `initial`, and
