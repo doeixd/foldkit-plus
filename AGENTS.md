@@ -155,6 +155,15 @@ Slop is also code that looks finished and is wrong. Look for these too:
   - A function whose name no longer says what it does.
   - Comments separated from the thing they document.
   - State threaded through closures where a value would do.
+  - `null` or `undefined` standing for "nothing here". A value that may be
+    absent is an Effect `Option`: `Option.none()`, `Option.some(x)`,
+    `Option.match`, and `Schema.Option` in a Model. `T | null` and
+    `T | undefined` make every reader remember to check, and a forgotten check
+    type-checks as long as the value is only passed along. Keep `null` only at
+    a boundary that speaks it (JSON, a database column, the DOM, a foreign
+    API), and convert there: `Schema.OptionFromNullOr` for stored data. An
+    optional config field (`?:`) is not a value that may be absent; it is
+    fine.
 
 Prefer deleting code to adding it. The smallest version that a reader
 understands on one pass wins.
