@@ -85,6 +85,24 @@
       "gate": false,
       "question": "Does this change add a loop or iteration callback over a collection that, on each step, calls indexOf, includes, find, findIndex, some, or filter on an array growing with that same collection, or spreads such an array into a new one?",
       "guidance": "Look for `rows.map(row => other.indexOf(...))`, `items.filter(id => !after.some(...))`, or `map.set(key, [...(map.get(key) ?? []), x])` inside a loop, where both sides grow with the input. Do not count lookups into a fixed small list (a handful of literals, a Block's own few events), Map or Set lookups, or loops whose bound is a constant."
+    },
+    {
+      "id": "nullable_absence",
+      "name": "Nullable absence",
+      "description": "A value that may be absent is an Effect Option, with null kept at boundaries that speak it.",
+      "scope": "hunk",
+      "gate": false,
+      "question": "Does this change add or change an exported function's return type, an exported parameter, a Message payload field, or a Model field so that `null` or `undefined` (`T | null`, `T | undefined`, `Schema.NullOr`, `Schema.UndefinedOr`) stands for a value that may be absent, instead of an Effect `Option`?",
+      "guidance": "Count types in packages/*/src and examples/*/src. Do not count values at a boundary that speaks null: a JSON or database column type, a DOM or foreign API's own type, or a stored Model field declared `Schema.OptionFromNullOr`. Do not count an optional config property (`?:`), a callback that returns `undefined` to mean nothing is sent, or unchanged existing declarations."
+    },
+    {
+      "id": "unslotted_markup",
+      "name": "Unslotted markup",
+      "description": "A package draws its markup through Slots, so every part it draws can be styled.",
+      "scope": "hunk",
+      "gate": false,
+      "question": "Does this change, in a package's view code under packages/*/src, draw an element whose attributes do not come from a slot builder's `.attrs(...)`, such as `h.span([], …)` or an element marked only with `h.DataAttribute(...)` for a stylist to select?",
+      "guidance": "Count elements a package view draws for the page, including wrappers and text holders. Do not count elements inside examples or tests, an element whose attributes pass through `slots.<name>.attrs(...)`, a structural wrapper the package documents as unstyled (such as the renderer's `display: contents` edit wrapper), or the application's own Block views."
     }
   ]
 }
