@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/richtext" },
     { "path": "./packages/richtext-dom" },
+    { "path": "./packages/richtext-markdown" },
     { "path": "./packages/agent" },
     { "path": "./packages/agent-webmcp" },
     { "path": "./packages/agent-mcp" },

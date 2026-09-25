@@ -1,0 +1,55 @@
+{
+  "name": "foldkit-richtext-markdown",
+  "version": "0.1.0",
+  "description": "Print a foldkit-richtext document as CommonMark, with a diagnostic for what the mapping cannot express.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "rich-text",
+    "markdown",
+    "commonmark",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/richtext-markdown"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/richtext-markdown#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-richtext": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.116"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.116",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

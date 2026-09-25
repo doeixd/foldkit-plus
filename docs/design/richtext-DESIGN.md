@@ -5658,6 +5658,11 @@ Agent
 
 None of these belong *inside* the Kit.
 
+> **Started (2026-09-25), as §127.** `foldkit-richtext-markdown` exists and prints:
+> `print(document)` returns `{ markdown, diagnostics }`. Parsing waits for the
+> micromark/mdast stack it needs; printing needed none, so it came first. §127 records the
+> mapping, the escapes, and the limits.
+
 ---
 
 ## 2. Give Foldkit a standard semantic content vocabulary
@@ -6893,4 +6898,66 @@ the editable area). Until then the editable subtree renders marks only.
 Presence (§62) and remote selections (§63) become decorations when collaboration lands;
 nothing here changes for that — a stable selection resolved against a replica produces a
 `Decoration`, which is the point of resolving it.
+
+---
+
+# 127. The Markdown interpreter, printing first
+
+§124 §1 asks for `foldkit-richtext-markdown` over a real parser stack. The package exists
+and prints; parsing is the next slice. This records why the order is print-first and what
+the mapping does with each shape.
+
+## Why printing first
+
+Parsing needs `micromark`/`mdast` — a dependency, a lockfile change, and a package that
+cannot build without it. Printing needs nothing, and it is a product surface on its own:
+Markdown export, and the source mode §124 §8 describes. So the package starts with the
+direction that has no dependency, and the parser arrives with `parse` beside it.
+
+The API is `print(document)` → `{ markdown, diagnostics }`. There is no profile yet: a
+profile is for custom syntax, and custom syntax has no meaning until both directions share
+it, which is when parsing lands.
+
+## What the mapping does
+
+CommonMark, plus GFM's lists, tasks, strikethrough, and tables:
+
+```text
+Paragraph, Heading          the text; # … ######
+Quote                       > on every line, blank ones included
+List, ListItem, TaskItem    -, 1., - [x]; a nested block stays aligned under its marker
+CodeBlock                   a fence, its language, the text verbatim, a fence longer than
+                            any backtick run inside it
+ThematicBreak               ---
+Image                       ![alt](src), on its own line
+Table, TableRow, TableCell  a GFM pipe table, first row as the header
+Bold, Italic, Code,         **, *, backticks, ~~, [label](href); the link is outermost,
+Strikethrough, Link         decided by a rank table rather than a chain of tests
+```
+
+Text is escaped so it cannot become markup: a backslash before an inline delimiter, and
+before a block marker — or a `1.` — that would open a paragraph's line; a leading space
+becomes `&#32;`. A code span skips the escape step, because a backslash inside one is
+literal, and its fence grows past any backtick run in the text.
+
+## Diagnostics, not silence
+
+`diagnostics` names every kind or mark the mapping has no syntax for. A *block kind* with
+none prints its content rather than losing it, which is what §3 asks: an interpreter
+reports what it cannot express instead of discarding rich content. A preserved `Unknown`
+block is reported and skipped, because its payload is opaque and printing it would invent a
+shape. A mark with no syntax is reported and its text kept. A link with no `href` is
+reported, because there is nothing to link to.
+
+## Limits worth naming
+
+- **A table's header row.** The model does not say which row is one, so the first is printed
+  as it — which is how GFM reads a table. Making it explicit is a vocabulary decision for
+  the GFM work.
+- **Inline atoms.** The model has no inline image or break, so a block `Image` prints as its
+  own line; a parser reads that back as a paragraph holding an image, not as an `Image`
+  block. The asymmetry belongs to §116's deferred inline content.
+- **Not verified by round trip yet.** The output is checked against expected Markdown;
+  `parse(print(document))` becomes a test when parsing lands, which is §124 §14's own
+  property list.
 
