@@ -158,10 +158,14 @@ describe('the entry the server knows', () => {
     const editor = (patch: Partial<Root['editor']>): Root => ({
       editor: { ...root.editor, ...patch },
     })
-    expect(placed.storedEntry(root)).toBe('e1')
-    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: null }))).toBeNull()
-    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: 's1' }))).toBe('e2')
-    expect(placed.storedEntry(editor({ mode: 'closed', entry: null }))).toBeNull()
+    expect(placed.storedEntry(root)).toEqual(Option.some('e1'))
+    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: null }))).toEqual(
+      Option.none(),
+    )
+    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: 's1' }))).toEqual(
+      Option.some('e2'),
+    )
+    expect(placed.storedEntry(editor({ mode: 'closed', entry: null }))).toEqual(Option.none())
   })
 })
 
