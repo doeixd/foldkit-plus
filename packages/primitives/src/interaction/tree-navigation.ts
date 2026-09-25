@@ -203,6 +203,14 @@ export interface BehaviorOptions<Input, Slots> {
  * `aria-disabled` when disabled, a roving `tabindex`, and `OnFocus` reporting
  * it current. Every handled key is default-prevented.
  */
+/** The rows showing for one input, with what each row's attributes look up. */
+interface Prepared {
+  readonly model: Model
+  readonly rows: ReadonlyArray<Shown>
+  readonly byId: ReadonlyMap<string, Shown>
+  readonly stop: string | undefined
+}
+
 export const behavior =
   <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
   <Slots>(slots: Slots) =>
@@ -213,6 +221,23 @@ export const behavior =
       declared.wrapper.make(message) as unknown as ParentMessage
     const slice = (input: Input): Model => input[declared.field]
     const domId = options.domId ?? ((id: string) => id)
+    // Every row's attributes read the same rows: work them out once per input,
+    // or a tree of n rows costs n times its whole.
+    const prepared = new WeakMap<Input, Prepared>()
+    const prepare = (input: Input): Prepared => {
+      const known = prepared.get(input)
+      if (known !== undefined) return known
+      const model = slice(input)
+      const rows = shown(options.rows(input), model, args)
+      const made: Prepared = {
+        model,
+        rows,
+        byId: new Map(rows.map(row => [row.id, row])),
+        stop: tabStop(rows, model.current),
+      }
+      prepared.set(input, made)
+      return made
+    }
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.container]: Behavior.slot({
@@ -224,8 +249,7 @@ export const behavior =
             readonly input: Input
             readonly h: HtmlBuilder<ParentMessage>
           }) => {
-            const model = slice(input)
-            const rows = shown(options.rows(input), model, args)
+            const { model, rows } = prepare(input)
             const direction = options.direction?.(input) ?? 'ltr'
             return [
               h.OnKeyDownFocus((key, modifiers) => {
@@ -258,12 +282,9 @@ export const behavior =
             readonly item?: SlotItem
           }) => {
             if (item === undefined) return []
-            const model = slice(input)
-            const rows = shown(options.rows(input), model, args)
-            const row =
-              item.id === undefined ? rows[item.index] : rows.find(each => each.id === item.id)
+            const { model, rows, byId, stop } = prepare(input)
+            const row = item.id === undefined ? rows[item.index] : byId.get(item.id)
             if (row === undefined) return []
-            const stop = tabStop(rows, model.current)
             return [
               h.Id(domId(row.id)),
               h.Role('treeitem'),

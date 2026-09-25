@@ -876,6 +876,16 @@ R9 remainder is, rather than silently accepted.
 > of its cost; if pages grow past what that allows, a persistent map is the
 > next step. The Layers row is Phase 7's to measure.
 
+> **Measured (Phase 7).** Drawing the editor over 1,000 nodes first found each
+> layer row working out the whole tree again for its own attributes: a
+> thousand rows cost a million row visits and most of a 600 ms draw.
+> `TreeNavigation` now works the rows out once per draw, and a test counts it.
+> The remaining cost is linear. Timing a draw with the inert builder outside a
+> runtime is not a fair number: each element with attributes then pays a
+> thrown and caught lookup of the current dispatch, about 20 µs, which a
+> running application does not. Per-row laziness waits for a measurement in a
+> running application that asks for it.
+
 ## 26. Packages
 
 ```text
@@ -1031,11 +1041,11 @@ contract.
 What remains of Phase 7, in order:
 
 - **7c-1, the inspector.** A field's label is its Schema's `title`, else its
-  key. A Block asks for a multiline control through Builder metadata attached
-  with `Block.annotate` (Phase 1 moved inspector hints there). A rich-text
-  `body` reads "Edit on the page" instead of its JSON. The Layers row of §25 is
-  measured, with each row drawn lazily by node.
-- **7c-2, rich text on the canvas,** as §13 describes. `Builder.make` takes an
+  key. A Block asks for a control through Builder metadata attached with
+  `Block.annotate` (Phase 1 moved inspector hints there), such as a multiline
+  one. The Layers row of §25 is measured.
+- **7c-2, rich text on the canvas,** as §13 describes. The inspector reads
+  "Edit on the page" for the body instead of its JSON. `Builder.make` takes an
   optional `text: { block, rendering }`; the Model gains `editingText`; a
   double-click, or Enter on a layer row, starts editing and leaving commits one
   `setProp` of the body, one undo step. The Renderer gains an edit-mode hook

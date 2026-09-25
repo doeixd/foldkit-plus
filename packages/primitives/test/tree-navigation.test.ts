@@ -205,4 +205,29 @@ describe('TreeNavigation behavior', () => {
     })
     expect(Option.isNone(handler('Enter', plain))).toBe(true)
   })
+
+  it('works out the rows once per input, however many rows are drawn', () => {
+    let asked = 0
+    const counted = TreeNavigation.behavior(Tree, open)(TreeSlots)<Model, Message>({
+      container: 'root',
+      item: 'row',
+      rows: () => {
+        asked += 1
+        return rows
+      },
+    })
+    const draw = (input: Model) => {
+      const b = SlotView.buildersFor(TreeSlots, [counted.mixin], { input, h })
+      b.root.attrs()
+      return rows.map((row, index) => b.row.attrs([], { index, id: row.id }))
+    }
+    draw(model)
+    expect(asked).toBe(1)
+    // A new input is worked out afresh: the tab stop follows it.
+    const moved = draw({ layers: { current: 'intro', toggled: [] } })
+    expect(asked).toBe(2)
+    expect(moved.map(attrs => Attributes.find(attrs, 'Tabindex')?.value)).toEqual(
+      rows.map(row => (row.id === 'intro' ? 0 : -1)),
+    )
+  })
 })
