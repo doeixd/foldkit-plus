@@ -10,8 +10,10 @@ import {
   attachmentIn,
   mountInto,
   placeRendering,
+  placeVocabulary,
   releaseMount,
   renderingFor,
+  vocabularyFor,
 } from 'foldkit-richtext-dom/host'
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
 import { parseHtml } from 'foldkit-richtext-dom/html'
@@ -38,6 +40,11 @@ export type Surface = [
   typeof RichText.marksInRange,
   typeof RichText.runAction,
   typeof RichText.textRangeBefore,
+  typeof RichText.nodeRegistry,
+  typeof RichText.blocksOf,
+  typeof RichText.blockKind,
+  typeof RichText.standardNodes,
+  typeof RichText.standardMarks,
   typeof RichText.rendering,
   typeof RichText.noRendering,
   typeof RichText.runRendering,
@@ -51,6 +58,8 @@ export type Surface = [
   typeof releaseMount,
   typeof placeRendering,
   typeof renderingFor,
+  typeof placeVocabulary,
+  typeof vocabularyFor,
   typeof attach,
   typeof intentFor,
   KeyBinding,

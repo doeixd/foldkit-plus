@@ -346,6 +346,8 @@ export type TransactionResult =
         | 'InvalidRange'
         | 'InvalidSelection'
         | 'InvalidParent'
+        | 'ForbiddenMark'
+        | 'UnexpectedChild'
         | 'UnstableNormalization'
     }
 

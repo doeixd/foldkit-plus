@@ -10,6 +10,29 @@ import { attach, type AttachOptions, type Attachment } from './events.js'
 
 const attachments = new WeakMap<Element, Attachment>()
 const renderings = new Map<string, RichText.Rendering>()
+const vocabularies = new Map<string, Vocabulary>()
+
+/**
+ * The vocabulary an editor resolves edits against: the mark and node registries `run`
+ * consults to refuse an edit a declaration forbids (§125). Both are optional, and a
+ * field left out leaves `run`'s defaults in place.
+ */
+export interface Vocabulary {
+  readonly marks?: RichText.MarkRegistry | undefined
+  readonly nodes?: RichText.NodeRegistry | undefined
+}
+
+/**
+ * Records the vocabulary a placement's editor resolves against, by host id, for the same
+ * reason a rendering registry is: it holds schemas and functions, so it cannot ride in a
+ * Bundle's schema-decoded args (§122). Re-placing an id replaces what it had.
+ */
+export const placeVocabulary = (hostId: string, vocabulary: Vocabulary): void => {
+  vocabularies.set(hostId, vocabulary)
+}
+
+/** The vocabulary placed for a host id, or none — `run` then uses its own defaults. */
+export const vocabularyFor = (hostId: string): Vocabulary => vocabularies.get(hostId) ?? {}
 
 /**
  * Records how a placement's host id renders (§122). A registry holds functions,

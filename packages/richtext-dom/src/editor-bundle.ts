@@ -14,7 +14,7 @@ import * as RichText from 'foldkit-richtext'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
-import { placeRendering } from './host.js'
+import { placeRendering, placeVocabulary, vocabularyFor, type Vocabulary } from './host.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -162,6 +162,8 @@ export const Editor = Bundle.make({
   }),
   update: (model, incoming): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
     const state: RichText.EditorState = { document: model.document, selection: model.selection }
+    // The vocabulary this placement resolves edits against; both fields may be absent.
+    const vocabulary = vocabularyFor(model.hostId)
     // A live query decides what Enter means before anything else reads the message
     // (§123): the highlighted entry applies as the Message a click would send, instead
     // of splitting, and a query that chooses nothing falls through to `incoming` and
@@ -211,7 +213,7 @@ export const Editor = Bundle.make({
     if (
       message._tag === 'ToggledMark' &&
       collapsed &&
-      !RichText.shippedRegistry.declares(message.mark)
+      !(vocabulary.marks ?? RichText.shippedRegistry).declares(message.mark)
     ) {
       return { model, outMessage: { _tag: 'Rejected', error: 'InvalidInput' } }
     }
@@ -241,6 +243,7 @@ export const Editor = Bundle.make({
         ? [command]
         : [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command],
       { mint: () => `e${nextId++}` },
+      { marks: vocabulary.marks, nodes: vocabulary.nodes },
     )
     if (!result.ok) {
       // A refused command changes nothing, so it does not burn identities.
@@ -314,8 +317,13 @@ const editorLink: Link<
  * placed for that id rather than passed as an arg (§122): it holds functions, so
  * the mount looks it up by host id instead.
  */
-export const editorAt = (hostId: string, rendering: RichText.Rendering = RichText.noRendering) => {
+export const editorAt = (
+  hostId: string,
+  rendering: RichText.Rendering = RichText.noRendering,
+  vocabulary: Vocabulary = {},
+) => {
   placeRendering(hostId, rendering)
+  placeVocabulary(hostId, vocabulary)
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.

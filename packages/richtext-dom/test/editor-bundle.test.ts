@@ -436,3 +436,45 @@ describe('placing a renderer with the Bundle (§122)', () => {
     expect(renderingFor('editor-never-placed')).toBe(RichText.noRendering)
   })
 })
+
+describe('placing a vocabulary with the Bundle (§125)', () => {
+  const CodeBlock = RichText.node('CodeBlock', { children: RichText.textContent, marks: 'none' })
+
+  it('refuses a mark added inside a mark-free kind, in the child transition', () => {
+    editorAt('constrained-editor', RichText.noRendering, {
+      nodes: RichText.nodeRegistry([CodeBlock, RichText.block('Paragraph')]),
+    })
+    const document = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'code',
+          props: {},
+          children: [{ type: 'Text', id: 'code-t', text: 'const x', marks: [] }],
+        },
+      ],
+    })
+    const initial = application.initial({ document }).model
+    const constrained: Model = {
+      ...initial,
+      editor: {
+        ...initial.editor,
+        hostId: 'constrained-editor',
+        selection: range(['code-t', 0], ['code-t', 5]),
+      },
+    }
+    // The kind forbids the mark, so the transition refuses and the document holds.
+    expect(update(constrained, toggled('Bold')).model.document).toBe(constrained.document)
+
+    // Control: the same toggle on the same document lands when the placement placed no
+    // vocabulary, so it is the placement's declaration that refused it.
+    editorAt('unconstrained-editor', RichText.noRendering)
+    const free: Model = {
+      ...initial,
+      editor: { ...constrained.editor, hostId: 'unconstrained-editor' },
+    }
+    expect(update(free, toggled('Bold')).model.document).not.toBe(free.document)
+  })
+})

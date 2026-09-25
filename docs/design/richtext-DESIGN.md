@@ -6755,18 +6755,35 @@ and `ForbiddenMark` (the mark, and the kind that forbids it). `atom` now takes `
 an `Image` is an atom carrying a source rather than a run holder that happens to be empty,
 which `validate` checks the same way.
 
-Two boundaries are deliberate:
+**The rules are enforced in both places a violation can begin.** `validate` reports a
+document against a Kit; `run` refuses the edits that would create those documents when a
+caller gives it the vocabulary — `RichText.nodeRegistry(kit.nodes)` as the `nodes`
+option, the node counterpart of the mark registry. A `ToggleMark` that adds a mark over a
+run in a mark-free kind, and an `InsertText` carrying marks into one, are refused as
+`ForbiddenMark`; a `RetypeBlock` or a `Paste` that would put a kind a constrained parent
+excludes into it is refused as `UnexpectedChild` — the same names `validate` reports, so
+one vocabulary answers both questions.
 
-- **These are `validate`-level rules, not `run`-level ones, for now.** §117 puts the
-  vocabulary at the command layer and structure in `apply`, and `validate` is where a
-  document is checked against a Kit. Refusing a `ToggleMark` inside a `CodeBlock`, or an
-  `InsertNode` of something other than a `ListItem` into a `List`, needs the Kit at the
-  command layer; that is the next slice, not the same rules copied into two places.
+Three boundaries are deliberate:
+
 - **A constraint is checked, never enforced by the codec.** `decodeDocument` keeps a
   document a Kit would reject, because the codec cannot know a Kit — the same separation
   as unknown kinds and props.
+- **Removing a mark is always allowed, even from a mark-free kind.** The rule is about
+  adding; a preserved document that already carries the mark has to have a way back to
+  validity.
+- **`apply` still takes no vocabulary.** A durable transaction must not depend on a
+  declaration that may have moved (§117). `run` is where the caller's Kit is known, and
+  a caller that applies operations directly keeps `validate` as its check.
 
 `validate`'s block loop became one path along the way: a preserved block, an application
 node, and a built-in block now share one declaration lookup and one report, which is what
 let the two new checks sit beside the existing ones instead of in a second walk.
+
+The editor Bundle places the vocabulary the way it places a rendering registry (§122):
+`editorAt(hostId, renderer?, vocabulary?)` records `{ marks, nodes }` for that host id and
+the child's `update` reads it, so an application using the Bundle gets `run`'s refusal and
+not only `validate`'s report. `foldkit-richtext-dom/host` exports `placeVocabulary` and
+`vocabularyFor`, and for the same reason the rendering pair lives there: the registries
+hold schemas and functions, so they cannot ride in the Bundle's schema-decoded args.
 

@@ -193,9 +193,9 @@ const definitionMismatch = (definition: NodeDefinition, block: Block): string | 
 /**
  * A block's semantic kind: an application node's declared kind, a preserved node's
  * original type, or a built-in block's own type. This is what a `blocksOf`
- * constraint names.
+ * constraint names, and what a `NodeRegistry` is looked up by.
  */
-const kindOf = (block: Block): string =>
+export const blockKind = (block: Block): string =>
   block.type === 'Node' ? block.kind : block.type === 'Unknown' ? block.originalType : block.type
 
 /**
@@ -212,11 +212,11 @@ const childKindDiagnostics = (
   const allowed = definition.children.of
   const permitted = new Set(allowed)
   return block.blocks
-    .filter(child => !permitted.has(kindOf(child)))
+    .filter(child => !permitted.has(blockKind(child)))
     .map(child => ({
       code: 'UnexpectedChild' as const,
       node: child.id,
-      detail: kindOf(child),
+      detail: blockKind(child),
       message: `"${block.kind}" accepts only ${allowed.join(', ')}`,
     }))
 }
@@ -245,6 +245,23 @@ export const inspectKit = (definition: Kit) => ({
   nodes: definition.nodes.filter(node => node.kind === 'node').length,
   marks: definition.marks.length,
 })
+
+/**
+ * The node vocabulary an edit may target, the way `MarkRegistry` is the mark
+ * vocabulary a mark edit consults. `run` reads a kind's declaration from it to refuse
+ * an edit a constraint forbids (§117, §125); `apply` still takes none, so a durable
+ * transaction never depends on a vocabulary that may have moved.
+ */
+export interface NodeRegistry {
+  /** The declaration for a block kind, or undefined when this vocabulary has none. */
+  readonly definitionFor: (kind: string) => NodeDefinition | undefined
+}
+
+/** Builds the registry an edit consults. A later declaration for a name wins, as a Map does. */
+export const nodeRegistry = (definitions: ReadonlyArray<NodeDefinition>): NodeRegistry => {
+  const byName = new Map(definitions.map(definition => [definition.name, definition]))
+  return Object.freeze({ definitionFor: (kind: string) => byName.get(kind) })
+}
 
 /**
  * Whether a mark's props decode against its declared schema, and why not. The
@@ -284,7 +301,7 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
       })
       return
     }
-    const kind = kindOf(block)
+    const kind = blockKind(block)
     const declared = byName.get(kind)
     if (declared === undefined) {
       diagnostics.push({

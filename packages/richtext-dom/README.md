@@ -230,7 +230,11 @@ editor and binds it to the host element its view renders. A `renderer` is placed
 that host id rather than passed as an arg, because a registry holds functions and the
 Bundle's args are schema-decoded (§122): `placeRendering` and `renderingFor` at
 `foldkit-richtext-dom/host` are the same record the editor's mount reads, and a
-placement without one renders with the default. The Link's `read` projects the
+placement without one renders with the default. `editorAt(hostId, renderer?, vocabulary?)`
+takes a vocabulary too — `{ marks, nodes }` — and `placeVocabulary`/`vocabularyFor` are
+its record: the child's `update` passes those registries to `RichText.runAction`, so an
+edit a declaration forbids is refused here, not only reported by `validate` (§125).
+The Link's `read` projects the
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /

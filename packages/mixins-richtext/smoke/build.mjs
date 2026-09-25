@@ -23,7 +23,9 @@ check(
   typeof host.mountInto === 'function' &&
     typeof host.attachmentIn === 'function' &&
     typeof host.placeRendering === 'function' &&
-    typeof host.renderingFor === 'function',
+    typeof host.renderingFor === 'function' &&
+    typeof host.placeVocabulary === 'function' &&
+    typeof host.vocabularyFor === 'function',
 )
 
 const events = await import('foldkit-richtext-dom/events')
@@ -165,6 +167,25 @@ check(
 host.placeRendering('smoke-placed', renderer)
 check('a registry placed for a host id', host.renderingFor('smoke-placed') === renderer)
 check('the default for an unplaced id', host.renderingFor('smoke-none') === richtext.noRendering)
+
+// §125: the standard vocabulary and a constraint, and a placement's vocabulary, which
+// is what its editor resolves edits against.
+check(
+  'the standard vocabulary through the build',
+  richtext.standardNodes.some(definition => definition.name === 'List') &&
+    richtext.standardMarks.some(definition => definition.name === 'Link'),
+)
+host.placeVocabulary('smoke-vocab', {
+  nodes: richtext.nodeRegistry([
+    richtext.node('CodeBlock', { children: richtext.textContent, marks: 'none' }),
+    ...richtext.standardNodes,
+  ]),
+})
+check('a vocabulary placed for a host id', host.vocabularyFor('smoke-vocab').nodes !== undefined)
+check(
+  'the default for an unplaced vocabulary',
+  Object.keys(host.vocabularyFor('smoke-empty')).length === 0,
+)
 
 const consumer = fileURLToPath(new URL('./consumer.ts', import.meta.url))
 let types = true

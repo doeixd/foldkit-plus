@@ -63,9 +63,12 @@ holder, a `textContent` kind held as a container, a child kind a constraint excl
 (`UnexpectedChild`), or a mark a mark-free kind forbids (`ForbiddenMark`). `atom` takes
 `Props` too, so an `Image` carries a source. An empty application node is accepted either
 way, because a document cannot say whether it is an atom or a run holder with no runs. The
-Kit is what `run` may add marks from; `apply` still takes no Kit, and the command layer does
-not yet refuse an edit a constraint forbids, so a content contract is enforced at
-validation rather than at the operation. Parsing stays with the caller, and
+Kit is what `run` may add marks from; `apply` still takes no Kit, and `run` refuses an edit
+a constraint forbids when the caller gives it the vocabulary (`nodes: RichText.nodeRegistry(
+kit.nodes)` — `ForbiddenMark` for a mark added inside a mark-free kind, `UnexpectedChild`
+for a `RetypeBlock` or `Paste` that a constrained parent excludes) — while a document that
+carries such a violation anyway is reported by validation rather than by the operation.
+Removing a mark is always allowed. Parsing stays with the caller, and
 `foldkit-richtext-dom`'s parser maps `<ul>`/`<ol>`/`<li>` to a `List`/`ListItem` the Kit
 declares.
 
@@ -156,8 +159,11 @@ host element's `OnMount`, and `patchEditor`, the work a patch Command runs again
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, renderer?)`, `application`/`update`, and the
-Messages a host dispatches; every accepted edit returns that patch Command.
+Bundle (§27): `Editor`, `editorAt(hostId, renderer?, vocabulary?)`,
+`application`/`update`, and the Messages a host dispatches; every accepted edit returns
+that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
+way it places its renderer, and the child's `update` passes it to `runAction`, so a
+constraint is enforced at the intent rather than only reported by `validate` (§125).
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM

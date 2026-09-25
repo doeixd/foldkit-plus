@@ -532,9 +532,20 @@ RichText.atom('Image', { Props: Schema.Struct({ src: Schema.String }) })
 ```
 
 `validate` reports those violations as `UnexpectedChild` and `ForbiddenMark`, and checks
-an atom's props the same way it checks a node's. They are `validate`-level rules: the
-codec keeps a document a Kit would reject, and the command layer does not yet refuse an
-edit a constraint forbids.
+an atom's props the same way it checks a node's. `run` refuses the edits that would create
+them when it is given the vocabulary — `nodes: RichText.nodeRegistry(kit.nodes)`, the node
+counterpart of the `marks` option:
+
+```ts
+RichText.run(state, { type: 'ToggleMark', mark: 'Bold' }, ids, {
+  nodes: RichText.nodeRegistry(kit.nodes),
+})
+// → { ok: false, error: 'ForbiddenMark' } when the caret is inside a CodeBlock
+```
+
+The codec keeps a document a Kit would reject, and `apply` takes no vocabulary: a durable
+transaction must not depend on a declaration that may have moved. Removing a mark is
+always allowed, so a preserved document that already carries one has a way back.
 
 `validate` reads the document and never repairs it: callers decide whether a
 diagnostic blocks publishing or shows a placeholder. The Kit does not drive parsing

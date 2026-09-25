@@ -25,6 +25,7 @@ import {
   shippedRegistry,
   type MarkRegistry,
 } from './marks.js'
+import { blockKind, type NodeRegistry } from './kit.js'
 import {
   Edit,
   apply,
@@ -64,9 +65,55 @@ export interface CommandIds {
 /** What a command needs beyond state and identity, such as a Kit's mark policy. */
 export interface RunOptions {
   readonly marks?: MarkRegistry | undefined
+  /** The node vocabulary, so an edit a constraint forbids is refused here (§125). */
+  readonly nodes?: NodeRegistry | undefined
 }
 
-type Failure = 'InvalidSelection' | 'MissingText' | 'InvalidInput' | 'InvalidParent'
+/**
+ * Whether the block at a path is declared to carry no marks, in which case adding one
+ * is refused at the command layer rather than reported only by `validate` (§125). A
+ * preserved block is left alone: it has no declaration to read, and preserving it
+ * matters more than forbidding a mark on it.
+ */
+const forbidsMarks = (
+  document: Document,
+  path: BlockPath,
+  nodes: NodeRegistry | undefined,
+): boolean => {
+  if (nodes === undefined) return false
+  const block = blockAtPath(document, path)
+  if (block === undefined || block.type === 'Unknown') return false
+  const declared = nodes.definitionFor(blockKind(block))
+  return declared?.kind === 'node' && declared.marks === 'none'
+}
+
+/**
+ * Whether the block at a path accepts a child of this kind. A declaration without a
+ * constraint accepts any block, and a vocabulary that does not declare the parent is
+ * not consulted — `validate` reports an undeclared kind, and an edit should not fail
+ * for a reason the caller never stated.
+ */
+const acceptsChild = (
+  document: Document,
+  path: BlockPath,
+  kind: string,
+  nodes: NodeRegistry | undefined,
+): boolean => {
+  if (nodes === undefined) return true
+  const parent = blockAtPath(document, path)
+  if (parent === undefined) return true
+  const declared = nodes.definitionFor(blockKind(parent))
+  if (declared?.kind !== 'node' || typeof declared.children === 'string') return true
+  return declared.children.of.includes(kind)
+}
+
+type Failure =
+  | 'InvalidSelection'
+  | 'MissingText'
+  | 'InvalidInput'
+  | 'InvalidParent'
+  | 'ForbiddenMark'
+  | 'UnexpectedChild'
 const failure = (error: Failure): TransactionResult => ({ ok: false, error })
 
 interface Located {
@@ -349,6 +396,11 @@ export const run = (
         if (!declared.declares(markName(mark))) return failure('InvalidInput')
         marks.push(mark)
       }
+      // A mark-free kind refuses the format however it arrives, so inserting text
+      // that carries marks into a CodeBlock is refused like the toggle that set them.
+      if (marks.length > 0 && forbidsMarks(state.document, at.path, options.nodes)) {
+        return failure('ForbiddenMark')
+      }
     }
     const deletions = isCollapsed(selection)
       ? []
@@ -408,6 +460,15 @@ export const run = (
     if (start === undefined) return failure('InvalidSelection')
     const at = locate(state.document, start.node)
     if (at === undefined) return failure('MissingText')
+    // A retype keeps the block where it is, so the parent's constraint decides
+    // whether the new kind belongs there.
+    const parentPath = at.path.slice(0, -1)
+    if (
+      parentPath.length > 0 &&
+      !acceptsChild(state.document, parentPath, command.to.type, options.nodes)
+    ) {
+      return failure('UnexpectedChild')
+    }
     return apply(state, [Edit.retypeBlock(at.blockId, command.to)])
   }
 
@@ -499,6 +560,9 @@ export const run = (
       // Adding needs the vocabulary to declare the mark; removing a preserved
       // one by name is always allowed.
       if (!declared.declares(name)) return failure('InvalidInput')
+      if (spans.some(entry => forbidsMarks(state.document, entry.run.path, options.nodes))) {
+        return failure('ForbiddenMark')
+      }
       for (const target of targets) operations.push(Edit.addMark(target, mark))
     } else {
       for (const target of targets) operations.push(Edit.removeMark(target, name))
@@ -524,6 +588,16 @@ export const run = (
     if (replacements === undefined) return failure('InvalidParent')
     const operations: Array<Operation> = [...replacements]
     const inserted = withFreshIds(command.slice, ids.mint).blocks
+    // The content lands in the caret's container, so that container's constraint
+    // decides which kinds it accepts (§125).
+    if (
+      containerPath.length > 0 &&
+      inserted.some(
+        piece => !acceptsChild(state.document, containerPath, blockKind(piece), options.nodes),
+      )
+    ) {
+      return failure('UnexpectedChild')
+    }
     const block = blockAtPath(state.document, at.path)
     if (block === undefined) return failure('MissingText')
     const atBlockStart = at.runIndex === 0 && caret.offset === 0
