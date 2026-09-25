@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "foldkit-mixins": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-dom": "workspace:*"
   },

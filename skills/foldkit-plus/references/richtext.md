@@ -118,7 +118,7 @@ selection covers does (`markActive` is that rule on its own).
 extends its parts. It also carries the slash menu's vocabulary (§123): `slashQuery`
 (the query the caret is in, read from `RichText.textBefore`), `slashEntries(wrap)` (the
 text blocks and marks a menu offers, each with a stable id, a label, search keywords,
-and the editor Message choosing it sends), and `matchingEntries(entries, query)`. `slashMenu(entries, textBefore, index)` is the one value a menu's view and an editor's `update` share — the query, the matches, and the entry Enter would send, with a stale index falling back to the first match — so the two cannot disagree. The menu's own view — a slot view whose movement is `foldkit-primitives`' `RovingTabindex.move`, not `ListNavigation` (its typeahead would swallow the keys that must keep typing) — is the next slice.
+and the editor Message choosing it sends), and `matchingEntries(entries, query)`. `slashMenu(entries, textBefore, index)` is the one value a menu's view and an editor's `update` share — the query, the matches, and the entry Enter would send, with a stale index falling back to the first match — so the two cannot disagree. `slashMove(entries, textBefore, index, key, modifiers)` is the keys a menu owns: it returns the index the key moves to (or `undefined` when the key moves nothing), using `foldkit-primitives`' `RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as they do in any other list. The menu's own view — a slot view whose movement is that function — is the next slice.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `RetypedBlock`, `Selected`, `Pasted`,

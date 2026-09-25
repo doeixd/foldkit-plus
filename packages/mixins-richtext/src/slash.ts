@@ -10,6 +10,8 @@
  */
 import * as RichText from 'foldkit-richtext'
 import { Message, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import type { KeyboardModifiers } from 'foldkit/html'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 
 /**
  * The query the caret is in, or `undefined` when the text before it is not a slash
@@ -120,4 +122,33 @@ export const slashMenu = <Message>(
   if (query === undefined) return undefined
   const matches = matchingEntries(entries, query)
   return { query, matches, highlighted: matches[index] ?? matches[0] }
+}
+
+/**
+ * The index an arrow — or Home, or End — moves the highlight to among the current
+ * matches, or `undefined` when the key moves nothing. The rule is `foldkit-primitives`'
+ * `RovingTabindex.move`, so the menu and any other list agree on ArrowUp/ArrowDown,
+ * Home/End, wrapping, and on a modified key moving nothing; the menu adds only "over the
+ * entries the query currently matches".
+ *
+ * It moves from what `slashMenu` highlights rather than from the caller's remembered
+ * index, so a query that narrowed past it is not moved from a position the user cannot
+ * see.
+ */
+export const slashMove = <Message>(
+  entries: ReadonlyArray<SlashEntry<Message>>,
+  textBefore: string,
+  index: number,
+  key: string,
+  modifiers: KeyboardModifiers,
+): number | undefined => {
+  const menu = slashMenu(entries, textBefore, index)
+  if (menu === undefined || menu.matches.length === 0) return undefined
+  const from = menu.highlighted === undefined ? -1 : menu.matches.indexOf(menu.highlighted)
+  return RovingTabindex.move([...menu.matches.keys()], from, key, modifiers, {
+    orientation: 'vertical',
+    // A vertical menu never reads left or right, so the direction is not its business.
+    direction: 'ltr',
+    loop: true,
+  })
 }

@@ -73,7 +73,16 @@ matchingEntries(entries, 'mono').map(entry => entry.label) // ['Code']
 const menu = slashMenu(entries, 'see /head', 0)
 menu?.matches.length // 3
 menu?.highlighted?.label // 'Heading 1'
+
+// Movement is the primitive's rule, so a menu and any other list agree on ArrowUp/Down,
+// Home/End, wrapping, and on a modified key moving nothing.
+slashMove(entries, 'see /head', 0, 'ArrowDown', modifiers) // 1
 ```
+
+`slashMove` returns the index the key moves the highlight to, or `undefined` when the
+key moves nothing, and it starts from what `slashMenu` highlights rather than from a
+remembered index — a query that narrowed past it is not moved from a position the user
+cannot see.
 
 `slashMenu` is the decision both the menu's view and the editor's `update` read, so they
 cannot disagree about whether a menu is open or what `Enter` means. A stale index — one

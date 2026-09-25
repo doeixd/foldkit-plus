@@ -75,6 +75,7 @@ export {
   matchingEntries,
   slashEntries,
   slashMenu,
+  slashMove,
   slashQuery,
   type SlashEntry,
   type SlashMenu,

@@ -1175,6 +1175,9 @@ importers:
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../primitives
       foldkit-richtext:
         specifier: workspace:*
         version: link:../richtext
