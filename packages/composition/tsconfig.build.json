@@ -11,6 +11,9 @@
     },
     {
       "path": "../richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
     }
   ]
 }

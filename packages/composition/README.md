@@ -6,11 +6,12 @@ The Document is stored like any other field, checked against a Catalog, and
 changed by the application's own transitions. This package performs no I/O,
 holds no state and draws nothing.
 
-> **Status: in development, not published.** Phases 1 to 4 of the
-> [page builder design](../../docs/design/pagebuilder-DESIGN.md) are built: the
+> **Status: in development, not published.** From the
+> [page builder design](../../docs/design/pagebuilder-DESIGN.md): the
 > vocabulary, the stored Document, its validation, editing Operations,
-> migrations, and drawing a page with Foldkit, on the server too. The
-> visual Builder comes in later phases.
+> migrations, drawing a page with Foldkit, on the server too, and appearance.
+> The editor is [`foldkit-builder`](../builder/README.md), drawn by
+> [`foldkit-mixins-builder`](../mixins-builder/README.md).
 
 ## What it owns
 
@@ -127,8 +128,10 @@ const PublishPage = Entity.input(Page, Schema.Struct({
 }))
 ```
 
-`when`, `appearance` and `actions` are reserved on every node, stored as JSON,
-for conditions, appearance choices and event actions in later phases.
+`appearance` holds a node's look as names, such as `{ tone: 'accent' }`,
+checked against the axes its Block offers ([Appearance](#appearance-foldkit-compositionappearance)).
+`when` and `actions` are reserved on every node, stored as JSON, for
+conditions and event actions in later phases.
 
 ## What validation finds
 
@@ -144,6 +147,8 @@ for conditions, appearance choices and event actions in later phases.
 | `composition:region-cardinality` | too few or too many children for the Region |
 | `composition:region-rejects` | a child whose Content the Region does not accept |
 | `composition:root-rejects` | a root whose Content the Catalog's roots do not accept |
+| `composition:invalid-appearance` | an appearance that is not a record, an axis the Block lacks, or a value off the axis's list |
+| `composition:unknown-token` | a token axis naming a token the theme does not have |
 
 Props are decoded strictly, so a prop an old version left behind is found
 rather than silently kept.
@@ -291,6 +296,56 @@ page validates the body against the Kit, each finding reported as
 accept. Any Block can do the same for its own content with `check`:
 `Block.define(name, { Props, provides, check: props => [{ path, message }] })`.
 
+### Appearance: `foldkit-composition/appearance`
+
+A node's look is **choices within a design system**, not CSS. A look is a
+[`foldkit-mixins`](../mixins/README.md) slot recipe, whose variant axes are the
+choices, and token axes, whose choices are a theme's token names. The Document
+stores only the names:
+
+```ts
+import { Style } from 'foldkit-mixins'
+import { Appearance } from 'foldkit-composition/appearance'
+
+const HeroLook = Appearance.make(HeroSlots, {
+  recipe: Style.recipeFor(HeroSlots)({
+    base: { root: Style.class('hero') },
+    variants: { tone: { plain: {}, accent: { root: Style.class('accent') } } },
+    defaults: { tone: 'plain' },
+  }),
+  tokens: { gap: Appearance.token(t.space, { slot: 'root', property: 'gap' }) }, // t = Theme.ref(theme)
+})
+
+const Hero = Block.define('Hero', { Props, provides: [Content.Section] }).pipe(
+  Appearance.attach(HeroLook),
+)
+
+const SiteRenderer = Renderer.make(Site, {
+  Hero: ({ props, appearance, h }) => {
+    const slots = HeroLook.draw({ appearance, h })
+    return h.section(slots.root.attrs(), [props.title])
+  },
+})
+```
+
+- **`Appearance.attach(look)`** gives the Block its appearance axes (`tone:
+  plain | accent`, `gap:` the token names), which are plain data in the core:
+  `validate` and `Op.setAppearance` check a node's names against them, with no
+  Mixins involved. `Block.withAppearance(axes)` sets them by hand.
+- **`look.draw({ appearance, h })`** is the Block's Slots with the chosen Style
+  attached: the base, each chosen value (or the recipe's default), each
+  matching compound, and a token's declaration. A Renderer hands each view
+  `appearance`, the node's choices its Block offers; a stored name it does not
+  offer is left out, not drawn.
+- **Each piece is compiled once,** when the look is made, and a selection
+  attaches the ones it picks side by side. `Style.stylesheet(...look.styles)`
+  holds every rule any node can use; pass `layer` to `Appearance.make` to
+  compile them in a cascade layer, such as `Layers.standard.layer('app')`.
+- Arbitrary CSS, class names and selectors are not in the Document. An escape
+  hatch is a Block written for it, visibly outside the typed path.
+
+It needs `foldkit-mixins` installed; the core does not.
+
 ### Serving a published page
 
 Most of a composed page is content no Message changes, which is what
@@ -369,4 +424,6 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 ## Limits
 
 
-- Conditions, appearance and actions are stored but not interpreted.
+- Conditions and actions are stored but not interpreted.
+- An appearance choice is one value for every viewport; responsive choices,
+  keyed by breakpoint, are not yet here.

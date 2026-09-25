@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     foldkit: 'src/foldkit/index.ts',
     richtext: 'src/richtext/index.ts',
+    appearance: 'src/appearance/index.ts',
   },
   format: ['esm'],
   dts: true,

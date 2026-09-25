@@ -26,12 +26,33 @@ export interface Block<
   readonly provides: ReadonlyArray<Content>
   /** What interpreters attached: a palette category, an agent description. */
   readonly metadata: Metadata
+  /** The appearance choices a node may store, by axis: none unless a look is attached. */
+  readonly appearance: AppearanceAxes
   /**
    * Checks the decoded props go through beyond their Schema, such as a rich-text
    * body against its Kit. Each finding has a path inside the props.
    */
   // Method syntax: a Block of specific props is still a Block of any props.
   check(props: Props['Type']): ReadonlyArray<PropsFinding>
+}
+
+/**
+ * One appearance choice a node may store: the names it takes. A `variant` is
+ * one of a recipe's values; a `token` is the name of a theme token, and a name
+ * the theme lacks is its own finding, `composition:unknown-token`.
+ */
+export interface AppearanceAxis {
+  readonly values: ReadonlyArray<string>
+  readonly kind: 'variant' | 'token'
+}
+
+export type AppearanceAxes = Readonly<Record<string, AppearanceAxis>>
+
+/** Something wrong with a node's stored appearance, at a path inside the node. */
+export interface AppearanceFinding {
+  readonly code: 'composition:invalid-appearance' | 'composition:unknown-token'
+  readonly path: ReadonlyArray<string>
+  readonly message: string
 }
 
 /** Something a Block's own check found in its props, at a path inside them. */
@@ -71,6 +92,8 @@ const define = <
     readonly provides: ReadonlyArray<Content>
     /** Checks beyond the Schema, run on decoded props: a nested document against its vocabulary. */
     readonly check?: (props: Props['Type']) => ReadonlyArray<PropsFinding>
+    /** The appearance choices a node may store. Usually attached by a look instead. */
+    readonly appearance?: AppearanceAxes
   },
 ): Block<Name, Props, Regions> => {
   if (name.length === 0) throw new Error('Block.define: a Block needs a name')
@@ -88,7 +111,56 @@ const define = <
     regions: Object.freeze({ ...regions }),
     provides: Object.freeze([...config.provides]),
     metadata: Metadata.empty,
+    appearance: Object.freeze({ ...config.appearance }),
     check: config.check ?? (() => []),
+  })
+}
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** What is wrong with a node's stored appearance, against the Block's axes. */
+const checkAppearance = (
+  block: AnyBlock,
+  appearance: unknown,
+): ReadonlyArray<AppearanceFinding> => {
+  if (appearance === undefined) return []
+  if (!isRecord(appearance))
+    return [
+      {
+        code: 'composition:invalid-appearance',
+        path: ['appearance'],
+        message: 'is not a record of choices by axis',
+      },
+    ]
+  return Object.entries(appearance).flatMap(([name, choice]): ReadonlyArray<AppearanceFinding> => {
+    const axis = block.appearance[name]
+    const path = ['appearance', name]
+    if (axis === undefined)
+      return [
+        {
+          code: 'composition:invalid-appearance',
+          path,
+          message: `a ${block.name} has no appearance "${name}"`,
+        },
+      ]
+    if (typeof choice === 'string' && axis.values.includes(choice)) return []
+    const shown = typeof choice === 'string' ? `"${choice}"` : JSON.stringify(choice)
+    return axis.kind === 'token' && typeof choice === 'string'
+      ? [
+          {
+            code: 'composition:unknown-token',
+            path,
+            message: `${shown} is not a token the theme has for ${name}`,
+          },
+        ]
+      : [
+          {
+            code: 'composition:invalid-appearance',
+            path,
+            message: `${shown} is not one of ${name}'s: ${axis.values.join(', ')}`,
+          },
+        ]
   })
 }
 
@@ -104,6 +176,18 @@ export const Block = {
     (metadata: Metadata) =>
     <B extends AnyBlock>(block: B): B =>
       make({ ...block, metadata: Metadata.combine([block.metadata, metadata]) }) as B,
+
+  /**
+   * Pipe step: the appearance choices a node of this Block may store, in place
+   * of any it had. A look from `foldkit-composition/appearance` attaches them.
+   */
+  withAppearance:
+    (axes: AppearanceAxes) =>
+    <B extends AnyBlock>(block: B): B =>
+      make({ ...block, appearance: Object.freeze({ ...axes }) }) as B,
+
+  /** What is wrong with a node's stored appearance: an axis it lacks, a value off the list. */
+  checkAppearance,
 
   /** Decodes stored props against the Block's schema. An excess key fails. */
   decode: <B extends AnyBlock>(

@@ -230,6 +230,33 @@ describe('validate', () => {
     expect(found[0]?.message).toContain('"section-1"\'s props are not a Section\'s')
   })
 
+  it('checks a stored appearance against the axes its Block offers', () => {
+    const Looks = Section.pipe(
+      Block.withAppearance({
+        space: { kind: 'variant', values: ['snug', 'roomy'] },
+        gap: { kind: 'token', values: ['s', 'm'] },
+      }),
+    )
+    const Styled = Catalog.make({ blocks: [Heading, Looks], roots: [Content.Section] })
+    const document = page(['s'], {
+      s: {
+        block: 'Section',
+        props: { tone: 'plain' },
+        regions: { body: ['h'] },
+        appearance: { space: 'roomy', gap: 'xl', edge: 'round' },
+      },
+      h: { block: 'Heading', props: { text: 'x', level: 1 }, regions: {}, appearance: {} },
+    })
+    const found = Composition.validate(Styled, document)
+    expect(codes(found)).toEqual(['composition:unknown-token', 'composition:invalid-appearance'])
+    expect(found.map(each => each.path)).toEqual([
+      ['nodes', 's', 'appearance', 'gap'],
+      ['nodes', 's', 'appearance', 'edge'],
+    ])
+    expect(Looks.appearance).not.toBe(Section.appearance)
+    expect(Section.appearance).toEqual({})
+  })
+
   it('holds a Region to its bounds and its Content, and knows only the Block’s Regions', () => {
     const document = page(['hero'], {
       hero: {

@@ -90,6 +90,17 @@ version changed; `pnpm` skips versions already in the registry.
   the Builder's `drag` says where a drop would land (`dropAt`), the target is
   marked only where the page allows it, and a drop is one undoable, announced
   move.
+- **`foldkit-composition`: appearance.** A Block offers appearance axes, each a
+  list of variant values or token names, and `validate` and
+  `Op.setAppearance` check a node's stored names against them
+  (`composition:invalid-appearance`, `composition:unknown-token`). The new
+  `foldkit-composition/appearance` subpath makes a look from a
+  `foldkit-mixins` slot recipe and theme tokens: `Appearance.attach(look)`
+  gives a Block its axes, `look.draw({ appearance, h })` gives its view the
+  Slots with the chosen Style attached, every piece compiled once, and
+  `look.styles` is the stylesheet. A Renderer's views receive `appearance`,
+  the choices the Block offers. The drawn Builder's inspector chooses them.
+  Phase 8 of the page builder design.
 - **`foldkit-composition/foldkit`: the edit wrappers carry the marks.**
   `render` in edit mode takes `selected`, `hovered` and `drop`, and puts
   `data-composition-selected`, `data-composition-hovered` and

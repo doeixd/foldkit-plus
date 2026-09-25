@@ -131,6 +131,12 @@ export const layerId = (builder: { readonly name: string }, id: string): string 
 const asNodeId = (id: string | null): NodeId | null =>
   id === null || id === '' ? null : NodeId.make(id)
 
+/** A stored appearance that is a record of choices, as opposed to a list or a scalar. */
+const isChoices = (
+  value: Schema.Json | undefined,
+): value is { readonly [axis: string]: Schema.Json } =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 /** The fields a Block's props Schema declares, when it is a struct. */
 const fieldsOf = (block: AnyBlock): Readonly<Record<string, Schema.Top>> => {
   const fields = (block.Props as { readonly fields?: unknown }).fields
@@ -378,7 +384,31 @@ export const BuilderView = {
           input,
         ])
       })
-      return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), fields)
+      // The node's look: one choice per axis its Block offers, blank for the default.
+      const chosen = isChoices(node.appearance) ? node.appearance : {}
+      const looks = Object.entries(block.appearance).map(([axis, { values }]) => {
+        const fieldId = `${builder.name}-${id}-appearance-${axis}`
+        const choose = (value: string): Message => {
+          const { [axis]: _, ...others } = chosen
+          const next = value === '' ? others : { ...others, [axis]: value }
+          return Message.Applied({
+            op: Composition.Op.setAppearance(id, Object.keys(next).length === 0 ? null : next),
+          })
+        }
+        return h.div(slots.field.attrs(), [
+          h.label([h.For(fieldId)], [axis]),
+          h.select(
+            slots.control.attrs([h.Id(fieldId), h.OnChange(choose)]),
+            ['', ...values].map(value =>
+              h.option(
+                [h.Value(value), h.Selected((chosen[axis] ?? '') === value)],
+                [value === '' ? 'default' : value],
+              ),
+            ),
+          ),
+        ])
+      })
+      return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), [...fields, ...looks])
     }
 
     return SlotView.forMessages<Message>()

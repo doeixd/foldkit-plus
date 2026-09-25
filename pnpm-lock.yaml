@@ -881,6 +881,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../mixins
       foldkit-richtext:
         specifier: workspace:*
         version: link:../richtext

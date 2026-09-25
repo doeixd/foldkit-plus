@@ -110,6 +110,8 @@ export type RefusalCode =
   | 'composition:bad-position'
   | 'composition:malformed-tree'
   | 'composition:nested'
+  | 'composition:invalid-appearance'
+  | 'composition:unknown-token'
 
 /** Why an Operation was refused. The Document is as it was. */
 export interface Refusal {
@@ -513,6 +515,11 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
     case 'SetWhen':
     case 'SetAppearance': {
       const node = nodeOf(draft, op.id)
+      if (op._tag === 'SetAppearance' && op.appearance !== null) {
+        const [finding] = Block.checkAppearance(blockOf(catalog, node, op.id), op.appearance)
+        if (finding !== undefined)
+          refuse(finding.code, `"${op.id}"'s ${finding.path.join('.')}: ${finding.message}`)
+      }
       const field = op._tag === 'SetWhen' ? 'when' : 'appearance'
       const value = op._tag === 'SetWhen' ? op.when : op.appearance
       const { [field]: _, ...rest } = node

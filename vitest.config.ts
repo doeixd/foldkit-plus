@@ -78,6 +78,9 @@ export default defineConfig({
       'foldkit-composition/richtext': fileURLToPath(
         new URL('./packages/composition/src/richtext/index.ts', import.meta.url),
       ),
+      'foldkit-composition/appearance': fileURLToPath(
+        new URL('./packages/composition/src/appearance/index.ts', import.meta.url),
+      ),
       'foldkit-composition': fileURLToPath(
         new URL('./packages/composition/src/index.ts', import.meta.url),
       ),

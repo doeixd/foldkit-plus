@@ -155,6 +155,10 @@ resolve it:
 | `Schema.String`, and a brand of it such as `Url` | `input` |
 | anything else | its JSON, shown and not edited |
 
+After the props, each appearance axis the Block offers is a `select` of its
+values, with a blank for the default; a choice is one `setAppearance`, and
+clearing the last one removes the node's `appearance`.
+
 A field is labelled with its Schema's `title`, else its prop key.
 
 Where the Schema alone does not say, the Block asks for a control through

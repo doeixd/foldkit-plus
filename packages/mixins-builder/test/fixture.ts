@@ -24,6 +24,7 @@ export const Banner = Block.define('Banner', {
     shown: Schema.Boolean,
   }),
   provides: [Content.Flow],
+  appearance: { tone: { kind: 'variant', values: ['plain', 'loud'] } },
 })
 /** A Block whose props ask for their controls: a title, a multiline hint, a hidden prop. Not offered. */
 export const Quote = Block.define('Quote', {
@@ -42,7 +43,8 @@ export const Site = Catalog.make({
 export const SiteRenderer = Renderer.make(Site, {
   Section: ({ regions, h }) => h.section([], [...regions.body]),
   Heading: ({ props, h }) => h.h2([], [props.text]),
-  Banner: ({ props, h }) => h.p([h.Class('banner')], [props.text]),
+  Banner: ({ props, appearance, h }) =>
+    h.p([h.Class('banner'), h.DataAttribute('tone', appearance['tone'] ?? 'plain')], [props.text]),
   Quote: ({ props, h }) => h.blockquote([], [props.text]),
 })
 

@@ -13,7 +13,15 @@ import { Operation, Op, Position, Tree, apply, rekey, region, root, takeTree } f
 import { Url, isSafeUrl } from './url.js'
 import { valid, validate } from './validate.js'
 
-export { Block, type AnyBlock, type PropsFinding, type PropsOf } from './block.js'
+export {
+  Block,
+  type AnyBlock,
+  type AppearanceAxes,
+  type AppearanceAxis,
+  type AppearanceFinding,
+  type PropsFinding,
+  type PropsOf,
+} from './block.js'
 export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'

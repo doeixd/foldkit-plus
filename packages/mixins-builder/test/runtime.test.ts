@@ -51,6 +51,8 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
   document.body.appendChild(container)
 
   const update = placements.update()
+  // The last Model drawn, to read what the page holds.
+  let drawn: Model | undefined
   const handle = Runtime.embed(
     Runtime.makeElement(
       placements.complete({
@@ -58,7 +60,10 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
         container,
         init: () => placements.initial({}),
         update: (model: Model, message: Message) => update(model, message),
-        view: (model: Model, h: HtmlBuilder<Message>) => h.main([], [Editor.view(model, h)]),
+        view: (model: Model, h: HtmlBuilder<Message>) => {
+          drawn = model
+          return h.main([], [Editor.view(model, h)])
+        },
         subscriptions: placements.subscriptions(),
       }),
     ),
@@ -123,6 +128,32 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     pointer(onPage('.banner'), 'pointerup', 20)
     await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading']))
     expect(selectedRow()?.textContent).toBe('Heading')
+
+    // Choosing the Banner's tone in the inspector redraws it; choosing the blank
+    // goes back to the default.
+    const tone = () =>
+      document.querySelector<HTMLSelectElement>(
+        `[aria-label="Properties"] select[id$="-appearance-tone"]`,
+      )
+    const choose = (value: string) => {
+      const select = tone()
+      if (select === null) throw new Error('no tone select')
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    rowNamed('Banner')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(tone()).not.toBeNull())
+    choose('loud')
+    await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('loud'))
+    choose('')
+    await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('plain'))
+    // Clearing the last choice leaves no appearance behind at all.
+    const page = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
+    const banner = Object.values(page?.nodes ?? {}).find(node => node.block === 'Banner')
+    expect(banner).toBeDefined()
+    expect(banner?.appearance).toBeUndefined()
+    rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))
 
     // Delete on the layers removes the selected node.
     key(rowNamed('Heading'), 'Delete')

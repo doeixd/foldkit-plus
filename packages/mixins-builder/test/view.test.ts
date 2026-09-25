@@ -92,7 +92,7 @@ describe('the drawn Builder', () => {
     const fields = all(inspector)
       .filter(node => node.sel === 'label')
       .map(text)
-    expect(fields).toEqual(['text', 'size', 'count', 'shown'])
+    expect(fields).toEqual(['text', 'size', 'count', 'shown', 'tone'])
     const controls = all(inspector).filter(node =>
       ['input', 'select', 'code'].includes(node.sel ?? ''),
     )
@@ -101,7 +101,16 @@ describe('the drawn Builder', () => {
       ['select', undefined],
       ['input', undefined],
       ['input', 'checkbox'],
+      ['select', undefined],
     ])
+    // The look's axis offers its values and a blank for the default, which is chosen.
+    const tone = all(controls[4]).filter(node => node.sel === 'option')
+    expect(tone.map(option => [prop(option, 'value'), text(option)])).toEqual([
+      ['', 'default'],
+      ['plain', 'plain'],
+      ['loud', 'loud'],
+    ])
+    expect(tone.map(option => prop(option, 'selected'))).toEqual([true, false, false])
     expect(prop(controls[0], 'value')).toBe('Hello')
     expect(prop(controls[2], 'value')).toBe('1')
   })

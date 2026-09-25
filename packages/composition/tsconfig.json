@@ -10,6 +10,10 @@
       "foldkit-composition": ["./src/index.ts"],
       "foldkit-composition/foldkit": ["./src/foldkit/index.ts"],
       "foldkit-composition/richtext": ["./src/richtext/index.ts"],
+      "foldkit-composition/appearance": ["./src/appearance/index.ts"],
+      "foldkit-mixins": ["../mixins/src/index.ts"],
+      "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
+      "foldkit-mixins/layers": ["../mixins/src/layers.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
@@ -37,6 +41,9 @@
     },
     {
       "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
     }
   ]
 }

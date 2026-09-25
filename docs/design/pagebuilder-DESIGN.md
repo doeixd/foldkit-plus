@@ -1066,7 +1066,7 @@ What remains of Phase 7, in order:
 
 **Phase 8: appearance and conditions.**
 
-- **8-1, appearance (§18).** A `foldkit-composition/appearance` subpath, with
+- **8-1, appearance (§18). Done, but for responsive choices.** A `foldkit-composition/appearance` subpath, with
   `foldkit-mixins` as an optional peer. `Appearance.forBlock(Block, Slots,
   recipe)` checks a node's stored choices against the recipe's axes and the
   theme's tokens (`composition:invalid-appearance`, `composition:unknown-token`);
@@ -1074,6 +1074,17 @@ What remains of Phase 7, in order:
   responsive choices through `Style.responsive`. The inspector draws an
   appearance section: a `select` per axis, a token picker, one per breakpoint.
   A test shows a property a Behavior owns conflicting with an author's choice.
+
+  > **As built.** The core knows a Block's appearance axes as plain data
+  > (`{ kind: 'variant' | 'token', values }`), so `validate` and
+  > `setAppearance` check stored names without Mixins. The subpath's look
+  > compiles each recipe piece once and attaches the pieces a selection picks
+  > side by side, because two rule pieces composed on one slot compile to one
+  > combined class, which a stylesheet built piece by piece would not hold. A
+  > Renderer hands each view `appearance`, the choices its Block offers, and the
+  > view draws with `look.draw`. The inspector's token picker is the same
+  > `select` as a variant's. Responsive choices, and the Behavior conflict
+  > test, remain.
 - **8-2, layout Blocks.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
   its parameters appearance axes.
 - **8-3, conditions (§16),** which no phase had named. A Catalog's `context`

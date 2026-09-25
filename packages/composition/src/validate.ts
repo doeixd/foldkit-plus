@@ -24,6 +24,8 @@ export type DiagnosticCode =
   | 'composition:region-rejects'
   | 'composition:root-rejects'
   | 'composition:nested'
+  | 'composition:invalid-appearance'
+  | 'composition:unknown-token'
 
 export interface Diagnostic {
   readonly code: DiagnosticCode
@@ -103,6 +105,13 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
             [...here, 'props', ...finding.path],
             `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
           )
+      for (const finding of Block.checkAppearance(block, node.appearance))
+        say(
+          finding.code,
+          id,
+          [...here, ...finding.path],
+          `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
+        )
       for (const [name, region] of Object.entries(block.regions)) {
         const children = node.regions[name] ?? []
         if (children.length < region.min || children.length > region.max)

@@ -83,6 +83,33 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `foldkit-composition/richtext`; the body is checked against the Kit
   (`composition:nested`). Any Block may add `check: props => [{ path, message }]`.
 
+## Appearance: `foldkit-composition/appearance`
+
+A node stores its look as names (`appearance: { tone: 'accent', gap: 'm' }`),
+checked in the core against the Block's axes (`composition:invalid-appearance`,
+`composition:unknown-token`), so `validate` and `Op.setAppearance` need no
+Mixins.
+
+```ts
+import { Appearance } from 'foldkit-composition/appearance'
+
+const HeroLook = Appearance.make(HeroSlots, {
+  recipe: Style.recipeFor(HeroSlots)({ base, variants: { tone: { plain: {}, accent } }, defaults }),
+  tokens: { gap: Appearance.token(Theme.ref(theme).space, { slot: 'root', property: 'gap' }) },
+  layer: Layers.standard.layer('app'), // optional
+})
+const Hero = Block.define('Hero', { Props, provides }).pipe(Appearance.attach(HeroLook))
+// In the Renderer: Hero: ({ props, appearance, h }) => { const slots = HeroLook.draw({ appearance, h }); ... }
+// The stylesheet: Style.stylesheet(...HeroLook.styles)
+```
+
+- Every piece compiles once; a selection attaches base + chosen values
+  (or defaults) + matching compounds + token declarations side by side.
+- The Renderer's `appearance` holds only choices the Block offers.
+- `Block.withAppearance({ axis: { kind: 'variant' | 'token', values } })` sets
+  axes by hand. No responsive choices yet.
+- The drawn Builder's inspector draws a `select` per axis, blank for default.
+
 ## The Builder: `foldkit-builder`
 
 The page editor's state, as a Bundle, designed as one form key's control

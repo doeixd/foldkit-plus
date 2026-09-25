@@ -20,6 +20,10 @@ const Heading = Block.define('Heading', {
     anchor: Schema.optional(Schema.String),
   }),
   provides: [Content.Flow],
+  appearance: {
+    tone: { kind: 'variant', values: ['plain', 'accent'] },
+    gap: { kind: 'token', values: ['s', 'm'] },
+  },
 })
 const Button = Block.define('Button', {
   Props: Schema.Struct({ label: Schema.String }),
@@ -394,6 +398,24 @@ describe('props and the reserved fields', () => {
       ]),
     ).document
     expect(cleared).toEqual(start)
+  })
+
+  it('refuses an appearance the Block does not offer, each with its own code', () => {
+    const refusal = (node: string, appearance: Schema.Json) =>
+      refused(start, Op.setAppearance(id(node), appearance))
+    expect(refusal('a', { tone: 'loud' }).code).toBe('composition:invalid-appearance')
+    expect(refusal('a', { gap: 'xl' }).code).toBe('composition:unknown-token')
+    expect(refusal('a', { width: 'wide' }).message).toBe(
+      `"a"'s appearance.width: a Heading has no appearance "width"`,
+    )
+    expect(refusal('a', ['accent']).message).toBe(
+      `"a"'s appearance: is not a record of choices by axis`,
+    )
+    expect(refusal('a', { tone: 3 }).message).toBe(
+      `"a"'s appearance.tone: 3 is not one of tone's: plain, accent`,
+    )
+    // A Block with no axes takes none.
+    expect(refusal('c', { tone: 'accent' }).code).toBe('composition:invalid-appearance')
   })
 
   it('refuses to check props of a Block the Catalog does not know, and keeps working beside one', () => {

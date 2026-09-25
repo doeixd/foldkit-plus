@@ -5,6 +5,9 @@ import * as RichText from 'foldkit-richtext'
 import { inertHtml, type Html } from 'foldkit/html'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { RichTextBlock } from 'foldkit-composition/richtext'
+import { Appearance } from 'foldkit-composition/appearance'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import { expectTypeOf } from 'vitest'
 import {
   Block,
@@ -124,4 +127,31 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
   const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
   const Text = RichTextBlock.define('Text', { kit: ArticleKit, provides: [Content.Flow] })
   expectTypeOf<PropsOf<typeof Text>['body']>().toEqualTypeOf<RichText.Document>()
+}
+
+{
+  const HeroSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
+  const t = Theme.ref(Theme.tokens)
+  const HeroLook = Appearance.make(HeroSlots, {
+    recipe: Style.recipeFor(HeroSlots)({
+      base: { root: Style.class('hero') },
+      variants: { tone: { plain: {}, accent: { root: Style.class('accent') } } },
+      defaults: { tone: 'plain' },
+    }),
+    tokens: { gap: Appearance.token(t.space, { slot: 'root', property: 'gap' }) },
+  })
+  const Hero = Block.define('Hero', {
+    Props: Schema.Struct({ title: Schema.String }),
+    provides: [Content.Section],
+  }).pipe(Appearance.attach(HeroLook))
+  const Looks = Catalog.make({ blocks: [Hero], roots: [Content.Section] })
+  const LooksRenderer = Renderer.make(Looks, {
+    Hero: ({ props, appearance, h }) => {
+      const slots = HeroLook.draw({ appearance, h })
+      return h.section(slots.root.attrs(), [props.title])
+    },
+  })
+  const sheet: string = Style.stylesheet(...HeroLook.styles)
+  void LooksRenderer
+  void sheet
 }

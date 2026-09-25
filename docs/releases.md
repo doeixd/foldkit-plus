@@ -104,7 +104,7 @@ and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-en
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
 `foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle` (and has `foldkit-mixins` as an optional peer, needed only by its `interaction` subpath); `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.
-`foldkit-builder` depends on `foldkit-bundle`, `foldkit-composition`, `foldkit-form` and `foldkit-primitives`; `foldkit-mixins-builder` depends on `foldkit-builder`, `foldkit-composition`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-mixins` and `foldkit-primitives`; `foldkit-composition` depends on `foldkit-metadata`, with `foldkit` and `foldkit-richtext` as optional peers for its `/foldkit` and `/richtext` subpaths; `foldkit-ssr` depends on `foldkit-surface`; `foldkit-richtext-dom` depends on
+`foldkit-builder` depends on `foldkit-bundle`, `foldkit-composition`, `foldkit-form` and `foldkit-primitives`; `foldkit-mixins-builder` depends on `foldkit-builder`, `foldkit-composition`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-mixins` and `foldkit-primitives`; `foldkit-composition` depends on `foldkit-metadata`, with `foldkit`, `foldkit-richtext` and `foldkit-mixins` as optional peers for its `/foldkit`, `/richtext` and `/appearance` subpaths; `foldkit-ssr` depends on `foldkit-surface`; `foldkit-richtext-dom` depends on
 `foldkit-richtext`; `foldkit-mixins-richtext` depends on `foldkit-mixins`,
 `foldkit-richtext` and `foldkit-richtext-dom`.
 `foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.116` and requires
