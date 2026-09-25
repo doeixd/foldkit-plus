@@ -109,6 +109,7 @@ export type RefusalCode =
   | 'composition:cycle'
   | 'composition:bad-position'
   | 'composition:malformed-tree'
+  | 'composition:nested'
 
 /** Why an Operation was refused. The Document is as it was. */
 export interface Refusal {
@@ -197,10 +198,13 @@ const checkProps = (catalog: Catalog, id: NodeId, node: Node): void => {
   const block = blockOf(catalog, node, id)
   const decoded = Block.decode(block, node.props)
   if (Result.isFailure(decoded))
-    refuse(
+    return refuse(
       'composition:invalid-props',
       `"${id}"'s props are not a ${block.name}'s: ${decoded.failure.message}`,
     )
+  const [finding] = block.check(decoded.success)
+  if (finding !== undefined)
+    refuse('composition:nested', `"${id}"'s ${finding.path.join('.')}: ${finding.message}`)
 }
 
 /** The array a position points into, as it is now. */

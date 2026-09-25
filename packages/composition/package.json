@@ -28,6 +28,14 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./foldkit": {
+      "types": "./dist/foldkit.d.mts",
+      "import": "./dist/foldkit.mjs"
+    },
+    "./richtext": {
+      "types": "./dist/richtext.d.mts",
+      "import": "./dist/richtext.mjs"
     }
   },
   "files": [
@@ -40,15 +48,30 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "effect": "^4.0.0-rc.116"
+    "effect": "^4.0.0-rc.116",
+    "foldkit": "^0.163.0",
+    "foldkit-richtext": "workspace:^"
   },
   "dependencies": {
     "foldkit-metadata": "workspace:*"
   },
   "devDependencies": {
     "effect": "4.0.0-rc.116",
+    "foldkit": "0.163.0",
     "foldkit-entity": "workspace:*",
+    "foldkit-richtext": "workspace:*",
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-ssr": "workspace:*",
+    "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
+  },
+  "peerDependenciesMeta": {
+    "foldkit": {
+      "optional": true
+    },
+    "foldkit-richtext": {
+      "optional": true
+    }
   }
 }

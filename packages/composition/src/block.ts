@@ -26,6 +26,18 @@ export interface Block<
   readonly provides: ReadonlyArray<Content>
   /** What interpreters attached: a palette category, an agent description. */
   readonly metadata: Metadata
+  /**
+   * Checks the decoded props go through beyond their Schema, such as a rich-text
+   * body against its Kit. Each finding has a path inside the props.
+   */
+  // Method syntax: a Block of specific props is still a Block of any props.
+  check(props: Props['Type']): ReadonlyArray<PropsFinding>
+}
+
+/** Something a Block's own check found in its props, at a path inside them. */
+export interface PropsFinding {
+  readonly path: ReadonlyArray<string | number>
+  readonly message: string
 }
 
 export type AnyBlock = Block<string, Schema.Top, Readonly<Record<string, Region>>>
@@ -57,6 +69,8 @@ const define = <
     readonly Props: Props
     readonly regions?: Regions
     readonly provides: ReadonlyArray<Content>
+    /** Checks beyond the Schema, run on decoded props: a nested document against its vocabulary. */
+    readonly check?: (props: Props['Type']) => ReadonlyArray<PropsFinding>
   },
 ): Block<Name, Props, Regions> => {
   if (name.length === 0) throw new Error('Block.define: a Block needs a name')
@@ -74,6 +88,7 @@ const define = <
     regions: Object.freeze({ ...regions }),
     provides: Object.freeze([...config.provides]),
     metadata: Metadata.empty,
+    check: config.check ?? (() => []),
   })
 }
 

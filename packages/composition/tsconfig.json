@@ -8,13 +8,35 @@
     "noEmit": false,
     "paths": {
       "foldkit-composition": ["./src/index.ts"],
+      "foldkit-composition/foldkit": ["./src/foldkit/index.ts"],
+      "foldkit-composition/richtext": ["./src/richtext/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
-      "foldkit-entity": ["../entity/src/index.ts"]
+      "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-richtext": ["../richtext/src/index.ts"],
+      "foldkit-richtext-dom/view": ["../richtext-dom/src/view.ts"],
+      "foldkit-ssr": ["../ssr/src/index.ts"],
+      "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "bench/**/*.ts", "tsdown.config.ts"],
   "references": [
-    { "path": "../metadata/tsconfig.build.json" },
-    { "path": "../entity/tsconfig.build.json" }
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext-dom/tsconfig.build.json"
+    },
+    {
+      "path": "../ssr/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    }
   ]
 }

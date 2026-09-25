@@ -4,8 +4,9 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Phases 0 to 3 are built: `Input.bundle`,
-the `foldkit-composition` core, its Operations and History, and migrations.
+which the first draft could assume. Phases 0 to 4 are built: `Input.bundle`,
+the `foldkit-composition` core, its Operations and History, migrations, and the
+Foldkit renderer with its SSR proof.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -962,10 +963,20 @@ an unknown Block survives.
 > removed; moving it elsewhere is refused, since nothing can say the new place
 > accepts it.
 
-**Phase 4: the Foldkit renderer.** Hero, Section, Text, Image, Button and Columns
+**Phase 4: the Foldkit renderer. Done.** Hero, Section, Text, Image, Button and Columns
 through ordinary views; `Composition.Url`; placeholders; and a published route
 through `foldkit-ssr` with static Blocks in `SSR.static`, proving the Document
 is not in the page's resume envelope.
+
+> **As built.** Edit mode wraps every node in a `display: contents` element
+> rather than only a Block without a single root, so an editor measures a node
+> through the wrapper's first child. An unsafe URL is `composition:invalid-props`
+> rather than its own code, since `Url` is a Schema. `composition:nested` comes
+> from a Block's general `check`, which the rich-text Block uses and any Block
+> may. Columns draws a CSS grid inline; Mixins layouts arrive with appearance in
+> Phase 8. The Text Block lives in a `/richtext` subpath with `foldkit-richtext`
+> as an optional peer. Rich text's own Link mark should adopt the same URL rule;
+> that belongs to `foldkit-richtext`.
 
 **Phase 5: the headless Builder as the `document` control.** A crude view (add a
 Hero, select, move up and down, edit props, undo) is enough. It proves a

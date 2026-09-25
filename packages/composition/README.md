@@ -6,11 +6,11 @@ The Document is stored like any other field, checked against a Catalog, and
 changed by the application's own transitions. This package performs no I/O,
 holds no state and draws nothing.
 
-> **Status: in development, not published.** Phases 1 to 3 of the
+> **Status: in development, not published.** Phases 1 to 4 of the
 > [page builder design](../../docs/design/pagebuilder-DESIGN.md) are built: the
 > vocabulary, the stored Document, its validation, editing Operations, undo
-> history and migrations. A Foldkit renderer and the visual Builder come in
-> later phases.
+> history, migrations, and drawing a page with Foldkit, on the server too. The
+> visual Builder comes in later phases.
 
 ## What it owns
 
@@ -237,6 +237,86 @@ undo clears redo. A snapshot shares everything the edit did not touch. Whatever
 replaces the Document from outside the editor, such as a fill, a reset or a
 restored revision, should start a new `History.empty()`.
 
+## Drawing a page: `foldkit-composition/foldkit`
+
+A Renderer is one ordinary Foldkit view per Block, from the Block's decoded
+props and its Regions' drawn children to `Html`:
+
+```ts
+import { Renderer } from 'foldkit-composition/foldkit'
+
+const SiteRenderer = Renderer.make(Site, {
+  Heading: ({ props, h }) => h.h2([], [props.text]),
+  Section: ({ props, regions, h }) =>
+    h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
+})
+
+Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
+```
+
+- **Every Block needs a view.** A Catalog Block without one is a type error, and
+  `Renderer.make` throws naming it.
+- **Nothing stored makes it throw.** A node whose Block the Catalog lacks, whose
+  props do not decode, or that is missing or reached twice is a placeholder:
+  nothing for a visitor, a labelled box in edit mode.
+- **The builder is a parameter,** so one Renderer draws in the browser, in a
+  test with `inertHtml`, and on the server. `Renderer.make` builds views that
+  dispatch nothing; `Renderer.forMessages<Message>().make(...)` builds views
+  that may.
+- **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
+  element carrying `data-composition-node`, and changes nothing else, so an
+  editor's canvas draws the page a visitor sees.
+- It adds no reconciler, no component runtime and no per-node state. It needs
+  `foldkit` installed; the core does not.
+
+### URLs
+
+A Document is untrusted, so a URL is a type. `Url` accepts `http:`, `https:`,
+`mailto:`, `tel:` and relative URLs, and refuses every other scheme,
+`javascript:` and `data:` included, read the way a browser reads it (control
+characters dropped, case folded):
+
+```ts
+const Image = Block.define('Image', {
+  Props: Schema.Struct({ src: Url, alt: Schema.String }),
+  provides: [Content.Flow, Content.Media],
+})
+```
+
+An unsafe URL is `composition:invalid-props` in `validate`, refused by `apply`,
+and drawn as a placeholder.
+
+### Rich text as a Block: `foldkit-composition/richtext`
+
+```ts
+import { RichTextBlock } from 'foldkit-composition/richtext'
+
+const Text = RichTextBlock.define('Text', { kit: ArticleKit, provides: [Content.Flow] })
+// Draw its body with foldkit-richtext-dom: Text: ({ props }) => renderDocument(props.body)
+```
+
+The Block's one prop is `body`, a `foldkit-richtext` Document. Validating the
+page validates the body against the Kit, each finding reported as
+`composition:nested` at its path, and `apply` refuses a body the Kit does not
+accept. Any Block can do the same for its own content with `check`:
+`Block.define(name, { Props, provides, check: props => [{ path, message }] })`.
+
+### Serving a published page
+
+Most of a composed page is content no Message changes, which is what
+`foldkit-ssr`'s static regions are for:
+
+```ts
+view: (model, h) => ({
+  title: 'Home',
+  body: h.main([], [SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))]),
+})
+```
+
+The server draws the page once; the browser adopts its markup and never runs
+the Renderer. With the page left out of the resume plan's state, the Document
+is not sent to the browser at all, only the markup.
+
 ## Migrations and unknown Blocks
 
 A Block that a deployment no longer has does not make its pages unreadable. Its
@@ -298,6 +378,5 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 
 ## Limits
 
-- No renderer yet: drawing a Document is Phase 4 of the design.
 
 - Conditions, appearance and actions are stored but not interpreted.

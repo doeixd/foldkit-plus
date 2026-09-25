@@ -10,9 +10,10 @@ import { describe } from './describe.js'
 import { migrate, migration, promoteUnknown, renameBlock, renameProp } from './migrate.js'
 import { Document, Node, NodeId, empty, index, newIds } from './document.js'
 import { Operation, Op, Position, Tree, apply, rekey, region, root, takeTree } from './operation.js'
+import { Url, isSafeUrl } from './url.js'
 import { valid, validate } from './validate.js'
 
-export { Block, type AnyBlock, type PropsOf } from './block.js'
+export { Block, type AnyBlock, type PropsFinding, type PropsOf } from './block.js'
 export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'
@@ -27,6 +28,7 @@ export {
   type RefusalCode,
 } from './operation.js'
 export { Region } from './region.js'
+export { Url, isSafeUrl } from './url.js'
 export type { Diagnostic, DiagnosticCode } from './validate.js'
 
 export const Composition = {
@@ -76,4 +78,7 @@ export const Composition = {
   renameProp,
   /** Nodes of a Block the Catalog lost become a Block it has, when their props decode as its. */
   promoteUnknown,
+  /** A URL a Document may hold: http, https, mailto, tel or relative, and nothing that runs. */
+  Url,
+  isSafeUrl,
 }

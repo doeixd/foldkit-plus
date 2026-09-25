@@ -67,6 +67,13 @@ export default defineConfig({
       'foldkit-metadata': fileURLToPath(
         new URL('./packages/metadata/src/index.ts', import.meta.url),
       ),
+      // Before the bare package, so the more specific entry wins.
+      'foldkit-composition/foldkit': fileURLToPath(
+        new URL('./packages/composition/src/foldkit/index.ts', import.meta.url),
+      ),
+      'foldkit-composition/richtext': fileURLToPath(
+        new URL('./packages/composition/src/richtext/index.ts', import.meta.url),
+      ),
       'foldkit-composition': fileURLToPath(
         new URL('./packages/composition/src/index.ts', import.meta.url),
       ),

@@ -42,7 +42,16 @@ version changed; `pnpm` skips versions already in the registry.
   grouped without a clock. `Composition.migrate` moves stored pages forward
   through named migrations (`renameBlock`, `renameProp`, `promoteUnknown`, or
   one of your own), each rewriting a node or declining, and throws when one
-  breaks the Document's structure. Phases 1 to 3 of the page builder design.
+  breaks the Document's structure. `foldkit-composition/foldkit` draws a
+  Document with one ordinary Foldkit view per Block (a Block without one is a
+  type error), placeholders for what cannot be drawn, and an edit mode that
+  marks each node; the same Renderer draws inside a `foldkit-ssr` static
+  region, so a served page sends none of the Document. `Url` refuses
+  `javascript:` and every scheme but http, https, mailto and tel.
+  `foldkit-composition/richtext` holds a rich-text body checked against its
+  Kit. Phases 1 to 4 of the page builder design.
+- **`foldkit-ssr`: its build configuration references the packages it builds
+  from,** so another project can reference it.
 
 ### Changed
 

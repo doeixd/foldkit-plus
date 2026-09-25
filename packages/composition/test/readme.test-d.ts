@@ -1,6 +1,10 @@
 // The README's snippets, compiled. Keep the two in step.
 import { Result, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
+import * as RichText from 'foldkit-richtext'
+import { inertHtml, type Html } from 'foldkit/html'
+import { Renderer } from 'foldkit-composition/foldkit'
+import { RichTextBlock } from 'foldkit-composition/richtext'
 import { expectTypeOf } from 'vitest'
 import {
   Block,
@@ -10,6 +14,7 @@ import {
   History,
   NodeId,
   Region,
+  Url,
   type Applied,
   type Document,
   type Refusal,
@@ -110,4 +115,26 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     ReadonlyArray<{ readonly name: string; readonly node: NodeId }>
   >()
   expectTypeOf(unused).toEqualTypeOf<ReadonlyArray<string>>()
+}
+
+// Drawing a page
+{
+  const SiteRenderer = Renderer.make(Site, {
+    Heading: ({ props, h }) => h.h2([], [props.text]),
+    Section: ({ props, regions, h }) =>
+      h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
+  })
+  expectTypeOf(Renderer.render(SiteRenderer, page, inertHtml)).toEqualTypeOf<ReadonlyArray<Html>>()
+
+  // URLs
+  const Image = Block.define('Image', {
+    Props: Schema.Struct({ src: Url, alt: Schema.String }),
+    provides: [Content.Flow, Content.Media],
+  })
+  expectTypeOf<PropsOf<typeof Image>['src']>().toEqualTypeOf<Url>()
+
+  // Rich text as a Block
+  const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
+  const Text = RichTextBlock.define('Text', { kit: ArticleKit, provides: [Content.Flow] })
+  expectTypeOf<PropsOf<typeof Text>['body']>().toEqualTypeOf<RichText.Document>()
 }

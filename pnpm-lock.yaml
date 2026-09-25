@@ -826,9 +826,24 @@ importers:
       effect:
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116
+      foldkit:
+        specifier: 0.163.0
+        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../richtext
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../richtext-dom
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../ssr
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

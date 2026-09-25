@@ -23,6 +23,7 @@ export type DiagnosticCode =
   | 'composition:region-cardinality'
   | 'composition:region-rejects'
   | 'composition:root-rejects'
+  | 'composition:nested'
 
 export interface Diagnostic {
   readonly code: DiagnosticCode
@@ -94,6 +95,14 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
           [...here, 'props'],
           `"${id}"'s props are not a ${block.name}'s: ${decoded.failure.message}`,
         )
+      else
+        for (const finding of block.check(decoded.success))
+          say(
+            'composition:nested',
+            id,
+            [...here, 'props', ...finding.path],
+            `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
+          )
       for (const [name, region] of Object.entries(block.regions)) {
         const children = node.regions[name] ?? []
         if (children.length < region.min || children.length > region.max)

@@ -1,9 +1,9 @@
 # foldkit-composition
 
-**In development, not published.** Phases 1 to 3 of the page builder design are
+**In development, not published.** Phases 1 to 4 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
-editing Operations, undo History and migrations. A renderer and the visual
-Builder are later phases.
+editing Operations, undo History, migrations, and a Foldkit renderer. The visual
+Builder is a later phase.
 
 ## What it owns
 
@@ -72,6 +72,18 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   Composition.migration(name, block, node => node | undefined)])` gives
   `{ document, applied, unused }`. Run it on load, before publish or as an
   upgrade. A migration that breaks the structure throws.
+- **Draw a page:** `import { Renderer } from 'foldkit-composition/foldkit'`;
+  `Renderer.make(Site, { Block: ({ props, regions, h, id, mode }) => Html, ... })`
+  (every Block needs a view), `Renderer.render(renderer, doc, h, { mode })` gives
+  one `Html` per root. `Renderer.forMessages<M>().make` for views that dispatch.
+  Edit mode wraps each node with `data-composition-node`.
+- **Serve it:** `SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))`
+  and leave the page out of the resume plan's state: the Document is not sent.
+- **URLs:** use `Url` for any `href` or `src` prop: http, https, mailto, tel and
+  relative only.
+- **Rich text:** `RichTextBlock.define('Text', { kit, provides })` from
+  `foldkit-composition/richtext`; the body is checked against the Kit
+  (`composition:nested`). Any Block may add `check: props => [{ path, message }]`.
 
 ## Gotchas
 
