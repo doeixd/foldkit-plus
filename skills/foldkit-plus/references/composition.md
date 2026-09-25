@@ -157,13 +157,20 @@ Mixins.
 import { Appearance } from 'foldkit-composition/appearance'
 
 const HeroLook = Appearance.make(HeroSlots, {
-  recipe: Style.recipeFor(HeroSlots)({ base, variants: { tone: { plain: {}, accent } }, defaults }),
-  tokens: { gap: Appearance.token(Theme.ref(theme).space, { slot: 'root', property: 'gap' }) },
+  recipe: Style.recipeFor(HeroSlots)({
+    base: { root: Style.class('hero') },
+    variants: { tone: { plain: {}, accent: { root: Style.class('accent') } } },
+    defaults: { tone: 'plain' },
+  }),
+  tokens: { gap: Appearance.token(Theme.ref(Theme.tokens).space, { slot: 'root', property: 'gap' }) },
   layer: Layers.standard.layer('app'), // optional
 })
-const Hero = Block.define('Hero', { Props, provides }).pipe(Appearance.attach(HeroLook))
-// In the Renderer: Hero: ({ props, appearance, h }) => { const slots = HeroLook.draw({ appearance, h }); ... }
-// The stylesheet: Style.stylesheet(...HeroLook.styles)
+const Hero = Block.define('Hero', {
+  Props: Schema.Struct({ title: Schema.String }),
+  provides: [Content.Section],
+}).pipe(Appearance.attach(HeroLook))
+// In the Renderer: Hero: ({ props, appearance, h }) => h.section(HeroLook.draw({ appearance, h }).root.attrs(), [props.title])
+const sheet = Style.stylesheet(...HeroLook.styles)
 ```
 
 - Every piece compiles once; a selection attaches base + chosen values

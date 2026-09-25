@@ -149,8 +149,13 @@ AllChanges.includes(message)      // type guard; also .tags, .schema, .construct
 ```ts
 import { Action } from 'foldkit-surface'
 
-const AddToCart = Action.define({ name: 'addToCart', description, input, toMessage: i => Message.AddedToCart(i) })
-Action.run(AddToCart, data) // Result<Message, SchemaError>: input decoded first
+const AddToCart = Action.define({
+  name: 'addToCart',
+  description: 'Add a product to the cart',
+  input: Schema.Struct({ productId: Schema.String }),
+  toMessage: input => Message.AddedToCart(input),
+})
+Action.run(AddToCart, { productId: 'p1' }) // Result<Message, SchemaError>: input decoded first
 ```
 
 `Agent.action(AddToCart)` exposes it; a composition Catalog lists it for Blocks.
