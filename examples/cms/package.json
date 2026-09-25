@@ -23,6 +23,7 @@
     "foldkit-mixins-builder": "workspace:*",
     "foldkit-mixins-crud": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",

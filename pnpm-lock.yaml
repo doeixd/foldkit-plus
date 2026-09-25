@@ -123,6 +123,9 @@ importers:
       foldkit-mixins-form:
         specifier: workspace:*
         version: link:../../packages/mixins-form
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
       foldkit-remote:
         specifier: workspace:*
         version: link:../../packages/remote

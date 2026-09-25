@@ -9,10 +9,11 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
 import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from 'foldkit-cms-drizzle'
-import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
+import { DrizzleDatabase, bind, databaseLayer, query } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Post, PostInput, Posts, type PostId } from './domain.js'
+import { Post, PostById, PostInput, Posts, RecentPosts, type PostId } from './domain.js'
 import { Page, PageId, PageInput, Pages } from './pageDomain.js'
+import { seed } from './seed.js'
 
 /** Who is asking. A visitor is nobody. */
 export type Principal = { readonly name: string; readonly role: 'author' | 'editor' } | null
@@ -23,6 +24,8 @@ const posts = sqliteTable('posts', {
   title: text('title').notNull(),
   // The check that a slug is free is advice. This index is the rule.
   slug: text('slug').notNull().unique(),
+  excerpt: text('excerpt').notNull(),
+  cover: text('cover').notNull(),
   body: text('body').notNull(),
   publishedAt: text('published_at'),
 })
@@ -58,13 +61,14 @@ const write = (run: (database: Writes) => unknown) =>
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
-export const openServer = (clock: () => Date) => {
+/** `seeded`: start with the posts and pages of `seed.ts`, as `pnpm dev` does. */
+export const openServer = (clock: () => Date, options: { readonly seeded?: boolean } = {}) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     ${sqliteSchema}
     create table posts (
       id text primary key, title text not null, slug text not null unique,
-      body text not null, published_at text
+      excerpt text not null, cover text not null, body text not null, published_at text
     );
     create table pages (
       id text primary key, title text not null, slug text not null unique,
@@ -148,9 +152,16 @@ export const openServer = (clock: () => Date) => {
   const server = RemoteServer.make({
     // cms.sources, not source(Db.Post): that is how the boundary cannot be forgotten.
     entities: [...cms.sources],
-    queries: [...cms.queries],
+    // The blog's own queries, over the Post binding: its `visible` rule applies to them too.
+    queries: [
+      ...cms.queries,
+      query<Principal, typeof RecentPosts.Input.Type>(RecentPosts, { entity: Db.Post }),
+      query<Principal, typeof PostById.Input.Type>(PostById, { entity: Db.Post }),
+    ],
     mutations: [...cms.mutations],
   })
+
+  if (options.seeded === true) seed(sqlite, clock())
 
   return {
     server,

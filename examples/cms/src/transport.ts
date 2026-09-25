@@ -16,9 +16,10 @@ export type Operation = 'read' | 'query' | 'mutate'
 /** Who the page is, in this example: a name in the address. A real one signs in. */
 export const chairs = ['wren', 'edda', 'visitor'] as const
 export type Chair = (typeof chairs)[number]
-export const chairOf = (search: string): Chair => {
+/** The chair the address names; `fallback` when it names none (a writer, or on the site a visitor). */
+export const chairOf = (search: string, fallback: Chair = 'wren'): Chair => {
   const asked = new URLSearchParams(search).get('as')
-  return chairs.find(chair => chair === asked) ?? 'wren'
+  return chairs.find(chair => chair === asked) ?? fallback
 }
 
 const post = <A, E>(

@@ -6,21 +6,27 @@
  */
 import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Cms } from 'foldkit-cms'
+import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
+import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { EntryRow, Post, PostForm, PostPage, Posts } from './domain.js'
+import { EntryRow, Post, PostForm, PostId, PostPage, PostPreview, Posts } from './domain.js'
+import { FieldStyle, FormStyle } from './style.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
 
 // The form is drawn by `foldkit-mixins-form`; the CMS adds renderers for its two kinds.
-const PostFormView = FormView.define(PostForm, { renderers: Cms.controlRenderers() })
+const PostFormView = FormView.define(PostForm, {
+  field: FormView.field(PostForm, { renderers: Cms.controlRenderers() }).pipe(
+    Style.attach(FieldStyle),
+  ),
+}).pipe(Style.attach(FormStyle))
 const Slot = Bundle.declare(
   Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(PostForm, PostFormView)))),
   'editor',
@@ -31,8 +37,9 @@ export const Model = Schema.Struct({
   ...Slot.fields,
   /** What the schedule box holds: the text of a `datetime-local` input. */
   scheduleAt: Schema.String,
-  /** The address the public page is looking at. */
-  visiting: Schema.String,
+  /** What the worklist is narrowed to: its search text, and whether it shows the archive. */
+  search: Schema.String,
+  archived: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -46,8 +53,8 @@ export const Message = defineMessageUnion({
   ClosedEditor: {},
   TypedSchedule: { text: Schema.String },
   AskedForHistory: {},
-  LookedAgain: {},
-  Visited: { slug: Schema.String },
+  Searched: { text: Schema.String },
+  ToggledArchive: {},
   /** Nothing happened; something may have arrived. */
   Ticked: {},
 })
@@ -67,11 +74,11 @@ export const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 export const WorklistList = Crud.list('Worklist', { query: Cms.Entries, selection: EntryRow })
 export const Worklist = WorklistList.at({
   data: Data,
-  input: () => ({ type: Posts.name, search: '', archived: false }),
+  input: (model: Model) => ({ type: Posts.name, search: model.search, archived: model.archived }),
 })
 
 /** The post as the application's own pages read it. */
-export const postPage = (id: string) => Data.get(PostPage, id as never)
+export const postPage = (id: string) => Data.get(PostPreview, PostId.make(id))
 
 /** What was published, newest first: what `RestoreAsked` goes back to. */
 const History = Entity.select(Cms.Entities.Entry, {
@@ -83,19 +90,12 @@ const History = Entity.select(Cms.Entities.Entry, {
 })
 export const history = (model: Model) => {
   const entry = PostEditor.entry(model)
-  return entry === null ? undefined : Data.get(History, entry as never)
+  return entry === null ? undefined : Data.get(History, EntryId.make(entry))
 }
-
-/** The public site: whatever is at an address, for whoever is asking. */
-export const Site = Crud.list('Site', { query: Cms.bySlug(Posts), selection: PostPage }).at({
-  data: Data,
-  input: (model: Model) => ({ slug: model.visiting }),
-})
 
 /** What Remote fetches and retains while it is on screen. */
 export const actives = {
   worklist: Worklist.active,
-  site: Site.active,
   ...PostEditor.actives,
   history: {
     name: 'History',
@@ -163,10 +163,10 @@ const placed = placements.update((model: Model, message: Message) => {
       const refreshed = projection === undefined ? model : Data.refresh(model, projection)
       return { model: Data.refresh(refreshed, Worklist.active.projectionOf(refreshed)!) }
     }
-    case 'Visited':
-      return { model: modifyFields(model, { visiting: () => message.slug }) }
-    case 'LookedAgain':
-      return { model: Data.refresh(model, Site.active.projectionOf(model)!) }
+    case 'Searched':
+      return { model: modifyFields(model, { search: () => message.text }) }
+    case 'ToggledArchive':
+      return { model: modifyFields(model, { archived: archived => !archived }) }
     default:
       return { model }
   }
@@ -180,5 +180,6 @@ export const update = PostEditor.after((model: Model, message: Message) => {
 export const initial: Model = placements.initial({
   remote: Remote.initial,
   scheduleAt: '',
-  visiting: 'hello-world',
+  search: '',
+  archived: false,
 }).model

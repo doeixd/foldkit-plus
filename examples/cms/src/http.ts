@@ -22,7 +22,7 @@ const principals: Readonly<Record<string, Principal>> = {
 export const startHttpServer = async (
   port: number,
 ): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
-  const backend = openServer(() => new Date())
+  const backend = openServer(() => new Date(), { seeded: true })
   const run = (
     principal: Principal,
     operation: Operation,

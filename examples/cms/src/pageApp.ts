@@ -4,12 +4,13 @@
  * nothing about the Builder is CMS-specific, and nothing about the CMS knows
  * there is a Builder.
  */
-import { Effect, Option, Schema, Stream } from 'effect'
+import { Effect, Equal, Option, Schema, Stream } from 'effect'
 import { Message as BuilderMessage } from 'foldkit-builder'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { BuilderView, type BuilderViewInputs } from 'foldkit-mixins-builder'
+import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
@@ -21,14 +22,20 @@ import * as Subscription from 'foldkit/subscription'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { NodeId, type Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
+import { Post, PostById, RecentPosts } from './domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
 import { PageBuilder, Site } from './site.js'
+import { FieldStyle, FormStyle } from './style.js'
 
 // A rest of zero: the scripted run does not wait on a clock to save.
 export const Editor = Cms.editor('PageEditor', { content: Pages, rest: 0 })
 
 // The Builder is drawn with its own view, inside the page form.
-const PageFormView = FormView.define(PageForm, { renderers: Cms.controlRenderers() })
+const PageFormView = FormView.define(PageForm, {
+  field: FormView.field(PageForm, { renderers: Cms.controlRenderers() }).pipe(
+    Style.attach(FieldStyle),
+  ),
+}).pipe(Style.attach(FormStyle))
 const Slot = Bundle.declare(
   Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(PageForm, PageFormView)))),
   'editor',
@@ -41,7 +48,7 @@ export const Model = Schema.Struct({
    * The Block a link names, until the page holding it is open: the Builder
    * refuses an id its page lacks, so a link opened while the page loads waits.
    */
-  linked: Schema.NullOr(Schema.String),
+  linked: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -64,8 +71,8 @@ export type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
-  entities: [Page, ...Object.values(Cms.Entities)],
-  queries: [Cms.Entries, Cms.bySlug(Pages)],
+  entities: [Page, Post, ...Object.values(Cms.Entities)],
+  queries: [Cms.Entries, Cms.bySlug(Pages), RecentPosts, PostById],
   mutations: [...Cms.operations],
 })
 
@@ -94,7 +101,14 @@ export const editing = (model: Model): Document =>
 export const sitePages = Data.query(
   Cms.Entries,
   { type: 'pages', search: '', archived: false },
-  { select: Entity.select(Cms.Entities.Entry, { id: true, label: true }), first: 50 },
+  { select: Entity.select(Cms.Entities.Entry, { id: true, label: true, state: true }), first: 50 },
+)
+
+/** The blog's published posts: the choices of a Block prop that features one. */
+export const sitePosts = Data.query(
+  RecentPosts,
+  {},
+  { select: Entity.select(Post, { id: true, title: true }), first: 50 },
 )
 
 /** What the page's Query Blocks read, as one Projection: fetched while the page is open. */
@@ -108,6 +122,12 @@ export const actives = {
     owner: Data.contract.owner ?? {},
     messages: [],
     projectionOf: () => sitePages,
+  },
+  posts: {
+    name: 'SitePosts',
+    owner: Data.contract.owner ?? {},
+    messages: [],
+    projectionOf: () => sitePosts,
   },
   revisions: {
     name: 'Revisions',
@@ -156,9 +176,13 @@ const placed = placements.update((model: Model, message: Message) => {
       const linked = { ...model, linked: block }
       // The page the address names is opened, unless it is the one open already. A new
       // page is not in the address until it is saved, so no page there leaves it open.
-      if (page === PageEditor.storedEntry(model)) return { model: linked }
-      const opened =
-        page === null ? leaving(EditorSlot.helpers.close()) : leaving(EditorSlot.helpers.open(page))
+      if (Equal.equals(page, PageEditor.storedEntry(model))) return { model: linked }
+      const opened = leaving(
+        Option.match(page, {
+          onNone: () => EditorSlot.helpers.close(),
+          onSome: entry => EditorSlot.helpers.open(entry),
+        }),
+      )
       return { ...opened, model: { ...opened.model, linked: block } }
     }
     case 'UrlRequested':
@@ -186,17 +210,16 @@ const stepped = PageEditor.after(placed)
 /** The page and the Block an address names: `?page=<entry>&block=<node>`. */
 export const linkIn = (url: Url) => {
   const params = new URLSearchParams(Option.getOrElse(url.search, () => ''))
-  const named = (key: string) => {
-    const value = params.get(key)
-    return value === null || value === '' ? null : value
-  }
+  const named = (key: string) =>
+    Option.filter(Option.fromNullOr(params.get(key)), value => value !== '')
   return { page: named('page'), block: named('block') }
 }
 
 const document = PageForm.control('document')
 
 /** The Block the Builder has selected, as the address names it. */
-export const selectedOf = (model: Model) => document.field(model.editor.form).value.selected
+export const selectedOf = (model: Model): Option.Option<NodeId> =>
+  Option.fromNullOr(document.field(model.editor.form).value.selected)
 
 /**
  * The linked Block, once the page has loaded: selected through the Builder's
@@ -204,11 +227,12 @@ export const selectedOf = (model: Model) => document.field(model.editor.form).va
  * the selection again.
  */
 const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> => {
-  const { linked } = result.model
-  if (linked === null || PageEditor.status(result.model) === 'Loading') return result
+  if (Option.isNone(result.model.linked) || PageEditor.status(result.model) === 'Loading')
+    return result
+  const linked = result.model.linked.value
   // The id is the address's: `hasOwn`, since a plain object has `constructor`.
   if (!Object.hasOwn(editing(result.model).nodes, linked))
-    return { ...result, model: { ...result.model, linked: null } }
+    return { ...result, model: { ...result.model, linked: Option.none() } }
   const selected = stepped(
     result.model,
     Message.GotEditorMessage({
@@ -217,7 +241,7 @@ const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> 
   )
   return {
     ...result,
-    model: { ...selected.model, linked: null },
+    model: { ...selected.model, linked: Option.none() },
     commands: [...(result.commands ?? []), ...(selected.commands ?? [])],
   }
 }
@@ -228,13 +252,14 @@ const follow = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> 
  * asked again. Remote returns the same Model while that is under way.
  */
 const listing = (model: Model): Model => {
-  const stored = PageEditor.storedEntry(model)
   const pages = sitePages.read(model)
-  return stored === null ||
-    pages._tag !== 'Ready' ||
-    pages.value.items.some(page => page.id === stored)
-    ? model
-    : Data.refresh(model, sitePages)
+  return Option.match(PageEditor.storedEntry(model), {
+    onNone: () => model,
+    onSome: stored =>
+      pages._tag !== 'Ready' || pages.value.items.some(page => page.id === stored)
+        ? model
+        : Data.refresh(model, sitePages),
+  })
 }
 
 export const update = (model: Model, message: Message) => {
@@ -242,20 +267,29 @@ export const update = (model: Model, message: Message) => {
   return { ...next, model: listing(next.model) }
 }
 
-export const initial: Model = placements.initial({ remote: Remote.initial, linked: null }).model
+export const initial: Model = placements.initial({
+  remote: Remote.initial,
+  linked: Option.none(),
+}).model
 
 /**
  * The address a page and a selection write, over `href`: its other parameters
  * (the chair, `as`) kept, `page` and `block` set, or removed when there is none.
  */
-export const addressFor = (href: string, page: string | null, block: string | null): string => {
+export const addressFor = (
+  href: string,
+  page: Option.Option<string>,
+  block: Option.Option<string>,
+): string => {
   const at = new URL(href, 'https://cms.invalid')
   for (const [key, value] of [
     ['page', page],
     ['block', block],
   ] as const)
-    if (value === null) at.searchParams.delete(key)
-    else at.searchParams.set(key, value)
+    Option.match(value, {
+      onNone: () => at.searchParams.delete(key),
+      onSome: named => at.searchParams.set(key, named),
+    })
   return `${at.pathname}${at.search}${at.hash}`
 }
 
@@ -265,12 +299,12 @@ export const addressFor = (href: string, page: string | null, block: string | nu
  */
 export const address = Subscription.make<Model, Message>()(entry => ({
   address: entry(
-    { page: Schema.NullOr(Schema.String), block: Schema.NullOr(Schema.String) },
+    { page: Schema.Option(Schema.String), block: Schema.Option(Schema.String) },
     {
       modelToDependencies: model => ({
         // A new page is not in the address until it is saved: a link to it would find nothing.
         page: PageEditor.storedEntry(model),
-        block: model.linked ?? selectedOf(model),
+        block: Option.orElse(model.linked, () => selectedOf(model)),
       }),
       dependenciesToStream: ({ page, block }) =>
         Stream.fromEffect(
@@ -287,17 +321,22 @@ export const address = Subscription.make<Model, Message>()(entry => ({
 /**
  * What the drawn Builder is given: what the page's Blocks read, so the canvas
  * shows a Query Block's rows as the published page would, and the site's pages
- * for the inspector to pick from. Both are actives' reads, fetched while the
- * page is open.
+ * and posts for the inspector to pick from. All are actives' reads, fetched
+ * while the editor is up.
  */
 export const builderInputs = (model: Model): BuilderViewInputs => {
   const pages = sitePages.read(model)
+  const posts = sitePosts.read(model)
   return BuilderView.inputs({
     data: actives.blocks.projectionOf(model)?.read(model),
     options: {
       'LatestPages.except':
         pages._tag === 'Ready' || pages._tag === 'Refreshing'
           ? pages.value.items.map(page => ({ value: page.id, label: page.label }))
+          : [],
+      'FeaturedPost.post':
+        posts._tag === 'Ready' || posts._tag === 'Refreshing'
+          ? posts.value.items.map(post => ({ value: post.id, label: post.title }))
           : [],
     },
   })

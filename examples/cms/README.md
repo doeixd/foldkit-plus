@@ -102,29 +102,47 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
 - `demo.ts` is the three chairs and the clock.
 - `site.ts`, `pageDomain.ts`, `pageApp.ts` and `pageDemo.ts` are the page's
   vocabulary, domain, application and story, placed the same way.
-- `style.ts` and `sheet.ts` are the appearance: `foldkit-mixins` Style for each
-  page and for the Builder's panels, compiled into one stylesheet that
-  `client.ts` injects. There is no CSS file.
+- `siteApp.ts` and `siteView.ts` are the public site: its routes, its reads, and
+  its view. `seed.ts` is what `pnpm dev` starts with.
+- `shell.ts`, `view.ts` and `pagesView.ts` are the studio's views; `style.ts` and
+  `sheet.ts` its appearance and the site's, as `foldkit-mixins` Style compiled
+  into one stylesheet.
 
 ## In the browser
 
-`pnpm dev` serves the same `app.ts` at `/`, and the page editor at `/pages`, on
-Foldkit's runtime, with an HTTP transport in place of the in-process one. **Which chair you sit in is in the address**
-(`?as=wren`, `?as=edda`, `?as=visitor`), so a reload is a change of chair, and
-two windows side by side are two authors on one entry.
+`pnpm dev` starts the server with four published posts and two published pages
+(`seed.ts`, written as a publish would have left them), and serves three
+applications on Foldkit's runtime, over an HTTP transport in place of the
+in-process one:
 
-- `view.ts` and `pagesView.ts` are the files the scripted run does not share. The form is
-  `FormView` with `Cms.controlRenderers()` beside its own, the worklist is
-  `ListView` with `Cms.displayRenderers()`, and what is left is the status line
-  and the buttons, which are an application's to word.
-- The right-hand panes are the point: **the post's page** is the application's
-  own reading of the row, so turning preview on draws the form's text there
-  without sending anything; **the public site** reads by address as a visitor
-  would. Publish, and the two agree.
-- **A connection is a list the server put in order**, so something newly made or
-  newly published joins one only when the query is asked again. The worklist does
-  that for itself (`listing` in `app.ts`); the public site has a **Look again**
-  button, which is what loading the page is for a visitor.
+| Address | What it is |
+| --- | --- |
+| `/` | **The studio's posts**: the worklist (with search and the archive) beside the editor, the post's own page under the form (where a preview shows), and its history. |
+| `/pages` | **The studio's pages**: the site's pages, and the page form with the page Builder in it. |
+| `/site` | **The public site**: the home page, `/site/blog`, a post at `/site/blog/<slug>`, and any other page at `/site/<slug>`, read as a visitor may see them. |
+
+**Which chair you sit in is in the address** (`?as=wren`, `?as=edda`,
+`?as=visitor`), so a reload is a change of chair, and two windows side by side
+are two authors on one entry. The site reads as a visitor unless the address
+says otherwise, so it shows only what is published.
+
+- **The site is the Builder's output, drawn by the same views.** `site.ts` is
+  the vocabulary: Hero, Section, Columns, Heading, Text, Image, Quote, Callout,
+  Divider and Button, and three Blocks that read (PostList, FeaturedPost,
+  LatestPages). The Builder's canvas and the public site draw a page with the
+  one `SiteRenderer`, so what an author arranges is what a visitor gets.
+- **A Block's look is a choice, not CSS.** Each Block's look is a
+  `foldkit-mixins` recipe made into appearance axes (`Appearance.make`): a
+  Hero's `tone` and `align`, a Section's `width`, a Button's tone and variant
+  (the mixins-ui button recipe itself). The inspector offers them; the page
+  stores only the names.
+- **FeaturedPost's post is picked, not typed.** Its prop is
+  `Input.relationOne(Post)`; the page app reads the published posts and gives
+  them to the Builder as the picker's choices (`builderInputs`).
+- **There is no CSS file.** `style.ts` holds the theme (one accent color,
+  `Theme.oklch`) and the Slots the views publish, styled; `sheet.ts` compiles
+  them, with every rule a Block's look can draw, into the one stylesheet
+  `client.ts` injects.
 - **The page editor's address says which page is open and which Block is
   selected** (`/pages?as=edda&page=…&block=…`), so a link opens the editor on a
   Block and a reload comes back to it. The Builder owns its selection: a
@@ -132,9 +150,15 @@ two windows side by side are two authors on one entry.
   selection back (`pageApp.ts`, the Builder README's recipe). A link opened
   while its page loads keeps its Block in `linked` until the page holds it,
   and a new page joins the address once its first save makes the entry.
+- **A connection is a list the server put in order**, so something newly made
+  joins one only when the query is asked again. The worklist and the pages list
+  do that for themselves (`listing` in `app.ts` and `pageApp.ts`).
 - `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
   five seconds. Schedule something a minute out and watch it go.
 - **`x-chair` stands in for authentication.** It is the client saying who it is,
   which no real server believes: a real one derives the principal from a session
   it has verified. Everything else about the boundary is real — a visitor's reads
   are refused by the same `visible` rules.
+
+What building this example found in the packages, and what was fixed, is in
+[`docs/design/cms-example-FINDINGS.md`](../../docs/design/cms-example-FINDINGS.md).

@@ -10,6 +10,8 @@ import type { Url } from 'foldkit/url'
 import { Remote } from 'foldkit-remote'
 import * as Posts from './app.js'
 import * as Pages from './pageApp.js'
+import * as Site from './siteApp.js'
+import { view as siteView } from './siteView.js'
 import { view as pagesView } from './pagesView.js'
 import { stylesheet } from './sheet.js'
 import { chairOf, httpClient } from './transport.js'
@@ -23,9 +25,30 @@ document.head.append(styles)
 const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')
 // Vite proxies `/remote` to the server, so the browser talks to one origin.
-const remote = Remote.clientLayer(httpClient('/remote', chairOf(window.location.search)))
+const path = window.location.pathname
+// The site is read as a visitor unless the address says otherwise; the studio as a writer.
+const chair = chairOf(window.location.search, path.startsWith('/site') ? 'visitor' : 'wren')
+const remote = Remote.clientLayer(httpClient('/remote', chair))
 
-if (window.location.pathname.startsWith('/pages'))
+if (path.startsWith('/site'))
+  Runtime.run(
+    Runtime.makeApplication(
+      Site.placements.complete({
+        Model: Site.Model,
+        container,
+        init: (url: Url) => Site.initial(url),
+        update: Site.update,
+        view: siteView,
+        routing: {
+          onUrlChange: (url: Url) => Site.Message.UrlChanged({ url }),
+          onUrlRequest: (request: UrlRequest) => Site.Message.UrlRequested({ request }),
+        },
+        subscriptions: Site.placements.subscriptions(),
+        resources: remote,
+      }),
+    ),
+  )
+else if (path.startsWith('/pages'))
   Runtime.run(
     Runtime.makeApplication(
       Pages.placements.complete({

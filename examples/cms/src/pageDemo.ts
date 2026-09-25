@@ -211,12 +211,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       builder,
       /** The Block a link named that has not been selected yet. */
-      waiting: () => model.linked,
+      waiting: () => Option.getOrElse(model.linked, () => 'nothing waits'),
       /** The Block the Builder has selected, by its kind. */
-      selected: () => {
-        const id = selectedOf(model)
-        return id === null ? 'nothing' : (builder().page.present.nodes[id]?.block ?? id)
-      },
+      selected: () =>
+        Option.match(selectedOf(model), {
+          onNone: () => 'nothing',
+          onSome: id => builder().page.present.nodes[id]?.block ?? id,
+        }),
       build,
       /** One call of the agent's `edit_page` tool: done, or why it was refused. */
       agent: async (op: unknown): Promise<string> => {
@@ -402,7 +403,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   )
   await linked.send(Message.UrlChanged({ url: gone }))
   say(
-    `a link to a Block the page lacks is let go: ${linked.waiting() ?? 'nothing waits'}; ${linked.selected()} selected`,
+    `a link to a Block the page lacks is let go: ${linked.waiting()}; ${linked.selected()} selected`,
   )
 
   say('— an agent edits the page, as a person does —')

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="A desk with a lamp and an open notebook">
+  <rect width="800" height="600" fill="#efe7ff"/>
+  <rect x="0" y="420" width="800" height="180" fill="#c8b6f0"/>
+  <rect x="80" y="400" width="640" height="24" rx="6" fill="#6b4fc4"/>
+  <path d="M250 330 L400 350 L550 330 L550 400 L400 410 L250 400Z" fill="#ffffff" stroke="#b9a6ea" stroke-width="4"/>
+  <line x1="400" y1="350" x2="400" y2="410" stroke="#b9a6ea" stroke-width="4"/>
+  <g stroke="#d7cdf5" stroke-width="3">
+    <line x1="280" y1="360" x2="380" y2="370"/><line x1="280" y1="378" x2="380" y2="388"/>
+    <line x1="420" y1="370" x2="520" y2="360"/><line x1="420" y1="388" x2="520" y2="378"/>
+  </g>
+  <rect x="610" y="170" width="12" height="230" fill="#4a3a8c"/>
+  <path d="M560 170 L680 170 L650 110 L590 110Z" fill="#ffcf5c"/>
+  <ellipse cx="616" cy="400" rx="46" ry="10" fill="#4a3a8c"/>
+  <path d="M575 175 L480 330 L760 330 L660 175Z" fill="#fff1b8" opacity="0.5"/>
+</svg>

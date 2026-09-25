@@ -19,6 +19,9 @@
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
+      "foldkit-composition/appearance": ["../../packages/composition/src/appearance/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
@@ -36,6 +39,9 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
     {
       "path": "../../packages/bundle/tsconfig.build.json"
     },
