@@ -152,6 +152,19 @@ describe('what starts a save', () => {
   })
 })
 
+describe('the entry the server knows', () => {
+  it('is none for something new until its first save, and the open entry otherwise', () => {
+    const { placed, root } = world(undefined)
+    const editor = (patch: Partial<Root['editor']>): Root => ({
+      editor: { ...root.editor, ...patch },
+    })
+    expect(placed.storedEntry(root)).toBe('e1')
+    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: null }))).toBeNull()
+    expect(placed.storedEntry(editor({ mode: 'new', entry: 'e2', saveId: 's1' }))).toBe('e2')
+    expect(placed.storedEntry(editor({ mode: 'closed', entry: null }))).toBeNull()
+  })
+})
+
 describe('telling the form which row it is editing', () => {
   it('gives it the row id, so a check can pass over the row’s own address', () => {
     const { root } = world(undefined)

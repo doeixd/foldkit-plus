@@ -951,6 +951,11 @@ export const makeEditor =
             slice.get(root).entry,
           /** The entry being edited; `null` while closed. */
           entry: (root: Root): string | null => slice.get(root).entry,
+          /**
+           * The entry as the server knows it: `null` while closed, and while
+           * something new is not saved yet, so a link naming it would find nothing.
+           */
+          storedEntry: (root: Root): string | null => entryOf(root) ?? null,
           /** How the form came to hold what it holds; `Lost` is worth telling the author. */
           resumed: (root: Root): Resumed | null => slice.get(root).resumed,
           /** The entry's lifecycle state, as the server last derived it. */

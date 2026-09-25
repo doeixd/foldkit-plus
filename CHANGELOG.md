@@ -140,6 +140,8 @@ version changed; `pnpm` skips versions already in the registry.
   a placed collection in step with the page shown, adding, removing, and
   starting again a node whose props changed; `Stateful.views` and
   `Stateful.html` draw each node with its own item.
+- **`foldkit-cms`: `placed.storedEntry(model)`,** the entry the server knows:
+  `null` while something new is not saved yet, so a link names only what exists.
 - **`foldkit-mixins-builder`: relation pickers for Block props.** A prop asks
   for `Input.relationOne(Entity)` or `Input.relationMany(Entity)` through
   `BuilderView.controls`, and its choices come in `BuilderView.inputs({ options

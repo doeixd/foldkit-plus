@@ -87,6 +87,7 @@ PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Sa
 // Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
 PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
 PostEditor.pageId(model) // row id, else the entry's: what the app's own pages and a preview use
+PostEditor.storedEntry(model) // null until something new is first saved: what a link may name
 Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(form, view)))), 'editor')
 ```
 

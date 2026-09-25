@@ -157,6 +157,7 @@ Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, D
 PostEditor.status(model) // Opened | Editing | Saving | Saved | Conflict | Publishing | Published | ...
 PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
 PostEditor.pageId(model) // the row's id, or the entry's until there is a row: what a preview shows under
+PostEditor.storedEntry(model) // the entry the server knows: null until something new is first saved
 ```
 
 - **Saving is automatic and is not publishing.** Each edit starts a rest (`rest`,
