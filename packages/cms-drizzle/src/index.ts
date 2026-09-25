@@ -779,7 +779,8 @@ export const CmsServer = {
                 .returning({ id: tables.entries.id }),
             ),
           )
-          const content = returning(served.binding, shown === undefined ? [] : [shown.key])
+          // The row as the handler left it, every column: a handler need not patch what it wrote.
+          const content = returning(served.binding, Object.keys(served.binding.columns))
           return {
             output: { entry: entry.id as never, targetId, revision: n },
             entities: [

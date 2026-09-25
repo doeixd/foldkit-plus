@@ -156,8 +156,9 @@ fails after writing leaves nothing behind.
 - A draft your mutation's Input refuses is not published, and the error says why.
   The draft is kept.
 - A row that is already shown keeps the date it was first published on.
-- What your handler returns (patches, connection changes, deletions) goes to the
-  client with the entry, the revision and the row's `published` member.
+- The row as your handler left it goes to the client with the entry and the
+  revision, every column of it, so a handler need not patch what it wrote. What
+  your handler returns (patches, connection changes, deletions) goes too.
 
 ### Slugs
 
