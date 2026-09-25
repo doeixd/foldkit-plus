@@ -52,6 +52,11 @@ const BLOCK_TAGS = new Set([
   'li',
   'pre',
   'table',
+  // A parser inserts `tbody` around bare `tr`s, so the section wrappers have to be
+  // transparent blocks rather than inline content.
+  'tbody',
+  'thead',
+  'tfoot',
   'tr',
   'td',
   'th',
@@ -324,9 +329,21 @@ const nodeBlockFrom = (
       }
 }
 
-/** The kind a list element becomes, so pasted lists stay semantic. */
-const listKindOf = (tag: string): string | undefined =>
-  tag === 'ul' || tag === 'ol' ? 'List' : tag === 'li' ? 'ListItem' : undefined
+/** The kind a structural container element becomes, so pasted structure stays semantic. */
+const containerKindOf = (tag: string): string | undefined =>
+  tag === 'ul' || tag === 'ol'
+    ? 'List'
+    : tag === 'li'
+      ? 'ListItem'
+      : tag === 'blockquote'
+        ? 'Quote'
+        : tag === 'table'
+          ? 'Table'
+          : tag === 'tr'
+            ? 'TableRow'
+            : tag === 'td' || tag === 'th'
+              ? 'TableCell'
+              : undefined
 
 /** Whether a mapping may be used: a kind the Kit declares, or any when no Kit was given. */
 const mapsTo = (kit: RichText.Kit | undefined, kind: string): boolean =>
@@ -404,23 +421,10 @@ const blocksFrom = (
       },
     ]
   }
-  const named = tag === 'blockquote' ? 'Quote' : tag === 'pre' ? 'CodeBlock' : undefined
-  if (named !== undefined) {
-    if (mapsTo(kit, named)) {
-      if (tag === 'pre') return [codeBlockFrom(element, mint)]
-      return [
-        {
-          type: 'Node' as const,
-          kind: named,
-          id: RichText.NodeId.make(mint()),
-          props: {},
-          children: [],
-          blocks: childBlocks(element, mint, diagnostics, kit),
-        },
-      ]
-    }
-    diagnostics.push({ code: 'Undeclared', detail: named })
-    // Fall through: the content survives as ordinary blocks.
+  if (tag === 'pre') {
+    if (mapsTo(kit, 'CodeBlock')) return [codeBlockFrom(element, mint)]
+    diagnostics.push({ code: 'Undeclared', detail: 'CodeBlock' })
+    // Fall through: the text survives as ordinary blocks.
   }
   if (tag === 'img' || tag === 'hr') {
     const kind = tag === 'img' ? 'Image' : 'ThematicBreak'
@@ -431,7 +435,7 @@ const blocksFrom = (
     const atom = atomFrom(element, tag, kind, mint, diagnostics)
     return atom === undefined ? [] : [atom]
   }
-  const kind = element.getAttribute('data-node')?.trim() ?? listKindOf(tag)
+  const kind = element.getAttribute('data-node')?.trim() ?? containerKindOf(tag)
   if (kind !== undefined && kind.length > 0) {
     const declaredNode = kit?.nodes.find(candidate => candidate.name === kind)
     if (mapsTo(kit, kind)) {

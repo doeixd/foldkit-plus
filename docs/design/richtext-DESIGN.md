@@ -6312,10 +6312,13 @@ That brings HTML, Markdown, clipboard, and RichText into alignment.
 
 > **Partly built (2026-09-25).** The importer now maps the standard vocabulary's elements
 > — `blockquote`, `pre` (language from `data-language` or a `language-…` class, text
-> verbatim, no marks), `hr`, `img` (`src`/`alt`), `s`/`del`, and `a` — and reads only a
+> verbatim, no marks), `hr`, `img` (`src`/`alt`), `table`/`tr`/`td`/`th`, `s`/`del`, and
+> `a` — and reads only a
 > fixed few attributes, each through `safeUrl`, which refuses a scheme outside
 > http/https/mailto/tel after removing control characters (so `java\tscript:` cannot walk
-> past it) and leaving a relative URL alone. What is still the sketch below: a per-Kit
+> past it) and leaving a relative URL alone. A `th` becomes an ordinary `TableCell`:
+> header-ness is a GFM/HTML distinction the vocabulary does not carry yet, and it belongs
+> with the Markdown work that needs it. What is still the sketch below: a per-Kit
 > *declared* attribute schema (`HtmlImport.make({ marks: { Link: { attributes: { href:
 > Url.safe } } } })`) rather than one fixed allowlist, and `title` on a link.
 

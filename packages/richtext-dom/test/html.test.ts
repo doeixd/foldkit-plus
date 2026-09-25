@@ -397,6 +397,26 @@ describe('importing the standard vocabulary (§70, §125)', () => {
     expect(parsed.diagnostics).toEqual([])
   })
 
+  it('maps a table to a table of blocks, header cell included', () => {
+    const parsed = parse(
+      '<table><tr><th><p>head</p></th></tr><tr><td>cell</td></tr></table>',
+      standard,
+    )
+    const table = nodeBlock(parsed.blocks[0])
+    expect(table.kind).toBe('Table')
+    const rows = (table.blocks ?? []).map(nodeBlock)
+    expect(rows.map(row => row.kind)).toEqual(['TableRow', 'TableRow'])
+    const header = nodeBlock(rows[0]?.blocks?.[0])
+    expect(header.kind).toBe('TableCell')
+    expect(header.blocks?.[0]).toMatchObject({ type: 'Paragraph' })
+    // A bare cell holds text, and the declaration makes that text a block.
+    const cell = nodeBlock(rows[1]?.blocks?.[0])
+    expect(cell.kind).toBe('TableCell')
+    expect(cell.children).toEqual([])
+    expect(cell.blocks?.map(block => block.type)).toEqual(['Paragraph'])
+    expect(parsed.diagnostics).toEqual([])
+  })
+
   it('refuses a URL the scheme policy does not allow, and keeps the text', () => {
     const unsafe = parse('<p><a href="javascript:alert(1)">click</a></p>', standard)
     expect(shape(unsafe.blocks)[0]).toEqual({ type: 'Paragraph', text: 'click', marks: [[]] })
@@ -497,6 +517,38 @@ describe('importing the standard vocabulary (§70, §125)', () => {
           children: [{ type: 'Text', id: 'code-t', text: 'const x = 1', marks: [] }],
         },
         { type: 'Node', kind: 'ThematicBreak', id: 'hr', props: {}, children: [] },
+        {
+          type: 'Node',
+          kind: 'Table',
+          id: 'tbl',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Node',
+              kind: 'TableRow',
+              id: 'tr',
+              props: {},
+              children: [],
+              blocks: [
+                {
+                  type: 'Node',
+                  kind: 'TableCell',
+                  id: 'tc',
+                  props: {},
+                  children: [],
+                  blocks: [
+                    {
+                      type: 'Paragraph',
+                      id: 'tc-p',
+                      children: [{ type: 'Text', id: 'tc-t', text: 'cell', marks: [] }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
     })
     const html = RichText.documentToHtml(document, RichText.standardRendering)

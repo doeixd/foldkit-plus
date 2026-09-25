@@ -105,7 +105,8 @@ and a tag or attribute name that would end the markup is refused.
 HTML import and the editable adapter live in `foldkit-richtext-dom`,
 because `foldkit-richtext` stays DOM-free. Import is a whitelist walk over a
 `DOMParser` tree: known tags map to blocks and marks — including the standard
-vocabulary's `blockquote`, `pre`, `hr`, `img`, `s`/`del`, and `a` — `data-marks`/
+vocabulary's `blockquote`, `pre`, `hr`, `img`, `table`/`tr`/`td`/`th`, `s`/`del`, and
+`a` — `data-marks`/
 `data-unknown` round-trip, other elements are unwrapped or dropped with a diagnostic,
 and `script`/`style`/`iframe` are dropped with their content. Only a fixed few
 attributes are read — a link's `href`, an image's `src`/`alt`, a fence's language — and
