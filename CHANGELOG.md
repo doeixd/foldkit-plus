@@ -111,6 +111,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Renderer.render` takes the `context`: a node whose `when` fails is left out,
   or marked `data-composition-hidden` in edit mode, and a page drawn without
   its context fails closed. `Composition.holds(when, context)` is the test.
+  The Builder keeps what the author previews the page as (`preview`,
+  `PreviewChosen`), and the drawn Builder offers a "Preview as" picker, draws
+  the canvas for it, and edits a node's conditions in the inspector.
 - **`foldkit-composition/foldkit`: the edit wrappers carry the marks.**
   `render` in edit mode takes `selected`, `hovered` and `drop`, and puts
   `data-composition-selected`, `data-composition-hovered` and

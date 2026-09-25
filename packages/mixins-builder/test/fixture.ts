@@ -38,6 +38,7 @@ export const Quote = Block.define('Quote', {
 export const Site = Catalog.make({
   blocks: [Section, Heading, Banner, Quote],
   roots: [Content.Section],
+  context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']), beta: Schema.Boolean }),
 })
 
 export const SiteRenderer = Renderer.make(Site, {
@@ -56,6 +57,7 @@ export const PageBuilder = Builder.make('PageBuilder', {
     Heading: { text: 'New heading' },
     Banner: { text: 'Hello', size: 'small', count: 1, shown: true },
   },
+  preview: { audience: 'guest' },
 })
 
 export const PageView = BuilderView.define(PageBuilder)

@@ -1087,10 +1087,10 @@ What remains of Phase 7, in order:
   > test, remain.
 - **8-2, layout Blocks. Done.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
   its parameters appearance axes.
-- **8-3, conditions (§16),** which no phase had named. The core is done (8-3a):
-  a `when` is a list, a page drawn without its context fails closed, and edit
-  mode marks rather than drops; the Builder's preview context and condition
-  editing follow (8-3b). A Catalog's `context`
+- **8-3, conditions (§16),** which no phase had named. **Done.** A `when` is a
+  list, a page drawn without its context fails closed, and edit mode marks
+  rather than drops. The Builder keeps a `preview` context; the inspector edits
+  one `eq` condition per context key and keeps other conditions as they are. A Catalog's `context`
   Schema, the Condition IR (`eq`, `isNull`, `isNotNull`, `contains`),
   `composition:unknown-context`, and a Renderer that takes the context. The
   editor has a "preview as" context and dims, rather than drops, the nodes it

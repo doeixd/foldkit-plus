@@ -193,6 +193,10 @@ const PageForm = Form.make('PageForm', PageInput, {
   for a control with
   `Block.annotate(BuilderView.controls({ body: Input.multiline(), ref: Input.hidden() }))`.
 - `PointerDrag` on `tree` (rows carry `data-builder-row`) and `canvas`.
+- With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's
+  `preview` Model field, `PreviewChosen({ key, value })`, seeded by
+  `Builder.make(..., { preview })`); the canvas draws for it, marking hidden
+  nodes. The inspector's `when <key>` fields store `eq` conditions.
 - Style the marks on the edit wrappers' child (a wrapper is
   `display: contents`): `[data-composition-selected] > *`,
   `[data-composition-hovered] > *`, `[data-composition-drop='before'|'inside'|'after'] > *`;

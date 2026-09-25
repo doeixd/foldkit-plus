@@ -159,6 +159,24 @@ After the props, each appearance axis the Block offers is a `select` of its
 values, with a blank for the default; a choice is one `setAppearance`, and
 clearing the last one removes the node's `appearance`.
 
+Then, when the Catalog declares a `context`, one field per context key says
+when the node shows: `when audience` is a `select` of the key's literals (a
+flag's is `true` and `false`, other keys are typed in), with a blank for
+always. A choice is one `setWhen` holding an `eq` condition for that key;
+conditions of other kinds are kept as they are, and clearing the last removes
+the node's `when`.
+
+## Previewing a context
+
+With a Catalog `context`, a `role="group"` labelled "Preview as" (the
+`preview` Slot) holds one field per key, a blank for unset. The canvas draws
+the page for that context: a node hidden there is still drawn, marked
+`data-composition-hidden`, which the site's CSS can dim:
+
+```css
+[data-composition-hidden] > * { opacity: 0.4; }
+```
+
 A field is labelled with its Schema's `title`, else its prop key.
 
 Where the Schema alone does not say, the Block asks for a control through

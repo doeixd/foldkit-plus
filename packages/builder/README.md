@@ -75,6 +75,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
 | `DragStarted({ id })`, `DraggedOver({ over })`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
+| `PreviewChosen({ key, value })` | previews the page with one context key set, or unset with `null` |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
@@ -135,6 +136,21 @@ out, as it has no clock to wait on.
 
 Placed alone, with `Bundle.withChild`, the same Bundle is a page editor whose
 parent owns the Model.
+
+## Previewing a context
+
+A page whose Catalog declares a `context` shows some nodes only under
+conditions ([Conditions](../composition/README.md#conditions)). The Builder
+keeps what the author previews the page as in `preview`, by context key,
+starting from the `preview` it was made with:
+
+```ts
+Builder.make('PageBuilder', { catalog: Site, renderer, starters, preview: { audience: 'guest' } })
+```
+
+The page is drawn in edit mode with `preview` as its context, so a node hidden
+for it is still drawn, marked `data-composition-hidden`. Previewing changes
+nothing in the page and is not an edit.
 
 ## Dragging
 

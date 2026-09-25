@@ -152,6 +152,34 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     const banner = Object.values(page?.nodes ?? {}).find(node => node.block === 'Banner')
     expect(banner).toBeDefined()
     expect(banner?.appearance).toBeUndefined()
+
+    // Shown only to members, the Banner is marked hidden while previewing as a
+    // guest, and not as a member; always again, it has no condition at all.
+    const pick = (selector: string, value: string) => {
+      const select = document.querySelector<HTMLSelectElement>(selector)
+      if (select === null) throw new Error(`no ${selector}`)
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    const bannerHidden = () =>
+      onPage('.banner')?.closest('[data-composition-node]')?.hasAttribute('data-composition-hidden')
+    pick('[aria-label="Properties"] select[id$="-when-audience"]', 'member')
+    await vi.waitFor(() => expect(bannerHidden()).toBe(true))
+    pick('[aria-label="Preview as"] select[id$="-preview-audience"]', 'member')
+    await vi.waitFor(() => expect(bannerHidden()).toBe(false))
+    // A flag's choice is a boolean, not its text.
+    pick('[aria-label="Preview as"] select[id$="-preview-beta"]', 'true')
+    await vi.waitFor(() =>
+      expect(drawn?.editor.preview).toEqual({ audience: 'member', beta: true }),
+    )
+    pick('[aria-label="Properties"] select[id$="-when-audience"]', '')
+    await vi.waitFor(() => {
+      const now = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
+      const node = Object.values(now?.nodes ?? {}).find(each => each.block === 'Banner')
+      expect(node).toBeDefined()
+      expect(node?.when).toBeUndefined()
+    })
+
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))
 

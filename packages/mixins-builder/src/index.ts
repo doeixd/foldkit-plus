@@ -14,7 +14,7 @@
  * a node), and the Builder's `keyCommand` shortcuts on the layers panel.
  */
 import { Option, Schema } from 'effect'
-import { Layers, Message, layersArgs, type Model } from 'foldkit-builder'
+import { Layers, Message, layersArgs, type ContextValue, type Model } from 'foldkit-builder'
 import {
   Catalog,
   Composition,
@@ -57,6 +57,8 @@ export const BuilderSlots = Slots.define({
   redo: Slot.make({ capability: Capability.Interactive }),
   viewports: Slot.make({ capability: Capability.Container }),
   viewport: Slot.make({ capability: Capability.Interactive }),
+  /** What the page is previewed as: one field per key of the Catalog's context. */
+  preview: Slot.make({ capability: Capability.Container }),
   /** Why the last edit was refused. */
   alert: Slot.make({ capability: Capability.Base }),
   /** The page in edit mode, and the frame that sets its width. */
@@ -136,6 +138,33 @@ const isChoices = (
   value: Schema.Json | undefined,
 ): value is { readonly [axis: string]: Schema.Json } =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** The fields a struct Schema declares, such as a Catalog's context; none for anything else. */
+const structFields = (schema: Schema.Top | undefined): Readonly<Record<string, Schema.Top>> => {
+  const fields = (schema as { readonly fields?: unknown } | undefined)?.fields
+  return typeof fields === 'object' && fields !== null
+    ? (fields as Readonly<Record<string, Schema.Top>>)
+    : {}
+}
+
+/** What a context key's control reads as a value: blank is unset, a toggle's text a boolean. */
+const contextValue = (control: Control | undefined, raw: string): ContextValue => {
+  if (raw === '') return null
+  if (control !== undefined && Input.Toggle.is(control)) return raw === 'true'
+  if (control !== undefined && Input.Number.is(control) && Number.isFinite(Number(raw)))
+    return Number(raw)
+  return raw
+}
+
+/** The choices a context key offers, or `undefined` when it is typed in. */
+const contextChoices = (control: Control | undefined): ReadonlyArray<string> | undefined =>
+  control === undefined
+    ? undefined
+    : Input.Select.is(control)
+      ? control.data.options
+      : Input.Toggle.is(control)
+        ? ['true', 'false']
+        : undefined
 
 /** The fields a Block's props Schema declares, when it is a struct. */
 const fieldsOf = (block: AnyBlock): Readonly<Record<string, Schema.Top>> => {
@@ -281,6 +310,26 @@ export const BuilderView = {
         ),
       )
 
+      const context = structFields(builder.catalog.context)
+      const preview =
+        Object.keys(context).length === 0
+          ? []
+          : [
+              h.div(
+                slots.preview.attrs([h.Role('group'), h.AriaLabel('Preview as')]),
+                Object.entries(context).map(([key, schema]) =>
+                  contextField(slots, h, {
+                    id: `${builder.name}-preview-${key}`,
+                    label: key,
+                    schema,
+                    current: model.preview[key],
+                    blank: 'unset',
+                    send: value => Message.PreviewChosen({ key, value }),
+                  }),
+                ),
+              ),
+            ]
+
       const canvas = h.div(slots.canvas.attrs([h.AriaLabel('Page')]), [
         h.div(
           slots.frame.attrs([
@@ -293,6 +342,7 @@ export const BuilderView = {
               selected,
               hovered: model.hovered,
               drop,
+              context: model.preview,
             }),
           ],
         ),
@@ -305,11 +355,55 @@ export const BuilderView = {
         ...inspector,
         history,
         viewports,
+        ...preview,
         ...(model.refused === null
           ? []
           : [h.p(slots.alert.attrs([h.Role('alert')]), [model.refused.message])]),
         canvas,
         h.div(slots.live.attrs(), [LiveAnnounce.view(model.announcer, h)]),
+      ])
+    }
+
+    // One field per context key: a choice, or typed in; blank is unset.
+    const contextField = (
+      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
+      h: HtmlBuilder<Message>,
+      field: {
+        readonly id: string
+        readonly label: string
+        readonly schema: Schema.Top
+        readonly current: ContextValue | undefined
+        /** What the blank choice reads as. */
+        readonly blank: string
+        readonly send: (value: ContextValue) => Message
+      },
+    ) => {
+      const { id: fieldId, label, schema, current, blank, send } = field
+      const control = Input.resolve(Entity.unmapped, schema)
+      const choices = contextChoices(control)
+      const shown = current === undefined || current === null ? '' : String(current)
+      return h.div(slots.field.attrs(), [
+        h.label([h.For(fieldId)], [label]),
+        choices === undefined
+          ? h.input(
+              slots.control.attrs([
+                h.Id(fieldId),
+                h.Value(shown),
+                h.OnInput(raw => send(contextValue(control, raw))),
+              ]),
+            )
+          : h.select(
+              slots.control.attrs([
+                h.Id(fieldId),
+                h.OnChange(raw => send(contextValue(control, raw))),
+              ]),
+              ['', ...choices].map(value =>
+                h.option(
+                  [h.Value(value), h.Selected(shown === value)],
+                  [value === '' ? blank : value],
+                ),
+              ),
+            ),
       ])
     }
 
@@ -408,7 +502,55 @@ export const BuilderView = {
           ),
         ])
       })
-      return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), [...fields, ...looks])
+      // When it shows: an `eq` condition per context key, blank for always. Other
+      // conditions on a key are kept as they are.
+      const when = Array.isArray(node.when) ? node.when : []
+      const eqOf = (key: string): ContextValue | undefined => {
+        for (const condition of when)
+          if (
+            isChoices(condition) &&
+            Array.isArray(condition['eq']) &&
+            condition['eq'][0] === key
+          ) {
+            const value = condition['eq'][1]
+            if (
+              typeof value === 'string' ||
+              typeof value === 'number' ||
+              typeof value === 'boolean'
+            )
+              return value
+          }
+        return undefined
+      }
+      const conditions = Object.entries(structFields(builder.catalog.context)).map(
+        ([key, schema]) =>
+          contextField(slots, h, {
+            id: `${builder.name}-${id}-when-${key}`,
+            label: `when ${key}`,
+            schema,
+            current: eqOf(key),
+            blank: 'always',
+            send: value => {
+              const others = when.filter(
+                condition =>
+                  !(
+                    isChoices(condition) &&
+                    Array.isArray(condition['eq']) &&
+                    condition['eq'][0] === key
+                  ),
+              )
+              const next = value === null ? others : [...others, { eq: [key, value] }]
+              return Message.Applied({
+                op: Composition.Op.setWhen(id, next.length === 0 ? null : next),
+              })
+            },
+          }),
+      )
+      return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), [
+        ...fields,
+        ...looks,
+        ...conditions,
+      ])
     }
 
     return SlotView.forMessages<Message>()

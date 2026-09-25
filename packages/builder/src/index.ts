@@ -64,6 +64,15 @@ export const Drag = Schema.Struct({
 })
 export type Drag = typeof Drag.Type
 
+/** A value of the page's context, as the editor previews it. */
+export const ContextValue = Schema.Union([
+  Schema.String,
+  Schema.Number,
+  Schema.Boolean,
+  Schema.Null,
+])
+export type ContextValue = typeof ContextValue.Type
+
 export const Model = Schema.Struct({
   ...Layers.fields,
   ...Announcer.fields,
@@ -78,6 +87,12 @@ export const Model = Schema.Struct({
   refused: Schema.NullOr(Schema.Struct({ code: Schema.String, message: Schema.String })),
   /** A pointer drag under way, or `null`. */
   drag: Schema.NullOr(Drag),
+  /**
+   * The context the page is drawn for in the editor, by the Catalog's context
+   * keys: what an author previews it as. A node whose `when` fails here is
+   * drawn marked, not left out.
+   */
+  preview: Schema.Record(Schema.String, ContextValue),
 })
 export type Model = typeof Model.Type
 
@@ -111,6 +126,8 @@ export const Message = defineMessageUnion({
   /** The drag ended where it is: the node moves there, when it may. */
   DragDropped: {},
   DragCancelled: {},
+  /** The author previews the page with one context key set, or unset with `null`. */
+  PreviewChosen: { key: Schema.String, value: ContextValue },
 })
 export type Message = typeof Message.Type
 
@@ -378,6 +395,8 @@ export const Builder = {
       readonly starters: NoInfer<Starters<Blocks>>
       /** Undo steps kept. Default 200. */
       readonly capacity?: number
+      /** The context the editor previews the page as at first, by the Catalog's context keys. */
+      readonly preview?: Readonly<Record<string, ContextValue>>
     },
   ) => {
     const { catalog, renderer } = config
@@ -393,6 +412,7 @@ export const Builder = {
       viewport: 'wide',
       refused: null,
       drag: null,
+      preview: { ...config.preview },
     }).model
 
     /** Says `text` to assistive technology, once the Builder's transition is done. */
@@ -584,6 +604,16 @@ export const Builder = {
           return model.drag === null
             ? { model }
             : { model: { ...model, drag: null }, commands: announce('Not moved') }
+        case 'PreviewChosen': {
+          const { [message.key]: _, ...others } = model.preview
+          return {
+            model: {
+              ...model,
+              preview:
+                message.value === null ? others : { ...others, [message.key]: message.value },
+            },
+          }
+        }
         case 'PanelChosen':
           return { model: { ...model, panel: message.panel } }
         case 'ViewportChosen':
@@ -717,7 +747,12 @@ export const Builder = {
           ...(model.refused === null ? [] : [h.p([h.Role('alert')], [model.refused.message])]),
           h.div(
             [h.Class('builder-canvas'), h.DataAttribute('viewport', model.viewport)],
-            [...Renderer.render(renderer, documentOf(model), inertHtml, { mode: 'edit' })],
+            [
+              ...Renderer.render(renderer, documentOf(model), inertHtml, {
+                mode: 'edit',
+                context: model.preview,
+              }),
+            ],
           ),
         ],
       )

@@ -92,7 +92,7 @@ describe('the drawn Builder', () => {
     const fields = all(inspector)
       .filter(node => node.sel === 'label')
       .map(text)
-    expect(fields).toEqual(['text', 'size', 'count', 'shown', 'tone'])
+    expect(fields).toEqual(['text', 'size', 'count', 'shown', 'tone', 'when audience', 'when beta'])
     const controls = all(inspector).filter(node =>
       ['input', 'select', 'code'].includes(node.sel ?? ''),
     )
@@ -101,6 +101,8 @@ describe('the drawn Builder', () => {
       ['select', undefined],
       ['input', undefined],
       ['input', 'checkbox'],
+      ['select', undefined],
+      ['select', undefined],
       ['select', undefined],
     ])
     // The look's axis offers its values and a blank for the default, which is chosen.
@@ -141,7 +143,7 @@ describe('the drawn Builder', () => {
       all(inspector)
         .filter(node => node.sel === 'label')
         .map(text),
-    ).toEqual(['Quotation', 'source'])
+    ).toEqual(['Quotation', 'source', 'when audience', 'when beta'])
     expect(
       all(inspector)
         .filter(node => node.sel === 'textarea' || node.sel === 'input')
@@ -162,6 +164,55 @@ describe('the drawn Builder', () => {
         entries: ['text: Multiline, ref: Text, source: Multiline'],
       },
     ])
+  })
+
+  it('previews the page as a context, and marks what it hides there', () => {
+    const banner = required(page.selected, 'the banner')
+    const members = send(
+      page,
+      Message.Applied({
+        op: Composition.Op.setWhen(banner, [Composition.when.eq('audience', 'member')]),
+      }),
+    )
+    const root = draw(members)
+    const [preview] = all(root).filter(node => attr(node, 'aria-label') === 'Preview as')
+    const selects = all(preview).filter(node => node.sel === 'select')
+    const options = selects.map(select =>
+      all(select)
+        .filter(node => node.sel === 'option')
+        .map(option => [prop(option, 'value'), prop(option, 'selected')]),
+    )
+    expect(options).toEqual([
+      [
+        ['', false],
+        ['guest', true],
+        ['member', false],
+      ],
+      [
+        ['', true],
+        ['true', false],
+        ['false', false],
+      ],
+    ])
+    const hidden = all(root).find(node => attr(node, 'data-composition-hidden') !== undefined)
+    expect(attr(hidden, 'data-composition-node')).toBe(banner)
+    // The inspector shows the condition it holds.
+    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    const when = all(inspector).find(
+      node => prop(node, 'id') === `PageBuilder-${banner}-when-audience`,
+    )
+    expect(
+      all(when)
+        .filter(node => node.sel === 'option' && prop(node, 'selected') === true)
+        .map(text),
+    ).toEqual(['member'])
+    // As a member, it shows.
+    const asMember = draw(
+      send(members, Message.PreviewChosen({ key: 'audience', value: 'member' })),
+    )
+    expect(all(asMember).some(node => attr(node, 'data-composition-hidden') !== undefined)).toBe(
+      false,
+    )
   })
 
   it('draws the page in edit mode, in a frame as wide as the viewport, marking the selection', () => {

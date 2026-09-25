@@ -4,9 +4,9 @@ import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { describe, expect, it } from 'vitest'
-import { Layers, Message, Model } from 'foldkit-builder'
+import { Builder, Layers, Message, Model } from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
-import { PageBuilder, Site, answer, isTimer } from './fixture.js'
+import { PageBuilder, Site, SiteRenderer, answer, isTimer } from './fixture.js'
 
 const { update } = PageBuilder.bundle
 const step = (model: Model, message: Message) => update(model, message, undefined)
@@ -440,5 +440,28 @@ describe('dragging a node', () => {
     const dragging = send(page, Message.DragStarted({ id: id('h1') }))
     expect(PageBuilder.settle(dragging).drag).toBeNull()
     expect(PageBuilder.replace(dragging, document).drag).toBeNull()
+  })
+})
+
+describe('previewing the page', () => {
+  it('starts from the preview it was given, and sets and unsets one key at a time', () => {
+    const Previewing = Builder.make('Previewing', {
+      catalog: Site,
+      renderer: SiteRenderer,
+      starters: { Section: {} },
+      preview: { audience: 'guest' },
+    })
+    expect(Previewing.initial.preview).toEqual({ audience: 'guest' })
+    expect(PageBuilder.initial.preview).toEqual({})
+    const member = send(
+      Previewing.initial,
+      Message.PreviewChosen({ key: 'audience', value: 'member' }),
+    )
+    expect(member.preview).toEqual({ audience: 'member' })
+    const flagged = send(member, Message.PreviewChosen({ key: 'beta', value: true }))
+    expect(flagged.preview).toEqual({ audience: 'member', beta: true })
+    expect(send(flagged, Message.PreviewChosen({ key: 'audience', value: null })).preview).toEqual({
+      beta: true,
+    })
   })
 })
