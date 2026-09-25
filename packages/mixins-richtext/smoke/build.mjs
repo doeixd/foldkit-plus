@@ -61,7 +61,22 @@ check(
 const family = await import('foldkit-mixins-richtext')
 check(
   'mixins-richtext',
-  typeof family.markToolbar === 'function' && typeof family.MarkToolbarSlots === 'object',
+  typeof family.markToolbar === 'function' &&
+    typeof family.MarkToolbarSlots === 'object' &&
+    typeof family.slashQuery === 'function' &&
+    typeof family.slashEntries === 'function',
+)
+
+// §123: a slash query opens on `/` at a block's start, and `/head` narrows to the
+// headings — the menu's vocabulary, exercised through the build.
+check('a slash query through the build', family.slashQuery('see /head') === 'head')
+const wrapped = family.slashEntries(message => message)
+check(
+  'the menu narrows to the headings',
+  family
+    .matchingEntries(wrapped, 'head')
+    .map(entry => entry.id)
+    .join(',') === 'heading-1,heading-2,heading-3',
 )
 
 // One real transaction, not just an export probe: a wrong shape N exported would

@@ -53,6 +53,32 @@ can single one out.
 The view owns each button's click and its pressed state, so neither is in a slot's
 contract: a mixin cannot take them over.
 
+## The slash menu's vocabulary
+
+The menu itself is the next slice (§123 of the design). What has landed is the part a
+menu and an application drawing its own agree on, because none of it is state:
+
+```ts
+import { matchingEntries, slashEntries, slashQuery } from 'foldkit-mixins-richtext'
+
+slashQuery('see /head') // 'head' — opens at a block's start or after whitespace
+slashQuery('see/head') // undefined — that is text
+
+// Entries lead with the text blocks a caret can become, then the marks it can carry.
+const entries = slashEntries(message => edited(message))
+matchingEntries(entries, 'mono').map(entry => entry.label) // ['Code']
+```
+
+`slashQuery` reads the text before the caret, so whether a menu is open is a read of the
+document (`RichText.textBefore`) rather than a flag. `slashEntries(wrap)` builds the
+catalogue — `Paragraph`, `Heading 1`–`3`, then every mark `foldkit-richtext` ships — each
+entry carrying a stable `id`, a `label`, the words a query may also match, and the editor
+Message choosing it sends, wrapped for the caller the way the toolbar's `toggled` is.
+`matchingEntries` is the filter, and an empty query offers everything.
+
+The highlighted entry is the menu's only state, and per §123 it belongs beside the
+editor's.
+
 ## Checks
 
 ```bash

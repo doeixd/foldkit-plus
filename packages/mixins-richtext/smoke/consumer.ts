@@ -19,7 +19,13 @@ import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
 import { markActive, marksToolbar, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
 import { events, Message, patchEditor, toMessage } from 'foldkit-richtext-dom/editor'
 import { edited, editorAt, update } from 'foldkit-richtext-dom/editor-bundle'
-import { MarkToolbarSlots, markToolbar } from 'foldkit-mixins-richtext'
+import {
+  MarkToolbarSlots,
+  markToolbar,
+  matchingEntries,
+  slashEntries,
+  slashQuery,
+} from 'foldkit-mixins-richtext'
 
 export type Surface = [
   typeof RichText.marksInRange,
@@ -53,6 +59,9 @@ export type Surface = [
   typeof update,
   typeof MarkToolbarSlots,
   typeof markToolbar,
+  typeof slashQuery,
+  typeof slashEntries,
+  typeof matchingEntries,
 ]
 
 /**
