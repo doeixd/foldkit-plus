@@ -13,6 +13,7 @@
  * Document anyone who can fetch the page receives.
  */
 import { Result, Schema } from 'effect'
+import { fieldsOf } from './block.js'
 
 const Key = Schema.String
 const Scalar = Schema.Union([Schema.String, Schema.Number, Schema.Boolean])
@@ -36,7 +37,8 @@ export interface ConditionFinding {
   readonly message: string
 }
 
-const decodeWhen = Schema.decodeUnknownResult(When)
+// Strict: a condition naming two operations is refused, not read as one of them.
+const decodeWhen = Schema.decodeUnknownResult(When, { onExcessProperty: 'error' })
 
 const keyOf = (condition: Condition): string =>
   'eq' in condition
@@ -47,17 +49,9 @@ const keyOf = (condition: Condition): string =>
         ? condition.isNull
         : condition.isNotNull
 
-/** The fields a context Schema declares, when it is a struct. */
-const fieldsOf = (context: Schema.Top | undefined): Readonly<Record<string, Schema.Top>> => {
-  const fields = (context as { readonly fields?: unknown } | undefined)?.fields
-  return typeof fields === 'object' && fields !== null
-    ? (fields as Readonly<Record<string, Schema.Top>>)
-    : {}
-}
-
 /** What is wrong with a stored `when`, against the context a Catalog declares. */
 export const check = (
-  context: Schema.Top | undefined,
+  context: Schema.Struct<Schema.Struct.Fields> | undefined,
   when: unknown,
 ): ReadonlyArray<ConditionFinding> => {
   if (when === undefined) return []
@@ -73,7 +67,7 @@ export const check = (
   const fields = fieldsOf(context)
   return decoded.success.flatMap((condition, index): ReadonlyArray<ConditionFinding> => {
     const key = keyOf(condition)
-    const field = fields[key]
+    const field = Object.hasOwn(fields, key) ? fields[key] : undefined
     const path = ['when', index]
     if (field === undefined)
       return [
@@ -84,10 +78,8 @@ export const check = (
         },
       ]
     const value = 'eq' in condition ? condition.eq[1] : undefined
-    if (
-      value !== undefined &&
-      Result.isFailure(Schema.decodeUnknownResult(field as Schema.Codec<unknown, unknown>)(value))
-    )
+    // `holds` compares with the context the application gives, its decoded side.
+    if (value !== undefined && !Schema.is(field)(value))
       return [
         {
           code: 'composition:unknown-context',
@@ -103,10 +95,12 @@ export const check = (
 const fold = (text: string) => text.replace(/[A-Z]/g, letter => letter.toLowerCase())
 
 const holdsOne = (condition: Condition, context: Readonly<Record<string, unknown>>): boolean => {
-  if ('eq' in condition) return context[condition.eq[0]] === condition.eq[1]
-  if ('isNull' in condition) return context[condition.isNull] == null
-  if ('isNotNull' in condition) return context[condition.isNotNull] != null
-  const text = context[condition.contains[0]]
+  // A stored key is untrusted: `constructor` reads as absent, not as Object's.
+  const value = (key: string) => (Object.hasOwn(context, key) ? context[key] : undefined)
+  if ('eq' in condition) return value(condition.eq[0]) === condition.eq[1]
+  if ('isNull' in condition) return value(condition.isNull) == null
+  if ('isNotNull' in condition) return value(condition.isNotNull) != null
+  const text = value(condition.contains[0])
   return typeof text === 'string' && fold(text).includes(fold(condition.contains[1]))
 }
 

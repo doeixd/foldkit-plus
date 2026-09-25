@@ -118,14 +118,10 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
             [...here, 'props', ...finding.path],
             `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
           )
-      for (const finding of checkActions(catalog.actions, block, node.actions))
-        say(
-          finding.code,
-          id,
-          [...here, ...finding.path],
-          `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
-        )
-      for (const finding of Block.checkAppearance(block, node.appearance))
+      for (const finding of [
+        ...checkActions(catalog.actions, block, node.actions),
+        ...Block.checkAppearance(block, node.appearance),
+      ])
         say(
           finding.code,
           id,

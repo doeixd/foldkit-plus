@@ -7,10 +7,9 @@
  */
 import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Submodel from 'foldkit/submodel'
-import { SlotView } from 'foldkit-mixins'
 import * as Runtime from 'foldkit/runtime'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -83,11 +82,6 @@ const sync = (model: Model, before: Document | undefined, after: Document) =>
     count: props.start,
   }))(model).model
 
-const SiteRenderer = Renderer.make(Site, {
-  Section: ({ regions, h }) => h.section([], [...regions.body]),
-  Heading: ({ props, h }) => h.h2([], [props.text]),
-  Tally: ({ data }) => Stateful.html(data),
-})
 // On a runtime, a stateful node's item dispatches the page's Messages.
 const PageRenderer = Renderer.forMessages<Message>().make(Site, {
   Section: ({ regions, h }) => h.section([], [...regions.body]),
@@ -97,24 +91,13 @@ const PageRenderer = Renderer.forMessages<Message>().make(Site, {
 
 // The page's own `document` is the composition Document; this is the DOM's.
 const document_ = globalThis.document
-const text = (nodes: ReadonlyArray<Html | string>): string =>
-  nodes
-    .map(node =>
-      node === null
-        ? ''
-        : typeof node === 'string'
-          ? node
-          : `${node.text ?? ''}${text(node.children ?? [])}`,
-    )
-    .join(' ')
-    .trim()
-
 describe('stateful Blocks', () => {
-  it('lists a page’s stateful nodes, in the order it draws them', () => {
-    const nodes = Composition.statefulNodes(Site, page({ a: 1, b: 5 }))
+  it('lists a page’s stateful nodes, in the order the page holds them', () => {
+    // b is placed before a, so the order is the page's, not the ids'.
+    const nodes = Composition.statefulNodes(Site, page({ b: 5, a: 1 }))
     expect(nodes.map(node => [node.id, node.props])).toEqual([
-      ['a', { start: 1 }],
       ['b', { start: 5 }],
+      ['a', { start: 1 }],
     ])
     expect(Composition.statefulNodes(Site, page({ a: 1 }), 'Heading')).toEqual([])
     expect(Heading.stateful).toBe(false)

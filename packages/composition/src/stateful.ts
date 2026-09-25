@@ -19,20 +19,30 @@ export interface StatefulNode {
 }
 
 /**
- * Every reachable node whose Block is stateful and whose props decode, in the
- * order the page draws them; of one Block when `block` names it.
+ * Every node reachable from the roots whose Block is stateful and whose props
+ * decode; of one Block when `block` names it. Worked out once per Catalog and
+ * Document, since a view asks on every draw.
  */
-export const statefulNodes = (
-  catalog: Catalog,
+export const statefulNodes = <Blocks extends AnyBlock>(
+  catalog: Catalog<Blocks>,
   document: Document,
-  block?: string,
+  block?: Blocks['name'],
 ): ReadonlyArray<StatefulNode> => {
+  const byDocument = known.get(catalog) ?? new WeakMap<Document, ReadonlyArray<StatefulNode>>()
+  known.set(catalog, byDocument)
+  const all = byDocument.get(document) ?? find(catalog, document)
+  byDocument.set(document, all)
+  return block === undefined ? all : all.filter(node => node.block.name === block)
+}
+
+const known = new WeakMap<Catalog, WeakMap<Document, ReadonlyArray<StatefulNode>>>()
+
+const find = (catalog: Catalog, document: Document): ReadonlyArray<StatefulNode> => {
   const found: Array<StatefulNode> = []
   for (const id of index(document).keys()) {
     const node = document.nodes[id]
     const of = node === undefined ? undefined : Catalog.block(catalog, node.block)
     if (node === undefined || of === undefined || !of.stateful) continue
-    if (block !== undefined && of.name !== block) continue
     const props = Block.decode(of, node.props)
     if (Result.isSuccess(props)) found.push({ id, block: of, props: props.success })
   }

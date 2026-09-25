@@ -94,6 +94,7 @@ contains nothing). Checked by `validate`/`setWhen`
 `Renderer.render(r, doc, h, { context })` leaves out nodes whose `when` fails;
 no context means a node with conditions is hidden (fails closed); edit mode
 draws it marked `data-composition-hidden`. `Composition.holds(when, context)`.
+The context is a `Schema.Struct`; an `eq` value is its field's decoded side.
 Presentation, not authorization.
 
 ## Actions
@@ -112,7 +113,9 @@ event (`on press`) and edits its input field by field, seeded with empty values.
 Catalog's Blocks only (name literal, props' encoded Schema); use it as an
 `Agent.variant`'s `input` whose `toMessage` sends the Builder's
 `Applied({ op })` (through the form: `PageForm.control('document').send(...)`).
-The agent mints ids; context: `Composition.describe(Site, doc)`. See
+The agent mints ids; context: `Composition.describe(Site, doc)`. Decode it
+with `onExcessProperty: 'error'` (as `foldkit-agent` does) so a misspelled prop
+is refused, not dropped. See
 `examples/cms/src/pageAgent.ts`.
 
 ## Surface Blocks: `foldkit-composition/surface`

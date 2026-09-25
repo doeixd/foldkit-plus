@@ -21,6 +21,7 @@ import {
   Url,
   type Applied,
   type Document,
+  type Operation,
   type Refusal,
   type PropsOf,
 } from '../src/index.js'
@@ -209,6 +210,5 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
 
 // Agents: the tool's input is generated from the Catalog.
 {
-  const input = Composition.operationSchema(Site)
-  void input
+  expectTypeOf(Composition.operationSchema(Site)).toEqualTypeOf<Schema.Codec<Operation, unknown>>()
 }

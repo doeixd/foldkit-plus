@@ -182,7 +182,10 @@ Renderer.render(SiteRenderer, page, h, { context: { audience: 'guest' } }) // le
   folding ASCII only, and absent text contains nothing.
 - **Checked against the context,** by `validate` and by `setWhen`: a key the
   context does not declare, or a value its Schema refuses, is
-  `composition:unknown-context`, never a node that silently never shows.
+  `composition:unknown-context`, never a node that silently never shows. A
+  value is what the application gives, the field's decoded side: over
+  `Schema.NumberFromString`, a condition names a number. A condition naming two
+  operations is `composition:invalid-condition`.
 - **Drawn without its context, a page fails closed:** a node with conditions
   does not show. In edit mode it is drawn anyway, marked
   `data-composition-hidden`, so an author sees what a visitor would not.

@@ -559,6 +559,28 @@ describe('the Operations an agent may send', () => {
     expect(Result.isFailure(decode(insert('Carousel', {})))).toBe(true)
     expect(Result.isFailure(decode(insert('Heading', { text: 3, level: 2 })))).toBe(true)
     expect(Result.isFailure(decode({ _tag: 'Batch', ops: [insert('Carousel', {})] }))).toBe(true)
+    // Decoded strictly, as foldkit-agent decodes a tool's input, a misspelled prop is refused.
+    const strict = Schema.decodeUnknownResult(Composition.operationSchema(Site), {
+      onExcessProperty: 'error',
+    })
+    expect(
+      Result.isFailure(
+        strict({
+          _tag: 'Insert',
+          id: 'n',
+          block: 'Heading',
+          props: { text: 'Hi', level: 2, levle: 3 },
+          at,
+        }),
+      ),
+    ).toBe(true)
+    // A condition is a list of them, and an action a reference.
+    expect(
+      Result.isFailure(decode({ _tag: 'SetWhen', id: 'a', when: { isNull: 'audience' } })),
+    ).toBe(true)
+    expect(
+      Result.isFailure(decode({ _tag: 'SetAction', id: 'c', name: 'press', action: 'go' })),
+    ).toBe(true)
     // A shape the schema takes can still be refused by the page: a Section is no Flow.
     const section = decode({ _tag: 'Insert', id: 'n', block: 'Section', props: {}, at })
     if (Result.isFailure(section)) throw new Error('the schema refused a Section')

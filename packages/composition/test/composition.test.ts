@@ -293,6 +293,51 @@ describe('validate', () => {
     ).toEqual(['composition:unknown-context'])
   })
 
+  it('reads a stored name that is a prototype key as unknown, never as Object’s', () => {
+    const Looks = Section.pipe(
+      Block.withAppearance({ tone: { kind: 'variant', values: ['plain'] } }),
+    )
+    const Guarded = Catalog.make({
+      blocks: [Looks],
+      roots: [Content.Section],
+      context: Schema.Struct({ audience: Schema.String }),
+    })
+    const found = (node: Readonly<Record<string, unknown>>) =>
+      codes(
+        Composition.validate(
+          Guarded,
+          page(['s'], { s: { block: 'Section', props: { tone: 'plain' }, regions: {}, ...node } }),
+        ),
+      )
+    expect(found({ appearance: { constructor: 'x' } })).toEqual(['composition:invalid-appearance'])
+    expect(found({ when: [{ eq: ['toString', 'x'] }] })).toEqual(['composition:unknown-context'])
+    expect(found({ when: [{ isNull: 'constructor' }] })).toEqual(['composition:unknown-context'])
+    expect(Block.offeredAppearance(Looks, { constructor: 'x', tone: 'plain' })).toEqual({
+      tone: 'plain',
+    })
+    expect(Composition.holds([Composition.when.isNotNull('constructor')], {})).toBe(false)
+  })
+
+  it('refuses a condition naming two operations, and compares with the context’s decoded side', () => {
+    const Counted = Catalog.make({
+      blocks: [Section],
+      roots: [Content.Section],
+      context: Schema.Struct({ n: Schema.NumberFromString }),
+    })
+    const found = (when: unknown) =>
+      codes(
+        Composition.validate(
+          Counted,
+          page(['s'], { s: { block: 'Section', props: { tone: 'plain' }, regions: {}, when } }),
+        ),
+      )
+    expect(found([{ eq: ['n', 5], isNull: 'n' }])).toEqual(['composition:invalid-condition'])
+    // The application gives `n` as a number, so a condition over it names a number.
+    expect(found([{ eq: ['n', 5] }])).toEqual([])
+    expect(found([{ eq: ['n', '5'] }])).toEqual(['composition:unknown-context'])
+    expect(Composition.holds([Composition.when.eq('n', 5)], { n: 5 })).toBe(true)
+  })
+
   it('holds a condition as Expr means it: equal, absent, present, and folded text', () => {
     const { holds, when } = Composition
     const context = { audience: 'member', locale: 'EN-gb', flag: null }

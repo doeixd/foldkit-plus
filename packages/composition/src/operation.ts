@@ -12,10 +12,10 @@
  * so an author keeps working around content the deployment no longer knows.
  */
 import { Result, Schema } from 'effect'
-import { checkActions } from './action.js'
+import { ActionRef, checkActions } from './action.js'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
-import { check as checkWhen } from './condition.js'
+import { When, check as checkWhen } from './condition.js'
 import { accepts } from './content.js'
 import { Node, NodeId, index, type Document, type Place } from './document.js'
 import { bounds } from './region.js'
@@ -105,7 +105,11 @@ export const Operation: Schema.Codec<Operation, unknown> = Schema.Union([
  * Blocks by name, with that Block's props as they are stored, so the tool's
  * own input schema rejects a Block the Catalog lacks before `apply` sees it;
  * `apply` still checks the rest (a Region's Content, a refinement of a prop).
- * A whole subtree (`insertTree`) is left to code.
+ * A condition is a `When` and an action an `ActionRef`. A whole subtree
+ * (`insertTree`) is left to code.
+ *
+ * Decode with `onExcessProperty: 'error'`, as `foldkit-agent` does, or a
+ * misspelled prop is dropped rather than refused.
  */
 export const operationSchema = (catalog: Catalog): Schema.Codec<Operation, unknown> => {
   const inserts = catalog.blocks.map(block =>
@@ -123,13 +127,18 @@ export const operationSchema = (catalog: Catalog): Schema.Codec<Operation, unkno
     Duplicate,
     SetProp,
     UnsetProp,
-    SetWhen,
+    Schema.TaggedStruct('SetWhen', { id: NodeId, when: Schema.NullOr(When) }),
     SetAppearance,
-    SetAction,
+    Schema.TaggedStruct('SetAction', {
+      id: NodeId,
+      name: Schema.String,
+      action: Schema.NullOr(ActionRef),
+    }),
     Schema.TaggedStruct('Batch', {
       ops: Schema.Array(Schema.suspend((): Schema.Codec<Operation, unknown> => Edit)),
     }),
-    // Each insert's props are a Block's stored props, JSON by construction.
+    // Each insert's props are a Block's stored props, JSON by construction, and a
+    // `When` or an `ActionRef` is JSON too, so every member decodes to an Operation.
   ]) as unknown as Schema.Codec<Operation, unknown>
   return Edit
 }

@@ -11,7 +11,7 @@
  * effects.
  */
 import { Result, Schema } from 'effect'
-import type { AnyBlock } from './block.js'
+import { isRecord, type AnyBlock } from './block.js'
 
 /** An action a Catalog offers: what `Action.define` from `foldkit-surface` makes. */
 export interface CatalogAction {
@@ -38,11 +38,9 @@ export interface ActionFinding {
 
 const decodeRef = Schema.decodeUnknownResult(ActionRef)
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 /** The input an action is given, decoded by its Schema, or why it is refused. */
 const inputOf = (action: CatalogAction, ref: ActionRef) =>
+  // An action's input needs no services to decode: it is a Schema of stored JSON.
   Schema.decodeUnknownResult(action.input as Schema.Codec<unknown, unknown>)(ref.input ?? {})
 
 /** What is wrong with a node's stored actions, against its Block's events and the Catalog's actions. */

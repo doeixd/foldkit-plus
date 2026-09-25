@@ -141,10 +141,21 @@ const define = <
   })
 }
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+/** Whether stored JSON is an object of named values, as opposed to a list or a scalar. */
+export const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** What is wrong with a node's stored appearance, against the Block's axes. */
+/** The fields a struct Schema declares, such as a Block's props or a Catalog's context; none for anything else. */
+export const fieldsOf = (schema: Schema.Top | undefined): Readonly<Record<string, Schema.Top>> => {
+  // A struct Schema carries its fields; any other Schema has none to read.
+  const fields = (schema as { readonly fields?: unknown } | undefined)?.fields
+  return isRecord(fields) ? (fields as Readonly<Record<string, Schema.Top>>) : {}
+}
+
+/** A Block's axis by a stored name: its own axes only, never `constructor` or the like. */
+const axisOf = (block: AnyBlock, name: string): AppearanceAxis | undefined =>
+  Object.hasOwn(block.appearance, name) ? block.appearance[name] : undefined
+
 /** Why one stored name is not a choice of an axis, or nothing when it is. */
 const checkName = (
   name: string,
@@ -184,7 +195,7 @@ const checkAppearance = (
       },
     ]
   return Object.entries(appearance).flatMap(([name, choice]): ReadonlyArray<AppearanceFinding> => {
-    const axis = block.appearance[name]
+    const axis = axisOf(block, name)
     const path = ['appearance', name]
     if (axis === undefined)
       return [
@@ -227,7 +238,7 @@ const offeredAppearance = (
   if (!isRecord(appearance)) return {}
   const offered: Record<string, AppearanceChoice> = {}
   for (const [name, choice] of Object.entries(appearance)) {
-    const axis = block.appearance[name]
+    const axis = axisOf(block, name)
     if (axis === undefined) continue
     if (typeof choice === 'string') {
       if (axis.values.includes(choice)) offered[name] = choice

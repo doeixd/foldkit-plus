@@ -8,7 +8,7 @@
 import { Schema } from 'effect'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 import type { CatalogAction } from './action.js'
-import type { AnyBlock } from './block.js'
+import { fieldsOf, type AnyBlock } from './block.js'
 import type { Content } from './content.js'
 import { bounds } from './region.js'
 
@@ -22,7 +22,7 @@ export interface Catalog<Blocks extends AnyBlock = AnyBlock> {
    * What a page is drawn for (an audience, a locale, a flag), as a Schema whose
    * fields a node's `when` may name; `undefined` when a page has no context.
    */
-  readonly context: Schema.Top | undefined
+  readonly context: Schema.Struct<Schema.Struct.Fields> | undefined
   /** The actions a node's events may run, by name: `foldkit-surface` Actions. */
   readonly actions: ReadonlyArray<CatalogAction>
 }
@@ -44,17 +44,12 @@ export interface BlockDescription {
   readonly events: ReadonlyArray<string>
 }
 
-const keysOf = (schema: Schema.Top): ReadonlyArray<string> => {
-  const fields = (schema as { readonly fields?: unknown }).fields
-  return typeof fields === 'object' && fields !== null ? Object.keys(fields) : []
-}
-
 export const Catalog = {
   make: <const Blocks extends AnyBlock>(config: {
     readonly blocks: ReadonlyArray<Blocks>
     readonly roots: ReadonlyArray<Content>
     /** The context a node's `when` may name: `Schema.Struct({ audience: ..., locale: ... })`. */
-    readonly context?: Schema.Top
+    readonly context?: Schema.Struct<Schema.Struct.Fields>
     /** The actions a node's events may run: `[AddToCart, Subscribe]`. */
     readonly actions?: ReadonlyArray<CatalogAction>
   }): Catalog<Blocks> => {
@@ -91,7 +86,7 @@ export const Catalog = {
     catalog.blocks.map(block => ({
       name: block.name,
       provides: block.provides.map(content => content.name),
-      props: keysOf(block.Props),
+      props: Object.keys(fieldsOf(block.Props)),
       regions: Object.fromEntries(
         Object.entries(block.regions).map(([name, region]) => [
           name,
