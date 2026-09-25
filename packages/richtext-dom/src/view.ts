@@ -46,16 +46,54 @@ const renderElement = (
   return elementFor(element.tag)(attributes, children)
 }
 
-const renderRun = (renderer: RichText.Rendering, run: RichText.Text): Child => {
-  const { nest, unrendered } = RichText.runRendering(renderer, run)
-  let node: Child = run.text
-  for (const element of nest) node = renderElement(element, [node])
-  return unrendered.length === 0
-    ? node
-    : h.span([h.DataAttribute('marks', unrendered.join(' '))], [node])
+const renderRun = (
+  renderer: RichText.Rendering,
+  run: RichText.Text,
+  spans: ReadonlyArray<RichText.DecorationSpan>,
+): ReadonlyArray<Child> => {
+  const piece = (text: string, decorations: ReadonlyArray<RichText.Decoration>): Child => {
+    const { nest, unrendered } = RichText.runRendering(renderer, run)
+    let node: Child = text
+    for (const element of nest) node = renderElement(element, [node])
+    if (unrendered.length > 0) {
+      node = h.span([h.DataAttribute('marks', unrendered.join(' '))], [node])
+    }
+    // A decoration wraps the marked text, so a stylesheet reaches it without knowing
+    // which marks the run happens to carry.
+    for (const decoration of decorations) {
+      node = h.span([h.DataAttribute('decoration', decoration.kind)], [node])
+    }
+    return node
+  }
+  if (spans.length === 0) return [piece(run.text, [])]
+  // Cut the run at every decoration edge and give each piece the decorations covering
+  // it. A piece no decoration covers stays a bare string, so a run outside every
+  // decoration renders exactly as it did before.
+  const edges = new Set<number>([0, run.text.length])
+  for (const span of spans) {
+    edges.add(Math.max(0, Math.min(run.text.length, span.from)))
+    edges.add(Math.max(0, Math.min(run.text.length, span.to)))
+  }
+  const cuts = [...edges].sort((left, right) => left - right)
+  const pieces: Array<Child> = []
+  for (let index = 0; index < cuts.length - 1; index += 1) {
+    const from = cuts[index]!
+    const to = cuts[index + 1]!
+    if (from === to) continue
+    const covering = spans
+      .filter(span => span.from <= from && to <= span.to)
+      .map(span => span.decoration)
+    const text = run.text.slice(from, to)
+    pieces.push(covering.length === 0 ? text : piece(text, covering))
+  }
+  return pieces
 }
 
-const renderBlock = (renderer: RichText.Rendering, block: RichText.Block): Html => {
+const renderBlock = (
+  renderer: RichText.Rendering,
+  block: RichText.Block,
+  spans: ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>,
+): Html => {
   if (block.type === 'Unknown') {
     // Preserved content renders as a diagnostic placeholder, never executed.
     return h.div([h.DataAttribute('unknown', block.originalType)], [`[${block.originalType}]`])
@@ -63,9 +101,9 @@ const renderBlock = (renderer: RichText.Rendering, block: RichText.Block): Html 
   // A node that accepts nested blocks renders them inside it, so a list keeps
   // its items; a text block holds only its runs.
   const children: ReadonlyArray<Child> = [
-    ...block.children.map(run => renderRun(renderer, run)),
+    ...block.children.flatMap(run => renderRun(renderer, run, spans.get(run.id) ?? [])),
     ...(block.type === 'Node' && block.blocks !== undefined
-      ? renderBlocks(block.blocks, renderer)
+      ? renderBlocksWith(block.blocks, renderer, spans)
       : []),
   ]
   const element = block.type === 'Node' ? RichText.nodeRendering(renderer, block) : undefined
@@ -77,14 +115,30 @@ const renderBlock = (renderer: RichText.Rendering, block: RichText.Block): Html 
   return block.type === 'Heading' ? HEADINGS[block.level]([], children) : h.p([], children)
 }
 
+const renderBlocksWith = (
+  blocks: ReadonlyArray<RichText.Block>,
+  renderer: RichText.Rendering,
+  spans: ReadonlyMap<RichText.NodeId, ReadonlyArray<RichText.DecorationSpan>>,
+): ReadonlyArray<Html> => blocks.map(block => renderBlock(renderer, block, spans))
+
 /** One element per block, ready to place in any Foldkit view. */
 export const renderBlocks = (
   blocks: ReadonlyArray<RichText.Block>,
   renderer: RichText.Rendering = RichText.noRendering,
-): ReadonlyArray<Html> => blocks.map(block => renderBlock(renderer, block))
+): ReadonlyArray<Html> => renderBlocksWith(blocks, renderer, new Map())
 
-/** The whole document as a `div` of block elements. */
+/**
+ * The whole document as a `div` of block elements. A decoration set is projected over
+ * the document and overlaid on the runs it covers (§64): the document itself is never
+ * changed, and a caller that computes its decorations per render discards them with the
+ * render.
+ */
 export const renderDocument = (
   document: RichText.Document,
   renderer: RichText.Rendering = RichText.noRendering,
-): Html => h.div([], renderBlocks(document.children, renderer))
+  decorations: RichText.DecorationSet = [],
+): Html =>
+  h.div(
+    [],
+    renderBlocksWith(document.children, renderer, RichText.decorationsIn(document, decorations)),
+  )

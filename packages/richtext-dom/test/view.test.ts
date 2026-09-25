@@ -328,3 +328,58 @@ describe('the read-only renderer with a rendering registry', () => {
     expect(tags(renderDocument(paragraph) as unknown as VNode)).toEqual(['div', 'p'])
   })
 })
+
+describe('decorations over the read-only renderer (§64)', () => {
+  const at = (node: string, offset: number): RichText.Position => ({
+    node: RichText.NodeId.make(node),
+    offset,
+    affinity: 'after',
+  })
+  const decoration = (
+    from: readonly [string, number],
+    to: readonly [string, number],
+    kind = 'search',
+  ): RichText.Decoration => ({ from: at(from[0], from[1]), to: at(to[0], to[1]), kind })
+
+  /** The first element carrying a decoration, wherever it sits. */
+  const decorated = (node: VNode | string | null): VNode | undefined => {
+    if (node === null || typeof node === 'string') return undefined
+    if (attr(node, 'data-decoration') !== undefined) return node
+    for (const child of node.children ?? []) {
+      const found = decorated(child)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+
+  it('wraps the covered text in an element carrying the kind', () => {
+    const rendered = renderDocument(document(), RichText.noRendering, [
+      decoration(['a', 0], ['a', 5]),
+    ]) as unknown as VNode
+    const span = decorated(rendered)
+    expect(attr(span ?? null, 'data-decoration')).toBe('search')
+    expect(text(span ?? null)).toBe('plain')
+  })
+
+  it('cuts the run at the decoration’s edges and leaves the rest bare', () => {
+    const rendered = renderDocument(document(), RichText.noRendering, [
+      decoration(['b', 1], ['b', 3]),
+    ]) as unknown as VNode
+    // Run `b` is `bold`: `b` before, `ol` covered, `d` after.
+    expect(text(rendered)).toContain('bold')
+    expect(text(decorated(rendered) ?? null)).toBe('ol')
+  })
+
+  it('keeps the run’s marks inside the decoration, so a stylesheet sees both', () => {
+    const rendered = renderDocument(document(), RichText.noRendering, [
+      decoration(['b', 0], ['b', 4]),
+    ]) as unknown as VNode
+    const span = decorated(rendered)
+    expect(tags(span ?? null)).toEqual(['span', 'strong'])
+    expect(text(span ?? null)).toBe('bold')
+  })
+
+  it('renders exactly as before when the set is empty', () => {
+    expect(renderDocument(document())).toEqual(renderDocument(document(), RichText.noRendering, []))
+  })
+})

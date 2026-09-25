@@ -438,6 +438,25 @@ serializes the same way however it was assembled. `runRendering(renderer, run)` 
 `nodeRendering(renderer, block)` are the lookups, exported so the view and the
 interpreter share this one answer.
 
+## Decorations
+
+A decoration is derived, ephemeral presentation over a document range — a search match, a
+lint warning, a remote cursor, a syntax token — and never document content (§64):
+
+```ts
+const matches: RichText.DecorationSet = [{ from: at(0), to: at(7), kind: 'search' }]
+
+RichText.decorationsIn(document, matches)
+// → Map<runId, Array<{ from, to, decoration }>>, each cut at its run's edge
+```
+
+`decoration.data` is the renderer's own payload and the core never reads it. A decoration
+is not in the codec, not a Transaction, not undo, and not replicated: a caller computes a
+set for one render and discards it. `decorationsIn` is the projection every interpreter
+shares — a decoration crossing runs is cut at each run's edge, an endpoint that does not
+resolve skips the decoration, a backwards range is honoured, and one run's spans come back
+in text order.
+
 ## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with
 its own identities:

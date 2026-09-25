@@ -187,6 +187,13 @@ check(
   Object.keys(host.vocabularyFor('smoke-empty')).length === 0,
 )
 
+// §126: a decoration set projects onto the runs it covers, which is what a renderer reads.
+const projected = richtext.decorationsIn(document, [{ from: at(0), to: at(2), kind: 'search' }])
+check(
+  'decorations project through the build',
+  projected.get(richtext.NodeId.make('a'))?.[0]?.to === 2,
+)
+
 const consumer = fileURLToPath(new URL('./consumer.ts', import.meta.url))
 let types = true
 try {

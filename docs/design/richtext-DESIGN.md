@@ -2912,6 +2912,11 @@ document metadata. Converting a Decoration back into document state (accepting
 an AI suggestion, turning a search match into a Citation) is always an explicit
 semantic command, never an automatic round trip.
 
+> **Built (2026-09-25), as §126.** `Decoration`, `DecorationSet`, and `decorationsIn` are
+> the contracts and the shared projection; the read-only view overlays a set as
+> `span[data-decoration]`. The editable adapter's overlay is deliberately not built yet
+> (§126 records why: one text node per run is what makes a caret mappable).
+
 ---
 
 # 65. Undo and redo
@@ -6039,6 +6044,11 @@ comment highlights
 
 That's a major architectural win.
 
+> **Built (2026-09-25), as §126.** `Decoration`, `DecorationSet`, and `decorationsIn` are in
+> `foldkit-richtext`, and the read-only renderer overlays a set as `span[data-decoration]`
+> with the run's marks inside it. The editable interpreter's overlay is deliberately not
+> built yet; §126 records the reason and the options.
+
 ---
 
 ## 7. Code blocks + great syntax highlighting
@@ -6786,4 +6796,70 @@ the child's `update` reads it, so an application using the Bundle gets `run`'s r
 not only `validate`'s report. `foldkit-richtext-dom/host` exports `placeVocabulary` and
 `vocabularyFor`, and for the same reason the rendering pair lives there: the registries
 hold schemas and functions, so they cannot ride in the Bundle's schema-decoded args.
+
+---
+
+# 126. The Decoration substrate
+
+§64 decided that a Decoration is the ephemeral third kind beside Marks and Annotations,
+derived from current state and never persisted. §124 §6 asked for the substrate that makes
+that real before syntax highlighting needs it. Both are built; this records the shape and
+what is deliberately not here.
+
+## The contract
+
+`foldkit-richtext` exports `Decoration`, `DecorationSet`, and `decorationsIn`:
+
+```ts
+interface Decoration<Data = unknown> {
+  readonly from: Position
+  readonly to: Position
+  readonly kind: string // search, syntax, cursor, lint, …
+  readonly data?: Data // the renderer's payload; the core never reads it
+}
+```
+
+A decoration is plain data over a document range, computed for one render and then
+discarded — not in the codec, not in a Transaction, not in undo, and not replicated.
+`kind` is a fixed word the presentation is chosen by; `data` is the renderer's own.
+
+`decorationsIn(document, set)` projects a set onto runs:
+
+```text
+ReadonlyMap<NodeId, ReadonlyArray<{ from: number; to: number; decoration }>>
+```
+
+A decoration that crosses runs is cut at each run's edge, so a renderer never has to reason
+about document order; a decoration whose endpoints do not resolve is skipped rather than
+guessed at; a backwards range is honoured; an offset past a run is clamped; and one run's
+spans come back in text order. The projection lives in the core because a read-only
+renderer, the editable adapter, and any other interpreter need the same answer to "which
+decorations cover this run, and where".
+
+## The first renderer
+
+The read-only view takes a set — `renderDocument(document, renderer?, decorations?)` — and
+renders each covered piece as a `span` with `data-decoration=<kind>`, with the run's marks
+*inside* it, so a stylesheet reaches both:
+
+```text
+<span data-decoration="search"><strong>covered</strong></span>
+```
+
+A run no decoration covers renders exactly as it did before. `renderBlocks` is unchanged: a
+slice's positions cannot be resolved without the document they came from, so only the
+document form takes a set.
+
+## What is not here
+
+The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping
+one text node per run, and splitting a run at decoration edges would break that mapping
+unless the overlay is drawn another way — the CSS Custom Highlight API, or overlay elements
+the position mapping ignores. That is a design decision rather than a parameter, and it
+belongs with the first decoration the editor needs (a remote cursor, a search highlight in
+the editable area). Until then the editable subtree renders marks only.
+
+Presence (§62) and remote selections (§63) become decorations when collaboration lands;
+nothing here changes for that — a stable selection resolved against a replica produces a
+`Decoration`, which is the point of resolving it.
 

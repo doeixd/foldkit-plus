@@ -87,6 +87,12 @@ export {
   nodeRendering,
 } from './rendering.js'
 export {
+  type Decoration,
+  type DecorationSet,
+  type DecorationSpan,
+  decorationsIn,
+} from './decoration.js'
+export {
   Slice,
   emptySlice,
   sliceOf,

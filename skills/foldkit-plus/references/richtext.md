@@ -172,6 +172,14 @@ ownership — with the same element and attribute names the editable adapter use
 same `rendering(...)` registry as the serializer, so a declared Link renders as a
 real `<a href>`; a tag Foldkit has no builder for is reported, not swapped.
 
+Decorations (§64, §126) are derived, ephemeral presentation over a document range — a
+search match, a lint warning, a syntax token — and never document content:
+`Decoration` / `DecorationSet` are plain data, `decorationsIn(document, set)` projects a
+set onto runs (cut at each run's edge, unresolvable endpoints skipped, text order), and
+`renderDocument(document, renderer?, decorations?)` overlays each covered piece as
+`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
+overlay decorations yet.
+
 The harness also carries a page (`examples/richtext/harness.html`, served from
 source with `pnpm exec vite examples/richtext`) for exercising the editable
 adapter in a real browser, where jsdom cannot reach: real typing, a real
@@ -204,8 +212,8 @@ merge, move, or remove but never mint an identity, and one that never settles is
 refused with `UnstableNormalization` after `MAX_NORMALIZATION_PASSES`.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
-real-browser verification; the toolbar and the slash menu are done), and collaboration
-remain
+real-browser verification; the toolbar and the slash menu are done), the editable
+adapter's decoration overlay, and collaboration remain
 unfinished. Nested children are done: a node block may carry nested `blocks`,
 which decode, round-trip, count, and survive an unknown kind, and commands reach
 a run inside one — typing, grapheme deletion, marks, and the clipboard work at

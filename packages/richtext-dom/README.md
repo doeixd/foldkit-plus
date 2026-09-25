@@ -203,6 +203,7 @@ editable adapter, not a second editor:
 const html = renderDocument(document) // a div of block elements
 renderBlocks(slice.blocks) // one element per block
 renderDocument(document, renderer) // a declared Link as a real <a href>
+renderDocument(document, renderer, decorations) // a decoration overlaid on the runs it covers
 ```
 
 Both take the same `rendering(...)` registry as the HTML serializer (§121), so a
@@ -210,6 +211,13 @@ declared mark or node kind becomes its element here too. Without one, blocks bec
 `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the same order the serializer
 uses, unknown marks ride on a `span` with `data-marks`, and unknown blocks render as
 an inert `div data-unknown="Type"` placeholder.
+
+A decoration set (§64, §126) is projected with `RichText.decorationsIn` and each covered
+piece becomes a `span` with `data-decoration=<kind>`, with the run's marks inside it — so a
+stylesheet reaches both — and a run no decoration covers renders exactly as before.
+`renderBlocks` takes no set: a slice's positions cannot be resolved without the document
+they came from. The editable adapter does not overlay decorations yet (§126 records why),
+so a stylesheet serving both interpreters styles decorations in the read-only one.
 
 Foldkit types one builder per tag name and publishes no builder for an arbitrary tag,
 so a renderer tag outside the tags Foldkit can build — a custom element's, say — is
