@@ -23,6 +23,8 @@ import {
   postPage,
   type Model,
 } from './app.js'
+import { SlotView, Style } from 'foldkit-mixins'
+import { PageSlots, PostsPageStyle } from './style.js'
 import { chairOf, chairs } from './transport.js'
 
 const chair = chairOf(window.location.search)
@@ -30,7 +32,8 @@ const ask = (message: typeof Editor.Message.Type) => Message.GotEditorMessage({ 
 
 const WorklistTable = ListView.forMessages<Message>().define(WorklistList)
 
-const statusLine: Readonly<Record<EditorStatus, string>> = {
+/** The editor's status, in words: the posts' editor and the pages' say the same. */
+export const statusLine: Readonly<Record<EditorStatus, string>> = {
   Closed: '',
   Loading: 'Loading…',
   NotFound: 'That entry does not exist.',
@@ -49,16 +52,23 @@ const statusLine: Readonly<Record<EditorStatus, string>> = {
   ScheduleFailed: 'Not scheduled',
 }
 
-const chairsNav = (h: HtmlBuilder<Message>): Html =>
+/** Who is looking, and the two applications: posts and pages. */
+export const chairsNav = <M>(h: HtmlBuilder<M>): Html =>
   h.nav(
     [h.AriaLabel('Who is looking')],
-    chairs.flatMap((name, at) => [
-      ...(at === 0 ? [] : [h.span([h.Class('muted')], [' · '])]),
-      h.a(
-        [h.Href(`?as=${name}`), ...(name === chair ? [h.AriaCurrent('page')] : [])],
-        [name === 'wren' ? 'Wren, a writer' : name === 'edda' ? 'Edda, an editor' : 'A visitor'],
-      ),
-    ]),
+    [
+      h.a([h.Href(`/?as=${chair}`)], ['Posts']),
+      ' · ',
+      h.a([h.Href(`/pages?as=${chair}`)], ['Pages']),
+      h.span([h.Class('muted')], [' — ']),
+      ...chairs.flatMap((name, at) => [
+        ...(at === 0 ? [] : [h.span([h.Class('muted')], [' · '])]),
+        h.a(
+          [h.Href(`?as=${name}`), ...(name === chair ? [h.AriaCurrent('page')] : [])],
+          [name === 'wren' ? 'Wren, a writer' : name === 'edda' ? 'Edda, an editor' : 'A visitor'],
+        ),
+      ]),
+    ],
   )
 
 const site = (model: Model, h: HtmlBuilder<Message>): Html => {
@@ -231,33 +241,31 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
   )
 }
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
-  h.main(
-    [],
-    [
-      h.h1([], ['A small CMS']),
-      chairsNav(h),
-      ...(chair === 'visitor'
-        ? []
-        : [
-            h.section(
-              [h.Id('worklist')],
-              [
-                h.h2([], ['Worklist']),
-                h.button([h.Id('new'), h.OnClick(Message.AskedForPost())], ['New post']),
-                WorklistTable(
-                  {
-                    page: Worklist.page(model),
-                    onOpen: row => Message.OpenedEntry({ entry: row.id }),
-                    renderers: Cms.displayRenderers(),
-                    words: { empty: 'Nothing yet. Start a post.' },
-                  },
-                  h,
-                ),
-              ],
-            ),
-            editor(model, h),
-          ]),
-      site(model, h),
-    ],
-  )
+export const view = SlotView.define(PageSlots, (model: Model, slots, h: HtmlBuilder<Message>) =>
+  h.main(slots.root.attrs(), [
+    h.h1([], ['A small CMS']),
+    chairsNav(h),
+    ...(chair === 'visitor'
+      ? []
+      : [
+          h.section(
+            [h.Id('worklist')],
+            [
+              h.h2([], ['Worklist']),
+              h.button([h.Id('new'), h.OnClick(Message.AskedForPost())], ['New post']),
+              WorklistTable(
+                {
+                  page: Worklist.page(model),
+                  onOpen: row => Message.OpenedEntry({ entry: row.id }),
+                  renderers: Cms.displayRenderers(),
+                  words: { empty: 'Nothing yet. Start a post.' },
+                },
+                h,
+              ),
+            ],
+          ),
+          editor(model, h),
+        ]),
+    site(model, h),
+  ]),
+).pipe(Style.attach(PostsPageStyle))

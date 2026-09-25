@@ -194,7 +194,9 @@ The Builder refuses an id its page lacks, so a link opened before the page is
 loaded selects nothing: send `selectFrom` again once the form is filled.
 Nothing selected leaves the URL as it is, so that link is not lost while the
 page loads. An application with other query parameters builds the URL with
-them. `test/url.test.ts` runs this recipe.
+them. `test/url.test.ts` runs this recipe, and the CMS example's page editor
+(`examples/cms`, at `/pages`) routes this way, with the page and the Block both in
+the address.
 
 ## Previewing a context
 

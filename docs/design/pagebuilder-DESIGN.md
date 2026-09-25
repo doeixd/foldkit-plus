@@ -1172,7 +1172,8 @@ resume plan.
 - **10-3,** the selected node and panel mirrored into the URL with `Mirror.url`.
   **Built as a recipe** instead (§30): a navigation is sent to the Builder as
   `Selected`, and a Subscription writes its selection into the URL, so no
-  writable projection is needed. The CMS example uses it once it routes.
+  writable projection is needed. The CMS example's page editor, at `/pages`,
+  routes this way.
 
 **Then stable.** §29's list is audited against the tests and its gaps filled (a
 React Block beside a Foldkit Block, a preview of a partly edited page, a Surface
@@ -1268,7 +1269,7 @@ Each is answered by building, not by debate, and none changes the ownership mode
   `form.control('document').send(Message.Selected({ id }))`, and a
   Subscription over the read `PageBuilder.document`/`selected` replaces the URL
   when the selection changes. No Form or Mirror API is needed; the Builder
-  README gets the recipe, and the CMS example uses it once it routes. *As
+  README gets the recipe, and the CMS example's page editor uses it. *As
   built:* the recipe runs in `packages/builder/test/url.test.ts`. A cleared
   selection leaves the URL alone, and a link opened before its page is filled
   is sent again after, since the Builder refuses an id its page lacks.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runPageDemo } from '../src/pageDemo.js'
 
 describe('a page in foldkit-cms, built with foldkit-builder', () => {
-  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads, picks and takes an agent’s edit', async () => {
+  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads, picks, follows a link and takes an agent’s edit', async () => {
     const page =
       'Section {"tone":"plain"} > body: > Heading {"text":"Welcome"} > Button {"href":"/blog","label":"Read the blog"}'
     expect(await runPageDemo()).toEqual([
@@ -39,6 +39,10 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       'read through Remote, as the editor may see it: Good morning | News | All posts | Home',
       'it may leave out one of: none, Home',
       'leaving out the page it is on: Good morning | News | All posts',
+      '— a link to a Block —',
+      'while the page loads, nothing is selected: nothing',
+      'once it is open, the Block the link names: Button',
+      'a link to a Block the page lacks is let go: nothing waits; Button selected',
       '— an agent edits the page, as a person does —',
       'it adds a heading: done',
       'the page: Written by an agent | Good morning | News | All posts',

@@ -6,7 +6,7 @@
  * entry. The Builder adds no CMS state: every save, revision and publish is the
  * CMS's, with the page as one form key's value.
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage, type Model as BuilderModel } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
@@ -18,6 +18,7 @@ import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemotePolicy } from 'foldkit-rem
 import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { inertHtml, type Html } from 'foldkit/html'
+import { fromString } from 'foldkit/url'
 import {
   Data,
   Editor,
@@ -28,6 +29,7 @@ import {
   editing,
   initial,
   pageView,
+  selectedOf,
   builderInputs,
   update,
   type Model,
@@ -208,6 +210,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
           : build(BuilderMessage.Selected({ id: Composition.NodeId.make(id) }))
       },
       builder,
+      /** The Block a link named that has not been selected yet. */
+      waiting: () => model.linked,
+      /** The Block the Builder has selected, by its kind. */
+      selected: () => {
+        const id = selectedOf(model)
+        return id === null ? 'nothing' : (builder().page.present.nodes[id]?.block ?? id)
+      },
       build,
       /** One call of the agent's `edit_page` tool: done, or why it was refused. */
       agent: async (op: unknown): Promise<string> => {
@@ -377,6 +386,24 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   await edda.choose('except', 'Home')
   await edda.look()
   say(`leaving out the page it is on: ${edda.drawn()}`)
+
+  say('— a link to a Block —')
+  const linked = chair({ name: 'edda', role: 'editor' })
+  const button = edda.idOf('Button')
+  const url = Option.getOrThrow(
+    fromString(`https://cms.example/pages?as=edda&page=page-entry-1&block=${button}`),
+  )
+  await linked.send(Message.UrlChanged({ url }))
+  say(`while the page loads, nothing is selected: ${linked.selected()}`)
+  await linked.look()
+  say(`once it is open, the Block the link names: ${linked.selected()}`)
+  const gone = Option.getOrThrow(
+    fromString('https://cms.example/pages?as=edda&page=page-entry-1&block=gone'),
+  )
+  await linked.send(Message.UrlChanged({ url: gone }))
+  say(
+    `a link to a Block the page lacks is let go: ${linked.waiting() ?? 'nothing waits'}; ${linked.selected()} selected`,
+  )
 
   say('— an agent edits the page, as a person does —')
   const inSection = { _tag: 'Region', parent: edda.idOf('Section'), region: 'body', index: 0 }

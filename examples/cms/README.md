@@ -102,15 +102,18 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
 - `demo.ts` is the three chairs and the clock.
 - `site.ts`, `pageDomain.ts`, `pageApp.ts` and `pageDemo.ts` are the page's
   vocabulary, domain, application and story, placed the same way.
+- `style.ts` and `sheet.ts` are the appearance: `foldkit-mixins` Style for each
+  page and for the Builder's panels, compiled into one stylesheet that
+  `client.ts` injects. There is no CSS file.
 
 ## In the browser
 
-`pnpm dev` serves the same `app.ts` on Foldkit's runtime, with an HTTP transport
-in place of the in-process one. **Which chair you sit in is in the address**
+`pnpm dev` serves the same `app.ts` at `/`, and the page editor at `/pages`, on
+Foldkit's runtime, with an HTTP transport in place of the in-process one. **Which chair you sit in is in the address**
 (`?as=wren`, `?as=edda`, `?as=visitor`), so a reload is a change of chair, and
 two windows side by side are two authors on one entry.
 
-- `view.ts` is the only file the scripted run does not share. The form is
+- `view.ts` and `pagesView.ts` are the files the scripted run does not share. The form is
   `FormView` with `Cms.controlRenderers()` beside its own, the worklist is
   `ListView` with `Cms.displayRenderers()`, and what is left is the status line
   and the buttons, which are an application's to word.
@@ -122,6 +125,13 @@ two windows side by side are two authors on one entry.
   newly published joins one only when the query is asked again. The worklist does
   that for itself (`listing` in `app.ts`); the public site has a **Look again**
   button, which is what loading the page is for a visitor.
+- **The page editor's address says which page is open and which Block is
+  selected** (`/pages?as=edda&page=…&block=…`), so a link opens the editor on a
+  Block and a reload comes back to it. The Builder owns its selection: a
+  navigation is sent to it as `Selected`, and a Subscription writes the
+  selection back (`pageApp.ts`, the Builder README's recipe). A link opened
+  while its page loads keeps its Block in `linked` until the page holds it,
+  and a new page joins the address once its first save makes the entry.
 - `http.ts` keeps time: the CMS owns no timer, so the host asks what is due every
   five seconds. Schedule something a minute out and watch it go.
 - **`x-chair` stands in for authentication.** It is the client saying who it is,

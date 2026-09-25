@@ -11,7 +11,9 @@ import { Renderer } from 'foldkit-composition/foldkit'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity } from 'foldkit-entity'
 import { Input } from 'foldkit-form'
+import { Style } from 'foldkit-mixins'
 import { BuilderView } from 'foldkit-mixins-builder'
+import { BuilderStyle } from './style.js'
 
 export const Section = Block.define('Section', {
   Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
@@ -83,4 +85,4 @@ export const PageBuilder = Builder.make('PageBuilder', {
 })
 
 /** The Builder drawn: palette, layers, inspector, and the page in edit mode. */
-export const PageEditing = BuilderView.define(PageBuilder)
+export const PageEditing = BuilderView.define(PageBuilder).pipe(Style.attach(BuilderStyle))
