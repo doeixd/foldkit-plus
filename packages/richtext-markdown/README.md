@@ -28,10 +28,21 @@ function of a `Document`.
 import * as RichText from 'foldkit-richtext'
 import { print } from 'foldkit-richtext-markdown'
 
+const document = RichText.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Paragraph',
+      id: 'p',
+      children: [{ type: 'Text', id: 't', text: 'hello', marks: [] }],
+    },
+  ],
+})
+
 const { markdown, diagnostics } = print(document)
 
-markdown // '> quoted\n\n- one\n- two\n'
-diagnostics // [{ code: 'UnsupportedNode', detail: 'Callout', node: 'c' }]
+markdown // 'hello\n'
+diagnostics // []
 ```
 
 `diagnostics` names every kind or mark the mapping has no syntax for. A block kind with no
