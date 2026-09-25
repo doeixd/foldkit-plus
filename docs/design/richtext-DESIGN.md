@@ -1130,7 +1130,7 @@ MoveNode
 SplitNode
 JoinNode
 
-SetNodeProps
+RetypeBlock
 
 AddMark
 RemoveMark
@@ -4022,10 +4022,11 @@ JSON fields, no runs) and reports them via `findUnknownNodes`; unknown blocks
 are structurally addressable but never text-edited. `SplitNode` divides one text
 block at a run offset with caller-supplied identities; `JoinNode` moves runs
 into the surviving previous sibling without merging. `MoveNode` reorders blocks
-without touching run identities, and `SetNodeProps` retypes heading levels.
+without touching run identities, and `RetypeBlock` changes a text block's type
+(a paragraph, or a heading at a level) while keeping its runs.
 Kits declare a vocabulary (`RichText.kit`, `validate`) without yet driving
 parsing or `apply`. `run(state, command, ids)` resolves intents (typing,
-delete, split, toggle mark, set selection) into transactions, taking identity
+delete, split, toggle mark, set selection, retype block) into transactions, taking identity
 from the caller's `mint`. `History` gives snapshot undo over `EditorState` with
 explicit, clock-free grouping.
 `SplitRun` divides one run so each side can carry
@@ -5128,7 +5129,10 @@ not have yet, such as turning the block into a heading. It needs the editor to
 report the text before the caret (a read), the menu's own state (open, query,
 selection), and its keys (ArrowUp/Down, Enter, Escape), which is the editor's
 binding layer above. It is the largest of the three and the one that most wants a
-real block vocabulary, so it comes last.
+real block vocabulary, so it comes last. "Turning the block into a heading" landed
+first as `RetypeBlock` (a paragraph, or a heading at a level), because it is the
+menu's first non-mark entry and it needed nothing else: the core can retype a text
+block while its runs and identities stay.
 
 ## Slices
 
@@ -5148,7 +5152,11 @@ real block vocabulary, so it comes last.
    (`foldkit-mixins-richtext`: `markToolbar`, `MarkToolbarSlots`). §120 corrects
    §119 on the wrapping: a slot view owns its elements, so the family could not take
    resolved attributes as a helper.
-5. Slash commands, over 1 and 3.
+5. Slash commands, over 1 and 3. — **started.** The core can retype a text block
+   (`RetypeBlock`, §119's "turning the block into a heading"), which is the menu's
+   first non-mark entry. What a menu still needs: the read of the text before the
+   caret, the editor's binding layer for ArrowUp/Down/Enter/Escape, the menu's own
+   state and view, and the entry catalogue.
 
 ---
 
@@ -5303,8 +5311,8 @@ editing loop through a *prop-carrying* mark, not a snapshot of its markup.
 `patch` keeps an existing element when the document still says the same runs and
 nested blocks are there, because rebuilding a block is what it exists to avoid. But
 run ids are not the whole shape: a block can keep its identity and every run while
-the element it renders as changes. `RichText.Edit.setNodeProps` does exactly that —
-it re-levels a heading in place, so `h2` becomes `h3` with the same two runs — and a
+the element it renders as changes. `RichText.Edit.retypeBlock` does exactly that — it
+re-levels a heading in place, so `h2` becomes `h3` with the same two runs — and a
 declared node kind whose entry changes the tag is the same case, which is what made
 the gap visible once the registry reached the adapter.
 

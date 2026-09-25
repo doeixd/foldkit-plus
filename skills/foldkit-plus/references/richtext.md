@@ -142,9 +142,12 @@ The harness adapter carries slices over the clipboard
 paste as slice → HTML → text.
 
 `run(state, command, ids)` resolves editor intent (typing, backward/forward
-delete, split block, toggle mark over a range, set selection) into a
-transaction and applies it; identity comes from the caller's `mint`, never a
-clock. `InsertText` takes an optional `marks`: with it the inserted span carries
+delete, split block, toggle mark over a range, set selection, paste, retype block)
+into a transaction and applies it; identity comes from the caller's `mint`, never a
+clock. `RetypeBlock` changes the type of the block the selection starts in — a
+paragraph, or a heading at a level — and keeps that block's runs, so identities and
+the caret survive; a node block is refused, because its content is its Kit's contract.
+`InsertText` takes an optional `marks`: with it the inserted span carries
 exactly that set, without it the boundary rule decides and the text inherits the
 run it joins; an unknown mark is refused. That keeps stored marks in the
 application: a collapsed toggle is a no-op in the command layer, and the caller

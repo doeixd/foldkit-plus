@@ -108,13 +108,19 @@ const ids = { mint: () => `new-${++n}` }
 RichText.run(state, { type: 'InsertText', text: 'hi' }, ids)
 RichText.run(state, { type: 'ToggleMark', mark: 'Bold' }, ids)
 RichText.run(state, { type: 'SplitBlock' }, ids)
+RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, ids)
 ```
 
 `InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`,
-and `SetSelection` read the current selection, emit a Transaction, and apply it
-in one step; the returned `ChangeSet` and `positionMap` describe the effect.
-Nothing mints identity unless the caller's `mint` does, and replay applies
-transactions rather than commands.
+`SetSelection`, `Paste`, and `RetypeBlock` read the current selection, emit a
+Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap`
+describe the effect. Nothing mints identity unless the caller's `mint` does, and
+replay applies transactions rather than commands.
+
+`RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
+a `Heading` at a level — and keeps that block's runs, so identities and the caret
+survive; a node block or preserved content is refused, because its content is not
+runs.
 
 `InsertText` takes an optional `marks`. With it, the inserted text carries
 exactly that set wherever it lands; without it, the boundary rule decides and the
@@ -540,9 +546,9 @@ not yet drive parsing or `apply`.
   the same index is a no-op. Run identities and selections are untouched, so no
   position steps are emitted. An optional `parent` moves it into a node block's
   nested blocks (and back out), and a parent that cannot hold blocks is refused.
-- `SetNodeProps` retypes a heading's level today (the first block prop; Kit
-  definitions generalize this later). Same-level sets are no-ops; paragraphs
-  reject the operation.
+- `RetypeBlock` changes a text block's type — a paragraph, or a heading at a level —
+  keeping its run values and identities. Same-shape sets are no-ops; a node block or
+  preserved content is refused, because their content is not runs.
 - `InsertNode` splices a caller-built block at an explicit index, or into a node
   block's nested blocks when `parent` is given; every carried identity must be
   fresh within the transaction. Positions need no mapping (they address runs, not
