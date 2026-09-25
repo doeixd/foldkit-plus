@@ -67,6 +67,24 @@
       "gate": false,
       "question": "Does this change add a wrapper or indirection module that only forwards to one existing operation without adding behavior, policy, translation, or an ownership boundary?",
       "guidance": "Count wrappers that pass arguments and results through unchanged, and modules whose only purpose is to re-export one other module. Do not count adapters that translate protocols or types, stable public entry points, dependency-injection boundaries, or wrappers that enforce policy."
+    },
+    {
+      "id": "prototype_key_lookup",
+      "name": "Prototype key lookup",
+      "description": "Untrusted names never read an object's inherited members.",
+      "scope": "hunk",
+      "gate": false,
+      "question": "Does this change read a property of a plain object using a key that comes from stored, client-supplied, or otherwise untrusted data, without an own-property check such as Object.hasOwn, a Map, or a null-prototype object?",
+      "guidance": "Count bracket reads and `in` checks whose key is a stored document field, a decoded client request, a URL or form value, or an agent's tool input. A name like `constructor` or `toString` then reads Object's own member. Do not count keys the code itself produced, such as Object.keys of a trusted record or a literal, and do not count reads guarded by Object.hasOwn or made on a Map or Object.create(null) value."
+    },
+    {
+      "id": "quadratic_loop_lookup",
+      "name": "Quadratic loop lookup",
+      "description": "A pass over a collection stays linear in its size.",
+      "scope": "hunk",
+      "gate": false,
+      "question": "Does this change add a loop or iteration callback over a collection that, on each step, calls indexOf, includes, find, findIndex, some, or filter on an array growing with that same collection, or spreads such an array into a new one?",
+      "guidance": "Look for `rows.map(row => other.indexOf(...))`, `items.filter(id => !after.some(...))`, or `map.set(key, [...(map.get(key) ?? []), x])` inside a loop, where both sides grow with the input. Do not count lookups into a fixed small list (a handful of literals, a Block's own few events), Map or Set lookups, or loops whose bound is a constant."
     }
   ]
 }
