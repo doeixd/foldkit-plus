@@ -23,7 +23,7 @@ import { Block, type AnyBlock, type AppearanceAxes, type AppearanceChoice } from
 interface RecipeLike<Slots> {
   readonly def: {
     readonly base?: StylePieces<Slots>
-    readonly variants: Readonly<Record<string, Readonly<Record<string, StylePieces<Slots>>>>>
+    readonly variants?: Readonly<Record<string, Readonly<Record<string, StylePieces<Slots>>>>>
     readonly defaults?: Readonly<Record<string, string | undefined>>
     readonly compound?: ReadonlyArray<{
       readonly when: Readonly<Record<string, string | undefined>>

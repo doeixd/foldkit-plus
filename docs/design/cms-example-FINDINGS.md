@@ -15,8 +15,8 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
    `foldkit-mixins` `Style.recipeFor(Slots)({ base })` is a type error:
    `SlotRecipeDef.variants` is required. A Block look with no choices (Quote,
    Divider, FeaturedPost) had to write `variants: {}`.
-   *Proposed:* make `variants` optional, defaulting to `{}`.
-   Status: worked around.
+   **Fixed** (plan area 2f): `variants` is optional in `Style.recipe` and
+   `Style.recipeFor`, and the example's `variants: {}` are gone.
 
 2. **A Selection's value has no name.** `Entity.select(Post, {...})` has no
    `.Type`; the value type is `typeof PostCard.schema.Type`, which a reader has

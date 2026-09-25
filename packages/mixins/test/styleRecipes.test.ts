@@ -127,6 +127,17 @@ describe('recipeFor', () => {
     ).toBe('mixins:unknown-slot')
   })
 
+  it('is its base alone when it has no variants', () => {
+    const Plain = Style.recipeFor(CardSlots)({ base: { root: Style.class('card') } })
+    expect(Plain().root?.classes).toEqual(['card'])
+    expect(Plain.def.variants).toEqual({})
+    expect(Plain.extend({ base: { root: Style.class('brand') } })().root?.classes).toEqual([
+      'card',
+      'brand',
+    ])
+    expect(Style.recipe({ base: Style.class('plain') })({}).classes).toEqual(['plain'])
+  })
+
   it('feeds forSlots', () => {
     const Named = Style.forSlots(CardSlots)(Card({ tone: 'danger' }))
     const b = SlotView.buildersFor(CardSlots, [Named.mixin], { input: {}, h })

@@ -255,6 +255,9 @@ version changed; `pnpm` skips versions already in the registry.
     and the `documentOf` of their `active` are `Option`s; the reads gain
     `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
     key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-mixins`: a recipe's `variants` is optional,** so a recipe that is
+  only its base (`Style.recipeFor(Slots)({ base })`) no longer writes
+  `variants: {}`.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

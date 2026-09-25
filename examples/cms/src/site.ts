@@ -305,7 +305,6 @@ const QuoteLook = Appearance.make(QuoteSlots, {
       }),
       cite: Style.self({ color: t.text.muted, fontStyle: 'normal' }),
     },
-    variants: {},
   }),
 })
 export const Quote = Block.define('Quote', {
@@ -372,7 +371,6 @@ const DividerLook = Appearance.make(DividerSlots, {
         width: '100%',
       }),
     },
-    variants: {},
   }),
 })
 export const Divider = Block.define('Divider', {
@@ -529,7 +527,6 @@ const FeaturedLook = Appearance.make(FeaturedSlots, {
       excerpt: Style.self({ color: t.text.muted, margin: '0' }),
       link: Style.self({ color: t.accent.default, fontWeight: t.weight.semibold }),
     },
-    variants: {},
   }),
 })
 export const FeaturedPost = QueryBlock.define('FeaturedPost', {
