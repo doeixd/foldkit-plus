@@ -305,3 +305,58 @@ describe('nested blocks', () => {
     expect(listBlock(document).blocks?.[0]?.children[0]?.marks).toEqual(['Bold'])
   })
 })
+
+describe('the text before a position', () => {
+  const document = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: 'ab', marks: [] },
+            { type: 'Text', id: 'b', text: 'cd', marks: ['Bold'] },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'List',
+          id: 'list',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'item',
+              children: [{ type: 'Text', id: 'c', text: 'one', marks: [] }],
+            },
+          ],
+        },
+      ],
+    })
+  const at = (node: string, offset: number): RichText.Position => ({
+    node: RichText.NodeId.make(node),
+    offset,
+    affinity: 'after',
+  })
+
+  it('reads the block up to the position, across its runs', () => {
+    expect(RichText.textBefore(document(), at('b', 1))).toBe('abc')
+  })
+
+  it('clamps an offset outside the run', () => {
+    expect(RichText.textBefore(document(), at('a', 0))).toBe('')
+    expect(RichText.textBefore(document(), at('b', 99))).toBe('abcd')
+    // A negative offset gets none of the run, not a slice from its end.
+    expect(RichText.textBefore(document(), at('b', -1))).toBe('ab')
+  })
+
+  it('reads the position’s own block at depth, not its container', () => {
+    expect(RichText.textBefore(document(), at('c', 2))).toBe('on')
+  })
+
+  it('gives an empty string for a position that does not resolve', () => {
+    expect(RichText.textBefore(document(), at('missing', 1))).toBe('')
+  })
+})

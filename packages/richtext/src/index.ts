@@ -15,6 +15,7 @@ export {
   blockAtPath,
   locateBlock,
   locateRun,
+  textBefore,
   Text,
   Paragraph,
   Heading,

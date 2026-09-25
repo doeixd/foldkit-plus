@@ -340,6 +340,26 @@ export const locateRun = (document: Document, node: NodeId): LocatedRun | undefi
   return found
 }
 
+/**
+ * The text of the block a position addresses, up to that position, in run order.
+ * A menu reads this: what a query is typed into is the block's text between its
+ * start and the caret, and a query never spans blocks. Affinity is not consulted — a
+ * prefix ends between characters whatever side the caret leans to — an offset past a
+ * run's end clamps to it, a negative one reads as none of it, and a position that
+ * resolves to nothing gives an empty string.
+ */
+export const textBefore = (document: Document, position: Position): string => {
+  const found = locateRun(document, position.node)
+  if (found === undefined) return ''
+  const block = blockAtPath(document, found.path)
+  if (block === undefined) return ''
+  const lead = block.children
+    .slice(0, found.index)
+    .map(earlier => earlier.text)
+    .join('')
+  return lead + found.run.text.slice(0, Math.max(0, position.offset))
+}
+
 /** Every node a block subtree owns, block and run alike, keyed by identity. */
 const indexNodes = (blocks: ReadonlyArray<Block>, nodes: Map<NodeId, Block | Text>): void => {
   eachBlock(blocks, block => {

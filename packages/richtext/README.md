@@ -136,6 +136,12 @@ marks — an empty run can carry them, which is how a caret holds a format — a
 that straddles a marked run and a plain one reports neither, and a node selection
 reports what its whole subtree agrees on.
 
+`textBefore(document, position)` is the read for a menu: the text of the block the
+position addresses, up to that position, across its runs. A query is typed into the
+block's text between its start and the caret, so it never spans blocks; an offset
+past a run's end clamps to it, a negative one reads as none of it, and a position
+that resolves to nothing gives an empty string.
+
 ## Mark definitions
 
 A mark is a definition, not a bare name. It says where typing continues it

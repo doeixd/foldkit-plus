@@ -5154,9 +5154,10 @@ block while its runs and identities stay.
    resolved attributes as a helper.
 5. Slash commands, over 1 and 3. — **started.** The core can retype a text block
    (`RetypeBlock`, §119's "turning the block into a heading"), which is the menu's
-   first non-mark entry. What a menu still needs: the read of the text before the
-   caret, the editor's binding layer for ArrowUp/Down/Enter/Escape, the menu's own
-   state and view, and the entry catalogue.
+   first non-mark entry, and read what is typed before the caret (`textBefore`, the
+   text a query filters on). What a menu still needs: the editor's binding layer for
+   ArrowUp/Down/Enter/Escape, its own open/query/selection state and its view, and
+   the entry catalogue.
 
 ---
 
