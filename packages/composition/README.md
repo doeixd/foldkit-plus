@@ -8,8 +8,8 @@ holds no state and draws nothing.
 
 > **Status: in development, not published.** Phases 1 to 4 of the
 > [page builder design](../../docs/design/pagebuilder-DESIGN.md) are built: the
-> vocabulary, the stored Document, its validation, editing Operations, undo
-> history, migrations, and drawing a page with Foldkit, on the server too. The
+> vocabulary, the stored Document, its validation, editing Operations,
+> migrations, and drawing a page with Foldkit, on the server too. The
 > visual Builder comes in later phases.
 
 ## What it owns
@@ -219,23 +219,13 @@ const result = Composition.apply(
   `Composition.rekey(tree, ids)` renames every id in it, which is how a paste
   is inserted twice without a collision.
 
-## Undo: History
+## Undo
 
-`History` keeps snapshots of the Document an edit started from, beside the
-Document in the same Model, committed in the same transition as the edit:
-
-```ts
-let history = History.empty() // bounded at 200 steps
-history = History.commit(history, before, History.groupFor(op))
-const back = History.undo(history, current) // { history, document } | undefined
-const forward = back && History.redo(back.history, back.document)
-```
-
-Consecutive `setProp`s of one prop of one node are one step, so typing a title
-undoes as a whole; every other Operation stands alone, and a new edit after an
-undo clears redo. A snapshot shares everything the edit did not touch. Whatever
-replaces the Document from outside the editor, such as a fill, a reset or a
-restored revision, should start a new `History.empty()`.
+Undo is the editor's state, not the page's, so this package has none. The
+[Builder](../builder/README.md) keeps the page in an undo history from
+`foldkit-primitives/state`, whose present is the Document, and records each
+applied Operation in the same transition that makes it. A snapshot shares every
+node the edit did not change.
 
 ## Drawing a page: `foldkit-composition/foldkit`
 

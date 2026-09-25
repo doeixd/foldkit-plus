@@ -83,6 +83,9 @@ export default defineConfig({
       'foldkit-primitives/interaction': fileURLToPath(
         new URL('./packages/primitives/src/interaction/index.ts', import.meta.url),
       ),
+      'foldkit-primitives/state': fileURLToPath(
+        new URL('./packages/primitives/src/state/index.ts', import.meta.url),
+      ),
       'foldkit-primitives/time': fileURLToPath(
         new URL('./packages/primitives/src/time/index.ts', import.meta.url),
       ),

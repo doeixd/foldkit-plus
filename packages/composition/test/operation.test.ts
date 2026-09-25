@@ -1,11 +1,10 @@
 import { Effect, Result, Schema } from 'effect'
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   Block,
   Catalog,
   Composition,
   Content,
-  History,
   NodeId,
   Region,
   type Applied,
@@ -538,55 +537,5 @@ describe('a Document stays valid under any sequence of applied edits', () => {
       }
     }
     expect(made).toBeGreaterThan(50)
-  })
-})
-
-describe('History', () => {
-  const edit = (document: Document, op: Operation) => applied(document, op).document
-
-  it('undoes and redoes by snapshots, and a new edit clears redo', () => {
-    const one = edit(start, Op.remove(id('c')))
-    let history = History.commit(History.empty(), start)
-    const two = edit(one, Op.remove(id('b')))
-    history = History.commit(history, one)
-    const back = History.undo(history, two)
-    expect(back?.document).toBe(one)
-    const forward = back === undefined ? undefined : History.redo(back.history, back.document)
-    expect(forward?.document).toBe(two)
-    const branched = back === undefined ? history : History.commit(back.history, one)
-    expect(branched.future).toEqual([])
-    expect(History.undo(History.empty(), start)).toBeUndefined()
-    expect(History.redo(History.empty(), start)).toBeUndefined()
-  })
-
-  it('groups consecutive edits of one prop of one node into one step, without a clock', () => {
-    const typing = [Op.setProp(id('a'), 'text', 'H'), Op.setProp(id('a'), 'text', 'He')]
-    let document = start
-    let history = History.empty()
-    for (const op of typing) {
-      history = History.commit(history, document, History.groupFor(op))
-      document = edit(document, op)
-    }
-    expect(history.past).toHaveLength(1)
-    expect(History.undo(history, document)?.document).toBe(start)
-    expect(History.groupFor(Op.remove(id('a')))).toBeUndefined()
-    // A structural edit between two prop edits breaks the group.
-    const moved = History.commit(history, document, History.groupFor(Op.remove(id('a'))))
-    const first = required(typing[0], 'the first keystroke')
-    expect(History.commit(moved, document, History.groupFor(first)).past).toHaveLength(3)
-  })
-
-  it('is a Schema too, which keeps its type and survives JSON', () => {
-    expectTypeOf<typeof History.Model.Type>().toEqualTypeOf<History>()
-    const history = History.commit(History.empty(), start)
-    const stored = JSON.parse(JSON.stringify(Schema.encodeSync(History.Model)(history)))
-    expect(Schema.decodeUnknownSync(History.Model)(stored)).toEqual(history)
-  })
-
-  it('keeps no more than its limit', () => {
-    let history = History.empty(2)
-    for (const step of [1, 2, 3])
-      history = History.commit(history, { ...start, roots: [id(`r${step}`)] })
-    expect(history.past.map(document => document.roots[0])).toEqual(['r2', 'r3'])
   })
 })

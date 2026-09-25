@@ -17,7 +17,8 @@ submits it, and a CMS autosaves it.
 | --- | --- |
 | What a page may hold, and how each Block looks | the application: a Catalog and a Renderer |
 | The page being edited | the Builder's Model, as the form key's value |
-| What is selected, the open panel, the viewport, undo | the Builder's Model, beside the page |
+| Undo | the Builder's Model: the page is kept as a `foldkit-primitives/state` history |
+| What is selected, the open panel, the viewport | the Builder's Model, beside the page |
 | Saving, revisions, publishing | the form, and `foldkit-cms` around it |
 
 The Catalog and the Renderer are vocabulary, not state. The Builder closes over
@@ -27,8 +28,8 @@ them where it is made; they never enter the Model or a placement's args.
 
 ```text
 view: a click, a key ─► Builder Message ─► Composition.apply ─► next Document
-                                                  │                  │
-                                         History.commit ◄────────────┘   one transition
+                                                                     │
+                                        History.push(page, document) ◄┘   one transition
 Form: Control Message carries it; a change of Document is an edit; the rest is not
 ```
 
@@ -52,7 +53,8 @@ const PageForm = Form.make('PageForm', PageInput, {
 - `Builder.make` builds a Bundle (`PageBuilder.bundle`) and the form control that
   places it as a key (`PageBuilder.input`). Nothing runs until it is placed.
 - In the form, `PageForm.control('document').field(model).value` is the
-  Builder's Model, and `.value.document` is the page.
+  Builder's Model. Its `page` is an undo history whose `present` is the
+  Document; `PageBuilder.document(model)` reads it.
 - Its view is a plain editor: a palette of the Blocks with starting props, the
   layers with move, duplicate and delete for the selected node, the selected
   node's text props, undo and redo, and the page drawn in edit mode.
@@ -67,14 +69,16 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
 | `Selected({ id })`, `Hovered({ id })` | what the inspector and the node actions work on |
-| `Undid()`, `Redid()` | a step of History |
+| `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
   and an Operation always carries the ids it creates. Nothing changes until
   they arrive.
-- **An applied Operation and its undo step change together.** Consecutive edits
-  of one prop of one node are one step, so typing a heading undoes as a whole.
+- **An applied Operation and its undo step change together:** the Builder
+  pushes the new Document onto its page history, a `foldkit-primitives/state`
+  history. Consecutive edits of one prop of one node share a group, so typing a
+  heading undoes as a whole.
 - **A refused edit** leaves the page as it was and says why in `refused`, until
   the next edit goes through.
 - **A new node is selected**, and a removed one is no longer.

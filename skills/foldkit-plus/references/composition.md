@@ -2,7 +2,7 @@
 
 **In development, not published.** Phases 1 to 4 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
-editing Operations, undo History, migrations, and a Foldkit renderer. The visual
+editing Operations, migrations, and a Foldkit renderer. The visual
 Builder is a later phase.
 
 ## What it owns
@@ -63,10 +63,7 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
 - **New ids:** `Composition.newIds(n)` is an Effect: run it in a Command and put
   the ids in the Operation; `apply` never mints one. Copy and paste:
   `Composition.rekey(Composition.takeTree(doc, id), ids)`.
-- **Undo:** `History.empty()`, `History.commit(history, before, History.groupFor(op))`,
-  `History.undo(history, current)`, `History.redo(...)`: snapshots, bounded at
-  200; consecutive `setProp`s of one prop of one node are one step. Start a new
-  History when the Document is replaced from outside (fill, reset, restore).
+- **Undo** is not here: the Builder keeps the page in `foldkit-primitives/state`'s `history`.
 - **Migrate stored pages:** `Composition.migrate(doc, [Composition.renameBlock(from, to),
   Composition.renameProp(block, from, to), Composition.promoteUnknown(name, from, ToBlock),
   Composition.migration(name, block, node => node | undefined)])` gives
@@ -101,8 +98,9 @@ const PageBuilder = Builder.make('PageBuilder', {
 const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuilder.input } })
 ```
 
-- Model: `document`, `selected`, `hovered`, `panel`, `viewport`, `history`,
-  `refused`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
+- Model: `page` (an undo history from `foldkit-primitives/state`; `page.present`
+  is the Document; `PageBuilder.document(model)` reads it), `selected`,
+  `hovered`, `panel`, `viewport`, `refused`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
   `DuplicateAsked({ id, at })`, `Minted` (from its own Command), `Selected`,
   `Hovered`, `Undid`, `Redid`, `PanelChosen`, `ViewportChosen`.
 - Ids are minted in a Command; an edit and its undo step change together;

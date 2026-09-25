@@ -387,9 +387,13 @@ item's index for a slice or a query. Loading data stays the application's job:
 this bundle owns the page, not the items.
 
 `history({ name, value, capacity })` makes an undo/redo bundle over any value
-Schema. The Model holds `{ past, present, future }`; `Push` records and drops
-the redo future, `Undo`/`Redo` move one step, `Clear` empties both sides while
-keeping the present. The past holds at most `capacity` entries (default 100);
+Schema. The Model holds `{ past, present, future, group }`; `Push` records and
+drops the redo future, `Undo`/`Redo` move one step, `Clear` empties both sides
+while keeping the present. A `Push` may name a `group`: consecutive pushes of
+the same group are one step, so typing a word undoes as a whole, with no clock.
+The steps are also pure functions, `History.start`, `push`, `undo`, `redo` and
+`clear`, for a parent that records an edit in the same transition that makes it
+(the page Builder keeps its page this way). The past holds at most `capacity` entries (default 100);
 a negative or fractional capacity throws at the factory, naming it. The
 factory attaches the Message union, so placements dispatch
 `EditHistory.Message.Push(...)`. `canUndo`/`canRedo` read the edges:

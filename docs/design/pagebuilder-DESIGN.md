@@ -1007,6 +1007,12 @@ it, and meet a conflicting author. The Builder adds no CMS state.
 > since the story's autosave rest is zero. The browser version of the example
 > still edits posts only; drawing the page editor there waits for Phase 7.
 
+> **Undo, revised (before Phase 7).** §9's snapshot History was first built
+> inside `foldkit-composition`, which duplicated the undo `history` bundle
+> `foldkit-primitives/state` already had. The two converged: primitives' history
+> gained grouping and pure steps, the Builder keeps its page as that history's
+> present, and composition has no History. The rules in §9 hold unchanged.
+
 **Phase 7: `foldkit-mixins-builder`.** Canvas, Layers, palette, inspector, drag
 and drop, keyboard reorder with announcements, viewport frames, and rich-text
 editing on the canvas, with `A11y.validate` run for each Slot contract.

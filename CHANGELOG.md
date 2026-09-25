@@ -64,8 +64,16 @@ version changed; `pnpm` skips versions already in the registry.
   resumed draft, a preview drawn by the site's own views, publish, revisions,
   restore, a schedule and a conflict, with no CMS state added. Phase 6 of the
   page builder design.
-- **`foldkit-composition`: `History.Model`** is History as a Schema, and an
-  empty group is `null`, so a stored History survives JSON.
+- **`foldkit-primitives`: an undo `history` groups steps.** A `Push` may name
+  a `group`, and consecutive pushes of the same group are one step, so typing a
+  word undoes as a whole without a clock. The steps are exported as pure
+  functions (`History.start`, `push`, `undo`, `redo`, `clear`) for a parent
+  that records an edit in the same transition that makes it. **Breaking** for
+  code that builds a `HistoryModel` by hand: it gains `group`, `null` for none.
+- **`foldkit-builder` keeps its page in that history:** its Model's `page` is a
+  `foldkit-primitives/state` history whose present is the Document
+  (`builder.document(model)` reads it), and `foldkit-composition` no longer has
+  a History of its own. Undo is one mechanism in the repository, not two.
 - **`foldkit-ssr`: its build configuration references the packages it builds
   from,** so another project can reference it.
 

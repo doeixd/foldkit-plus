@@ -1,5 +1,6 @@
 import { Result, Schema } from 'effect'
-import { Composition, History, NodeId, type Document } from 'foldkit-composition'
+import { Composition, NodeId, type Document } from 'foldkit-composition'
+import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { describe, expect, it } from 'vitest'
@@ -25,7 +26,7 @@ const send = (model: Model, message: Message): Model => {
 }
 type Offered = 'Section' | 'Heading'
 const at = (model: Model, block: Offered) =>
-  required(PageBuilder.placeFor(model.document, model.selected, block), `a place for ${block}`)
+  required(PageBuilder.placeFor(model.page.present, model.selected, block), `a place for ${block}`)
 const insert = (model: Model, block: Offered) =>
   send(model, Message.InsertAsked({ block, at: at(model, block) }))
 const only = (document: Document, block: string): NodeId =>
@@ -49,25 +50,25 @@ describe('the Builder, headless', () => {
       PageBuilder.initial,
       answer(required(asked.commands?.[0], 'the mint Command')),
     )
-    const section = only(withSection.document, 'Section')
-    expect(withSection.document.roots).toEqual([section])
+    const section = only(withSection.page.present, 'Section')
+    expect(withSection.page.present.roots).toEqual([section])
     expect(withSection.selected).toBe(section)
-    expect(withSection.history.past).toEqual([PageBuilder.initial.document])
+    expect(withSection.page.past).toEqual([PageBuilder.initial.page.present])
   })
 
   it('puts a new node inside the selection when it fits there, else after it', () => {
     const withSection = insert(PageBuilder.initial, 'Section')
-    const section = only(withSection.document, 'Section')
+    const section = only(withSection.page.present, 'Section')
     const withHeading = insert(withSection, 'Heading')
-    const heading = only(withHeading.document, 'Heading')
-    expect(withHeading.document.nodes[section]?.regions['body']).toEqual([heading])
-    expect(withHeading.document.nodes[heading]?.props).toEqual({ text: 'New heading' })
+    const heading = only(withHeading.page.present, 'Heading')
+    expect(withHeading.page.present.nodes[section]?.regions['body']).toEqual([heading])
+    expect(withHeading.page.present.nodes[heading]?.props).toEqual({ text: 'New heading' })
     // With the heading selected, the next heading goes after it, in the same Section.
     const second = insert(withHeading, 'Heading')
-    expect(second.document.nodes[section]?.regions['body']?.[0]).toBe(heading)
-    expect(second.document.nodes[section]?.regions['body']).toHaveLength(2)
+    expect(second.page.present.nodes[section]?.regions['body']?.[0]).toBe(heading)
+    expect(second.page.present.nodes[section]?.regions['body']).toHaveLength(2)
     // A Section cannot go inside a Section or among its Flow: it goes after the root.
-    expect(PageBuilder.placeFor(second.document, second.selected, 'Section')).toEqual(
+    expect(PageBuilder.placeFor(second.page.present, second.selected, 'Section')).toEqual(
       Composition.root(1),
     )
   })
@@ -85,59 +86,61 @@ describe('the Builder, headless', () => {
 
   it('undoes typing a prop as one step, and redoes it', () => {
     const withHeading = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
-    const heading = only(withHeading.document, 'Heading')
+    const heading = only(withHeading.page.present, 'Heading')
     const typed = ['H', 'He', 'Hey'].reduce(
       (model, text) =>
         send(model, Message.Applied({ op: Composition.Op.setProp(heading, 'text', text) })),
       withHeading,
     )
-    expect(typed.document.nodes[heading]?.props).toEqual({ text: 'Hey' })
+    expect(typed.page.present.nodes[heading]?.props).toEqual({ text: 'Hey' })
     const undone = send(typed, Message.Undid())
-    expect(undone.document).toBe(withHeading.document)
-    expect(send(undone, Message.Redid()).document).toBe(typed.document)
+    expect(undone.page.present).toBe(withHeading.page.present)
+    expect(send(undone, Message.Redid()).page.present).toBe(typed.page.present)
   })
 
   it('reorders, duplicates and deletes the selected node', () => {
     let model = insert(insert(insert(PageBuilder.initial, 'Section'), 'Heading'), 'Heading')
-    const section = only(model.document, 'Section')
-    const body = required(model.document.nodes[section]?.regions['body'], 'the body')
+    const section = only(model.page.present, 'Section')
+    const body = required(model.page.present.nodes[section]?.regions['body'], 'the body')
     const first = required(body[0], 'the first heading')
     const second = required(body[1], 'the second heading')
-    expect(PageBuilder.moveBy(model.document, second, 1)).toBeUndefined()
+    expect(PageBuilder.moveBy(model.page.present, second, 1)).toBeUndefined()
     model = send(
       model,
-      Message.Applied({ op: required(PageBuilder.moveBy(model.document, second, -1), 'a move') }),
+      Message.Applied({
+        op: required(PageBuilder.moveBy(model.page.present, second, -1), 'a move'),
+      }),
     )
-    expect(model.document.nodes[section]?.regions['body']).toEqual([second, first])
+    expect(model.page.present.nodes[section]?.regions['body']).toEqual([second, first])
 
     model = send(model, Message.DuplicateAsked({ id: section, at: Composition.root(1) }))
-    expect(model.document.roots).toHaveLength(2)
-    const copy = required(model.document.roots[1], 'the copy')
+    expect(model.page.present.roots).toHaveLength(2)
+    const copy = required(model.page.present.roots[1], 'the copy')
     expect(model.selected).toBe(copy)
-    expect(model.document.nodes[copy]?.regions['body']).toHaveLength(2)
-    expect(Composition.validate(Site, model.document)).toEqual([])
+    expect(model.page.present.nodes[copy]?.regions['body']).toHaveLength(2)
+    expect(Composition.validate(Site, model.page.present)).toEqual([])
 
     model = send(model, Message.Applied({ op: Composition.Op.remove(copy) }))
     expect(model.selected).toBeNull()
-    expect(model.document.roots).toEqual([section])
+    expect(model.page.present.roots).toEqual([section])
   })
 
   it('replaces the Document from outside, starting undo over, and settles a stored Model', () => {
     const edited = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
     const replaced = PageBuilder.replace(edited, Composition.empty())
-    expect(replaced.history.past).toEqual([])
+    expect(replaced.page.past).toEqual([])
     expect(replaced.selected).toBeNull()
     const settled = PageBuilder.settle({ ...edited, hovered: edited.selected })
-    expect(settled.history.past).toEqual([])
+    expect(settled.page.past).toEqual([])
     expect(settled.hovered).toBeNull()
-    expect(settled.document).toBe(edited.document)
+    expect(settled.page.present).toBe(edited.page.present)
   })
 
   it('keeps its Model, undo History included, through its Schema', () => {
     const edited = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
     const stored = JSON.parse(JSON.stringify(Schema.encodeSync(Model)(edited)))
     expect(Schema.decodeUnknownSync(Model)(stored)).toEqual(edited)
-    expect(History.undo(edited.history, edited.document)).toBeDefined()
+    expect(History.canUndo(edited.page)).toBe(true)
   })
 })
 
@@ -169,7 +172,7 @@ describe('the Builder as a form key', () => {
       PageForm.initial,
       document.send(Message.InsertAsked({ block: 'Section', at: Composition.root(0) })),
     )
-    expect(document.field(withSection).value.document.roots).toHaveLength(1)
+    expect(document.field(withSection).value.page.present.roots).toHaveLength(1)
     expect(PageForm.authoredChanged(PageForm.initial, withSection)).toBe(true)
     const chosen = formSend(withSection, document.send(Message.PanelChosen({ panel: 'layers' })))
     expect(PageForm.authoredChanged(withSection, chosen)).toBe(false)
@@ -187,7 +190,7 @@ describe('the Builder as a form key', () => {
     const submitted = PageForm.bundle.update(withSection, PageForm.Message.Submitted(), undefined)
     expect(submitted.outMessage).toEqual({
       _tag: 'Submitted',
-      value: { title: 'Home', document: document.field(withSection).value.document },
+      value: { title: 'Home', document: document.field(withSection).value.page.present },
     })
   })
 
@@ -196,10 +199,10 @@ describe('the Builder as a form key', () => {
       PageForm.initial,
       document.send(Message.InsertAsked({ block: 'Section', at: Composition.root(0) })),
     )
-    const stored = document.field(edited).value.document
+    const stored = document.field(edited).value.page.present
     const filled = PageForm.fill(edited, { document: stored }).model
-    expect(document.field(filled).value.document).toBe(stored)
-    expect(document.field(filled).value.history.past).toEqual([])
+    expect(document.field(filled).value.page.present).toBe(stored)
+    expect(document.field(filled).value.page.past).toEqual([])
     const decoded = Schema.decodeUnknownResult(PageInput.schema)({ title: 'x', document: stored })
     expect(Result.isSuccess(decoded)).toBe(true)
   })

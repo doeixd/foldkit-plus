@@ -112,7 +112,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       title: (value: string) => editor(PageForm.Message.Changed({ key: 'title', value })),
       /** Adds a Block where the Builder's palette would, and selects it. */
       add: (block: 'Section' | 'Heading' | 'Button') => {
-        const at = PageBuilder.placeFor(builder().document, builder().selected, block)
+        const at = PageBuilder.placeFor(builder().page.present, builder().selected, block)
         return at === undefined
           ? Promise.resolve()
           : build(BuilderMessage.InsertAsked({ block, at }))
@@ -126,7 +126,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       },
       /** Selects the first Block of a kind, as clicking it in the layers does. */
       select: (block: string) => {
-        const id = Object.entries(builder().document.nodes).find(
+        const id = Object.entries(builder().page.present.nodes).find(
           ([, node]) => node.block === block,
         )?.[0]
         return id === undefined
@@ -134,7 +134,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
           : build(BuilderMessage.Selected({ id: Composition.NodeId.make(id) }))
       },
       builder,
-      outline: () => outline(builder().document),
+      outline: () => outline(builder().page.present),
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => PageEditor.status(model),
       state: () => {
@@ -199,7 +199,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   await wren.add('Button')
   say(`the page: ${wren.outline()}`)
   say(`every change is saved as a draft: ${wren.status()}; sent ${wren.sent()}`)
-  say(`undo steps on hand: ${wren.builder().history.past.length}`)
+  say(`undo steps on hand: ${wren.builder().page.past.length}`)
   say(`a visitor at /home: ${await visitor.visit('home')}`)
 
   say('— a reload resumes the draft —')
@@ -207,7 +207,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   await again.send(Message.OpenedEntry({ entry: 'page-entry-1' }))
   await again.look()
   say(`resumed from the ${again.resumed()}: ${again.outline()}`)
-  say(`undo starts over after a reload: ${again.builder().history.past.length} steps`)
+  say(`undo starts over after a reload: ${again.builder().page.past.length} steps`)
 
   say('— a preview, drawn by the site’s own views, sending nothing —')
   wren.sent()

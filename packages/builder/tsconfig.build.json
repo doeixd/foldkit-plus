@@ -17,6 +17,9 @@
     },
     {
       "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../primitives/tsconfig.build.json"
     }
   ]
 }

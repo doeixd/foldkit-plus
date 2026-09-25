@@ -11,7 +11,6 @@ import {
   Catalog,
   Composition,
   Content,
-  History,
   NodeId,
   Region,
   Url,
@@ -79,18 +78,6 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     }),
   )
   expectTypeOf(result).toEqualTypeOf<Result.Result<Applied, Refusal>>()
-
-  // Undo: History
-  const before = page
-  const op = Op.remove(NodeId.make('title'))
-  const current = Result.isSuccess(result) ? result.success.document : page
-  let history = History.empty()
-  history = History.commit(history, before, History.groupFor(op))
-  const back = History.undo(history, current)
-  const forward = back && History.redo(back.history, back.document)
-  expectTypeOf(forward).toEqualTypeOf<
-    { readonly history: History; readonly document: Document } | undefined
-  >()
 }
 
 // Migrations and unknown Blocks

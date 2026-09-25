@@ -17,7 +17,6 @@ export { Block, type AnyBlock, type PropsFinding, type PropsOf } from './block.j
 export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'
-export { History } from './history.js'
 export type { Migrated, Migration } from './migrate.js'
 export {
   Operation,

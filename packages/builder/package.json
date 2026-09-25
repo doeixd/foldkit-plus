@@ -46,7 +46,8 @@
   "dependencies": {
     "foldkit-bundle": "workspace:*",
     "foldkit-composition": "workspace:*",
-    "foldkit-form": "workspace:*"
+    "foldkit-form": "workspace:*",
+    "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
     "effect": "4.0.0-rc.116",

@@ -48,7 +48,7 @@ stiffness, damping }`), `Pagination` (`{ perPage }`), `Locale` (`{ default
 }`), `SelectionSet` (no args), `Geolocation` (no args), `Idle` (`{
 timeoutMs }`), `Presence` (`{ durationMs }`), `Virtual` (`{
 estimatedHeight, overscan, gap, paddingStart, paddingEnd }`, plus optional
-restore and settle options), and `history({ name, value })`
+restore and settle options), and `history({ name, value })` (a `Push` may name a `group`, joining consecutive steps; `History.push`/`undo`/`redo` are the same steps as pure functions)
 place the same way. `sse({
 name })`, `websocket({ name })`, `mediaDevices({ name })`, `mediaStream({
 name })`, and `permissions({ name })` are factories over a resource tag;

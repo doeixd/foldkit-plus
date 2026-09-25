@@ -31,7 +31,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 
 expectTypeOf(PageForm.control('document').field(PageForm.initial).value).toEqualTypeOf<Model>()
 expectTypeOf(
-  PageForm.control('document').field(PageForm.initial).value.document,
+  PageBuilder.document(PageForm.control('document').field(PageForm.initial).value),
 ).toEqualTypeOf<Document>()
 
 Builder.make('Wrong', {

@@ -2,9 +2,10 @@
  * `foldkit-builder`: the page builder's state, as an ordinary Bundle.
  *
  * The Builder edits a `foldkit-composition` Document by Operations. Its Model
- * holds the Document and the editor's state beside it (what is selected, the
- * open panel, the viewport, undo History), so an edit and the undo step that
- * records it change in one transition. The Catalog and the Renderer are
+ * holds the page as an undo history (`foldkit-primitives/state`) whose present
+ * is the Document, with the editor's state beside it (what is selected, the
+ * open panel, the viewport), so an edit and the undo step that records it are
+ * one value, changed in one transition. The Catalog and the Renderer are
  * vocabulary, not state: the Builder closes over them where it is made, and
  * they never enter the Model or a placement's args.
  *
@@ -19,7 +20,6 @@ import {
   Block,
   Catalog,
   Composition,
-  History,
   NodeId,
   type AnyBlock,
   type Document,
@@ -30,6 +30,7 @@ import {
 } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
+import { History, HistoryModel } from 'foldkit-primitives/state'
 import type { Command } from 'foldkit/command'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -39,13 +40,13 @@ export const Panel = Schema.Literals(['insert', 'layers', 'properties'])
 export const Viewport = Schema.Literals(['wide', 'medium', 'narrow'])
 
 export const Model = Schema.Struct({
-  document: Composition.Document,
+  /** The page and its undo steps: `page.present` is the Document being edited. */
+  page: HistoryModel(Composition.Document),
   /** The node the inspector and the node actions work on. */
   selected: Schema.NullOr(NodeId),
   hovered: Schema.NullOr(NodeId),
   panel: Panel,
   viewport: Viewport,
-  history: History.Model,
   /** Why the last edit was refused, until the next one goes through. */
   refused: Schema.NullOr(Schema.Struct({ code: Schema.String, message: Schema.String })),
 })
@@ -135,11 +136,20 @@ const moveBy = (document: Document, id: NodeId, delta: number): Operation | unde
   )
 }
 
+/** The Document being edited. */
+const documentOf = (model: Model): Document => model.page.present
+
+/**
+ * The undo group an Operation joins: consecutive edits of one prop of one node
+ * are one step, so typing a heading undoes as a whole. Everything else stands alone.
+ */
+const groupOf = (op: Operation): string | null =>
+  op._tag === 'SetProp' ? `SetProp:${op.id}:${op.prop}` : null
+
 /** The Model showing another Document: what a fill, a reset or a restored revision does. */
 const replace = (model: Model, document: Document): Model => ({
   ...model,
-  document,
-  history: History.empty(model.history.limit),
+  page: History.start(document),
   selected:
     model.selected !== null && document.nodes[model.selected] !== undefined ? model.selected : null,
   hovered: null,
@@ -151,7 +161,7 @@ const settle = (model: Model): Model => ({
   ...model,
   hovered: null,
   refused: null,
-  history: History.empty(model.history.limit),
+  page: History.clear(model.page),
 })
 
 /** The node an Operation that creates nodes creates first, to select it. */
@@ -177,20 +187,20 @@ export const Builder = {
       readonly renderer: Renderer<Blocks, never>
       readonly starters: NoInfer<Starters<Blocks>>
       /** Undo steps kept. Default 200. */
-      readonly limit?: number
+      readonly capacity?: number
     },
   ) => {
     const { catalog, renderer } = config
     const starters = config.starters as Readonly<Record<string, unknown>>
     type Commands = ReadonlyArray<Command<Message>>
 
+    const capacity = config.capacity ?? 200
     const initial: Model = {
-      document: Composition.empty(),
+      page: History.start(Composition.empty()),
       selected: null,
       hovered: null,
       panel: 'insert',
       viewport: 'wide',
-      history: History.empty(config.limit),
       refused: null,
     }
 
@@ -199,7 +209,7 @@ export const Builder = {
     })
 
     const applyOp = (model: Model, op: Operation): { readonly model: Model } => {
-      const result = Composition.apply(catalog, model.document, op)
+      const result = Composition.apply(catalog, documentOf(model), op)
       if (Result.isFailure(result)) return refuse(model, result.failure)
       const { document, removed } = result.success
       const kept =
@@ -207,8 +217,7 @@ export const Builder = {
       return {
         model: {
           ...model,
-          document,
-          history: History.commit(model.history, model.document, History.groupFor(op)),
+          page: History.push(model.page, document, { capacity, group: groupOf(op) }),
           selected: created(op) ?? kept,
           refused: null,
         },
@@ -233,7 +242,7 @@ export const Builder = {
             model: {
               ...model,
               selected:
-                message.id !== null && model.document.nodes[message.id] === undefined
+                message.id !== null && documentOf(model).nodes[message.id] === undefined
                   ? null
                   : message.id,
               panel: message.id === null ? model.panel : 'properties',
@@ -251,12 +260,14 @@ export const Builder = {
               })
             : { model, commands: mint(1, { _tag: 'Insert', block: message.block, at: message.at }) }
         case 'DuplicateAsked': {
-          if (model.document.nodes[message.id] === undefined)
+          if (documentOf(model).nodes[message.id] === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
               message: `"${message.id}" is not a node`,
             })
-          const count = Object.keys(Composition.takeTree(model.document, message.id).nodes).length
+          const count = Object.keys(
+            Composition.takeTree(documentOf(model), message.id).nodes,
+          ).length
           return {
             model,
             commands: mint(count, { _tag: 'Duplicate', id: message.id, at: message.at }),
@@ -287,12 +298,12 @@ export const Builder = {
               }),
             )
           }
-          if (model.document.nodes[request.id] === undefined)
+          if (documentOf(model).nodes[request.id] === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
               message: `"${request.id}" is not a node`,
             })
-          const held = Object.keys(Composition.takeTree(model.document, request.id).nodes)
+          const held = Object.keys(Composition.takeTree(documentOf(model), request.id).nodes)
           if (held.length !== ids.length)
             return refuse(model, {
               code: 'composition:malformed-tree',
@@ -309,18 +320,14 @@ export const Builder = {
         }
         case 'Undid':
         case 'Redid': {
-          const step = (message._tag === 'Undid' ? History.undo : History.redo)(
-            model.history,
-            model.document,
-          )
-          if (step === undefined) return { model }
+          const page = (message._tag === 'Undid' ? History.undo : History.redo)(model.page)
+          if (page === model.page) return { model }
           return {
             model: {
               ...model,
-              document: step.document,
-              history: step.history,
+              page,
               selected:
-                model.selected !== null && step.document.nodes[model.selected] !== undefined
+                model.selected !== null && page.present.nodes[model.selected] !== undefined
                   ? model.selected
                   : null,
               refused: null,
@@ -353,7 +360,7 @@ export const Builder = {
         catalog.blocks
           .filter(block => starters[block.name] !== undefined)
           .map(block => {
-            const at = placeFor(catalog, model.document, model.selected, block.name)
+            const at = placeFor(catalog, documentOf(model), model.selected, block.name)
             return button(
               `Add ${block.name}`,
               at === undefined ? undefined : Message.InsertAsked({ block: block.name, at }),
@@ -361,7 +368,7 @@ export const Builder = {
           }),
       )
       const layer = (id: NodeId): Html => {
-        const node = model.document.nodes[id]
+        const node = documentOf(model).nodes[id]
         if (node === undefined) return null
         const known = Catalog.block(catalog, node.block) !== undefined
         const children = Object.values(node.regions).flat()
@@ -375,7 +382,7 @@ export const Builder = {
       }
       const layers = h.ul(
         [h.Class('builder-layers'), h.AriaLabel('Layers')],
-        model.document.roots.map(layer),
+        documentOf(model).roots.map(layer),
       )
       const selected = model.selected
       const actions =
@@ -385,12 +392,12 @@ export const Builder = {
               h.div(
                 [h.Class('builder-actions')],
                 [
-                  button('Move up', applied(moveBy(model.document, selected, -1))),
-                  button('Move down', applied(moveBy(model.document, selected, 1))),
+                  button('Move up', applied(moveBy(documentOf(model), selected, -1))),
+                  button('Move down', applied(moveBy(documentOf(model), selected, 1))),
                   button(
                     'Duplicate',
                     (() => {
-                      const place = Composition.index(model.document).get(selected)
+                      const place = Composition.index(documentOf(model)).get(selected)
                       if (place === undefined) return undefined
                       const at =
                         place.parent === undefined
@@ -404,7 +411,7 @@ export const Builder = {
               ),
             ]
       const inspect = (id: NodeId): Html => {
-        const node = model.document.nodes[id]
+        const node = documentOf(model).nodes[id]
         if (node === undefined) return null
         const fields = Object.entries(node.props).filter(
           (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -436,14 +443,14 @@ export const Builder = {
           h.div(
             [h.Class('builder-history')],
             [
-              button('Undo', model.history.past.length === 0 ? undefined : Message.Undid()),
-              button('Redo', model.history.future.length === 0 ? undefined : Message.Redid()),
+              button('Undo', History.canUndo(model.page) ? Message.Undid() : undefined),
+              button('Redo', History.canRedo(model.page) ? Message.Redid() : undefined),
             ],
           ),
           ...(model.refused === null ? [] : [h.p([h.Role('alert')], [model.refused.message])]),
           h.div(
             [h.Class('builder-canvas'), h.DataAttribute('viewport', model.viewport)],
-            [...Renderer.render(renderer, model.document, inertHtml, { mode: 'edit' })],
+            [...Renderer.render(renderer, documentOf(model), inertHtml, { mode: 'edit' })],
           ),
         ],
       )
@@ -469,7 +476,7 @@ export const Builder = {
       /** The form control that places this Builder as a key: its value is the Document. */
       input: Input.bundle('Composition', {
         bundle,
-        value: (model: Model) => model.document,
+        value: documentOf,
         fill: replace,
         settled: settle,
       }),
@@ -479,6 +486,8 @@ export const Builder = {
       moveBy,
       replace,
       settle,
+      /** The Document a Builder Model is editing: its history's present. */
+      document: documentOf,
     }
   },
 }

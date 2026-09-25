@@ -15,7 +15,9 @@
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
-      "foldkit-mixins-form": ["../mixins-form/src/index.ts"]
+      "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-primitives/state": ["../primitives/src/state/index.ts"],
+      "foldkit-primitives/interaction": ["../primitives/src/interaction/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -40,6 +42,9 @@
     },
     {
       "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../primitives/tsconfig.build.json"
     }
   ]
 }

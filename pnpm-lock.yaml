@@ -684,6 +684,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../form
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../primitives
     devDependencies:
       effect:
         specifier: 4.0.0-rc.116
