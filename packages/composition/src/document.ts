@@ -11,7 +11,7 @@
  * is `Composition.validate`'s question, and `Composition.valid(catalog)` asks it
  * as a Schema check where that matters, such as an operation that publishes.
  */
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
 /** A node's identity, stable across edits, moves and migrations. */
 export const NodeId = Schema.NonEmptyString.pipe(Schema.brand('@foldkit-composition/NodeId'))
@@ -45,6 +45,16 @@ export type Document = typeof Document.Type
 export const nodeIds = (document: Document): ReadonlyArray<NodeId> =>
   // A Record keyed by a brand gives its keys back as plain strings.
   Object.keys(document.nodes) as unknown as ReadonlyArray<NodeId>
+
+/**
+ * New node ids, for an Operation that creates nodes. An Effect, because they
+ * are random: run it in a Command, and put the ids in the Operation, so `update`
+ * stays pure and a replay creates the same nodes.
+ */
+export const newIds = (count: number): Effect.Effect<ReadonlyArray<NodeId>> =>
+  Effect.sync(() =>
+    Array.from({ length: count }, () => NodeId.make(globalThis.crypto.randomUUID())),
+  )
 
 /** A Document with nothing in it. */
 export const empty = (): Document => ({ format: 1, roots: [], nodes: {} })

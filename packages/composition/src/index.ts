@@ -7,13 +7,23 @@
  * and draws nothing.
  */
 import { describe } from './describe.js'
-import { Document, Node, NodeId, empty, index } from './document.js'
+import { Document, Node, NodeId, empty, index, newIds } from './document.js'
+import { Operation, Op, Position, Tree, apply, rekey, region, root, takeTree } from './operation.js'
 import { valid, validate } from './validate.js'
 
 export { Block, type AnyBlock, type PropsOf } from './block.js'
 export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'
+export { History } from './history.js'
+export {
+  Operation,
+  Position,
+  Tree,
+  type Applied,
+  type Refusal,
+  type RefusalCode,
+} from './operation.js'
 export { Region } from './region.js'
 export type { Diagnostic, DiagnosticCode } from './validate.js'
 
@@ -32,4 +42,23 @@ export const Composition = {
   index,
   /** The Document as indented text, one node per line. */
   describe,
+  /**
+   * `Document + Operation → Document`, or a refusal with no partial result.
+   * Checks what the Operation causes, not what was already wrong elsewhere.
+   */
+  apply,
+  /** Operation constructors. */
+  Op,
+  Operation,
+  /** Positions: among the roots, or in a parent's Region. An index counts after the node moved is taken out. */
+  root,
+  region,
+  Position,
+  /** New node ids, as an Effect to run in a Command. */
+  newIds,
+  /** The subtree under a node, as a Pattern or a copy takes it. */
+  takeTree,
+  /** A subtree under new ids, every reference renamed; throws unless `ids` names each node once. */
+  rekey,
+  Tree,
 }

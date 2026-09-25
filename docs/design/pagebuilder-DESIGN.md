@@ -4,8 +4,8 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Phase 0 (`Input.bundle`) and Phase 1 (the
-`foldkit-composition` core) are built; nothing else is.
+which the first draft could assume. Phases 0 to 2 are built: `Input.bundle`,
+the `foldkit-composition` core, and its Operations and History.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -867,6 +867,13 @@ They are targets for Phase 2 to confirm or revise, on the CI runner:
 A result that misses a target is recorded here with its number, as rich text's
 R9 remainder is, rather than silently accepted.
 
+> **Measured (Phase 2),** means on the development machine: `apply` of a
+> `setProp` 0.40 ms and of a `move` 0.39 ms, `validate` 1.14 ms, `index` of an
+> unseen Document 0.09 ms. All within budget. `apply` shares every node it does
+> not change but copies the record of nodes once per Operation, which is most
+> of its cost; if pages grow past what that allows, a persistent map is the
+> next step. The Layers row is Phase 7's to measure.
+
 ## 26. Packages
 
 ```text
@@ -935,8 +942,14 @@ Documents are built by hand in tests.
 > `Block.annotate` as `foldkit-metadata`, since the core knows no annotation's
 > meaning.
 
-**Phase 2: Operations and history.** Every Operation in §7, `apply`, the id rules
+**Phase 2: Operations and history. Done.** Every Operation in §7, `apply`, the id rules
 of §8, `rekey`, History (§9), and the benchmark (§25).
+
+> **As built.** `apply` returns an Effect `Result` of `{ document, changed, removed }`
+> or a refusal `{ code, message }`. Setting a prop of a Block the Catalog does not
+> know is refused, since nothing can check it; moving or removing it is not.
+> `Composition.newIds` mints ids as an Effect for the Builder's Command, and
+> `takeTree` and `rekey` carry a copy and paste.
 
 **Phase 3: migrations and unknown Blocks.** `migrate`, `renameBlock`, `migration`
 and `promoteUnknown` with the enforced rules, and a restored old revision proving

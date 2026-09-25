@@ -6,10 +6,10 @@ The Document is stored like any other field, checked against a Catalog, and
 changed by the application's own transitions. This package performs no I/O,
 holds no state and draws nothing.
 
-> **Status: in development, not published.** This is Phase 1 of the
-> [page builder design](../../docs/design/pagebuilder-DESIGN.md): the
-> vocabulary, the stored Document and its validation. Editing operations, a
-> Foldkit renderer and the visual Builder come in later phases.
+> **Status: in development, not published.** Phases 1 and 2 of the
+> [page builder design](../../docs/design/pagebuilder-DESIGN.md) are built: the
+> vocabulary, the stored Document, its validation, editing Operations and undo
+> history. A Foldkit renderer and the visual Builder come in later phases.
 
 ## What it owns
 
@@ -162,6 +162,95 @@ rather than silently kept.
   [`foldkit-metadata`](../metadata/README.md), such as a palette category. The
   Block knows no annotation's meaning.
 
+## Editing: Operations
+
+A Document changes by Operations, the way a Model changes by Messages:
+
+```text
+Document + Operation → Document, or a refusal with no partial result
+```
+
+```ts
+const { Op, root, region } = Composition
+
+const result = Composition.apply(
+  Site,
+  page,
+  Op.insert({
+    id: NodeId.make('subtitle'),
+    block: 'Heading',
+    props: { text: 'Welcome', level: 2 },
+    at: region(NodeId.make('intro'), 'body', 1),
+  }),
+)
+// Result.succeed({ document, changed: ['subtitle', 'intro'], removed: [] })
+// or Result.fail({ code: 'composition:region-rejects', message: '…' })
+```
+
+| Operation | What it does |
+| --- | --- |
+| `Op.insert({ id, block, props, at })` | a new node at a position |
+| `Op.insertTree({ tree, at })` | a subtree, such as a Pattern or a paste |
+| `Op.remove(id)` | the node and everything it holds |
+| `Op.move(id, to)` | the node elsewhere, keeping every id |
+| `Op.duplicate({ id, ids, at })` | a copy of the subtree under the ids given |
+| `Op.setProp(id, prop, value)`, `Op.unsetProp(id, prop)` | one prop, checked against the Block |
+| `Op.setWhen`, `Op.setAppearance`, `Op.setAction` | the reserved fields, stored and cleared |
+| `Op.batch(ops)` | several, in order, all or none |
+
+- **Positions** are `root(index)` or `region(parent, name, index)`. An index
+  counts after the node being moved is taken out, so moving the first of three
+  to index 2 puts it last.
+- **`apply` checks what the Operation causes:** a Region that would not accept
+  the node or has no room, a Region left below its bound, a node put inside
+  itself, a taken id, props the Block refuses. It does not refuse an edit for
+  something already wrong elsewhere, so an author keeps working beside a Block
+  the deployment no longer knows. A prop of such a Block cannot be set, since
+  nothing can check it.
+- **`apply` never mints an id.** Every id an Operation creates is in it, so a
+  replay creates the same nodes. `Composition.newIds(count)` is an Effect that
+  makes random ones, to run in a Command.
+- **`Applied`** says which nodes were added or changed, a parent whose Region
+  changed included, and which were removed, so a view can redraw only those.
+- Operations are data: `Composition.Operation` is their Schema, for a log, an
+  agent's tool or a replay.
+- `Composition.takeTree(document, id)` takes a subtree, and
+  `Composition.rekey(tree, ids)` renames every id in it, which is how a paste
+  is inserted twice without a collision.
+
+## Undo: History
+
+`History` keeps snapshots of the Document an edit started from, beside the
+Document in the same Model, committed in the same transition as the edit:
+
+```ts
+let history = History.empty() // bounded at 200 steps
+history = History.commit(history, before, History.groupFor(op))
+const back = History.undo(history, current) // { history, document } | undefined
+const forward = back && History.redo(back.history, back.document)
+```
+
+Consecutive `setProp`s of one prop of one node are one step, so typing a title
+undoes as a whole; every other Operation stands alone, and a new edit after an
+undo clears redo. A snapshot shares everything the edit did not touch. Whatever
+replaces the Document from outside the editor, such as a fill, a reset or a
+restored revision, should start a new `History.empty()`.
+
+## Performance
+
+`pnpm bench` measures a page of 1,000 nodes (`bench/operations.bench.ts`). On
+the machine the design's budgets were checked on, as means:
+
+```text
+apply one setProp                  0.40 ms    budget 1 ms
+apply one move between sections    0.39 ms    budget 1 ms
+validate the whole page            1.14 ms    budget 10 ms
+index a page not seen before       0.09 ms    budget 5 ms
+```
+
+`apply` shares every node it does not change, and copies the record of nodes
+once per Operation, which is most of its cost at this size.
+
 ## Relationship to rich text
 
 A page and a rich-text document are two documents on purpose: rich text
@@ -173,6 +262,6 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 
 ## Limits
 
-- No editing operations yet: build a Document as data and validate it.
 - No renderer yet: drawing a Document is Phase 4 of the design.
+- No migrations yet: renaming a Block or a prop in stored pages is Phase 3.
 - Conditions, appearance and actions are stored but not interpreted.

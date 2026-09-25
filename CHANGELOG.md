@@ -35,7 +35,11 @@ version changed; `pnpm` skips versions already in the registry.
   finding, from a missing node to a Region that rejects a child, and
   `Composition.valid(catalog)` asks the same as a Schema check for an operation
   that publishes. `index`, `describe` and `Catalog.describe` read a Document
-  and a Catalog. Phase 1 of the page builder design.
+  and a Catalog. `Composition.apply` edits a Document by Operations (insert,
+  insert a tree, remove, move, duplicate, set and unset a prop, the reserved
+  fields, a batch), refusing what an Operation would cause with no partial
+  result, and never minting an id itself. `History` keeps undo snapshots,
+  grouped without a clock. Phases 1 and 2 of the page builder design.
 
 ### Changed
 

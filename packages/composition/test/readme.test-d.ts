@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Schema } from 'effect'
+import { Result, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { expectTypeOf } from 'vitest'
 import {
@@ -7,8 +7,12 @@ import {
   Catalog,
   Composition,
   Content,
+  History,
+  NodeId,
   Region,
+  type Applied,
   type Document,
+  type Refusal,
   type PropsOf,
 } from '../src/index.js'
 
@@ -55,3 +59,31 @@ const PublishPage = Entity.input(
 )
 expectTypeOf(PublishPage.schema.Type.document).toEqualTypeOf<Document>()
 expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
+
+// Editing: Operations
+{
+  const { Op, region } = Composition
+  const result = Composition.apply(
+    Site,
+    page,
+    Op.insert({
+      id: NodeId.make('subtitle'),
+      block: 'Heading',
+      props: { text: 'Welcome', level: 2 },
+      at: region(NodeId.make('intro'), 'body', 1),
+    }),
+  )
+  expectTypeOf(result).toEqualTypeOf<Result.Result<Applied, Refusal>>()
+
+  // Undo: History
+  const before = page
+  const op = Op.remove(NodeId.make('title'))
+  const current = Result.isSuccess(result) ? result.success.document : page
+  let history = History.empty()
+  history = History.commit(history, before, History.groupFor(op))
+  const back = History.undo(history, current)
+  const forward = back && History.redo(back.history, back.document)
+  expectTypeOf(forward).toEqualTypeOf<
+    { readonly history: History; readonly document: Document } | undefined
+  >()
+}

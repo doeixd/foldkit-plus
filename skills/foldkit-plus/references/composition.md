@@ -1,8 +1,9 @@
 # foldkit-composition
 
-**In development, not published.** Phase 1 of the page builder design is built:
-Blocks, Regions, Content, a Catalog, the stored Document and its validation.
-Editing operations, a renderer and the visual Builder are later phases.
+**In development, not published.** Phases 1 and 2 of the page builder design are
+built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
+editing Operations and undo History. A renderer and the visual Builder are
+later phases.
 
 ## What it owns
 
@@ -52,6 +53,20 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
 - **List the vocabulary:** `Catalog.describe(Site)`; attach metadata with
   `Block.annotate(key.of(value))`.
 - **Typed props:** `Block.decode(Heading, node.props)` and `PropsOf<typeof Heading>`.
+- **Edit:** `Composition.apply(Site, doc, op)` gives `Result<{ document, changed, removed }, { code, message }>`.
+  Ops: `Op.insert({ id, block, props, at })`, `Op.insertTree({ tree, at })`,
+  `Op.remove(id)`, `Op.move(id, to)`, `Op.duplicate({ id, ids, at })`,
+  `Op.setProp(id, prop, value)`, `Op.unsetProp`, `Op.setWhen`, `Op.setAppearance`,
+  `Op.setAction`, `Op.batch(ops)` (all or none). Positions: `Composition.root(i)`,
+  `Composition.region(parent, name, i)`; a move's index counts after the node is
+  taken out. `Composition.Operation` is their Schema.
+- **New ids:** `Composition.newIds(n)` is an Effect: run it in a Command and put
+  the ids in the Operation; `apply` never mints one. Copy and paste:
+  `Composition.rekey(Composition.takeTree(doc, id), ids)`.
+- **Undo:** `History.empty()`, `History.commit(history, before, History.groupFor(op))`,
+  `History.undo(history, current)`, `History.redo(...)`: snapshots, bounded at
+  200; consecutive `setProp`s of one prop of one node are one step. Start a new
+  History when the Document is replaced from outside (fill, reset, restore).
 
 ## Gotchas
 
@@ -65,6 +80,8 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   missing id are each their own diagnostic.
 - Regions are not Mixins Slots, and Content is not a Mixins capability.
 - `when`, `appearance` and `actions` are stored as JSON and not yet interpreted.
+- `apply` refuses only what the Operation causes; it keeps working beside an
+  unknown Block, but cannot set that Block's props.
 
 ## See also
 
