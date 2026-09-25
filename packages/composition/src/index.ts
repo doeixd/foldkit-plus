@@ -6,6 +6,7 @@
  * application's own transitions. This package performs no I/O, holds no state,
  * and draws nothing.
  */
+import { holds, when } from './condition.js'
 import { describe } from './describe.js'
 import { migrate, migration, promoteUnknown, renameBlock, renameProp } from './migrate.js'
 import { Document, Node, NodeId, empty, index, newIds } from './document.js'
@@ -34,6 +35,7 @@ export {
   type Refusal,
   type RefusalCode,
 } from './operation.js'
+export { Condition, When, type ConditionFinding } from './condition.js'
 export { Region } from './region.js'
 export { Url, isSafeUrl } from './url.js'
 export type { Diagnostic, DiagnosticCode } from './validate.js'
@@ -60,6 +62,10 @@ export const Composition = {
   apply,
   /** Operation constructors. */
   Op,
+  /** Conditions for a node's `when`: `Op.setWhen(id, [Composition.when.eq('audience', 'member')])`. */
+  when,
+  /** Whether a stored `when` holds in a context; with no context, a node that has conditions does not show. */
+  holds,
   Operation,
   /** Positions: among the roots, or in a parent's Region. An index counts after the node moved is taken out. */
   root,

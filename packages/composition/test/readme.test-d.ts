@@ -155,3 +155,18 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
   void LooksRenderer
   void sheet
 }
+
+{
+  const Audience = Catalog.make({
+    blocks: [Heading, Section],
+    roots: [Content.Section],
+    context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
+  })
+  const op = Composition.Op.setWhen(NodeId.make('s'), [Composition.when.eq('audience', 'member')])
+  const shown: boolean = Composition.holds([Composition.when.eq('audience', 'member')], {
+    audience: 'guest',
+  })
+  void Audience
+  void op
+  void shown
+}

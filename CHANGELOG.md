@@ -103,6 +103,14 @@ version changed; `pnpm` skips versions already in the registry.
   A layout Block is a Mixins layout this way: the test site's Columns is
   `Layout.switcher`, with its ratio, when it stacks, and its gap as choices.
   Phase 8 of the page builder design.
+- **`foldkit-composition`: conditions.** A Catalog may declare a `context`
+  Schema (an audience, a locale, a flag), and a node's `when` is a list of
+  conditions over it, `eq`, `isNull`, `isNotNull` and `contains`, meant as
+  `foldkit-entity`'s `Expr` means them. `validate` and `Op.setWhen` check them
+  (`composition:invalid-condition`, `composition:unknown-context`), and
+  `Renderer.render` takes the `context`: a node whose `when` fails is left out,
+  or marked `data-composition-hidden` in edit mode, and a page drawn without
+  its context fails closed. `Composition.holds(when, context)` is the test.
 - **`foldkit-composition/foldkit`: the edit wrappers carry the marks.**
   `render` in edit mode takes `selected`, `hovered` and `drop`, and puts
   `data-composition-selected`, `data-composition-hovered` and

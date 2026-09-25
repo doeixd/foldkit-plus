@@ -47,6 +47,7 @@ const Frame = Block.define('Frame', {
 const Site = Catalog.make({
   blocks: [Heading, Button, Hero, Section, Frame],
   roots: [Content.Section],
+  context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
 })
 
 const id = NodeId.make
@@ -379,13 +380,13 @@ describe('props and the reserved fields', () => {
     const set = applied(
       start,
       Op.batch([
-        Op.setWhen(id('a'), { eq: ['audience', 'member'] }),
+        Op.setWhen(id('a'), [Composition.when.eq('audience', 'member')]),
         Op.setAppearance(id('a'), { tone: 'accent' }),
         Op.setAction(id('c'), 'press', { action: 'addToCart' }),
       ]),
     ).document
     expect(set.nodes[id('a')]).toMatchObject({
-      when: { eq: ['audience', 'member'] },
+      when: [{ eq: ['audience', 'member'] }],
       appearance: { tone: 'accent' },
     })
     expect(set.nodes[id('c')]?.actions).toEqual({ press: { action: 'addToCart' } })
@@ -398,6 +399,26 @@ describe('props and the reserved fields', () => {
       ]),
     ).document
     expect(cleared).toEqual(start)
+  })
+
+  it('refuses a condition that is malformed, or over what the context does not declare', () => {
+    const refusal = (when: Schema.Json) => refused(start, Op.setWhen(id('a'), when))
+    expect(refusal({ eq: ['audience', 'member'] }).code).toBe('composition:invalid-condition')
+    expect(refusal([{ eq: ['locale', 'en'] }]).message).toBe(
+      `"a"'s when.0: "locale" is not in the page's context`,
+    )
+    expect(refusal([{ isNull: 'audience' }, { eq: ['audience', 'admin'] }]).message).toBe(
+      `"a"'s when.1: "admin" is not a value "audience" can have`,
+    )
+    expect(
+      Result.isSuccess(
+        Composition.apply(
+          Site,
+          start,
+          Op.setWhen(id('a'), [Composition.when.isNotNull('audience')]),
+        ),
+      ),
+    ).toBe(true)
   })
 
   it('refuses an appearance the Block does not offer, each with its own code', () => {

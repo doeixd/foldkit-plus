@@ -230,6 +230,63 @@ describe('validate', () => {
     expect(found[0]?.message).toContain('"section-1"\'s props are not a Section\'s')
   })
 
+  it('checks a stored when against the context the Catalog declares', () => {
+    const Audience = Catalog.make({
+      blocks: [Heading, Section],
+      roots: [Content.Section],
+      context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
+    })
+    const document = page(['s'], {
+      s: {
+        block: 'Section',
+        props: { tone: 'plain' },
+        regions: { body: ['h', 'i'] },
+        when: [{ eq: ['audience', 'member'] }, { contains: ['locale', 'en'] }],
+      },
+      h: { block: 'Heading', props: { text: 'x', level: 1 }, regions: {}, when: 'members' },
+      i: { block: 'Heading', props: { text: 'y', level: 1 }, regions: {}, when: [] },
+    })
+    const found = Composition.validate(Audience, document)
+    expect(codes(found)).toEqual(['composition:unknown-context', 'composition:invalid-condition'])
+    expect(found.map(each => each.path)).toEqual([
+      ['nodes', 's', 'when', 1],
+      ['nodes', 'h', 'when'],
+    ])
+    // A Catalog with no context takes no condition at all.
+    expect(
+      codes(
+        Composition.validate(
+          Site,
+          page(['s'], {
+            s: { block: 'Section', props: { tone: 'plain' }, regions: {}, when: [{ isNull: 'x' }] },
+          }),
+        ),
+      ),
+    ).toEqual(['composition:unknown-context'])
+  })
+
+  it('holds a condition as Expr means it: equal, absent, present, and folded text', () => {
+    const { holds, when } = Composition
+    const context = { audience: 'member', locale: 'EN-gb', flag: null }
+    expect(holds(undefined, undefined)).toBe(true)
+    expect(holds([], undefined)).toBe(true)
+    expect(holds([when.eq('audience', 'member')], context)).toBe(true)
+    expect(holds([when.eq('audience', 'guest')], context)).toBe(false)
+    expect(holds([when.isNull('flag'), when.isNull('missing')], context)).toBe(true)
+    expect(holds([when.isNotNull('flag')], context)).toBe(false)
+    expect(holds([when.isNotNull('locale')], context)).toBe(true)
+    expect(holds([when.contains('locale', 'en-GB')], context)).toBe(true)
+    expect(holds([when.contains('locale', 'fr')], context)).toBe(false)
+    // Absent text contains nothing, not even the empty string; folding is ASCII only.
+    expect(holds([when.contains('flag', '')], context)).toBe(false)
+    expect(holds([when.contains('name', 'É')], { name: 'é' })).toBe(false)
+    // Every condition must hold; with no context, or a malformed when, none does.
+    expect(holds([when.eq('audience', 'member'), when.eq('locale', 'x')], context)).toBe(false)
+    expect(holds([when.eq('audience', 'member')], undefined)).toBe(false)
+    expect(holds([when.isNull('flag')], undefined)).toBe(false)
+    expect(holds({ eq: ['audience', 'member'] }, context)).toBe(false)
+  })
+
   it('checks a stored appearance against the axes its Block offers', () => {
     const Looks = Section.pipe(
       Block.withAppearance({

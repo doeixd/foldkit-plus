@@ -90,6 +90,41 @@ describe('drawing a Document', () => {
     expect(Columns.appearance['gap']?.kind).toBe('token')
   })
 
+  it('leaves out a node whose when does not hold, and marks it for an author', () => {
+    const Audience = Catalog.make({
+      blocks: Site.blocks,
+      roots: Site.roots,
+      context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
+    })
+    const Drawn = Renderer.make(Audience, SiteRenderer.entries)
+    const members = page(['hero'], {
+      hero: {
+        block: 'Hero',
+        props: { title: 'Welcome back' },
+        regions: { actions: [] },
+        when: [{ eq: ['audience', 'member'] }],
+      },
+    })
+    const count = (context?: Readonly<Record<string, unknown>>) =>
+      Renderer.render(Drawn, members, inertHtml, context === undefined ? {} : { context }).filter(
+        node => node !== null,
+      ).length
+    expect(count({ audience: 'member' })).toBe(1)
+    expect(count({ audience: 'guest' })).toBe(0)
+    // Drawn without its context, a page fails closed.
+    expect(count()).toBe(0)
+    const [marked] = Renderer.render(Drawn, members, inertHtml, {
+      mode: 'edit',
+      context: { audience: 'guest' },
+    })
+    expect(attr(all(marked)[0], 'data-composition-hidden')).toBe('')
+    const [shown] = Renderer.render(Drawn, members, inertHtml, {
+      mode: 'edit',
+      context: { audience: 'member' },
+    })
+    expect(attr(all(shown)[0], 'data-composition-hidden')).toBeUndefined()
+  })
+
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {
     const broken = page(['s'], {
       s: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['old', 'bad', 'gone'] } },

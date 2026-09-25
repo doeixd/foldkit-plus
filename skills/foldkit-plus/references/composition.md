@@ -83,6 +83,19 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `foldkit-composition/richtext`; the body is checked against the Kit
   (`composition:nested`). Any Block may add `check: props => [{ path, message }]`.
 
+## Conditions: `when`
+
+`Catalog.make({ blocks, roots, context: Schema.Struct({ audience: ... }) })`;
+a node's `when` is a list of conditions, all must hold:
+`Op.setWhen(id, [Composition.when.eq('audience', 'member')])` (also `isNull`,
+`isNotNull`, `contains`, with `Expr` semantics: ASCII-folded, absent text
+contains nothing). Checked by `validate`/`setWhen`
+(`composition:invalid-condition`, `composition:unknown-context`).
+`Renderer.render(r, doc, h, { context })` leaves out nodes whose `when` fails;
+no context means a node with conditions is hidden (fails closed); edit mode
+draws it marked `data-composition-hidden`. `Composition.holds(when, context)`.
+Presentation, not authorization.
+
 ## Appearance: `foldkit-composition/appearance`
 
 A node stores its look as names (`appearance: { tone: 'accent', gap: 'm' }`),

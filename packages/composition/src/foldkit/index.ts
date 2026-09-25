@@ -11,6 +11,7 @@
  * thing: each node is wrapped in a `display: contents` element that carries
  * `data-composition-node`, so an editor can find the node under the pointer.
  */
+import { holds } from '../condition.js'
 import { Result } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Block, type AnyBlock, type PropsOf } from '../block.js'
@@ -54,6 +55,8 @@ export const PLACEHOLDER_ATTRIBUTE = 'composition-placeholder'
 /** In edit mode, on the selected node's element and the hovered one's, for a stylesheet to outline. */
 export const SELECTED_ATTRIBUTE = 'composition-selected'
 export const HOVERED_ATTRIBUTE = 'composition-hovered'
+/** In edit mode, on a node whose `when` does not hold in the context drawn for. */
+export const HIDDEN_ATTRIBUTE = 'composition-hidden'
 /** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */
 export const DROP_ATTRIBUTE = 'composition-drop'
 
@@ -101,6 +104,12 @@ const render = <Blocks extends AnyBlock, Message>(
     readonly selected?: NodeId | null
     /** In edit mode, the node to mark hovered. */
     readonly hovered?: NodeId | null
+    /**
+     * What the page is drawn for, as the Catalog's `context` declares. A node
+     * whose `when` does not hold is left out, or, in edit mode, drawn marked
+     * `data-composition-hidden`. Without it, a node with conditions is hidden.
+     */
+    readonly context?: Readonly<Record<string, unknown>>
     /** In edit mode, the node a drop is aimed at, and where. */
     readonly drop?: { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | null
   } = {},
@@ -124,6 +133,8 @@ const render = <Blocks extends AnyBlock, Message>(
     // A node reached twice is drawn once, which also ends a cycle.
     if (drawn.has(id)) return placeholder(id, node.block, 'this node is already on the page')
     drawn.add(id)
+    const shown = holds(node.when, options.context)
+    if (!shown && mode === 'view') return null
     const block = Catalog.block(renderer.catalog, node.block)
     if (block === undefined)
       return placeholder(id, node.block, 'this Block is not in this version of the application')
@@ -151,6 +162,7 @@ const render = <Blocks extends AnyBlock, Message>(
             ...(options.drop?.id === id
               ? [h.DataAttribute(DROP_ATTRIBUTE, options.drop.zone)]
               : []),
+            ...(shown ? [] : [h.DataAttribute(HIDDEN_ATTRIBUTE, '')]),
           ],
           [html],
         )

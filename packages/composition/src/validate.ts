@@ -5,6 +5,7 @@
  * a publish refuses it, an editor shows a placeholder and keeps working. An
  * unknown Block is reported and still walked, so what it holds is checked too.
  */
+import { check as checkWhen } from './condition.js'
 import { Result, Schema } from 'effect'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
@@ -26,6 +27,8 @@ export type DiagnosticCode =
   | 'composition:nested'
   | 'composition:invalid-appearance'
   | 'composition:unknown-token'
+  | 'composition:invalid-condition'
+  | 'composition:unknown-context'
 
 export interface Diagnostic {
   readonly code: DiagnosticCode
@@ -79,6 +82,13 @@ export const validate = (catalog: Catalog, document: Document): ReadonlyArray<Di
     reached.set(id, at)
     const inside = new Set(ancestors).add(id)
     const here = ['nodes', id] as const
+    for (const finding of checkWhen(catalog.context, node.when))
+      say(
+        finding.code,
+        id,
+        [...here, ...finding.path],
+        `"${id}"'s ${finding.path.join('.')}: ${finding.message}`,
+      )
     const block = Catalog.block(catalog, node.block)
 
     if (block === undefined) {

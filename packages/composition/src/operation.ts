@@ -11,6 +11,7 @@
  * refuse an edit because of something already wrong elsewhere in the Document,
  * so an author keeps working around content the deployment no longer knows.
  */
+import { check as checkWhen } from './condition.js'
 import { Result, Schema } from 'effect'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
@@ -112,6 +113,8 @@ export type RefusalCode =
   | 'composition:nested'
   | 'composition:invalid-appearance'
   | 'composition:unknown-token'
+  | 'composition:invalid-condition'
+  | 'composition:unknown-context'
 
 /** Why an Operation was refused. The Document is as it was. */
 export interface Refusal {
@@ -515,6 +518,11 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
     case 'SetWhen':
     case 'SetAppearance': {
       const node = nodeOf(draft, op.id)
+      if (op._tag === 'SetWhen' && op.when !== null) {
+        const [finding] = checkWhen(catalog.context, op.when)
+        if (finding !== undefined)
+          refuse(finding.code, `"${op.id}"'s ${finding.path.join('.')}: ${finding.message}`)
+      }
       if (op._tag === 'SetAppearance' && op.appearance !== null) {
         const [finding] = Block.checkAppearance(blockOf(catalog, node, op.id), op.appearance)
         if (finding !== undefined)

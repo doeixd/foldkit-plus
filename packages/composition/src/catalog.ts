@@ -17,6 +17,11 @@ export interface Catalog<Blocks extends AnyBlock = AnyBlock> {
   /** The Content a root of a Document must provide one of. */
   readonly roots: ReadonlyArray<Content>
   readonly byName: ReadonlyMap<string, Blocks>
+  /**
+   * What a page is drawn for (an audience, a locale, a flag), as a Schema whose
+   * fields a node's `when` may name; `undefined` when a page has no context.
+   */
+  readonly context: Schema.Top | undefined
 }
 
 /** A Block's name, from a Catalog. */
@@ -43,6 +48,8 @@ export const Catalog = {
   make: <const Blocks extends AnyBlock>(config: {
     readonly blocks: ReadonlyArray<Blocks>
     readonly roots: ReadonlyArray<Content>
+    /** The context a node's `when` may name: `Schema.Struct({ audience: ..., locale: ... })`. */
+    readonly context?: Schema.Top
   }): Catalog<Blocks> => {
     if (config.roots.length === 0)
       throw new Error('Catalog.make: `roots` names no Content, so no Document could have a root')
@@ -57,6 +64,7 @@ export const Catalog = {
       blocks: Object.freeze([...config.blocks]),
       roots: Object.freeze([...config.roots]),
       byName,
+      context: config.context,
     })
   },
 

@@ -130,8 +130,9 @@ const PublishPage = Entity.input(Page, Schema.Struct({
 
 `appearance` holds a node's look as names, such as `{ tone: 'accent' }`,
 checked against the axes its Block offers ([Appearance](#appearance-foldkit-compositionappearance)).
-`when` and `actions` are reserved on every node, stored as JSON, for
-conditions and event actions in later phases.
+`when` lists the conditions a node shows under ([Conditions](#conditions)).
+`actions` is reserved on every node, stored as JSON, for event actions in a
+later phase.
 
 ## What validation finds
 
@@ -149,9 +150,47 @@ conditions and event actions in later phases.
 | `composition:root-rejects` | a root whose Content the Catalog's roots do not accept |
 | `composition:invalid-appearance` | an appearance that is not a record, an axis the Block lacks, or a value off the axis's list |
 | `composition:unknown-token` | a token axis naming a token the theme does not have |
+| `composition:invalid-condition` | a `when` that is not a list of conditions |
+| `composition:unknown-context` | a condition over a key the Catalog's `context` does not declare, or a value that key cannot have |
 
 Props are decoded strictly, so a prop an old version left behind is found
 rather than silently kept.
+
+## Conditions
+
+A node shows only when its `when` holds over the page's **context**: what the
+page is drawn for, such as an audience, a locale or a feature flag. The Catalog
+declares the context as a Schema, and the application supplies its values when
+it draws:
+
+```ts
+const Site = Catalog.make({
+  blocks,
+  roots: [Content.Section],
+  context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
+})
+
+Composition.Op.setWhen(id, [Composition.when.eq('audience', 'member')])
+Renderer.render(SiteRenderer, page, h, { context: { audience: 'guest' } }) // left out
+```
+
+- **A `when` is a list, and every condition must hold:** `when.eq(key, value)`,
+  `when.isNull(key)`, `when.isNotNull(key)` and `when.contains(key, text)`.
+  They mean what `foldkit-entity`'s `Expr` means: `contains` ignores case,
+  folding ASCII only, and absent text contains nothing.
+- **Checked against the context,** by `validate` and by `setWhen`: a key the
+  context does not declare, or a value its Schema refuses, is
+  `composition:unknown-context`, never a node that silently never shows.
+- **Drawn without its context, a page fails closed:** a node with conditions
+  does not show. In edit mode it is drawn anyway, marked
+  `data-composition-hidden`, so an author sees what a visitor would not.
+  `Composition.holds(when, context)` is the same test.
+- **`when` is presentation, not authorization.** A member-only section hidden
+  from guests is still in the Document a guest's page was drawn from. Content a
+  guest must not receive belongs behind the CMS audience boundary or a
+  server-authorized read.
+- Viewport is not a condition: the server cannot know it. A node hidden on
+  narrow screens is an appearance.
 
 ## Reading a Document
 
@@ -443,6 +482,8 @@ know is kept, and the vocabulary is a module-level value, never Model state.
 ## Limits
 
 
-- Conditions and actions are stored but not interpreted.
+- Actions are stored but not interpreted.
+- A condition is one of four operations over one context key; there is no
+  `or` and no `not`, as in `Expr`.
 - An appearance choice is one value for every viewport; responsive choices,
   keyed by breakpoint, are not yet here.
