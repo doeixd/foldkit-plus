@@ -4620,7 +4620,10 @@ Not done:
   unverified. A page to drive it now exists (`examples/richtext/harness.html`,
   served from source; see that harness's README), and it was verified to build and
   serve, but driving it needs a browser connected to the session, which this
-  environment did not have.
+  environment did not have. The page mounts through a `rendering(...)` registry, so
+  driving it is also what would confirm §121's mark and node renderings and their
+  reuse by `patch` in a real browser; `window.harness.rendered()` and `links()` say
+  what the registry produced without reading the DOM by hand.
 - **The slice and the Bundle editor are one editor now.** §118 decided how they
   meet — the view renders the host, and the DOM patch is a Command from `update`,
   not a Subscription — and §118's slice 1 landed: the Bundle has a view, and the

@@ -52,7 +52,10 @@ preserved unknown blocks as read-only placeholders), maps positions both ways
 (`positionToRange` / `rangeToPosition`), and patches a ChangeSet in place: removed
 identities lose their elements, dirty identities are re-rendered or inserted, and
 every untouched element keeps its object identity so a keystroke does not rebuild
-the tree.
+the tree. The page mounts through a `rendering(...)` registry (§121), so the
+browser also exercises what jsdom cannot confirm: a declared mark nested inside its
+run element as a real `<a href>`, and a declared node kind rendered as its element
+with an entry-less kind beside it keeping the `div` fallback.
 
 `packages/richtext-dom/test/dom.test.ts` runs under jsdom and covers rendering,
 both-way position mapping (including what a DOM caret cannot recover: affinity is
@@ -151,24 +154,29 @@ pnpm exec tsc -b examples/richtext
 
 ## Running it in a browser
 
-`harness.html` mounts the adapter over a list and prints the semantic state after
-every command, so the slice can be exercised where jsdom cannot reach: real
-typing, a real `beforeinput`, a real selection, a real Enter. It is served from
-source, so it needs no build and no `pnpm install`:
+`harness.html` mounts the adapter over a list, a quote, and a paragraph carrying a
+Link, through a rendering registry, and prints the semantic state after every
+command together with what that registry rendered, so the slice can be exercised
+where jsdom cannot reach: real typing, a real `beforeinput`, a real selection, a
+real Enter. It is served from source, so it needs no build and no `pnpm install`:
 
 ```bash
 pnpm exec vite examples/richtext --port 5179
 # then open http://127.0.0.1:5179/harness.html
 ```
 
-The page exposes `window.harness` (`state()`, `selection()`, `caret(node, offset)`)
-for a browser-driving tool. It has been verified to **build and serve** — Vite
-resolves `foldkit-richtext` and `foldkit-richtext-dom` to their sources and
-transpiles every module — but not yet to be **driven** by a real browser: the
-browser tool in this session needs a desktop-app connection it does not have, so
-the transient behaviour the slice actually cares about (IME composition, native
-selection, clipboard permissions) stays unverified. That is the deferred item in
-§115, not a claim.
+The page exposes `window.harness` (`state()`, `selection()`, `caret(node, offset)`,
+`rendered()`, `links()`) for a browser-driving tool. A driven session should see
+`rendered() === ['div', 'blockquote', 'p']` and `links() === ['/x']` before touching
+anything — the list keeps the fallback, the quote renders declared, and the mark
+became a real anchor — and should still see them after typing inside the marked run
+or the quote, because `patch` reuses the registry the mount recorded. It has been
+verified to **build and serve** — Vite resolves `foldkit-richtext` and
+`foldkit-richtext-dom` to their sources and transpiles every module — but not yet to
+be **driven** by a real browser: the browser tool in this session needs a
+desktop-app connection it does not have, so the transient behaviour the slice
+actually cares about (IME composition, native selection, clipboard permissions)
+stays unverified. That is the deferred item in §115, not a claim.
 
 ## Why there is no package.json
 
