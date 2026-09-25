@@ -1,5 +1,5 @@
 import { Effect, Result, Schema } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   Block,
   Catalog,
@@ -47,6 +47,12 @@ const Site = Catalog.make({
 })
 
 const id = NodeId.make
+
+/** The value, or a failed test saying what was missing: no assertion needed. */
+const required = <A>(value: A | undefined, what: string): A => {
+  if (value === undefined) throw new Error(`expected ${what}`)
+  return value
+}
 const { Op, root, region } = Composition
 
 const page = (roots: ReadonlyArray<string>, nodes: Readonly<Record<string, unknown>>): Document =>
@@ -512,7 +518,7 @@ describe('a Document stays valid under any sequence of applied edits', () => {
       const candidates: ReadonlyArray<Operation> = [
         Op.insert({
           id: id(`n${made}`),
-          block: ['Heading', 'Button', 'Hero', 'Section'][next(4)]!,
+          block: required(['Heading', 'Button', 'Hero', 'Section'][next(4)], 'a Block'),
           props: {},
           at: where(),
         }),
@@ -523,7 +529,7 @@ describe('a Document stays valid under any sequence of applied edits', () => {
         Op.setProp(pick(), 'label', 'y'),
         Op.duplicate({ id: pick(), ids: {}, at: where() }),
       ]
-      const op = candidates[next(candidates.length)]!
+      const op = required(candidates[next(candidates.length)], 'an Operation')
       const result = Composition.apply(Site, document, op)
       if (Result.isSuccess(result)) {
         made++
@@ -566,7 +572,15 @@ describe('History', () => {
     expect(History.groupFor(Op.remove(id('a')))).toBeUndefined()
     // A structural edit between two prop edits breaks the group.
     const moved = History.commit(history, document, History.groupFor(Op.remove(id('a'))))
-    expect(History.commit(moved, document, History.groupFor(typing[0]!)).past).toHaveLength(3)
+    const first = required(typing[0], 'the first keystroke')
+    expect(History.commit(moved, document, History.groupFor(first)).past).toHaveLength(3)
+  })
+
+  it('is a Schema too, which keeps its type and survives JSON', () => {
+    expectTypeOf<typeof History.Model.Type>().toEqualTypeOf<History>()
+    const history = History.commit(History.empty(), start)
+    const stored = JSON.parse(JSON.stringify(Schema.encodeSync(History.Model)(history)))
+    expect(Schema.decodeUnknownSync(History.Model)(stored)).toEqual(history)
   })
 
   it('keeps no more than its limit', () => {

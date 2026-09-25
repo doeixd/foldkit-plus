@@ -22,8 +22,7 @@ const text = (node: Html | undefined): string =>
     .map(each => each.text ?? '')
     .join('')
 const attr = (node: Node | undefined, key: string): unknown => node?.data?.attrs?.[key]
-const prop = (node: Node | undefined, key: string): unknown =>
-  (node?.data?.props as Readonly<Record<string, unknown>> | undefined)?.[key]
+const prop = (node: Node | undefined, key: string): unknown => node?.data?.props?.[key]
 const classes = (node: Html | undefined): ReadonlyArray<string> =>
   node === null || node === undefined ? [] : Object.keys(node.data?.class ?? {})
 

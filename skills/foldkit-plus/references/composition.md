@@ -1,4 +1,4 @@
-# foldkit-composition
+# foldkit-composition and foldkit-builder
 
 **In development, not published.** Phases 1 to 4 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
@@ -85,6 +85,35 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   `foldkit-composition/richtext`; the body is checked against the Kit
   (`composition:nested`). Any Block may add `check: props => [{ path, message }]`.
 
+## The Builder: `foldkit-builder`
+
+The page editor's state, as a Bundle, designed as one form key's control
+(`Input.bundle`): the Document is the key's value.
+
+```ts
+import { Builder } from 'foldkit-builder'
+
+const PageBuilder = Builder.make('PageBuilder', {
+  catalog: Site,
+  renderer: SiteRenderer,
+  starters: { Section: {}, Heading: { text: 'New heading' } }, // the palette offers exactly these
+})
+const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuilder.input } })
+```
+
+- Model: `document`, `selected`, `hovered`, `panel`, `viewport`, `history`,
+  `refused`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
+  `DuplicateAsked({ id, at })`, `Minted` (from its own Command), `Selected`,
+  `Hovered`, `Undid`, `Redid`, `PanelChosen`, `ViewportChosen`.
+- Ids are minted in a Command; an edit and its undo step change together;
+  a new node is selected; a refusal is kept in `refused` until the next edit.
+- As a form key: a change of the Document is an edit (autosaved by CMS), a
+  selection is not; fill replaces the page and starts undo over.
+- Helpers: `PageBuilder.placeFor(doc, selected, block)`,
+  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.replace`, `PageBuilder.settle`.
+- Its view is plain (palette, layers, text props, undo, the page in edit mode);
+  `foldkit-mixins-form` draws it with the form. One node is selected at a time.
+
 ## Gotchas
 
 - A Region accepts by **Content** (`Content.Flow`), compared by identity:
@@ -104,4 +133,5 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
 ## See also
 
 - [Package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/composition/README.md)
+- [Builder README](https://github.com/doeixd/foldkit-plus/blob/main/packages/builder/README.md)
 - [Page builder design](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/pagebuilder-DESIGN.md)

@@ -67,6 +67,7 @@ export default defineConfig({
       'foldkit-metadata': fileURLToPath(
         new URL('./packages/metadata/src/index.ts', import.meta.url),
       ),
+      'foldkit-builder': fileURLToPath(new URL('./packages/builder/src/index.ts', import.meta.url)),
       // Before the bare package, so the more specific entry wins.
       'foldkit-composition/foldkit': fileURLToPath(
         new URL('./packages/composition/src/foldkit/index.ts', import.meta.url),

@@ -12,6 +12,7 @@
     { "path": "./packages/sync" },
     { "path": "./packages/metadata" },
     { "path": "./packages/composition" },
+    { "path": "./packages/builder" },
     { "path": "./packages/ssr" },
     { "path": "./packages/entity" },
     { "path": "./packages/form" },

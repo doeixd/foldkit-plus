@@ -118,6 +118,12 @@ const update = (model: typeof PostForm.initial, message: typeof PostForm.Message
 const answer = (command: { readonly effect: Effect.Effect<typeof PostForm.Message.Type> }) =>
   Effect.runSync(command.effect)
 
+/** The value, or a failed test saying what was missing: no assertion needed. */
+const required = <A>(value: A | undefined, what: string): A => {
+  if (value === undefined) throw new Error(`expected ${what}`)
+  return value
+}
+
 describe('a key edited by a control backed by a Bundle', () => {
   it('holds the Bundle’s Model as its draft, starting from its init', () => {
     const field = tags.field(PostForm.initial)
@@ -147,7 +153,7 @@ describe('a key edited by a control backed by a Bundle', () => {
     const typed = update(PostForm.initial, tags.send(TagsMessage.Typed({ text: ' effect ' }))).model
     const committed = update(typed, tags.send(TagsMessage.Committed()))
     expect(committed.commands).toHaveLength(1)
-    const normalized = answer(committed.commands![0]!)
+    const normalized = answer(required(committed.commands?.[0], 'the normalize Command'))
     expect(normalized).toEqual(
       PostForm.Message.Control({
         key: 'tags',
@@ -225,7 +231,7 @@ describe('a key edited by a control backed by a Bundle', () => {
   it('carries the Bundle’s init Commands, Subscriptions and Resources as the form’s', () => {
     const init = PostForm.bundle.init(undefined)
     expect(init.commands?.map(command => command.name)).toEqual(['tags.warm'])
-    expect(answer(init.commands![0]!)).toEqual(
+    expect(answer(required(init.commands?.[0], 'the init Command'))).toEqual(
       PostForm.Message.Control({ key: 'tags', message: TagsMessage.Typed({ text: '' }) }),
     )
     expect(Object.keys(PostForm.bundle.subscriptions?.(undefined) ?? {})).toEqual([

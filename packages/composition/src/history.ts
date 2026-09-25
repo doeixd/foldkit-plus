@@ -12,20 +12,31 @@
  * reset or a restored revision, clears the History: its snapshots describe a
  * Document that is no longer the one being edited.
  */
-import type { Document } from './document.js'
+import { Schema } from 'effect'
+import { Document } from './document.js'
 import type { Operation } from './operation.js'
 
 export interface History {
   readonly past: ReadonlyArray<Document>
   readonly future: ReadonlyArray<Document>
-  /** The group of the last step, so the next edit of the same group joins it. */
-  readonly group: string | undefined
+  /** The group of the last step, so the next edit of the same group joins it; `null` for none. */
+  readonly group: string | null
   readonly limit: number
 }
 
+/** A History as a Schema, for a Model that holds one and a draft that stores it. */
+const Model = Schema.Struct({
+  past: Schema.Array(Document),
+  future: Schema.Array(Document),
+  // `null`, not `undefined`: a stored History keeps the key through JSON.
+  group: Schema.NullOr(Schema.String),
+  limit: Schema.Number,
+})
+
 export const History = {
+  Model,
   /** Nothing to undo, bounded at 200 steps unless told otherwise. */
-  empty: (limit = 200): History => ({ past: [], future: [], group: undefined, limit }),
+  empty: (limit = 200): History => ({ past: [], future: [], group: null, limit }),
 
   /**
    * Records the Document an edit started from. With the same `group` as the
@@ -38,7 +49,7 @@ export const History = {
           ...history,
           past: [...history.past, before].slice(-history.limit),
           future: [],
-          group,
+          group: group ?? null,
         },
 
   /** The Document before the last step, or `undefined` when there is none. */
@@ -55,7 +66,7 @@ export const History = {
             ...history,
             past: history.past.slice(0, -1),
             future: [current, ...history.future],
-            group: undefined,
+            group: null,
           },
         }
   },
@@ -70,7 +81,7 @@ export const History = {
       ? undefined
       : {
           document: next,
-          history: { ...history, past: [...history.past, current], future: rest, group: undefined },
+          history: { ...history, past: [...history.past, current], future: rest, group: null },
         }
   },
 

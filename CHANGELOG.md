@@ -50,6 +50,17 @@ version changed; `pnpm` skips versions already in the registry.
   `javascript:` and every scheme but http, https, mailto and tel.
   `foldkit-composition/richtext` holds a rich-text body checked against its
   Kit. Phases 1 to 4 of the page builder design.
+- **`foldkit-builder` (in development, not published): the page builder's
+  state.** `Builder.make(name, { catalog, renderer, starters })` gives a Bundle
+  that edits a composition Document by Operations, mints new ids in a Command,
+  keeps a selection and undo History beside the page, and records why an edit
+  was refused. `builder.input` places it as a form key's control, so the page is
+  the key's value, a selection is not an edit, and a fill starts undo over. Its
+  plain view (palette, layers, text props, undo, the page in edit mode) is drawn
+  by `foldkit-mixins-form` with the rest of the form. Phase 5 of the page
+  builder design.
+- **`foldkit-composition`: `History.Model`** is History as a Schema, and an
+  empty group is `null`, so a stored History survives JSON.
 - **`foldkit-ssr`: its build configuration references the packages it builds
   from,** so another project can reference it.
 

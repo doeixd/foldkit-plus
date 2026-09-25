@@ -4,9 +4,9 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Phases 0 to 4 are built: `Input.bundle`,
-the `foldkit-composition` core, its Operations and History, migrations, and the
-Foldkit renderer with its SSR proof.
+which the first draft could assume. Phases 0 to 5 are built: `Input.bundle`,
+the `foldkit-composition` core, its Operations and History, migrations, the
+Foldkit renderer with its SSR proof, and the headless Builder as a form key.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -978,10 +978,20 @@ is not in the page's resume envelope.
 > as an optional peer. Rich text's own Link mark should adopt the same URL rule;
 > that belongs to `foldkit-richtext`.
 
-**Phase 5: the headless Builder as the `document` control.** A crude view (add a
+**Phase 5: the headless Builder as the `document` control. Done.** A crude view (add a
 Hero, select, move up and down, edit props, undo) is enough. It proves a
 Document is edited entirely through the control's Messages, and that a fill
 clears history.
+
+> **As built.** `Builder.make(name, { catalog, renderer, starters })`: `starters`
+> gives each insertable Block's starting props, typed per Block, and the palette
+> offers exactly those. The Model is `document`, `selected` (one node for now),
+> `hovered`, `panel`, `viewport`, `history` and `refused`; drag state and the
+> rich-text editing slot arrive with Phase 7, which needs them. Creating nodes is
+> `InsertAsked` or `DuplicateAsked`, answered by a `Minted` Message from the
+> Builder's own Command. The crude view is the Builder Bundle's own view, so
+> `foldkit-mixins-form` draws it inside the page form, which the runtime test
+> drives with clicks and keys.
 
 **Phase 6: the CMS proof, in `examples/cms`.** Create a page, add Blocks,
 autosave, reload, resume the draft, preview through the application route,
