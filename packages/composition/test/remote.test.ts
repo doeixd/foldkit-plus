@@ -129,6 +129,37 @@ describe('a Query Block', () => {
     })
   })
 
+  it('hands a node its own window, though another read of the query loaded more', async () => {
+    const reads = QueryBlock.reads(Data, Site, page)
+    if (reads === undefined) throw new Error('no reads')
+    // A picker, say, reading three of the same list: one connection holds all three.
+    const wider = Data.query(
+      ProjectsByOwner,
+      { ownerId: 'u1' },
+      {
+        select: Project.select({ name: true }),
+        first: 3,
+      },
+    )
+    const { layer } = server()
+    const loaded = await Effect.runPromise(
+      Data.prefetch(initial, wider).pipe(
+        Effect.flatMap(model => Data.prefetch(model, reads)),
+        Effect.provide(layer),
+      ),
+    )
+    expect(reads.read(loaded)).toEqual({
+      mine: {
+        _tag: 'Ready',
+        value: {
+          items: [{ name: 'Project p1' }, { name: 'Project p2' }],
+          hasNext: true,
+          hasPrevious: false,
+        },
+      },
+    })
+  })
+
   it('draws a node’s rows from the data it is handed, and waits without them', async () => {
     const reads = QueryBlock.reads(Data, Site, page)
     if (reads === undefined) throw new Error('no reads')

@@ -195,5 +195,6 @@ export const valid = (catalog: Catalog) =>
         path: diagnostic.path,
         issue: diagnostic.message,
       })),
-    { title: 'fits the Catalog' },
+    // What it expects, as Effect's own checks say it: a `title` would name the form key it is on.
+    { expected: 'a Document that fits the Catalog' },
   )
