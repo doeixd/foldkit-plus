@@ -23,7 +23,7 @@ import type {
   SelectsEntity,
 } from 'foldkit-remote'
 import { Metadata } from 'foldkit-metadata'
-import { Projection } from 'foldkit-surface'
+import { Projection, type ActiveSurface } from 'foldkit-surface'
 import { Block, type AnyBlock } from '../block.js'
 import { Catalog } from '../catalog.js'
 import type { Content } from '../content.js'
@@ -60,6 +60,8 @@ const initial: RemoteData<Page<never>> = { _tag: 'Initial' }
 export interface QueryReader<AppModel> {
   // Method syntax: a domain's registered-query constraint still fits.
   query(query: any, input: any, options: any): Projection<AppModel, unknown>
+  /** The domain's contract: its `owner` is the application's. */
+  readonly contract: { readonly owner?: object | undefined }
 }
 
 export const QueryBlock = {
@@ -109,6 +111,26 @@ export const QueryBlock = {
       rows: (data: unknown) => (data ?? initial) as RemoteData<Page<Value>>,
     })
   },
+
+  /**
+   * The page's reads as an active Surface, for `Data.wiring`, `Data.subscriptions`
+   * or an SSR plan's `surfaces`: active while `documentOf` gives a page, reading
+   * its Query Blocks. `Remote.resume(Data)` then carries what they read.
+   */
+  active: <AppModel>(
+    name: string,
+    data: QueryReader<AppModel>,
+    catalog: Catalog,
+    documentOf: (model: AppModel) => Document | undefined,
+  ): ActiveSurface<AppModel> => ({
+    name,
+    owner: data.contract.owner ?? {},
+    messages: [],
+    projectionOf: model => {
+      const document = documentOf(model)
+      return document === undefined ? undefined : QueryBlock.reads(data, catalog, document)
+    },
+  }),
 
   /**
    * Every Query Block on the page as one Projection over the Model, keyed by

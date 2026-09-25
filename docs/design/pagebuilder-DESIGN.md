@@ -1134,7 +1134,12 @@ resume plan.
   where the Builder is in the Model, as a Block closing over `Data` would; it
   wants the Query Block's shape, a read named in the Block and resolved when the
   page's reads are built.
-- **9-3,** the acceptance page above.
+- **9-3,** the acceptance page above. **Built** with a static, a Query and a
+  stateful Block (`test/acceptance.test.ts`): the Query Block's read is the
+  plan's active Surface through `QueryBlock.active`, `Remote.resume` carries
+  what it selected and none of the store's other fields, and the stateful
+  Block's item is browser state. A Surface-backed Block joins it when 9-2's
+  second half is built.
 
 **Phase 10: actions and agents.**
 

@@ -111,8 +111,10 @@ view needs a runtime. `Composition.statefulNodes(catalog, doc, block?)`.
 `QueryBlock.define(name, { Props, provides, query, input: props => queryInput,
 select, first?: props => n })` — a Block that names a registered Remote query;
 the Document stores only its props. `QueryBlock.reads(Data, Site, document)`:
-one Projection (node id → RemoteData<Page<Row>>) to require from an active or
-Surface; `Renderer.render(r, doc, h, { data: reads.read(model) })`; in the
+one Projection (node id → RemoteData<Page<Row>>);
+`QueryBlock.active(name, Data, Site, model => document)` is it as an active
+Surface for `Data.wiring` / `subscriptions` / an SSR plan's `surfaces` (with
+`Remote.resume(Data)`); `Renderer.render(r, doc, h, { data: reads.read(model) })`; in the
 view, `LatestPages.rows(data)` (typed; `Initial` without data). Don't close
 over `Data` in a Block: the Catalog is in the Model through the Builder. The
 drawn Builder's canvas has no app data, so it shows the Initial state.

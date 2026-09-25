@@ -479,10 +479,13 @@ const SiteRenderer = Renderer.make(Site, {
 
 - **`QueryBlock.reads(Data, catalog, document)`** is every Query Block on the
   page as one Projection over the application's Model, keyed by node id, or
-  `undefined` when there is none. Require it from an active
-  (`Data.wiring`) or a Surface: Remote fetches, caches, authorizes on the
-  server and resumes it like any read. A node whose props do not decode reads
+  `undefined` when there is none. A node whose props do not decode reads
   nothing.
+- **`QueryBlock.active(name, Data, catalog, model => document)`** is that read
+  as an active Surface, for `Data.wiring`, `Data.subscriptions` or an SSR
+  plan's `surfaces`: Remote fetches, caches and authorizes it like any read,
+  and `Remote.resume(Data)` carries exactly what it selected into a
+  server-rendered page.
 - **`Renderer.render(..., { data: reads.read(model) })`** hands each node its
   value as `data`, and **`LatestPages.rows(data)`** reads it typed by what the
   Block selects, `Initial` while there is nothing.

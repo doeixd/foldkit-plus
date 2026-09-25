@@ -118,7 +118,8 @@ version changed; `pnpm` skips versions already in the registry.
   `QueryBlock.reads(Data, catalog, document)` is the page's reads as one
   Projection keyed by node, fetched and resumed by Remote like any read; the
   Renderer hands each node its `data`, and the Block's `rows(data)` reads it
-  typed. The CMS example's pages can list the site's pages. Phase 9 of the
+  typed. `QueryBlock.active` is the read as an active Surface, so a
+  server-rendered page resumes it with `Remote.resume`. The CMS example's pages can list the site's pages. Phase 9 of the
   page builder design.
 - **`foldkit-composition`: conditions.** A Catalog may declare a `context`
   Schema (an audience, a locale, a flag), and a node's `when` is a list of
