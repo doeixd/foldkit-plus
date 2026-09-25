@@ -109,6 +109,9 @@ const Hero = Block.define('Hero', { Props, provides }).pipe(Appearance.attach(He
 - `Block.withAppearance({ axis: { kind: 'variant' | 'token', values } })` sets
   axes by hand. No responsive choices yet.
 - The drawn Builder's inspector draws a `select` per axis, blank for default.
+- A layout Block: the look's base is `Layout.switcher()` (or `sidebar`), and the
+  layout's parameters (`--fk-l-threshold` via `Style.vars`, child `flexGrow`,
+  a `gap` token) are its axes.
 
 ## The Builder: `foldkit-builder`
 

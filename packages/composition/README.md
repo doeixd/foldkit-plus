@@ -343,6 +343,25 @@ const SiteRenderer = Renderer.make(Site, {
   compile them in a cascade layer, such as `Layers.standard.layer('app')`.
 - Arbitrary CSS, class names and selectors are not in the Document. An escape
   hatch is a Block written for it, visibly outside the typed path.
+- **A layout Block is a Mixins layout.** Its look's base is the layout, and
+  the layout's parameters are its axes:
+
+  ```ts
+  const ColumnsLook = Appearance.make(ColumnsSlots, {
+    recipe: Style.recipeFor(ColumnsSlots)({
+      base: { root: Layout.switcher() },
+      variants: {
+        ratio: { '1:1': grow('1', '1'), '2:1': grow('2', '1') }, // flex-grow on left and right
+        stack: { early: { root: Style.vars({ '--fk-l-threshold': '48rem' }) }, late: {} },
+      },
+    }),
+    tokens: { gap: Appearance.token(t.space, { slot: 'root', property: 'gap' }) },
+  })
+  ```
+
+  A layout writes its parameters as custom properties, so every Columns on a
+  page shares one rule, and an author choosing `{ ratio: '2:1', gap: 'lg' }`
+  adds no CSS.
 
 It needs `foldkit-mixins` installed; the core does not.
 

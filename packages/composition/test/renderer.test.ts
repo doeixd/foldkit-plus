@@ -6,7 +6,8 @@ import { SSR } from 'foldkit-ssr'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Block, Catalog, Composition, Content, NodeId, isSafeUrl } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
-import { ArticleKit, Site, SiteRenderer, body, homePage } from './site.js'
+import { Style } from 'foldkit-mixins'
+import { ArticleKit, Columns, ColumnsLook, Site, SiteRenderer, body, homePage } from './site.js'
 
 type Node = Exclude<Html, null>
 
@@ -71,6 +72,22 @@ describe('drawing a Document', () => {
     expect(all(viewed).some(node => attr(node, 'data-composition-selected') !== undefined)).toBe(
       false,
     )
+  })
+
+  it('draws a layout Block with the look its node chose, and its stylesheet holds the layout', () => {
+    const [, about] = Renderer.render(SiteRenderer, homePage, inertHtml)
+    const columns = all(about).find(node => node.data?.style?.['gap'] !== undefined)
+    expect(columns?.data?.style).toEqual({
+      gap: 'var(--fk-space-lg)',
+      '--fk-l-threshold': '30rem',
+    })
+    const [left, right] = columns?.children ?? []
+    const flex = (node: typeof left) =>
+      node === undefined || typeof node === 'string' ? undefined : node.data?.style?.['flex-grow']
+    expect([flex(left), flex(right)]).toEqual(['2', '1'])
+    const [layout] = classes(columns)
+    expect(Style.stylesheet(...ColumnsLook.styles)).toContain(`.${layout}{display:flex`)
+    expect(Columns.appearance['gap']?.kind).toBe('token')
   })
 
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {

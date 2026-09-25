@@ -14,6 +14,7 @@
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
       "foldkit-mixins/layers": ["../mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../mixins/src/layout.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],

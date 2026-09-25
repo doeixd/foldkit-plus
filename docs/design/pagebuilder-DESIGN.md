@@ -1085,7 +1085,7 @@ What remains of Phase 7, in order:
   > view draws with `look.draw`. The inspector's token picker is the same
   > `select` as a variant's. Responsive choices, and the Behavior conflict
   > test, remain.
-- **8-2, layout Blocks.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
+- **8-2, layout Blocks. Done.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
   its parameters appearance axes.
 - **8-3, conditions (§16),** which no phase had named. A Catalog's `context`
   Schema, the Condition IR (`eq`, `isNull`, `isNotNull`, `contains`),

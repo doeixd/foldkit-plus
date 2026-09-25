@@ -2,6 +2,7 @@
  * The site Phase 4 renders: Hero, Section, Columns, Text, Image and Button,
  * each drawn by an ordinary Foldkit view. The same Renderer draws a page in the
  * tests, in an editor's edit mode, and inside a server's static region.
+ * Columns is a Mixins layout, its settings appearance choices (Phase 8).
  */
 import { Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'
@@ -9,6 +10,10 @@ import { renderDocument } from 'foldkit-richtext-dom/view'
 import { Block, Catalog, Composition, Content, Region, Url } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { RichTextBlock } from 'foldkit-composition/richtext'
+import { Appearance } from 'foldkit-composition/appearance'
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+import { Layout } from 'foldkit-mixins/layout'
+import { Theme } from 'foldkit-mixins/theme'
 
 export const ArticleKit = RichText.kit({
   nodes: [RichText.block('Paragraph'), RichText.block('Heading')],
@@ -25,14 +30,40 @@ export const Section = Block.define('Section', {
   regions: { body: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Section],
 })
+export const ColumnsSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  left: Slot.make({ capability: Capability.Container }),
+  right: Slot.make({ capability: Capability.Container }),
+})
+const grow = (left: string, right: string) => ({
+  left: Style.inline({ flexGrow: left }),
+  right: Style.inline({ flexGrow: right }),
+})
+/** Two columns side by side that stack when the row is narrower than the threshold. */
+export const ColumnsLook = Appearance.make(ColumnsSlots, {
+  recipe: Style.recipeFor(ColumnsSlots)({
+    base: { root: Layout.switcher() },
+    variants: {
+      ratio: { '1:1': grow('1', '1'), '1:2': grow('1', '2'), '2:1': grow('2', '1') },
+      stack: {
+        early: { root: Style.vars({ '--fk-l-threshold': '48rem' }) },
+        late: { root: Style.vars({ '--fk-l-threshold': '30rem' }) },
+      },
+    },
+    defaults: { ratio: '1:1', stack: 'late' },
+  }),
+  tokens: {
+    gap: Appearance.token(Theme.ref(Theme.tokens).space, { slot: 'root', property: 'gap' }),
+  },
+})
 export const Columns = Block.define('Columns', {
-  Props: Schema.Struct({ ratio: Schema.Literals(['1:1', '1:2', '2:1']) }),
+  Props: Schema.Struct({}),
   regions: {
     left: Region.many({ accepts: [Content.Flow] }),
     right: Region.many({ accepts: [Content.Flow] }),
   },
   provides: [Content.Flow],
-})
+}).pipe(Appearance.attach(ColumnsLook))
 export const Text = RichTextBlock.define('Text', { kit: ArticleKit, provides: [Content.Flow] })
 export const Image = Block.define('Image', {
   Props: Schema.Struct({ src: Url, alt: Schema.String }),
@@ -48,8 +79,6 @@ export const Site = Catalog.make({
   roots: [Content.Section],
 })
 
-const widths = { '1:1': '1fr 1fr', '1:2': '1fr 2fr', '2:1': '2fr 1fr' } as const
-
 export const SiteRenderer = Renderer.make(Site, {
   Hero: ({ props, regions, h }) =>
     h.header(
@@ -62,11 +91,13 @@ export const SiteRenderer = Renderer.make(Site, {
     ),
   Section: ({ props, regions, h }) =>
     h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
-  Columns: ({ props, regions, h }) =>
-    h.div(
-      [h.Style({ display: 'grid', gridTemplateColumns: widths[props.ratio] })],
-      [h.div([], [...regions.left]), h.div([], [...regions.right])],
-    ),
+  Columns: ({ regions, appearance, h }) => {
+    const slots = ColumnsLook.draw({ appearance, h })
+    return h.div(slots.root.attrs(), [
+      h.div(slots.left.attrs(), [...regions.left]),
+      h.div(slots.right.attrs(), [...regions.right]),
+    ])
+  },
   Text: ({ props }) => renderDocument(props.body),
   Image: ({ props, h }) => h.img([h.Src(props.src), h.Alt(props.alt)]),
   Button: ({ props, h }) => h.a([h.Class('button'), h.Href(props.href)], [props.label]),
@@ -105,7 +136,8 @@ export const homePage = Schema.decodeUnknownSync(Composition.Document)({
     },
     columns: {
       block: 'Columns',
-      props: { ratio: '2:1' },
+      props: {},
+      appearance: { ratio: '2:1', gap: 'lg' },
       regions: { left: ['copy'], right: ['photo'] },
     },
     copy: { block: 'Text', props: { body: body('Composition is a stored page.') }, regions: {} },
