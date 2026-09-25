@@ -71,11 +71,11 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
 | `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
 | `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
-| `Selected({ id })`, `Hovered({ id })` | what the inspector and the node actions work on |
+| `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
-| `DragStarted({ id })`, `DraggedOver({ over })`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
-| `PreviewChosen({ key, value })` | previews the page with one context key set, or unset with `null` |
+| `DragStarted({ id })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
+| `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
@@ -150,14 +150,23 @@ In, from the parent's own `update`, for a form key named `document` placed as
 `page`:
 
 ```ts
-const blockIn = (url: Url): NodeId | null => {
-  const id = new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')
-  return id === null || id === '' ? null : NodeId.make(id)
-}
+const blockIn = (url: Url): Option.Option<NodeId> =>
+  Option.map(
+    Option.filter(
+      Option.fromNullOr(new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')),
+      id => id !== '',
+    ),
+    NodeId.make,
+  )
 
 const selectFrom = (url: Url) =>
   Message.GotPageMessage({
-    message: PageForm.control('document').send(BuilderMessage.Selected({ id: blockIn(url) })),
+    message: PageForm.control('document').send(
+      Option.match(blockIn(url), {
+        onNone: () => BuilderMessage.Deselected(),
+        onSome: id => BuilderMessage.Selected({ id }),
+      }),
+    ),
   })
 
 const update = placements.update((model, message) =>
@@ -176,15 +185,16 @@ Out, as one of the parent's own Subscriptions, given to
 ```ts
 const selectionUrl = Subscription.make<Model, Message>()(entry => ({
   selectionUrl: entry(
-    { block: Schema.NullOr(Schema.String) },
+    { block: Schema.Option(Schema.String) },
     {
       modelToDependencies: model => ({
         block: PageForm.control('document').field(model.page).value.selected,
       }),
       dependenciesToStream: ({ block }) =>
-        block === null
-          ? Stream.empty
-          : Stream.fromEffect(Navigation.replaceUrl(`?block=${block}`)).pipe(Stream.drain),
+        Option.match(block, {
+          onNone: () => Stream.empty,
+          onSome: id => Stream.fromEffect(Navigation.replaceUrl(`?block=${id}`)).pipe(Stream.drain),
+        }),
     },
   ),
 }))
@@ -218,14 +228,15 @@ nothing in the page and is not an edit.
 A pointer drag is four Messages, the facts `foldkit-primitives`' `PointerDrag`
 reports:
 
-- **`DragStarted({ id })`** selects the node and puts `{ id, over: null, at:
-  null }` in the Model's `drag`. Nothing moves yet.
-- **`DraggedOver({ over })`** says which node the pointer is over and in which
-  zone of it, `before`, `inside` or `after`. The Builder works out where a drop
-  would land, `drag.at`: before or after that node among its siblings, or last
-  in the first of its Regions that accepts the dragged Block. Inside a node
-  that takes nothing is after it, and `drag.over.zone` says so. Where the page
-  would refuse the move, such as into the node itself, `at` is `null`.
+- **`DragStarted({ id })`** selects the node and puts the drag in the Model's
+  `drag`, an `Option`, with `over` and `at` both none. Nothing moves yet.
+- **`DraggedOver({ id, zone })`** says which node the pointer is over and in
+  which zone of it, `before`, `inside` or `after`; **`DraggedOff()`** that it is
+  over none. The Builder works out where a drop would land, `drag.at`: before
+  or after that node among its siblings, or last in the first of its Regions
+  that accepts the dragged Block. Inside a node that takes nothing is after it,
+  and `drag.over`'s zone says so. Where the page would refuse the move, such as
+  into the node itself, `at` is none.
 - **`DragDropped()`** applies the move to `drag.at` as one edit, undone and
   announced like a key's; with no `at`, nothing moves and "Not moved" is
   announced. **`DragCancelled()`** ends the drag the same way.
@@ -235,13 +246,20 @@ the node will go. The keyboard's way to move a node is `keyCommand`.
 
 ## Helpers
 
+Each helper that may have no answer returns an `Option`, as the Model's
+`selected`, `hovered`, `refused` and `drag` are. The Model stores them as `null`
+(`Schema.OptionFromNullOr`), so a saved Builder, such as a CMS draft, is JSON.
+
 - `PageBuilder.placeFor(document, selected, block)` is where the palette puts a
   new node: inside the selection when a Region there accepts it, else after the
-  selection, else last among the roots.
+  selection, else last among the roots; none where the Block cannot go.
 - `PageBuilder.moveBy(document, id, delta)` is the Operation that moves a node
-  among its siblings, or `undefined` at an end.
+  among its siblings; none at an end.
 - `PageBuilder.dropAt(document, dragged, target, zone)` is where a drag over
-  `target` would put `dragged`, or `undefined` where the page refuses it.
+  `target` would put `dragged`; none where the page refuses it.
+- `PageBuilder.keyCommand(model, key, modifiers)` is the Message a shortcut
+  sends; none for a key it does not handle, which is what Foldkit's
+  `OnKeyDownPreventDefault` takes.
 - `PageBuilder.replace(model, document)` and `PageBuilder.settle(model)` are what
   the form control's fill and settle do.
 

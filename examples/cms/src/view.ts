@@ -24,7 +24,7 @@ import {
   postPage,
   type Model,
 } from './app.js'
-import { badge, chair, failed, shell, statusLine } from './shell.js'
+import { badge, chair, failed, shell, stateIs, statusLine } from './shell.js'
 import { coverOf, paragraphs, postHref } from './site.js'
 import { AdminSlots, AdminStyle, ListStyle } from './style.js'
 
@@ -69,28 +69,32 @@ const worklist = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
   ])
 
 const preview = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  const id = PostEditor.pageId(model)
-  const read = id === null ? undefined : postPage(id).read(model)
-  const post = read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value : undefined
+  const post = Option.flatMap(PostEditor.pageId(model), id => {
+    const read = postPage(id).read(model)
+    return read._tag === 'Ready' || read._tag === 'Refreshing'
+      ? Option.some(read.value)
+      : Option.none()
+  })
   return h.section(slots.panel.attrs([h.Id('page')]), [
     h.div(slots.panelHead.attrs(), [
       h.h3(slots.panelTitle.attrs(), [
         PostEditor.previewing(model) ? 'The post’s page, previewing' : 'The post’s page',
       ]),
-      ...(post === undefined ||
-      !(
-        PostEditor.state(model)?._tag === 'Published' || PostEditor.state(model)?._tag === 'Changed'
-      )
-        ? []
-        : [
-            h.a(slots.button.attrs([h.Href(`${postHref(post.slug)}?as=${chair}`)]), [
+      ...Option.toArray(
+        Option.map(
+          Option.filter(post, () => stateIs(PostEditor.state(model), 'Published', 'Changed')),
+          ({ slug }) =>
+            h.a(slots.button.attrs([h.Href(`${postHref(slug)}?as=${chair}`)]), [
               'Open on the site ↗',
             ]),
-          ]),
+        ),
+      ),
     ]),
-    post === undefined
-      ? h.p(slots.muted.attrs(), ['There is no row to read yet. Turn preview on to see a draft.'])
-      : h.article(
+    Option.match(post, {
+      onNone: () =>
+        h.p(slots.muted.attrs(), ['There is no row to read yet. Turn preview on to see a draft.']),
+      onSome: post =>
+        h.article(
           [],
           [
             h.div(
@@ -103,13 +107,18 @@ const preview = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             ...paragraphs(post.body).map(paragraph => h.p([], [paragraph])),
           ],
         ),
+    }),
   ])
 }
 
 const historyPane = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
-  const read = history(model)?.read(model)
-  const revisions =
-    read?._tag === 'Ready' || read?._tag === 'Refreshing' ? read.value.revisions : []
+  const revisions = Option.match(history(model), {
+    onNone: () => [],
+    onSome: projection => {
+      const read = projection.read(model)
+      return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value.revisions : []
+    },
+  })
   return h.section(slots.panel.attrs([h.Id('history')]), [
     h.div(slots.panelHead.attrs(), [
       h.h3(slots.panelTitle.attrs(), ['History']),
@@ -158,7 +167,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       h.div(slots.panelHead.attrs(), [
         h.div(slots.toolbar.attrs(), [
           h.h2(slots.panelTitle.attrs(), ['Edit post']),
-          badge(slots, h, Option.fromUndefinedOr(state)),
+          badge(slots, h, state),
         ]),
         h.p(
           slots.status.attrs([
@@ -168,8 +177,8 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           ]),
           [
             statusLine[status],
-            error === undefined ? '' : `: ${error.message}`,
-            PostEditor.resumed(model) === 'Lost'
+            Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
+            Option.contains(PostEditor.resumed(model), 'Lost')
               ? ' A draft was here that no longer fits this form; what is published is shown.'
               : '',
           ],
@@ -201,7 +210,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                 ),
                 !Number.isNaN(at.getTime()),
               ),
-              ...(state?.schedule == null
+              ...(!Option.exists(state, known => known.schedule !== null)
                 ? []
                 : [button('unschedule', 'Unschedule', ask(Editor.Message.UnscheduleAsked()))]),
               ...(PostEditor.canPreview
@@ -212,10 +221,10 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                   ]
                 : []),
               button('discard', 'Discard draft', ask(Editor.Message.DiscardAsked())),
-              ...(state?._tag === 'Published' || state?._tag === 'Changed'
+              ...(stateIs(state, 'Published', 'Changed')
                 ? [button('unpublish', 'Unpublish', ask(Editor.Message.UnpublishAsked()))]
                 : []),
-              state?._tag === 'Archived'
+              stateIs(state, 'Archived')
                 ? button('unarchive', 'Unarchive', ask(Editor.Message.UnarchiveAsked()))
                 : h.button(
                     slots.danger.attrs([

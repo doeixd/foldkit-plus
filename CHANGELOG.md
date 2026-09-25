@@ -228,6 +228,33 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A value that may be absent is an `Option`, not `null` or `undefined`,**
+  across the read and builder APIs. Breaking:
+  - `foldkit-surface`: `Surface.at`'s params function returns
+    `Option<Params>` (none: inactive), and `projectionOf` returns
+    `Option<Projection>`.
+  - `foldkit-remote`: `Data.active(name, projectionOf)` makes an application's
+    read of the domain an active Surface; it replaces spelling one out from
+    `contract`, and throws for a domain on a raw optic, which names no
+    application.
+  - `foldkit-crud`: `detail.at`'s `id` and `list.at`'s `input` return an
+    `Option`; `more(model)` is an `Option<Command>`. `Crud.options` throws
+    without lists.
+  - `foldkit-cms`: the editor's `entry`, `pageId`, `resumed`, `state` and
+    `error` reads return `Option`s; an editor domain gives `active` instead of
+    `contract`.
+  - `foldkit-builder`: the Model's `selected`, `hovered`, `refused` and `drag`
+    are `Option`s, stored as `null`. `Selected` takes an id and `Deselected`
+    clears it; likewise `Hovered`/`Unhovered`, `DraggedOver({ id, zone })`/
+    `DraggedOff`, and `PreviewChosen`/`PreviewCleared`. `placeFor`, `moveBy`,
+    `dropAt` and `keyCommand` return `Option`s.
+  - `foldkit-remote`: a preview (`Data.overlay`) of an entity the server has
+    not seen, missing a field its Selection reads, reads `Failed` with an
+    `Overlaid` error naming the fields, not `Initial` for good.
+  - `foldkit-composition`: `SurfaceBlock.reads`, `QueryBlock.reads`, `value`
+    and the `documentOf` of their `active` are `Option`s; the reads gain
+    `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
+    key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
 - **`foldkit-form`: `DraftKind` gains `'model'`,** and `NestedForm` gains
   `control` and `Message.Control`. A switch over `DraftKind` handles the new
   case, and a hand-written `NestedForm` adds the two members; forms made by

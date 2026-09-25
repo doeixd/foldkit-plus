@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { defineMessageUnion } from 'foldkit/message'
@@ -48,10 +48,10 @@ const PostRemover = Remover.at({ data: Data, model: App.model.remover })
 const Posts = Crud.list('Posts', {
   query: PostsQuery,
   selection: Entity.select(Post, { id: true, title: true }),
-}).at({ data: Data, input: () => ({}) })
+}).at({ data: Data, input: () => Option.some({}) })
 const PostDetail = Crud.detail('PostDetail', {
   selection: Entity.select(Post, { title: true }),
-}).at({ data: Data, id: model => model.shown ?? undefined })
+}).at({ data: Data, id: model => Option.fromNullOr(model.shown) })
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 const Placed = Page.at(Slot, { onOut: PostRemover.onOut })
@@ -113,7 +113,7 @@ const titles = (model: Model) => {
 
 const start = async (): Promise<Model> => {
   const initial = placements.initial({ remote: Remote.initial, shown: null }).model
-  return run(Data.prefetch(initial, Posts.active.projectionOf(initial)!))
+  return run(Data.prefetch(initial, Option.getOrThrow(Posts.active.projectionOf(initial))))
 }
 
 beforeEach(() => {
@@ -157,7 +157,7 @@ describe('Crud.remover', () => {
     const showing = await run(
       Data.prefetch(
         { ...(await start()), shown: 'p1' },
-        PostDetail.active.projectionOf({ ...(await start()), shown: 'p1' })!,
+        Option.getOrThrow(PostDetail.active.projectionOf({ ...(await start()), shown: 'p1' })),
       ),
     )
     expect(PostDetail.value(showing)).toEqual({ _tag: 'Ready', value: { title: 'First' } })
@@ -205,7 +205,7 @@ describe('Crud.detail', () => {
       ['id', 'id'],
       ['title', 'Title'],
     ])
-    expect(PostDetail.active.projectionOf(listed)).toBeUndefined()
+    expect(Option.isNone(PostDetail.active.projectionOf(listed))).toBe(true)
     expect(PostDetail.value(listed)).toEqual({ _tag: 'Initial' })
   })
 
@@ -219,7 +219,7 @@ describe('Crud.detail', () => {
       requests: [{ entity: 'Post', id: 'p1', fields: ['title'] }],
       error: { _tag: 'RemoteReadError', message: 'down' },
     })
-    const projection = PostDetail.active.projectionOf(failed)!
+    const projection = Option.getOrThrow(PostDetail.active.projectionOf(failed))
     expect(PostDetail.value(failed)._tag).toBe('Failed')
     expect(Data.plan(failed, projection)).toEqual([])
 

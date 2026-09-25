@@ -85,10 +85,8 @@ export const pageView = (id: string) => Data.get(PageView, PageId.make(id))
 const Revisions = Entity.select(Cms.Entities.Entry, {
   revisions: Entity.select(Cms.Entities.Revision, { n: true }),
 })
-export const revisions = (model: Model) => {
-  const entry = PageEditor.entry(model)
-  return entry === null ? undefined : Data.get(Revisions, EntryId.make(entry))
-}
+export const revisions = (model: Model) =>
+  Option.map(PageEditor.entry(model), entry => Data.get(Revisions, EntryId.make(entry)))
 
 /** The page the form is editing. */
 export const editing = (model: Model): Document =>
@@ -112,38 +110,15 @@ export const sitePosts = Data.query(
 )
 
 /** What the page's Query Blocks read, as one Projection: fetched while the page is open. */
-export const blockReads = (model: Model) => QueryBlock.reads(Data, Site, editing(model))
-
 export const actives = {
   ...PageEditor.actives,
-  blocks: QueryBlock.active('PageBlocks', App.owner, Data, Site, editing),
-  pages: {
-    name: 'SitePages',
-    owner: Data.contract.owner ?? {},
-    messages: [],
-    projectionOf: () => sitePages,
-  },
-  posts: {
-    name: 'SitePosts',
-    owner: Data.contract.owner ?? {},
-    messages: [],
-    projectionOf: () => sitePosts,
-  },
-  revisions: {
-    name: 'Revisions',
-    owner: Data.contract.owner ?? {},
-    messages: [],
-    projectionOf: revisions,
-  },
-  page: {
-    name: 'PageView',
-    owner: Data.contract.owner ?? {},
-    messages: [],
-    projectionOf: (model: Model) => {
-      const id = PageEditor.pageId(model)
-      return id === null ? undefined : pageView(id)
-    },
-  },
+  blocks: QueryBlock.active('PageBlocks', App.owner, Data, Site, model =>
+    Option.some(editing(model)),
+  ),
+  pages: Data.active('SitePages', () => Option.some(sitePages)),
+  posts: Data.active('SitePosts', () => Option.some(sitePosts)),
+  revisions: Data.active('Revisions', revisions),
+  page: Data.active('PageView', (model: Model) => Option.map(PageEditor.pageId(model), pageView)),
 }
 
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -219,7 +194,7 @@ const document = PageForm.control('document')
 
 /** The Block the Builder has selected, as the address names it. */
 export const selectedOf = (model: Model): Option.Option<NodeId> =>
-  Option.fromNullOr(document.field(model.editor.form).value.selected)
+  document.field(model.editor.form).value.selected
 
 /**
  * The linked Block, once the page has loaded: selected through the Builder's
@@ -328,7 +303,7 @@ export const builderInputs = (model: Model): BuilderViewInputs => {
   const pages = sitePages.read(model)
   const posts = sitePosts.read(model)
   return BuilderView.inputs({
-    data: actives.blocks.projectionOf(model)?.read(model),
+    data: actives.blocks.data(model),
     options: {
       'LatestPages.except':
         pages._tag === 'Ready' || pages._tag === 'Refreshing'

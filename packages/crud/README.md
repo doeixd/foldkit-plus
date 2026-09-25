@@ -11,7 +11,7 @@ const Authors = Crud.list('Authors', {
   query: AuthorsQuery,
   selection: Entity.select(Blog.Author, { id: true, name: true }),
 })
-const AuthorList = Authors.at({ data: Data, input: model => ({ search: model.search }) })
+const AuthorList = Authors.at({ data: Data, input: model => Option.some({ search: model.search }) })
 
 AuthorList.page(model) // RemoteData of the page: its typed rows, hasNext, hasPrevious
 ```
@@ -100,8 +100,8 @@ const Authors = Crud.list('Authors', {
 
 const AuthorList = Authors.at({
   data: Data,
-  // The query's input as the Model has it; `undefined` while the list is not shown.
-  input: model => (model.search === null ? undefined : { search: model.search }),
+  // The query's input as the Model has it; none while the list is not shown.
+  input: model => Option.map(Option.fromNullOr(model.search), search => ({ search })),
 })
 
 const subscriptions = Data.subscriptions({ authors: AuthorList.active })
@@ -121,7 +121,8 @@ What each call does:
 - **`AuthorList.page(model)`** reads Remote's store: a `RemoteData` of the page,
   with `items` typed by the Selection, `hasNext` and `hasPrevious`.
 - **`AuthorList.more(model)`** is the Command that loads the next page onto
-  this one, or `undefined` when there is none. Return it from `update`.
+  this one, an `Option`: none when there is none. Return
+  `Option.toArray(AuthorList.more(model))` as `update`'s commands.
 - **`AuthorList.refresh(model)`** is the Model with the list asked for again. A
   failed read is not retried on its own, so this is what a retry button's
   Message returns.
@@ -331,7 +332,7 @@ no state.
 ```ts
 const PostDetail = Crud.detail('PostDetail', { selection: PostPage }).at({
   data: Data,
-  id: model => model.shownPostId ?? undefined, // `undefined` while none is shown
+  id: model => Option.fromNullOr(model.shownPostId), // none while none is shown
 })
 
 PostDetail.value(model) // RemoteData of the Selection's value
@@ -432,7 +433,7 @@ hold only the rows loaded so far.
 const AuthorList = Authors.at({
   data: Data,
   // What the picker's search box holds is the form's; here it is the query's input.
-  input: model => ({ search: EditPostForm.search(model.editor.form, 'authorId') }),
+  input: model => Option.some({ search: EditPostForm.search(model.editor.form, 'authorId') }),
 })
 
 const pickers = Crud.options(EditPostForm, [AuthorList], {

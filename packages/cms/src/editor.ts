@@ -169,7 +169,11 @@ export interface EditorDomain<Root> {
   refresh(model: Root, target: any): Root
   overlay(model: Root, id: string, optimistic: ReadonlyArray<OptimisticOperation>): Root
   lift(model: Root, id: string): Root
-  readonly contract: { readonly owner?: object | undefined }
+  /** `Data.active`: a read of the domain as an active Surface of its application. */
+  active(
+    name: string,
+    projectionOf: (model: Root) => Option.Option<Projection<Root, any>>,
+  ): ActiveSurface<Root>
 }
 
 export interface EditorContent<FormModel, FormMessage, Value, Resources = {}> {
@@ -521,28 +525,27 @@ export const makeEditor =
             ? undefined
             : entry
         }
+        /** What the editor reads of the open entry: each none while there is none to read. */
         const projections = {
-          entry: (root: Root) => {
-            const entry = entryOf(root)
-            return entry === undefined ? undefined : data.get(EntryRead, entry)
-          },
-          state: (root: Root) => {
-            const entry = entryOf(root)
-            return entry === undefined ? undefined : data.get(EntryState, entry)
-          },
-          draft: (root: Root) => {
-            const entry = entryOf(root)
-            return entry === undefined ? undefined : data.get(DraftRead, entry)
-          },
-          row: (root: Root) => {
-            const target = held<{ readonly targetId: string | null }>(
-              projections.entry(root)?.read(root),
-            )?.targetId
-            return target == null ? undefined : data.get(RowRead, target)
-          },
+          entry: (root: Root) =>
+            Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(EntryRead, entry)),
+          state: (root: Root) =>
+            Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(EntryState, entry)),
+          draft: (root: Root) =>
+            Option.map(Option.fromUndefinedOr(entryOf(root)), entry => data.get(DraftRead, entry)),
+          row: (root: Root) =>
+            Option.map(
+              Option.fromNullishOr(
+                held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId,
+              ),
+              target => data.get(RowRead, target),
+            ),
         }
+        // The editor's own reasoning reads these as plain values, with `held`.
         const read = (root: Root, part: keyof typeof projections): RemoteData<any> | undefined =>
-          projections[part](root)?.read(root)
+          Option.getOrUndefined(
+            Option.map(projections[part](root), projection => projection.read(root)),
+          )
 
         const statusOf = (root: Root, requestId: string | null): MutationStatus =>
           requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
@@ -826,22 +829,17 @@ export const makeEditor =
           return { model: root, commands }
         }
 
-        const failure = (root: Root): RemoteError | undefined => {
+        const failure = (root: Root): Option.Option<RemoteError> => {
           const editor = slice.get(root)
           for (const id of [editor.publishId, editor.saveId, editor.otherId]) {
             const status = statusOf(root, id)
-            if (status._tag === 'Failed') return status.error
+            if (status._tag === 'Failed') return Option.some(status.error)
           }
-          return undefined
+          return Option.none()
         }
 
-        const active = (part: keyof typeof projections): ActiveSurface<Root> => ({
-          name: `${name}.${part}`,
-          owner: data.contract.owner ?? {},
-          // A requirement, not a sender: the page's own Surfaces list its Messages.
-          messages: [],
-          projectionOf: projections[part],
-        })
+        const active = (part: keyof typeof projections): ActiveSurface<Root> =>
+          data.active(`${name}.${part}`, projections[part])
 
         return {
           /** For the placement: what the editor asked becomes the mutation, or waits its turn. */
@@ -867,10 +865,14 @@ export const makeEditor =
                 case 'Unarchive':
                   return simple('Unarchive')(root)
                 case 'Reload': {
-                  const refreshed = (['entry', 'draft', 'row'] as const).reduce((next, part) => {
-                    const projection = projections[part](next)
-                    return projection === undefined ? next : data.refresh(next, projection)
-                  }, root)
+                  const refreshed = (['entry', 'draft', 'row'] as const).reduce(
+                    (next, part) =>
+                      Option.match(projections[part](next), {
+                        onNone: () => next,
+                        onSome: projection => data.refresh(next, projection),
+                      }),
+                    root,
+                  )
                   return {
                     model: slice.set(refreshed, {
                       ...closed,
@@ -881,8 +883,10 @@ export const makeEditor =
                   }
                 }
                 case 'Overwrite': {
-                  const projection = projections.draft(root)
-                  const refreshed = projection === undefined ? root : data.refresh(root, projection)
+                  const refreshed = Option.match(projections.draft(root), {
+                    onNone: () => root,
+                    onSome: projection => data.refresh(root, projection),
+                  })
                   return {
                     model: slice.set(refreshed, { ...slice.get(refreshed), settling: 'overwrite' }),
                   }
@@ -946,21 +950,24 @@ export const makeEditor =
            * The id the application's own pages know this content by: the row's, or
            * the entry's while there is no row. It is what a preview is shown under.
            */
-          pageId: (root: Root): string | null =>
-            held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
-            slice.get(root).entry,
-          /** The entry being edited; `null` while closed. */
-          entry: (root: Root): string | null => slice.get(root).entry,
+          pageId: (root: Root): Option.Option<string> =>
+            Option.fromNullishOr(
+              held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
+                slice.get(root).entry,
+            ),
+          /** The entry being edited; none while closed. */
+          entry: (root: Root): Option.Option<string> => Option.fromNullOr(slice.get(root).entry),
           /**
            * The entry as the server knows it: none while closed, and while
            * something new is not saved yet, so a link naming it would find nothing.
            */
           storedEntry: (root: Root): Option.Option<string> => Option.fromUndefinedOr(entryOf(root)),
           /** How the form came to hold what it holds; `Lost` is worth telling the author. */
-          resumed: (root: Root): Resumed | null => slice.get(root).resumed,
-          /** The entry's lifecycle state, as the server last derived it. */
-          state: (root: Root): State | undefined =>
-            held<{ readonly state: State }>(read(root, 'state'))?.state,
+          resumed: (root: Root): Option.Option<Resumed> =>
+            Option.fromNullOr(slice.get(root).resumed),
+          /** The entry's lifecycle state, as the server last derived it; none until it is read. */
+          state: (root: Root): Option.Option<State> =>
+            Option.fromUndefinedOr(held<{ readonly state: State }>(read(root, 'state'))?.state),
           /** Why the last publish, save, discard or unpublish failed. */
           error: failure,
 

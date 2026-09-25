@@ -5,7 +5,7 @@
  * This joins the two in process and traces a read from plan to decoded value,
  * then a managed edit from a list row to the SQL row.
  */
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Layer, Schema, Option } from 'effect'
 import * as FieldValidation from 'foldkit/fieldValidation'
 import { Remote, RemoteData } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -143,7 +143,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     let listed = both
     for (const list of [Posts, Authors]) {
       listed = await Effect.runPromise(
-        Data.prefetch(listed, list.active.projectionOf(listed)!).pipe(Effect.provide(client)),
+        Data.prefetch(listed, Option.getOrThrow(list.active.projectionOf(listed))).pipe(
+          Effect.provide(client),
+        ),
       )
     }
     lines.push(`post list: ${describeList(listed)}`)
@@ -154,7 +156,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     lines.push(`row before: ${JSON.stringify(backend.row(draft.id))}`)
     // Opening a row makes what the form writes a requirement, as a Surface's is.
     let model = EditForm.helpers.open(draft.id)(listed).model
-    const editing = PostEditor.active.projectionOf(model)!
+    const editing = Option.getOrThrow(PostEditor.active.projectionOf(model))
     lines.push(
       `editor plan: ${Data.plan(model, editing)
         .map(entry => `${entry.entity}:${entry.id} [${entry.fields.join(',')}]`)

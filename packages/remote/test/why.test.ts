@@ -6,7 +6,7 @@
  * is and Remote's Subscriptions were never installed. Both look identical on
  * screen. Given the active record, the Model can tell them apart.
  */
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
@@ -44,10 +44,10 @@ const Listing = App.surface('ProjectList', { model: () => ({ list }) })
 
 const surfaces = {
   page: Surface.at(Page, (model: Model) =>
-    model.open === null ? undefined : { projectId: model.open },
+    model.open === null ? Option.none() : Option.some({ projectId: model.open }),
   ),
   title: Surface.at(Title, (model: Model) =>
-    model.open === null ? undefined : { projectId: model.open },
+    model.open === null ? Option.none() : Option.some({ projectId: model.open }),
   ),
 }
 

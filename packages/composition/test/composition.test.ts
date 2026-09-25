@@ -1,4 +1,4 @@
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, expectTypeOf, it } from 'vitest'
@@ -115,6 +115,21 @@ describe('the vocabulary', () => {
     }>()
     const decoded = Block.decode(Heading, { text: 'Hi', level: 2 })
     expect(Result.isSuccess(decoded) && decoded.success).toEqual({ text: 'Hi', level: 2 })
+  })
+  it('says how a prop is stored, which a prop drawn as an Option differs in', () => {
+    const Linked = Block.define('Linked', {
+      Props: Schema.Struct({ to: Schema.OptionFromNullOr(Schema.String), label: Schema.String }),
+      provides: [Content.Flow],
+    })
+    const storesNull = (key: string) =>
+      Option.exists(Block.stored(Linked, key), stored => Schema.is(stored)(null))
+    // Drawn as an Option, stored as `null`; the decoded side would say no.
+    expect(storesNull('to')).toBe(true)
+    expect(Schema.is(Linked.Props.fields.to)(null)).toBe(false)
+    expect(storesNull('label')).toBe(false)
+    // A key the props do not declare, even one every object inherits, is none.
+    expect(Option.isNone(Block.stored(Linked, 'missing'))).toBe(true)
+    expect(Option.isNone(Block.stored(Linked, 'constructor'))).toBe(true)
   })
 })
 

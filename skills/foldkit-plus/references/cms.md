@@ -85,8 +85,9 @@ Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, Discard
 // ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Saving Saved Conflict SaveFailed
 // Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
-PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model)
-PostEditor.pageId(model) // row id, else the entry's: what the app's own pages and a preview use
+PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model) // each an Option
+PostEditor.pageId(model) // Option: row id, else the entry's: what the app's own pages and a preview use
+PostEditor.entry(model) // Option: the entry open, none while closed
 PostEditor.storedEntry(model) // Option: none until something new is first saved; what a link may name
 Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submodel(form, view)))), 'editor')
 ```

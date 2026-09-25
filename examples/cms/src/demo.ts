@@ -4,7 +4,7 @@
  * who is nobody. One server, in process; each chair has its own Model. The clock
  * is the script's, so the schedule comes due when the story says.
  */
-import { Effect, Layer, Stream } from 'effect'
+import { Effect, Layer, Option, Stream } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import { REMOTE_PROTOCOL_VERSION, RemoteClient, RemotePolicy } from 'foldkit-remote'
@@ -67,9 +67,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       for (let round = 0; round < 2; round++) {
         for (const active of Object.values(actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }).pipe(
+            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
               Effect.provide(client),
             ),
           )
@@ -90,12 +90,18 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => PostEditor.status(model),
       state: () => {
-        const state = PostEditor.state(model)
-        return state === undefined ? '?' : Display.show(Cms.Display.State.of({}), state)
+        return Option.match(PostEditor.state(model), {
+          onNone: () => '?',
+          onSome: state => Display.show(Cms.Display.State.of({}), state),
+        })
       },
-      why: () => PostEditor.error(model)?.message.replace(/^.*?: /, '') ?? 'no error',
+      why: () =>
+        Option.match(PostEditor.error(model), {
+          onNone: () => 'no error',
+          onSome: ({ message }) => message.replace(/^.*?: /, ''),
+        }),
       field: (key: 'title' | 'slug' | 'body') => PostForm.field(model.editor.form, key).value,
-      resumed: () => PostEditor.resumed(model),
+      resumed: () => Option.getOrElse(PostEditor.resumed(model), () => 'not opened'),
       worklist: () => {
         const page = Worklist.page(model)
         return page._tag === 'Ready' || page._tag === 'Refreshing'

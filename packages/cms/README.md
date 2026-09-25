@@ -155,8 +155,8 @@ Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, D
 // RestoreAsked({ revision }), UnpublishAsked, ArchiveAsked, UnarchiveAsked, ReloadAsked, OverwriteAsked
 
 PostEditor.status(model) // Opened | Editing | Saving | Saved | Conflict | Publishing | Published | ...
-PostEditor.state(model) // the entry's lifecycle state, as the server last derived it
-PostEditor.pageId(model) // the row's id, or the entry's until there is a row: what a preview shows under
+PostEditor.state(model) // Option: the entry's lifecycle state, as the server last derived it
+PostEditor.pageId(model) // Option: the row's id, or the entry's until there is a row: what a preview shows under
 PostEditor.storedEntry(model) // Option: the entry the server knows, none until something new is first saved
 ```
 

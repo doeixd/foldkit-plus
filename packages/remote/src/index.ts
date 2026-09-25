@@ -60,6 +60,7 @@ import {
   initialRemoteModel,
   isFieldFailed,
   isLoadingThrough,
+  onlyOverlaid,
   isQueryLoading,
   isRemoteMessage,
   forgetRemote,
@@ -100,7 +101,7 @@ import {
   unavailableOf,
   type Page,
 } from './selection.js'
-import { entityKey, isTombstone, type EntityStore } from './store.js'
+import { entityKey, isTombstone, missingFields, type EntityStore } from './store.js'
 import {
   QueryRequest,
   QueryResult,
@@ -424,7 +425,9 @@ export interface RemoteDomain<
    * Shows operations over the store with no request behind them, as a mutation's
    * `optimistic` ones show while it is in flight: every Selection and view draws
    * them. For a preview of a change nobody has made. They stay until `lift`;
-   * showing an id again replaces what it showed. Called from `update`.
+   * showing an id again replaces what it showed. Called from `update`. A read
+   * of an entity only overlays show, lacking a field it selects, is `Failed`
+   * (`Overlaid`): nothing will fetch that field.
    */
   overlay(model: AppModel, id: string, optimistic: ReadonlyArray<OptimisticOperation>): AppModel
   /** Lifts what `overlay` showed under this id. Lifting nothing returns the same Model. */
@@ -436,6 +439,17 @@ export interface RemoteDomain<
   ): AppModel
   /** `Remote.forget`: the Model with every server-derived fact gone, for a change of principal. */
   forget(model: AppModel): AppModel
+  /**
+   * A read of this domain as an active Surface, for `subscriptions` and
+   * `wiring`: `projectionOf` is what it reads for a Model, none while it
+   * reads nothing. It belongs to the domain's application, and lists no
+   * Messages: it is a requirement, not a sender. A domain made from a raw
+   * optic names no application, so this throws for one.
+   */
+  active<Value>(
+    name: string,
+    projectionOf: (model: AppModel) => Option.Option<Projection<AppModel, Value>>,
+  ): ActiveSurface<AppModel>
   /**
    * The Foldkit Subscription entries for the active Surfaces, keyed for
    * `Subscription.make`: a read entry per Surface (`Remote.observe`), a live
@@ -891,10 +905,14 @@ interface Asked {
 
 const nothingAsked: Asked = { requirements: [], connections: [] }
 
-const askedOf = (projection: Projection<any, unknown> | undefined): Asked =>
-  projection === undefined
-    ? nothingAsked
-    : { requirements: requirementsOf(projection), connections: connectionsOf(projection) }
+const askedOf = (projection: Projection<any, unknown>): Asked => ({
+  requirements: requirementsOf(projection),
+  connections: connectionsOf(projection),
+})
+
+/** What an active Surface asks for: nothing while it is inactive. */
+const askedWhile = (projection: Option.Option<Projection<any, unknown>>): Asked =>
+  Option.match(projection, { onNone: () => nothingAsked, onSome: askedOf })
 
 /**
  * Whether `outer` asks for everything `inner` does of one entity: each field,
@@ -1366,12 +1384,12 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
         ),
 })
 
-/** The projection an active Surface has for this Model, if it is active. */
+/** The projection an active Surface has for this Model; none while it is inactive. */
 const projectionOf = <AppModel>(
   entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
   model: AppModel,
-): Projection<AppModel, unknown> | undefined =>
-  'projectionOf' in entry ? entry.projectionOf(model) : entry.projection()
+): Option.Option<Projection<AppModel, unknown>> =>
+  'projectionOf' in entry ? entry.projectionOf(model) : Option.some(entry.projection())
 
 /**
  * `projectionOf` computed once per Model: the read, live, and retain entries
@@ -1381,12 +1399,13 @@ const projectionOf = <AppModel>(
  */
 const memoizedProjectionOf = <AppModel>(
   entry: ActiveSurface<AppModel> | Surface<AppModel, any, any, void>,
-): ((model: AppModel) => Projection<AppModel, unknown> | undefined) => {
-  const cache = new WeakMap<object, Projection<AppModel, unknown> | undefined>()
+): ((model: AppModel) => Option.Option<Projection<AppModel, unknown>>) => {
+  const cache = new WeakMap<object, Option.Option<Projection<AppModel, unknown>>>()
   return model => {
     const key: unknown = model
     if (typeof key !== 'object' || key === null) return projectionOf(entry, model)
-    if (cache.has(key)) return cache.get(key)
+    const known = cache.get(key)
+    if (known !== undefined) return known
     const projection = projectionOf(entry, model)
     cache.set(key, projection)
     return projection
@@ -1584,9 +1603,24 @@ export const Remote = {
             : present
         }
         if (isLoadingThrough(remote, selection.entity, id, relation)) return { _tag: 'Loading' }
-        // Nothing is fetching this. Either its read failed, which is said, or no
-        // active Surface observes it, which is usually a wiring mistake.
-        return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
+        if (failure !== undefined) return { _tag: 'Failed', error: failure }
+        // A preview of something the server has not seen: what the overlay
+        // leaves out will never arrive, so waiting would be `Initial` for good.
+        if (onlyOverlaid(remote, selection.entity, id)) {
+          const lacking = missingFields(store, key, relation.fields)
+          return {
+            _tag: 'Failed',
+            error: {
+              _tag: 'Overlaid',
+              message: `${selection.entity} ${id} is shown only by an overlay, which does not hold ${
+                lacking.length === 0 ? 'what its relations select' : lacking.join(', ')
+              }; the server has not seen it, so nothing will fetch them.`,
+            },
+          }
+        }
+        // Nothing is fetching this: no active Surface observes it, which is
+        // usually a wiring mistake.
+        return { _tag: 'Initial' }
       },
     })
   },
@@ -2076,10 +2110,19 @@ const bindDomain = <
         ),
       }
     },
+    active: (name, projectionOf) => {
+      const { owner } = bound.contract
+      if (owner === undefined)
+        throw new Error(
+          `Remote: "${name}" reads domain "${bound.contract.name}", whose Model field is a raw optic that names no application; make the domain from an application's field (App.model.remote) to give it reads`,
+        )
+      return { name, owner, messages: [], projectionOf }
+    },
     subscriptions: (active, options = {}) => {
       // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
       const entries: Record<string, RemoteEntry<AppModel, any>> = {}
-      const projections: Array<(model: AppModel) => Projection<AppModel, unknown> | undefined> = []
+      const projections: Array<(model: AppModel) => Option.Option<Projection<AppModel, unknown>>> =
+        []
       for (const [key, entry] of Object.entries(active)) {
         // Two applications can have the same Model type; the owner token tells them apart.
         if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
@@ -2089,7 +2132,7 @@ const bindDomain = <
         }
         const projectionAt = memoizedProjectionOf(entry)
         projections.push(projectionAt)
-        const asked = (model: AppModel) => askedOf(projectionAt(model))
+        const asked = (model: AppModel) => askedWhile(projectionAt(model))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
           bound,
@@ -2102,10 +2145,7 @@ const bindDomain = <
         dependenciesSchema: retentionRootsSchema,
         modelToDependencies: model =>
           rootsOf(
-            projections.flatMap(projectionAt => {
-              const projection = projectionAt(model)
-              return projection === undefined ? [] : [projection]
-            }),
+            projections.flatMap(projectionAt => Option.toArray(projectionAt(model))),
             options,
           ),
         dependenciesToStream: (current: RetentionRoots) =>
@@ -2343,12 +2383,10 @@ const bindDomain = <
       // than of the projection: a Surface's projection is rebuilt per Model, so
       // the only honest comparison is by connection identity.
       const reading = Object.values(options?.surfaces ?? {}).filter(active => {
-        const active_ = active.projectionOf(model)
         // An inactive Surface reads nothing, which is not the same as reading
         // something else.
-        return (
-          active_ !== undefined &&
-          connectionsOf(active_).some(connection => connection.identity === ref.identity)
+        return Option.exists(active.projectionOf(model), shown =>
+          connectionsOf(shown).some(connection => connection.identity === ref.identity),
         )
       })
       // The body lives on the descriptor, and a projection keeps only its
@@ -2387,8 +2425,9 @@ const bindDomain = <
           ? undefined
           : Object.values(options.surfaces)
               .filter(active => {
-                const shown = active.projectionOf(model)
-                return shown !== undefined && covers(askedOf(shown), asked)
+                return Option.exists(active.projectionOf(model), shown =>
+                  covers(askedOf(shown), asked),
+                )
               })
               .map(active => active.name)
       const withSurfaces = reading === undefined ? {} : { surfaces: reading }
@@ -2418,7 +2457,9 @@ const bindDomain = <
                 ? `What the server sent does not decode against the Selection: ${state.error.message}`
                 : state.error._tag === 'Unavailable'
                   ? `${state.error.message} Select without it, or Data.refresh asks again.`
-                  : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
+                  : state.error._tag === 'Overlaid'
+                    ? `${state.error.message} Overlay every field the Selection reads, or select fewer.`
+                    : `Its request failed: ${state.error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`,
             ...withSurfaces,
           }
         case 'Initial':

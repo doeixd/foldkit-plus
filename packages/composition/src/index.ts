@@ -36,6 +36,7 @@ export {
   type AppearanceFinding,
   type PropsFinding,
   type PropsOf,
+  type StoredPropsOf,
 } from './block.js'
 export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
 export { Content } from './content.js'

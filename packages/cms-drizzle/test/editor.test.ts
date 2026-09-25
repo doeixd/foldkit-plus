@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
@@ -221,9 +221,9 @@ const world = () => {
       for (let round = 0; round < 3; round++) {
         for (const active of Object.values(PostEditor.actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection).pipe(Effect.provide(Client)),
+            Data.prefetch(model, projection.value).pipe(Effect.provide(Client)),
           )
         }
         await send(Message.Nudged())
@@ -251,16 +251,19 @@ const world = () => {
         await settle((next.commands ?? []) as Commands)
       },
       status: () => PostEditor.status(model),
-      resumed: () => PostEditor.resumed(model),
-      state: () => PostEditor.state(model)?._tag,
-      schedule: () => PostEditor.state(model)?.schedule,
+      // Read as plain values, so each assertion says what it expects in one word.
+      resumed: () => Option.getOrUndefined(PostEditor.resumed(model)),
+      state: () => Option.getOrUndefined(Option.map(PostEditor.state(model), state => state._tag)),
+      schedule: () =>
+        Option.getOrUndefined(Option.map(PostEditor.state(model), state => state.schedule)),
       previewing: () => PostEditor.previewing(model),
       /** The post as any view of the application reads it. */
       post: (id: string) => {
         const read = Data.get(PostBody, id).read(model)
         return read._tag === 'Ready' || read._tag === 'Refreshing' ? read.value : read._tag
       },
-      error: () => PostEditor.error(model)?.message,
+      error: () =>
+        Option.getOrUndefined(Option.map(PostEditor.error(model), error => error.message)),
       field: (key: 'title' | 'body') => PostForm.field(model.editor.form, key),
     }
   }

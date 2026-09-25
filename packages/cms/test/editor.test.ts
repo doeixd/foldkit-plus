@@ -69,7 +69,12 @@ const world = (failure: string | undefined) => {
     refresh: (model: Root) => model,
     overlay: (model: Root) => model,
     lift: (model: Root) => model,
-    contract: {},
+    active: (name: string, projectionOf: unknown) => ({
+      name,
+      owner: {},
+      messages: [],
+      projectionOf,
+    }),
   }
   const slice = {
     get: (root: Root) => root.editor,

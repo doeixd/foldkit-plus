@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import { Crud, Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -34,9 +34,9 @@ const App = Surface.application({ Model, Message })
 const Data = Remote.make({ model: App.model.remote, entities: [Post], queries: [PostsQuery] })
 
 const PostList = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
-const Posts = PostList.at({ data: Data, input: () => ({}) })
+const Posts = PostList.at({ data: Data, input: () => Option.some({}) })
 const PostDetail = Crud.detail('PostDetail', { selection: PostRow })
-const Shown = PostDetail.at({ data: Data, id: (model: Model) => model.shown ?? undefined })
+const Shown = PostDetail.at({ data: Data, id: (model: Model) => Option.fromNullOr(model.shown) })
 
 const PostTable = ListView.forMessages<Message>().define(PostList)
 

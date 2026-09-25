@@ -16,6 +16,7 @@
 import { Option, Schema } from 'effect'
 import { Layers, Message, layersArgs, type ContextValue, type Model } from 'foldkit-builder'
 import {
+  Block,
   Catalog,
   Composition,
   NodeId,
@@ -81,12 +82,16 @@ export interface BuilderLike {
   readonly offered: ReadonlyArray<string>
   readonly document: (model: Model) => Document
   // Method syntax: a Builder whose Blocks are named narrower still fits.
-  placeFor(document: Document, selected: NodeId | null, block: string): Position | undefined
+  placeFor(
+    document: Document,
+    selected: Option.Option<NodeId>,
+    block: string,
+  ): Option.Option<Position>
   readonly keyCommand: (
     model: Model,
     key: string,
     modifiers: KeyboardModifiers,
-  ) => Message | undefined
+  ) => Option.Option<Message>
 }
 
 /** Every node as a tree row, in document order, with its parent node and whether it holds any. */
@@ -124,9 +129,10 @@ const dragMessage = (fact: PointerDrag.DragFact): Message => {
     case 'DragStarted':
       return Message.DragStarted({ id: NodeId.make(fact.id) })
     case 'DraggedOver':
-      return Message.DraggedOver({
-        over: fact.over === null ? null : { id: NodeId.make(fact.over.id), zone: fact.over.zone },
-      })
+      // The DOM's fact says "over nothing" with `null`; the Builder has a Message for it.
+      return fact.over === null
+        ? Message.DraggedOff()
+        : Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
     case 'DragDropped':
       return Message.DragDropped()
     case 'DragCancelled':
@@ -138,8 +144,12 @@ const dragMessage = (fact: PointerDrag.DragFact): Message => {
 export const layerId = (builder: { readonly name: string }, id: string): string =>
   `${builder.name}-layer-${id}`
 
-const asNodeId = (id: string | null): NodeId | null =>
-  id === null || id === '' ? null : NodeId.make(id)
+/** A node id the DOM reported, where `null` or an empty id is none. */
+const asNodeId = (id: string | null): Option.Option<NodeId> =>
+  Option.map(
+    Option.filter(Option.fromNullOr(id), found => found !== ''),
+    NodeId.make,
+  )
 
 /** A stored appearance that is a record of choices, as opposed to a list or a scalar. */
 const isChoices = (
@@ -147,18 +157,18 @@ const isChoices = (
 ): value is { readonly [axis: string]: Schema.Json } =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** What a context key's control reads as a value: blank is unset, a toggle's text a boolean. */
-const contextValue = (control: Control | undefined, raw: string): ContextValue => {
-  if (raw === '') return null
-  if (control !== undefined && Input.Toggle.is(control)) return raw === 'true'
+/** What a context key's control reads as a value: blank is none, a toggle's text a boolean. */
+const contextValue = (control: Control | undefined, raw: string): Option.Option<ContextValue> => {
+  if (raw === '') return Option.none()
+  if (control !== undefined && Input.Toggle.is(control)) return Option.some(raw === 'true')
   if (
     control !== undefined &&
     Input.Number.is(control) &&
     raw.trim() !== '' &&
     Number.isFinite(Number(raw))
   )
-    return Number(raw)
-  return raw
+    return Option.some(Number(raw))
+  return Option.some(raw)
 }
 
 /** Choices named by themselves. */
@@ -316,20 +326,23 @@ export const BuilderView = {
       h: HtmlBuilder<Message>,
     ): Html => {
       const document = builder.document(model)
-      const selected = model.selected
-      // A drop is marked only where it would land: `at` is null where the page refuses it.
-      const drop = model.drag?.at == null ? null : model.drag.over
+      const { selected } = model
+      // A drop is marked only where it would land: `at` is none where the page refuses it.
+      const drop = Option.flatMap(model.drag, drag =>
+        Option.isSome(drag.at) ? drag.over : Option.none(),
+      )
+      const dragged = Option.map(model.drag, drag => drag.id)
       const button = (
         slot: SlotView.SlotBuilder<Message>,
         label: string,
-        message: Message | undefined,
+        message: Option.Option<Message>,
         extra: ReadonlyArray<ReturnType<HtmlBuilder<Message>['AriaPressed']>> = [],
       ) =>
         h.button(
           slot.attrs([
             h.Type('button'),
-            h.Disabled(message === undefined),
-            ...(message === undefined ? [] : [h.OnClick(message)]),
+            h.Disabled(Option.isNone(message)),
+            ...Option.match(message, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }),
             ...extra,
           ]),
           [label],
@@ -337,14 +350,15 @@ export const BuilderView = {
 
       const palette = h.nav(
         slots.palette.attrs([h.AriaLabel('Add a block')]),
-        builder.offered.map(name => {
-          const at = builder.placeFor(document, selected, name)
-          return button(
+        builder.offered.map(name =>
+          button(
             slots.paletteItem,
             `Add ${name}`,
-            at === undefined ? undefined : Message.InsertAsked({ block: name, at }),
-          )
-        }),
+            Option.map(builder.placeFor(document, selected, name), at =>
+              Message.InsertAsked({ block: name, at }),
+            ),
+          ),
+        ),
       )
 
       const shown = TreeNavigation.shown(rowsOf(document), model.layers, layersArgs)
@@ -359,9 +373,17 @@ export const BuilderView = {
               [
                 h.Key(row.id),
                 h.DataAttribute(ROW_ATTRIBUTE, row.id),
-                ...(drop?.id === row.id ? [h.DataAttribute(ROW_DROP_ATTRIBUTE, drop.zone)] : []),
-                ...(model.drag?.id === row.id ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')] : []),
-                h.AriaSelected(row.id === selected),
+                ...Option.match(
+                  Option.filter(drop, over => over.id === row.id),
+                  {
+                    onNone: () => [],
+                    onSome: over => [h.DataAttribute(ROW_DROP_ATTRIBUTE, over.zone)],
+                  },
+                ),
+                ...(Option.contains(dragged, NodeId.make(row.id))
+                  ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')]
+                  : []),
+                h.AriaSelected(Option.contains(selected, NodeId.make(row.id))),
                 h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
               ],
               { index, id: row.id },
@@ -373,32 +395,41 @@ export const BuilderView = {
       // The tree inside is what is named "Layers"; the panel around it is not named twice.
       const layers = h.section(slots.layers.attrs(), [tree])
 
-      const actions =
-        selected === null
-          ? []
-          : [
-              h.div(slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]), [
-                button(slots.action, 'Move up', builder.keyCommand(model, 'ArrowUp', alt)),
-                button(slots.action, 'Move down', builder.keyCommand(model, 'ArrowDown', alt)),
-                button(slots.action, 'Move out', builder.keyCommand(model, 'ArrowLeft', alt)),
-                button(slots.action, 'Move in', builder.keyCommand(model, 'ArrowRight', alt)),
-                button(slots.action, 'Duplicate', builder.keyCommand(model, 'd', ctrl)),
-                button(slots.action, 'Delete', builder.keyCommand(model, 'Delete', plain)),
-              ]),
-            ]
+      const actions = Option.isNone(selected)
+        ? []
+        : [
+            h.div(slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]), [
+              button(slots.action, 'Move up', builder.keyCommand(model, 'ArrowUp', alt)),
+              button(slots.action, 'Move down', builder.keyCommand(model, 'ArrowDown', alt)),
+              button(slots.action, 'Move out', builder.keyCommand(model, 'ArrowLeft', alt)),
+              button(slots.action, 'Move in', builder.keyCommand(model, 'ArrowRight', alt)),
+              button(slots.action, 'Duplicate', builder.keyCommand(model, 'd', ctrl)),
+              button(slots.action, 'Delete', builder.keyCommand(model, 'Delete', plain)),
+            ]),
+          ]
 
-      const inspector =
-        selected === null ? [] : [inspect(document, selected, model.options ?? {}, slots, h)]
+      const inspector = Option.match(selected, {
+        onNone: () => [],
+        onSome: id => [inspect(document, id, model.options ?? {}, slots, h)],
+      })
 
       const history = h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
-        button(slots.undo, 'Undo', History.canUndo(model.page) ? Message.Undid() : undefined),
-        button(slots.redo, 'Redo', History.canRedo(model.page) ? Message.Redid() : undefined),
+        button(
+          slots.undo,
+          'Undo',
+          History.canUndo(model.page) ? Option.some(Message.Undid()) : Option.none(),
+        ),
+        button(
+          slots.redo,
+          'Redo',
+          History.canRedo(model.page) ? Option.some(Message.Redid()) : Option.none(),
+        ),
       ])
 
       const viewports = h.div(
         slots.viewports.attrs([h.Role('group'), h.AriaLabel('Viewport')]),
         (['wide', 'medium', 'narrow'] as const).map(viewport =>
-          button(slots.viewport, viewport, Message.ViewportChosen({ viewport }), [
+          button(slots.viewport, viewport, Option.some(Message.ViewportChosen({ viewport })), [
             h.AriaPressed(model.viewport === viewport ? 'true' : 'false'),
           ]),
         ),
@@ -416,9 +447,13 @@ export const BuilderView = {
                     id: `${builder.name}-preview-${key}`,
                     label: key,
                     schema,
-                    current: model.preview[key],
+                    current: Option.fromUndefinedOr(model.preview[key]),
                     blank: 'unset',
-                    send: value => Message.PreviewChosen({ key, value }),
+                    send: value =>
+                      Option.match(value, {
+                        onNone: () => Message.PreviewCleared({ key }),
+                        onSome: chosen => Message.PreviewChosen({ key, value: chosen }),
+                      }),
                   }),
                 ),
               ),
@@ -433,11 +468,11 @@ export const BuilderView = {
           [
             ...Renderer.render(builder.renderer, document, inertHtml, {
               mode: 'edit',
-              selected,
-              hovered: model.hovered,
-              drop,
+              selected: Option.getOrUndefined(selected),
+              hovered: Option.getOrUndefined(model.hovered),
+              drop: Option.getOrUndefined(drop),
               context: model.preview,
-              ...(model.data === undefined ? {} : { data: model.data }),
+              data: model.data,
             }),
           ],
         ),
@@ -451,9 +486,10 @@ export const BuilderView = {
         history,
         viewports,
         ...preview,
-        ...(model.refused === null
-          ? []
-          : [h.p(slots.alert.attrs([h.Role('alert')]), [model.refused.message])]),
+        ...Option.match(model.refused, {
+          onNone: () => [],
+          onSome: refused => [h.p(slots.alert.attrs([h.Role('alert')]), [refused.message])],
+        }),
         canvas,
         h.div(slots.live.attrs(), [LiveAnnounce.view(model.announcer, h)]),
       ])
@@ -467,16 +503,21 @@ export const BuilderView = {
         readonly id: string
         readonly label: string
         readonly schema: Schema.Top
-        readonly current: ContextValue | undefined
+        readonly current: Option.Option<ContextValue>
         /** What the blank choice reads as. */
         readonly blank: string
-        readonly send: (value: ContextValue) => Message
+        /** The value chosen, or none for the blank. */
+        readonly send: (value: Option.Option<ContextValue>) => Message
       },
     ) => {
       const { id: fieldId, label, schema, current, blank, send } = field
       const control = Input.resolve(Entity.unmapped, schema)
       const choices = contextChoices(control)
-      const shown = current === undefined || current === null ? '' : String(current)
+      // A context value that is itself `null` is shown as the blank too.
+      const shown = Option.match(current, {
+        onNone: () => '',
+        onSome: value => (value === null ? '' : String(value)),
+      })
       return h.div(slots.field.attrs(), [
         h.label([h.For(fieldId)], [label]),
         choices === undefined
@@ -653,7 +694,7 @@ export const BuilderView = {
           set: value => set(key, value),
           options: options[`${node.block}.${key}`],
           // Asked of what is stored: a prop decoded to an `Option` is stored as `null`.
-          optional: Schema.is(Schema.toEncoded(schema))(null),
+          optional: Option.exists(Block.stored(block, key), stored => Schema.is(stored)(null)),
         }),
       )
       // The node's look: one choice per axis its Block offers, blank for the default,
@@ -706,7 +747,7 @@ export const BuilderView = {
       const when = Array.isArray(node.when) ? node.when : []
       const isEqOn = (key: string) => (condition: Schema.Json) =>
         isChoices(condition) && Array.isArray(condition['eq']) && condition['eq'][0] === key
-      const eqOf = (key: string): ContextValue | undefined => {
+      const eqOf = (key: string): Option.Option<ContextValue> => {
         for (const condition of when)
           if (isChoices(condition) && isEqOn(key)(condition) && Array.isArray(condition['eq'])) {
             const value = condition['eq'][1]
@@ -715,9 +756,9 @@ export const BuilderView = {
               typeof value === 'number' ||
               typeof value === 'boolean'
             )
-              return value
+              return Option.some(value)
           }
-        return undefined
+        return Option.none()
       }
       const conditions = Object.entries(fieldsOf(builder.catalog.context)).map(([key, schema]) =>
         contextField(slots, h, {
@@ -728,7 +769,10 @@ export const BuilderView = {
           blank: 'always',
           send: value => {
             const others = when.filter(condition => !isEqOn(key)(condition))
-            const next = value === null ? others : [...others, { eq: [key, value] }]
+            const next = Option.match(value, {
+              onNone: () => others,
+              onSome: chosen => [...others, { eq: [key, chosen] }],
+            })
             return Message.Applied({
               op: Composition.Op.setWhen(id, next.length === 0 ? null : next),
             })
@@ -810,9 +854,14 @@ export const BuilderView = {
             // A link on the page being edited selects its node; it does not navigate.
             preventDefault: true,
             toMessage: fact =>
-              fact._tag === 'TargetHovered'
-                ? Message.Hovered({ id: asNodeId(fact.id) })
-                : Message.Selected({ id: asNodeId(fact.id) }),
+              Option.match(asNodeId(fact.id), {
+                onNone: () =>
+                  fact._tag === 'TargetHovered' ? Message.Unhovered() : Message.Deselected(),
+                onSome: id =>
+                  fact._tag === 'TargetHovered'
+                    ? Message.Hovered({ id })
+                    : Message.Selected({ id }),
+              }),
           }),
         ),
         // A row or a node is dragged onto another; the keyboard's way is the shortcuts.
@@ -842,7 +891,7 @@ export const BuilderView = {
                   readonly h: HtmlBuilder<Message>
                 }) => [
                   h.OnKeyDownPreventDefault((key, modifiers) =>
-                    Option.fromNullishOr(builder.keyCommand(input, key, modifiers)),
+                    builder.keyCommand(input, key, modifiers),
                   ),
                 ],
               }),

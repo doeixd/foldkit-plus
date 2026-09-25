@@ -97,8 +97,8 @@ const Authors = Crud.list('Authors', {
 
 const AuthorList = Authors.at({
   data: Data,
-  // The query's input as the Model has it; `undefined` while the list is not shown.
-  input: model => (model.search === null ? undefined : { search: model.search }),
+  // The query's input as the Model has it; none while the list is not shown.
+  input: model => Option.map(Option.fromNullOr(model.search), search => ({ search })),
 })
 
 const subscriptions = Data.subscriptions({ authors: AuthorList.active })
@@ -107,7 +107,7 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 - `Authors.columns`: the selected members in order, each with `key`, `member`,
   and a `label` (schema `title`, else `Form.label`, else the key).
 - `AuthorList.page(model)`: `RemoteData<Page<Row>>`, rows typed by the Selection.
-- `AuthorList.more(model)`: the Command for the next page, or `undefined`.
+- `AuthorList.more(model)`: the Command for the next page, an `Option` (`Option.toArray` it into commands).
 - `AuthorList.refresh(model)` (and a placed detail's `refresh`): the Model with
   it asked for again. Failed reads are not retried automatically; this is the
   retry.
@@ -138,7 +138,7 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 - The server's mutation returns `deleted: [{ entity, id }]` and names no list.
   Remote drops the entity from every list and relation, and an open editor or a
   detail of it reads `NotFound`.
-- `Crud.detail(name, { selection }).at({ data, id: model => ... })` gives `value(model)`
+- `Crud.detail(name, { selection }).at({ data, id: model => Option<id> })` gives `value(model)`
   (a `RemoteData`), `active`, and `fields` (labelled like a list's `columns`). No state.
 
 ## Display, and drawing a list
@@ -186,7 +186,7 @@ goes once the refresh starts, so the retry's `update` branch should return a
 ```ts
 const AuthorList = Authors.at({
   data: Data,
-  input: model => ({ search: EditPostForm.search(model.editor.form, 'authorId') }),
+  input: model => Option.some({ search: EditPostForm.search(model.editor.form, 'authorId') }),
 })
 const pickers = Crud.options(EditPostForm, [AuthorList], { chosen: model => model.editor.form })
 Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })

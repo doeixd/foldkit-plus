@@ -6,7 +6,7 @@
  * its name, its encoded props and its children. The name is the persisted
  * identity, so renaming a Block is a content migration, not a refactor.
  */
-import { Pipeable, type Result, Schema } from 'effect'
+import { Option, Pipeable, type Result, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import type { Content } from './content.js'
 import type { Region } from './region.js'
@@ -84,6 +84,12 @@ export type AnyBlock = Block<string, Schema.Top, Readonly<Record<string, Region>
 
 /** The decoded props of a Block. */
 export type PropsOf<B> = B extends Block<any, infer Props, any> ? Props['Type'] : never
+
+/**
+ * A Block's props as a Document stores them: the Props Schema's encoded side.
+ * A view gets `PropsOf<B>`; an editing tool reads and writes these.
+ */
+export type StoredPropsOf<B> = B extends Block<any, infer Props, any> ? Props['Encoded'] : never
 
 const make = <
   Name extends string,
@@ -299,4 +305,17 @@ export const Block = {
     props: PropsOf<B>,
   ): Result.Result<unknown, Schema.SchemaError> =>
     Schema.encodeUnknownResult(block.Props as Schema.Codec<PropsOf<B>, unknown>)(props),
+
+  /**
+   * How one prop is stored: its field's encoded side, for a tool that edits
+   * the Document. A prop drawn as an `Option` (`Schema.OptionFromNullOr`) is
+   * stored as `null`, which only this side says. None for a key the Block's
+   * props do not declare.
+   */
+  stored: (block: AnyBlock, key: string): Option.Option<Schema.Top> => {
+    const fields = fieldsOf(block.Props)
+    return Object.hasOwn(fields, key)
+      ? Option.fromUndefinedOr(fields[key]).pipe(Option.map(Schema.toEncoded))
+      : Option.none()
+  },
 }

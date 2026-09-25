@@ -283,14 +283,15 @@ what it needs, and something else decides whether to ask.
 ### 4. Let the active screen drive the fetching
 
 ```ts
+import { Option } from 'effect'
 import * as Subscription from 'foldkit/subscription'
 
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   foldData.subscriptions({
     project: Surface.at(ProjectPage, model =>
       model.route._tag === 'project'
-        ? { projectId: model.route.projectId }
-        : undefined,
+        ? Option.some({ projectId: model.route.projectId })
+        : Option.none(),
     ),
   }),
 )
@@ -300,6 +301,21 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
 page, Remote sees its requirements, diffs them against the cache, and fetches
 only what is missing. When the page is inactive, it creates no read work. This
 is the one step that causes I/O, and it does so only while the screen is on.
+
+A read that is not a Surface's, such as the record a detail pane shows, is made
+active with `Data.active`: its function of the Model returns the read, or none
+while there is nothing to read.
+
+```ts
+const detail = Data.active('ProjectDetail', model =>
+  Option.map(model.openProjectId, id => Data.get(Project.select({ name: true }), id)),
+)
+foldData.subscriptions({ detail })
+```
+
+It belongs to the domain's application and sends no Messages. A domain bound
+to a raw optic (`ModelRef.fromOptic`) names no application, so `Data.active`
+throws for one rather than guess.
 
 ### 5. Provide a client
 
@@ -395,7 +411,9 @@ const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(
   Data.wiring({
     project: Surface.at(ProjectPage, model =>
-      model.route._tag === 'project' ? { projectId: model.route.projectId } : undefined,
+      model.route._tag === 'project'
+        ? Option.some({ projectId: model.route.projectId })
+        : Option.none(),
     ),
   }),
 )
@@ -1206,6 +1224,11 @@ const back = Data.lift(previewed, 'post-preview')
   returns the same Model.
 - An overlay's id is apart from every request's, so a mutation that settles does
   not take a preview with it.
+- A preview of an entity the server has not seen, such as an unsaved post, has
+  only the fields the overlay holds. A Selection that reads more reads
+  `Failed`, with an `Overlaid` error naming what is missing, since nothing will
+  fetch it. Overlay every field the Selection reads, or preview through a
+  smaller Selection.
 
 ### Reading past what is only pending
 

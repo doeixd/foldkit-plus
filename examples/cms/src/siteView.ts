@@ -31,36 +31,33 @@ const siteLink = (path: string) => (reader === 'visitor' ? path : `${path}?as=${
 const status = (slots: Slots, h: HtmlBuilder<Message>, text: string): Html =>
   h.p(slots.status.attrs(), [text])
 
-/** What a read says while it has nothing to show. */
-const pending = (tag: string) => (tag === 'Failed' ? 'This could not be read.' : 'Loading…')
+/** What a read says while it has nothing to show: not found once it is read. */
+const pending = (tag: string, missing: string) =>
+  tag === 'Ready' ? missing : tag === 'Failed' ? 'This could not be read.' : 'Loading…'
 
-const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
-  const read = pageRead(model)?.read(model)
-  const document = pageDocument(model)
-  if (document === undefined)
-    return [
-      read?._tag === 'Ready'
-        ? status(slots, h, 'There is no page at this address.')
-        : status(slots, h, pending(read?._tag ?? 'Loading')),
-    ]
-  // The site's Blocks send nothing, so they draw with a builder that sends nothing, as
-  // the Builder's canvas does; their links are followed by the application's routing.
-  const data = actives.blocks.projectionOf(model)?.read(model)
-  return Renderer.render(SiteRenderer, document, inertHtml, data === undefined ? {} : { data })
-}
+/** A route's read as its tag: each view runs on its own route, where its read is. */
+const tagOf = <A extends { readonly _tag: string }>(
+  read: Option.Option<{ readonly read: (model: Model) => A }>,
+  model: Model,
+): string =>
+  Option.match(read, { onNone: () => 'Initial', onSome: shown => shown.read(model)._tag })
+
+const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
+  Option.match(pageDocument(model), {
+    onNone: () => [
+      status(slots, h, pending(tagOf(pageRead(model), model), 'There is no page at this address.')),
+    ],
+    // The site's Blocks send nothing, so they draw with a builder that sends nothing, as
+    // the Builder's canvas does; their links are followed by the application's routing.
+    onSome: document =>
+      Renderer.render(SiteRenderer, document, inertHtml, { data: actives.blocks.data(model) }),
+  })
 
 const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
-  const read = postRead(model)?.read(model)
-  const first = firstOf(read)
+  const first = Option.flatMap(postRead(model), read => firstOf(read.read(model)))
   if (Option.isNone(first))
     return [
-      status(
-        slots,
-        h,
-        read?._tag === 'Ready'
-          ? 'There is no post at this address.'
-          : pending(read?._tag ?? 'Loading'),
-      ),
+      status(slots, h, pending(tagOf(postRead(model), model), 'There is no post at this address.')),
     ]
   const found = first.value
   return [
@@ -78,14 +75,19 @@ const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
 }
 
 const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
-  const read = blogRead(model)?.read(model)
+  const posts = Option.flatMap(blogRead(model), projection => {
+    const read = projection.read(model)
+    return read._tag === 'Ready' || read._tag === 'Refreshing'
+      ? Option.some(read.value.items)
+      : Option.none()
+  })
   return [
     h.h1(slots.heading.attrs(), ['The blog']),
-    read?._tag === 'Ready' || read?._tag === 'Refreshing'
-      ? read.value.items.length === 0
-        ? status(slots, h, 'Nothing is published yet.')
-        : postGrid(h, read.value.items)
-      : status(slots, h, pending(read?._tag ?? 'Loading')),
+    Option.match(posts, {
+      onNone: () => status(slots, h, pending(tagOf(blogRead(model), model), '')),
+      onSome: items =>
+        items.length === 0 ? status(slots, h, 'Nothing is published yet.') : postGrid(h, items),
+    }),
   ]
 }
 
@@ -93,24 +95,22 @@ const titleOf = (model: Model): string => {
   switch (model.route._tag) {
     case 'Blog':
       return 'The blog'
-    case 'Post': {
-      const read = postRead(model)?.read(model)
-      return read?._tag === 'Ready' || read?._tag === 'Refreshing'
-        ? Option.getOrElse(
-            Option.map(firstOf(read), found => found.title),
-            () => 'Not found',
-          )
-        : 'The blog'
-    }
-    case 'Page': {
-      const read = pageRead(model)?.read(model)
-      return read?._tag === 'Ready' || read?._tag === 'Refreshing'
-        ? Option.getOrElse(
-            Option.map(firstOf(read), found => found.title),
-            () => 'Not found',
-          )
-        : 'Journal'
-    }
+    case 'Post':
+      return Option.getOrElse(
+        Option.map(
+          Option.flatMap(postRead(model), read => firstOf(read.read(model))),
+          found => found.title,
+        ),
+        () => 'The blog',
+      )
+    case 'Page':
+      return Option.getOrElse(
+        Option.map(
+          Option.flatMap(pageRead(model), read => firstOf(read.read(model))),
+          found => found.title,
+        ),
+        () => 'Journal',
+      )
   }
 }
 

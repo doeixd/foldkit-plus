@@ -5,7 +5,7 @@
  */
 import type { Effect } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { Schema } from 'effect'
+import { Schema, Option } from 'effect'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -273,12 +273,12 @@ App.surface('Wrong', {
 })
 
 // Item 5: one declaration per feature. Activation is a Model fact: a Surface's
-// params are a function of the Model (`undefined` while inactive), and the
+// params are a function of the Model (none while inactive), and the
 // entries are what `Subscription.make` takes.
 const subscriptions = Data.subscriptions(
   {
     page: Surface.at(ProjectPage, current =>
-      current.route === '' ? undefined : { projectId: current.route as ProjectId },
+      current.route === '' ? Option.none() : Option.some({ projectId: current.route as ProjectId }),
     ),
     home: Home,
   },

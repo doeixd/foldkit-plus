@@ -35,8 +35,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
 4. **`Renderer.render`'s options refuse `undefined`.** Under
    `exactOptionalPropertyTypes`, `{ data: reads?.read(model) }` is an error, so
    every caller writes `data === undefined ? {} : { data }` (the page demo and
-   the site view both do). *Proposed:* type the optional fields `| undefined`.
-   Status: worked around.
+   the site view both do). **Fixed** (plan area 1): the fields take
+   `| undefined`, and the reads give `data(model)`, `{}` while there is nothing
+   to read, so neither caller builds the options by hand.
 
 5. **A `Renderer<…, never>` cannot draw into an application's builder.**
    `HtmlBuilder` is invariant in its Message, so the site view cannot pass its
@@ -73,8 +74,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     The `?? {}` is a quiet fallback (AGENTS.md De-slop), and the object shape
     (`name`, `owner`, `messages: []`, `projectionOf`) is repeated for every
     read. The site app uses `App.owner` in a small `reading` helper instead.
-    *Proposed:* `Data.active(name, projectionOf)` in Remote. Status: worked
-    around.
+    **Fixed** (plan area 1): `Data.active(name, projectionOf)` in Remote,
+    which takes the owner from the domain's application and throws for a
+    domain on a raw optic. Every hand-written active in the example uses it.
 
 11. **A preview that lacks a selected field reads as `Initial`, silently.**
     The post preview overlays the form's value on Remote's store. When the
@@ -82,14 +84,16 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     the preview of a new post read `Initial` forever, with nothing saying a
     field was missing. The posts demo caught it; a browser would just show an
     empty pane. The example now previews through `PostPreview`, which selects
-    only what the form holds. *Proposed:* Remote reports an overlay that cannot
-    satisfy a selection (in development, at least), or the read says which
-    field it is waiting for.
+    only what the form holds. **Fixed** (plan area 1e): a read of an entity
+    only overlays show reads `Failed`, with an `Overlaid` error naming the
+    fields the overlay lacks.
 
 12. **Casts left in the example point at API gaps.** None is new, but each is
     a place a user would cast too:
     - `Worklist.active.projectionOf(model)!` (`app.ts`): a Crud list's active
-      always has a projection, but its type says it may not.
+      always has a projection, but its type says it may not. **Fixed** (plan
+      area 1): `Worklist.refresh(model)` asks for the list again,
+      so the example no longer reads the projection itself.
     - `effect.pipe(…) as never` and `{ … } as never` (`demo.ts`), around
       `RemoteServer.handlers` results and a hand-made client service.
     - `(yield* DrizzleDatabase) as unknown as Writes` (`server.ts`): the
@@ -122,7 +126,12 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
       `LatestPages.except` now are).
     *Proposed:* migrate the application-facing reads package by package,
     starting with the Builder's Model and the placed editor, since both are
-    0.x. Status: example converted; packages proposed.
+    0.x. **Fixed** (plan area 1) for the reads the example meets: the
+    Builder's Model, Messages and helpers, the placed editor's reads, Surface
+    and Remote actives, Crud's `id`/`input`/`more`, and composition's reads.
+    Stored JSON keeps `null` through `Schema.OptionFromNullOr`. Internal
+    Models and the wire (Primitives' DOM facts, the CMS's `schedule`,
+    composition's `setWhen`) still use `null`, as a boundary that speaks it.
 
 14. **The inspector asked the decoded side whether a prop may be empty.**
     Found by item 13: with `FeaturedPost.post` typed
@@ -131,7 +140,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     Builder stores the encoded side (`null`). **Fixed:** the check is
     `Schema.is(Schema.toEncoded(schema))(null)`, and the mixins-builder fixture's
     `category` is `OptionFromNullOr`, so the test covers it (reverting the fix
-    fails it).
+    fails it). Plan area 1 moved the question into composition:
+    `Block.stored(block, key)` is a prop's stored Schema, and `StoredPropsOf<B>`
+    names the stored side beside `PropsOf<B>`.
 
 15. **`accent.text` reads as "accent-colored text" and is the opposite.**
     `Theme.oklch`'s `<family>.text` (`accent.text`, `error.text`, `info.text`,

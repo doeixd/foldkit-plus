@@ -12,7 +12,7 @@
  * the reads as it does every read. Drawing, the Renderer hands each node its
  * value as `data`, and the Block's `rows(data)` reads it typed.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type {
   EntitySelection,
   Page,
@@ -25,7 +25,7 @@ import type {
 import { Metadata } from 'foldkit-metadata'
 import { Projection } from 'foldkit-surface'
 import { Block, isRecord, type AnyBlock } from '../block.js'
-import type { PageReads } from '../surface/index.js'
+import { dataOf, type PageReads } from '../surface/index.js'
 import { Catalog } from '../catalog.js'
 import type { Content } from '../content.js'
 import { index, type Document } from '../document.js'
@@ -137,34 +137,31 @@ export const QueryBlock = {
     owner: object,
     data: QueryReader<AppModel>,
     catalog: Catalog,
-    documentOf: (model: AppModel) => Document | undefined,
+    documentOf: (model: AppModel) => Option.Option<Document>,
   ): PageReads<AppModel> => {
     // The reads change only with the page, not with every Model the page is in.
     const byDocument = new WeakMap<Document, ReturnType<typeof QueryBlock.reads<AppModel>>>()
-    return {
-      name,
-      owner,
-      messages: [],
-      projectionOf: model => {
-        const document = documentOf(model)
-        if (document === undefined) return undefined
-        if (!byDocument.has(document))
-          byDocument.set(document, QueryBlock.reads(data, catalog, document))
-        return byDocument.get(document)
-      },
-    }
+    const projectionOf = (model: AppModel) =>
+      Option.flatMap(documentOf(model), document => {
+        const known = byDocument.get(document)
+        if (known !== undefined) return known
+        const reads = QueryBlock.reads(data, catalog, document)
+        byDocument.set(document, reads)
+        return reads
+      })
+    return { name, owner, messages: [], projectionOf, data: dataOf(projectionOf) }
   },
 
   /**
    * Every Query Block on the page as one Projection over the Model, keyed by
-   * node id, or `undefined` when there is none. A node whose props do not
-   * decode, or whose Block the Catalog lacks, reads nothing.
+   * node id; none when the page has none. A node whose props do not decode, or
+   * whose Block the Catalog lacks, reads nothing.
    */
   reads: <AppModel>(
     data: QueryReader<AppModel>,
     catalog: Catalog,
     document: Document,
-  ): Projection<AppModel, Readonly<Record<string, unknown>>> | undefined => {
+  ): Option.Option<Projection<AppModel, Readonly<Record<string, unknown>>>> => {
     const entries: Record<string, Projection<AppModel, unknown>> = {}
     for (const id of index(document).keys()) {
       const node = document.nodes[id]
@@ -183,7 +180,9 @@ export const QueryBlock = {
         first === undefined ? query : { ...query, read: root => windowed(query.read(root), first) }
     }
     return Object.keys(entries).length === 0
-      ? undefined
-      : (Projection.struct(entries) as Projection<AppModel, Readonly<Record<string, unknown>>>)
+      ? Option.none()
+      : Option.some(
+          Projection.struct(entries) as Projection<AppModel, Readonly<Record<string, unknown>>>,
+        )
   },
 }

@@ -109,11 +109,9 @@ const TodoDetail = App.surface('TodoDetail', {
 })
 Surface.read(TodoDetail, model, { id: 't1' })   // { todo: Option<Todo> }
 
-// Params computed from the Model; `undefined` means the Surface is inactive.
-const Active = Surface.at(TodoDetail, m =>
-  Option.match(m.selectedTodoId, { onNone: () => undefined, onSome: id => ({ id }) }),
-)
-Active.projectionOf(model)   // Projection | undefined (Remote's Data.subscriptions takes a record of these)
+// Params computed from the Model, as an Option; none means the Surface is inactive.
+const Active = Surface.at(TodoDetail, m => Option.map(m.selectedTodoId, id => ({ id })))
+Active.projectionOf(model)   // Option<Projection> (Remote's Data.subscriptions takes a record of these)
 ```
 
 **Building projections.**

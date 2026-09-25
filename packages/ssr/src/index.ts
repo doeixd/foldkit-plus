@@ -232,11 +232,7 @@ const pathKey = (route: string): string => {
 const activeProjections = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   model: Model,
-) =>
-  plan.surfaces.flatMap(surface => {
-    const projection = surface.projectionOf(model)
-    return projection === undefined ? [] : [projection]
-  })
+) => plan.surfaces.flatMap(surface => Option.toArray(surface.projectionOf(model)))
 
 /** What the envelope carries of a Model: the encoded slice, and each part's capture. */
 interface Payload {
@@ -494,7 +490,7 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
     local: plan.local.map(pathOf),
     parts: plan.parts.map(part => part.id),
     surfaces: plan.surfaces.map(surface => {
-      const served = surface.projectionOf(model)
+      const served = Option.getOrUndefined(surface.projectionOf(model))
       return {
         name: surface.name,
         active: served !== undefined,
@@ -514,7 +510,8 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
           served === undefined
             ? []
             : Metadata.summarize(served.metadata).filter(summary => !covered.has(summary.name)),
-        sameInBrowser: readsKey(served) === readsKey(surface.projectionOf(browser)),
+        sameInBrowser:
+          readsKey(served) === readsKey(Option.getOrUndefined(surface.projectionOf(browser))),
       }
     }),
   }
@@ -581,7 +578,7 @@ const allowedTags = <Model, Fields extends Schema.Struct.Fields>(
 ): ReadonlySet<string> =>
   new Set(
     plan.surfaces.flatMap(surface =>
-      surface.projectionOf(model) === undefined ? [] : surface.messages,
+      Option.isSome(surface.projectionOf(model)) ? surface.messages : [],
     ),
   )
 

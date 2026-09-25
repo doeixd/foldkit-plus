@@ -83,7 +83,7 @@ const OwnerPage = App.surface('OwnerPage', {
 
 /** The same activation, said twice: as a callback, and as values. */
 const byCallback = Surface.at(OwnerPage, (model: Model) =>
-  model.route._tag === 'Owner' ? { ownerId: model.route.ownerId } : undefined,
+  model.route._tag === 'Owner' ? Option.some({ ownerId: model.route.ownerId }) : Option.none(),
 )
 const byTag = Surface.when(OwnerPage, App.model.route, AppRoute.Owner, route => ({
   ownerId: route.ownerId,
@@ -104,16 +104,14 @@ describe('Surface.when activates exactly as Surface.at did', () => {
     const callback = byCallback.projectionOf(model)
     const tagged = byTag.projectionOf(model)
 
-    expect(tagged === undefined).toBe(callback === undefined)
-    if (tagged !== undefined && callback !== undefined) {
-      expect(connectionsOf(tagged)).toEqual(connectionsOf(callback))
-    }
+    expect(Option.isSome(tagged)).toBe(Option.isSome(callback))
+    expect(Option.map(tagged, connectionsOf)).toEqual(Option.map(callback, connectionsOf))
   })
 
   it('passes the tagged value to the params, so the route feeds the query', () => {
-    const projection = byTag.projectionOf(at('/owners/u7'))
+    const projection = Option.getOrThrow(byTag.projectionOf(at('/owners/u7')))
 
-    expect(connectionsOf(projection!)[0]!.identity).toBe(
+    expect(connectionsOf(projection)[0]!.identity).toBe(
       ProjectsByOwner.ref({ ownerId: 'u7' }).identity,
     )
   })
@@ -156,10 +154,14 @@ describe('What Surface.when says that Surface.at cannot', () => {
     }))
 
     expect(active.activation).toEqual({ path: ['mode'], tag: 'Editing' })
-    expect(active.projectionOf({ mode: Mode.Idle(), remote: Remote.initial })).toBeUndefined()
+    expect(Option.isNone(active.projectionOf({ mode: Mode.Idle(), remote: Remote.initial }))).toBe(
+      true,
+    )
     expect(
-      active.projectionOf({ mode: Mode.Editing({ id: 'p1' }), remote: Remote.initial }),
-    ).toBeDefined()
+      Option.isSome(
+        active.projectionOf({ mode: Mode.Editing({ id: 'p1' }), remote: Remote.initial }),
+      ),
+    ).toBe(true)
   })
 
   it('refuses something that is not tagged, naming the Surface', () => {

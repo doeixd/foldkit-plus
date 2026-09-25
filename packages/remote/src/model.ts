@@ -393,6 +393,19 @@ export const remoteMessageSchema = Schema.Union(
 /** An overlay's layer, named apart from every request's: a request id is the application's to choose too. */
 const overlayLayer = (id: string): string => `overlay:${id}`
 
+/**
+ * Whether only overlays show this entity: the server has told the store
+ * nothing of it and no request's layer writes it, so nothing will fetch what an
+ * overlay leaves out.
+ */
+export const onlyOverlaid = (model: RemoteModel, entity: string, id: string): boolean => {
+  if (Object.hasOwn(model.entities, entityKey(entity, id))) return false
+  const writers = model.optimistic.layers.filter(layer =>
+    layer.patches.some(patch => patch.entity === entity && patch.id === id),
+  )
+  return writers.length > 0 && writers.every(layer => layer.id.startsWith('overlay:'))
+}
+
 const marksOf = (
   requests: ReadonlyArray<Requirement>,
 ): ReadonlyArray<readonly [string, ReadonlyArray<string>]> =>

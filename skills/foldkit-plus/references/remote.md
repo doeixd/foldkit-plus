@@ -127,8 +127,8 @@ const drawn = (data: RemoteData<{ readonly name: string }>) =>
 
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   foldData.subscriptions({
-    // `undefined` params = Surface inactive = no reads.
-    page: Surface.at(ProjectPage, m => Option.getOrUndefined(Option.map(m.projectId, projectId => ({ projectId })))),
+    // No params (none) = Surface inactive = no reads.
+    page: Surface.at(ProjectPage, m => Option.map(m.projectId, projectId => ({ projectId }))),
   }),
 )
 
@@ -139,7 +139,7 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(
   Data.wiring({
-    page: Surface.at(ProjectPage, m => Option.getOrUndefined(Option.map(m.projectId, projectId => ({ projectId })))),
+    page: Surface.at(ProjectPage, m => Option.map(m.projectId, projectId => ({ projectId }))),
   }),
 )
 const wiredUpdate = wiring.update(model => ({ model }))
@@ -172,6 +172,8 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
 // Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
+// A read that is not a Surface's, active while its function gives it:
+// Data.active('ProjectDetail', m => Option.map(m.openId, id => Data.get(Selection, id)))
 // Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value
 // ages out and emits RefreshStarted for it: time reaches Remote only as a Message, and a
 // Projection never reads the clock. The deadline is a dependency (`expires`), so a write moves it.
@@ -243,6 +245,8 @@ case 'SignedOut': {
   tell them apart tests nothing.
 - `Data.overlay(model, id, operations)` shows optimistic operations with no request
   (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
+  A preview of an unsaved entity that lacks a field its Selection reads is
+  `Failed` (`_tag: 'Overlaid'`, naming the fields), not `Initial` forever.
 - `Data.confirmed(projection)` is the same projection read over the
   server-derived store alone, with pending layers and connection overlays left
   off; it plans exactly what the projection plans. For a reader that must not

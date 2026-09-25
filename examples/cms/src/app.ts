@@ -4,7 +4,7 @@
  * through. The scripted run and the browser both drive this one `update`.
  * Nothing about how any of it is placed is CMS-specific.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Crud } from 'foldkit-crud'
@@ -74,7 +74,8 @@ export const PostEditor = Editor.at({ data: Data, model: App.model.editor })
 export const WorklistList = Crud.list('Worklist', { query: Cms.Entries, selection: EntryRow })
 export const Worklist = WorklistList.at({
   data: Data,
-  input: (model: Model) => ({ type: Posts.name, search: model.search, archived: model.archived }),
+  input: (model: Model) =>
+    Option.some({ type: Posts.name, search: model.search, archived: model.archived }),
 })
 
 /** The post as the application's own pages read it. */
@@ -88,30 +89,15 @@ const History = Entity.select(Cms.Entities.Entry, {
     publishedBy: true,
   }),
 })
-export const history = (model: Model) => {
-  const entry = PostEditor.entry(model)
-  return entry === null ? undefined : Data.get(History, EntryId.make(entry))
-}
+export const history = (model: Model) =>
+  Option.map(PostEditor.entry(model), entry => Data.get(History, EntryId.make(entry)))
 
 /** What Remote fetches and retains while it is on screen. */
 export const actives = {
   worklist: Worklist.active,
   ...PostEditor.actives,
-  history: {
-    name: 'History',
-    owner: Data.contract.owner ?? {},
-    messages: [],
-    projectionOf: history,
-  },
-  page: {
-    name: 'PostPage',
-    owner: Data.contract.owner ?? {},
-    messages: [],
-    projectionOf: (model: Model) => {
-      const id = PostEditor.pageId(model)
-      return id === null ? undefined : postPage(id)
-    },
-  },
+  history: Data.active('History', history),
+  page: Data.active('PostPage', (model: Model) => Option.map(PostEditor.pageId(model), postPage)),
 }
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -131,12 +117,14 @@ const newPost: Command<Message> = {
  * while that is already under way, so this settles by itself.
  */
 const listing = (model: Model): Model => {
-  const entry = PostEditor.entry(model)
   const page = Worklist.page(model)
-  if (entry === null || page._tag !== 'Ready') return model
-  return page.value.items.some(row => row.id === entry)
-    ? model
-    : Data.refresh(model, Worklist.active.projectionOf(model)!)
+  return Option.match(PostEditor.entry(model), {
+    onNone: () => model,
+    onSome: entry =>
+      page._tag !== 'Ready' || page.value.items.some(row => row.id === entry)
+        ? model
+        : Worklist.refresh(model),
+  })
 }
 
 const placed = placements.update((model: Model, message: Message) => {
@@ -159,9 +147,11 @@ const placed = placements.update((model: Model, message: Message) => {
       return { model: modifyFields(model, { scheduleAt: () => message.text }) }
     case 'AskedForHistory': {
       // A publish patches the new revision in; its place in the list is asked for.
-      const projection = history(model)
-      const refreshed = projection === undefined ? model : Data.refresh(model, projection)
-      return { model: Data.refresh(refreshed, Worklist.active.projectionOf(refreshed)!) }
+      const refreshed = Option.match(history(model), {
+        onNone: () => model,
+        onSome: projection => Data.refresh(model, projection),
+      })
+      return { model: Worklist.refresh(refreshed) }
     }
     case 'Searched':
       return { model: modifyFields(model, { search: () => message.text }) }

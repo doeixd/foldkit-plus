@@ -45,6 +45,10 @@ export const failed = (status: EditorStatus): boolean =>
     status,
   )
 
+/** Whether the entry's state is one of `tags`; an entry with no state yet is none of them. */
+export const stateIs = (state: Option.Option<State>, ...tags: ReadonlyArray<State['_tag']>) =>
+  Option.exists(state, known => tags.includes(known._tag))
+
 /** An entry's state as a badge: its tag is its color, its words the CMS's. */
 export const badge = <M>(
   slots: SlotView.SlotBuilders<typeof AdminSlots, M>,

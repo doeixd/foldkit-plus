@@ -8,7 +8,7 @@
  * ordinary Foldkit: a Bundle, an ActiveSurface, Update Steps. Nothing is
  * generated from an Entity alone; each capability is declared.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
@@ -130,7 +130,11 @@ export interface DomainLike<Root> {
   fetch(ref: any): Command<RemoteMessage, never, RemoteClient>
   refresh(model: Root, target: any): Root
   mutation(model: Root, requestId: string): MutationStatus
-  readonly contract: { readonly owner?: object | undefined }
+  /** `Data.active`: a read of the domain as an active Surface of its application. */
+  active(
+    name: string,
+    projectionOf: (model: Root) => Option.Option<Projection<Root, any>>,
+  ): ActiveSurface<Root>
 }
 
 type Step<Root> = Update.Step<Root, RemoteMessage, RemoteClient>
@@ -209,35 +213,31 @@ export const Crud = {
     /** Type-only: the value shown, for a view to be typed by. Never read. */
     Value: undefined as unknown as Row,
 
-    /** The detail where it lives: `id` is the one shown, or `undefined` while none is. */
+    /** The detail where it lives: `id` is the one shown, none while none is. */
     at: <Root>(where: {
       readonly data: DomainLike<Root>
-      readonly id: (root: Root) => string | undefined
+      readonly id: (root: Root) => Option.Option<string>
     }) => {
-      const projectionOf = (root: Root) => {
-        const id = where.id(root)
-        return id === undefined ? undefined : where.data.get(config.selection, id)
-      }
+      const projectionOf = (root: Root) =>
+        Option.map(where.id(root), id => where.data.get(config.selection, id))
       return {
         /** For `Data.subscriptions`: the value is fetched and retained while an id is shown. */
-        active: {
-          name,
-          owner: where.data.contract.owner ?? {},
-          // A requirement, not a sender: the page's own Surfaces list its Messages.
-          messages: [],
-          projectionOf,
-        } satisfies ActiveSurface<Root>,
+        active: where.data.active(name, projectionOf),
         value: (root: Root): RemoteData<Row> =>
-          projectionOf(root)?.read(root) ?? { _tag: 'Initial' },
+          Option.match(projectionOf(root), {
+            onNone: () => ({ _tag: 'Initial' }),
+            onSome: projection => projection.read(root),
+          }),
         /**
          * Asks for the value again: `Data.refresh` over this detail, for a retry
          * button. A failed read is not retried on its own. Unchanged while no id
          * is shown.
          */
-        refresh: (root: Root): Root => {
-          const projection = projectionOf(root)
-          return projection === undefined ? root : where.data.refresh(root, projection)
-        },
+        refresh: (root: Root): Root =>
+          Option.match(projectionOf(root), {
+            onNone: () => root,
+            onSome: projection => where.data.refresh(root, projection),
+          }),
       }
     },
   }),
@@ -389,49 +389,51 @@ export const Crud = {
        */
       at: <Root>(where: {
         readonly data: DomainLike<Root>
-        readonly input: (root: Root) => Input | undefined
+        /** The list's input from the Model; none while the list is not shown. */
+        readonly input: (root: Root) => Option.Option<Input>
       }) => {
         const { data, input } = where
-        const projectionOf = (root: Root) => {
-          const value = input(root)
-          return value === undefined
-            ? undefined
-            : data.query(query, value, { select: selection, first: pageSize })
-        }
+        const projectionOf = (root: Root) =>
+          Option.map(input(root), value =>
+            data.query(query, value, { select: selection, first: pageSize }),
+          )
         const page = (root: Root): RemoteData<Page<S['Type']>> =>
-          projectionOf(root)?.read(root) ?? { _tag: 'Initial' }
+          Option.match(projectionOf(root), {
+            onNone: () => ({ _tag: 'Initial' }),
+            onSome: projection => projection.read(root),
+          })
+
+        const active = data.active(name, projectionOf)
 
         return {
           /** For `Data.subscriptions`: the page and its rows are fetched and retained while shown. */
-          active: {
-            name,
-            owner: data.contract.owner ?? {},
-            messages: [],
-            projectionOf,
-          } satisfies ActiveSurface<Root>,
+          active,
 
           page,
 
-          /** The Command that loads the next page onto this one, or `undefined` when there is none. */
-          more: (root: Root): Command<RemoteMessage, never, RemoteClient> | undefined => {
-            const projection = projectionOf(root)
-            const next = projection === undefined ? undefined : data.next(root, projection)
-            return next === undefined ? undefined : data.fetch(next)
-          },
+          /** The Command that loads the next page onto this one; none when there is none. */
+          more: (root: Root): Option.Option<Command<RemoteMessage, never, RemoteClient>> =>
+            Option.map(
+              Option.flatMap(projectionOf(root), projection =>
+                Option.fromUndefinedOr(data.next(root, projection)),
+              ),
+              data.fetch,
+            ),
 
           /**
            * Asks for the list again: `Data.refresh` over its page and rows, for a
            * retry button. A failed read is not retried on its own. Unchanged while
            * the list is not shown.
            */
-          refresh: (root: Root): Root => {
-            const projection = projectionOf(root)
-            return projection === undefined ? root : data.refresh(root, projection)
-          },
+          refresh: (root: Root): Root =>
+            Option.match(projectionOf(root), {
+              onNone: () => root,
+              onSome: projection => data.refresh(root, projection),
+            }),
 
           name,
           /** Whose requirement the list is, for anything that requires beside it. */
-          owner: data.contract.owner ?? {},
+          owner: active.owner,
           /**
            * One of the list's Entity through the list's Selection, by id, whether or
            * not the query finds it now: what a picker reads to name what is chosen.
@@ -566,17 +568,23 @@ export const Crud = {
     }
 
     const [first] = lists
+    if (first === undefined)
+      throw new Error(
+        'Crud.options: give it the lists its pickers pick from; with none, it has nothing to read',
+      )
     return Object.assign(choices, {
       /** For `Data.subscriptions`: what the pickers hold is read, so it can be named. */
       active: {
         name: `${pickers.map(([key]) => key).join('+')} chosen`,
-        owner: first?.owner ?? {},
+        owner: first.owner,
         projectionOf: (root: Root) => {
           const rows = held(root)
           return rows.length === 0
-            ? undefined
-            : Projection.struct(
-                Object.fromEntries(rows.map(([key, list, id]) => [`${key}:${id}`, list.row(id)])),
+            ? Option.none()
+            : Option.some(
+                Projection.struct(
+                  Object.fromEntries(rows.map(([key, list, id]) => [`${key}:${id}`, list.row(id)])),
+                ),
               )
         },
         messages: [],
@@ -741,15 +749,12 @@ export const Crud = {
            * For `Data.subscriptions`: while an id is being edited, what it loads is
            * a requirement like any Surface's, so Remote fetches and retains it.
            */
-          active: {
-            name,
-            owner: data.contract.owner ?? {},
-            messages: [],
-            projectionOf: root => {
-              const { mode, target } = slice.get(root)
-              return mode === 'edit' && target !== null ? data.get(current, target) : undefined
-            },
-          } satisfies ActiveSurface<Root>,
+          active: data.active(name, root => {
+            const { mode, target } = slice.get(root)
+            return mode === 'edit' && target !== null
+              ? Option.some(data.get(current, target))
+              : Option.none()
+          }),
 
           sync,
 

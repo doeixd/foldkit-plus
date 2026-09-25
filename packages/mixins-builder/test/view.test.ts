@@ -3,6 +3,7 @@
  * the inspector's controls by prop kind, the canvas's frame and marks, and the
  * Behaviors attached to the layers, the tree and the canvas.
  */
+import { Option } from 'effect'
 import { Block, Composition, NodeId } from 'foldkit-composition'
 import { Input } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
@@ -38,6 +39,10 @@ const required = <A>(value: A | null | undefined, what: string): A => {
   return value
 }
 
+/** What an Option holds, or a failed test saying what was missing. */
+const some = <A>(value: Option.Option<A>, what: string): A =>
+  Option.getOrThrowWith(value, () => new Error(`expected ${what}`))
+
 const send = (model: Model, message: Message): Model => {
   const result = PageBuilder.bundle.update(model, message, undefined)
   return (result.commands ?? [])
@@ -49,7 +54,7 @@ const insert = (model: Model, block: 'Section' | 'Heading' | 'Banner') =>
     model,
     Message.InsertAsked({
       block,
-      at: required(
+      at: some(
         PageBuilder.placeFor(PageBuilder.document(model), model.selected, block),
         `a place for ${block}`,
       ),
@@ -176,7 +181,7 @@ describe('the drawn Builder', () => {
   })
 
   it('shows a stored value its choices lack as one, not as the blank', () => {
-    const banner = required(page.selected, 'the banner')
+    const banner = some(page.selected, 'the banner')
     const odd = send(
       page,
       Message.Applied({
@@ -260,7 +265,7 @@ describe('the drawn Builder', () => {
   })
 
   it('previews the page as a context, and marks what it hides there', () => {
-    const banner = required(page.selected, 'the banner')
+    const banner = some(page.selected, 'the banner')
     const members = send(
       page,
       Message.Applied({
@@ -315,7 +320,7 @@ describe('the drawn Builder', () => {
     expect(attr(frame, 'data-viewport')).toBe('narrow')
     expect(frame?.data?.style).toMatchObject({ 'max-width': viewportWidths.narrow })
     const selected = all(frame).find(node => attr(node, 'data-composition-selected') !== undefined)
-    expect(attr(selected, 'data-composition-node')).toBe(narrow.selected)
+    expect(attr(selected, 'data-composition-node')).toBe(some(narrow.selected, 'the selection'))
     expect(attr(buttonNamed(root, 'narrow'), 'aria-pressed')).toBe('true')
     expect(text(frame)).toBe('New headingHello')
   })
@@ -325,9 +330,9 @@ describe('the drawn Builder', () => {
       PageBuilder.document(page).nodes[section]?.regions['body']?.[0],
       'the heading',
     )
-    const banner = required(page.selected, 'the banner')
+    const banner = some(page.selected, 'the banner')
     const dragging = send(page, Message.DragStarted({ id: heading }))
-    const over = send(dragging, Message.DraggedOver({ over: { id: banner, zone: 'after' } }))
+    const over = send(dragging, Message.DraggedOver({ id: banner, zone: 'after' }))
     const root = draw(over)
     const rows = byRole(root, 'treeitem')
     expect(rows.map(row => attr(row, 'data-builder-row'))).toEqual([section, heading, banner])
@@ -337,9 +342,7 @@ describe('the drawn Builder', () => {
     expect(attr(dropped, 'data-composition-node')).toBe(banner)
     expect(attr(dropped, 'data-composition-drop')).toBe('after')
     // A Heading may not go before the Section, at the root: nothing is marked.
-    const refused = draw(
-      send(dragging, Message.DraggedOver({ over: { id: section, zone: 'before' } })),
-    )
+    const refused = draw(send(dragging, Message.DraggedOver({ id: section, zone: 'before' })))
     expect(all(refused).some(node => attr(node, 'data-builder-drop') !== undefined)).toBe(false)
     expect(all(refused).some(node => attr(node, 'data-composition-drop') !== undefined)).toBe(false)
   })
@@ -348,12 +351,12 @@ describe('the drawn Builder', () => {
     const refused = send(
       page,
       Message.Applied({
-        op: Composition.Op.move(required(page.selected, 'the banner'), Composition.root(0)),
+        op: Composition.Op.move(some(page.selected, 'the banner'), Composition.root(0)),
       }),
     )
     const root = draw(refused)
     expect(text(byRole(root, 'alert')[0])).toBe(
-      'a root must be Section, and "' + page.selected + '" is a Banner',
+      'a root must be Section, and "' + some(page.selected, 'the banner') + '" is a Banner',
     )
     expect(all(root).some(node => attr(node, 'aria-live') === 'assertive')).toBe(true)
   })

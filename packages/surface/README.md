@@ -254,9 +254,9 @@ constructor from another application is a compile error at the constructor.
 A parameterized Surface's projection is not evaluated until it has params.
 
 `Surface.at(surface, params)` is the Surface as the Model activates it: `params`
-is the value, or a function of the Model returning it (`undefined` while the
-Surface is inactive, on another route say). Its `projectionOf(model)` is the
-projection for those params, or `undefined`, and it carries the Surface's
+is the value, or a function of the Model returning it as an `Option` (none while
+the Surface is inactive, on another route say). Its `projectionOf(model)` is the
+projection for those params, an `Option` too, and it carries the Surface's
 `owner` and `messages`, the tags of the Messages the Surface lists; a Subscription derives what to fetch from a list of them
 (`foldkit-remote`'s `Data.subscriptions`).
 

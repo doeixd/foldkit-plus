@@ -1,4 +1,4 @@
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { Composition, NodeId, type Document } from 'foldkit-composition'
 import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
@@ -17,6 +17,10 @@ const required = <A>(value: A | undefined, what: string): A => {
   return value
 }
 
+/** What an Option holds, or a failed test saying what was missing. */
+const some = <A>(value: Option.Option<A>, what: string): A =>
+  Option.getOrThrowWith(value, () => new Error(`expected ${what}`))
+
 /** Sends a Message, and the Message each Command answers with, until none is left. */
 const send = (model: Model, message: Message): Model => {
   const result = step(model, message)
@@ -26,7 +30,7 @@ const send = (model: Model, message: Message): Model => {
 }
 type Offered = 'Section' | 'Heading'
 const at = (model: Model, block: Offered) =>
-  required(PageBuilder.placeFor(model.page.present, model.selected, block), `a place for ${block}`)
+  some(PageBuilder.placeFor(model.page.present, model.selected, block), `a place for ${block}`)
 const insert = (model: Model, block: Offered) =>
   send(model, Message.InsertAsked({ block, at: at(model, block) }))
 const only = (document: Document, block: string): NodeId =>
@@ -52,7 +56,7 @@ describe('the Builder, headless', () => {
     )
     const section = only(withSection.page.present, 'Section')
     expect(withSection.page.present.roots).toEqual([section])
-    expect(withSection.selected).toBe(section)
+    expect(withSection.selected).toEqual(Option.some(section))
     expect(withSection.page.past).toEqual([PageBuilder.initial.page.present])
   })
 
@@ -69,7 +73,7 @@ describe('the Builder, headless', () => {
     expect(second.page.present.nodes[section]?.regions['body']).toHaveLength(2)
     // A Section cannot go inside a Section or among its Flow: it goes after the root.
     expect(PageBuilder.placeFor(second.page.present, second.selected, 'Section')).toEqual(
-      Composition.root(1),
+      Option.some(Composition.root(1)),
     )
   })
 
@@ -78,10 +82,10 @@ describe('the Builder, headless', () => {
       PageBuilder.initial,
       Message.InsertAsked({ block: 'Button', at: Composition.root(0) }),
     ).model
-    expect(refused.refused?.message).toBe(
-      '"Button" has no starting props, so it cannot be inserted',
+    expect(Option.map(refused.refused, ({ message }) => message)).toEqual(
+      Option.some('"Button" has no starting props, so it cannot be inserted'),
     )
-    expect(insert(refused, 'Section').refused).toBeNull()
+    expect(insert(refused, 'Section').refused).toEqual(Option.none())
   })
 
   it('undoes typing a prop as one step, and redoes it', () => {
@@ -104,11 +108,11 @@ describe('the Builder, headless', () => {
     const body = required(model.page.present.nodes[section]?.regions['body'], 'the body')
     const first = required(body[0], 'the first heading')
     const second = required(body[1], 'the second heading')
-    expect(PageBuilder.moveBy(model.page.present, second, 1)).toBeUndefined()
+    expect(PageBuilder.moveBy(model.page.present, second, 1)).toEqual(Option.none())
     model = send(
       model,
       Message.Applied({
-        op: required(PageBuilder.moveBy(model.page.present, second, -1), 'a move'),
+        op: some(PageBuilder.moveBy(model.page.present, second, -1), 'a move'),
       }),
     )
     expect(model.page.present.nodes[section]?.regions['body']).toEqual([second, first])
@@ -116,12 +120,12 @@ describe('the Builder, headless', () => {
     model = send(model, Message.DuplicateAsked({ id: section, at: Composition.root(1) }))
     expect(model.page.present.roots).toHaveLength(2)
     const copy = required(model.page.present.roots[1], 'the copy')
-    expect(model.selected).toBe(copy)
+    expect(model.selected).toEqual(Option.some(copy))
     expect(model.page.present.nodes[copy]?.regions['body']).toHaveLength(2)
     expect(Composition.validate(Site, model.page.present)).toEqual([])
 
     model = send(model, Message.Applied({ op: Composition.Op.remove(copy) }))
-    expect(model.selected).toBeNull()
+    expect(model.selected).toEqual(Option.none())
     expect(model.page.present.roots).toEqual([section])
   })
 
@@ -129,10 +133,10 @@ describe('the Builder, headless', () => {
     const edited = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
     const replaced = PageBuilder.replace(edited, Composition.empty())
     expect(replaced.page.past).toEqual([])
-    expect(replaced.selected).toBeNull()
+    expect(replaced.selected).toEqual(Option.none())
     const settled = PageBuilder.settle({ ...edited, hovered: edited.selected })
     expect(settled.page.past).toEqual([])
-    expect(settled.hovered).toBeNull()
+    expect(settled.hovered).toEqual(Option.none())
     expect(settled.page.present).toBe(edited.page.present)
   })
 
@@ -212,8 +216,10 @@ describe('the keyboard, the layers and the announcer', () => {
   const alt = { ...plain, altKey: true }
   const ctrl = { ...plain, ctrlKey: true }
   const press = (model: Model, key: string, modifiers = plain): Model => {
-    const message = PageBuilder.keyCommand(model, key, modifiers)
-    return message === undefined ? model : send(model, message)
+    return Option.match(PageBuilder.keyCommand(model, key, modifiers), {
+      onNone: () => model,
+      onSome: message => send(model, message),
+    })
   }
   // Two sections: the first holds two headings.
   const twoSections = () => {
@@ -238,9 +244,11 @@ describe('the keyboard, the layers and the announcer', () => {
     // Out of the Section is refused: a heading cannot be a root, and nothing changes.
     const out = press(raised, 'ArrowLeft', alt)
     expect(out.page.present).toBe(raised.page.present)
-    expect(out.refused?.code).toBe('composition:root-rejects')
+    expect(Option.map(out.refused, ({ code }) => code)).toEqual(
+      Option.some('composition:root-rejects'),
+    )
     // Into the node above: the upper heading holds nothing, so nothing to move into.
-    expect(PageBuilder.keyCommand(selectedLower, 'ArrowRight', alt)).toBeUndefined()
+    expect(PageBuilder.keyCommand(selectedLower, 'ArrowRight', alt)).toEqual(Option.none())
   })
 
   it('moves a node into the node above it, last in a Region that takes it, and back out', () => {
@@ -288,7 +296,7 @@ describe('the keyboard, the layers and the announcer', () => {
     const second = required(model.page.present.roots[1], 'the second section')
     const selected = send(model, Message.Selected({ id: second }))
     // A Section body takes Flow, and a Section is not Flow.
-    expect(PageBuilder.keyCommand(selected, 'ArrowRight', alt)).toBeUndefined()
+    expect(PageBuilder.keyCommand(selected, 'ArrowRight', alt)).toEqual(Option.none())
   })
 
   it('duplicates with Mod+D, removes with Delete, and undoes and redoes with Mod+Z and Mod+Y', () => {
@@ -304,24 +312,26 @@ describe('the keyboard, the layers and the announcer', () => {
       removed.page.present,
     )
     expect(press(press(removed, 'z', ctrl), 'y', ctrl).page.present).toBe(removed.page.present)
-    expect(PageBuilder.keyCommand({ ...removed, selected: null }, 'Delete', plain)).toBeUndefined()
-    expect(PageBuilder.keyCommand(removed, 'a', plain)).toBeUndefined()
+    expect(
+      PageBuilder.keyCommand({ ...removed, selected: Option.none() }, 'Delete', plain),
+    ).toEqual(Option.none())
+    expect(PageBuilder.keyCommand(removed, 'a', plain)).toEqual(Option.none())
   })
 
   it('selects the node the layers’ keyboard focus moves to', () => {
     const { model, first } = twoSections()
     const focused = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: first })))
-    expect(focused.selected).toBe(first)
+    expect(focused.selected).toEqual(Option.some(first))
     expect(focused.layers.current).toBe(first)
     const stray = send(model, Layers.wrapper.make(TreeNavigation.Message.Focused({ id: 'gone' })))
-    expect(stray.selected).toBe(model.selected)
+    expect(stray.selected).toEqual(model.selected)
   })
 
   it('starts the layers’ keys from a selection made anywhere else', () => {
     const { model, first } = twoSections()
     const selected = send(model, Message.Selected({ id: first }))
     expect(selected.layers.current).toBe(first)
-    const cleared = send(selected, Message.Selected({ id: null }))
+    const cleared = send(selected, Message.Deselected())
     expect(cleared.layers.current).toBe(first)
   })
 
@@ -331,9 +341,10 @@ describe('the keyboard, the layers and the announcer', () => {
       Message.InsertAsked({ block: 'Heading', at: Composition.root(0) }),
     )
     const minted = send(edited.model, answer(required(edited.commands?.[0], 'the mint')))
-    expect(minted.refused?.code).toBe('composition:root-rejects')
+    const refusal = some(minted.refused, 'the refusal')
+    expect(refusal.code).toBe('composition:root-rejects')
     expect(minted.announcer.pending).toEqual({
-      message: minted.refused?.message,
+      message: refusal.message,
       politeness: 'assertive',
     })
     const added = insert(insert(PageBuilder.initial, 'Section'), 'Heading')
@@ -370,41 +381,43 @@ describe('dragging a node', () => {
   it('drops before, after or inside a node, counting places without the node dragged', () => {
     const drop = PageBuilder.dropAt
     expect(drop(document, id('h1'), id('h2'), 'after')).toEqual(
-      Composition.region(id('s1'), 'body', 2),
+      Option.some(Composition.region(id('s1'), 'body', 2)),
     )
     expect(drop(document, id('h2'), id('h1'), 'before')).toEqual(
-      Composition.region(id('s1'), 'body', 0),
+      Option.some(Composition.region(id('s1'), 'body', 0)),
     )
     expect(drop(document, id('h1'), id('g'), 'inside')).toEqual(
-      Composition.region(id('g'), 'items', 0),
+      Option.some(Composition.region(id('g'), 'items', 0)),
     )
-    expect(drop(document, id('s2'), id('s1'), 'before')).toEqual(Composition.root(0))
+    expect(drop(document, id('s2'), id('s1'), 'before')).toEqual(Option.some(Composition.root(0)))
   })
 
   it('drops inside a node that takes nothing as after it, and nowhere the page refuses', () => {
     const drop = PageBuilder.dropAt
     expect(drop(document, id('h1'), id('h2'), 'inside')).toEqual(
-      Composition.region(id('s1'), 'body', 2),
+      Option.some(Composition.region(id('s1'), 'body', 2)),
     )
     // A Section fits neither in a Group nor among a Section's Flow.
-    expect(drop(document, id('s2'), id('g'), 'inside')).toBeUndefined()
-    expect(drop(document, id('h1'), id('h1'), 'after')).toBeUndefined()
-    expect(drop(document, id('h1'), id('gone'), 'after')).toBeUndefined()
+    expect(drop(document, id('s2'), id('g'), 'inside')).toEqual(Option.none())
+    expect(drop(document, id('h1'), id('h1'), 'after')).toEqual(Option.none())
+    expect(drop(document, id('h1'), id('gone'), 'after')).toEqual(Option.none())
   })
 
   it('selects what it drags, and moves it on the drop as one undoable, announced edit', () => {
     const started = send(page, Message.DragStarted({ id: id('h1') }))
-    expect(started.selected).toBe(id('h1'))
-    const over = send(started, Message.DraggedOver({ over: { id: id('g'), zone: 'inside' } }))
-    expect(over.drag).toEqual({
-      id: id('h1'),
-      over: { id: id('g'), zone: 'inside' },
-      at: Composition.region(id('g'), 'items', 0),
-    })
+    expect(started.selected).toEqual(Option.some(id('h1')))
+    const over = send(started, Message.DraggedOver({ id: id('g'), zone: 'inside' }))
+    expect(over.drag).toEqual(
+      Option.some({
+        id: id('h1'),
+        over: Option.some({ id: id('g'), zone: 'inside' }),
+        at: Option.some(Composition.region(id('g'), 'items', 0)),
+      }),
+    )
     // Nothing moves until the drop.
     expect(over.page).toBe(page.page)
     const dropped = send(over, Message.DragDropped())
-    expect(dropped.drag).toBeNull()
+    expect(dropped.drag).toEqual(Option.none())
     expect(dropped.page.present.nodes[id('g')]?.regions['items']).toEqual([id('h1')])
     expect(dropped.announcer.pending?.message).toBe('Moved Heading, 1 of 1 in Group items')
     expect(send(dropped, Message.Undid()).page.present).toBe(document)
@@ -413,33 +426,37 @@ describe('dragging a node', () => {
   it('moves nothing on a drop the page refuses, or a cancel, and says so', () => {
     const refused = send(
       send(page, Message.DragStarted({ id: id('s2') })),
-      Message.DraggedOver({ over: { id: id('g'), zone: 'inside' } }),
+      Message.DraggedOver({ id: id('g'), zone: 'inside' }),
     )
-    expect(refused.drag?.at).toBeNull()
+    expect(Option.flatMap(refused.drag, drag => drag.at)).toEqual(Option.none())
     // Over a Heading, which takes nothing inside, the drop is marked where it lands.
     const beside = send(
       send(page, Message.DragStarted({ id: id('h1') })),
-      Message.DraggedOver({ over: { id: id('h2'), zone: 'inside' } }),
+      Message.DraggedOver({ id: id('h2'), zone: 'inside' }),
     )
-    expect(beside.drag?.over).toEqual({ id: id('h2'), zone: 'after' })
+    expect(Option.flatMap(beside.drag, drag => drag.over)).toEqual(
+      Option.some({ id: id('h2'), zone: 'after' }),
+    )
     const dropped = send(refused, Message.DragDropped())
     expect(dropped.page).toBe(page.page)
-    expect(dropped.drag).toBeNull()
+    expect(dropped.drag).toEqual(Option.none())
     expect(dropped.announcer.pending?.message).toBe('Not moved')
     const cancelled = send(refused, Message.DragCancelled())
     expect(cancelled.page).toBe(page.page)
-    expect(cancelled.drag).toBeNull()
+    expect(cancelled.drag).toEqual(Option.none())
     expect(cancelled.announcer.pending?.message).toBe('Not moved')
   })
 
   it('counts a drop onto a node’s own place as no move, and drops where the page is now', () => {
     // h1 is first; before g is where it already is.
-    expect(PageBuilder.dropAt(document, id('h1'), id('g'), 'before')).toBeUndefined()
+    expect(PageBuilder.dropAt(document, id('h1'), id('g'), 'before')).toEqual(Option.none())
     const over = send(
       send(page, Message.DragStarted({ id: id('h2') })),
-      Message.DraggedOver({ over: { id: id('h1'), zone: 'before' } }),
+      Message.DraggedOver({ id: id('h1'), zone: 'before' }),
     )
-    expect(over.drag?.at).toEqual(Composition.region(id('s1'), 'body', 0))
+    expect(Option.flatMap(over.drag, drag => drag.at)).toEqual(
+      Option.some(Composition.region(id('s1'), 'body', 0)),
+    )
     // h1 goes before the drop. First in the body is still a place, but not the one
     // aimed at: before h1, which is not there.
     const gone = send(over, Message.Applied({ op: Composition.Op.remove(id('h1')) }))
@@ -456,13 +473,13 @@ describe('dragging a node', () => {
   })
 
   it('ignores a drag of no node, drag news with no drag, and settles with none', () => {
-    expect(send(page, Message.DragStarted({ id: id('gone') })).drag).toBeNull()
-    expect(send(page, Message.DraggedOver({ over: null }))).toBe(page)
+    expect(send(page, Message.DragStarted({ id: id('gone') })).drag).toEqual(Option.none())
+    expect(send(page, Message.DraggedOff())).toBe(page)
     expect(send(page, Message.DragDropped())).toBe(page)
     expect(send(page, Message.DragCancelled())).toBe(page)
     const dragging = send(page, Message.DragStarted({ id: id('h1') }))
-    expect(PageBuilder.settle(dragging).drag).toBeNull()
-    expect(PageBuilder.replace(dragging, document).drag).toBeNull()
+    expect(PageBuilder.settle(dragging).drag).toEqual(Option.none())
+    expect(PageBuilder.replace(dragging, document).drag).toEqual(Option.none())
   })
 })
 
@@ -483,7 +500,12 @@ describe('previewing the page', () => {
     expect(member.preview).toEqual({ audience: 'member' })
     const flagged = send(member, Message.PreviewChosen({ key: 'beta', value: true }))
     expect(flagged.preview).toEqual({ audience: 'member', beta: true })
+    expect(send(flagged, Message.PreviewCleared({ key: 'audience' })).preview).toEqual({
+      beta: true,
+    })
+    // A context value may itself be null, which is not the key unset.
     expect(send(flagged, Message.PreviewChosen({ key: 'audience', value: null })).preview).toEqual({
+      audience: null,
       beta: true,
     })
   })

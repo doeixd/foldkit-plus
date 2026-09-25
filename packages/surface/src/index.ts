@@ -682,8 +682,8 @@ export interface ActiveSurface<Root> {
   readonly name: string
   /** Identity token of the application the Surface belongs to. */
   readonly owner: object
-  /** The projection for the params the Model gives, or `undefined` while inactive. */
-  readonly projectionOf: (model: Root) => Projection<Root, unknown> | undefined
+  /** The projection for the params the Model gives; none while the Surface is inactive. */
+  readonly projectionOf: (model: Root) => Option.Option<Projection<Root, unknown>>
   /** The tags of the Messages the Surface lists in `messages`: what it may send. */
   readonly messages: ReadonlyArray<string>
   /** Present when the Surface was placed with `Surface.when`; absent for `Surface.at`. */
@@ -1136,25 +1136,23 @@ export const Surface = {
 
   /**
    * A Surface as the Model activates it. `params` is the value, or a function
-   * of the Model returning it (`undefined` while the Surface is inactive, e.g.
-   * on another route); the Surface's requirements then follow the Model.
+   * of the Model returning it (none while the Surface is inactive, e.g. on
+   * another route); the Surface's requirements then follow the Model.
    */
   at: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
-    params: Params | ((model: Root) => Params | undefined),
+    params: Params | ((model: Root) => Option.Option<Params>),
   ): ActiveSurface<Root> => ({
     name: surface.name,
     owner: surface.owner,
     messages: messageTags(surface),
-    projectionOf: model => {
-      const resolved =
+    projectionOf: model =>
+      Option.map(
         typeof params === 'function'
-          ? (params as (model: Root) => Params | undefined)(model)
-          : params
-      return resolved === undefined && surface.Params !== undefined
-        ? undefined
-        : surface.projection(resolved as Params)
-    },
+          ? (params as (model: Root) => Option.Option<Params>)(model)
+          : Option.some(params),
+        surface.projection,
+      ),
   }),
 
   /**
@@ -1198,8 +1196,8 @@ export const Surface = {
       projectionOf: model => {
         const value = place.get(model) as { readonly _tag: string } | undefined
         return value?._tag === tag
-          ? surface.projection(params(value as Schema.Schema.Type<Case>))
-          : undefined
+          ? Option.some(surface.projection(params(value as Schema.Schema.Type<Case>)))
+          : Option.none()
       },
     }
   },

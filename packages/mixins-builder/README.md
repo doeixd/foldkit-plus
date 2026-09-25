@@ -152,7 +152,7 @@ inputs; the Builder keeps no copy:
 ```ts
 EditorSlot.view(model, h, {
   controls: {
-    document: BuilderView.inputs({ data: reads.projectionOf(model)?.read(model) }),
+    document: BuilderView.inputs({ data: reads.data(model) }),
   },
 })
 ```

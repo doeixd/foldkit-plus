@@ -64,47 +64,44 @@ export const Data = Remote.make({
 
 const PageRead = Entity.select(Page, { title: true, slug: true, document: true })
 
-/** The page the address names, read by its slug. */
+/** The page the address names, read by its slug; none on another route. */
 export const pageRead = (model: Model) =>
   model.route._tag === 'Page'
-    ? Data.query(Cms.bySlug(Pages), { slug: model.route.slug }, { select: PageRead, first: 1 })
-    : undefined
+    ? Option.some(
+        Data.query(Cms.bySlug(Pages), { slug: model.route.slug }, { select: PageRead, first: 1 }),
+      )
+    : Option.none()
 
 /** The post the address names. */
 export const postRead = (model: Model) =>
   model.route._tag === 'Post'
-    ? Data.query(Cms.bySlug(Posts), { slug: model.route.slug }, { select: PostPage, first: 1 })
-    : undefined
+    ? Option.some(
+        Data.query(Cms.bySlug(Posts), { slug: model.route.slug }, { select: PostPage, first: 1 }),
+      )
+    : Option.none()
 
 /** The blog's index. */
 export const blogRead = (model: Model) =>
   model.route._tag === 'Blog'
-    ? Data.query(RecentPosts, {}, { select: PostCard, first: 24 })
-    : undefined
+    ? Option.some(Data.query(RecentPosts, {}, { select: PostCard, first: 24 }))
+    : Option.none()
 
 /** The first row a read holds, once it holds any. */
-export const firstOf = <A>(read: RemoteData<RemotePage<A>> | undefined): Option.Option<A> =>
-  read?._tag === 'Ready' || read?._tag === 'Refreshing' ? Arr.head(read.value.items) : Option.none()
+export const firstOf = <A>(read: RemoteData<RemotePage<A>>): Option.Option<A> =>
+  read._tag === 'Ready' || read._tag === 'Refreshing' ? Arr.head(read.value.items) : Option.none()
 
-/**
- * The page being shown, once it is read. `undefined` for none, because that is
- * what `QueryBlock.active` asks of `documentOf` (FINDINGS, item 13).
- */
-export const pageDocument = (model: Model): Document | undefined =>
-  Option.getOrUndefined(Option.map(firstOf(pageRead(model)?.read(model)), page => page.document))
-
-const reading = <P>(name: string, projectionOf: (model: Model) => P) => ({
-  name,
-  owner: App.owner,
-  messages: [],
-  projectionOf,
-})
+/** The page being shown, once it is read. */
+export const pageDocument = (model: Model): Option.Option<Document> =>
+  Option.map(
+    Option.flatMap(pageRead(model), read => firstOf(read.read(model))),
+    page => page.document,
+  )
 
 /** What Remote fetches while it is on screen: the route's read, and the shown page's Blocks. */
 export const actives = {
-  page: reading('SitePage', pageRead),
-  post: reading('SitePost', postRead),
-  blog: reading('SiteBlog', blogRead),
+  page: Data.active('SitePage', pageRead),
+  post: Data.active('SitePost', postRead),
+  blog: Data.active('SiteBlog', blogRead),
   blocks: QueryBlock.active('SiteBlocks', App.owner, Data, Site, pageDocument),
 }
 

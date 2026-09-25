@@ -329,6 +329,42 @@ describe('Data.overlay shows a change nobody has made', () => {
   it('lifting what was never shown is the same Model', () => {
     expect(Data.lift(known, 'nothing')).toBe(known)
   })
+
+  it('says what a preview of an unsaved entity lacks, rather than waiting for it', () => {
+    const detail = Data.get(
+      Project.select({ name: true, owner: User.select({ name: true }) }),
+      'draft',
+    )
+    const shown = Data.overlay(known, 'preview', [Project.patch('draft', { name: 'Draft' })])
+    expect(detail.read(shown)).toEqual({
+      _tag: 'Failed',
+      error: {
+        _tag: 'Overlaid',
+        message:
+          'Project draft is shown only by an overlay, which does not hold owner; the server has not seen it, so nothing will fetch them.',
+      },
+    })
+    // Everything the Selection reads is overlaid: the preview reads.
+    expect(Data.get(summary, 'draft').read(shown)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'Draft' },
+    })
+    // A known entity's missing field is the server's to answer, and a request's
+    // layer is settled by its answer: either is waited for.
+    const overKnown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    expect(
+      Data.get(Project.select({ owner: User.select({ name: true }) }), 'p1').read(overKnown),
+    ).toEqual({
+      _tag: 'Initial',
+    })
+    const creating = Data.mutate(
+      known,
+      Rename,
+      { id: 'draft', name: 'Draft' },
+      { optimistic: [Project.patch('draft', { name: 'Draft' })] },
+    )
+    expect(detail.read(creating.model)).toEqual({ _tag: 'Initial' })
+  })
 })
 
 describe('Data.confirmed reads past what is only pending', () => {
@@ -443,7 +479,9 @@ describe('Data.live and Data.subscriptions', () => {
   })
   const Home = App.surface('Home', { model: () => ({ project: Data.get(summary, 'p1') }) })
   const subscriptions = Data.subscriptions({
-    page: Surface.at(Page, model => (model.route === '' ? undefined : { projectId: model.route })),
+    page: Surface.at(Page, model =>
+      model.route === '' ? Option.none() : Option.some({ projectId: model.route }),
+    ),
     home: Home,
   })
   const at = (route: string): Model => ({ route, remote: Remote.initial })
@@ -698,7 +736,7 @@ describe('what runs on every Model change is built once', () => {
     })
     const subscriptions = Data.subscriptions({
       counted: Surface.at(Counted, model =>
-        model.route === '' ? undefined : { projectId: model.route },
+        model.route === '' ? Option.none() : Option.some({ projectId: model.route }),
       ),
     })
     const model: Model = { route: 'p1', remote: Remote.initial }
@@ -792,6 +830,24 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
     expect(Unowned.contract.owner).toBeUndefined()
     const unownedData = Remote.make({ model: Unowned.store, entities: [Project] })
     expect(Object.keys(unownedData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
+    // A read of its own names no application either, so it is refused, not made up.
+    expect(() => unownedData.active('Detail', () => Option.none())).toThrow(
+      'whose Model field is a raw optic that names no application',
+    )
+  })
+
+  it('makes a read of the domain an active Surface of its application', () => {
+    const detail = Data.get(Project.select({ name: true }), 'p1')
+    const active = Data.active('Detail', (model: Model) =>
+      model.route === '' ? Option.none() : Option.some(detail),
+    )
+    expect(active).toMatchObject({ name: 'Detail', owner: App.owner, messages: [] })
+    expect(Option.isNone(active.projectionOf({ route: '', remote: Remote.initial }))).toBe(true)
+    expect(active.projectionOf({ route: 'p1', remote: Remote.initial })).toEqual(
+      Option.some(detail),
+    )
+    // It is taken as any of the application's Surfaces is.
+    expect(Object.keys(Data.subscriptions({ detail: active }))).toContain('detail.read')
   })
 })
 

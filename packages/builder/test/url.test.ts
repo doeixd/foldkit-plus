@@ -43,15 +43,24 @@ const placements = Parent.assemble(Parent.at(Slot, { onOut: () => model => ({ mo
 // --- The recipe ---
 
 /** The Block a link names, as `?block=`. */
-const blockIn = (url: Url): NodeId | null => {
-  const id = new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')
-  return id === null || id === '' ? null : NodeId.make(id)
-}
+const blockIn = (url: Url): Option.Option<NodeId> =>
+  Option.map(
+    Option.filter(
+      Option.fromNullOr(new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')),
+      id => id !== '',
+    ),
+    NodeId.make,
+  )
 
 /** In: a navigation selects the Block it names, through the Builder's own `update`. */
 const selectFrom = (url: Url) =>
   Message.GotPageMessage({
-    message: PageForm.control('document').send(BuilderMessage.Selected({ id: blockIn(url) })),
+    message: PageForm.control('document').send(
+      Option.match(blockIn(url), {
+        onNone: () => BuilderMessage.Deselected(),
+        onSome: id => BuilderMessage.Selected({ id }),
+      }),
+    ),
   })
 
 const update = placements.update((model, message) =>
@@ -66,16 +75,17 @@ const update = placements.update((model, message) =>
 /** Out: the Builder's selection, written into the URL whenever it changes. */
 const selectionUrl = Subscription.make<Model, Message>()(entry => ({
   selectionUrl: entry(
-    { block: Schema.NullOr(Schema.String) },
+    { block: Schema.Option(Schema.String) },
     {
       modelToDependencies: model => ({
         block: PageForm.control('document').field(model.page).value.selected,
       }),
       dependenciesToStream: ({ block }) =>
         // Nothing selected leaves the URL alone: a page still loading keeps its link.
-        block === null
-          ? Stream.empty
-          : Stream.fromEffect(Navigation.replaceUrl(`?block=${block}`)).pipe(Stream.drain),
+        Option.match(block, {
+          onNone: () => Stream.empty,
+          onSome: id => Stream.fromEffect(Navigation.replaceUrl(`?block=${id}`)).pipe(Stream.drain),
+        }),
     },
   ),
 }))
@@ -106,10 +116,12 @@ const opened: Model = (() => {
 })()
 
 it('selects the Block a link names, and nothing for one the page lacks', () => {
-  expect(selectedOf(send(opened, Message.UrlChanged({ url: urlOf('/edit?block=s') })))).toBe('s')
-  expect(
-    selectedOf(send(opened, Message.UrlChanged({ url: urlOf('/edit?block=gone') }))),
-  ).toBeNull()
+  expect(selectedOf(send(opened, Message.UrlChanged({ url: urlOf('/edit?block=s') })))).toEqual(
+    Option.some('s'),
+  )
+  expect(selectedOf(send(opened, Message.UrlChanged({ url: urlOf('/edit?block=gone') })))).toEqual(
+    Option.none(),
+  )
 })
 
 it('writes the selection into the URL, and leaves it when nothing is selected', async () => {

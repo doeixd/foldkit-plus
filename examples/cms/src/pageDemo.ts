@@ -25,7 +25,6 @@ import {
   Message,
   PageEditor,
   actives,
-  blockReads,
   editing,
   initial,
   pageView,
@@ -116,9 +115,9 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       for (let round = 0; round < 2; round++) {
         for (const active of Object.values(actives)) {
           const projection = active.projectionOf(model)
-          if (projection === undefined) continue
+          if (Option.isNone(projection)) continue
           model = await Effect.runPromise(
-            Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }).pipe(
+            Data.prefetch(model, projection.value, { policy: RemotePolicy.networkOnly }).pipe(
               Effect.provide(client),
             ),
           )
@@ -148,14 +147,15 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     const build = (message: BuilderMessage) => editor(document.send(message))
     /** Sets a prop of the selected Block, as typing in the inspector does. */
     const set = (prop: string, value: string) => {
-      const selected = builder().selected
-      return selected === null
-        ? Promise.resolve()
-        : build(BuilderMessage.Applied({ op: Composition.Op.setProp(selected, prop, value) }))
+      return Option.match(builder().selected, {
+        onNone: () => Promise.resolve(),
+        onSome: selected =>
+          build(BuilderMessage.Applied({ op: Composition.Op.setProp(selected, prop, value) })),
+      })
     }
     /** The options of the inspector's select for a prop of the selected Block, drawn as the editor draws it. */
     const pickerOf = (prop: string) => {
-      const selected = builder().selected
+      const selected = Option.getOrElse(builder().selected, () => '')
       const drawn = elements(
         PageEditing(
           { ...builder(), ...builderInputs(model) },
@@ -184,10 +184,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       title: (value: string) => editor(PageForm.Message.Changed({ key: 'title', value })),
       /** Adds a Block where the Builder's palette would, and selects it. */
       add: (block: 'Section' | 'Heading' | 'Button' | 'LatestPages') => {
-        const at = PageBuilder.placeFor(builder().page.present, builder().selected, block)
-        return at === undefined
-          ? Promise.resolve()
-          : build(BuilderMessage.InsertAsked({ block, at }))
+        return Option.match(
+          PageBuilder.placeFor(builder().page.present, builder().selected, block),
+          {
+            onNone: () => Promise.resolve(),
+            onSome: at => build(BuilderMessage.InsertAsked({ block, at })),
+          },
+        )
       },
       set,
       /** What the inspector's picker for a prop of the selected Block offers, as drawn. */
@@ -237,20 +240,22 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       idOf: (block: string) =>
         Object.entries(builder().page.present.nodes).find(([, node]) => node.block === block)?.[0],
       /** The page being edited, drawn with what its Query Blocks have read so far. */
-      drawn: () => read(editing(model), blockReads(model)?.read(model)),
+      drawn: () => read(editing(model), actives.blocks.data(model)),
       outline: () => outline(builder().page.present),
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => PageEditor.status(model),
       state: () => {
-        const state = PageEditor.state(model)
-        return state === undefined ? '?' : Display.show(Cms.Display.State.of({}), state)
+        return Option.match(PageEditor.state(model), {
+          onNone: () => '?',
+          onSome: state => Display.show(Cms.Display.State.of({}), state),
+        })
       },
-      resumed: () => PageEditor.resumed(model),
+      resumed: () => Option.getOrElse(PageEditor.resumed(model), () => 'not opened'),
       /** The page as this chair's own site reads it: what a preview is drawn through. */
       page: async (): Promise<string> => {
         const id = PageEditor.pageId(model)
-        if (id === null) return 'no page'
-        const projection = pageView(id)
+        if (Option.isNone(id)) return 'no page'
+        const projection = pageView(id.value)
         const held = projection.read(model)
         if (held._tag !== 'Ready' && held._tag !== 'Refreshing')
           model = await Effect.runPromise(

@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
@@ -128,8 +128,9 @@ const form = (model: Model, message: typeof EditPostForm.Message.Type) =>
 
 /** What Remote's read Subscription does for the active Surface. */
 const load = async (model: Model): Promise<Model> => {
-  const projection = PostEditor.active.projectionOf(model)
-  if (projection === undefined) return model
+  const active = PostEditor.active.projectionOf(model)
+  if (Option.isNone(active)) return model
+  const projection = active.value
   const loaded = await Effect.runPromise(
     Data.prefetch(model, projection).pipe(Effect.provide(Client)),
   )
@@ -154,15 +155,15 @@ beforeEach(() => {
 describe('Crud.editor', () => {
   it('starts closed, requiring and showing nothing', () => {
     expect(PostEditor.status(initial)).toBe('Closed')
-    expect(PostEditor.active.projectionOf(initial)).toBeUndefined()
+    expect(Option.isNone(PostEditor.active.projectionOf(initial))).toBe(true)
   })
 
   it('loads exactly what the form writes, and is Loading until it arrives', async () => {
     const opened = await dispatch(initial, Message.OpenedPost({ id: 'p1' }))
-    const projection = PostEditor.active.projectionOf(opened)
+    const projection = Option.getOrThrow(PostEditor.active.projectionOf(opened))
 
     expect(PostEditor.status(opened)).toBe('Loading')
-    expect(requirementsOf(projection!)).toEqual([
+    expect(requirementsOf(projection)).toEqual([
       { entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] },
     ])
     expect(Editor.selection.members).toEqual({ id: true, title: true, author: true })
@@ -259,7 +260,7 @@ describe('Crud.editor', () => {
       requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'title', 'author'] }],
       error: { _tag: 'RemoteReadError', message: 'offline' },
     })
-    const projection = PostEditor.active.projectionOf(failed)!
+    const projection = Option.getOrThrow(PostEditor.active.projectionOf(failed))
     expect(PostEditor.status(failed)).toBe('LoadFailed')
     expect(Data.plan(failed, projection)).toEqual([])
 
@@ -336,7 +337,7 @@ describe('Crud.editor', () => {
     const blank = Placed.helpers.blank()(initial).model
 
     expect(PostEditor.status(blank)).toBe('Editing')
-    expect(PostEditor.active.projectionOf(blank)).toBeUndefined()
+    expect(Option.isNone(PostEditor.active.projectionOf(blank))).toBe(true)
     expect(drafts(blank)).toEqual({ id: '', title: '', authorId: '' })
     expect(PostEditor.status(Placed.helpers.close()(blank).model)).toBe('Closed')
   })

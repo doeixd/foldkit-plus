@@ -15,7 +15,7 @@ import {
   view as editorView,
   type Model,
 } from './pageApp.js'
-import { badge, chair, failed, shell, statusLine } from './shell.js'
+import { badge, chair, failed, shell, stateIs, statusLine } from './shell.js'
 import { pageHref } from './site.js'
 import { AdminSlots, AdminStyle } from './style.js'
 
@@ -55,13 +55,16 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PageEditor.status(model)
   const error = PageEditor.error(model)
   const state = PageEditor.state(model)
-  const id = PageEditor.pageId(model)
-  const read = id === null ? undefined : pageView(id).read(model)
-  const live =
-    (read?._tag === 'Ready' || read?._tag === 'Refreshing') &&
-    (state?._tag === 'Published' || state?._tag === 'Changed')
-      ? read.value.slug
-      : undefined
+  // The page's address on the site, once it is shown there.
+  const live = Option.flatMap(
+    Option.filter(PageEditor.pageId(model), () => stateIs(state, 'Published', 'Changed')),
+    id => {
+      const read = pageView(id).read(model)
+      return read._tag === 'Ready' || read._tag === 'Refreshing'
+        ? Option.some(read.value.slug)
+        : Option.none()
+    },
+  )
   return h.section(slots.panel.attrs([h.Id('editor')]), [
     h.div(slots.panelHead.attrs(), [
       h.div(slots.toolbar.attrs(), [
@@ -69,7 +72,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
           '← All pages',
         ]),
         h.h2(slots.panelTitle.attrs(), ['Edit page']),
-        badge(slots, h, Option.fromUndefinedOr(state)),
+        badge(slots, h, state),
       ]),
       h.div(slots.toolbar.attrs(), [
         h.p(
@@ -78,15 +81,17 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
             h.Role('status'),
             ...(failed(status) ? [h.DataAttribute('tone', 'error')] : []),
           ]),
-          [statusLine[status], error === undefined ? '' : `: ${error.message}`],
+          [
+            statusLine[status],
+            Option.match(error, { onNone: () => '', onSome: ({ message }) => `: ${message}` }),
+          ],
         ),
-        ...(live === undefined
-          ? []
-          : [
-              h.a(slots.button.attrs([h.Href(`${pageHref(live)}?as=${chair}`)]), [
-                'View on site ↗',
-              ]),
-            ]),
+        ...Option.match(live, {
+          onNone: () => [],
+          onSome: slug => [
+            h.a(slots.button.attrs([h.Href(`${pageHref(slug)}?as=${chair}`)]), ['View on site ↗']),
+          ],
+        }),
       ]),
     ]),
     ...(['Loading', 'NotFound', 'LoadFailed'].includes(status) ? [] : [editorView(model, h)]),

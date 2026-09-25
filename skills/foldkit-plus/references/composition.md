@@ -123,8 +123,8 @@ is refused, not dropped. See
 
 `SurfaceBlock.define(name, { Props, provides, surface, params: props => params })`;
 `SurfaceBlock.reads(Site, doc)` / `SurfaceBlock.active(name, App.owner, Site,
-m => doc)`; values reach the Renderer through `data`, read with
-`Cart.value(data)`. Not where the Catalog is in the Model (circular types):
+m => Option.some(doc))`; values reach the Renderer through `data`
+(`features.data(model)`), read with `Cart.value(data)` (an `Option`). Not where the Catalog is in the Model (circular types):
 use a Query Block's shape there.
 
 ## Stateful Blocks
@@ -142,10 +142,11 @@ view needs a runtime. `Composition.statefulNodes(catalog, doc, block?)`.
 `QueryBlock.define(name, { Props, provides, query, input: props => queryInput,
 select, first?: props => n })` — a Block that names a registered Remote query;
 the Document stores only its props. `QueryBlock.reads(Data, Site, document)`:
-one Projection (node id → RemoteData<Page<Row>>);
-`QueryBlock.active(name, App.owner, Data, Site, model => document)` is it as an active
-Surface for `Data.wiring` / `subscriptions` / an SSR plan's `surfaces` (with
-`Remote.resume(Data)`); `Renderer.render(r, doc, h, { data: reads.read(model) })`; in the
+one Projection (node id → RemoteData<Page<Row>>), an `Option` (none: no Query Blocks);
+`QueryBlock.active(name, App.owner, Data, Site, model => Option.some(document))` is it
+as an active Surface for `Data.wiring` / `subscriptions` / an SSR plan's `surfaces` (with
+`Remote.resume(Data)`); `Renderer.render(r, doc, h, { data: reads.data(model) })`
+(`{}` while inactive); in the
 view, `LatestPages.rows(data)` (typed; `Initial` without data). Don't close
 over `Data` in a Block: the Catalog is in the Model through the Builder. The
 drawn Builder's canvas has no app data, so it shows the Initial state.
@@ -211,21 +212,23 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
 
 - Model: `page` (an undo history from `foldkit-primitives/state`; `page.present`
   is the Document; `PageBuilder.document(model)` reads it), `selected`,
-  `hovered`, `panel`, `viewport`, `refused`, `drag`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
-  `DuplicateAsked({ id, at })`, `Minted` (from its own Command), `Selected`,
-  `Hovered`, `Undid`, `Redid`, `PanelChosen`, `ViewportChosen`, and
-  `DragStarted({ id })`, `DraggedOver({ over: { id, zone } | null })`,
+  `hovered`, `refused`, `drag` (each an `Option`, stored as `null`), `panel`,
+  `viewport`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
+  `DuplicateAsked({ id, at })`, `Minted` (from its own Command),
+  `Selected({ id })` / `Deselected()`, `Hovered({ id })` / `Unhovered()`, `Undid`,
+  `Redid`, `PanelChosen`, `ViewportChosen`, `PreviewChosen` / `PreviewCleared`, and
+  `DragStarted({ id })`, `DraggedOver({ id, zone })`, `DraggedOff()`,
   `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
-  (`dropAt`; inside a node that takes nothing is after it, and `over.zone`
-  says so), `null` where the page refuses or onto the node's own place; a drop
+  (`dropAt`; inside a node that takes nothing is after it, and `over`'s zone
+  says so), none where the page refuses or onto the node's own place; a drop
   is one undoable move, its place worked out again when it happens.
 - Ids are minted in a Command; an edit and its undo step change together;
   a new node is selected; a refusal is kept in `refused` until the next edit.
 - As a form key: a change of the Document is an edit (autosaved by CMS), a
   selection is not; fill replaces the page and starts undo over.
-- Helpers: `PageBuilder.placeFor(doc, selected, block)`,
-  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.dropAt(doc, dragged, target, zone)`,
-  `PageBuilder.replace`, `PageBuilder.settle`.
+- Helpers, each answering with an `Option`: `PageBuilder.placeFor(doc, selected, block)`,
+  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.dropAt(doc, dragged, target, zone)`;
+  and `PageBuilder.replace`, `PageBuilder.settle`.
 - Places `TreeNavigation` (`Layers`, open by default) and `LiveAnnounce`
   (`Announcer`) in its Model; layers focus selects the node. Shortcuts:
   `PageBuilder.keyCommand(model, key, modifiers)` (Alt+arrows move, out of and
@@ -236,11 +239,11 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   `foldkit-mixins-form` draws it with the form. One node is selected at a time.
   `PageBuilder.inputWith(view)` is the same control drawn by another view.
   Selection in the URL (a recipe, no API): on `UrlChanged` send
-  `form.control('document').send(Message.Selected({ id }))`; a Subscription over
+  `form.control('document').send(Message.Selected({ id }))` (or `Deselected()`); a Subscription over
   `form.control('document').field(model.page).value.selected` calls
   `Navigation.replaceUrl`. See the Builder README.
   Canvas data: the form view's `controls: { document: BuilderView.inputs({ data:
-  reads.projectionOf(model)?.read(model) }) }` (standalone: `placed.view(model, h,
+  reads.data(model) }) }` (standalone: `placed.view(model, h,
   BuilderView.inputs({ data }))`), where `reads` is `QueryBlock.active(...)`.
 
 ## The drawn editor: `foldkit-mixins-builder`

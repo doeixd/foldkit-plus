@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Result, Schema } from 'effect'
+import { Result, Schema, Option } from 'effect'
 import { Entity } from 'foldkit-entity'
 import * as RichText from 'foldkit-richtext'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
@@ -299,7 +299,9 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     params: props => ({ caption: props.caption }),
   })
   const Shop = Catalog.make({ blocks: [Section, Cart], roots: [Content.Section] })
-  const features = SurfaceBlock.active('Features', App.owner, Shop, () => Composition.empty())
-  expectTypeOf(Cart.value).returns.toEqualTypeOf<{ readonly count: number } | undefined>()
+  const features = SurfaceBlock.active('Features', App.owner, Shop, () =>
+    Option.some(Composition.empty()),
+  )
+  expectTypeOf(Cart.value).returns.toEqualTypeOf<Option.Option<{ readonly count: number }>>()
   void features
 }

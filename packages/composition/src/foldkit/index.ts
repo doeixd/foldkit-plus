@@ -105,22 +105,23 @@ const render = <Blocks extends AnyBlock, Message>(
   options: {
     readonly mode?: Mode
     /** In edit mode, the node to mark selected. */
-    readonly selected?: NodeId | null
+    readonly selected?: NodeId | undefined
     /** In edit mode, the node to mark hovered. */
-    readonly hovered?: NodeId | null
+    readonly hovered?: NodeId | undefined
     /**
      * What the page is drawn for, as the Catalog's `context` declares. A node
      * whose `when` does not hold is left out, or, in edit mode, drawn marked
      * `data-composition-hidden`. Without it, a node with conditions is hidden.
      */
-    readonly context?: Readonly<Record<string, unknown>>
+    readonly context?: Readonly<Record<string, unknown>> | undefined
     /**
      * Each node's read, by node id, such as a Model read of
      * `QueryBlock.reads(Data, catalog, document)`.
      */
-    readonly data?: Readonly<Record<string, unknown>>
+    readonly data?: Readonly<Record<string, unknown>> | undefined
     /** In edit mode, the node a drop is aimed at, and where. */
-    readonly drop?: { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | null
+    readonly drop?:
+      { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | undefined
   } = {},
 ): ReadonlyArray<Html> => {
   const mode = options.mode ?? 'view'

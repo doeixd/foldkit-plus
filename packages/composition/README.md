@@ -558,14 +558,16 @@ const SiteRenderer = Renderer.make(Site, {
 ```
 
 - **`QueryBlock.reads(Data, catalog, document)`** is every Query Block on the
-  page as one Projection over the application's Model, keyed by node id, or
-  `undefined` when there is none. A node whose props do not decode reads
-  nothing.
-- **`QueryBlock.active(name, App.owner, Data, catalog, model => document)`** is that read
-  as an active Surface, for `Data.wiring`, `Data.subscriptions` or an SSR
-  plan's `surfaces`: Remote fetches, caches and authorizes it like any read,
-  and `Remote.resume(Data)` carries exactly what it selected into a
-  server-rendered page.
+  page as one Projection over the application's Model, keyed by node id, an
+  `Option`: none when the page has none. A node whose props do not decode
+  reads nothing.
+- **`QueryBlock.active(name, App.owner, Data, catalog, model => Option.some(document))`**
+  is that read as an active Surface, for `Data.wiring`, `Data.subscriptions` or
+  an SSR plan's `surfaces`: Remote fetches, caches and authorizes it like any
+  read, and `Remote.resume(Data)` carries exactly what it selected into a
+  server-rendered page. `documentOf` returns none while there is no page.
+  **`reads.data(model)`** is each node's value, as a Renderer's `data` takes
+  it, and `{}` while there is nothing to read.
 - **`Renderer.render(..., { data: reads.read(model) })`** hands each node its
   value as `data`, and **`LatestPages.rows(data)`** reads it typed by what the
   Block selects, `Initial` while there is nothing.
@@ -589,11 +591,11 @@ const Cart = SurfaceBlock.define('Cart', {
   surface: CartSummary,
   params: props => ({ caption: props.caption }),
 })
-// In the Renderer: Cart: ({ data, h }) => { const cart = Cart.value(data); ... }
+// In the Renderer: Cart: ({ data, h }) => Option.match(Cart.value(data), { ... })
 ```
 
 `SurfaceBlock.reads(catalog, document)` and `SurfaceBlock.active(name,
-App.owner, catalog, model => document)` are the page's Surface Blocks as one
+App.owner, catalog, model => Option.some(document))` are the page's Surface Blocks as one
 Projection, or an active Surface, exactly as a Query Block's are, and their
 values reach the Renderer the same way, through `data`. The active Surface may
 send what each placed Surface lists in its `messages`, and refuses a Surface of
