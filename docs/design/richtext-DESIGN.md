@@ -1,6 +1,7 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2 (slice 3 dropped per §123), §120's slice 1, and the slash menu's vocabulary (§123) have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory.
+**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2 (slice 3 dropped per §123), §120's slice 1, and the slash menu's vocabulary (§123) have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory; §124 proposes a
+Markdown-first reordering of what to build next, and is a plan rather than a status report.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4546,7 +4547,9 @@ That should be the constraint against which every API decision is evaluated.
 
 # 115. Remaining work
 
-A verified inventory of what is not done, by phase. In this section:
+A verified inventory of what is not done, by phase. §124 proposes a different order
+for the work than these phases do; this inventory stays the record of what exists. In
+this section:
 
 - **package** means the core `packages/richtext` (private, unpublished); the DOM
   package `packages/richtext-dom` and the Mixins family `packages/mixins-richtext`
@@ -5467,5 +5470,1211 @@ Slices:
    `foldkit-primitives` for `RovingTabindex.move`). The keys stay the application's
    (`OnKeyDownPreventDefault` while a query is live), so nothing is left here.
 3. `EditorState` gains the highlighted entry, and the Bundle's `update` resolves
-   `Entered` against a live query before it splits.
+   `Entered` against a live query before it splits. — **blocked on where the catalogue
+   lives.** Tracing it shows §123's plan cannot be built as written: the Bundle is in
+   `foldkit-richtext-dom`, and the catalogue is in `foldkit-mixins-richtext`, which
+   depends on `richtext-dom` — so the Bundle cannot import the entries it must resolve
+   Enter against, and the parent cannot do it either, because the Bundle turns `Entered`
+   into `SplitBlock` before the parent sees anything. Three ways out, and the third is
+   the one to take:
+
+   1. Give the Bundle a catalogue through its args or a placement. The caller's Messages
+      are not schema-decodable across that boundary in the shape the Bundle needs, and
+      §122 already rejected functions there.
+   2. Emit an OutMessage when Enter lands in a live query and let the parent choose. It
+      works, but it moves "what does this key mean" out of the editor and hands the
+      parent a command layer it may not want.
+   3. **Put the catalogue in `foldkit-richtext`, as commands.** An entry does not need to
+      be a Message to be described — `{ type: 'RetypeBlock', to }` and
+      `{ type: 'ToggleMark', mark }` are the core's own commands — so the core can own
+      `slashQuery`, the entries, `matchingEntries`, and `slashMenu` with no dependency
+      pointing the wrong way, and the Bundle resolves Enter with
+      `slashMenu(...).highlighted?.command` and runs it. The family's
+      `slashEntries(wrap)` then becomes a thin map from the core's commands to the
+      caller's Messages, one catalogue rather than two, and `slashMove` + the view stay
+      in the family where the primitives and the slots are.
+
+   So slice 3 starts with a move, not a feature: `slashQuery`, `matchingEntries`,
+   `SlashMenu`, and a command-valued `slashEntries` descend into `foldkit-richtext` with
+   their tests; `foldkit-mixins-richtext` keeps `slashMove` and the view and derives its
+   Message-valued entries from the core's. Then `EditorState` gains the index, a
+   `MenuMoved` Message moves it, and `Entered` resolves through the menu before it
+   splits.
 4. The skill and an example (the harness or a small demo) drive it.
+
+
+
+# 124. A Markdown-first roadmap
+
+> **A proposed reordering, recorded 2026-09-25.** §115 remains the inventory of what
+> exists; this section is the recommended sequence for what to build next, and it
+> deliberately puts Markdown before collaboration. It is a plan, not a status report:
+> nothing here is implemented unless §115 or a later note says so.
+
+The argument is that Markdown is the forcing function which finishes the rest of the
+architecture. Lexical is prior art for the boundaries — its Markdown work separates
+block, multiline, text-format, and text-match transformers, its experimental mdast path
+drives import, export, and shortcuts from one micromark/mdast grammar, and its code
+support is separate from Prism/Shiki — not for its editor runtime. The current
+implementation already has the pieces this builds on: semantic commands, nested blocks,
+mark props, rendering registries, `Input.bundle`, CMS authored-change reporting, and the
+real DOM editor.
+
+## The north-star architecture
+
+I would aim for this:
+
+```text
+                           RichText.Kit
+                    semantic vocabulary/rules
+                              │
+                              ▼
+                     RichText.Document
+                              │
+       ┌──────────────────────┼─────────────────────┐
+       │                      │                     │
+       ▼                      ▼                     ▼
+ Rich DOM editor        Markdown interpreter      tooling
+       │                parse / print / rules       │
+       │                      │                     │
+       │               Markdown source mode         │
+       │                      │                     │
+       └──────────┬───────────┴───────────┬─────────┘
+                  │                       │
+                  ▼                       ▼
+          semantic Commands         Decorations
+                  │                 syntax / lint /
+        ┌─────────┴─────────┐       search / cursors
+        ▼                   ▼
+ local backend        replica backend
+ Transactions         convergent changes
+        │                   │
+        ▼                   ▼
+      Model           Sync / Durable
+        │
+        ▼
+ Input.bundle / CMS / SSR
+```
+
+The rule I'd protect is:
+
+> **Markdown is an interpreter and an editing language over `RichText.Document`; it is not a second document model.**
+
+That single decision keeps everything Foldkit-native.
+
+---
+
+## 1. Build `foldkit-richtext-markdown`
+
+This should be a DOM-free package depending on `foldkit-richtext` plus a real Markdown parser stack—I'd strongly lean toward **micromark + mdast**, rather than maintaining a home-grown Markdown grammar.
+
+Lexical itself is now exploring exactly this direction with `@lexical/mdast`: one parser drives parsing, serialization, and shortcuts, while gaining CommonMark/GFM behavior rather than keeping multiple Markdown grammars synchronized. Importantly, Lexical still considers that new path experimental, so I'd borrow the architecture rather than depend on Lexical itself.
+
+The API should feel like the existing rendering registry: interpreter definitions live **outside** the semantic Kit.
+
+Something roughly like:
+
+```ts
+const ArticleMarkdown = Markdown.make(ArticleKit, {
+  extensions: [
+    Markdown.commonMark,
+    Markdown.gfm,
+  ],
+
+  nodes: {
+    Callout: Markdown.node({
+      from: ...,
+      to: ...,
+    }),
+  },
+
+  marks: {
+    Highlight: Markdown.mark({
+      from: ...,
+      to: ...,
+    }),
+  },
+})
+```
+
+Then:
+
+```ts
+const result =
+  Markdown.parse(
+    ArticleMarkdown,
+    source,
+    ids,
+  )
+
+result.document
+result.diagnostics
+result.sourceMap
+```
+
+and:
+
+```ts
+const result =
+  Markdown.print(
+    ArticleMarkdown,
+    document,
+  )
+
+result.markdown
+result.diagnostics
+```
+
+The important symmetry is:
+
+```text
+RichText.Kit
+    semantic validity
+
+Rendering
+    semantic → HTML/DOM
+
+Markdown
+    semantic ↔ Markdown
+
+Loro backend
+    semantic commands ↔ CRDT
+
+Agent
+    capabilities → semantic commands
+```
+
+None of these belong *inside* the Kit.
+
+---
+
+## 2. Give Foldkit a standard semantic content vocabulary
+
+Markdown exposes that RichText still has a vocabulary gap.
+
+I'd add either `foldkit-richtext-standard` or a standard subpath containing semantic definitions for:
+
+```text
+Paragraph
+Heading
+Quote
+
+List
+ListItem
+TaskItem
+
+CodeBlock
+ThematicBreak
+
+Table
+TableRow
+TableCell
+
+Image
+HardBreak
+
+Bold
+Italic
+Strikethrough
+InlineCode
+Link
+```
+
+Not because Markdown owns these concepts—it doesn't—but because they are ordinary semantic document constructs that Markdown happens to represent.
+
+Then:
+
+```text
+Markdown                    HTML
+    \                       /
+     \                     /
+      ▼                   ▼
+       Standard RichText
+          vocabulary
+```
+
+Custom application Kits extend that:
+
+```ts
+const ArticleKit = RichText.kit({
+  nodes: [
+    ...Standard.nodes,
+    Callout,
+    ProductCard,
+  ],
+
+  marks: [
+    ...Standard.marks,
+    Highlight,
+  ],
+})
+```
+
+This finishes a lot of that ~80% structured-content bar at the same time.
+
+### Important addition to Kit
+
+Standard nodes will expose one missing semantic capability: **content rules more precise than `textContent` vs `blockContent`.**
+
+A `CodeBlock`, for example, should probably say:
+
+```text
+accepts text
+does not accept arbitrary formatting marks
+has language metadata
+```
+
+A `List` should say:
+
+```text
+children must be ListItem
+```
+
+A `Table`:
+
+```text
+Table → TableRow → TableCell → blocks
+```
+
+So I'd add a small Kit-level structural constraint API rather than hard-code standard nodes into the editor.
+
+---
+
+## 3. Full CommonMark + GFM support
+
+Don't call Markdown support “done” when headings and bold work.
+
+The compatibility target should explicitly include:
+
+```text
+CommonMark
++
+GFM:
+  strikethrough
+  autolinks
+  tables
+  task lists
+```
+
+Plus the practical editor features people expect:
+
+```text
+fenced code + language
+indented code
+hard line breaks
+images
+links + titles
+nested lists
+mixed ordered/unordered lists
+blockquotes
+thematic breaks
+escaped punctuation
+HTML policy
+```
+
+Every unsupported semantic conversion returns a diagnostic rather than silently throwing information away.
+
+For example:
+
+```ts
+Markdown.print(profile, document)
+
+// {
+//   markdown,
+//   diagnostics: [
+//     {
+//       type: "UnsupportedNode",
+//       node: productCard.id,
+//       kind: "ProductCard"
+//     }
+//   ]
+// }
+```
+
+Applications could provide extensions:
+
+```ts
+ProductCard → :::product id="..." ...
+```
+
+but core never invents a syntax.
+
+---
+
+## 4. Markdown shortcuts should become first-class editor rules
+
+This is where I would borrow heavily from Lexical's Markdown shortcut behavior, but make it Foldkit-native.
+
+Typing:
+
+```text
+#␠
+```
+
+at the beginning of a paragraph should become:
+
+```text
+Paragraph("# ")
+      ↓
+Markdown input rule
+      ↓
+remove "# "
+RetypeBlock(Heading(1))
+```
+
+Similarly:
+
+```text
+>␠       → Quote
+-␠       → unordered List
+1.␠      → ordered List
+```␠     → CodeBlock
+---⏎     → ThematicBreak
+```
+
+Inline:
+
+```text
+**foo**     → Bold
+_foo_       → Italic
+~~foo~~     → Strikethrough
+`foo`       → InlineCode
+[text](url) → Link
+```
+
+But **do not implement these as `Transform`s**.
+
+Transforms currently mean canonical normalization:
+
+```text
+equivalent Text runs should merge
+```
+
+Markdown shortcuts are contextual user behavior:
+
+```text
+the user typed "# " at this particular moment
+```
+
+Those are different things.
+
+I'd introduce a general, DOM-free editing concept such as:
+
+```ts
+interface InputRule {
+  match(context): Match | undefined
+  execute(match, context): EditorAction
+}
+```
+
+Then:
+
+```ts
+Markdown.inputRules(ArticleMarkdown)
+```
+
+can supply them.
+
+This also gives you a home later for:
+
+```text
+smart quotes
+em-dashes
+autolink
+emoji replacements
+@mentions
+```
+
+without turning normalization into a bag of UX behavior.
+
+---
+
+## 5. Add atomic `EditorAction` / command composition
+
+Markdown shortcuts expose another missing primitive.
+
+A Markdown shortcut frequently means **several semantic commands that must be one undo step and one replicated action**.
+
+For example:
+
+```text
+delete "# "
++
+retype Paragraph → Heading
+```
+
+I would therefore add a very small layer above individual commands:
+
+```ts
+const action = RichText.action([
+  Command.deleteRange(...),
+  Command.retypeBlock(...),
+])
+```
+
+or a smart builder equivalent.
+
+Semantics:
+
+```text
+EditorAction
+    contains semantic Commands
+    executes atomically
+    creates one history unit
+    produces one combined ChangeSet
+```
+
+Then both future backends can execute it:
+
+```text
+EditorAction
+    ├── LocalBackend
+    │     → one atomic Transaction/result
+    │
+    └── ReplicaBackend
+          → one causal/convergent edit unit
+```
+
+This will be useful far beyond Markdown:
+
+```text
+slash commands
+drag/drop
+agents
+table operations
+smart paste
+multi-block transformations
+```
+
+I think Markdown gives you enough real evidence to justify extracting this now.
+
+---
+
+## 6. Build the generic Decoration substrate
+
+Before syntax highlighting.
+
+This fills one of the most obvious remaining architecture gaps.
+
+Something conceptually like:
+
+```ts
+Decoration.range({
+  from,
+  to,
+
+  kind: "syntax",
+
+  data: {
+    token: "keyword",
+  },
+})
+```
+
+with:
+
+```ts
+type DecorationSet =
+  ReadonlyArray<Decoration>
+```
+
+Decorations must remain:
+
+```text
+derived
+ephemeral
+not serialized
+not part of undo
+not CMS-authored content
+not replicated
+```
+
+The DOM interpreter gets:
+
+```text
+Document
+Selection
+Decorations
+```
+
+and overlays them without modifying the document.
+
+This immediately gives one infrastructure for:
+
+```text
+syntax highlighting
+search results
+spellcheck
+lint diagnostics
+AI suggestions
+remote selections
+remote cursors
+comment highlights
+```
+
+That's a major architectural win.
+
+---
+
+## 7. Code blocks + great syntax highlighting
+
+Follow Lexical's recent package split here.
+
+Lexical now distinguishes code functionality from its Prism/Shiki implementations rather than baking one highlighter into the semantic code feature.
+
+Foldkit should do the same.
+
+Semantic document:
+
+```text
+CodeBlock {
+  language: "typescript"
+
+  Text(
+    "const x = foo()"
+  )
+}
+```
+
+No:
+
+```text
+Text("const", Keyword)
+Text("x", Variable)
+```
+
+Those are derived decorations.
+
+Architecture:
+
+```text
+CodeBlock
+    │
+    ▼
+code text + language
+    │
+    ▼
+Tokenizer
+    │
+    ▼
+DecorationSet
+    │
+    ▼
+richtext-dom
+```
+
+I'd probably eventually expose:
+
+```text
+foldkit-richtext-code
+foldkit-richtext-code-shiki
+```
+
+and perhaps Prism only if there is demand.
+
+Shiki integration should:
+
+```text
+lazy-load grammars
+cache by block/text/language/theme
+cancel stale work
+only re-highlight changed blocks
+produce Decorations
+never mutate Document
+```
+
+For synchronous/simple tokenizers, the same contract works without Effects.
+
+For async Shiki, let a Bundle Command compute the highlighting and commit the ephemeral result into editor interaction state. Don't introduce a hidden highlighter store.
+
+---
+
+## 8. Rich Markdown source mode
+
+Then build the thing that makes this feel like a **Markdown editor**, rather than a rich editor that happens to import `.md`.
+
+Modes:
+
+```text
+Rich
+Markdown
+Split
+```
+
+I would make a `MarkdownEditor` orchestration Bundle, rather than complicating the semantic core.
+
+```text
+MarkdownEditor Model
+
+mode
+sourceDraft
+sourceSelection
+parseDiagnostics
+
+RichText Editor Model
+```
+
+Crucially:
+
+> Only one representation is actively editable at a time.
+
+### Enter source mode
+
+```text
+Document
+   ↓
+Markdown.print
+   ↓
+sourceDraft
+```
+
+### While source editing
+
+```text
+sourceDraft
+    ↓
+Markdown.parse
+    ↓
+candidate Document
+    ↓
+preview
+```
+
+The Markdown string may temporarily be the source editor's local authority, just as IME text may temporarily be browser authority.
+
+It is **not published content**.
+
+### Return to rich mode
+
+```text
+valid sourceDraft
+    ↓
+parse
+    ↓
+replace semantic Document
+    ↓
+Rich editor
+```
+
+If conversion would lose unsupported semantics, surface that explicitly before switching.
+
+This should be backed by `Input.bundle`, which now exists, so the whole editor can remain one Form control.
+
+---
+
+## 9. Preserve source formatting without contaminating Document
+
+A truly good Markdown editor shouldn't turn:
+
+```markdown
+_hello_
+```
+
+into:
+
+```markdown
+*hello*
+```
+
+every time the user toggles modes unless it has to.
+
+Lexical's new mdast experiment is interesting specifically because it preserves enough original syntax to minimize Markdown changes during serialization.
+
+For Foldkit I'd add:
+
+```ts
+Markdown.SourceMap
+```
+
+or:
+
+```ts
+Markdown.RoundTripState
+```
+
+returned alongside parsing:
+
+```ts
+const {
+  document,
+  roundTrip,
+} = Markdown.parse(...)
+```
+
+It can contain ephemeral hints such as:
+
+```text
+_ vs *
+** vs __
+bullet marker
+ordered-list delimiter
+fence character/length
+heading style
+source ranges
+```
+
+Then:
+
+```ts
+Markdown.print(profile, document, {
+  previous: roundTrip,
+})
+```
+
+can preserve syntax where semantics haven't changed.
+
+Important:
+
+```text
+RichText.Document     persistent semantic content
+
+Markdown.RoundTrip    editor-local interpreter state
+```
+
+Do **not** put Markdown trivia into semantic nodes.
+
+If round-trip information is unavailable, emit canonical Markdown.
+
+---
+
+## 10. Upgrade HTML import at the same time
+
+The current HTML importer deliberately ignores arbitrary attributes, which is a sound safety baseline—but it means pasted links from normal web content cannot become useful Link marks.
+
+For a great editor, move to **Kit/interpreter-aware safe attribute import**:
+
+```ts
+HtmlImport.make({
+  marks: {
+    Link: {
+      tag: "a",
+      attributes: {
+        href: Url.safe,
+        title: String.optional,
+      },
+    },
+  },
+})
+```
+
+Still reject:
+
+```text
+onclick
+style injection
+javascript:
+unknown arbitrary attrs
+```
+
+but allow known semantic attributes under explicit schemas/policies.
+
+That brings HTML, Markdown, clipboard, and RichText into alignment.
+
+---
+
+## 11. Finish the editor UX layer
+
+Once Markdown shortcuts exist, the missing Phase-4 UI becomes much more useful.
+
+Finish:
+
+```text
+editor Message keymap layer
+slash/typeahead menu
+floating selection toolbar
+link popover/editor
+block type picker
+block handle
+drag/drop
+placeholder
+status/diagnostic surface
+command palette
+```
+
+The slash menu catalogue should not know how editing works.
+
+Something like:
+
+```ts
+Slash.entry({
+  id: "heading-2",
+  label: "Heading 2",
+  keywords: ["h2", "subtitle"],
+
+  message:
+    Editor.Message.RetypedBlock({
+      type: "Heading",
+      level: 2,
+    }),
+})
+```
+
+Then applications can contribute entries for:
+
+```text
+Image
+Callout
+Product
+Embed
+Diagram
+```
+
+without modifying RichText.
+
+The menu itself should probably use existing/new Foldkit primitives for collection navigation, focus, and live announcements rather than implementing bespoke keyboard state.
+
+---
+
+## 12. Finish `Input.bundle` → RichText → CMS
+
+The prerequisite is now built, so this should move much earlier than collaboration.
+
+Expose the obvious integration:
+
+```ts
+const ArticleEditor =
+  RichTextDom.editor(...)
+
+const Body =
+  RichText.input(ArticleEditor)
+```
+
+implemented internally as `Input.bundle`.
+
+Then prove:
+
+```text
+type
+autosave
+refresh
+resume draft
+preview
+publish
+revision
+restore
+scheduled publish
+```
+
+in `examples/cms`.
+
+Explicitly decide what resumed editor state contains:
+
+```text
+Document             yes
+selection            probably yes
+stored marks         yes
+bounded history      probably
+composition          no
+focus                no
+drag state           no
+DOM handles          never
+```
+
+Version editor-resume state separately from the published document.
+
+This should take the RichText↔CMS bar from ~30% to essentially complete.
+
+---
+
+## 13. SSR/resumability
+
+I'd also make the RichText DOM package cooperate directly with `foldkit-ssr`.
+
+Server:
+
+```text
+Document
+   ↓
+read-only/editor-host HTML
+```
+
+Client:
+
+```text
+existing DOM
+   ↓
+adopt / index
+   ↓
+editable RichText interpreter
+```
+
+rather than blindly deleting and rebuilding SSR output.
+
+That suggests something like:
+
+```ts
+RichTextDom.adoptInto(
+  host,
+  document,
+  renderer,
+)
+```
+
+which verifies the existing subtree and builds the identity map around it.
+
+This would fit Foldkit's resumability direction much better than a client-only editor island.
+
+---
+
+## 14. Browser hardening becomes a release gate
+
+Before calling the editor “great,” add Playwright coverage for:
+
+```text
+Chromium
+Firefox
+WebKit
+```
+
+plus mobile emulation.
+
+Test especially:
+
+```text
+IME commit/cancel
+emoji / surrogate pairs
+grapheme deletion
+autocorrect
+Android-style beforeinput
+selection direction
+triple click
+copy/cut/paste
+drag/drop
+undo
+spellcheck mutation
+nested blocks
+links
+code blocks
+markdown shortcuts
+```
+
+Lexical's continuing 2026 work still contains numerous IME, composition, selection, rich-text, Markdown, and code-highlighting fixes; that is a good reminder that browser editing correctness is a permanent subsystem rather than a one-time implementation task.
+
+Add fuzz/property tests too:
+
+```text
+parse(print(document))
+    ≈ semantic document
+
+print(parse(markdown))
+    ≈ same Markdown semantics
+
+apply(transaction)
+    never leaves invalid structure
+
+DOM patch
+    never changes semantic state
+```
+
+---
+
+## 15. Then do collaboration
+
+At that point I would finally start the Loro backend.
+
+Not before.
+
+The single-user command vocabulary will then have been tested by:
+
+```text
+human typing
+markdown shortcuts
+slash commands
+drag/drop
+source mode
+tables/lists
+agents eventually
+```
+
+which is exactly what you want before freezing the command boundary for a second backend.
+
+Build:
+
+```text
+RichText.Backend
+    ├── Local
+    └── Replica
+```
+
+Conceptually:
+
+```ts
+interface EditResult {
+  document: Document
+  changeSet: ChangeSet
+}
+
+interface LocalResult
+  extends EditResult {
+  state: EditorState
+}
+
+interface ReplicaResult
+  extends EditResult {
+  replica: ReplicaState
+  change: RichTextChange
+}
+```
+
+Then:
+
+```text
+Loro adapter
+    ↓
+foldkit-sync
+    ↓
+foldkit-durable
+```
+
+with no mutable Loro instance becoming invisible authority.
+
+The sequence remains:
+
+```text
+plain collaborative text
+marks
+stable selections
+offline/reconnect
+structured nodes
+collaborative undo
+presence
+```
+
+---
+
+## 16. Presence + first-class Annotations
+
+Once stable collaborative anchors exist, implement the distinction we already designed:
+
+```text
+Mark
+    Bold / Link / InlineCode
+
+Annotation
+    Comment / Suggestion / Citation
+
+Decoration
+    syntax / search / cursors / lint
+```
+
+An Annotation owns:
+
+```text
+id
+stable range
+kind
+props
+lifecycle
+```
+
+A comment may project:
+
+```text
+Annotation
+    ↓
+Decoration highlight
+```
+
+but the highlight itself is not persistent.
+
+Presence similarly becomes:
+
+```text
+StableSelection
+    ↓
+Decoration
+```
+
+over Sync's existing ephemeral presence channel.
+
+This gets the annotations/decorations and presence bars to 100% without confusing their lifetimes.
+
+---
+
+## 17. Agent integration last, but it will become very easy
+
+Once the semantic command catalogue is good, Agent integration should almost fall out.
+
+Expose things such as:
+
+```text
+replace_selection
+toggle_mark
+set_link
+retype_block
+insert_heading
+insert_callout
+insert_code
+move_block
+insert_table
+```
+
+Agents emit the same `EditorAction`s humans do.
+
+For proposed edits:
+
+```text
+Agent proposal
+      ↓
+Decoration
+      ↓
+Accept
+      ↓
+semantic EditorAction
+```
+
+That is a particularly elegant fit with the Decoration work.
+
+No agent gets:
+
+```text
+innerHTML
+raw DOM mutation
+raw CRDT bytes
+```
+
+---
+
+## How I'd reorder the actual roadmap
+
+The concrete order I would use from current `main` is:
+
+| Order | Milestone | What it unlocks |
+|---|---|---|
+| **1** | Standard content Kit + remaining semantic constraints | Complete document vocabulary |
+| **2** | Decoration substrate | Syntax, search, diagnostics, AI, presence |
+| **3** | `foldkit-richtext-markdown` parse/print | CommonMark/GFM interoperability |
+| **4** | Markdown input rules + atomic EditorActions | Real Markdown-native rich editing |
+| **5** | CodeBlock + Shiki Decorations | Great code experience |
+| **6** | Slash/keymap/link/block UI | Finish Phase 4 UX |
+| **7** | Markdown source/split mode | Full Markdown editor |
+| **8** | RichText `Input.bundle` integration + CMS example | Real authoring application |
+| **9** | SSR adoption + browser/a11y hardening | Production-quality single-user editor |
+| **10** | Loro replica backend | Collaboration |
+| **11** | Sync/Durable + structured CRDT | Offline collaborative docs |
+| **12** | Presence + Annotations | Comments/cursors/suggestions |
+| **13** | Agent capabilities | Human/AI unified editing |
+
+And that turns the rough progress picture into:
+
+```text
+Semantic core             90% → 100%   milestones 1–4
+Transactions/commands     90% → 100%   4
+Structured content        80% → 100%   1, 5
+DOM editor                80% → 100%   6, 9
+Editor Bundle             70% → 100%   4, 6
+HTML/clipboard            80% → 100%   3, 6, HTML-policy work
+Editor chrome             40% → 100%   6
+Form integration          90% → 100%   8
+RichText/CMS              30% → 100%   8
+Markdown                  10% → 100%   3, 4, 5, 7
+Annotations/Decorations   20% → 100%   2, 12
+Collaboration              0% → 100%   10, 11
+Presence                   0% → 100%   12
+Agent editing             20% → 100%   13
+```
+
+The most important strategic change is that **Markdown should come before collaboration**. Markdown, source mode, syntax highlighting, slash commands, code blocks, tables, links, and real CMS authoring will put far more pressure on the semantic command/document boundaries than another round of design review will. If those all remain clean, then the CRDT backend will be adapting a mature editor semantics rather than helping define them.
+
+And the end state is quite compelling: not “Foldkit has a rich-text widget,” but **Foldkit has a semantic document/editor platform with Markdown, HTML, SSR, CMS, source editing, code highlighting, collaboration, annotations, and agents as interoperable interpreters and producers around one Foldkit-owned model.**
+
