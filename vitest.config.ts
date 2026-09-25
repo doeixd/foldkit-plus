@@ -67,6 +67,9 @@ export default defineConfig({
       'foldkit-metadata': fileURLToPath(
         new URL('./packages/metadata/src/index.ts', import.meta.url),
       ),
+      'foldkit-composition': fileURLToPath(
+        new URL('./packages/composition/src/index.ts', import.meta.url),
+      ),
       'foldkit-surface': fileURLToPath(new URL('./packages/surface/src/index.ts', import.meta.url)),
       'foldkit-ssr': fileURLToPath(new URL('./packages/ssr/src/index.ts', import.meta.url)),
       'foldkit-primitives/interaction': fileURLToPath(

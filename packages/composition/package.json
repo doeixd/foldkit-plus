@@ -1,0 +1,54 @@
+{
+  "name": "foldkit-composition",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Composition for Foldkit Plus: a page as a stored Document of Blocks in Regions, checked against a Catalog, with no view and no runtime.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "composition",
+    "page-builder",
+    "cms",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/composition"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/composition#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.116"
+  },
+  "dependencies": {
+    "foldkit-metadata": "workspace:*"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.116",
+    "foldkit-entity": "workspace:*",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}

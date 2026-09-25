@@ -42,8 +42,9 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | A domain entity's fields, relations, and derived members, declared once, and typed selections of them (Remote registers and reads them as they are; `remote-drizzle` binds them to tables) | the domain declaration | `foldkit-entity` | [entity.md](references/entity.md) |
 | A form: drafts, validation, and a decoded value handed to the parent | the parent Model | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [form.md](references/form.md) |
 | An edit or create screen (load, fill a form, save, report status), or a list over a query | Remote and the form; the editor only joins them | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [crud.md](references/crud.md) |
-| Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (editor state and server; unpublished) | [cms.md](references/cms.md) |
+| Drafts, revisions, a schedule, and what a visitor may see | the application's tables; a draft is kept beside the row | `foldkit-cms` + `foldkit-cms-drizzle` (editor state and server) | [cms.md](references/cms.md) |
 | What crosses from a server render to the browser: the browser's slice of the Model, handed over instead of rerunning `init` | the application, in a resume plan | `foldkit-ssr` (0.1.0, early) | [ssr.md](references/ssr.md) |
+| What a page is: Blocks in Regions, stored as a Document and checked against a Catalog | the Document, as a stored field | `foldkit-composition` (in development, unpublished) | [composition.md](references/composition.md) |
 | The route, a selection, a transient error | the local Model | none: plain Foldkit | — |
 | A semantic rich-text document and pure text edits | the local Model | `foldkit-richtext` (0.1.0, foundation only) | [richtext.md](references/richtext.md) |
 | An editable rich-text subtree the browser mutates directly (the `contenteditable` island) | the DOM adapter, over the document the Model owns | `foldkit-richtext-dom` (0.1.0, early) | [richtext.md](references/richtext.md) |

@@ -318,6 +318,7 @@ in a line.
 | Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
 | Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
 | Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
+| Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (in development, not published) | [package README](./packages/composition) |
 
 `foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
 and the Surface/Mixins bridge. It is not a mandatory base class for the whole
@@ -359,6 +360,7 @@ flowchart TB
   mixinsRichtext["foldkit-mixins-richtext"]
   react["foldkit-react<br/>React islands · Foldkit in React"]
   reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
+  composition["foldkit-composition<br/>a page as Blocks in Regions · in development"]
 
   app -- "describe observation / capability" --> surface
   app --> mixins
@@ -391,6 +393,7 @@ flowchart TB
   remote --> crud
   metadata --> surface
   metadata --> entity
+  metadata --> composition
   surface --> ssr
   remote -- "resume part" --> ssr
   app --> richtext --> richtextDom

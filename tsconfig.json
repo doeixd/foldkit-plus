@@ -11,6 +11,7 @@
     { "path": "./packages/durable" },
     { "path": "./packages/sync" },
     { "path": "./packages/metadata" },
+    { "path": "./packages/composition" },
     { "path": "./packages/ssr" },
     { "path": "./packages/entity" },
     { "path": "./packages/form" },

@@ -27,6 +27,15 @@ version changed; `pnpm` skips versions already in the registry.
   inside a nested form.
 - **`foldkit-cms`: the editor runs a form control's Subscriptions and
   Resources** while an entry is open, and stops them when it closes.
+- **`foldkit-composition` (in development, not published): what a page is,
+  as data.** `Block.define` declares what may exist (a props Schema, Regions,
+  the Content it provides), `Catalog.make` gathers a context's Blocks and
+  roots, and `Composition.Document` is the tolerant codec of a stored page: any
+  Block name, props as JSON. `Composition.validate` reports ten kinds of
+  finding, from a missing node to a Region that rejects a child, and
+  `Composition.valid(catalog)` asks the same as a Schema check for an operation
+  that publishes. `index`, `describe` and `Catalog.describe` read a Document
+  and a Catalog. Phase 1 of the page builder design.
 
 ### Changed
 

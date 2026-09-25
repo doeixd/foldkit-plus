@@ -4,8 +4,8 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Phase 0 (`Input.bundle`) is built; nothing
-else is.
+which the first draft could assume. Phase 0 (`Input.bundle`) and Phase 1 (the
+`foldkit-composition` core) are built; nothing else is.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -924,9 +924,16 @@ submit, resume through `settled`, `authoredChanged`, validation on
 autosaves the color key without knowing its Messages. Nothing in the primitive
 mentions pages.
 
-**Phase 1: the core.** Block, Region, Content, Catalog, the tolerant codec,
+**Phase 1: the core. Done.** Block, Region, Content, Catalog, the tolerant codec,
 `valid`, `validate` with every diagnostic in §6, `index` and `describe`.
 Documents are built by hand in tests.
+
+> **As built.** The diagnostics that belong to later phases (`unsafe-url`,
+> `unknown-action`, `unknown-context`, `unknown-token`, `nested`) arrive with
+> them. Props decode strictly, so a stale prop is `invalid-props`. `Block.inputs`
+> moves out of the core: inspector hints are the Builder's, attached through
+> `Block.annotate` as `foldkit-metadata`, since the core knows no annotation's
+> meaning.
 
 **Phase 2: Operations and history.** Every Operation in §7, `apply`, the id rules
 of §8, `rekey`, History (§9), and the benchmark (§25).

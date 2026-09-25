@@ -41,10 +41,12 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-richtext`](../packages/richtext) | 0.1.0 | Published | Pure semantic documents and editing transactions for Foldkit. Early. |
 | [`foldkit-richtext-dom`](../packages/richtext-dom) | 0.1.0 | Published | The DOM interpreter for a `foldkit-richtext` editable subtree. Early. |
 | [`foldkit-mixins-richtext`](../packages/mixins-richtext) | 0.1.0 | Published | The rich-text editor's chrome, drawn through Mixins slots. Early. |
+| [`foldkit-composition`](../packages/composition) | 0.0.0 | Private | What a page is, as data: Blocks in Regions, a stored Document checked against a Catalog. In development: [the page builder design](./design/pagebuilder-DESIGN.md). |
 | [`foldkit-mixins-ui`](../packages/mixins-ui) | 0.4.0 | Published | `@foldkit/ui` adapters that publish a component's attribute bundles as Slots. |
 
-No package is `private`. A package that needs to stay off npm sets
-`"private": true` in its manifest, and `pnpm publish` skips it.
+One package is `private` while it is built: `foldkit-composition`. A package
+that needs to stay off npm sets `"private": true` in its manifest, and
+`pnpm publish` skips it.
 
 ## Publish process
 
@@ -100,7 +102,7 @@ and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-en
 `foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
 `foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle` (and has `foldkit-mixins` as an optional peer, needed only by its `interaction` subpath); `foldkit-remote-drizzle` additionally depends on
 `foldkit-remote-server` and `drizzle-orm@1.0.0-rc.4`.
-`foldkit-ssr` depends on `foldkit-surface`; `foldkit-richtext-dom` depends on
+`foldkit-composition` depends on `foldkit-metadata`; `foldkit-ssr` depends on `foldkit-surface`; `foldkit-richtext-dom` depends on
 `foldkit-richtext`; `foldkit-mixins-richtext` depends on `foldkit-mixins`,
 `foldkit-richtext` and `foldkit-richtext-dom`.
 `foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.0-rc.116` and requires
