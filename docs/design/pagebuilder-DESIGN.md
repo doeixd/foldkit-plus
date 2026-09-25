@@ -1258,7 +1258,7 @@ Each is answered by building, not by debate, and none changes the ownership mode
   view given no inputs is called as `(model, h)`, so the Bundle renderer passes
   `viewInputs` only when there are some, and the Builder's view takes both
   shapes. `QueryBlock.active` and `SurfaceBlock.active` now type what they read.
-- **The selection in the URL: a Message in, a read out.** A writable
+- **The selection in the URL: a Message in, a read out. Built as a recipe.** A writable
   projection into the control's Model would let `Mirror.url` set `selected`
   behind the Builder's `update`, skipping what a selection does there (the
   layers' focus and the rows above it opened). The Builder owns its selection,
@@ -1266,7 +1266,10 @@ Each is answered by building, not by debate, and none changes the ownership mode
   `form.control('document').send(Message.Selected({ id }))`, and a
   Subscription over the read `PageBuilder.document`/`selected` replaces the URL
   when the selection changes. No Form or Mirror API is needed; the Builder
-  README gets the recipe, and the CMS example uses it once it routes.
+  README gets the recipe, and the CMS example uses it once it routes. *As
+  built:* the recipe runs in `packages/builder/test/url.test.ts`. A cleared
+  selection leaves the URL alone, and a link opened before its page is filled
+  is sent again after, since the Builder refuses an id its page lacks.
 - **A relation picker for a Block prop: the form's picker, fed the same way. Built.**
   A Block asks for it with `BuilderView.controls({ category:
   Input.relationOne(...) })`, as it asks for a multiline box, and its choices

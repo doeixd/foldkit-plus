@@ -138,6 +138,64 @@ whatever inputs that view takes, given through the form view's `controls`.
 Placed alone, with `Bundle.withChild`, the same Bundle is a page editor whose
 parent owns the Model.
 
+## The selection in the URL
+
+A link that opens the editor on a Block is the Builder's selection mirrored
+into the URL. The Builder owns the selection, and a selection does more than
+set a field (the layers' focus moves, the rows above it open), so the URL
+never writes it directly: a navigation becomes a `Selected` Message, and the
+selection is read back out into the URL.
+
+In, from the parent's own `update`, for a form key named `document` placed as
+`page`:
+
+```ts
+const blockIn = (url: Url): NodeId | null => {
+  const id = new URLSearchParams(Option.getOrElse(url.search, () => '')).get('block')
+  return id === null || id === '' ? null : NodeId.make(id)
+}
+
+const selectFrom = (url: Url) =>
+  Message.GotPageMessage({
+    message: PageForm.control('document').send(BuilderMessage.Selected({ id: blockIn(url) })),
+  })
+
+const update = placements.update((model, message) =>
+  message._tag === 'UrlChanged'
+    ? {
+        model,
+        commands: [{ name: 'SelectFromUrl', effect: Effect.succeed(selectFrom(message.url)) }],
+      }
+    : { model },
+)
+```
+
+Out, as one of the parent's own Subscriptions, given to
+`placements.subscriptions(selectionUrl)`:
+
+```ts
+const selectionUrl = Subscription.make<Model, Message>()(entry => ({
+  selectionUrl: entry(
+    { block: Schema.NullOr(Schema.String) },
+    {
+      modelToDependencies: model => ({
+        block: PageForm.control('document').field(model.page).value.selected,
+      }),
+      dependenciesToStream: ({ block }) =>
+        block === null
+          ? Stream.empty
+          : Stream.fromEffect(Navigation.replaceUrl(`?block=${block}`)).pipe(Stream.drain),
+    },
+  ),
+}))
+```
+
+The Builder refuses an id its page lacks, so a link opened before the page is
+loaded selects nothing: send `selectFrom` again once the form is filled.
+Nothing selected leaves the URL as it is, so that link is not lost while the
+page loads. An application with other query parameters builds the URL with
+them. `test/url.test.ts` runs this recipe.
+
 ## Previewing a context
 
 A page whose Catalog declares a `context` shows some nodes only under
