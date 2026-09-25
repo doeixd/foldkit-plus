@@ -2,9 +2,9 @@
 import { Schema } from 'effect'
 import type { Message, Model } from 'foldkit-builder'
 import { Bundle } from 'foldkit-bundle'
-import { Composition } from 'foldkit-composition'
+import { Block, Composition, Content } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
-import { Form } from 'foldkit-form'
+import { Form, Input } from 'foldkit-form'
 import { Style } from 'foldkit-mixins'
 import type * as Submodel from 'foldkit/submodel'
 import { expectTypeOf } from 'vitest'
@@ -43,3 +43,12 @@ const PageForm = Form.make('PageForm', PageInput, {
   inputs: { document: PageBuilder.inputWith(BuilderView.submodel(PageEditing)) },
 })
 expectTypeOf(PageForm.control('document').field(PageForm.initial).value).toEqualTypeOf<Model>()
+
+const Quote = Block.define('Quote', {
+  Props: Schema.Struct({
+    text: Schema.String.annotate({ title: 'Quotation' }),
+    ref: Schema.String,
+  }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()

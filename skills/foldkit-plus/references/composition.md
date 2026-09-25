@@ -141,6 +141,9 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Behaviors: `TreeNavigation` on `tree`/`row`; `keyCommand` shortcuts on
   `layers`; `Targets` on `canvas` (hover marks, press selects, a link does not
   navigate). No state, no Messages of its own.
+- Inspector labels are the prop Schema's `title`, else the key. A Block asks
+  for a control with
+  `Block.annotate(BuilderView.controls({ body: Input.multiline(), ref: Input.hidden() }))`.
 - Style the selection with `[data-composition-selected]` and
   `[data-composition-hovered]`, which the edit wrappers carry.
 

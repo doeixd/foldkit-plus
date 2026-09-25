@@ -144,14 +144,35 @@ resolve it:
 | `Schema.String`, and a brand of it such as `Url` | `input` |
 | anything else | its JSON, shown and not edited |
 
+A field is labelled with its Schema's `title`, else its prop key.
+
+Where the Schema alone does not say, the Block asks for a control through
+metadata. `Input.multiline()` draws a `textarea`, and `Input.hidden()` leaves
+the prop out:
+
+```ts
+import { Block } from 'foldkit-composition'
+import { Input } from 'foldkit-form'
+
+const Quote = Block.define('Quote', {
+  Props: Schema.Struct({
+    text: Schema.String.annotate({ title: 'Quotation' }),
+    ref: Schema.String,
+  }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+```
+
+The hint is the inspector's, kept on the Block beside any other package's
+metadata; `foldkit-composition` does not read it. A later annotation's prop
+replaces an earlier one's.
+
 Each edit is one `setProp`, checked by the Block's Schema; a refused edit shows
 in the alert and changes nothing. A node whose Block the Catalog does not know
 is shown, with its props, but not edited.
 
 ## Limits
 
-- The inspector labels a field with its prop key, and draws every text prop as
-  one line.
 - Rich text on the canvas is not edited in place: its Block's props are shown
   in the inspector.
 - There is no pointer drag and drop. Reorder with the keyboard or the actions.

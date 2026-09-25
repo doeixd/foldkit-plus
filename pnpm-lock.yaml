@@ -1070,6 +1070,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../form
+      foldkit-metadata:
+        specifier: workspace:*
+        version: link:../metadata
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins

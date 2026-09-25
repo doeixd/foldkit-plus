@@ -1,6 +1,7 @@
 /** A small site: Sections of Headings and Banners, and a Builder over it. */
 import { Effect, Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
+import { Input } from 'foldkit-form'
 import { Block, Catalog, Content, Region } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { BuilderView } from 'foldkit-mixins-builder'
@@ -24,12 +25,25 @@ export const Banner = Block.define('Banner', {
   }),
   provides: [Content.Flow],
 })
-export const Site = Catalog.make({ blocks: [Section, Heading, Banner], roots: [Content.Section] })
+/** A Block whose props ask for their controls: a title, a multiline hint, a hidden prop. Not offered. */
+export const Quote = Block.define('Quote', {
+  Props: Schema.Struct({
+    text: Schema.String.annotate({ title: 'Quotation' }),
+    source: Schema.String,
+    ref: Schema.String,
+  }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+export const Site = Catalog.make({
+  blocks: [Section, Heading, Banner, Quote],
+  roots: [Content.Section],
+})
 
 export const SiteRenderer = Renderer.make(Site, {
   Section: ({ regions, h }) => h.section([], [...regions.body]),
   Heading: ({ props, h }) => h.h2([], [props.text]),
   Banner: ({ props, h }) => h.p([h.Class('banner')], [props.text]),
+  Quote: ({ props, h }) => h.blockquote([], [props.text]),
 })
 
 export const PageBuilder = Builder.make('PageBuilder', {

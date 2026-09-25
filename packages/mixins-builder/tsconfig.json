@@ -11,6 +11,7 @@
       "foldkit-composition": ["../composition/src/index.ts"],
       "foldkit-composition/foldkit": ["../composition/src/foldkit/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
+      "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
@@ -34,6 +35,9 @@
     },
     {
       "path": "../entity/tsconfig.build.json"
+    },
+    {
+      "path": "../metadata/tsconfig.build.json"
     },
     {
       "path": "../form/tsconfig.build.json"

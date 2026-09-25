@@ -16,6 +16,9 @@
       "path": "../entity/tsconfig.build.json"
     },
     {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
       "path": "../form/tsconfig.build.json"
     },
     {

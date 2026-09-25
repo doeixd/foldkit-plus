@@ -13,7 +13,7 @@
  * `TreeNavigation` on the layers, `Targets` on the canvas (hover and click pick
  * a node), and the Builder's `keyCommand` shortcuts on the layers panel.
  */
-import { Option, type Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Layers, Message, layersArgs, type Model } from 'foldkit-builder'
 import {
   Catalog,
@@ -25,7 +25,8 @@ import {
 } from 'foldkit-composition'
 import { NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
 import { Entity } from 'foldkit-entity'
-import { Input } from 'foldkit-form'
+import { Input, type Control } from 'foldkit-form'
+import { Metadata } from 'foldkit-metadata'
 import { Behavior, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { LiveAnnounce, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
@@ -115,10 +116,40 @@ const fieldsOf = (block: AnyBlock): Readonly<Record<string, Schema.Top>> => {
     : {}
 }
 
+const controlsKey = Metadata.key<Readonly<Record<string, Control>>>(
+  'foldkit-mixins-builder/controls',
+  {
+    // One record per Block: a later annotation's prop replaces an earlier one's.
+    merge: records => [Object.assign({}, ...records)],
+    summarize: record =>
+      Object.entries(record)
+        .map(([key, control]) => `${key}: ${control.kind}`)
+        .join(', '),
+  },
+)
+
+/** The control a Block asked for its prop, else the one its Schema resolves to. */
+const controlFor = (block: AnyBlock, key: string, schema: Schema.Top): Control | undefined =>
+  controlsKey.get(block.metadata)[0]?.[key] ?? Input.resolve(Entity.unmapped, schema)
+
+/** A prop's label: its Schema's `title`, else its key. */
+const labelFor = (key: string, schema: Schema.Top): string => {
+  const title = Schema.resolveAnnotations(schema)?.title
+  return typeof title === 'string' ? title : key
+}
+
 /** The drawn Builder: what `BuilderView.define` returns. */
 export type BuilderSlotView = SlotView.SlotView<typeof BuilderSlots, Model, Message>
 
 export const BuilderView = {
+  /**
+   * Block metadata: the control the inspector draws a prop with, where its
+   * Schema alone does not say, as
+   * `Heading.pipe(Block.annotate(BuilderView.controls({ text: Input.multiline() })))`.
+   * `Input.hidden()` leaves a prop out of the inspector.
+   */
+  controls: (controls: Readonly<Record<string, Control>>): Metadata => controlsKey.of(controls),
+
   /** The drawn Builder as a Submodel view, for `bundle.pipe(Bundle.withView(...))`. */
   submodel: (view: BuilderSlotView): Submodel.View<Model, Message, void> =>
     Submodel.defineView<Model, Message>((model, h) => view(model, h)),
@@ -262,10 +293,13 @@ export const BuilderView = {
         ])
       const set = (key: string, value: Schema.Json): Message =>
         Message.Applied({ op: Composition.Op.setProp(id, key, value) })
-      const fields = Object.entries(fieldsOf(block)).map(([key, schema]) => {
+      const drawn = Object.entries(fieldsOf(block)).flatMap(([key, schema]) => {
+        const control = controlFor(block, key, schema)
+        return control !== undefined && Input.Hidden.is(control) ? [] : [{ key, schema, control }]
+      })
+      const fields = drawn.map(({ key, schema, control }) => {
         const fieldId = `${builder.name}-${id}-${key}`
         const value = node.props[key]
-        const control = Input.resolve(Entity.unmapped, schema)
         const input = (() => {
           if (control !== undefined && Input.Toggle.is(control))
             return h.input(
@@ -296,18 +330,24 @@ export const BuilderView = {
                 ),
               ]),
             )
+          const text = [
+            h.Id(fieldId),
+            h.Value(typeof value === 'string' ? value : ''),
+            h.OnInput((typed: string) => set(key, typed)),
+          ]
+          if (control !== undefined && Input.Multiline.is(control))
+            // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
+            // and these never carry.
+            return h.textarea(slots.control.attrs(text) as Parameters<typeof h.textarea>[0])
           if (control !== undefined && Input.Text.is(control))
-            return h.input(
-              slots.control.attrs([
-                h.Id(fieldId),
-                h.Value(typeof value === 'string' ? value : ''),
-                h.OnInput((typed: string) => set(key, typed)),
-              ]),
-            )
+            return h.input(slots.control.attrs(text))
           // A kind this inspector does not draw is shown, not edited.
           return h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)])
         })()
-        return h.div(slots.field.attrs(), [h.label([h.For(fieldId)], [key]), input])
+        return h.div(slots.field.attrs(), [
+          h.label([h.For(fieldId)], [labelFor(key, schema)]),
+          input,
+        ])
       })
       return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), fields)
     }

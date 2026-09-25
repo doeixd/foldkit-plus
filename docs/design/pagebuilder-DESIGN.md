@@ -1040,7 +1040,7 @@ contract.
 
 What remains of Phase 7, in order:
 
-- **7c-1, the inspector.** A field's label is its Schema's `title`, else its
+- **7c-1, the inspector. Done.** A field's label is its Schema's `title`, else its
   key. A Block asks for a control through Builder metadata attached with
   `Block.annotate` (Phase 1 moved inspector hints there), such as a multiline
   one. The Layers row of §25 is measured.

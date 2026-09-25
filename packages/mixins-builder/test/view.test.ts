@@ -3,13 +3,15 @@
  * the inspector's controls by prop kind, the canvas's frame and marks, and the
  * Behaviors attached to the layers, the tree and the canvas.
  */
-import { Composition, NodeId } from 'foldkit-composition'
+import { Block, Composition, NodeId } from 'foldkit-composition'
+import { Input } from 'foldkit-form'
+import { Metadata } from 'foldkit-metadata'
 import { Message, type Model } from 'foldkit-builder'
 import { Attributes, A11y, Capability, SlotView } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
-import { BuilderSlots, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
-import { PageBuilder, PageView, answer, isTimer } from './fixture.js'
+import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
+import { PageBuilder, PageView, Quote, answer, isTimer } from './fixture.js'
 
 type Node = Exclude<Html, null>
 const all = (node: Html | undefined): ReadonlyArray<Node> =>
@@ -102,6 +104,55 @@ describe('the drawn Builder', () => {
     ])
     expect(prop(controls[0], 'value')).toBe('Hello')
     expect(prop(controls[2], 'value')).toBe('1')
+  })
+
+  it('labels a prop by its title, and draws the control its Block asked for', () => {
+    const quoted = PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [NodeId.make('s')],
+        nodes: {
+          [NodeId.make('s')]: {
+            block: 'Section',
+            props: { tone: 'plain' },
+            regions: { body: [NodeId.make('q')] },
+          },
+          [NodeId.make('q')]: {
+            block: 'Quote',
+            props: { text: 'Less is more', source: 'Mies', ref: 'r1' },
+            regions: {},
+          },
+        },
+      }),
+    )
+    const root = draw(send(quoted, Message.Selected({ id: NodeId.make('q') })))
+    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    expect(
+      all(inspector)
+        .filter(node => node.sel === 'label')
+        .map(text),
+    ).toEqual(['Quotation', 'source'])
+    expect(
+      all(inspector)
+        .filter(node => node.sel === 'textarea' || node.sel === 'input')
+        .map(node => [node.sel, prop(node, 'value')]),
+    ).toEqual([
+      ['textarea', 'Less is more'],
+      ['input', 'Mies'],
+    ])
+  })
+
+  it('keeps every prop two annotations ask for, the later one winning a prop', () => {
+    const annotated = Block.annotate(
+      BuilderView.controls({ source: Input.multiline(), ref: Input.text() }),
+    )(Quote)
+    expect(Metadata.summarize(annotated.metadata)).toEqual([
+      {
+        name: 'foldkit-mixins-builder/controls',
+        entries: ['text: Multiline, ref: Text, source: Multiline'],
+      },
+    ])
   })
 
   it('draws the page in edit mode, in a frame as wide as the viewport, marking the selection', () => {

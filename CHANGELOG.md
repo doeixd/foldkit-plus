@@ -83,6 +83,9 @@ version changed; `pnpm` skips versions already in the registry.
   canvas takes `Targets`, so hovering and clicking the page mark and select
   its nodes. It adds no state and no Messages. The CMS example's page form
   draws its Builder this way. Phase 7 of the page builder design.
+  The inspector labels a prop with its Schema's `title`, and a Block asks for a
+  prop's control with `Block.annotate(BuilderView.controls({ ... }))`, such as
+  `Input.multiline()`, or `Input.hidden()` to leave it out.
 - **`foldkit-composition/foldkit`: the edit wrappers carry the marks.**
   `render` in edit mode takes `selected` and `hovered`, and puts
   `data-composition-selected` and `data-composition-hovered` on those nodes'
