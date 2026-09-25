@@ -1013,33 +1013,95 @@ it, and meet a conflicting author. The Builder adds no CMS state.
 > gained grouping and pure steps, the Builder keeps its page as that history's
 > present, and composition has no History. The rules in §9 hold unchanged.
 
-**Phase 7: `foldkit-mixins-builder`.** Canvas, Layers, palette, inspector, drag
-and drop, keyboard reorder with announcements, viewport frames, and rich-text
-editing on the canvas, with `A11y.validate` run for each Slot contract.
+**Phase 7: `foldkit-mixins-builder`. Mostly done.** Canvas, Layers, palette,
+inspector, drag and drop, keyboard reorder with announcements, viewport frames,
+and rich-text editing on the canvas, with `A11y.validate` run for each Slot
+contract.
 
-> **Phase 7, as built.** Interaction came from `foldkit-primitives` rather than
-> the drawing package: `TreeNavigation` (keyboard focus in the layers, placed in
-> the Builder's Model) and `Targets` (the Mount of §13, reporting the node under
-> the pointer and a press). Keyboard reorder, duplicate, delete, undo and redo
-> are the Builder's `keyCommand`, and structural edits are announced through a
+> **As built.** Interaction came from `foldkit-primitives` rather than the
+> drawing package: `TreeNavigation` (keyboard focus in the layers, placed in the
+> Builder's Model) and `Targets` (the Mount of §13, reporting the node under the
+> pointer and a press). Keyboard reorder, duplicate, delete, undo and redo are
+> the Builder's `keyCommand`, and structural edits are announced through a
 > placed `LiveAnnounce`. The selection is drawn with CSS on the edit wrappers
-> (`data-composition-selected`, `data-composition-hovered`), not measured, so
-> §13's geometry is not needed yet. A form draws the drawn Builder through
-> `builder.inputWith(view)`, with no renderer. Two items wait: pointer drag and
-> drop, because `@foldkit/ui`'s DragAndDrop writes a listbox's roles and keys
-> onto rows that are a tree's, and rich text edited on the canvas.
+> (`data-composition-selected`, `data-composition-hovered`), not measured. A
+> form draws the drawn Builder through `builder.inputWith(view)`, with no
+> renderer.
 
-**Phase 8: appearance.** Recipe axes, token choices, responsive choices, and a
-test that a property a Behavior owns conflicts with an author's choice.
+What remains of Phase 7, in order:
+
+- **7c-1, the inspector.** A field's label is its Schema's `title`, else its
+  key. A Block asks for a multiline control through Builder metadata attached
+  with `Block.annotate` (Phase 1 moved inspector hints there). A rich-text
+  `body` reads "Edit on the page" instead of its JSON. The Layers row of §25 is
+  measured, with each row drawn lazily by node.
+- **7c-2, rich text on the canvas,** as §13 describes. `Builder.make` takes an
+  optional `text: { block, rendering }`; the Model gains `editingText`; a
+  double-click, or Enter on a layer row, starts editing and leaving commits one
+  `setProp` of the body, one undo step. The Renderer gains an edit-mode hook
+  that replaces one node's drawing, where the editor's host goes. It uses only
+  `foldkit-richtext-dom`'s public `editorAt`; if that package is still moving,
+  7c-3 goes first.
+- **7c-3, pointer drag and drop,** without `@foldkit/ui`'s DragAndDrop, which
+  writes a listbox's roles and keys onto rows that are a tree's. A `PointerDrag`
+  Behavior in `foldkit-primitives/interaction`, beside `Targets`: a threshold,
+  then the node under the pointer and a zone (before, after, inside) measured
+  on move and never stored. `Builder.dropAt(document, dragged, target, zone)`
+  is the Position, by the palette's Region rules, or `undefined`. The drop line
+  is a `data-composition-drop` attribute; a drop is announced; the keyboard
+  stays the accessible way to reorder.
+
+**Phase 8: appearance and conditions.**
+
+- **8-1, appearance (§18).** A `foldkit-composition/appearance` subpath, with
+  `foldkit-mixins` as an optional peer. `Appearance.forBlock(Block, Slots,
+  recipe)` checks a node's stored choices against the recipe's axes and the
+  theme's tokens (`composition:invalid-appearance`, `composition:unknown-token`);
+  the Renderer attaches them through `Style.forSlots` in the `app` layer, and
+  responsive choices through `Style.responsive`. The inspector draws an
+  appearance section: a `select` per axis, a token picker, one per breakpoint.
+  A test shows a property a Behavior owns conflicting with an author's choice.
+- **8-2, layout Blocks.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
+  its parameters appearance axes.
+- **8-3, conditions (§16),** which no phase had named. A Catalog's `context`
+  Schema, the Condition IR (`eq`, `isNull`, `isNotNull`, `contains`),
+  `composition:unknown-context`, and a Renderer that takes the context. The
+  editor has a "preview as" context and dims, rather than drops, the nodes it
+  hides. The docs say `when` is presentation, not authorization.
 
 **Phase 9: data and state.** One Query-backed Block, one Surface-backed Block and
 one Bundle-backed Block on one page, served by SSR with the data Block in the
 resume plan.
 
-**Phase 10: actions and agents.** `Action` in `foldkit-surface`, with
-`Agent.variant` re-expressed over it; the Catalog's actions; the `edit_page`
-tool. "Add a hero above the feature grid" produces one valid `insert`, and an
-agent's Block outside the Catalog is refused by the tool's own schema.
+- **9-0,** a spike that settles where each lives. The default: subpaths with
+  optional peers, `/remote` for `Block.fromQuery` and `/surface` for
+  `Block.fromSurface`, and `Block.fromBundle` with `Composition.statefulNodes`
+  in the core.
+- **9-1,** a "Latest posts" Block over `Cms.Entries` in `examples/cms`, its
+  relation prop drawn with the form's relation picker, its read resumed by
+  `Remote.resume`.
+- **9-2,** the Surface-backed and Bundle-backed Blocks, the latter placed with
+  `Bundle.withEach` keyed by NodeId.
+- **9-3,** the acceptance page above.
+
+**Phase 10: actions and agents.**
+
+- **10-1,** `Action` in `foldkit-surface`, with `Agent.variant` re-expressed over
+  it and its API unchanged; the Catalog's actions; `composition:unknown-action`;
+  the Renderer dispatching `toMessage(input)`; an action picker in the
+  inspector.
+- **10-2,** `Composition.operationSchema(Site)` and an `edit_page` tool in
+  `examples/cms`, whose context is an outline of the page, with a node's props
+  read on demand (this answers §30's second question). "Add a hero above the
+  feature grid" produces one valid `insert`, and an agent's Block outside the
+  Catalog is refused by the tool's own schema.
+- **10-3,** the selected node and panel mirrored into the URL with `Mirror.url`.
+
+**Then stable.** §29's list is audited against the tests and its gaps filled (a
+React Block beside a Foldkit Block, a preview of a partly edited page, a Surface
+Block beside a static one, among others), and `foldkit-composition`,
+`foldkit-builder` and `foldkit-mixins-builder` are published together at 0.1.0.
+Until then they stay private.
 
 **Later, on a concrete need:** Composite Blocks, a Document-level `Repeat`, Sync
 of Operations, and React codegen export.
