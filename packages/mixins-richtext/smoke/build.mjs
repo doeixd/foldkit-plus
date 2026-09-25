@@ -64,7 +64,9 @@ check(
   typeof family.markToolbar === 'function' &&
     typeof family.MarkToolbarSlots === 'object' &&
     typeof family.slashQuery === 'function' &&
-    typeof family.slashEntries === 'function',
+    typeof family.slashEntries === 'function' &&
+    typeof family.slashMenuView === 'function' &&
+    typeof family.SlashMenuSlots === 'object',
 )
 
 // §123: a slash query opens on `/` at a block's start, and `/head` narrows to the

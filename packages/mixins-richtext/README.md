@@ -101,6 +101,29 @@ Message choosing it sends, wrapped for the caller the way the toolbar's `toggled
 The highlighted entry is the menu's only state, and per §123 it belongs beside the
 editor's.
 
+`slashMenuView<Message>()` draws it:
+
+```ts
+Menus.slashMenuView<Message>()(
+  { entries, textBefore: RichText.textBefore(document, caret), index: model.menuIndex },
+  h,
+)
+// Keys are the application's, because only it knows the caret: handle ArrowUp/Down,
+// Home/End, and Escape in `OnKeyDownPreventDefault` while `slashMenu` says a query is
+// live, moving with `slashMove` and closing on Escape.
+```
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the menu's wrapper |
+| `list` | Collection | the list of matches |
+| `item` | Interactive | one entry, per match |
+
+Each item carries `data-entry` (its id), `role="menuitem"`, `aria-current="true"` on the
+highlighted one, and its own entry's Message on click. Outside a query the view draws an
+empty list, so the application places it only when `slashMenu` says there is a menu — and
+Enter is not the view's: the editor's `update` resolves it (§123).
+
 ## Checks
 
 ```bash

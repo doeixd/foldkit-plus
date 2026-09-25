@@ -5461,11 +5461,11 @@ Slices:
    `slashEntries`, movement by `RovingTabindex.move` (not `ListNavigation`, whose
    typeahead would swallow the keys that must keep typing), and a container whose
    `OnKeyDownPreventDefault` handles those keys only while a query is live.
-   — **started**: the vocabulary landed (`slashQuery`, `slashEntries`, `matchingEntries`,
-   `slashMenu` — the one value a view and an `update` share — and `slashMove`, the keys a
-   menu owns, in `packages/mixins-richtext/src/slash.ts`, re-exported from the package,
-   which now depends on `foldkit-primitives` for `RovingTabindex.move`). The slot view is
-   what remains.
+   — **the vocabulary and the view landed**: `slashQuery`, `slashEntries`,
+   `matchingEntries`, `slashMenu`, `slashMove`, and `SlashMenuSlots` /
+   `slashMenuView<Message>()` in `packages/mixins-richtext` (the package depends on
+   `foldkit-primitives` for `RovingTabindex.move`). The keys stay the application's
+   (`OnKeyDownPreventDefault` while a query is live), so nothing is left here.
 3. `EditorState` gains the highlighted entry, and the Bundle's `update` resolves
    `Entered` against a live query before it splits.
 4. The skill and an example (the harness or a small demo) drive it.
