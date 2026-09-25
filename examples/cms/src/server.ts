@@ -12,6 +12,7 @@ import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from 'f
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Post, PostInput, Posts, type PostId } from './domain.js'
+import { Page, PageId, PageInput, Pages } from './pageDomain.js'
 
 /** Who is asking. A visitor is nobody. */
 export type Principal = { readonly name: string; readonly role: 'author' | 'editor' } | null
@@ -26,14 +27,24 @@ const posts = sqliteTable('posts', {
   publishedAt: text('published_at'),
 })
 
+/** A page's row. Its document is JSON: the composition's tolerant codec reads it back. */
+const pages = sqliteTable('pages', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  document: text('document', { mode: 'json' }).notNull(),
+  publishedAt: text('published_at'),
+})
+
 const Db = bind(
-  { Post },
+  { Post, Page },
   {
     Post: {
       table: posts,
       // A visitor sees what is published; an author sees every row.
       visible: published<Principal>(posts.publishedAt, isAuthor),
     },
+    Page: { table: pages, visible: published<Principal>(pages.publishedAt, isAuthor) },
   },
 )
 
@@ -55,8 +66,13 @@ export const openServer = (clock: () => Date) => {
       id text primary key, title text not null, slug text not null unique,
       body text not null, published_at text
     );
+    create table pages (
+      id text primary key, title text not null, slug text not null unique,
+      document text not null, published_at text
+    );
   `)
   let made = 0
+  let madePages = 0
 
   const cms = CmsServer.make<Principal>({
     tables: sqliteTables(),
@@ -86,6 +102,34 @@ export const openServer = (clock: () => Date) => {
           {}
         >(Posts.publish.update, ({ input: { id, ...values } }) =>
           write(database => database.update(posts).set(values).where(eq(posts.id, id))).pipe(
+            Effect.as({ output: {} }),
+          ),
+        ),
+      },
+      {
+        type: Pages,
+        binding: Db.Page,
+        create: RemoteServer.mutation<
+          Principal,
+          DrizzleDatabase,
+          string,
+          typeof PageInput.Type,
+          { id: PageId }
+        >(Pages.publish.create, ({ input }) =>
+          Effect.gen(function* () {
+            const id = PageId.make(`page-${++madePages}`)
+            yield* write(database => database.insert(pages).values({ id, ...input }))
+            return { output: { id } }
+          }),
+        ),
+        update: RemoteServer.mutation<
+          Principal,
+          DrizzleDatabase,
+          string,
+          typeof PageInput.Type & { readonly id: PageId },
+          {}
+        >(Pages.publish.update, ({ input: { id, ...values } }) =>
+          write(database => database.update(pages).set(values).where(eq(pages.id, id))).pipe(
             Effect.as({ output: {} }),
           ),
         ),

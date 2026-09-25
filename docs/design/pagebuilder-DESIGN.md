@@ -4,9 +4,10 @@
 builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
 semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
 and theme system, and the `foldkit-primitives/interaction` subpath, none of
-which the first draft could assume. Phases 0 to 5 are built: `Input.bundle`,
+which the first draft could assume. Phases 0 to 6 are built: `Input.bundle`,
 the `foldkit-composition` core, its Operations and History, migrations, the
-Foldkit renderer with its SSR proof, and the headless Builder as a form key.
+Foldkit renderer with its SSR proof, the headless Builder as a form key, and the
+CMS proof.
 **Target:** `doeixd/foldkit-plus`
 **New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
 **Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
@@ -993,10 +994,18 @@ clears history.
 > `foldkit-mixins-form` draws it inside the page form, which the runtime test
 > drives with clicks and keys.
 
-**Phase 6: the CMS proof, in `examples/cms`.** Create a page, add Blocks,
+**Phase 6: the CMS proof, in `examples/cms`. Done.** Create a page, add Blocks,
 autosave, reload, resume the draft, preview through the application route,
 publish, see it as a visitor, edit again, find the revision, restore it, schedule
 it, and meet a conflicting author. The Builder adds no CMS state.
+
+> **As built.** `examples/cms` gains a Pages content type and a second scripted
+> story (`pageDemo.ts`, pinned by `test/pageDemo.test.ts`) that does all of the
+> above. `Cms.editor` needed no change to take a form whose key is the Builder.
+> Two findings: undo does not survive a reload, which is right (it is the
+> editor's state, cleared by `settled`); and each edit is its own draft save,
+> since the story's autosave rest is zero. The browser version of the example
+> still edits posts only; drawing the page editor there waits for Phase 7.
 
 **Phase 7: `foldkit-mixins-builder`.** Canvas, Layers, palette, inspector, drag
 and drop, keyboard reorder with announcements, viewport frames, and rich-text

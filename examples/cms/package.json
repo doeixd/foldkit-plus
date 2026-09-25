@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "drizzle-orm": "1.0.0-rc.4",
+    "foldkit-builder": "workspace:*",
     "foldkit-bundle": "workspace:*",
     "foldkit-cms": "workspace:*",
     "foldkit-cms-drizzle": "workspace:*",
+    "foldkit-composition": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",

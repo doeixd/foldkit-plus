@@ -64,6 +64,30 @@ and a restart is a fresh start. `test/demo.test.ts` pins the transcript.
 | `restored as a draft … nothing was published by that` | A revision comes back as a draft like any other. |
 | `state Unpublished … 404 … still has it` | Off show, and still the editor's to work on. |
 
+## A page, built with the page Builder
+
+The run then tells the same story for a page. A Page is declared the way a Post
+is, in [pageDomain.ts](src/pageDomain.ts): an Entity, a form, two mutations and a
+content type. The one difference is the `document` key, whose control is the
+page Builder from [`foldkit-builder`](../../packages/builder/README.md), over the
+site's Blocks in [site.ts](src/site.ts). The CMS is not told there is a Builder,
+and the Builder adds no CMS state.
+
+| In the transcript | What it is |
+| --- | --- |
+| `every change is saved as a draft: Saved; sent SaveDraft, …` | Each Block added and each prop typed is an edit of the `document` key, which the editor autosaves. A selection is not an edit. |
+| `resumed from the Model … undo starts over after a reload: 0 steps` | The draft keeps the page as it was left. Undo is the editor's state, not the page's, and does not survive a reload. |
+| `the writer's page: Welcome \| Read the blog` | The preview is the site's own Renderer drawing the form's page, laid over Remote's store. Nothing is sent. |
+| `a visitor at /home: …` | A visitor gets the page the site draws from the published row. |
+| `revisions: 1, 2 … restored as a draft … discarded` | Revisions, restore and discard are the CMS's, for a page as for a post. |
+| `in the morning a visitor reads: Good morning …` | A scheduled page goes out when the host asks what is due. |
+| `writer: Saved; editor: Conflict` | Two people on one page meet the CMS's conflict rule. |
+
+The page column is JSON (`text('document', { mode: 'json' })`), read back through
+the composition's tolerant codec, so a stored page always reads. What a publish
+takes must also fit the site's Catalog: `PageInput` checks its `document` with
+`Composition.valid(Site)`.
+
 ## The files
 
 - `domain.ts` imports neither Remote's client nor Drizzle. It declares the
@@ -74,6 +98,8 @@ and a restart is a fresh start. `test/demo.test.ts` pins the transcript.
 - `app.ts` places the editor, a worklist, and the application's own reading of a
   post. Nothing about the placement is CMS-specific.
 - `demo.ts` is the three chairs and the clock.
+- `site.ts`, `pageDomain.ts`, `pageApp.ts` and `pageDemo.ts` are the page's
+  vocabulary, domain, application and story, placed the same way.
 
 ## In the browser
 

@@ -59,6 +59,11 @@ version changed; `pnpm` skips versions already in the registry.
   plain view (palette, layers, text props, undo, the page in edit mode) is drawn
   by `foldkit-mixins-form` with the rest of the form. Phase 5 of the page
   builder design.
+- **The CMS example builds a page too.** A Page content type whose `document`
+  key is the page Builder goes through the post's whole story: autosave, a
+  resumed draft, a preview drawn by the site's own views, publish, revisions,
+  restore, a schedule and a conflict, with no CMS state added. Phase 6 of the
+  page builder design.
 - **`foldkit-composition`: `History.Model`** is History as a Schema, and an
   empty group is `null`, so a stored History survives JSON.
 - **`foldkit-ssr`: its build configuration references the packages it builds
