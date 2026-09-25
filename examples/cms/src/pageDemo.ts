@@ -22,6 +22,8 @@ import {
   Message,
   PageEditor,
   actives,
+  blockReads,
+  editing,
   initial,
   pageView,
   update,
@@ -31,8 +33,11 @@ import { PageForm, Pages } from './pageDomain.js'
 import { openServer, type Principal } from './server.js'
 import { PageBuilder, Site, SiteRenderer } from './site.js'
 
-/** A drawn page as a visitor would read it: its text, element by element. */
-const read = (document: Document): string => {
+/**
+ * A drawn page as a visitor would read it: its text, element by element, with
+ * what its Query Blocks read when there is any.
+ */
+const read = (document: Document, data?: Readonly<Record<string, unknown>>): string => {
   const texts: string[] = []
   const walk = (node: Html | string): void => {
     if (node === null) return
@@ -40,7 +45,13 @@ const read = (document: Document): string => {
     if (node.text !== undefined) texts.push(node.text)
     for (const child of node.children ?? []) walk(child)
   }
-  for (const root of Renderer.render(SiteRenderer, document, inertHtml)) walk(root)
+  for (const root of Renderer.render(
+    SiteRenderer,
+    document,
+    inertHtml,
+    data === undefined ? {} : { data },
+  ))
+    walk(root)
   return texts.join(' | ') || '(nothing)'
 }
 
@@ -117,7 +128,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
       editor,
       title: (value: string) => editor(PageForm.Message.Changed({ key: 'title', value })),
       /** Adds a Block where the Builder's palette would, and selects it. */
-      add: (block: 'Section' | 'Heading' | 'Button') => {
+      add: (block: 'Section' | 'Heading' | 'Button' | 'LatestPages') => {
         const at = PageBuilder.placeFor(builder().page.present, builder().selected, block)
         return at === undefined
           ? Promise.resolve()
@@ -140,6 +151,8 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
           : build(BuilderMessage.Selected({ id: Composition.NodeId.make(id) }))
       },
       builder,
+      /** The page being edited, drawn with what its Query Blocks have read so far. */
+      drawn: () => read(editing(model), blockReads(model)?.read(model)),
       outline: () => outline(builder().page.present),
       sent: () => sent.splice(0).join(', ') || 'nothing',
       status: () => PageEditor.status(model),
@@ -277,6 +290,13 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   await edda.editor(Editor.Message.OverwriteAsked())
   await edda.look()
   say(`the editor saves over it: ${edda.status()}`)
+
+  say('— a Block that lists the site’s pages —')
+  await edda.select('Section')
+  await edda.add('LatestPages')
+  say(`before its read arrives: ${edda.drawn()}`)
+  await edda.look()
+  say(`read through Remote, as the editor may see it: ${edda.drawn()}`)
 
   say(
     `and the row holds only what was published: ${JSON.stringify(

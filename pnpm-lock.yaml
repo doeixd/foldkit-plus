@@ -884,6 +884,9 @@ importers:
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../remote
       foldkit-richtext:
         specifier: workspace:*
         version: link:../richtext

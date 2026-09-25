@@ -1103,13 +1103,26 @@ What remains of Phase 7, in order:
 one Bundle-backed Block on one page, served by SSR with the data Block in the
 resume plan.
 
-- **9-0,** a spike that settles where each lives. The default: subpaths with
-  optional peers, `/remote` for `Block.fromQuery` and `/surface` for
-  `Block.fromSurface`, and `Block.fromBundle` with `Composition.statefulNodes`
-  in the core.
+- **9-0, where each lives. Settled.** A Query-backed Block is in a
+  `foldkit-composition/remote` subpath (`foldkit-remote` and `foldkit-surface`
+  as optional peers): `QueryBlock.define(name, { query, Props, input, select,
+  first, provides })` keeps the read as metadata, and its type depends on the
+  query descriptor only. The application's `Data` enters when the page's reads
+  are built, `QueryBlock.reads(Data, catalog, document)`: one Projection over
+  the Model, keyed by node, that an active (`Data.wiring`) or a Surface
+  requires, so Remote fetches, caches and resumes them like any read. A Block
+  closing over `Data` itself was rejected: the Catalog is part of the Model
+  through the Builder, so its type would be circular. The Renderer gains a
+  generic per-node `data` option, and `LatestPages.rows(data)` reads a node's
+  value typed. Surface-backed Blocks follow the same shape; `Block.fromBundle`
+  and `Composition.statefulNodes` stay in the core.
 - **9-1,** a "Latest posts" Block over `Cms.Entries` in `examples/cms`, its
   relation prop drawn with the form's relation picker, its read resumed by
-  `Remote.resume`.
+  `Remote.resume`. **Built, in part:** `QueryBlock` and `reads`, and a
+  `LatestPages` Block in the CMS example read through an active. Two things
+  wait: a relation prop drawn with the form's relation picker (the inspector
+  has no way to load a picker's rows), and the editor's canvas drawing a Query
+  Block's rows, since the drawn Builder sees only the Builder's Model.
 - **9-2,** the Surface-backed and Bundle-backed Blocks, the latter placed with
   `Bundle.withEach` keyed by NodeId.
 - **9-3,** the acceptance page above.

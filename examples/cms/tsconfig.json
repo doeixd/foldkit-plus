@@ -25,7 +25,8 @@
       "foldkit-builder": ["../../packages/builder/src/index.ts"],
       "foldkit-mixins-builder": ["../../packages/mixins-builder/src/index.ts"],
       "foldkit-composition": ["../../packages/composition/src/index.ts"],
-      "foldkit-composition/foldkit": ["../../packages/composition/src/foldkit/index.ts"]
+      "foldkit-composition/foldkit": ["../../packages/composition/src/foldkit/index.ts"],
+      "foldkit-composition/remote": ["../../packages/composition/src/remote/index.ts"]
     },
     "lib": ["ES2022", "DOM"]
   },

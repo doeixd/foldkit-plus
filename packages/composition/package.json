@@ -40,6 +40,10 @@
     "./appearance": {
       "types": "./dist/appearance.d.mts",
       "import": "./dist/appearance.mjs"
+    },
+    "./remote": {
+      "types": "./dist/remote.d.mts",
+      "import": "./dist/remote.mjs"
     }
   },
   "files": [
@@ -55,7 +59,9 @@
     "effect": "^4.0.0-rc.116",
     "foldkit": "^0.163.0",
     "foldkit-mixins": "workspace:^",
-    "foldkit-richtext": "workspace:^"
+    "foldkit-remote": "workspace:^",
+    "foldkit-richtext": "workspace:^",
+    "foldkit-surface": "workspace:^"
   },
   "dependencies": {
     "foldkit-metadata": "workspace:*"
@@ -65,6 +71,7 @@
     "foldkit": "0.163.0",
     "foldkit-entity": "workspace:*",
     "foldkit-mixins": "workspace:*",
+    "foldkit-remote": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-dom": "workspace:*",
     "foldkit-ssr": "workspace:*",
@@ -77,6 +84,12 @@
       "optional": true
     },
     "foldkit-mixins": {
+      "optional": true
+    },
+    "foldkit-remote": {
+      "optional": true
+    },
+    "foldkit-surface": {
       "optional": true
     },
     "foldkit-richtext": {

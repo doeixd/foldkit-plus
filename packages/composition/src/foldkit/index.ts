@@ -35,6 +35,11 @@ export interface RenderContext<B extends AnyBlock, Message> {
    * `HeroLook.draw({ appearance, h })`.
    */
   readonly appearance: Readonly<Record<string, AppearanceChoice>>
+  /**
+   * What the page's reads hold for this node, from the render option `data`;
+   * `undefined` when there is none. A Query Block reads it with `rows(data)`.
+   */
+  readonly data: unknown
 }
 
 /** One view per Block of the Catalog, by name: a Block without one is a type error. */
@@ -98,6 +103,11 @@ const render = <Blocks extends AnyBlock, Message>(
      * `data-composition-hidden`. Without it, a node with conditions is hidden.
      */
     readonly context?: Readonly<Record<string, unknown>>
+    /**
+     * Each node's read, by node id, such as a Model read of
+     * `QueryBlock.reads(Data, catalog, document)`.
+     */
+    readonly data?: Readonly<Record<string, unknown>>
     /** In edit mode, the node a drop is aimed at, and where. */
     readonly drop?: { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | null
   } = {},
@@ -138,6 +148,7 @@ const render = <Blocks extends AnyBlock, Message>(
       h,
       mode,
       appearance: Block.offeredAppearance(block, node.appearance),
+      data: options.data?.[id],
     })
     return mode === 'view'
       ? html

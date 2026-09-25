@@ -415,6 +415,46 @@ const SiteRenderer = Renderer.make(Site, {
 
 It needs `foldkit-mixins` installed; the core does not.
 
+### Blocks that read data: `foldkit-composition/remote`
+
+A Query Block names a [`foldkit-remote`](../remote/README.md) query and says how
+its props become the query's input. An author chooses a count or a category;
+an author never writes a query, and the Document never holds one:
+
+```ts
+import { QueryBlock } from 'foldkit-composition/remote'
+
+const LatestPages = QueryBlock.define('LatestPages', {
+  Props: Schema.Struct({ count: Schema.Literals([3, 5]) }),
+  provides: [Content.Flow],
+  query: Cms.Entries,
+  input: () => ({ type: 'pages', search: '', archived: false }),
+  select: Entity.select(Cms.Entities.Entry, { label: true }),
+  first: props => props.count,
+})
+
+const SiteRenderer = Renderer.make(Site, {
+  LatestPages: ({ data, h }) => {
+    const rows = LatestPages.rows(data) // RemoteData<Page<{ label: string }>>
+    return rows._tag === 'Ready' ? h.ul([], rows.value.items.map(row => h.li([], [row.label]))) : h.p([], ['Loading'])
+  },
+})
+```
+
+- **`QueryBlock.reads(Data, catalog, document)`** is every Query Block on the
+  page as one Projection over the application's Model, keyed by node id, or
+  `undefined` when there is none. Require it from an active
+  (`Data.wiring`) or a Surface: Remote fetches, caches, authorizes on the
+  server and resumes it like any read. A node whose props do not decode reads
+  nothing.
+- **`Renderer.render(..., { data: reads.read(model) })`** hands each node its
+  value as `data`, and **`LatestPages.rows(data)`** reads it typed by what the
+  Block selects, `Initial` while there is nothing.
+- The Block's type depends on the query, not on `Data`, so a Catalog stays
+  independent of the Model that the Builder's form is part of.
+
+It needs `foldkit-remote` and `foldkit-surface` installed; the core does not.
+
 ### Serving a published page
 
 Most of a composed page is content no Message changes, which is what

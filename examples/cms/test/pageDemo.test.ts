@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runPageDemo } from '../src/pageDemo.js'
 
 describe('a page in foldkit-cms, built with foldkit-builder', () => {
-  it('builds, saves, resumes, previews, publishes, revises, restores, schedules and conflicts', async () => {
+  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts and reads', async () => {
     const page =
       'Section {"tone":"plain"} > body: > Heading {"text":"Welcome"} > Button {"href":"/blog","label":"Read the blog"}'
     expect(await runPageDemo()).toEqual([
@@ -34,6 +34,9 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       '— two people on one page —',
       'writer: Saved; editor: Conflict',
       'the editor saves over it: Saved',
+      '— a Block that lists the site’s pages —',
+      'before its read arrives: Good morning | News | All posts | Loading pages',
+      'read through Remote, as the editor may see it: Good morning | News | All posts | Home',
       'and the row holds only what was published: [{"id":"page-1","title":"Home","slug":"home","published_at":"2026-03-01T09:00:00.000Z"}]',
     ])
   })

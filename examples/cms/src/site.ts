@@ -5,8 +5,11 @@
  */
 import { Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
+import { Cms } from 'foldkit-cms'
 import { Block, Catalog, Content, Region, Url } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
+import { QueryBlock } from 'foldkit-composition/remote'
+import { Entity } from 'foldkit-entity'
 import { BuilderView } from 'foldkit-mixins-builder'
 
 export const Section = Block.define('Section', {
@@ -23,7 +26,24 @@ export const Button = Block.define('Button', {
   provides: [Content.Flow, Content.Interactive],
 })
 
-export const Site = Catalog.make({ blocks: [Section, Heading, Button], roots: [Content.Section] })
+/**
+ * The site's pages, newest first: an author picks how many, never a query.
+ * The read goes through Remote with the reader's authority, so it lists what
+ * that reader may see of the worklist.
+ */
+export const LatestPages = QueryBlock.define('LatestPages', {
+  Props: Schema.Struct({ count: Schema.Literals([3, 5]) }),
+  provides: [Content.Flow],
+  query: Cms.Entries,
+  input: () => ({ type: 'pages', search: '', archived: false }),
+  select: Entity.select(Cms.Entities.Entry, { label: true }),
+  first: props => props.count,
+})
+
+export const Site = Catalog.make({
+  blocks: [Section, Heading, Button, LatestPages],
+  roots: [Content.Section],
+})
 
 /** The same views draw the public page, the preview, and the editor's canvas. */
 export const SiteRenderer = Renderer.make(Site, {
@@ -31,6 +51,15 @@ export const SiteRenderer = Renderer.make(Site, {
     h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
   Heading: ({ props, h }) => h.h2([], [props.text]),
   Button: ({ props, h }) => h.a([h.Class('button'), h.Href(props.href)], [props.label]),
+  LatestPages: ({ data, h }) => {
+    const rows = LatestPages.rows(data)
+    return rows._tag === 'Ready' || rows._tag === 'Refreshing'
+      ? h.ul(
+          [],
+          rows.value.items.map(item => h.li([], [item.label])),
+        )
+      : h.p([], ['Loading pages'])
+  },
 })
 
 export const PageBuilder = Builder.make('PageBuilder', {
@@ -40,6 +69,7 @@ export const PageBuilder = Builder.make('PageBuilder', {
     Section: { tone: 'plain' },
     Heading: { text: 'New heading' },
     Button: { label: 'Read the blog', href: Url.make('/blog') },
+    LatestPages: { count: 3 },
   },
 })
 

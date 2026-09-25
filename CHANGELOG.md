@@ -107,6 +107,13 @@ version changed; `pnpm` skips versions already in the registry.
   is `mixins:style-property-conflict`. A layout Block is a Mixins layout this way: the test site's Columns is
   `Layout.switcher`, with its ratio, when it stacks, and its gap as choices.
   Phase 8 of the page builder design.
+- **`foldkit-composition/remote`: Query Blocks.** `QueryBlock.define` makes a
+  Block that names a `foldkit-remote` query and derives its input from props;
+  `QueryBlock.reads(Data, catalog, document)` is the page's reads as one
+  Projection keyed by node, fetched and resumed by Remote like any read; the
+  Renderer hands each node its `data`, and the Block's `rows(data)` reads it
+  typed. The CMS example's pages can list the site's pages. Phase 9 of the
+  page builder design.
 - **`foldkit-composition`: conditions.** A Catalog may declare a `context`
   Schema (an audience, a locale, a flag), and a node's `when` is a list of
   conditions over it, `eq`, `isNull`, `isNotNull` and `contains`, meant as

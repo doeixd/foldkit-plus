@@ -96,6 +96,17 @@ no context means a node with conditions is hidden (fails closed); edit mode
 draws it marked `data-composition-hidden`. `Composition.holds(when, context)`.
 Presentation, not authorization.
 
+## Data: `foldkit-composition/remote`
+
+`QueryBlock.define(name, { Props, provides, query, input: props => queryInput,
+select, first?: props => n })` — a Block that names a registered Remote query;
+the Document stores only its props. `QueryBlock.reads(Data, Site, document)`:
+one Projection (node id → RemoteData<Page<Row>>) to require from an active or
+Surface; `Renderer.render(r, doc, h, { data: reads.read(model) })`; in the
+view, `LatestPages.rows(data)` (typed; `Initial` without data). Don't close
+over `Data` in a Block: the Catalog is in the Model through the Builder. The
+drawn Builder's canvas has no app data, so it shows the Initial state.
+
 ## Appearance: `foldkit-composition/appearance`
 
 A node stores its look as names (`appearance: { tone: 'accent', gap: 'm' }`),

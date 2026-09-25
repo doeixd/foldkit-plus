@@ -210,6 +210,9 @@ is shown, with its props, but not edited.
 
 - Rich text on the canvas is not edited in place: its Block's props are shown
   in the inspector.
+- The canvas draws from the Builder's Model alone, so a Query Block on it has
+  no rows: it draws its view's waiting state. The page's reads are the
+  application's, as in a preview.
 - A drag moves one node, the selected one; there is no multiple selection.
 - A drag does not scroll the layers or the canvas when the pointer nears an
   edge.

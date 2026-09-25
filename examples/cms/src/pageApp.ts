@@ -13,7 +13,10 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
+import type { Document } from 'foldkit-composition'
+import { QueryBlock } from 'foldkit-composition/remote'
 import { Page, PageForm, PageId, PageView, Pages } from './pageDomain.js'
+import { PageBuilder, Site } from './site.js'
 
 // A rest of zero: the scripted run does not wait on a clock to save.
 export const Editor = Cms.editor('PageEditor', { content: Pages, rest: 0 })
@@ -61,8 +64,21 @@ export const revisions = (model: Model) => {
   return entry === null ? undefined : Data.get(Revisions, EntryId.make(entry))
 }
 
+/** The page the form is editing. */
+export const editing = (model: Model): Document =>
+  PageBuilder.document(PageForm.control('document').field(model.editor.form).value)
+
+/** What the page's Query Blocks read, as one Projection: fetched while the page is open. */
+export const blockReads = (model: Model) => QueryBlock.reads(Data, Site, editing(model))
+
 export const actives = {
   ...PageEditor.actives,
+  blocks: {
+    name: 'PageBlocks',
+    owner: Data.contract.owner ?? {},
+    messages: [],
+    projectionOf: blockReads,
+  },
   revisions: {
     name: 'Revisions',
     owner: Data.contract.owner ?? {},
