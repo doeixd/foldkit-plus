@@ -92,7 +92,8 @@ into a chord answer. Slices that must survive reload persist through
   `TreeNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, rows: model => [{ id, parent, branch, disabled? }], domId?, direction? })`,
   rows in tree order. Model `{ current, toggled }` (toggled away from the default);
   `TreeNavigation.shown(rows, model, args)` is what shows, with level and place.
-  Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes.
+  Right opens or steps in, Left closes or steps out; the Behavior writes the ARIA tree attributes
+  and `--fk-tree-level` (1 at the top) for indenting: `calc(var(--fk-tree-level) * 1rem)`.
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.

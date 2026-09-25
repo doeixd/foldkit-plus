@@ -255,6 +255,8 @@ version changed; `pnpm` skips versions already in the registry.
     and the `documentOf` of their `active` are `Option`s; the reads gain
     `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
     key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-primitives`: `TreeNavigation` writes each row's level as
+  `--fk-tree-level`** beside `aria-level`, so one `calc` indents any depth.
 - **`foldkit-composition`: the edit marks are one attribute.**
   `data-composition-mark` is `selected` or `hovered` and replaces
   `data-composition-selected` and `data-composition-hovered`; a node both

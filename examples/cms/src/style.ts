@@ -357,6 +357,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         cursor: 'pointer',
         fontSize: t.size.sm,
         padding: '0.25rem 0.5rem',
+        // TreeNavigation writes each row's depth, 1 at the top.
+        paddingInlineStart: 'calc(0.5rem + (var(--fk-tree-level) - 1) * 1rem)',
       }),
       Style.pseudo(':hover', { background: t.surface.muted }),
       Style.nest('&[aria-selected="true"]', {
@@ -365,12 +367,6 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       }),
       Style.nest('&[data-builder-dragging]', { opacity: '0.5' }),
       Style.nest('&[data-builder-drop]', { boxShadow: `inset 0 0 0 2px ${t.accent.default}` }),
-      // A row says its depth only as `aria-level` (FINDINGS, item 21).
-      ...[2, 3, 4, 5, 6].map(level =>
-        Style.nest(`&[aria-level="${level}"]`, {
-          paddingInlineStart: `${0.5 + (level - 1) * 1}rem`,
-        }),
-      ),
     ),
     actions: L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
     action: button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),

@@ -633,7 +633,9 @@ closed are one bundle with a different arg. The Behavior writes each showing
 row's `id` (through `domId`, by default the row's own), `role="treeitem"`,
 `aria-level`, `aria-posinset`, `aria-setsize`, `aria-expanded` on a branch,
 `aria-disabled`, a roving `tabindex` and `OnFocus`; the container's keys move
-focus by id, or open and close the current row in place.
+focus by id, or open and close the current row in place. The level is also the
+custom property `--fk-tree-level`, 1 at the top, so one rule indents any depth:
+`padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 
 ```ts
 const Layers = Bundle.declare(TreeNavigation.bundle, 'layers')

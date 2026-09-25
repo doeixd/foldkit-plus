@@ -204,8 +204,8 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     only as `aria-level`, so indenting the tree means one rule per level. The
     example writes rules for levels 2 to 6. *Proposed:* `TreeNavigation` writes
     the level as a custom property too (`--fk-tree-level`), so one
-    `calc(var(--fk-tree-level) * 1rem)` indents any depth. Status: worked
-    around.
+    `calc(var(--fk-tree-level) * 1rem)` indents any depth. **Fixed** (plan
+    area 2b): it does, and the example's per-level rules are one `calc`.
 
 22. **A Query Block showed more rows than its `first`.** In the page editor,
     the PostList (3 posts) showed all four on the canvas, while the public site
