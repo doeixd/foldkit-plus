@@ -319,7 +319,7 @@ describe('the drawn Builder', () => {
     const frame = all(root).find(node => attr(node, 'data-viewport') !== undefined)
     expect(attr(frame, 'data-viewport')).toBe('narrow')
     expect(frame?.data?.style).toMatchObject({ 'max-width': viewportWidths.narrow })
-    const selected = all(frame).find(node => attr(node, 'data-composition-selected') !== undefined)
+    const selected = all(frame).find(node => attr(node, 'data-composition-mark') === 'selected')
     expect(attr(selected, 'data-composition-node')).toBe(some(narrow.selected, 'the selection'))
     expect(attr(buttonNamed(root, 'narrow'), 'aria-pressed')).toBe('true')
     expect(text(frame)).toBe('New headingHello')

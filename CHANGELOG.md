@@ -255,6 +255,11 @@ version changed; `pnpm` skips versions already in the registry.
     and the `documentOf` of their `active` are `Option`s; the reads gain
     `data(model)`, each node's value as a Renderer takes it. `Block.stored(block,
     key)` is how a prop is stored, and `StoredPropsOf<B>` its type.
+- **`foldkit-composition`: the edit marks are one attribute.**
+  `data-composition-mark` is `selected` or `hovered` and replaces
+  `data-composition-selected` and `data-composition-hovered`; a node both
+  hovered and selected is `selected`. Restyle `[data-composition-selected]` as
+  `[data-composition-mark='selected']`.
 - **`foldkit-mixins`: a recipe's `variants` is optional,** so a recipe that is
   only its base (`Style.recipeFor(Slots)({ base })`) no longer writes
   `variants: {}`.

@@ -68,9 +68,12 @@ export interface Renderer<Blocks extends AnyBlock, Message> {
 export const NODE_ATTRIBUTE = 'composition-node'
 /** The attribute on a placeholder, naming the Block it stands for. */
 export const PLACEHOLDER_ATTRIBUTE = 'composition-placeholder'
-/** In edit mode, on the selected node's element and the hovered one's, for a stylesheet to outline. */
-export const SELECTED_ATTRIBUTE = 'composition-selected'
-export const HOVERED_ATTRIBUTE = 'composition-hovered'
+/**
+ * In edit mode, `selected` or `hovered`, for a stylesheet to outline. One
+ * attribute, so a node both hovered and selected is marked selected, whatever
+ * order a stylesheet writes its rules in.
+ */
+const MARK_ATTRIBUTE = 'composition-mark'
 /** In edit mode, on a node whose `when` does not hold in the context drawn for. */
 export const HIDDEN_ATTRIBUTE = 'composition-hidden'
 /** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */
@@ -181,8 +184,11 @@ const render = <Blocks extends AnyBlock, Message>(
           [
             h.DataAttribute(NODE_ATTRIBUTE, id),
             h.Style({ display: 'contents' }),
-            ...(options.selected === id ? [h.DataAttribute(SELECTED_ATTRIBUTE, '')] : []),
-            ...(options.hovered === id ? [h.DataAttribute(HOVERED_ATTRIBUTE, '')] : []),
+            ...(options.selected === id
+              ? [h.DataAttribute(MARK_ATTRIBUTE, 'selected')]
+              : options.hovered === id
+                ? [h.DataAttribute(MARK_ATTRIBUTE, 'hovered')]
+                : []),
             ...(options.drop?.id === id
               ? [h.DataAttribute(DROP_ATTRIBUTE, options.drop.zone)]
               : []),

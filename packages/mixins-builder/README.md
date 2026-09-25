@@ -110,15 +110,15 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 
 The page on the canvas is the site's own markup, so it is styled by the site's
 CSS. The editor's marks are data attributes on each node's wrapper:
-`data-composition-selected`, `data-composition-hovered`, and
-`data-composition-drop` (`before`, `inside` or `after`) on the node a drop
+`data-composition-mark` (`selected`, or `hovered`; a node that is both is
+`selected`), and `data-composition-drop` (`before`, `inside` or `after`) on the node a drop
 would land at. A wrapper is `display: contents` and draws nothing, so style
 the element inside it. The layer rows carry `data-builder-drop` and
 `data-builder-dragging` the same way.
 
 ```css
-[data-composition-selected] > * { outline: 2px solid Highlight; }
-[data-composition-hovered] > * { outline: 1px dashed GrayText; }
+[data-composition-mark='selected'] > * { outline: 2px solid Highlight; }
+[data-composition-mark='hovered'] > * { outline: 1px dashed GrayText; }
 [data-composition-drop='before'] > * { box-shadow: 0 -3px 0 Highlight; }
 [data-composition-drop='after'] > * { box-shadow: 0 3px 0 Highlight; }
 [data-composition-drop='inside'] > * { outline: 2px dashed Highlight; }

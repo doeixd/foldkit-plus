@@ -359,9 +359,10 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
 - **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
   element carrying `data-composition-node`, so an editor's canvas draws the
   page a visitor sees. The wrapper also carries the editor's marks, from the
-  options `selected`, `hovered` and `drop` (`data-composition-selected`,
-  `-hovered`, `-drop`), and a node whose `when` fails is drawn anyway, marked
-  `data-composition-hidden`.
+  options `selected`, `hovered` and `drop`: `data-composition-mark` is
+  `selected` or `hovered` (a node that is both is `selected`), and
+  `data-composition-drop` says where a drop lands. A node whose `when` fails is
+  drawn anyway, marked `data-composition-hidden`.
 - **The other options** are what the page is drawn for: `context`, which
   conditions read ([Conditions](#conditions)), and `data`, each node's read by
   id, which Query, Surface and stateful Blocks draw from. A page with all three

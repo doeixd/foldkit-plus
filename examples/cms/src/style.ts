@@ -421,13 +421,12 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         padding: t.space.md,
       }),
       Style.media('(max-width: 56rem)', { gridColumn: 'auto', gridRow: 'auto' }),
-      // A node can be hovered and selected at once: the selection is drawn last, so it wins.
       // Warm, so it shows on the accent a Hero or a Button is drawn in.
-      Style.nest('[data-composition-hovered] > *', {
+      Style.nest('[data-composition-mark="hovered"] > *', {
         outline: `1px dashed ${t.warning.default}`,
         outlineOffset: '3px',
       }),
-      Style.nest('[data-composition-selected] > *', {
+      Style.nest('[data-composition-mark="selected"] > *', {
         outline: `2px solid ${t.warning.default}`,
         outlineOffset: '3px',
       }),

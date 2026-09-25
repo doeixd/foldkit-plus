@@ -283,8 +283,8 @@ const PageForm = Form.make('PageForm', PageInput, {
   `Builder.make(..., { preview })`); the canvas draws for it, marking hidden
   nodes. The inspector's `when <key>` fields store `eq` conditions.
 - Style the marks on the edit wrappers' child (a wrapper is
-  `display: contents`): `[data-composition-selected] > *`,
-  `[data-composition-hovered] > *`, `[data-composition-drop='before'|'inside'|'after'] > *`;
+  `display: contents`): `[data-composition-mark='selected'|'hovered'] > *` (selected
+  wins on a node that is both), `[data-composition-drop='before'|'inside'|'after'] > *`;
   rows carry `data-builder-drop` and `data-builder-dragging`.
 
 ## Gotchas

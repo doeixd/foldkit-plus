@@ -221,8 +221,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     pointer is hovered and selected at once, and the example's hover rule came
     later, so the selection drew as the hover's dashed line, and in the accent
     color on an accent Hero, invisibly. Fixed in the example (selection drawn
-    last, in a warm color). *Proposed:* the mixins-builder README's CSS snippet
-    orders the two rules this way and says why.
+    last, in a warm color). **Fixed** (plan area 2e): one attribute,
+    `data-composition-mark`, is `selected` or `hovered`, and a node that is
+    both is `selected`, so no stylesheet can order the rules wrong.
 
 24. **An inserted Block is selected but not shown.** Adding a Quote to the
     last Section of the home page selected it (the address named it), but

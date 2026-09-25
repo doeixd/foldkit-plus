@@ -65,13 +65,19 @@ describe('drawing a Document', () => {
       drop: { id: id('start'), zone: 'before' },
     })
     const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
-    expect(marked.map(node => attr(node, 'data-composition-selected'))).toEqual([undefined, ''])
-    expect(marked.map(node => attr(node, 'data-composition-hovered'))).toEqual(['', undefined])
+    expect(marked.map(node => attr(node, 'data-composition-mark'))).toEqual(['hovered', 'selected'])
     expect(marked.map(node => attr(node, 'data-composition-drop'))).toEqual([undefined, 'before'])
+    // Hovered and selected at once, the node is marked selected.
+    const [both] = Renderer.render(SiteRenderer, homePage, inertHtml, {
+      mode: 'edit',
+      selected: id('hero'),
+      hovered: id('hero'),
+    })
+    expect(all(both).flatMap(node => attr(node, 'data-composition-mark') ?? [])).toEqual([
+      'selected',
+    ])
     const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, { selected: id('start') })
-    expect(all(viewed).some(node => attr(node, 'data-composition-selected') !== undefined)).toBe(
-      false,
-    )
+    expect(all(viewed).some(node => attr(node, 'data-composition-mark') !== undefined)).toBe(false)
   })
 
   it('draws a layout Block with the look its node chose, and its stylesheet holds the layout', () => {
