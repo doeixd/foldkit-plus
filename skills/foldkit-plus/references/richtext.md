@@ -16,9 +16,13 @@ InsertText/DeleteText/AddMark/RemoveMark/SetSelection/SplitNode/JoinNode/MoveNod
 text position mapping with split relocation and deletion collapse, structural
 ChangeSets, merge normalization, mark definitions with boundary expansion and
 prop schemas, unknown node preservation, bounded decode limits, Kits with
-vocabulary validation, a command layer resolving intent into transactions, reads for
+vocabulary validation, a command layer resolving intent into transactions (and
+`runAction`, which commits an ordered command list as one step, so removing what a rule
+matched and acting on it is one transition), reads for
 the marks a selection carries (`marksInRange`, for a toolbar's active button) and for
-the text of a block before a position (`textBefore`, what a slash menu queries),
+the text of a block before a position (`textBefore`, what a slash menu queries; and
+`textRangeBefore`, the range covering the characters before a caret that such a rule
+removes),
 local
 undo history with explicit grouping, clipboard slices with a strict codec, HTML
 export, and inspection. Unknown marks load verbatim and round-trip;
@@ -123,8 +127,9 @@ and the editor Message choosing it), `matchingEntries(entries, query)`, and
 `update` share: the query, the matches, and the entry Enter would send, with a stale index
 falling back to the first match. The editor's Bundle carries `EditorState.menuIndex`, the
 highlighted entry the application moves with the keys, and its `update` resolves `Entered`
-against a live query by re-entering itself with the chosen entry — so the view never sends
-Enter, and a mark entry updates the caret's stored marks. `foldkit-mixins-richtext`
+against a live query by handling the chosen entry as the Message a click would send — so
+the view never sends Enter, a mark entry updates the caret's stored marks, and the query
+the entry was typed into is removed in the same action (`runAction`). `foldkit-mixins-richtext`
 re-exports that vocabulary, adds `slashEntries(wrap)` (the editor's catalogue with each
 Message wrapped for the caller, as the toolbar's `toggled` is) and `slashMove(entries,
 textBefore, index, key, modifiers)` — the keys a menu owns, using `foldkit-primitives`'

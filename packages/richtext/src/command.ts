@@ -28,6 +28,7 @@ import {
 import {
   Edit,
   apply,
+  type ChangeSet,
   type Operation,
   type TextBlock,
   type TransactionResult,
@@ -584,4 +585,51 @@ const landingAfter = (
   return followingRun === undefined
     ? undefined
     : { node: followingRun.id, offset: 0, affinity: 'after' }
+}
+
+/** An ordered list of commands that commit as one action (§124 §5). */
+export type Action = ReadonlyArray<Command>
+
+/**
+ * A composed action's invalidation summary is the union of its commands': an identity
+ * one command retired and a later one restored appears in both sets, and a patch reads
+ * that as "remove it, then render it", so it never under-invalidates.
+ */
+const unionChangeSet = (left: ChangeSet, right: ChangeSet): ChangeSet => ({
+  dirtyNodes: new Set([...left.dirtyNodes, ...right.dirtyNodes]),
+  insertedNodes: new Set([...left.insertedNodes, ...right.insertedNodes]),
+  removedNodes: new Set([...left.removedNodes, ...right.removedNodes]),
+  textChanged: new Set([...left.textChanged, ...right.textChanged]),
+  structureChanged: left.structureChanged || right.structureChanged,
+  selectionChanged: left.selectionChanged || right.selectionChanged,
+})
+
+/**
+ * Resolves commands in order and commits them as one action: one resulting state, one
+ * composed ChangeSet, and one identity stream, so a caller can treat "remove the query,
+ * then apply the choice" as a single transition. It stops at the first refusal and
+ * returns that command's error; state is a value, so nothing partial escapes.
+ */
+export const runAction = (
+  state: EditorState,
+  commands: Action,
+  ids: CommandIds,
+  options: RunOptions = {},
+): TransactionResult => {
+  const [first, ...rest] = commands
+  // An empty action is a no-op, as an empty transaction is.
+  if (first === undefined) return apply(state, [])
+  const started = run(state, first, ids, options)
+  if (!started.ok) return started
+  let current = started.state
+  let changeSet = started.changeSet
+  let positionMap = started.positionMap
+  for (const command of rest) {
+    const result = run(current, command, ids, options)
+    if (!result.ok) return result
+    current = result.state
+    changeSet = unionChangeSet(changeSet, result.changeSet)
+    positionMap = [...positionMap, ...result.positionMap]
+  }
+  return { ok: true, state: current, changeSet, positionMap }
 }

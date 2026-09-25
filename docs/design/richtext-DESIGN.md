@@ -4671,11 +4671,11 @@ slash commands            the editor's catalogue and menu
                           (§123)
 ```
 
-Also not done: promoting the rest into packages with a supported API; the editor's own
+Also not done: promoting the rest into packages with a supported API, and the editor's own
 keymap layer, which §123 dropped rather than built (an unconditional chord table cannot
 express "only while a query is live", and a view-level `OnKeyDownPreventDefault` is the
-framework's answer); and removing the typed query when a menu entry is chosen, which
-waits on the composed `EditorAction` of §124 §5.
+framework's answer). A menu choice removes the typed query and applies the entry as one
+action now (§124 §5).
 
 ## Phase 5 — stateful Form controls
 
@@ -5484,7 +5484,7 @@ Slices:
    `foldkit-richtext-dom/editor`, beside the Messages it is made of. The Bundle is in
    that package, so it can import the entries — and, the reason the command version was
    the wrong shape, an entry can then carry the *editor Message* that chooses it, so
-   `update` resolves Enter by re-entering itself with that Message. A mark entry then
+   `update` handles that Message as if it had arrived. A mark entry then
    updates the caret's stored marks through the path a toggle already uses, a refused
    entry is refused there too, history groups it the same way, and the patch Command is
    the same one. Running a command directly would have needed a second copy of the
@@ -5495,13 +5495,11 @@ Slices:
    application moves it with `slashMove` and the editor reads it. No new Message is
    needed: the index is interaction state the parent owns, and the Link re-projects it.
 
-   One gap is deliberate and visible: choosing an entry does not remove the typed query,
-   because deleting a range and then running the entry is several commands that must
-   commit as one — the composed `EditorAction` of §124 §5. Until then the query text
-   stays in the block (a test pins that), and a choice shows as a retype or a stored mark.
-   Note also that the editor resolves Enter whenever the caret's text opens a query; an
-   application cannot switch the menu off, and a per-placement catalogue (so an
-   application can contribute entries, §124 §11) is not built yet.
+   Choosing an entry removes the query it was typed into and applies the choice as one
+   action (§124 §5), so one transition and one undo step cover both. What is still open:
+   the editor resolves Enter whenever the caret's text opens a query, so an application
+   cannot switch the menu off, and a per-placement catalogue (so an application can
+   contribute entries, §124 §11) is not built yet.
 4. The skill and an example (the harness or a small demo) drive it.
 
 
@@ -5949,6 +5947,23 @@ multi-block transformations
 ```
 
 I think Markdown gives you enough real evidence to justify extracting this now.
+
+> **Built (2026-09-25).** The primitive is `RichText.runAction(state, commands, ids,
+> options?)`: an action is an ordered `ReadonlyArray<Command>`, run in sequence and
+> committed once — one resulting state, one `ChangeSet` (the union of its commands'), and
+> one identity stream. It stops at the first refusal and returns that command's error;
+> state is a value, so nothing partial escapes. `runAction` with one command equals `run`.
+>
+> A range delete did not need a command of its own: `SetSelection` sets the range and
+> `DeleteBackward` deletes it, so the sequence above is `[{ type: 'SetSelection',
+> selection }, { type: 'DeleteBackward' }, command]`. The range is the read
+> `RichText.textRangeBefore(document, position, length)` — the inverse of `textBefore`,
+> covering the last `length` characters before a caret in its block, with endpoints landing
+> at run boundaries at `after` affinity.
+>
+> First consumer: the slash menu (§123). Choosing an entry removes the query it was typed
+> into and applies the choice as one action, so one transition and one undo step cover both;
+> `packages/richtext-dom/test/editor-bundle.test.ts` drives the choice and the one-step undo.
 
 ---
 

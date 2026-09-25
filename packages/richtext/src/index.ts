@@ -16,6 +16,7 @@ export {
   locateBlock,
   locateRun,
   textBefore,
+  textRangeBefore,
   Text,
   Paragraph,
   Heading,
@@ -52,7 +53,15 @@ export {
   sameMarkSet,
   resolveInsertion,
 } from './marks.js'
-export { type Command, type CommandIds, type RunOptions, marksInRange, run } from './command.js'
+export {
+  type Action,
+  type Command,
+  type CommandIds,
+  type RunOptions,
+  marksInRange,
+  run,
+  runAction,
+} from './command.js'
 export {
   History,
   type CommitOptions,

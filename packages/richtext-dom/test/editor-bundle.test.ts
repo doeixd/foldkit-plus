@@ -356,14 +356,26 @@ describe('Enter in a live slash query (§123)', () => {
     editor: { ...model.editor, menuIndex: index },
   })
 
-  it('chooses the highlighted entry instead of splitting', () => {
+  it('chooses the highlighted entry and removes the query, in one transition', () => {
     const after = step(asked('/h2'), pressed('Entered'))
-    // No split: the one block became the heading the menu pointed at, and its
-    // identity and run survived. The typed query is still its text — removing it is
-    // a composed action (§124 §5), not the command Enter runs today.
+    // No split: the one block became the heading the menu pointed at, its identity and
+    // run survived, and the typed query is gone — the deletion and the retype are one
+    // action (§124 §5), so the caret lands where the query began.
     expect(after.document.children).toHaveLength(1)
     expect(after.document.children[0]).toMatchObject({ type: 'Heading', level: 2 })
-    expect(after.document.children[0]?.children[0]?.text).toBe('/h2')
+    expect(after.document.children[0]?.children[0]?.text).toBe('')
+    expect(after.editor.selection).toMatchObject({
+      type: 'Range',
+      anchor: { node: 'a', offset: 0 },
+    })
+  })
+
+  it('undoes a choice as one step, restoring the block and the query', () => {
+    const chosen = step(asked('/h2'), pressed('Entered'))
+    expect(RichText.inspectHistory(chosen.editor.history).past).toBe(1)
+    const back = step(chosen, undone())
+    expect(back.document.children[0]).toMatchObject({ type: 'Paragraph' })
+    expect(back.document.children[0]?.children[0]?.text).toBe('/h2')
   })
 
   it('takes the index the application moved, not the first match', () => {
@@ -376,14 +388,15 @@ describe('Enter in a live slash query (§123)', () => {
     expect(after.document.children[0]).toMatchObject({ type: 'Heading', level: 1 })
   })
 
-  it('updates the caret’s stored marks for a mark entry, without an edit', () => {
+  it('updates the caret’s stored marks and removes the query for a mark entry', () => {
     const before = asked('/bold')
     const after = step(before, pressed('Entered'))
-    // Re-entering `update` is what makes this the toggle a click sends: the command
-    // layer treats a collapsed toggle as a no-op, and the caret keeps the format.
+    // The entry is a toggle, so the entry itself edits nothing — but the query is
+    // removed, and the caret keeps the format for the next typed character. Treating the
+    // entry as the Message a click sends is what routes it through the stored-mark path.
     expect(after.editor.storedMarks).toEqual(['Bold'])
-    expect(after.document).toBe(before.document)
     expect(after.document.children).toHaveLength(1)
+    expect(after.document.children[0]?.children[0]?.text).toBe('')
   })
 
   it('splits when the query matches nothing, because nothing is chosen', () => {

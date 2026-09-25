@@ -159,7 +159,7 @@ a Message.
 ## The slash menu
 
 The editor also owns the slash menu's vocabulary, because an entry is one of its own
-Messages and the Bundle resolves Enter by re-entering itself with it (§123):
+Messages and the Bundle resolves Enter by handling the chosen entry as that Message (§123):
 
 ```ts
 import {
@@ -185,12 +185,13 @@ catalogue reuses them.
 
 `EditorState.menuIndex` is the one thing a menu owns; the application moves it (with
 `slashMove` from `foldkit-mixins-richtext`) and the Link re-projects it. When `Entered`
-arrives and the caret's text opens a query, the Bundle re-enters its own `update` with the
-highlighted entry, so a mark entry updates the caret's stored marks and a retype replaces
-the block through the same paths a click or a chord uses. Choosing an entry does **not**
-remove the typed query yet — that is a composed action over several commands (§124 §5) —
-so the query stays in the block until it lands. The menu is resolved whenever the caret's
-text opens a query; there is no switch to turn it off.
+arrives and the caret's text opens a query, the Bundle treats the highlighted entry as the
+Message a click would send, so a mark entry updates the caret's stored marks and a retype
+replaces the block through the same paths a click or a chord uses. Choosing an entry also
+removes the query it was typed into, as one action (§124 §5): `textRangeBefore` reads the
+range and `runAction` commits the deletion and the choice together, so one transition and
+one undo step cover both. The menu is resolved whenever the caret's text opens a query;
+there is no switch to turn it off.
 
 ## The read-only renderer
 

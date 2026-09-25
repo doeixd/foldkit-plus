@@ -163,17 +163,15 @@ export const Editor = Bundle.make({
   update: (model, incoming): Update.ReturnWithOutMessage<EditorView, Message, OutMessage> => {
     const state: RichText.EditorState = { document: model.document, selection: model.selection }
     // A live query decides what Enter means before anything else reads the message
-    // (§123): the highlighted entry is handled exactly as if its Message had arrived,
-    // instead of splitting, and falling back to `incoming` when nothing is chosen keeps
-    // `/zzz` splitting. Substituting it here rather than recursing is what makes a mark
-    // entry update the caret's stored marks through the path a toggle already uses, with
-    // no second copy of that logic. The typed query is not removed yet: deleting it is a
-    // composed action over several commands (§124 §5).
-    const message =
+    // (§123): the highlighted entry applies as the Message a click would send, instead
+    // of splitting, and a query that chooses nothing falls through to `incoming` and
+    // still splits. Substituting the Message here rather than recursing is what makes a
+    // mark entry update the caret's stored marks through the path a toggle already uses.
+    const menu =
       incoming._tag === 'Entered'
-        ? (slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)?.highlighted?.message ??
-          incoming)
-        : incoming
+        ? slashMenu(slashEntries, textBeforeOf(model), model.menuIndex)
+        : undefined
+    const message = menu?.highlighted?.message ?? incoming
     // The patch Command's own completion: the render already happened.
     if (message._tag === 'Patched') return { model }
     if (message._tag === 'Undone' || message._tag === 'Redone') {
@@ -229,7 +227,21 @@ export const Editor = Bundle.make({
       message._tag === 'Typed' && storedMarks !== null
         ? ({ type: 'InsertText', text: message.text, marks: storedMarks } as const)
         : toCommand(message)
-    const result = RichText.run(state, command, { mint: () => `e${nextId++}` })
+    // Choosing an entry removes the query it was typed into and applies the choice as
+    // one action (§124 §5), so one transition and one undo step cover both. The range is
+    // a read, not state: `menu.query` is the text the document already holds, and the
+    // `+ 1` is the slash that opened it.
+    const queryRange =
+      menu === undefined || menu.highlighted === undefined || model.selection?.type !== 'Range'
+        ? undefined
+        : RichText.textRangeBefore(model.document, model.selection.anchor, menu.query.length + 1)
+    const result = RichText.runAction(
+      state,
+      queryRange === undefined
+        ? [command]
+        : [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command],
+      { mint: () => `e${nextId++}` },
+    )
     if (!result.ok) {
       // A refused command changes nothing, so it does not burn identities.
       return { model, outMessage: { _tag: 'Rejected', error: result.error } }

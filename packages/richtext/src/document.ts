@@ -360,6 +360,50 @@ export const textBefore = (document: Document, position: Position): string => {
   return lead + found.run.text.slice(0, Math.max(0, position.offset))
 }
 
+/**
+ * The range covering the `length` characters before `position` in its block, or
+ * `undefined` when the position does not resolve, `length` is not positive, or fewer
+ * characters precede it. The inverse of `textBefore`: an input rule or a menu deletes
+ * what it matched with this range, so removing the match and acting on it commit as one
+ * action (§124 §5). Endpoints land at run boundaries with `after` affinity, which is
+ * where a caret that typed that character would sit.
+ */
+export const textRangeBefore = (
+  document: Document,
+  position: Position,
+  length: number,
+): Selection | undefined => {
+  if (length <= 0) return undefined
+  const found = locateRun(document, position.node)
+  if (found === undefined) return undefined
+  const block = blockAtPath(document, found.path)
+  if (block === undefined) return undefined
+  const lead = block.children
+    .slice(0, found.index)
+    .reduce((total, run) => total + run.text.length, 0)
+  const end = lead + Math.max(0, position.offset)
+  const start = end - length
+  if (start < 0) return undefined
+  const at = (offset: number): Position | undefined => {
+    let consumed = 0
+    for (const run of block.children) {
+      const next = consumed + run.text.length
+      if (offset <= next) {
+        return {
+          node: run.id,
+          offset: offset - consumed,
+          affinity: offset === next ? 'after' : 'before',
+        }
+      }
+      consumed = next
+    }
+    return undefined
+  }
+  const anchor = at(start)
+  const focus = at(end)
+  return anchor === undefined || focus === undefined ? undefined : { type: 'Range', anchor, focus }
+}
+
 /** Every node a block subtree owns, block and run alike, keyed by identity. */
 const indexNodes = (blocks: ReadonlyArray<Block>, nodes: Map<NodeId, Block | Text>): void => {
   eachBlock(blocks, block => {

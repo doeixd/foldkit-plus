@@ -54,7 +54,7 @@ check(
 )
 
 // §123: the catalogue is the editor's, and an entry carries the Message choosing it, so
-// the menu's choice is a Message the Bundle can re-enter itself with.
+// the menu's choice is a Message the Bundle can handle as if it had arrived.
 check(
   'the editor catalogue chooses an editor Message',
   editor.slashMenu(editor.slashEntries, '/h2', 0)?.highlighted?.message?._tag === 'RetypedBlock',
@@ -110,6 +110,19 @@ check(
   result.ok && result.state.document.children[0].children[0].text === 'ab!',
 )
 check('marksInRange through the build', richtext.marksInRange(document, null).size === 0)
+
+// §124 §5: a composed action commits its commands as one step, over the range a rule
+// matched. Both the read and the runner are public surface.
+const marker = richtext.textRangeBefore(document, at(2), 2)
+const composed = richtext.runAction(
+  { document, selection: { type: 'Range', anchor: at(2), focus: at(2) } },
+  [{ type: 'SetSelection', selection: marker }, { type: 'DeleteBackward' }],
+  { mint: () => 'new-2' },
+)
+check(
+  'a composed action through the build',
+  marker !== undefined && composed.ok && richtext.documentToText(composed.state.document) === '',
+)
 
 // The rendering registry is the newest public surface, so exercise it rather than
 // just importing it.

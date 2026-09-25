@@ -101,8 +101,9 @@ choosing anything.
 
 The highlighted entry is the menu's only state, and per §123 it belongs beside the
 editor's: `EditorState.menuIndex`. The application moves it with `slashMove`, and the
-editor's `update` resolves `Enter` against it — re-entering itself with the chosen entry,
-so the view never sends Enter, and a mark entry updates the caret's stored marks.
+editor's `update` resolves `Enter` against it — handling the chosen entry as the Message a
+click would send, so the view never sends Enter, a mark entry updates the caret's stored
+marks, and the query the entry was typed into is removed in the same action.
 
 `slashMenuView<Message>()` draws it:
 

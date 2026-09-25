@@ -69,10 +69,10 @@ export const toMessage = (command: RichText.Command): EditorEvent | undefined =>
 /**
  * The slash menu's vocabulary (§123, §124 §11): what opens a menu, what it offers,
  * what a query matches, and what a chosen entry sends. An entry carries one of this
- * module's Messages, not a command, so the Bundle resolves Enter by re-entering its
- * own `update` with the chosen entry — the same transition a click produces — which
- * is also what makes a mark entry update the caret's stored marks rather than run a
- * collapsed toggle the command layer treats as a no-op.
+ * module's Messages, not a command, so the Bundle resolves Enter by handling the chosen
+ * entry as the Message a click would send — which is also what makes a mark entry update
+ * the caret's stored marks rather than run a collapsed toggle the command layer treats as
+ * a no-op.
  *
  * Whether a caret is in a query is a read of the document (`RichText.textBefore`),
  * not a flag. Nothing here holds state.

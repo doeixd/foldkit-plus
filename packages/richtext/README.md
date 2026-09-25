@@ -117,6 +117,17 @@ Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap
 describe the effect. Nothing mints identity unless the caller's `mint` does, and
 replay applies transactions rather than commands.
 
+An *action* is an ordered list of those commands committed as one step:
+
+```ts
+RichText.runAction(state, [removeTheMarker, retypeTheBlock], ids)
+```
+
+`runAction` runs the commands in sequence and returns one state, one `ChangeSet` (the
+union of its commands'), and one identity stream. It stops at the first refusal and
+returns that command's error; state is a value, so nothing partial escapes. One command
+behaves exactly as `run` does.
+
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
 survive; a node block or preserved content is refused, because its content is not
@@ -141,6 +152,11 @@ position addresses, up to that position, across its runs. A query is typed into 
 block's text between its start and the caret, so it never spans blocks; an offset
 past a run's end clamps to it, a negative one reads as none of it, and a position
 that resolves to nothing gives an empty string.
+
+`textRangeBefore(document, position, length)` is its inverse, for a rule that removes
+what it matched: the range covering the `length` characters before the position in its
+block, or `undefined` when they do not all precede it. Endpoints land at run boundaries
+at `after` affinity, where a caret that typed that character would sit.
 
 ## Mark definitions
 

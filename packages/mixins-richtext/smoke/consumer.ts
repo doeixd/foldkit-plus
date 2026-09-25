@@ -36,6 +36,8 @@ import {
 
 export type Surface = [
   typeof RichText.marksInRange,
+  typeof RichText.runAction,
+  typeof RichText.textRangeBefore,
   typeof RichText.rendering,
   typeof RichText.noRendering,
   typeof RichText.runRendering,
