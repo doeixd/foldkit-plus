@@ -6140,6 +6140,11 @@ For synchronous/simple tokenizers, the same contract works without Effects.
 
 For async Shiki, let a Bundle Command compute the highlighting and commit the ephemeral result into editor interaction state. Don't introduce a hidden highlighter store.
 
+> **Designed (2026-09-25), as §130.** The seam and its homes are decided — `CodeTokenizer` and
+> `codeDecorations` in the core (format-agnostic, like `searchDecorations`), a JSON lexer in
+> `foldkit-richtext-code`, Shiki in `foldkit-richtext-code-shiki` — and §129 decides how the
+> editable adapter draws the result. Nothing is built yet.
+
 ---
 
 ## 8. Rich Markdown source mode
@@ -6904,12 +6909,12 @@ shares with `textRangeBefore`, the block-offset-to-position mapping both need. T
 view draws such a set without any hand-made decoration, so §64's first example now runs end to
 end.
 
-The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping
-one text node per run, and splitting a run at decoration edges would break that mapping
-unless the overlay is drawn another way — the CSS Custom Highlight API, or overlay elements
-the position mapping ignores. That is a design decision rather than a parameter, and it
-belongs with the first decoration the editor needs (a remote cursor, a search highlight in
-the editable area). Until then the editable subtree renders marks only.
+The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping one
+text node per run, and splitting a run at decoration edges breaks that mapping unless the
+mapping learns to read across the text nodes. §129 decides that: the adapter nests the same
+elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
+Custom Highlight API, which nothing in this repository can test. Until the overlay lands the
+editable subtree renders marks only.
 
 Presence (§62) and remote selections (§63) become decorations when collaboration lands;
 nothing here changes for that — a stable selection resolved against a replica produces a
@@ -7043,4 +7048,86 @@ when its block becomes a child of a new one — not a rule to add, so those mark
 and no rule claims them. The inline shortcuts (`**foo**` as the closing run is typed) are the
 same story from the other side: they need the text *after* the caret too, which the contract
 deliberately does not read.
+
+---
+
+# 129. The editable adapter's decoration overlay
+
+§126 recorded that the editable adapter does not overlay decorations, and named two ways it
+could: the CSS Custom Highlight API, or elements the position mapping ignores. The first
+decoration the editor will need is foreseeable — §124 §7's highlighting inside a `CodeBlock`,
+and §124 §11's remote cursors — so this records the shape to take and why, before someone
+writes it from a browser API's name.
+
+## The evidence against the Highlight API
+
+`CSS.highlights` is the browser's own answer and the cheaper one: ranges are registered by
+name, `::highlight(name)` styles them, and the text nodes are untouched, so position mapping
+keeps the invariant §126 gave for deferring. Two things decide against it here:
+
+- **Nothing in this repository can test it.** Every DOM test runs in jsdom, which has no
+  `CSS.highlights`, and this environment has no browser either. Code written against an API
+  that cannot be run is code written from its name — the failure the repository's guidance
+  names — and the adapter is the worst place to discover a wrong assumption. A browser-gated
+  verification would have to come first.
+- **One stylesheet should serve both interpreters.** The read-only view already renders a
+  decoration as an element carrying `data-decoration=<kind>` (§126). `::highlight` would style
+  the same decoration another way, so a stylesheet would need both, and what the editor shows
+  and what the read-only view shows would be two implementations of one thing.
+
+## The shape to take
+
+The adapter nests the same element the view does — a `span` with `data-decoration=<kind>`,
+inside the run element and outside the marks — and the position mapping learns to read a run's
+text across it. That is the work §126 flagged as the reason to wait:
+
+```text
+renderRun        the run's text, cut at decoration edges, each piece in its marks and then
+                 in the decorations covering it     (the view's logic, in DOM form)
+rangeToPosition  a run's text nodes concatenated, so a browser offset is still an offset into
+                 the run's text rather than into one of its nodes
+positionToRange  the text node an offset falls in, and the offset inside that node
+patch / repair   a run whose decorations changed is re-rendered, as one whose marks changed is
+```
+
+The invariant worth keeping is the one that made patching cheap: an untouched run keeps its
+element and its text node. A decoration change *is* a run change, which the `ChangeSet` already
+carries, so no new invalidation is needed — a run is re-rendered when the decorations over it
+differ, exactly as it is when its marks do.
+
+Two things this does not decide, and both can wait for the first decoration that needs them:
+what a decoration's `data` renders as (today only its `kind` reaches the DOM, which is why a
+tokenizer names its kinds `syntax-string`, `syntax-number` — a registry over `data`, like §121's
+over marks, is the alternative), and whether the editable subtree should clip a decoration to
+the rendered window.
+
+---
+
+# 130. Where a code tokenizer lives
+
+§124 §7 asks for code blocks with highlighting, kept apart from the highlighter: the document
+holds `CodeBlock { language, text }`, tokens are *decorations*, and Shiki or Prism is one
+implementation of them. Where each piece goes follows §126's precedent and decides the next
+slice.
+
+```text
+foldkit-richtext              CodeTokenizer, codeDecorations(document, tokenizers)
+                              (a pure read of the document, like searchDecorations)
+foldkit-richtext-code         a JSON lexer, and room for a small set of exact grammars
+foldkit-richtext-code-shiki   the Shiki adapter, and the only piece that needs a heavy
+                              dependency and a Command to run off the render
+```
+
+The contract and the producer belong in the core because they are format-agnostic: a tokenizer
+is a function from text to ranges, and `codeDecorations` reads `CodeBlock`s the way
+`searchDecorations` reads text — no grammar, no dependency, nothing to load. A *grammar* is
+format-specific, so it does not: `foldkit-richtext-code` holds the small exact ones, and Shiki's
+weight and asynchronous loading justify their own package, with a Command that commits the
+ephemeral result into editor interaction state rather than a hidden store (§124 §7).
+
+The first grammar to ship should be JSON, by judgment rather than preference: its grammar is
+small enough to write exactly and verify, it is common in CMS content, and it proves the whole
+seam — a tokenizer, its decoration kinds, and the read-only view drawing them — without the risk
+of a half-right JavaScript lexer. TypeScript and JavaScript should wait for Shiki rather than be
+hand-rolled.
 
