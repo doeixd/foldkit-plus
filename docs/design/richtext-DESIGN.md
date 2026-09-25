@@ -5144,21 +5144,22 @@ block while its runs and identities stay.
    the marks every run the selection covers carries — a caret reports its run's
    marks, an empty run can carry them, and a node selection reports what its
    subtree agrees on. That is what a toolbar's active button reads.
-3. The editor's keymap layer in `events`, when a binding needs a Message no browser
-   event produces.
+3. The editor's keymap layer in `events` — **dropped**, not deferred: §123 shows why an
+   unconditional chord-to-Message table cannot express "only while a query is live" and
+   what the framework already provides instead.
 4. **Complete.** The buttons and their active rule landed
    (`foldkit-richtext-dom/toolbar`: `marksToolbar`, `markActive`), and so did the
    Mixins slot family that re-renders them rather than wrapping them
    (`foldkit-mixins-richtext`: `markToolbar`, `MarkToolbarSlots`). §120 corrects
    §119 on the wrapping: a slot view owns its elements, so the family could not take
    resolved attributes as a helper.
-5. Slash commands, over 1 and 3. — **started.** The core can retype a text block
-   (`RetypeBlock`, §119's "turning the block into a heading") and read what is typed
-   before the caret (`textBefore`, the text a query filters on); an editor can send
+5. Slash commands, over 1 and 3 — **started, replanned in §123.** The core can retype a
+   text block (`RetypeBlock`, §119's "turning the block into a heading") and read what is
+   typed before the caret (`textBefore`, the text a query filters on); an editor can send
    the retype as a Message (`RetypedBlock`, `retyped(block)` at the Bundle), so a menu
-   entry is already expressible end to end. What a menu still needs: the editor's
-   binding layer for ArrowUp/Down/Enter/Escape, its own open/query/selection state
-   and its view, and the entry catalogue.
+   entry is already expressible end to end. What a menu still needs: a view in
+   `foldkit-mixins-richtext` over `foldkit-primitives`' `ListNavigation`, the highlighted
+   entry beside the editor's state, and `Entered` resolved against a live query.
 
 ---
 
@@ -5382,3 +5383,76 @@ Slices:
 Implemented as decided, with one detail the code settled: `editorAt` always places,
 defaulting to `noRendering` when given none, so "re-placement replaces" needs no
 special case.
+
+---
+
+# 123. Where the menu's keys go
+
+§119's slice 3 said the editor's own binding layer — `events` taking a keymap whose
+bindings emit Messages — was how a slash menu's ArrowUp/Down, Enter, and Escape would
+work. Building it showed that this is the wrong shape, and what the tree already has
+instead. It is recorded here because the reasoning is easier to lose than the code.
+
+## An unconditional chord-to-Message table cannot work
+
+`events`' args are decoded once, when the mount acquires, so a binding table is fixed
+for the life of the host. A bound chord would then be intercepted whether or not the
+editor wanted it: bind ArrowDown and every ArrowDown in the editor is `preventDefault`ed,
+so the caret can no longer move down. The menu needs those keys *only while a query is
+live*, and that condition changes without the mount re-running.
+
+Making the condition live needs a predicate reading state the listener does not have: a
+mount holds an element, not the Model, so the predicate would have to be placed like the
+rendering registry (§122) *and* still reach the runtime's state, which it cannot. Placing
+the handler in the view instead is what the framework already does:
+`h.OnKeyDownPreventDefault((key, modifiers) => Option<Message>)` is a bubble-phase handler
+whose closure the view re-creates every render, so it sees the current Model and returns
+`Option.none()` when the key is not its business — and nothing is prevented.
+`foldkit-primitives` builds on exactly that (`ListNavigation`, `RovingTabindex`).
+
+Two consequences settle the layers:
+
+- **No `events` keymap.** The editor's Events stay what the adapter produces plus the
+  Messages an application sends itself (`RetypedBlock`), which is what §118 built. A
+  second, imperative listener for the same job would be a second way to do it, and it
+  would exist only to win a race against the adapter — a race a view-level handler never
+  has to run.
+- **Enter needs no interception.** The adapter already reports it as `Entered`, and what
+  Enter *means* is the editor's decision (§118): with a live query at the caret, `update`
+  chooses the highlighted entry instead of splitting the block. One Message, one decision
+  point, no ordering question.
+
+## What the menu is, then
+
+Its query is not state: it is a read of the document. `textBefore(document, selection)`
+against the pattern a slash command opens with says whether the caret is in a query and
+what filters it, which is why the condition above can be computed *in the view*. What is
+left to own is the highlighted entry — one value, and it belongs beside the editor's
+(`EditorState`), because the editor's `update` is what resolves Enter.
+
+The list behaviour is `foldkit-primitives`'s, not a new one:
+`interaction/list-navigation` already owns a `current` id and a typeahead `query`, moves
+by ArrowUp/Down/Home/End/PageUp/PageDown over slots, and renders through Mixins
+Behaviors. That is the shape the menu wants, and it is why the menu belongs in
+`foldkit-mixins-richtext` — the family that already owns the editor's chrome (§120) —
+rather than in `foldkit-richtext-dom`, which stays the adapter and its reads.
+
+## The chord dialect stays two, for now
+
+`foldkit-primitives/events/hotkeys` matches `ctrl+shift+k`; the adapter matches `Mod-b`,
+where `Mod` is Meta *or* Control, because the adapter's `keymap` is a platform-agnostic
+*editor* contract whose chords ship with the editor, while a hotkey pattern is application
+policy. So the two dialects are deliberate for now and the matcher stays private to the
+adapter. Unifying them is an open question, not a duplicate to delete quietly: it means
+either an adapter dependency on `foldkit-primitives` (and its Mixins weight) or a breaking
+change to a published chord dialect.
+
+Slices:
+
+1. Nothing to build for the editor's bindings: §119 slice 3 is dropped, not deferred.
+2. `foldkit-mixins-richtext` gains the menu as a slot view over `ListNavigation`:
+   entries that emit `RetypedBlock` and mark Messages, and a container whose
+   `OnKeyDownPreventDefault` handles the arrows and Escape only while a query is live.
+3. `EditorState` gains the highlighted entry, and the Bundle's `update` resolves
+   `Entered` against a live query before it splits.
+4. The skill and an example (the harness or a small demo) drive it.
