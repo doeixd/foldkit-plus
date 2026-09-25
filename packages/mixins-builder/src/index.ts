@@ -19,6 +19,7 @@ import {
   Catalog,
   Composition,
   NodeId,
+  fieldsOf,
   type AnyBlock,
   type Document,
   type Position,
@@ -75,6 +76,7 @@ export const viewportWidths = { wide: '100%', medium: '768px', narrow: '375px' }
 export interface BuilderLike {
   readonly name: string
   readonly catalog: Catalog
+  // `any`: a Renderer's entries are keyed by its own Blocks, so no one Blocks type fits every Builder's.
   readonly renderer: Renderer<any, never>
   readonly offered: ReadonlyArray<string>
   readonly document: (model: Model) => Document
@@ -89,6 +91,9 @@ export interface BuilderLike {
 
 /** Every node as a tree row, in document order, with its parent node and whether it holds any. */
 export const rowsOf = (document: Document): ReadonlyArray<TreeNavigation.Row> => {
+  // The view and the tree's Behavior both ask, on every draw.
+  const known = rowsByDocument.get(document)
+  if (known !== undefined) return known
   const rows: Array<TreeNavigation.Row> = []
   const seen = new Set<string>()
   const visit = (id: NodeId, parent: string | null): void => {
@@ -100,8 +105,11 @@ export const rowsOf = (document: Document): ReadonlyArray<TreeNavigation.Row> =>
     for (const child of children) visit(child, id)
   }
   for (const root of document.roots) visit(root, null)
+  rowsByDocument.set(document, rows)
   return rows
 }
+
+const rowsByDocument = new WeakMap<Document, ReadonlyArray<TreeNavigation.Row>>()
 
 /** The attribute a layer row carries, holding its node's id, for a drag to find. */
 export const ROW_ATTRIBUTE = 'builder-row'
@@ -139,21 +147,40 @@ const isChoices = (
 ): value is { readonly [axis: string]: Schema.Json } =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** The fields a struct Schema declares, such as a Catalog's context; none for anything else. */
-const structFields = (schema: Schema.Top | undefined): Readonly<Record<string, Schema.Top>> => {
-  const fields = (schema as { readonly fields?: unknown } | undefined)?.fields
-  return typeof fields === 'object' && fields !== null
-    ? (fields as Readonly<Record<string, Schema.Top>>)
-    : {}
-}
-
 /** What a context key's control reads as a value: blank is unset, a toggle's text a boolean. */
 const contextValue = (control: Control | undefined, raw: string): ContextValue => {
   if (raw === '') return null
   if (control !== undefined && Input.Toggle.is(control)) return raw === 'true'
-  if (control !== undefined && Input.Number.is(control) && Number.isFinite(Number(raw)))
+  if (
+    control !== undefined &&
+    Input.Number.is(control) &&
+    raw.trim() !== '' &&
+    Number.isFinite(Number(raw))
+  )
     return Number(raw)
   return raw
+}
+
+/**
+ * A select's options: a blank, the choices, and a stored value the choices lack,
+ * shown as `? value` and chosen, rather than the blank misreporting it.
+ */
+const optionsOf = <Message>(
+  h: HtmlBuilder<Message>,
+  blank: string,
+  choices: ReadonlyArray<string>,
+  current: string | undefined,
+): ReadonlyArray<Html> => {
+  const stray = current !== undefined && current !== '' && !choices.includes(current)
+  return [
+    ...['', ...choices].map(value =>
+      h.option(
+        [h.Value(value), h.Selected((current ?? '') === value)],
+        [value === '' ? blank : value],
+      ),
+    ),
+    ...(stray ? [h.option([h.Value(current), h.Selected(true)], [`? ${current}`])] : []),
+  ]
 }
 
 /** The choices a context key offers, or `undefined` when it is typed in. */
@@ -173,7 +200,7 @@ const contextChoices = (control: Control | undefined): ReadonlyArray<string> | u
  */
 const seedOf = (input: Schema.Top): { readonly [key: string]: Schema.Json } =>
   Object.fromEntries(
-    Object.entries(structFields(input)).flatMap(
+    Object.entries(fieldsOf(input)).flatMap(
       ([key, schema]): ReadonlyArray<[string, Schema.Json]> => {
         const control = Input.resolve(Entity.unmapped, schema)
         if (control === undefined) return []
@@ -187,14 +214,6 @@ const seedOf = (input: Schema.Top): { readonly [key: string]: Schema.Json } =>
       },
     ),
   )
-
-/** The fields a Block's props Schema declares, when it is a struct. */
-const fieldsOf = (block: AnyBlock): Readonly<Record<string, Schema.Top>> => {
-  const fields = (block.Props as { readonly fields?: unknown }).fields
-  return typeof fields === 'object' && fields !== null
-    ? (fields as Readonly<Record<string, Schema.Top>>)
-    : {}
-}
 
 const controlsKey = Metadata.key<Readonly<Record<string, Control>>>(
   'foldkit-mixins-builder/controls',
@@ -300,7 +319,8 @@ export const BuilderView = {
           )
         }),
       )
-      const layers = h.section(slots.layers.attrs([h.AriaLabel('Layers')]), [tree])
+      // The tree inside is what is named "Layers"; the panel around it is not named twice.
+      const layers = h.section(slots.layers.attrs(), [tree])
 
       const actions =
         selected === null
@@ -332,7 +352,7 @@ export const BuilderView = {
         ),
       )
 
-      const context = structFields(builder.catalog.context)
+      const context = fieldsOf(builder.catalog.context)
       const preview =
         Object.keys(context).length === 0
           ? []
@@ -352,7 +372,7 @@ export const BuilderView = {
               ),
             ]
 
-      const canvas = h.div(slots.canvas.attrs([h.AriaLabel('Page')]), [
+      const canvas = h.div(slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page')]), [
         h.div(
           slots.frame.attrs([
             h.DataAttribute('viewport', model.viewport),
@@ -419,12 +439,7 @@ export const BuilderView = {
                 h.Id(fieldId),
                 h.OnChange(raw => send(contextValue(control, raw))),
               ]),
-              ['', ...choices].map(value =>
-                h.option(
-                  [h.Value(value), h.Selected(shown === value)],
-                  [value === '' ? blank : value],
-                ),
-              ),
+              optionsOf(h, blank, choices, shown),
             ),
       ])
     }
@@ -480,10 +495,15 @@ export const BuilderView = {
           return h.textarea(slots.control.attrs(text) as Parameters<typeof h.textarea>[0])
         if (control !== undefined && Input.Text.is(control))
           return h.input(slots.control.attrs(text))
-        // A kind this inspector does not draw is shown, not edited.
-        return h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)])
+        return undefined
       })()
-      return h.div(slots.field.attrs(), [h.label([h.For(fieldId)], [label]), input])
+      // A kind this inspector does not draw is shown, not edited: no control to label.
+      return input === undefined
+        ? h.div(slots.field.attrs(), [
+            h.span([], [label]),
+            h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)]),
+          ])
+        : h.div(slots.field.attrs(), [h.label([h.For(fieldId)], [label]), input])
     }
 
     /** The selected node's props, one field each, drawn by the control its Schema resolves to. */
@@ -496,12 +516,23 @@ export const BuilderView = {
       const node = document.nodes[id]
       const block = node === undefined ? undefined : Catalog.block(builder.catalog, node.block)
       if (node === undefined || block === undefined)
-        return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), [
-          'This block is not in this version of the application, so its settings cannot be edited here.',
+        return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
+          h.p(
+            [],
+            [
+              'This block is not in this version of the application, so its settings cannot be edited here.',
+            ],
+          ),
+          ...Object.entries(node?.props ?? {}).map(([key, value]) =>
+            h.div(slots.field.attrs(), [
+              h.span([], [key]),
+              h.code(slots.control.attrs(), [JSON.stringify(value)]),
+            ]),
+          ),
         ])
       const set = (key: string, value: Schema.Json): Message =>
         Message.Applied({ op: Composition.Op.setProp(id, key, value) })
-      const drawn = Object.entries(fieldsOf(block)).flatMap(([key, schema]) => {
+      const drawn = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
         const control = controlFor(block, key, schema)
         return control !== undefined && Input.Hidden.is(control) ? [] : [{ key, schema, control }]
       })
@@ -554,12 +585,7 @@ export const BuilderView = {
             h.label([h.For(fieldId)], [point === 'base' ? axis : `${axis} at ${point}`]),
             h.select(
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
-              ['', ...values].map(value =>
-                h.option(
-                  [h.Value(value), h.Selected((at[point] ?? '') === value)],
-                  [value === '' ? (point === 'base' ? 'default' : 'unchanged') : value],
-                ),
-              ),
+              optionsOf(h, point === 'base' ? 'default' : 'unchanged', values, at[point]),
             ),
           ])
         })
@@ -567,13 +593,11 @@ export const BuilderView = {
       // When it shows: an `eq` condition per context key, blank for always. Other
       // conditions on a key are kept as they are.
       const when = Array.isArray(node.when) ? node.when : []
+      const isEqOn = (key: string) => (condition: Schema.Json) =>
+        isChoices(condition) && Array.isArray(condition['eq']) && condition['eq'][0] === key
       const eqOf = (key: string): ContextValue | undefined => {
         for (const condition of when)
-          if (
-            isChoices(condition) &&
-            Array.isArray(condition['eq']) &&
-            condition['eq'][0] === key
-          ) {
+          if (isChoices(condition) && isEqOn(key)(condition) && Array.isArray(condition['eq'])) {
             const value = condition['eq'][1]
             if (
               typeof value === 'string' ||
@@ -584,29 +608,21 @@ export const BuilderView = {
           }
         return undefined
       }
-      const conditions = Object.entries(structFields(builder.catalog.context)).map(
-        ([key, schema]) =>
-          contextField(slots, h, {
-            id: `${builder.name}-${id}-when-${key}`,
-            label: `when ${key}`,
-            schema,
-            current: eqOf(key),
-            blank: 'always',
-            send: value => {
-              const others = when.filter(
-                condition =>
-                  !(
-                    isChoices(condition) &&
-                    Array.isArray(condition['eq']) &&
-                    condition['eq'][0] === key
-                  ),
-              )
-              const next = value === null ? others : [...others, { eq: [key, value] }]
-              return Message.Applied({
-                op: Composition.Op.setWhen(id, next.length === 0 ? null : next),
-              })
-            },
-          }),
+      const conditions = Object.entries(fieldsOf(builder.catalog.context)).map(([key, schema]) =>
+        contextField(slots, h, {
+          id: `${builder.name}-${id}-when-${key}`,
+          label: `when ${key}`,
+          schema,
+          current: eqOf(key),
+          blank: 'always',
+          send: value => {
+            const others = when.filter(condition => !isEqOn(key)(condition))
+            const next = value === null ? others : [...others, { eq: [key, value] }]
+            return Message.Applied({
+              op: Composition.Op.setWhen(id, next.length === 0 ? null : next),
+            })
+          },
+        }),
       )
       // What each of the Block's events runs: an action the Catalog offers, blank for
       // none, then that action's input, one field each.
@@ -633,18 +649,18 @@ export const BuilderView = {
                   : run(chosen.name, seedOf(chosen.input))
               }),
             ]),
-            ['', ...builder.catalog.actions.map(each => each.name)].map(name =>
-              h.option(
-                [h.Value(name), h.Selected((action?.name ?? '') === name)],
-                [name === '' ? 'nothing' : name],
-              ),
+            optionsOf(
+              h,
+              'nothing',
+              builder.catalog.actions.map(each => each.name),
+              typeof ref['action'] === 'string' ? ref['action'] : undefined,
             ),
           ),
         ])
         const inputs =
           action === undefined
             ? []
-            : Object.entries(structFields(action.input)).map(([key, schema]) =>
+            : Object.entries(fieldsOf(action.input)).map(([key, schema]) =>
                 valueField(slots, h, {
                   id: `${pickId}-${key}`,
                   label: labelFor(key, schema),
@@ -655,7 +671,7 @@ export const BuilderView = {
               )
         return [pick, ...inputs]
       })
-      return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), [
+      return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
         ...fields,
         ...looks,
         ...conditions,

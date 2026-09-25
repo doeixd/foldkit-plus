@@ -28,6 +28,7 @@ import { valid, validate } from './validate.js'
 
 export {
   Block,
+  fieldsOf,
   type AnyBlock,
   type AppearanceAxes,
   type AppearanceAxis,

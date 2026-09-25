@@ -40,7 +40,7 @@ a click or hover on the page names the node under it.
 ## Install
 
 ```sh
-pnpm add effect foldkit foldkit-bundle foldkit-builder foldkit-composition foldkit-mixins foldkit-mixins-builder
+pnpm add effect foldkit foldkit-bundle foldkit-builder foldkit-composition foldkit-form foldkit-mixins foldkit-mixins-builder
 ```
 
 ## Start without customization
@@ -155,6 +155,37 @@ resolve it:
 | `Schema.String`, and a brand of it such as `Url` | `input` |
 | anything else | its JSON, shown and not edited |
 
+A field is labelled with its Schema's `title`, else its prop key.
+
+Where the Schema alone does not say, the Block asks for a control through
+metadata. `Input.multiline()` draws a `textarea`, and `Input.hidden()` leaves
+the prop out:
+
+```ts
+import { Schema } from 'effect'
+import { Block, Content } from 'foldkit-composition'
+import { Input } from 'foldkit-form'
+import { BuilderView } from 'foldkit-mixins-builder'
+
+const Quote = Block.define('Quote', {
+  Props: Schema.Struct({
+    text: Schema.String.annotate({ title: 'Quotation' }),
+    ref: Schema.String,
+  }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+```
+
+The hint is the inspector's, kept on the Block beside any other package's
+metadata; `foldkit-composition` does not read it. A later annotation's prop
+replaces an earlier one's.
+
+Each edit is one `setProp`, checked by the Block's Schema; a refused edit shows
+in the alert and changes nothing. A node whose Block the Catalog does not know
+is shown, with its props, but not edited. A stored value a `select` does not
+offer, such as a choice an older version made, is shown as `? value` and
+chosen, rather than as the blank.
+
 After the props, each appearance axis the Block offers is a `select` of its
 values, with a blank for the default; a choice is one `setAppearance`, and
 clearing the last one removes the node's `appearance`. A responsive token axis
@@ -185,33 +216,6 @@ the page for that context: a node hidden there is still drawn, marked
 ```css
 [data-composition-hidden] > * { opacity: 0.4; }
 ```
-
-A field is labelled with its Schema's `title`, else its prop key.
-
-Where the Schema alone does not say, the Block asks for a control through
-metadata. `Input.multiline()` draws a `textarea`, and `Input.hidden()` leaves
-the prop out:
-
-```ts
-import { Block } from 'foldkit-composition'
-import { Input } from 'foldkit-form'
-
-const Quote = Block.define('Quote', {
-  Props: Schema.Struct({
-    text: Schema.String.annotate({ title: 'Quotation' }),
-    ref: Schema.String,
-  }),
-  provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
-```
-
-The hint is the inspector's, kept on the Block beside any other package's
-metadata; `foldkit-composition` does not read it. A later annotation's prop
-replaces an earlier one's.
-
-Each edit is one `setProp`, checked by the Block's Schema; a refused edit shows
-in the alert and changes nothing. A node whose Block the Catalog does not know
-is shown, with its props, but not edited.
 
 ## Limits
 

@@ -167,6 +167,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     await vi.waitFor(() => expect(stored()).toEqual({ space: { base: 's', md: 'm' } }))
     space('-md', '')
     await vi.waitFor(() => expect(stored()).toEqual({ space: 's' }))
+    // Clearing the last choice leaves no appearance behind at all.
     space('', '')
     await vi.waitFor(() => expect(stored()).toBeUndefined())
 
@@ -191,12 +192,6 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     pick('[aria-label="Properties"] select[id$="-on-press"]', '')
     await vi.waitFor(() => expect(actions()).toBeUndefined())
 
-    // Clearing the last choice leaves no appearance behind at all.
-    const page = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
-    const banner = Object.values(page?.nodes ?? {}).find(node => node.block === 'Banner')
-    expect(banner).toBeDefined()
-    expect(banner?.appearance).toBeUndefined()
-
     // Shown only to members, the Banner is marked hidden while previewing as a
     // guest, and not as a member; always again, it has no condition at all.
     const bannerHidden = () =>
@@ -210,13 +205,19 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     await vi.waitFor(() =>
       expect(drawn?.editor.preview).toEqual({ audience: 'member', beta: true }),
     )
-    pick('[aria-label="Properties"] select[id$="-when-audience"]', '')
-    await vi.waitFor(() => {
+    // Clearing one key's condition keeps another's; clearing the last leaves none.
+    const bannerWhen = () => {
       const now = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
-      const node = Object.values(now?.nodes ?? {}).find(each => each.block === 'Banner')
-      expect(node).toBeDefined()
-      expect(node?.when).toBeUndefined()
-    })
+      return Object.values(now?.nodes ?? {}).find(each => each.block === 'Banner')?.when
+    }
+    pick('[aria-label="Properties"] select[id$="-when-beta"]', 'true')
+    await vi.waitFor(() =>
+      expect(bannerWhen()).toEqual([{ eq: ['audience', 'member'] }, { eq: ['beta', true] }]),
+    )
+    pick('[aria-label="Properties"] select[id$="-when-audience"]', '')
+    await vi.waitFor(() => expect(bannerWhen()).toEqual([{ eq: ['beta', true] }]))
+    pick('[aria-label="Properties"] select[id$="-when-beta"]', '')
+    await vi.waitFor(() => expect(bannerWhen()).toBeUndefined())
 
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))

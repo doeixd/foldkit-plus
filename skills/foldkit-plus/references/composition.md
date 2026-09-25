@@ -217,7 +217,8 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   `DragStarted({ id })`, `DraggedOver({ over: { id, zone } | null })`,
   `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
   (`dropAt`; inside a node that takes nothing is after it, and `over.zone`
-  says so), `null` where the page refuses; a drop is one undoable move.
+  says so), `null` where the page refuses or onto the node's own place; a drop
+  is one undoable move, its place worked out again when it happens.
 - Ids are minted in a Command; an edit and its undo step change together;
   a new node is selected; a refusal is kept in `refused` until the next edit.
 - As a form key: a change of the Document is an edit (autosaved by CMS), a
@@ -248,6 +249,9 @@ const PageForm = Form.make('PageForm', PageInput, {
 })
 ```
 
+- A stored value a `select` lacks is shown as `? value`; an unknown Block's
+  props are shown read-only. `fieldsOf(schema)` (from `foldkit-composition`)
+  is a struct Schema's fields.
 - Draws: palette (`Add <Block>`, disabled with no place), layers as
   `role="tree"` rows (tab stop on the selected row), actions, inspector
   (Boolean: checkbox; literals: select; Number, String: input; else JSON

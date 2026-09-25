@@ -205,6 +205,16 @@ const moveBy = (document: Document, id: NodeId, delta: number): Operation | unde
  * after it. `undefined` when the page would refuse the move, such as into the
  * dragged node itself.
  */
+/** The first of a holder's Regions that accepts a Block, by name: where "inside it" goes. */
+const regionTaking = (catalog: Catalog, holder: string, block: string): string | undefined => {
+  const owner = Catalog.block(catalog, holder)
+  const taken = Catalog.block(catalog, block)
+  const region = Object.entries(owner?.regions ?? {}).find(([, candidate]) =>
+    (taken?.provides ?? []).some(content => candidate.accepts.includes(content)),
+  )
+  return region?.[0]
+}
+
 const landing = (
   catalog: Catalog,
   document: Document,
@@ -229,15 +239,19 @@ const landing = (
   }
   const inside = (): Position | undefined => {
     const holder = document.nodes[target]
-    const block = Catalog.block(catalog, node.block)
-    const owner = holder === undefined ? undefined : Catalog.block(catalog, holder.block)
-    const region = Object.entries(owner?.regions ?? {}).find(([, candidate]) =>
-      (block?.provides ?? []).some(content => candidate.accepts.includes(content)),
-    )
-    if (region === undefined || holder === undefined) return undefined
-    const [regionName] = region
+    const regionName =
+      holder === undefined ? undefined : regionTaking(catalog, holder.block, node.block)
+    if (regionName === undefined || holder === undefined) return undefined
     return Composition.region(target, regionName, without(holder.regions[regionName] ?? []).length)
   }
+  // Where the dragged node is now, counted the same way: a drop there moves nothing.
+  const current = Composition.index(document).get(dragged)
+  const stays = (at: Position) =>
+    current !== undefined &&
+    at.index === current.index &&
+    (at._tag === 'Root'
+      ? current.parent === undefined
+      : at.parent === current.parent && at.region === current.region)
   const candidates: ReadonlyArray<{ readonly at: Position | undefined; readonly zone: DropZone }> =
     zone === 'before'
       ? [{ at: beside(0), zone }]
@@ -249,10 +263,10 @@ const landing = (
           ]
   for (const candidate of candidates) {
     const { at } = candidate
-    if (
-      at !== undefined &&
-      Result.isSuccess(Composition.apply(catalog, document, Composition.Op.move(dragged, at)))
-    )
+    if (at === undefined) continue
+    // Onto its own place is not a move, and no later candidate is meant instead.
+    if (stays(at)) return undefined
+    if (Result.isSuccess(Composition.apply(catalog, document, Composition.Op.move(dragged, at))))
       return { at, zone: candidate.zone }
   }
   return undefined
@@ -300,15 +314,9 @@ const indent = (catalog: Catalog, document: Document, id: NodeId): Operation | u
       : (document.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
   const above = siblings[place.index - 1]
   const target = above === undefined ? undefined : document.nodes[above]
-  const block = Catalog.block(catalog, node.block)
-  const owner = target === undefined ? undefined : Catalog.block(catalog, target.block)
-  if (above === undefined || target === undefined || block === undefined || owner === undefined)
-    return undefined
-  const region = Object.entries(owner.regions).find(([, candidate]) =>
-    block.provides.some(content => candidate.accepts.includes(content)),
-  )
-  if (region === undefined) return undefined
-  const [regionName] = region
+  if (above === undefined || target === undefined) return undefined
+  const regionName = regionTaking(catalog, target.block, node.block)
+  if (regionName === undefined) return undefined
   return Composition.Op.move(
     id,
     Composition.region(above, regionName, (target.regions[regionName] ?? []).length),
@@ -594,11 +602,14 @@ export const Builder = {
         }
         case 'DragDropped': {
           if (model.drag === null) return { model }
-          const { id, at } = model.drag
+          const { id, over } = model.drag
           const ended = { ...model, drag: null }
-          return at === null
+          // Worked out again: the page may have changed since the pointer got here.
+          const landed =
+            over === null ? undefined : landing(catalog, documentOf(model), id, over.id, over.zone)
+          return landed === undefined
             ? { model: ended, commands: announce('Not moved') }
-            : applyOp(ended, Composition.Op.move(id, at))
+            : applyOp(ended, Composition.Op.move(id, landed.at))
         }
         case 'DragCancelled':
           return model.drag === null
@@ -634,11 +645,28 @@ export const Builder = {
           : { ...next, model: { ...next.model, selected: id } }
       }
       // A selection made elsewhere (an insert, the canvas, a row click) is where
-      // the layers' keys start from.
+      // the layers' keys start from, with the rows above it open so it shows.
       const selected = next.model.selected
-      return selected === null || selected === next.model.layers.current
-        ? next
-        : { ...next, model: { ...next.model, layers: { ...next.model.layers, current: selected } } }
+      if (selected === null || selected === next.model.layers.current) return next
+      const places = Composition.index(documentOf(next.model))
+      const above = new Set<string>()
+      for (let at = places.get(selected)?.parent; at !== undefined; at = places.get(at)?.parent)
+        above.add(at)
+      const { layers } = next.model
+      return {
+        ...next,
+        model: {
+          ...next.model,
+          layers: {
+            ...layers,
+            current: selected,
+            // Rows start open, so a closed one is one toggled: opening it untoggles it.
+            toggled: layersArgs.openByDefault
+              ? layers.toggled.filter(id => !above.has(id))
+              : [...new Set([...layers.toggled, ...above])],
+          },
+        },
+      }
     }
 
     const view = Submodel.defineView<Model, Message>((model, h) => drawBuilder(model, h))
@@ -810,7 +838,7 @@ export const Builder = {
       return undefined
     }
 
-    /** The form control that places this Builder as a key, drawn by `view`. */
+    /** The form control that places this Builder as a key, drawn by `drawn`. */
     const inputWith = (drawn: Submodel.View<Model, Message, void>) =>
       Input.bundle('Composition', {
         bundle: bundle.pipe(Bundle.withView(drawn)),

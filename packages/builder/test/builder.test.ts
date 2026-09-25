@@ -432,6 +432,29 @@ describe('dragging a node', () => {
     expect(cancelled.announcer.pending?.message).toBe('Not moved')
   })
 
+  it('counts a drop onto a node’s own place as no move, and drops where the page is now', () => {
+    // h1 is first; before g is where it already is.
+    expect(PageBuilder.dropAt(document, id('h1'), id('g'), 'before')).toBeUndefined()
+    const over = send(
+      send(page, Message.DragStarted({ id: id('h2') })),
+      Message.DraggedOver({ over: { id: id('h1'), zone: 'before' } }),
+    )
+    expect(over.drag?.at).toEqual(Composition.region(id('s1'), 'body', 0))
+    // h1 goes before the drop. First in the body is still a place, but not the one
+    // aimed at: before h1, which is not there.
+    const gone = send(over, Message.Applied({ op: Composition.Op.remove(id('h1')) }))
+    const dropped = send(gone, Message.DragDropped())
+    expect(dropped.page.present).toBe(gone.page.present)
+    expect(dropped.announcer.pending?.message).toBe('Not moved')
+  })
+
+  it('opens the rows above a node selected from elsewhere, so the tree shows it', () => {
+    const closed = send(page, Layers.wrapper.make(TreeNavigation.Message.Closed({ id: id('s1') })))
+    expect(closed.layers.toggled).toEqual([id('s1')])
+    const selected = send(closed, Message.Selected({ id: id('h2') }))
+    expect(selected.layers).toEqual({ current: id('h2'), toggled: [] })
+  })
+
   it('ignores a drag of no node, drag news with no drag, and settles with none', () => {
     expect(send(page, Message.DragStarted({ id: id('gone') })).drag).toBeNull()
     expect(send(page, Message.DraggedOver({ over: null }))).toBe(page)

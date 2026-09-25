@@ -131,6 +131,62 @@ describe('the drawn Builder', () => {
     expect(prop(controls[2], 'value')).toBe('1')
   })
 
+  it('shows a Block the Catalog lacks with its props, and edits none of them', () => {
+    const unknown = PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [NodeId.make('c')],
+        nodes: {
+          [NodeId.make('c')]: { block: 'Carousel', props: { interval: 5 }, regions: {} },
+        },
+      }),
+    )
+    const root = draw(send(unknown, Message.Selected({ id: NodeId.make('c') })))
+    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    expect(text(inspector)).toBe(
+      'This block is not in this version of the application, so its settings cannot be edited here.interval5',
+    )
+    expect(
+      all(inspector).some(node => ['input', 'select', 'textarea'].includes(node.sel ?? '')),
+    ).toBe(false)
+  })
+
+  it('shows a stored value its choices lack as one, not as the blank', () => {
+    const banner = required(page.selected, 'the banner')
+    const odd = send(
+      page,
+      Message.Applied({
+        op: Composition.Op.batch([
+          Composition.Op.setWhen(banner, [{ isNull: 'beta' }, { eq: ['audience', 'member'] }]),
+        ]),
+      }),
+    )
+    // Stored straight into the page, as an older version or another tool might have.
+    const stray = PageBuilder.replace(
+      odd,
+      Composition.Document.make({
+        ...PageBuilder.document(odd),
+        nodes: {
+          ...PageBuilder.document(odd).nodes,
+          [banner]: {
+            ...required(PageBuilder.document(odd).nodes[banner], 'the banner node'),
+            appearance: { tone: 'shouty' },
+            actions: { press: { action: 'deleteAll' } },
+          },
+        },
+      }),
+    )
+    const root = draw(send(stray, Message.Selected({ id: banner })))
+    const chosen = (suffix: string) =>
+      all(all(root).find(node => String(prop(node, 'id') ?? '').endsWith(suffix)))
+        .filter(node => node.sel === 'option' && prop(node, 'selected') === true)
+        .map(text)
+    expect(chosen('-appearance-tone')).toEqual(['? shouty'])
+    expect(chosen('-on-press')).toEqual(['? deleteAll'])
+    expect(chosen('-when-audience')).toEqual(['member'])
+  })
+
   it('labels a prop by its title, and draws the control its Block asked for', () => {
     const quoted = PageBuilder.replace(
       PageBuilder.initial,
@@ -323,6 +379,5 @@ describe('its Behaviors', () => {
       [false, false],
       [false, false],
     ])
-    expect(NodeId.make(section)).toBe(section)
   })
 })
