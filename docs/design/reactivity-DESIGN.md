@@ -702,7 +702,7 @@ Foldkit Plus can describe dependency structure before execution.
 Compare:
 
 ```text
-affect
+effect-atom-jsx
 
 execute tracked read
    ↓
@@ -1371,7 +1371,7 @@ test
 → queue notifications until explicit flush
 ```
 
-This is inspired by `affect` semantic reactivity.
+This is inspired by `effect-atom-jsx` semantic reactivity.
 
 But improve one thing:
 

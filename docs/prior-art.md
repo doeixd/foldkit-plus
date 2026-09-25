@@ -358,7 +358,7 @@ supplies defaults, and field identity supplies the default key. The same mirror
 kernel can therefore target a URL or an Effect `KeyValueStore` while preserving
 the same ownership rule.
 
-## Inside-out UI: Remix mixins, StyleX, and affect
+## Inside-out UI: Remix mixins, StyleX, and effect-atom-jsx
 
 The Mixins family has three especially direct influences that contribute
 different pieces of the design.
@@ -402,7 +402,7 @@ thing that can be attached to a Slot contract, inspected, composed, validated,
 and resolved without transferring ownership of the underlying element or
 application state.
 
-### affect (formerly effect-atom-jsx): the internal precursor
+### effect-atom-jsx: the internal precursor
 
 [`doeixd/effect-atom-jsx`](https://github.com/doeixd/effect-atom-jsx) is the
 most direct internal ancestor of the Mixins API. Its AF-UI work already explored
@@ -420,7 +420,7 @@ architecture instead of carrying its separate atom/component state model
 forward:
 
 ```text
-affect
+effect-atom-jsx
 
 component + reactive state
        │
@@ -622,7 +622,7 @@ This distinction matters for both accuracy and licensing.
 | nuqs | yes | no |
 | Remix mixins | yes | no |
 | StyleX | yes | no |
-| affect | yes; internal precursor | ideas/API lineage, not copied third-party code |
+| effect-atom-jsx | yes; internal precursor | ideas/API lineage, not copied third-party code |
 | Agent Native | yes; plus adapter compatibility | no copied implementation |
 
 For code-level third-party notices, always prefer the package-local notice over

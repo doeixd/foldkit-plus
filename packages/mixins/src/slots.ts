@@ -1,5 +1,5 @@
 /**
- * Slot contracts. Ported from `affect/src/View.ts` `Slots.define`,
+ * Slot contracts. Ported from `effect-atom-jsx/src/View.ts` `Slots.define`,
  * without minting element Handles. Names come from keys. Entries may be
  * `Slot.make({...})` or AF-UI option objects `{ capability, allowedEvents }`.
  */

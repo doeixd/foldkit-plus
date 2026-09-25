@@ -1,7 +1,7 @@
 
-Yes. After reading through `affect`, current Foldkit internals/docs, `@foldkit/ui`, and the existing `foldkit-plus` packages, I think there is a very natural package here—but it should be a **Foldkit-native reinterpretation** of AF-UI rather than a direct port.
+Yes. After reading through `effect-atom-jsx`, current Foldkit internals/docs, `@foldkit/ui`, and the existing `foldkit-plus` packages, I think there is a very natural package here—but it should be a **Foldkit-native reinterpretation** of AF-UI rather than a direct port.
 
-The important thing I found is that `affect` does not really have one monolithic “Mixin” primitive. Its useful abstraction is an **inside-out attachment algebra**: a component publishes a typed slot contract; `Style` and `Behavior` independently consume that contract; capabilities/events/attributes validate whether an attachment makes sense; attachments compose from outside without forking the component.  The behavior runtime is an Effect over typed element handles and accumulates Effect requirements/errors, while Style is mostly composable data.
+The important thing I found is that `effect-atom-jsx` does not really have one monolithic “Mixin” primitive. Its useful abstraction is an **inside-out attachment algebra**: a component publishes a typed slot contract; `Style` and `Behavior` independently consume that contract; capabilities/events/attributes validate whether an attachment makes sense; attachments compose from outside without forking the component.  The behavior runtime is an Effect over typed element handles and accumulates Effect requirements/errors, while Style is mostly composable data.
 
 I think **`foldkit-mixins`** is the right initial package name.
 
@@ -9,7 +9,7 @@ I think **`foldkit-mixins`** is the right initial package name.
 
 The mapping looks like this:
 
-| `affect`          | Foldkit-native version                                                 |
+| `effect-atom-jsx`          | Foldkit-native version                                                 |
 | -------------------------- | ---------------------------------------------------------------------- |
 | `View.Slots`               | `Slots` public structural contract                                     |
 | `Element.Capability`       | abstract slot capabilities                                             |
@@ -336,7 +336,7 @@ where the behavior creates local state and returns component bindings.
 
 For example your current `disclosure`, `selection`, `keyboardNav`, `focusTrap`, etc. create Atom state internally.
 
-That's fine for `affect`.
+That's fine for `effect-atom-jsx`.
 
 It is wrong for Foldkit.
 
@@ -1129,14 +1129,14 @@ Model / Submodel
 
 That's the adaptation that makes this properly **Foldkit**, rather than AF-UI transplanted into Foldkit.
 
-My first implementation slice would therefore be very focused: **typed Slots + immutable Mixin descriptors + Style class/inline attachments + declarative Behavior attributes + correct multi-Behavior Mount composition**. Once that works against both ordinary render helpers and real `@foldkit/ui` components, then add Theme/recipes/A11y/richer CSS. That gives you the distinctive inside-out customization model very early without first recreating all of `affect`.
+My first implementation slice would therefore be very focused: **typed Slots + immutable Mixin descriptors + Style class/inline attachments + declarative Behavior attributes + correct multi-Behavior Mount composition**. Once that works against both ordinary render helpers and real `@foldkit/ui` components, then add Theme/recipes/A11y/richer CSS. That gives you the distinctive inside-out customization model very early without first recreating all of `effect-atom-jsx`.
 
 
 # Foldkit Plus: Mixins / Styles / Behaviors Implementation Plan
 
 ## 1. Summary
 
-Add an inside-out UI composition layer to `doeixd/foldkit-plus`, inspired by the useful parts of `affect` AF-UI but redesigned around Foldkit's existing architecture.
+Add an inside-out UI composition layer to `doeixd/foldkit-plus`, inspired by the useful parts of `effect-atom-jsx` AF-UI but redesigned around Foldkit's existing architecture.
 
 The new system should let a Foldkit view publish a typed structural contract describing its externally customizable attachment points, then allow independent Styles and Behaviors to attach to those points without copying or forking the view.
 
@@ -3998,11 +3998,11 @@ That makes the new layer feel like a missing Foldkit ecosystem primitive rather 
 
 Yes. I think the important conclusion is that **this is much closer to an adaptation than a rewrite**, and it should compose cleanly with Foldkit because the two libraries solve different layers of the problem.
 
-`affect` already has a lot of the hard **type algebra and descriptor design** we want. Its `View.ts` contains branded event/attribute/requirement tokens, slot metadata, capability-aware slot typing, readable compile-time error machinery, pipeable descriptors, remapping concepts, and runtime diagnostics. None of that fundamentally depends on Atom state.  Likewise, the Style system is already largely a data AST—slot pieces, conditional pieces, responsive/media/supports/container/pseudo pieces, vars, animations, layers, global rules, etc.—which is exactly the kind of code we want to preserve.
+`effect-atom-jsx` already has a lot of the hard **type algebra and descriptor design** we want. Its `View.ts` contains branded event/attribute/requirement tokens, slot metadata, capability-aware slot typing, readable compile-time error machinery, pipeable descriptors, remapping concepts, and runtime diagnostics. None of that fundamentally depends on Atom state.  Likewise, the Style system is already largely a data AST—slot pieces, conditional pieces, responsive/media/supports/container/pseudo pieces, vars, animations, layers, global rules, etc.—which is exactly the kind of code we want to preserve.
 
 The split I’d make is roughly:
 
-| `affect` area              | Foldkit reuse                    |
+| `effect-atom-jsx` area              | Foldkit reuse                    |
 | ----------------------------------- | -------------------------------- |
 | `MetadataToken`                     | **Almost direct reuse**          |
 | Capability hierarchy                | **Almost direct reuse**          |
@@ -4055,7 +4055,7 @@ Style.recipe(...)
 can potentially survive with only its final interpreter swapped:
 
 ```text
-affect
+effect-atom-jsx
 
 Style AST
    ↓
@@ -4262,7 +4262,7 @@ A11y pattern
 diagnostics
 ```
 
-I'd seriously consider extracting those **renderer/state-runtime-neutral pieces into shared internal source modules** or a tiny lower-level package eventually, so `affect` and `foldkit-mixins` literally share the algebra rather than copy-pasting it.
+I'd seriously consider extracting those **renderer/state-runtime-neutral pieces into shared internal source modules** or a tiny lower-level package eventually, so `effect-atom-jsx` and `foldkit-mixins` literally share the algebra rather than copy-pasting it.
 
 Something like:
 
@@ -4279,7 +4279,7 @@ Something like:
        │
        ├─────────────────┐
        ▼                 ▼
-affect     foldkit-mixins
+effect-atom-jsx     foldkit-mixins
        │                 │
 Atom / handles      Attributes / Mount
 Component runtime   Foldkit state machine

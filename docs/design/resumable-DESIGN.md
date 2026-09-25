@@ -42,7 +42,7 @@ Foldkit's own `Runtime.hydrate` gives us the DOM adoption for free once the
 view does run. So the design is: **do not run the view until the first Message
 arrives; until then, the DOM answers events by itself.**
 
-## What affect taught
+## What effect-atom-jsx taught
 
 `C:\Users\Patrick\effect-atom-jsx` built resumability for a fine-grained
 reactive JSX runtime (docs under `docs/RESUMABILITY_*.md`, source in
@@ -525,13 +525,13 @@ Each ends in a test that can fail. Gate is the phase it builds on.
   entries repeat the same tag and differ in one id. Measure before adding
   anything; if it matters, the fix is the plan's Surface knowing the rows
   are one Bundle placed per key, so one entry per placement plus the key
-  covers them. affect found dictionary compression pointless under
+  covers them. effect-atom-jsx found dictionary compression pointless under
   gzip and fixed costs, not per-entry costs, dominated its heap, so decode
   once and freeze.
 - **Two listeners for one event.** Foldkit's listeners attach in the boot
   commit; the delegated ones are removed in the same commit. A test fires
   during the boot window and asserts each Message dispatched exactly once.
-  affect's first audit found every click dispatched twice from a
+  effect-atom-jsx's first audit found every click dispatched twice from a
   check-then-act race in this exact spot.
 - **Controlled inputs before boot.** Covered by queue order, but Foldkit's
   controlled-value handling must not clobber a value the user is still

@@ -210,7 +210,7 @@ Effect Schema is already here and should remain the validation/type source of tr
 
 ---
 
-## From `affect`
+## From `effect-atom-jsx`
 
 Take the **capability-matching idea**.
 
@@ -1304,7 +1304,7 @@ input resolution
 
 All actual application state remains a Foldkit Model/Submodel.
 
-Do not import the atom model from `affect`.
+Do not import the atom model from `effect-atom-jsx`.
 
 The useful idea from that project is schema/capability derivation, not hidden reactive state.
 

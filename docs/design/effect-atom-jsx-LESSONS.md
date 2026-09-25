@@ -1,4 +1,4 @@
-# What affect's UI layer teaches this repository
+# What effect-atom-jsx's UI layer teaches this repository
 
 **Status:** research, 2026-09-23. Read against `C:\Users\Patrick\effect-atom-jsx`
 (version 0.5.0 in its `package.json`) and this repository at the commit that
@@ -7,7 +7,7 @@ added `resumable-DESIGN.md`. The resumability lessons are in
 slot contracts, Behaviors, Styles, accessibility, primitives, data, agents,
 and testing.
 
-affect ("AF-UI") is a fine-grained reactive JSX runtime on Effect
+effect-atom-jsx ("AF-UI") is a fine-grained reactive JSX runtime on Effect
 with the same inside-out idea as `foldkit-mixins`: a component publishes
 slots, and styles and behaviors attach from outside. It went through a
 ratified design-question process (DQ-050 to DQ-098), wrote 54 executable

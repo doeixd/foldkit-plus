@@ -1,5 +1,5 @@
 /**
- * Ported from `affect/src/Element.ts` `Capability`, without Handle
+ * Ported from `effect-atom-jsx/src/Element.ts` `Capability`, without Handle
  * objects. Inheritance is metadata: a behavior that needs Interactive can
  * attach to TextInput. Lookups go through a Map so `__proto__` is a legal name.
  */
