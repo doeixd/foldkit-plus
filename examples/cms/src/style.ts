@@ -101,7 +101,7 @@ const navLink = Style.compose(
 
 /** The state of an entry, by its tag, in the colors its family says. */
 const badgeFor = (state: string, family: 'success' | 'warning' | 'info' | 'error') =>
-  Style.nest(`&[data-state="${state}"]`, { background: t[family].subtle, color: t[family].default })
+  Style.nest(`&[data-state="${state}"]`, { background: t[family].subtle, color: t[family].ink })
 
 export const AdminStyle = Style.forSlots(AdminSlots)(
   {

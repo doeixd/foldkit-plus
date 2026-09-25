@@ -1,6 +1,6 @@
 # Revising the packages after the CMS example
 
-**Status:** area 1 built; the rest proposed. The tracking table at
+**Status:** areas 1 and 2 built; the rest proposed. The tracking table at
 the end is current.
 **Source:** [cms-example-FINDINGS.md](./cms-example-FINDINGS.md), whose item
 numbers (F1, F2, …) this plan cites. Read the findings for what happened; read
@@ -112,6 +112,10 @@ breaks wherever a package draws markup outside it, or a token's name misleads.
   text on the family's full fill, as the mixins-ui recipes already call it (F15).
 - A new `<family>.ink` is colored text that is contrast-safe on the base surface,
   which is what the example needed each time it misused `.text`.
+- *As built:* the key is `'on-fill'`, kebab like the theme's other keys
+  (`'link-hover'`), so the variable is `--fk-accent-on-fill`. `text['on-accent']`,
+  the same value, is removed. Unfilled buttons read `--fk-ink` first, the way
+  headings read `--fk-heading` (F27).
 
 ### 2d. Headings in a colored band
 
@@ -131,7 +135,8 @@ breaks wherever a package draws markup outside it, or a token's name misleads.
 
 - `Style.recipeFor`'s `variants` becomes optional (F1).
 - Audit the other mixins-ui recipes for use on an `<a>`, as the button needed
-  (F16, fixed in `80c8870`).
+  (F16, fixed in `80c8870`). *As built:* nothing else needs it; Tabs render
+  `<button>`, and the rest are form controls and a dialog.
 
 **Done when:** the example's style has no data-attribute selector into a
 package's markup, no per-level tree rules, no `color: inherit` on a Block title,
@@ -239,7 +244,7 @@ cannot use; an inserted Block is in view; the example has no `!` and no
 | Area | Findings | Breaking | Status |
 | --- | --- | --- | --- |
 | 1. Absence and stored vs. decoded | F4, F11, F13, F14 | yes | built (F4, F7, F10, F11, F13, F14 fixed) |
-| 2. Styling contract | F1, F15–F18, F21, F23 | yes | proposed (F16 fixed) |
+| 2. Styling contract | F1, F15–F18, F21, F23, F27 | yes | built (all fixed; F27 found and fixed on the way) |
 | 3. Remote windows and writes | F10, F12, F19, F22 | no | proposed (3b built with area 1; F19, F22 fixed at the consumer) |
 | 4. Schema words and inference | F3–F5, F8, F20, F26 | no | proposed (F20 fixed in the form) |
 | 5. First-week capabilities | F2, F6, F9, F12, F24, F25 | no | proposed |
