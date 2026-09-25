@@ -1089,10 +1089,11 @@ export const MessageSet = {
  * input is decoded by its Schema before `toMessage` sees it: stored or
  * untrusted data never executes.
  */
+// `Input` defaults to `never`: an Action known only as an Action takes no input but through `run`.
 export interface Action<
   Name extends string = string,
-  Input = any,
-  Encoded = any,
+  Input = never,
+  Encoded = unknown,
   Message = unknown,
 > {
   readonly _tag: 'Action'

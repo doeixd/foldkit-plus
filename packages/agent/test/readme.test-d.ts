@@ -80,10 +80,13 @@ void result
     input: Schema.Struct({ productId: Schema.String }),
     toMessage: input => Cart.AddedToCart(input),
   })
+  interface Shopper {
+    readonly canBuy: boolean
+  }
   const exposed = Agent.expose(Cart, {
     AddedToCart: Agent.action(AddToCart, {
-      authorize: ({ principal }: { readonly principal: { readonly canBuy: boolean } }) =>
-        principal.canBuy,
+      // Give the principal its type: an Action's extras are not tied to an application.
+      authorize: ({ principal }: { readonly principal: Shopper }) => principal.canBuy,
     }),
   })
   void exposed

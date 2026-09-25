@@ -225,11 +225,15 @@ the Messages it names. Otherwise write the variant inline.
 
 A capability already declared as a `foldkit-surface` Action, because a page
 Block's button causes it too, is exposed with `Agent.action` under the tag of
-the Message it makes; exposing it under another tag is a type error:
+the Message it makes; exposing it under another tag is a type error, and a
+dispatch through it refused:
 
 ```ts
 Agent.expose(Message, {
-  AddedToCart: Agent.action(AddToCart, { authorize: ({ principal }) => principal.canBuy }),
+  AddedToCart: Agent.action(AddToCart, {
+    // Give the principal its type: an Action's extras are not tied to an application.
+    authorize: ({ principal }: { readonly principal: Shopper }) => principal.canBuy,
+  }),
 })
 ```
 

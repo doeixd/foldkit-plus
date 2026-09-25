@@ -15,7 +15,8 @@ version changed; `pnpm` skips versions already in the registry.
   Message, so stored or untrusted data never executes.
 - **`foldkit-agent`: `Agent.action(action, { available?, authorize? })`** exposes
   an Action as a variant, under the tag of the Message it makes; another tag is
-  a type error. `Agent.variant` is unchanged.
+  a type error, and a dispatch through one is refused. `Agent.variant` is
+  unchanged.
 - **`foldkit-form`: `Input.bundle`, a control with a Model of its own.** A key's
   draft can now be a Bundle's Model, such as a color picker with a popover, a
   page builder, or a rich-text editor. `Input.bundle(kind, { bundle, value, fill, settled? })`

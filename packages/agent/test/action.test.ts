@@ -3,6 +3,7 @@
  * the Message it makes, with what only an agent needs added beside it.
  */
 import { Effect, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
 import { Action, Projection } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Agent } from '../src/index.js'
@@ -57,6 +58,37 @@ describe('Agent.action', () => {
     expect(
       Agent.expose(Message, { RequestedDeleteTodo: Agent.action(Delete) }).variants,
     ).toHaveLength(1)
+  })
+
+  it('refuses the key of another Message even when the payloads match, at compile and run time', () => {
+    const Twins = defineMessageUnion({
+      Deleted: { id: Schema.String },
+      Archived: { id: Schema.String },
+    })
+    const Delete = Action.define({
+      name: 'delete',
+      description: 'Delete',
+      input: Schema.Struct({ id: Schema.String }),
+      toMessage: ({ id }) => Twins.Deleted({ id }),
+    })
+    const dispatched: Array<typeof Twins.Type> = []
+    const runtime = Agent.bind({
+      definition: Agent.make({
+        context: Projection.fromReader(Schema.Struct({}), () => ({})),
+        // @ts-expect-error the Action makes Deleted, so it is not Archived's
+        messages: Agent.expose(Twins, { Archived: Agent.action(Delete) }),
+      }),
+      host: {
+        model: () => ({}),
+        dispatch: (message: typeof Twins.Type) => {
+          dispatched.push(message)
+        },
+      },
+    })
+    expect(() =>
+      Effect.runSync(runtime.messages.dispatch('delete', { id: 'a' }, invocation)),
+    ).toThrow('"delete" made a "Deleted" Message, but is exposed as "Archived"')
+    expect(dispatched).toEqual([])
   })
 
   it('keeps what only an agent adds: an authorization refused dispatches nothing', () => {

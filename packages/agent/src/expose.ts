@@ -113,7 +113,10 @@ type MappedVariant<MessageInput, Ext, Model, Principal> = VariantConfig<
 export type ValidateVariants<C extends Cases, Ext, Model, Principal> = {
   readonly [Tag in keyof Ext]: Tag extends keyof C & string
     ? | DirectVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal>
-      | MappedVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal>
+      | (MappedVariant<MessageInputOf<C, Tag>, Ext[Tag], Model, Principal> & {
+          // Set by `Agent.action`: the Message it makes must be this tag's.
+          readonly messageTag?: Tag
+        })
       | string
     : never
 }
@@ -362,13 +365,24 @@ export const action = <
     name: action.name,
     description: action.description,
     input: action.input,
-    // The variant's constructor tags the payload, as for any mapped variant.
-    toMessage: input => {
-      const { _tag, ...payload } = action.toMessage(input)
-      return payload
-    },
+    // The whole Message: `expose` checks its tag is the key's before dispatching.
+    toMessage: input => action.toMessage(input),
     ...extras,
-  })
+  }) as ReturnType<
+    typeof variant<
+      Input,
+      Encoded,
+      Omit<ActionMessage, '_tag'>,
+      MessageConstructor,
+      never,
+      Name,
+      Model,
+      Principal
+    >
+  > & {
+    /** Types only: the tag of the Message the Action makes, which `expose` requires of the key. Never set. */
+    readonly messageTag?: ActionMessage['_tag']
+  }
 
 /** Strips the `_tag` literal so only the agent-facing payload fields remain. */
 const payloadSchemaOf = (
@@ -453,8 +467,18 @@ export const expose = <
 
     const make = constructor as (value: unknown) => AnyMessage
     const toMessage = config.toMessage
-    const construct = (input: unknown, context: InvocationContext<Model, Principal>): AnyMessage =>
-      toMessage === undefined ? make(input) : make(toMessage(input, context))
+    const construct = (
+      input: unknown,
+      context: InvocationContext<Model, Principal>,
+    ): AnyMessage => {
+      if (toMessage === undefined) return make(input)
+      const made = toMessage(input, context)
+      // A whole Message, as `Agent.action` gives, must be the one this key names.
+      const madeTag = (made as { readonly _tag?: unknown } | null)?._tag
+      if (typeof madeTag === 'string' && madeTag !== tag)
+        throw new Error(`"${name}" made a "${madeTag}" Message, but is exposed as "${tag}"`)
+      return make(made)
+    }
 
     return {
       tag,

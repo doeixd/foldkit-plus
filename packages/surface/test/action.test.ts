@@ -37,6 +37,14 @@ describe('Action', () => {
     >()
   })
 
+  it('takes input known only as an Action through run alone', () => {
+    const found: unknown = AddToCart
+    if (!Action.is(found)) throw new Error('an Action')
+    // @ts-expect-error input reaches an Action known only as one through Action.run, decoded
+    found.toMessage({ productId: 'p1' })
+    expect(Result.isSuccess(Action.run(found, { productId: 'p1' }))).toBe(true)
+  })
+
   it('needs a name', () => {
     expect(() =>
       Action.define({ name: '', description: 'x', input: Schema.Struct({}), toMessage: () => 0 }),
