@@ -27,7 +27,7 @@ Builder.make(...)                    the Builder: Model, update, a plain view
       |
 BuilderView.define(builder)          the editor, as a SlotView over BuilderSlots,
       |   .pipe(Style.attach(...))   with its keyboard and pointer Behaviors
-BuilderView.submodel(view)           a Submodel view
+BuilderView.submodel(view)           a Submodel view, drawn with BuilderView.inputs({ data })
       |
 builder.bundle.pipe(Bundle.withView(...))   placed on its own, or
 builder.inputWith(...)                      as a form key whose value is the page
@@ -142,6 +142,26 @@ const PageForm = Form.make('PageForm', PageInput, {
 
 The CMS example (`examples/cms`) places its page form this way.
 
+## The canvas and the page's data
+
+A Query or Surface Block draws from its node's read, which is the
+application's, not the Builder's. The page's parent reads them, as it must to
+preview or publish the page, and gives them to the canvas as the Builder's view
+inputs; the Builder keeps no copy:
+
+```ts
+EditorSlot.view(model, h, {
+  controls: {
+    document: BuilderView.inputs({ data: reads.projectionOf(model)?.read(model) }),
+  },
+})
+```
+
+`reads` is `QueryBlock.active(...)` (or `SurfaceBlock.active(...)`), the same
+active Surface that fetches them. Placed on its own, the drawn Builder takes
+the same inputs: `placed.view(model, h, BuilderView.inputs({ data }))`. The
+canvas draws with `Renderer.make`, so a Block's actions do not run there.
+
 ## What the inspector draws
 
 Each field of the selected Block's props Schema is resolved as a form would
@@ -221,9 +241,6 @@ the page for that context: a node hidden there is still drawn, marked
 
 - Rich text on the canvas is not edited in place: its Block's props are shown
   in the inspector.
-- The canvas draws from the Builder's Model alone, so a Query Block on it has
-  no rows: it draws its view's waiting state. The page's reads are the
-  application's, as in a preview.
 - A drag moves one node, the selected one; there is no multiple selection.
 - A drag does not scroll the layers or the canvas when the pointer nears an
   edge.

@@ -26,6 +26,8 @@ const text = (node: Html | undefined): string =>
     .map(each => each.text ?? '')
     .join('')
 const attr = (node: Node | undefined, key: string): unknown => node?.data?.attrs?.[key]
+const classOf = (node: Node | undefined): ReadonlyArray<string> =>
+  Object.keys(node?.data?.class ?? {}).filter(name => node?.data?.class?.[name] === true)
 const prop = (node: Node | undefined, key: string): unknown => node?.data?.props?.[key]
 const byRole = (root: Html, role: string) => all(root).filter(node => attr(node, 'role') === role)
 const buttonNamed = (root: Html, name: string) =>
@@ -129,6 +131,27 @@ describe('the drawn Builder', () => {
     expect(tone.map(option => prop(option, 'selected'))).toEqual([true, false, false])
     expect(prop(controls[0], 'value')).toBe('Hello')
     expect(prop(controls[2], 'value')).toBe('1')
+  })
+
+  it('draws the canvas with the data its inputs give each node, as a published page is', () => {
+    const fed = PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [NodeId.make('s')],
+        nodes: {
+          [NodeId.make('s')]: {
+            block: 'Section',
+            props: { tone: 'plain' },
+            regions: { body: [NodeId.make('f')] },
+          },
+          [NodeId.make('f')]: { block: 'Feed', props: {}, regions: {} },
+        },
+      }),
+    )
+    const feed = (root: Html) => text(all(root).find(node => classOf(node).includes('feed')))
+    expect(feed(draw(fed))).toBe('waiting for its rows')
+    expect(feed(PageView({ ...fed, data: { f: 'three posts' } }, h))).toBe('three posts')
   })
 
   it('shows a Block the Catalog lacks with its props, and edits none of them', () => {

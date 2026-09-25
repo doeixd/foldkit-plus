@@ -62,7 +62,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
         update: (model: Model, message: Message) => update(model, message),
         view: (model: Model, h: HtmlBuilder<Message>) => {
           drawn = model
-          return h.main([], [Editor.view(model, h)])
+          return h.main([], [Editor.view(model, h, BuilderView.inputs())])
         },
         subscriptions: placements.subscriptions(),
       }),

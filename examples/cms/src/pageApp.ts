@@ -8,10 +8,12 @@ import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
+import { BuilderView } from 'foldkit-mixins-builder'
 import { FormView } from 'foldkit-mixins-form'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type { Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
@@ -122,3 +124,16 @@ const placed = placements.update((model: Model, message: Message) => {
 export const update = PageEditor.after(placed)
 
 export const initial: Model = placements.initial({ remote: Remote.initial }).model
+
+/**
+ * The page editor drawn: the form, with the Builder's canvas given what the
+ * page's Blocks read, so a Query Block shows its rows as the published page
+ * would. The reads are the active's, fetched while the page is open.
+ */
+export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
+  EditorSlot.view(model, h, {
+    words: { submit: 'Publish' },
+    controls: {
+      document: BuilderView.inputs({ data: actives.blocks.projectionOf(model)?.read(model) }),
+    },
+  })

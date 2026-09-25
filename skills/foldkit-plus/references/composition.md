@@ -235,6 +235,9 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
 - Its view is plain (palette, layers, text props, undo, the page in edit mode);
   `foldkit-mixins-form` draws it with the form. One node is selected at a time.
   `PageBuilder.inputWith(view)` is the same control drawn by another view.
+  Canvas data: the form view's `controls: { document: BuilderView.inputs({ data:
+  reads.projectionOf(model)?.read(model) }) }` (standalone: `placed.view(model, h,
+  BuilderView.inputs({ data }))`), where `reads` is `QueryBlock.active(...)`.
 
 ## The drawn editor: `foldkit-mixins-builder`
 

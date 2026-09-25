@@ -55,6 +55,14 @@ export interface FormViewInputs<Key extends string = string> {
    * row: `'author.country'`.
    */
   readonly nestedOptions?: Readonly<Record<string, ReadonlyArray<Option>>> | undefined
+  /**
+   * What a control backed by a Bundle is drawn with, by key: its view's inputs,
+   * such as the page Builder's `BuilderView.inputs({ data })`. A key in a nested
+   * row is named by its path, as in `nestedOptions`. Keyed by text, as those
+   * paths are, and typed where each entry is made, since only the control's
+   * Bundle knows its view's inputs.
+   */
+  readonly controls?: Readonly<Record<string, unknown>> | undefined
   /** The view's own words, for wording and for translation. */
   readonly words?: FormViewWords | undefined
 }
@@ -100,6 +108,8 @@ export interface FieldInput<Key extends string = string> {
 export interface BundleInput {
   readonly model: unknown
   readonly send: (message: unknown) => unknown
+  /** What the view's `controls` gives this key, for the Bundle's own view. */
+  readonly viewInputs?: unknown
 }
 
 /** What the form's own Style and Behavior attachments may read. */
@@ -278,7 +288,13 @@ export interface RenderContext<Message> {
    * its own. Its `draft` is `''`.
    */
   readonly bundle:
-    { readonly model: unknown; readonly send: (message: unknown) => Message } | undefined
+    | {
+        readonly model: unknown
+        readonly send: (message: unknown) => Message
+        /** The inputs its view is drawn with: the form view's `controls` entry for this key. */
+        readonly viewInputs: unknown
+      }
+    | undefined
   /** The control's id and its accessibility state. Put them on the element that holds the value. */
   readonly state: ReadonlyArray<Attribute<Message>>
   readonly slots: SlotBuilders<typeof FieldSlots, Message>
@@ -302,12 +318,19 @@ const bundleRenderer =
         `FormView: the "${control.kind}" control ("${input.control.key}") has no view; pass a renderer under "renderers"`,
       )
     return h.div(slots.control.attrs(state.filter(attribute => attribute._tag !== 'Name')), [
-      h.submodel({
-        slotId: input.id,
-        model: bundle.model,
-        view,
-        toParentMessage: bundle.send,
-      }),
+      h.submodel(
+        bundle.viewInputs === undefined
+          ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
+          : // A Bundle's view takes the inputs its application gives it in `controls`,
+            // whose type the form cannot know. A view given inputs is called with them.
+            ({
+              slotId: input.id,
+              model: bundle.model,
+              view,
+              toParentMessage: bundle.send,
+              viewInputs: bundle.viewInputs,
+            } as Parameters<typeof h.submodel>[0]),
+      ),
     ])
   }
 
@@ -451,7 +474,11 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const bundle =
         held === undefined
           ? undefined
-          : { model: held.model, send: (message: unknown) => held.send(message) as Message }
+          : {
+              model: held.model,
+              send: (message: unknown) => held.send(message) as Message,
+              viewInputs: held.viewInputs,
+            }
       const render =
         renderers[control.control.kind] ??
         (bundle !== undefined ? bundleRenderer<Message>(control.control) : undefined)
@@ -528,6 +555,7 @@ export const FormView = {
           ...input.nestedOptions,
           ...input.options,
         }
+        const controls: Readonly<Record<string, unknown>> = input.controls ?? {}
 
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
         const draw = (walk: Walk<Message>, id: string, path: string): ReadonlyArray<Html> =>
@@ -548,6 +576,7 @@ export const FormView = {
                       ? {
                           model: held.value,
                           send: message => walk.wrap((walk.make.Control as Make)({ key, message })),
+                          viewInputs: controls[`${path}${key}`],
                         }
                       : undefined,
                     invalid: FieldValidation.isInvalid(state),

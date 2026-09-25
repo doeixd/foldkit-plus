@@ -839,7 +839,7 @@ export const Builder = {
     }
 
     /** The form control that places this Builder as a key, drawn by `drawn`. */
-    const inputWith = (drawn: Submodel.View<Model, Message, void>) =>
+    const inputWith = <ViewInputs>(drawn: Submodel.View<Model, Message, ViewInputs>) =>
       Input.bundle('Composition', {
         bundle: bundle.pipe(Bundle.withView(drawn)),
         value: documentOf,

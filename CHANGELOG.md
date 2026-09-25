@@ -140,6 +140,14 @@ version changed; `pnpm` skips versions already in the registry.
   a placed collection in step with the page shown, adding, removing, and
   starting again a node whose props changed; `Stateful.views` and
   `Stateful.html` draw each node with its own item.
+- **`foldkit-mixins-form`: a Bundle control's view takes inputs,** from the
+  form view's `controls`, by key. A key given none draws its view as before.
+- **`foldkit-mixins-builder`: the canvas draws the page's data.**
+  `BuilderView.submodel` takes `BuilderView.inputs({ data })`, each node's read,
+  which the page's parent gives through the form's `controls`, so a Query or
+  Surface Block on the canvas shows its rows. `builder.inputWith` accepts a
+  view with inputs; `QueryBlock.active` and `SurfaceBlock.active` type what they
+  read.
 - **`foldkit-composition/remote`: Query Blocks.** `QueryBlock.define` makes a
   Block that names a `foldkit-remote` query and derives its input from props;
   `QueryBlock.reads(Data, catalog, document)` is the page's reads as one

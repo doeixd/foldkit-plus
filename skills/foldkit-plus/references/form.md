@@ -217,6 +217,9 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 - Submit validates and waits for checks in every row; the value carries the
   nested values. `fill` fills rows. `foldkit-mixins-form` draws rows with add and
   remove buttons; pickers inside rows take `nestedOptions: { 'key.childKey': [...] }`.
+- A Bundle control's view that takes inputs gets them from the form view's
+  `controls`, by key (a row key by its path):
+  `placed.view(model, h, { controls: { document: BuilderView.inputs({ data }) } })`.
 
 ## Gotchas
 

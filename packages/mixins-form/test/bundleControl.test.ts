@@ -113,3 +113,73 @@ it('draws the Bundle’s own view inside the field, and routes its events throug
     handle.dispose()
   }
 })
+
+// A Bundle whose view takes inputs: a caption the page's parent gives it.
+const Captioned = Bundle.make({
+  name: 'Captioned',
+  Model: SwatchModel,
+  Message: SwatchMessage,
+  init: () => ({ model: { hex: '#000000' } }),
+  update: (model: SwatchModel) => ({ model }),
+  view: Submodel.defineView<SwatchModel, SwatchMessage, { readonly caption: string }>(
+    (model, inputs, h) => h.p([h.Id('captioned')], [`${inputs.caption}: ${model.hex}`]),
+  ),
+})
+const Labelled = Form.make(
+  'Labelled',
+  Entity.input(
+    Entity.define('Door', Schema.Struct({ id: Schema.String, color: Schema.String })),
+    Schema.Struct({ color: Schema.String }),
+  ),
+  {
+    inputs: {
+      color: Input.bundle('Captioned', {
+        bundle: Captioned,
+        value: model => model.hex,
+        fill: (model, hex) => ({ ...model, hex }),
+      }),
+    },
+  },
+)
+const LabelledSlot = Bundle.declare(
+  Labelled.bundle.pipe(Bundle.withView(FormView.submodel(Labelled, FormView.define(Labelled)))),
+  'door',
+)
+const DoorModel = Schema.Struct({ ...LabelledSlot.fields })
+type DoorModel = typeof DoorModel.Type
+const DoorMessage = defineMessageUnion({ ...LabelledSlot.cases })
+type DoorMessage = typeof DoorMessage.Type
+const DoorPage = Bundle.parent({ Model: DoorModel, Message: DoorMessage })
+const Door = DoorPage.at(LabelledSlot, { onOut: () => model => ({ model }) })
+const doorPlacements = DoorPage.assemble(Door)
+
+it('draws a Bundle control’s view with what the form view’s controls give its key', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'form-controls'
+  document.body.appendChild(container)
+  const update = doorPlacements.update()
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      doorPlacements.complete({
+        Model: DoorModel,
+        container,
+        init: () => doorPlacements.initial({}),
+        update: (model: DoorModel, message: DoorMessage) => update(model, message),
+        view: (model: DoorModel, h: HtmlBuilder<DoorMessage>) =>
+          h.main([], [Door.view(model, h, { controls: { color: { caption: 'Door' } } })]),
+        subscriptions: doorPlacements.subscriptions(),
+      }),
+    ),
+  )
+  try {
+    await vi.waitFor(() =>
+      expect(document.getElementById('captioned')?.textContent).toBe('Door: #000000'),
+    )
+  } finally {
+    handle.dispose()
+  }
+})

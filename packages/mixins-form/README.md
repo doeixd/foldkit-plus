@@ -173,6 +173,12 @@ Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
 `error`, and `control` (around a Bundle's own view). `FormSlots` publishes `root` (the `form`), `errors` (failures that
 belong to no one field), `submit`, and the five slots of a nested key.
 
+A Bundle's own view that takes inputs gets them from the view input
+`controls`, by key: `placed.view(model, h, { controls: { document: inputs } })`.
+The entry is the application's, typed where it is made, such as the page
+Builder's `BuilderView.inputs({ data })`; a key given none draws its view
+without inputs.
+
 A nested row's fields are drawn through the same field view, so a styled `field`
 styles them too. A row that must be there has no remove button, and a `one`
 loses its add button once it has its row. View inputs for nested keys:

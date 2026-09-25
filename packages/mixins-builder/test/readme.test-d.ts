@@ -8,13 +8,13 @@ import { Form, Input } from 'foldkit-form'
 import { Style } from 'foldkit-mixins'
 import type * as Submodel from 'foldkit/submodel'
 import { expectTypeOf } from 'vitest'
-import { BuilderSlots, BuilderView } from '../src/index.js'
+import { BuilderSlots, BuilderView, type BuilderViewInputs } from '../src/index.js'
 import { PageBuilder, Site } from './fixture.js'
 
 {
   const PageEditing = BuilderView.define(PageBuilder)
   const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageEditing)))
-  expectTypeOf(Drawn.view).toExtend<Submodel.View<Model, Message, void> | undefined>()
+  expectTypeOf(Drawn.view).toExtend<Submodel.View<Model, Message, BuilderViewInputs> | undefined>()
 }
 
 const PageEditing = BuilderView.define(PageBuilder).pipe(

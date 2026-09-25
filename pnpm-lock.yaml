@@ -1116,6 +1116,9 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../mixins-form
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

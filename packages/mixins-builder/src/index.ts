@@ -237,8 +237,23 @@ const labelFor = (key: string, schema: Schema.Top): string => {
   return typeof title === 'string' ? title : key
 }
 
+/**
+ * What the drawn Builder is given beside its Model, by the page's parent: the
+ * application's, never the Builder's to keep.
+ */
+export interface BuilderViewInputs {
+  /**
+   * Each node's read, by node id, as a published page is drawn with it: the
+   * page's Query and Surface Blocks' values, so the canvas shows their rows.
+   */
+  readonly data?: Readonly<Record<string, unknown>> | undefined
+}
+
+/** What the drawn Builder's Slots and Behaviors read: its Model and its inputs. */
+export type BuilderInput = Model & BuilderViewInputs
+
 /** The drawn Builder: what `BuilderView.define` returns. */
-export type BuilderSlotView = SlotView.SlotView<typeof BuilderSlots, Model, Message>
+export type BuilderSlotView = SlotView.SlotView<typeof BuilderSlots, BuilderInput, Message>
 
 export const BuilderView = {
   /**
@@ -249,9 +264,28 @@ export const BuilderView = {
    */
   controls: (controls: Readonly<Record<string, Control>>): Metadata => controlsKey.of(controls),
 
-  /** The drawn Builder as a Submodel view, for `bundle.pipe(Bundle.withView(...))`. */
-  submodel: (view: BuilderSlotView): Submodel.View<Model, Message, void> =>
-    Submodel.defineView<Model, Message>((model, h) => view(model, h)),
+  /** What the drawn Builder is drawn with, typed where a form's `controls` entry cannot be. */
+  inputs: (inputs: BuilderViewInputs = {}): BuilderViewInputs => inputs,
+
+  /**
+   * The drawn Builder as a Submodel view, for `bundle.pipe(Bundle.withView(...))`
+   * or `builder.inputWith(...)`, drawn with `BuilderView.inputs(...)`.
+   */
+  submodel: (view: BuilderSlotView): Submodel.View<Model, Message, BuilderViewInputs> =>
+    Submodel.defineView<Model, Message, BuilderViewInputs>(((
+      model: Model,
+      inputs: BuilderViewInputs | HtmlBuilder<Message>,
+      h: HtmlBuilder<Message> | undefined,
+    ) =>
+      // A form draws a Bundle control with no inputs when its `controls` gives the
+      // key none, and a Submodel view given none is called as `(model, h)`.
+      h === undefined
+        ? view(model, inputs as HtmlBuilder<Message>)
+        : view({ ...model, ...(inputs as BuilderViewInputs) }, h)) as (
+      model: Model,
+      inputs: BuilderViewInputs,
+      h: HtmlBuilder<Message>,
+    ) => Html),
 
   /**
    * The Builder drawn, as a `SlotView` over the Builder's Model. Style and
@@ -260,7 +294,7 @@ export const BuilderView = {
    */
   define: (builder: BuilderLike) => {
     const draw = (
-      model: Model,
+      model: BuilderInput,
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
     ): Html => {
@@ -385,6 +419,7 @@ export const BuilderView = {
               hovered: model.hovered,
               drop,
               context: model.preview,
+              ...(model.data === undefined ? {} : { data: model.data }),
             }),
           ],
         ),
@@ -680,12 +715,12 @@ export const BuilderView = {
     }
 
     return SlotView.forMessages<Message>()
-      .define(BuilderSlots, (model: Model, slots, h) => draw(model, slots, h), {
+      .define(BuilderSlots, (input: BuilderInput, slots, h) => draw(input, slots, h), {
         name: 'Builder',
       })
       .pipe(
         Behavior.attach(
-          TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<Model, Message>({
+          TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<BuilderInput, Message>({
             container: 'tree',
             item: 'row',
             rows: model => rowsOf(builder.document(model)),
@@ -693,7 +728,7 @@ export const BuilderView = {
           }),
         ),
         Behavior.attach(
-          Targets.behavior(BuilderSlots)<Model, Message>({
+          Targets.behavior(BuilderSlots)<BuilderInput, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             // A link on the page being edited selects its node; it does not navigate.
@@ -706,28 +741,28 @@ export const BuilderView = {
         ),
         // A row or a node is dragged onto another; the keyboard's way is the shortcuts.
         Behavior.attach(
-          PointerDrag.behavior(BuilderSlots)<Model, Message>({
+          PointerDrag.behavior(BuilderSlots)<BuilderInput, Message>({
             container: 'tree',
             attribute: `data-${ROW_ATTRIBUTE}`,
             toMessage: dragMessage,
           }),
         ),
         Behavior.attach(
-          PointerDrag.behavior(BuilderSlots)<Model, Message>({
+          PointerDrag.behavior(BuilderSlots)<BuilderInput, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             toMessage: dragMessage,
           }),
         ),
         Behavior.attach(
-          Behavior.forSlots(BuilderSlots)<Model, Message>(
+          Behavior.forSlots(BuilderSlots)<BuilderInput, Message>(
             {
               layers: Behavior.slot({
                 attributes: ({
                   input,
                   h,
                 }: {
-                  readonly input: Model
+                  readonly input: BuilderInput
                   readonly h: HtmlBuilder<Message>
                 }) => [
                   h.OnKeyDownPreventDefault((key, modifiers) =>

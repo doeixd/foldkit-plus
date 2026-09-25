@@ -23,8 +23,9 @@ import type {
   SelectsEntity,
 } from 'foldkit-remote'
 import { Metadata } from 'foldkit-metadata'
-import { Projection, type ActiveSurface } from 'foldkit-surface'
+import { Projection } from 'foldkit-surface'
 import { Block, type AnyBlock } from '../block.js'
+import type { PageReads } from '../surface/index.js'
 import { Catalog } from '../catalog.js'
 import type { Content } from '../content.js'
 import { index, type Document } from '../document.js'
@@ -123,7 +124,7 @@ export const QueryBlock = {
     data: QueryReader<AppModel>,
     catalog: Catalog,
     documentOf: (model: AppModel) => Document | undefined,
-  ): ActiveSurface<AppModel> => {
+  ): PageReads<AppModel> => {
     // The reads change only with the page, not with every Model the page is in.
     const byDocument = new WeakMap<Document, ReturnType<typeof QueryBlock.reads<AppModel>>>()
     return {

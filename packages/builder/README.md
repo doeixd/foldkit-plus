@@ -132,7 +132,8 @@ out, as it has no clock to wait on.
   over, and a stored form shown again is **settled**: no hover, no undo, no
   refusal.
 
-`PageBuilder.inputWith(view)` is the same control drawn by another view.
+`PageBuilder.inputWith(view)` is the same control drawn by another view, with
+whatever inputs that view takes, given through the form view's `controls`.
 
 Placed alone, with `Bundle.withChild`, the same Bundle is a page editor whose
 parent owns the Model.

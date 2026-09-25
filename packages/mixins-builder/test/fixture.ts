@@ -46,8 +46,13 @@ export const Quote = Block.define('Quote', {
   }),
   provides: [Content.Flow],
 }).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+/** A Block drawn from its node's read: what a Query Block's rows would be. Not offered. */
+export const Feed = Block.define('Feed', {
+  Props: Schema.Struct({}),
+  provides: [Content.Flow],
+})
 export const Site = Catalog.make({
-  blocks: [Section, Heading, Banner, Quote],
+  blocks: [Section, Heading, Banner, Quote, Feed],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']), beta: Schema.Boolean }),
   actions: [Subscribe],
@@ -65,6 +70,8 @@ export const SiteRenderer = Renderer.make(Site, {
     )
   },
   Quote: ({ props, h }) => h.blockquote([], [props.text]),
+  Feed: ({ data, h }) =>
+    h.p([h.Class('feed')], [typeof data === 'string' ? data : 'waiting for its rows']),
 })
 
 export const PageBuilder = Builder.make('PageBuilder', {

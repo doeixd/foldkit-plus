@@ -1243,7 +1243,7 @@ Each is answered by building, not by debate, and none changes the ownership mode
 
 ### Open after Phase 10, and decided
 
-- **Canvas data: a per-key view input through the form.** `FormViewInputs`
+- **Canvas data: a per-key view input through the form. Built.** `FormViewInputs`
   already carries `options` by key, and `Cms.editorView` passes its inputs
   through unchanged; only the Bundle control's renderer drops them, calling
   `h.submodel` without `viewInputs`. So `FormViewInputs` gains
@@ -1252,7 +1252,12 @@ Each is answered by building, not by debate, and none changes the ownership mode
   canvas with `data` as a published page is drawn. `builder.inputWith` accepts
   a view with inputs. The parent reads the Query and Surface Blocks once, as it
   already must to publish or preview, and passes the result down: data stays
-  the application's, and the Builder keeps no copy.
+  the application's, and the Builder keeps no copy. *As built:* `controls` is
+  keyed by text, since a form's typed keys leave out its Bundle-control keys,
+  and each entry is typed where it is made (`BuilderView.inputs`). A Submodel
+  view given no inputs is called as `(model, h)`, so the Bundle renderer passes
+  `viewInputs` only when there are some, and the Builder's view takes both
+  shapes. `QueryBlock.active` and `SurfaceBlock.active` now type what they read.
 - **The selection in the URL: a Message in, a read out.** A writable
   projection into the control's Model would let `Mirror.url` set `selected`
   behind the Builder's `update`, skipping what a selection does there (the

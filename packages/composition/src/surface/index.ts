@@ -26,6 +26,13 @@ import type { Content } from '../content.js'
 import { index, type Document } from '../document.js'
 import type { Region } from '../region.js'
 
+/** The page's reads as an active Surface, whose Projection says what it reads: each node's value. */
+export interface PageReads<AppModel> extends ActiveSurface<AppModel> {
+  readonly projectionOf: (
+    model: AppModel,
+  ) => Projection<AppModel, Readonly<Record<string, unknown>>> | undefined
+}
+
 /** What a Surface Block reads, from its decoded props. */
 interface Read {
   readonly surface: Surface<unknown, unknown, unknown, unknown>
@@ -126,7 +133,7 @@ export const SurfaceBlock = {
     owner: object,
     catalog: Catalog,
     documentOf: (model: Root) => Document | undefined,
-  ): ActiveSurface<Root> => {
+  ): PageReads<Root> => {
     const surfaces = catalog.blocks
       .flatMap(block => readKey.get(block.metadata))
       .map(read => read.surface)
