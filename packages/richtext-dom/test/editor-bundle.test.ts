@@ -11,6 +11,7 @@ import {
   pressed,
   redone,
   replaceChangeSet,
+  retyped,
   selected,
   toggled,
   typed,
@@ -112,6 +113,18 @@ describe('one transition commits document and interaction state', () => {
     expect(joined.document.children.map(block => block.id)).toEqual(['p'])
     expect(joined.document.children[0]?.children.map(run => run.id)).toEqual(['a', 'b'])
     expect(joined.editor.selection).toEqual(caret('a', 2))
+  })
+
+  it('retypes the caret’s block, returning a patch for the element it changes', () => {
+    const before = start(caret('b', 1))
+    const after = update(before, retyped({ type: 'Heading', level: 2 }))
+    expect(after.model.document.children[1]).toMatchObject({ type: 'Heading', level: 2 })
+    expect(after.model.document.children[0]?.type).toBe('Paragraph')
+    // The runs and the caret survive, and the Command carries the element change to
+    // the adapter, which re-renders the block as an `h2` rather than keeping a `p`.
+    expect(after.model.document.children[1]?.children[0]?.id).toBe('b')
+    expect(after.model.editor.selection).toEqual(caret('b', 1))
+    expect(after.commands?.[0]?.name).toBe('RichText.patch')
   })
 })
 

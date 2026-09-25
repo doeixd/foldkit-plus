@@ -5153,11 +5153,12 @@ block while its runs and identities stay.
    §119 on the wrapping: a slot view owns its elements, so the family could not take
    resolved attributes as a helper.
 5. Slash commands, over 1 and 3. — **started.** The core can retype a text block
-   (`RetypeBlock`, §119's "turning the block into a heading"), which is the menu's
-   first non-mark entry, and read what is typed before the caret (`textBefore`, the
-   text a query filters on). What a menu still needs: the editor's binding layer for
-   ArrowUp/Down/Enter/Escape, its own open/query/selection state and its view, and
-   the entry catalogue.
+   (`RetypeBlock`, §119's "turning the block into a heading") and read what is typed
+   before the caret (`textBefore`, the text a query filters on); an editor can send
+   the retype as a Message (`RetypedBlock`, `retyped(block)` at the Bundle), so a menu
+   entry is already expressible end to end. What a menu still needs: the editor's
+   binding layer for ArrowUp/Down/Enter/Escape, its own open/query/selection state
+   and its view, and the entry catalogue.
 
 ---
 

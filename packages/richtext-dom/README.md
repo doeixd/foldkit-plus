@@ -135,7 +135,7 @@ history chord; `toMessage` turns each into a Message:
 
 ```ts
 const Message = defineMessageUnion({
-  Typed, Backspace, DeletedForward, Entered, ToggledMark,
+  Typed, Backspace, DeletedForward, Entered, ToggledMark, RetypedBlock,
   Selected, Pasted, Undone, Redone, Patched,
 })
 ```
@@ -144,7 +144,9 @@ const Message = defineMessageUnion({
 a detail: the adapter reports only plain insertions and toggles by name, so an
 insertion carrying marks and a mark value with props come back `undefined` — the
 vocabulary has no shape for them yet, and silently losing the marks would be
-worse. `attachEditor(host, content, emit, renderer?)` attaches the translation to a host
+worse. `RetypedBlock` is the same kind of Message and never arrives from
+`toMessage`: no browser event means "make this block a heading", so an application
+sends it itself. `attachEditor(host, content, emit, renderer?)` attaches the translation to a host
 element and reports each Message; `events({ content })` wraps the same thing in a
 `Mount.defineStream`, so a view renders a host element whose mount produces these
 Messages and releases the subtree when the element goes. `patchEditor(hostId,
@@ -193,8 +195,8 @@ placement without one renders with the default. The Link's `read` projects the
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /
-`typed` / `pressed` / `toggled` / `selected` / `undone` / `redone` / `patched`
-build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
+`typed` / `pressed` / `toggled` / `retyped` / `selected` / `undone` / `redone` /
+`patched` build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
 

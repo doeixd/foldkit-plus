@@ -118,10 +118,12 @@ selection covers does (`markActive` is that rule on its own).
 extends its parts.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
-vocabulary (`Typed`, `Entered`, `ToggledMark`, `Selected`, `Pasted`, `Undone`,
-`Redone`, `Patched`), `toMessage`, the `events` mount a view renders as its host
-element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
-element that host names. `foldkit-richtext-dom/editor-bundle` is the editor as a
+vocabulary (`Typed`, `Entered`, `ToggledMark`, `RetypedBlock`, `Selected`, `Pasted`,
+`Undone`, `Redone`, `Patched`), `toMessage`, the `events` mount a view renders as its
+host element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
+element that host names. `RetypedBlock` is a Message an application sends itself — no
+browser event means "make this block a heading" — and `editor-bundle` exposes
+`retyped(block)` for it. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, renderer?)`, `application`/`update`, and the
 Messages a host dispatches; every accepted edit returns that patch Command.
 

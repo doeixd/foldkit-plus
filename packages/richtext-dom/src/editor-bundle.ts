@@ -100,6 +100,8 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'SplitBlock' }
     case 'ToggledMark':
       return { type: 'ToggleMark', mark: message.mark }
+    case 'RetypedBlock':
+      return { type: 'RetypeBlock', to: message.block }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
     case 'Pasted':
@@ -300,6 +302,8 @@ export const typed = (text: string): ParentMessage => edited(Message.Typed({ tex
 export const pressed = (tag: 'Backspace' | 'DeletedForward' | 'Entered'): ParentMessage =>
   edited(Message[tag]())
 export const toggled = (mark: string): ParentMessage => edited(Message.ToggledMark({ mark }))
+export const retyped = (block: RichText.TextBlock): ParentMessage =>
+  edited(Message.RetypedBlock({ block }))
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
   edited(Message.Selected({ selection }))
 export const undone = (): ParentMessage => edited(Message.Undone())
