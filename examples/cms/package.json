@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "drizzle-orm": "1.0.0-rc.4",
+    "foldkit-agent": "workspace:*",
     "foldkit-builder": "workspace:*",
     "foldkit-bundle": "workspace:*",
     "foldkit-cms": "workspace:*",

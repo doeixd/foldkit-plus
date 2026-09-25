@@ -114,6 +114,11 @@ version changed; `pnpm` skips versions already in the registry.
   is `mixins:style-property-conflict`. A layout Block is a Mixins layout this way: the test site's Columns is
   `Layout.switcher`, with its ratio, when it stacks, and its gap as choices.
   Phase 8 of the page builder design.
+- **`foldkit-composition`: `operationSchema(catalog)`,** the Operations a
+  Catalog's pages take as a Schema, inserts naming only its Blocks with their
+  stored props, for an agent tool's input. The CMS example's page agent edits
+  a page through the Builder's own `Applied`, undoable like any edit, and a
+  Block outside the Catalog is refused by the tool's schema.
 - **`foldkit-composition`: actions.** A Block names its events, a Catalog lists
   the actions its pages may reference (`foldkit-surface` Actions), and a node
   stores which action an event runs with literal input. `validate` and

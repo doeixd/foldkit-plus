@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runPageDemo } from '../src/pageDemo.js'
 
 describe('a page in foldkit-cms, built with foldkit-builder', () => {
-  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts and reads', async () => {
+  it('builds, saves, resumes, previews, publishes, revises, restores, schedules, conflicts, reads and takes an agent’s edit', async () => {
     const page =
       'Section {"tone":"plain"} > body: > Heading {"text":"Welcome"} > Button {"href":"/blog","label":"Read the blog"}'
     expect(await runPageDemo()).toEqual([
@@ -37,6 +37,11 @@ describe('a page in foldkit-cms, built with foldkit-builder', () => {
       '— a Block that lists the site’s pages —',
       'before its read arrives: Good morning | News | All posts | Loading pages',
       'read through Remote, as the editor may see it: Good morning | News | All posts | Home',
+      '— an agent edits the page, as a person does —',
+      'it adds a heading: done',
+      'the page: Written by an agent | Good morning | News | All posts | Home',
+      'a Block outside the Catalog: AgentInvalidInputError',
+      "and undo takes the agent's edit back: Good morning | News | All posts | Home",
       'and the row holds only what was published: [{"id":"page-1","title":"Home","slug":"home","published_at":"2026-03-01T09:00:00.000Z"}]',
     ])
   })

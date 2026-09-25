@@ -20,6 +20,7 @@
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
+      "foldkit-agent": ["../../packages/agent/src/index.ts"],
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
       "foldkit-builder": ["../../packages/builder/src/index.ts"],
@@ -79,6 +80,9 @@
     },
     {
       "path": "../../packages/mixins-builder/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/agent/tsconfig.build.json"
     },
     {
       "path": "../../packages/composition/tsconfig.build.json"

@@ -11,7 +11,18 @@ import { statefulNodes } from './stateful.js'
 import { describe } from './describe.js'
 import { migrate, migration, promoteUnknown, renameBlock, renameProp } from './migrate.js'
 import { Document, Node, NodeId, empty, index, newIds } from './document.js'
-import { Operation, Op, Position, Tree, apply, rekey, region, root, takeTree } from './operation.js'
+import {
+  Operation,
+  Op,
+  Position,
+  Tree,
+  apply,
+  operationSchema,
+  rekey,
+  region,
+  root,
+  takeTree,
+} from './operation.js'
 import { Url, isSafeUrl } from './url.js'
 import { valid, validate } from './validate.js'
 
@@ -66,6 +77,8 @@ export const Composition = {
   apply,
   /** Operation constructors. */
   Op,
+  /** The Operations a Catalog's pages take, as a Schema: an agent tool's input, Block names as literals. */
+  operationSchema,
   /** Conditions for a node's `when`: `Op.setWhen(id, [Composition.when.eq('audience', 'member')])`. */
   when,
   /** Whether a stored `when` holds in a context; with no context, a node that has conditions does not show. */

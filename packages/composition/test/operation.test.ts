@@ -530,6 +530,42 @@ describe('a batch that edits the same node twice', () => {
   })
 })
 
+describe('the Operations an agent may send', () => {
+  const decode = Schema.decodeUnknownResult(Composition.operationSchema(Site))
+  const at = { _tag: 'Region', parent: 's', region: 'body', index: 0 }
+
+  it('takes an insert of a Block the Catalog has, with that Block’s props', () => {
+    const op = { _tag: 'Insert', id: 'n', block: 'Heading', props: { text: 'Hi', level: 2 }, at }
+    expect(Result.getOrThrow(decode(op))).toEqual(op)
+    expect(Result.isSuccess(decode({ _tag: 'Move', id: 'a', to: at }))).toBe(true)
+    expect(
+      Result.isSuccess(
+        decode({
+          _tag: 'Batch',
+          ops: [op, { _tag: 'SetProp', id: 'n', prop: 'text', value: 'Hey' }],
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  it('refuses a Block the Catalog lacks, or props not shaped as its, before apply sees them', () => {
+    const insert = (block: string, props: unknown) => ({
+      _tag: 'Insert',
+      id: 'n',
+      block,
+      props,
+      at,
+    })
+    expect(Result.isFailure(decode(insert('Carousel', {})))).toBe(true)
+    expect(Result.isFailure(decode(insert('Heading', { text: 3, level: 2 })))).toBe(true)
+    expect(Result.isFailure(decode({ _tag: 'Batch', ops: [insert('Carousel', {})] }))).toBe(true)
+    // A whole subtree is left to code.
+    expect(
+      Result.isFailure(decode({ _tag: 'InsertTree', tree: { root: 'x', nodes: {} }, at })),
+    ).toBe(true)
+  })
+})
+
 describe('Operations as data', () => {
   it('round-trips every Operation through its Schema, a nested batch included', () => {
     const ops: ReadonlyArray<Operation> = [

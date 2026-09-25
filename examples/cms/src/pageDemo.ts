@@ -7,6 +7,7 @@
  * CMS's, with the page as one form key's value.
  */
 import { Effect, Layer, Schema, Stream } from 'effect'
+import { Agent } from 'foldkit-agent'
 import { Message as BuilderMessage, type Model as BuilderModel } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
 import { Composition, type Document } from 'foldkit-composition'
@@ -29,6 +30,7 @@ import {
   update,
   type Model,
 } from './pageApp.js'
+import { PageAgent } from './pageAgent.js'
 import { PageForm, Pages } from './pageDomain.js'
 import { openServer, type Principal } from './server.js'
 import { PageBuilder, Site, SiteRenderer } from './site.js'
@@ -114,6 +116,19 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
         await send(Message.Ticked())
       }
     }
+    // An agent working beside this chair: it sees this chair's Model, and what it
+    // dispatches goes through this chair's update like anything else.
+    const pending: Message[] = []
+    const agent = Agent.bind({
+      definition: PageAgent,
+      host: {
+        model: () => model,
+        dispatch: (message: Message) => {
+          pending.push(message)
+        },
+      },
+    })
+    let invocations = 0
     const editor = (message: typeof PageForm.Message.Type | typeof Editor.Message.Type) =>
       send(Message.GotEditorMessage({ message }))
     const document = PageForm.control('document')
@@ -151,6 +166,24 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
           : build(BuilderMessage.Selected({ id: Composition.NodeId.make(id) }))
       },
       builder,
+      build,
+      /** One call of the agent's `edit_page` tool: done, or why it was refused. */
+      agent: async (op: unknown): Promise<string> => {
+        invocations += 1
+        const result = await Effect.runPromise(
+          Effect.result(
+            agent.messages.dispatch('edit_page', op, {
+              id: `agent-call-${invocations}`,
+              transport: 'demo',
+            }),
+          ),
+        )
+        for (const message of pending.splice(0)) await send(message)
+        return result._tag === 'Success' ? 'done' : result.failure._tag
+      },
+      /** The id of the first node of a Block, as the agent reads it in the outline. */
+      idOf: (block: string) =>
+        Object.entries(builder().page.present.nodes).find(([, node]) => node.block === block)?.[0],
       /** The page being edited, drawn with what its Query Blocks have read so far. */
       drawn: () => read(editing(model), blockReads(model)?.read(model)),
       outline: () => outline(builder().page.present),
@@ -297,6 +330,19 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`before its read arrives: ${edda.drawn()}`)
   await edda.look()
   say(`read through Remote, as the editor may see it: ${edda.drawn()}`)
+
+  say('— an agent edits the page, as a person does —')
+  const inSection = { _tag: 'Region', parent: edda.idOf('Section'), region: 'body', index: 0 }
+  const heading = { text: 'Written by an agent' }
+  say(
+    `it adds a heading: ${await edda.agent({ _tag: 'Insert', id: 'agent-heading', block: 'Heading', props: heading, at: inSection })}`,
+  )
+  say(`the page: ${edda.drawn()}`)
+  say(
+    `a Block outside the Catalog: ${await edda.agent({ _tag: 'Insert', id: 'agent-carousel', block: 'Carousel', props: {}, at: inSection })}`,
+  )
+  await edda.build(BuilderMessage.Undid())
+  say(`and undo takes the agent's edit back: ${edda.drawn()}`)
 
   say(
     `and the row holds only what was published: ${JSON.stringify(

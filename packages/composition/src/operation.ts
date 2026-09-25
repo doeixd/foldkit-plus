@@ -99,6 +99,41 @@ export const Operation: Schema.Codec<Operation, unknown> = Schema.Union([
   }),
 ]) as unknown as Schema.Codec<Operation, unknown>
 
+/**
+ * The Operations a Catalog's pages can take, as a Schema: what an agent's
+ * `edit_page` tool takes as its input. An insert is one of the Catalog's
+ * Blocks by name, with that Block's props as they are stored, so the tool's
+ * own input schema rejects a Block the Catalog lacks before `apply` sees it;
+ * `apply` still checks the rest (a Region's Content, a refinement of a prop).
+ * A whole subtree (`insertTree`) is left to code.
+ */
+export const operationSchema = (catalog: Catalog): Schema.Codec<Operation, unknown> => {
+  const inserts = catalog.blocks.map(block =>
+    Schema.TaggedStruct('Insert', {
+      id: NodeId,
+      block: Schema.Literal(block.name),
+      props: Schema.toEncoded(block.Props),
+      at: Position,
+    }),
+  )
+  const Edit: Schema.Codec<Operation, unknown> = Schema.Union([
+    ...inserts,
+    Remove,
+    Move,
+    Duplicate,
+    SetProp,
+    UnsetProp,
+    SetWhen,
+    SetAppearance,
+    SetAction,
+    Schema.TaggedStruct('Batch', {
+      ops: Schema.Array(Schema.suspend((): Schema.Codec<Operation, unknown> => Edit)),
+    }),
+    // Each insert's props are a Block's stored props, JSON by construction.
+  ]) as unknown as Schema.Codec<Operation, unknown>
+  return Edit
+}
+
 export type RefusalCode =
   | 'composition:missing-node'
   | 'composition:id-taken'

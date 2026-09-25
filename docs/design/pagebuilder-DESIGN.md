@@ -1157,7 +1157,14 @@ resume plan.
   `examples/cms`, whose context is an outline of the page, with a node's props
   read on demand (this answers §30's second question). "Add a hero above the
   feature grid" produces one valid `insert`, and an agent's Block outside the
-  Catalog is refused by the tool's own schema.
+  Catalog is refused by the tool's own schema. **Built:**
+  `Composition.operationSchema(Site)` (inserts of the Catalog's Blocks with
+  their props' encoded Schema; `insertTree` left to code) and
+  `examples/cms/src/pageAgent.ts`, whose `edit_page` sends the Builder's
+  `Applied` through the form; the demo's agent adds a heading, is refused a
+  Carousel by the tool's schema, and is undone. The context is `describe`'s
+  whole text, props included; reading props on demand waits for pages large
+  enough to need it.
 - **10-3,** the selected node and panel mirrored into the URL with `Mirror.url`.
 
 **Then stable.** §29's list is audited against the tests and its gaps filled (a

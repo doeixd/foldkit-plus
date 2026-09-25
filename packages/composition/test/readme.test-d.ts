@@ -206,3 +206,9 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
   void op
   void ShopRenderer
 }
+
+// Agents: the tool's input is generated from the Catalog.
+{
+  const input = Composition.operationSchema(Site)
+  void input
+}

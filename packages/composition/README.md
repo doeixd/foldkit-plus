@@ -224,6 +224,32 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
 - The same Action is an agent's capability through `Agent.action`, declared
   once for both.
 
+## Agents
+
+An agent edits a page through the same path a person does: it sends the
+Builder's own `Applied` Message, so its edit is checked, undoable, autosaved and
+revisioned like any other. `Composition.operationSchema(Site)` is the tool's
+input, generated from the Catalog:
+
+```ts
+Agent.expose(Message, {
+  GotEditorMessage: Agent.variant({
+    name: 'edit_page',
+    description: 'Insert, move, remove or configure blocks on the page',
+    input: Composition.operationSchema(Site),
+    toMessage: op => ({ message: PageForm.control('document').send(BuilderMessage.Applied({ op })) }),
+  }),
+})
+```
+
+- An insert names one of the Catalog's Blocks, as a literal, with that Block's
+  props as they are stored, so a Block outside the Catalog is refused by the
+  tool's own input schema before `apply` sees it. `apply` checks the rest.
+- The agent mints the ids of what it adds (`composition:id-taken` for one in
+  use), and reads the page as `Composition.describe(Site, document)`, ids and
+  props included.
+- `examples/cms` has one, `pageAgent.ts`.
+
 ## Reading a Document
 
 - `Composition.index(document)` says where each reachable node is: its parent,

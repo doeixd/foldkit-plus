@@ -106,6 +106,15 @@ Message (input decoded first) or `undefined`. Codes:
 lists each Block's `events`. The drawn Builder's inspector picks an action per
 event (`on press`) and edits its input field by field, seeded with empty values.
 
+## Agents
+
+`Composition.operationSchema(Site)`: the Operation Schema with inserts of the
+Catalog's Blocks only (name literal, props' encoded Schema); use it as an
+`Agent.variant`'s `input` whose `toMessage` sends the Builder's
+`Applied({ op })` (through the form: `PageForm.control('document').send(...)`).
+The agent mints ids; context: `Composition.describe(Site, doc)`. See
+`examples/cms/src/pageAgent.ts`.
+
 ## Stateful Blocks
 
 `Block.define(name, { ..., stateful: true })`; the parent places a Bundle per
