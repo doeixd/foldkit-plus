@@ -124,7 +124,9 @@ version changed; `pnpm` skips versions already in the registry.
   stores which action an event runs with literal input. `validate` and
   `Op.setAction` check them (`composition:invalid-action`,
   `composition:unknown-action`), and a Renderer's view gets `on(event)`, the
-  Message the action makes from input its Schema decoded first. The drawn
+  Message the action makes from input its Schema decoded first;
+  `Renderer.forMessages` checks it routes every such Message, and a
+  `Renderer.make` view, such as an editor's canvas, gets none. The drawn
   Builder's inspector picks each event's action and edits its input.
 - **`foldkit-composition/surface`: Surface Blocks.** `SurfaceBlock.define`
   places a `foldkit-surface` Surface where an author puts it, with params from
@@ -142,7 +144,7 @@ version changed; `pnpm` skips versions already in the registry.
   `QueryBlock.reads(Data, catalog, document)` is the page's reads as one
   Projection keyed by node, fetched and resumed by Remote like any read; the
   Renderer hands each node its `data`, and the Block's `rows(data)` reads it
-  typed. `QueryBlock.active` is the read as an active Surface, so a
+  typed. `QueryBlock.active(name, App.owner, Data, …)` is the read as an active Surface, so a
   server-rendered page resumes it with `Remote.resume`. The CMS example's pages can list the site's pages. Phase 9 of the
   page builder design.
 - **`foldkit-composition`: conditions.** A Catalog may declare a `context`
@@ -160,7 +162,8 @@ version changed; `pnpm` skips versions already in the registry.
   `render` in edit mode takes `selected`, `hovered` and `drop`, and puts
   `data-composition-selected`, `data-composition-hovered` and
   `data-composition-drop` on those nodes' wrappers, so an editor's CSS draws
-  the selection and where a drop lands.
+  the selection and where a drop lands. A node whose view throws is a
+  placeholder, as a node that cannot be drawn is.
 - **`foldkit-primitives`: `PointerDrag`, dragging one marked element onto
   another.** A Mount and a Behavior on a container: a press that moves past
   4px starts a drag, the element under the pointer is reported with the third

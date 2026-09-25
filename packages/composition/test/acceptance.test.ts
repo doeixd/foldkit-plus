@@ -138,7 +138,7 @@ const SiteRenderer = Renderer.forMessages<Message>().make(Site, {
   Votes: ({ data }) => Stateful.html(data),
 })
 
-const reads = QueryBlock.active('PageReads', Data, Site, (model: Model) => model.page)
+const reads = QueryBlock.active('PageReads', App.owner, Data, Site, (model: Model) => model.page)
 const features = SurfaceBlock.active('PageFeatures', App.owner, Site, (model: Model) => model.page)
 
 /** The server's store: two of u1's projects, with a budget no Block selects. */

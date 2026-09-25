@@ -2,10 +2,14 @@
 import { Result, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import * as RichText from 'foldkit-richtext'
-import { inertHtml, type Html } from 'foldkit/html'
+import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Action } from 'foldkit-surface'
-import { Renderer } from 'foldkit-composition/foldkit'
+import * as Submodel from 'foldkit/submodel'
+import { Bundle } from 'foldkit-bundle'
+import { Layout } from 'foldkit-mixins/layout'
+import { SurfaceBlock } from 'foldkit-composition/surface'
+import { Action, Surface } from 'foldkit-surface'
+import { Renderer, Stateful } from 'foldkit-composition/foldkit'
 import { RichTextBlock } from 'foldkit-composition/richtext'
 import { Appearance } from 'foldkit-composition/appearance'
 import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
@@ -211,4 +215,91 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
 // Agents: the tool's input is generated from the Catalog.
 {
   expectTypeOf(Composition.operationSchema(Site)).toEqualTypeOf<Schema.Codec<Operation, unknown>>()
+}
+
+// Appearance: a layout Block
+{
+  const ColumnsSlots = Slots.define({
+    root: Slot.make({ capability: Capability.Container }),
+    left: Slot.make({ capability: Capability.Container }),
+    right: Slot.make({ capability: Capability.Container }),
+  })
+  const t = Theme.ref(Theme.tokens)
+  const grow = (left: string, right: string) => ({
+    left: Style.inline({ flexGrow: left }),
+    right: Style.inline({ flexGrow: right }),
+  })
+  const ColumnsLook = Appearance.make(ColumnsSlots, {
+    recipe: Style.recipeFor(ColumnsSlots)({
+      base: { root: Layout.switcher() },
+      variants: {
+        ratio: { '1:1': grow('1', '1'), '2:1': grow('2', '1') },
+        stack: { early: { root: Style.vars({ '--fk-l-threshold': '48rem' }) }, late: {} },
+      },
+    }),
+    tokens: { gap: Appearance.token(t.space, { slot: 'root', property: 'gap' }) },
+  })
+  void ColumnsLook
+}
+
+// Blocks with state of their own
+{
+  const CarouselModel = Schema.Struct({ interval: Schema.Number, at: Schema.Number })
+  const CarouselMessage = defineMessageUnion({ Advanced: {} })
+  const CarouselBundle = Bundle.make('Carousel', {
+    Model: CarouselModel,
+    Message: CarouselMessage,
+    init: () => ({ model: { interval: 5, at: 0 } }),
+    update: model => ({ model: { ...model, at: model.at + 1 } }),
+    view: Submodel.defineView<typeof CarouselModel.Type, typeof CarouselMessage.Type>((model, h) =>
+      h.p([], [String(model.at)]),
+    ),
+  })
+  const Carousel = Block.define('Carousel', {
+    Props: Schema.Struct({ interval: Schema.Number }),
+    provides: [Content.Flow],
+    stateful: true,
+  })
+  const Site = Catalog.make({ blocks: [Section, Carousel], roots: [Content.Section] })
+  const Carousels = Bundle.declareEach(CarouselBundle, 'carousels')
+  const PageModel = Schema.Struct({ ...Carousels.fields })
+  const PageMessage = defineMessageUnion({ ...Carousels.cases })
+  const Page = Bundle.parent({ Model: PageModel, Message: PageMessage })
+  const Placed = Page.each(Carousels)
+  const SiteRenderer = Renderer.forMessages<typeof PageMessage.Type>().make(Site, {
+    Section: ({ regions, h }) => h.section([], [...regions.body]),
+    Carousel: ({ data }) => Stateful.html(data),
+  })
+  const before: Document | undefined = undefined
+  const after: Document = Composition.empty()
+  const step = Stateful.sync(Placed, Site, Carousel, { before, after }, (model, props) => ({
+    ...model,
+    interval: props.interval,
+  }))
+  const draw = (model: typeof PageModel.Type, h: HtmlBuilder<typeof PageMessage.Type>) =>
+    Renderer.render(SiteRenderer, after, h, {
+      data: Stateful.views(Placed, Site, Carousel, after, model, h),
+    })
+  void step
+  void draw
+}
+
+// Blocks that show a feature
+{
+  const Model = Schema.Struct({ cartCount: Schema.Number })
+  const App = Surface.application({ Model, Message: defineMessageUnion({ Removed: {} }) })
+  const CartSummary = App.surface('CartSummary', {
+    params: { caption: Schema.String },
+    model: ({ model }) => ({ count: model.cartCount }),
+  })
+  const Cart = SurfaceBlock.define('Cart', {
+    Props: Schema.Struct({ caption: Schema.String }),
+    provides: [Content.Flow],
+    surface: CartSummary,
+    params: props => ({ caption: props.caption }),
+  })
+  const Shop = Catalog.make({ blocks: [Section, Cart], roots: [Content.Section] })
+  const features = SurfaceBlock.active('Features', App.owner, Shop, () => Composition.empty())
+  expectTypeOf(Cart.value).returns.toEqualTypeOf<{ readonly count: number } | undefined>()
+  void features
 }

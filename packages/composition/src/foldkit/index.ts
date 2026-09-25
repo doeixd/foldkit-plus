@@ -60,6 +60,8 @@ export interface Renderer<Blocks extends AnyBlock, Message> {
   readonly _tag: 'Renderer'
   readonly catalog: Catalog<Blocks>
   readonly entries: Entries<Blocks, Message>
+  /** Whether its views dispatch: `on(event)` gives an action's Message only when they do. */
+  readonly dispatches: boolean
 }
 
 /** The attribute that marks a node's element in edit mode. */
@@ -75,9 +77,9 @@ export const HIDDEN_ATTRIBUTE = 'composition-hidden'
 export const DROP_ATTRIBUTE = 'composition-drop'
 
 const make =
-  <Message>() =>
+  <Message>(dispatches: boolean) =>
   <Blocks extends AnyBlock>(
-    catalog: Catalog<Blocks>,
+    catalog: Catalog<Blocks, unknown>,
     // The Catalog alone says which Blocks there are; the views are checked against it.
     entries: NoInfer<Entries<Blocks, Message>>,
   ): Renderer<Blocks, Message> => {
@@ -87,14 +89,14 @@ const make =
       throw new Error(
         `Renderer.make: no view for ${missing.map(block => `"${block.name}"`).join(', ')}`,
       )
-    return Object.freeze({ _tag: 'Renderer', catalog, entries })
+    return Object.freeze({ _tag: 'Renderer', catalog, entries, dispatches })
   }
 
 /**
  * Draws a Document's roots. Nothing stored makes it throw: a node whose Block
- * the Catalog lacks, whose props do not decode, or that is missing or reached
- * again is a placeholder, which is nothing in view mode and a labelled box in
- * edit mode.
+ * the Catalog lacks, whose props do not decode, that is missing or reached
+ * again, or whose view throws is a placeholder, which is nothing in view mode
+ * and a labelled box in edit mode.
  */
 const render = <Blocks extends AnyBlock, Message>(
   renderer: Renderer<Blocks, Message>,
@@ -150,18 +152,28 @@ const render = <Blocks extends AnyBlock, Message>(
     const regions = Object.fromEntries(
       Object.keys(block.regions).map(name => [name, (node.regions[name] ?? []).map(draw)]),
     )
-    const html = entries[block.name]!({
-      id,
-      props: props.success,
-      regions,
-      h,
-      mode,
-      appearance: Block.offeredAppearance(block, node.appearance),
-      data: options.data?.[id],
-      // The Catalog's actions end in this Renderer's Messages.
-      on: event =>
-        messageOf(renderer.catalog.actions, block, node.actions, event) as Message | undefined,
-    })
+    let html: Html
+    try {
+      html = entries[block.name]!({
+        id,
+        props: props.success,
+        regions,
+        h,
+        mode,
+        appearance: Block.offeredAppearance(block, node.appearance),
+        data: options.data?.[id],
+        on: event =>
+          renderer.dispatches
+            ? // `forMessages` checked the Catalog's actions end in this Renderer's Messages.
+              (messageOf(renderer.catalog.actions, block, node.actions, event) as
+                Message | undefined)
+            : undefined,
+      })
+    } catch (error) {
+      // One node's view failing, such as a look whose choice a Behavior also owns,
+      // is that node's placeholder, not the page's end.
+      return placeholder(id, node.block, `it could not be drawn: ${String(error)}`)
+    }
     return mode === 'view'
       ? html
       : h.div(
@@ -182,10 +194,21 @@ const render = <Blocks extends AnyBlock, Message>(
 }
 
 export const Renderer = {
-  /** A Renderer whose views dispatch no Message: what a static page, or a static region, draws. */
-  make: make<never>(),
-  /** A Renderer whose views may dispatch the application's Messages. */
-  forMessages: <Message>() => ({ make: make<Message>() }),
+  /**
+   * A Renderer whose views dispatch no Message: what a static page, a static
+   * region, or an editor's canvas draws. Its views' `on(event)` gives nothing.
+   */
+  make: make<never>(false),
+  /**
+   * A Renderer whose views may dispatch the application's Messages. Every
+   * Message the Catalog's actions make must be one of them.
+   */
+  forMessages: <Message>() => ({
+    make: <Blocks extends AnyBlock>(
+      catalog: Catalog<Blocks, NoInfer<Message>>,
+      entries: NoInfer<Entries<Blocks, Message>>,
+    ): Renderer<Blocks, Message> => make<Message>(true)(catalog, entries),
+  }),
   render,
 }
 
@@ -236,15 +259,16 @@ export const Stateful = {
     pages: { readonly before: Document | undefined; readonly after: Document },
     prepare: (model: Model, props: PropsOf<B>) => Model,
   ): Update.Step<Parent, ParentMessage, R> => {
+    if (Catalog.block(catalog, block.name) !== block)
+      throw new Error(`Stateful.sync: "${block.name}" is not this Catalog's Block`)
     const of = (document: Document | undefined) =>
       document === undefined ? [] : statefulNodes(catalog, document, block.name)
     const before = new Map(of(pages.before).map(node => [node.id, node]))
     const after = of(pages.after)
+    const staying = new Set(after.map(node => node.id))
     const stored = (document: Document | undefined, id: NodeId) => document?.nodes[id]?.props
     return Update.combine([
-      ...[...before.keys()]
-        .filter(id => !after.some(node => node.id === id))
-        .map(id => collection.remove(id)),
+      ...[...before.keys()].filter(id => !staying.has(id)).map(id => collection.remove(id)),
       ...after
         .filter(
           node =>
@@ -252,7 +276,7 @@ export const Stateful = {
             // By value: a page loaded again is new objects with the same props.
             !sameJson(stored(pages.before, node.id), stored(pages.after, node.id)),
         )
-        // The props of a node of `block`, decoded by its Schema.
+        // The props of a node of `block`, which is the Catalog's, decoded by its Schema.
         .map(node => collection.add(node.id, model => prepare(model, node.props as PropsOf<B>))),
     ])
   },

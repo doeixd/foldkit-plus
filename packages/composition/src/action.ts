@@ -13,13 +13,13 @@
 import { Result, Schema } from 'effect'
 import { isRecord, type AnyBlock } from './block.js'
 
-/** An action a Catalog offers: what `Action.define` from `foldkit-surface` makes. */
-export interface CatalogAction {
+/** An action a Catalog offers, ending in a `Message`: what `Action.define` from `foldkit-surface` makes. */
+export interface CatalogAction<Message = unknown> {
   readonly name: string
   readonly description: string
   readonly input: Schema.Top
   // Method syntax: an Action of a specific input is still one.
-  toMessage(input: never): unknown
+  toMessage(input: never): Message
 }
 
 /** What a node stores for one event: the action's name, and its input as JSON. */

@@ -58,10 +58,9 @@ const initial: RemoteData<Page<never>> = { _tag: 'Initial' }
 
 /** Something a Remote domain can read a query with: what `Remote.make` returns has it. */
 export interface QueryReader<AppModel> {
-  // Method syntax: a domain's registered-query constraint still fits.
-  query(query: any, input: any, options: any): Projection<AppModel, unknown>
-  /** The domain's contract: its `owner` is the application's. */
-  readonly contract: { readonly owner?: object | undefined }
+  // Method syntax: a domain's registered-query constraint still fits. `any` for the
+  // query itself, whose descriptor type the domain narrows by what it registered.
+  query(query: any, input: unknown, options: unknown): Projection<AppModel, unknown>
 }
 
 export const QueryBlock = {
@@ -113,24 +112,33 @@ export const QueryBlock = {
   },
 
   /**
-   * The page's reads as an active Surface, for `Data.wiring`, `Data.subscriptions`
-   * or an SSR plan's `surfaces`: active while `documentOf` gives a page, reading
-   * its Query Blocks. `Remote.resume(Data)` then carries what they read.
+   * The page's reads as an active Surface of the application `owner`
+   * (`App.owner`), for `Data.wiring`, `Data.subscriptions` or an SSR plan's
+   * `surfaces`: active while `documentOf` gives a page, reading its Query
+   * Blocks. `Remote.resume(Data)` then carries what they read.
    */
   active: <AppModel>(
     name: string,
+    owner: object,
     data: QueryReader<AppModel>,
     catalog: Catalog,
     documentOf: (model: AppModel) => Document | undefined,
-  ): ActiveSurface<AppModel> => ({
-    name,
-    owner: data.contract.owner ?? {},
-    messages: [],
-    projectionOf: model => {
-      const document = documentOf(model)
-      return document === undefined ? undefined : QueryBlock.reads(data, catalog, document)
-    },
-  }),
+  ): ActiveSurface<AppModel> => {
+    // The reads change only with the page, not with every Model the page is in.
+    const byDocument = new WeakMap<Document, ReturnType<typeof QueryBlock.reads<AppModel>>>()
+    return {
+      name,
+      owner,
+      messages: [],
+      projectionOf: model => {
+        const document = documentOf(model)
+        if (document === undefined) return undefined
+        if (!byDocument.has(document))
+          byDocument.set(document, QueryBlock.reads(data, catalog, document))
+        return byDocument.get(document)
+      },
+    }
+  },
 
   /**
    * Every Query Block on the page as one Projection over the Model, keyed by

@@ -12,7 +12,11 @@ import { fieldsOf, type AnyBlock } from './block.js'
 import type { Content } from './content.js'
 import { bounds } from './region.js'
 
-export interface Catalog<Blocks extends AnyBlock = AnyBlock> {
+/**
+ * `ActionMessage` is the Messages its actions make, so a Renderer whose views
+ * dispatch them is checked to route every one.
+ */
+export interface Catalog<Blocks extends AnyBlock = AnyBlock, ActionMessage = unknown> {
   readonly _tag: 'Catalog'
   readonly blocks: ReadonlyArray<Blocks>
   /** The Content a root of a Document must provide one of. */
@@ -24,7 +28,7 @@ export interface Catalog<Blocks extends AnyBlock = AnyBlock> {
    */
   readonly context: Schema.Struct<Schema.Struct.Fields> | undefined
   /** The actions a node's events may run, by name: `foldkit-surface` Actions. */
-  readonly actions: ReadonlyArray<CatalogAction>
+  readonly actions: ReadonlyArray<CatalogAction<ActionMessage>>
 }
 
 /** A Block's name, from a Catalog. */
@@ -45,14 +49,14 @@ export interface BlockDescription {
 }
 
 export const Catalog = {
-  make: <const Blocks extends AnyBlock>(config: {
+  make: <const Blocks extends AnyBlock, ActionMessage = never>(config: {
     readonly blocks: ReadonlyArray<Blocks>
     readonly roots: ReadonlyArray<Content>
     /** The context a node's `when` may name: `Schema.Struct({ audience: ..., locale: ... })`. */
     readonly context?: Schema.Struct<Schema.Struct.Fields>
     /** The actions a node's events may run: `[AddToCart, Subscribe]`. */
-    readonly actions?: ReadonlyArray<CatalogAction>
-  }): Catalog<Blocks> => {
+    readonly actions?: ReadonlyArray<CatalogAction<ActionMessage>>
+  }): Catalog<Blocks, ActionMessage> => {
     if (config.roots.length === 0)
       throw new Error('Catalog.make: `roots` names no Content, so no Document could have a root')
     const byName = new Map<string, Blocks>()

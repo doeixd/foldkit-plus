@@ -19,7 +19,7 @@
  */
 import type { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
-import { Projection, type ActiveSurface, type Surface } from 'foldkit-surface'
+import { Projection, Surface, type ActiveSurface } from 'foldkit-surface'
 import { Block, type AnyBlock } from '../block.js'
 import { Catalog } from '../catalog.js'
 import type { Content } from '../content.js'
@@ -118,20 +118,37 @@ export const SurfaceBlock = {
   /**
    * The page's Surface Blocks as an active Surface of the application `owner`
    * (`App.owner`), for `Data.wiring`, `Data.subscriptions` or an SSR plan's
-   * `surfaces`: active while `documentOf` gives a page.
+   * `surfaces`: active while `documentOf` gives a page, and may send what each
+   * Surface lists. A Surface of another application is refused here.
    */
   active: <Root>(
     name: string,
     owner: object,
     catalog: Catalog,
     documentOf: (model: Root) => Document | undefined,
-  ): ActiveSurface<Root> => ({
-    name,
-    owner,
-    messages: [],
-    projectionOf: model => {
-      const document = documentOf(model)
-      return document === undefined ? undefined : SurfaceBlock.reads<Root>(catalog, document)
-    },
-  }),
+  ): ActiveSurface<Root> => {
+    const surfaces = catalog.blocks
+      .flatMap(block => readKey.get(block.metadata))
+      .map(read => read.surface)
+    const foreign = surfaces.find(surface => surface.owner !== owner)
+    if (foreign !== undefined)
+      throw new Error(
+        `SurfaceBlock.active: "${foreign.name}" belongs to another application than "${name}"`,
+      )
+    // The reads change only with the page, not with every Model the page is in.
+    const byDocument = new WeakMap<Document, ReturnType<typeof SurfaceBlock.reads<Root>>>()
+    return {
+      name,
+      owner,
+      // What the features on a page may send, as each Surface lists it.
+      messages: [...new Set(surfaces.flatMap(surface => Surface.at(surface, undefined).messages))],
+      projectionOf: model => {
+        const document = documentOf(model)
+        if (document === undefined) return undefined
+        if (!byDocument.has(document))
+          byDocument.set(document, SurfaceBlock.reads<Root>(catalog, document))
+        return byDocument.get(document)
+      },
+    }
+  },
 }

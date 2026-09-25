@@ -73,7 +73,7 @@ export const blockReads = (model: Model) => QueryBlock.reads(Data, Site, editing
 
 export const actives = {
   ...PageEditor.actives,
-  blocks: QueryBlock.active('PageBlocks', Data, Site, editing),
+  blocks: QueryBlock.active('PageBlocks', App.owner, Data, Site, editing),
   revisions: {
     name: 'Revisions',
     owner: Data.contract.owner ?? {},

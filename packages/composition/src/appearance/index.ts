@@ -173,12 +173,13 @@ const make = <Slots>(
     ]
   }
 
+  const tokenStyles = new Set(tokenBase)
   return Object.freeze({
     slots,
     axes,
     styles: Object.freeze([
       ...base,
-      ...[...byValue.values()].filter(style => !tokenBase.includes(style)),
+      ...[...byValue.values()].filter(style => !tokenStyles.has(style)),
       ...compounds.map(entry => entry.style),
       ...tokenBase,
       ...responsive,

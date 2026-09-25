@@ -188,6 +188,24 @@ describe('drawing a Document', () => {
     Renderer.render(Drawn, cta({ press: { action: 'gone' } }), h)
     // An event the Block does not have runs nothing, whatever is stored for it.
     Renderer.render(Drawn, cta({ hover: { action: 'subscribe', input: { list: 'x' } } }), h)
+    // A Renderer whose views dispatch nothing, such as an editor's canvas, is given no Message.
+    const given: Array<unknown> = []
+    const Static = Renderer.make(Actions, {
+      Cta: ({ props, on, h }) => {
+        given.push(on('press'))
+        return h.p([], [props.label])
+      },
+    })
+    Renderer.render(
+      Static,
+      cta({ press: { action: 'subscribe', input: { list: 'news' } } }),
+      inertHtml,
+    )
+    expect(given).toEqual([undefined])
+    // @ts-expect-error a dispatching Renderer must route every Message the Catalog's actions make
+    Renderer.forMessages<{ readonly _tag: 'Other' }>().make(Actions, {
+      Cta: ({ props, h }) => h.p([], [props.label]),
+    })
     expect(pressed).toEqual([
       Message.Subscribed({ list: 'news' }),
       undefined,
@@ -198,6 +216,30 @@ describe('drawing a Document', () => {
       undefined,
       undefined,
     ])
+  })
+
+  it('draws a node whose view throws as a placeholder, and the rest of the page', () => {
+    const Fragile = Renderer.make(Site, {
+      ...SiteRenderer.entries,
+      Image: () => {
+        throw new Error('no image today')
+      },
+    })
+    const drawn = page(['s'], {
+      s: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['i', 'b'] } },
+      i: { block: 'Image', props: { src: '/a.png', alt: 'A' }, regions: {} },
+      b: { block: 'Button', props: { label: 'Go', href: '/go' }, regions: {} },
+    })
+    const [viewed] = Renderer.render(Fragile, drawn, inertHtml)
+    expect(all(viewed).flatMap(node => (node.sel === undefined ? [] : [node.sel]))).toEqual([
+      'section',
+      'a',
+    ])
+    const [edited] = Renderer.render(Fragile, drawn, inertHtml, { mode: 'edit' })
+    const placeholder = all(edited).find(
+      node => attr(node, 'data-composition-placeholder') === 'Image',
+    )
+    expect(text(placeholder)).toContain('it could not be drawn: Error: no image today')
   })
 
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {

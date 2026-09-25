@@ -352,15 +352,25 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
 - **Every Block needs a view.** A Catalog Block without one is a type error, and
   `Renderer.make` throws naming it.
 - **Nothing stored makes it throw.** A node whose Block the Catalog lacks, whose
-  props do not decode, or that is missing or reached twice is a placeholder:
-  nothing for a visitor, a labelled box in edit mode.
+  props do not decode, that is missing or reached twice, or whose view throws
+  is a placeholder: nothing for a visitor, a labelled box in edit mode.
 - **The builder is a parameter,** so one Renderer draws in the browser, in a
-  test with `inertHtml`, and on the server. `Renderer.make` builds views that
-  dispatch nothing; `Renderer.forMessages<Message>().make(...)` builds views
-  that may.
+  test with `inertHtml`, and on the server.
 - **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
-  element carrying `data-composition-node`, and changes nothing else, so an
-  editor's canvas draws the page a visitor sees.
+  element carrying `data-composition-node`, so an editor's canvas draws the
+  page a visitor sees. The wrapper also carries the editor's marks, from the
+  options `selected`, `hovered` and `drop` (`data-composition-selected`,
+  `-hovered`, `-drop`), and a node whose `when` fails is drawn anyway, marked
+  `data-composition-hidden`.
+- **The other options** are what the page is drawn for: `context`, which
+  conditions read ([Conditions](#conditions)), and `data`, each node's read by
+  id, which Query, Surface and stateful Blocks draw from. A page with all three
+  spreads them into one record:
+  `{ ...queries.read(model), ...features.read(model), ...Stateful.views(...) }`.
+- **`Renderer.make`'s views dispatch nothing**, so their `on(event)` gives
+  `undefined`: an editor's canvas draws a page without running its actions.
+  `Renderer.forMessages<Message>()` requires every Message the Catalog's
+  actions make to be one of `Message`.
 - It adds no reconciler, no component runtime and no per-node state. It needs
   `foldkit` installed; the core does not.
 
@@ -458,11 +468,15 @@ const SiteRenderer = Renderer.make(Site, {
   the layout's parameters are its axes:
 
   ```ts
+  const grow = (left: string, right: string) => ({
+    left: Style.inline({ flexGrow: left }),
+    right: Style.inline({ flexGrow: right }),
+  })
   const ColumnsLook = Appearance.make(ColumnsSlots, {
     recipe: Style.recipeFor(ColumnsSlots)({
       base: { root: Layout.switcher() },
       variants: {
-        ratio: { '1:1': grow('1', '1'), '2:1': grow('2', '1') }, // flex-grow on left and right
+        ratio: { '1:1': grow('1', '1'), '2:1': grow('2', '1') },
         stack: { early: { root: Style.vars({ '--fk-l-threshold': '48rem' }) }, late: {} },
       },
     }),
@@ -485,7 +499,11 @@ ordinary child Model in the application's Model; nothing keeps per-node state
 anywhere else:
 
 ```ts
-const Carousel = Block.define('Carousel', { Props, provides: [Content.Flow], stateful: true })
+const Carousel = Block.define('Carousel', {
+  Props: Schema.Struct({ interval: Schema.Number }),
+  provides: [Content.Flow],
+  stateful: true,
+})
 
 const Carousels = Bundle.declareEach(CarouselBundle, 'carousels') // in the parent's Model
 const Placed = Page.each(Carousels)
@@ -516,7 +534,8 @@ Renderer.render(SiteRenderer, page, h, {
 
 A Query Block names a [`foldkit-remote`](../remote/README.md) query and says how
 its props become the query's input. An author chooses a count or a category;
-an author never writes a query, and the Document never holds one:
+an author never writes a query, and the Document never holds one. From the CMS
+example's `site.ts`:
 
 ```ts
 import { QueryBlock } from 'foldkit-composition/remote'
@@ -542,7 +561,7 @@ const SiteRenderer = Renderer.make(Site, {
   page as one Projection over the application's Model, keyed by node id, or
   `undefined` when there is none. A node whose props do not decode reads
   nothing.
-- **`QueryBlock.active(name, Data, catalog, model => document)`** is that read
+- **`QueryBlock.active(name, App.owner, Data, catalog, model => document)`** is that read
   as an active Surface, for `Data.wiring`, `Data.subscriptions` or an SSR
   plan's `surfaces`: Remote fetches, caches and authorizes it like any read,
   and `Remote.resume(Data)` carries exactly what it selected into a
@@ -576,7 +595,9 @@ const Cart = SurfaceBlock.define('Cart', {
 `SurfaceBlock.reads(catalog, document)` and `SurfaceBlock.active(name,
 App.owner, catalog, model => document)` are the page's Surface Blocks as one
 Projection, or an active Surface, exactly as a Query Block's are, and their
-values reach the Renderer the same way, through `data`. The Block holds its
+values reach the Renderer the same way, through `data`. The active Surface may
+send what each placed Surface lists in its `messages`, and refuses a Surface of
+another application when it is made. The Block holds its
 Surface, whose type carries the application's Model: where the Catalog is part
 of that Model, as it is when a form places the page Builder, a Block names what
 it reads instead, as a Query Block does.

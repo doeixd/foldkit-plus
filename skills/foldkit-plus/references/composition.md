@@ -101,7 +101,8 @@ Presentation, not authorization.
 
 `Block.define(..., { events: ['press'] })`; `Catalog.make({ ..., actions: [AddToCart] })`
 (a `foldkit-surface` Action); `Op.setAction(id, 'press', { action: 'addToCart',
-input })`; in a `Renderer.forMessages<Message>()` view, `on('press')` is the
+input })`; in a `Renderer.forMessages<Message>()` view (which must route every
+Message the Catalog's actions make; `Renderer.make`'s `on` gives `undefined`), `on('press')` is the
 Message (input decoded first) or `undefined`. Codes:
 `composition:invalid-action`, `composition:unknown-action`. `Catalog.describe`
 lists each Block's `events`. The drawn Builder's inspector picks an action per
@@ -142,7 +143,7 @@ view needs a runtime. `Composition.statefulNodes(catalog, doc, block?)`.
 select, first?: props => n })` — a Block that names a registered Remote query;
 the Document stores only its props. `QueryBlock.reads(Data, Site, document)`:
 one Projection (node id → RemoteData<Page<Row>>);
-`QueryBlock.active(name, Data, Site, model => document)` is it as an active
+`QueryBlock.active(name, App.owner, Data, Site, model => document)` is it as an active
 Surface for `Data.wiring` / `subscriptions` / an SSR plan's `surfaces` (with
 `Remote.resume(Data)`); `Renderer.render(r, doc, h, { data: reads.read(model) })`; in the
 view, `LatestPages.rows(data)` (typed; `Initial` without data). Don't close

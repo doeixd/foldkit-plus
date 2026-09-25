@@ -8,7 +8,7 @@ import { Schema } from 'effect'
 import { Attributes, Behavior, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
-import { Block, Catalog, Composition, Content, NodeId } from '../src/index.js'
+import { Block, Catalog, Composition, Content } from '../src/index.js'
 import { Appearance } from '../src/appearance/index.js'
 import { Renderer } from '../src/foldkit/index.js'
 
@@ -141,7 +141,6 @@ describe('a look', () => {
     const { title } = drawn({ tone: 'accent' })
     const [ruled] = classes(title)
     expect(sheet).toContain(`.${ruled}{font-weight:700}`)
-    expect(HeroLook.draw({ appearance: { tone: 'accent' }, h: inertHtml })).toBeDefined()
   })
 
   it('draws a responsive token as rules, each breakpoint after the base', () => {
@@ -200,6 +199,5 @@ describe('a look', () => {
         tokens: { gap: Appearance.token({ s: '1px' }, { slot: 'root', property: 'gap' }) },
       }),
     ).toThrow('"gap" is both a recipe axis and a token axis')
-    expect(NodeId.make('h')).toBe('h')
   })
 })

@@ -141,6 +141,14 @@ describe('a Query Block', () => {
     expect(text(Renderer.render(SiteRenderer, page, inertHtml))).toBe('Loading')
   })
 
+  it('is an active Surface of its application, reading once per page', () => {
+    const active = QueryBlock.active('PageReads', App.owner, Data, Site, (model: Model) => page)
+    expect(active.owner).toBe(App.owner)
+    const first = active.projectionOf(initial)
+    expect(first?.read(initial)).toEqual({ mine: { _tag: 'Initial' } })
+    expect(active.projectionOf({ remote: Remote.initial })).toBe(first)
+  })
+
   it('reads nothing on a page with no Query Block', () => {
     const empty = Schema.decodeUnknownSync(Composition.Document)({
       format: 1,

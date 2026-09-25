@@ -131,6 +131,23 @@ describe('stateful Blocks', () => {
     expect(sync(moved, second, third).tallies).toEqual({ a: { count: 7 }, c: { count: 9 } })
   })
 
+  it('refuses a Block that is not the Catalog’s own', () => {
+    const Lookalike = Block.define('Tally', {
+      Props: Schema.Struct({ start: Schema.Number }),
+      provides: [Content.Flow],
+      stateful: true,
+    })
+    expect(() =>
+      Stateful.sync(
+        Placed,
+        Site,
+        Lookalike,
+        { before: undefined, after: page({}) },
+        counter => counter,
+      ),
+    ).toThrow(`"Tally" is not this Catalog's Block`)
+  })
+
   it('draws each stateful node with its own item, on a runtime', async () => {
     const document = page({ a: 1, b: 5 })
     const container = document_.createElement('div')
