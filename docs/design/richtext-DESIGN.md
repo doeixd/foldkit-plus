@@ -4655,13 +4655,15 @@ copy/paste                routed through the view's Messages (§118 slice 2)
 drag/drop                 not started
 mobile virtual keyboards  not started (Phase 3)
 toolbar integration       the mark buttons and their active rule
-                          (`foldkit-richtext-dom/toolbar`, `marksToolbar`); the
-                          Mixins slot family is next
+                          (`foldkit-richtext-dom/toolbar`, `marksToolbar`), and the
+                          Mixins family that re-renders them
+                          (`foldkit-mixins-richtext`, `markToolbar`); the rest of
+                          §35's chrome is §120 slice 2
 slash commands            not started
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the
-keymap and toolbar layers that turn intents into Messages rather than commands.
+editor's own keymap layer that turns a chord into a Message rather than a command.
 
 ## Phase 5 — stateful Form controls
 
@@ -5055,7 +5057,10 @@ Command are identical, which is §27's requirement.
    read-only renderer (`/view`). The harness is what is left of the Phase 3 slice:
    the browser page.
 4. The toolbar, slash commands, and the Bundle keymap layer (§104's remainder).
-   Decided in §119; they are three layers, not one.
+   Decided in §119; they are three layers, not one, and the toolbar is done
+   (`/toolbar` for an application that renders its own chrome, and
+   `foldkit-mixins-richtext` for one that restyles parts). The editor's own binding
+   layer and slash commands remain.
 
 ---
 
@@ -5137,10 +5142,12 @@ real block vocabulary, so it comes last.
    subtree agrees on. That is what a toolbar's active button reads.
 3. The editor's keymap layer in `events`, when a binding needs a Message no browser
    event produces.
-4. **In progress.** The buttons and their active rule landed
-   (`foldkit-richtext-dom/toolbar`: `marksToolbar`, `markActive`). The Mixins slot
-   family is next, and §120 corrects §119 on it: a slot view owns its elements, so
-   the family re-renders the buttons rather than wrapping them.
+4. **Complete.** The buttons and their active rule landed
+   (`foldkit-richtext-dom/toolbar`: `marksToolbar`, `markActive`), and so did the
+   Mixins slot family that re-renders them rather than wrapping them
+   (`foldkit-mixins-richtext`: `markToolbar`, `MarkToolbarSlots`). §120 corrects
+   §119 on the wrapping: a slot view owns its elements, so the family could not take
+   resolved attributes as a helper.
 5. Slash commands, over 1 and 3.
 
 ---
