@@ -480,6 +480,11 @@ because what a document has between blocks is structure rather than text. `posit
 offset)` is the read it shares with `textRangeBefore` — the position a block's own text offset
 addresses — and the one any producer of ranges needs.
 
+A second producer reads code: `codeDecorations(document, tokenizers)` turns each `CodeBlock` a
+tokenizer names into a decoration of kind `syntax-<token>`, with the token's name in the
+decoration's `data` too. The grammar is the application's — `CodeTokenizer` is text to ranges —
+and `foldkit-richtext-code` supplies a JSON one (§130).
+
 ## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with
 its own identities:

@@ -97,6 +97,12 @@ export {
 } from './decoration.js'
 export { SEARCH_DECORATION, searchDecorations } from './search.js'
 export {
+  type CodeToken,
+  type CodeTokenizer,
+  syntaxDecorationKind,
+  codeDecorations,
+} from './code.js'
+export {
   Slice,
   emptySlice,
   sliceOf,

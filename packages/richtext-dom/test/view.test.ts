@@ -402,6 +402,27 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('search')
     expect(text(decorated(rendered) ?? null)).toBe('me')
   })
+
+  it('draws code tokens the core produced, under their own kinds', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'code',
+          props: { language: 'plain' },
+          children: [{ type: 'Text', id: 't', text: 'let x', marks: [] }],
+        },
+      ],
+    })
+    const tokens = RichText.codeDecorations(content, [
+      { language: 'plain', tokenize: () => [{ from: 0, to: 3, kind: 'keyword' }] },
+    ])
+    const rendered = renderDocument(content, RichText.noRendering, tokens) as unknown as VNode
+    expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('syntax-keyword')
+    expect(text(decorated(rendered) ?? null)).toBe('let')
+  })
 })
 
 describe('the standard vocabulary through the read-only renderer', () => {

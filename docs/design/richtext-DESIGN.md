@@ -6140,10 +6140,11 @@ For synchronous/simple tokenizers, the same contract works without Effects.
 
 For async Shiki, let a Bundle Command compute the highlighting and commit the ephemeral result into editor interaction state. Don't introduce a hidden highlighter store.
 
-> **Designed (2026-09-25), as §130.** The seam and its homes are decided — `CodeTokenizer` and
-> `codeDecorations` in the core (format-agnostic, like `searchDecorations`), a JSON lexer in
-> `foldkit-richtext-code`, Shiki in `foldkit-richtext-code-shiki` — and §129 decides how the
-> editable adapter draws the result. Nothing is built yet.
+> **Built (2026-09-25), as §130.** The core has `CodeTokenizer` and `codeDecorations`;
+> `foldkit-richtext-code` ships the JSON lexer; and the read-only view draws the tokens as
+> `syntax-<token>` decorations, which is the path this section asked for. Shiki
+> (`foldkit-richtext-code-shiki`) is not built, and §129 decides how the *editable* adapter will
+> draw the same decorations.
 
 ---
 
@@ -7130,4 +7131,11 @@ small enough to write exactly and verify, it is common in CMS content, and it pr
 seam — a tokenizer, its decoration kinds, and the read-only view drawing them — without the risk
 of a half-right JavaScript lexer. TypeScript and JavaScript should wait for Shiki rather than be
 hand-rolled.
+
+> **Built (2026-09-25).** `CodeTokenizer` and `codeDecorations` are in `foldkit-richtext`, with
+> the token's name in the decoration's kind (`syntax-string`) because the kind is what a
+> stylesheet reaches a decoration by, and in its `data` for a registry to read later.
+> `foldkit-richtext-code` ships `jsonTokenizer`, which lexes JSON exactly — strings with their
+> escapes, numbers by JSON's shape, the literals, the punctuation, and one `invalid` token for a
+> character that begins no token — and the read-only view draws the result. Shiki is not built.
 

@@ -194,6 +194,12 @@ offset)` is the offset-to-position read it shares), and
 `span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
 overlay decorations yet.
 
+Code highlighting is a decoration too (§124 §7, §130): `codeDecorations(document, tokenizers)`
+reads every `CodeBlock` a tokenizer names and returns one decoration per token, with the token's
+name in the kind (`syntax-string`) and in its `data`. `CodeTokenizer` is text to ranges, and
+`foldkit-richtext-code` supplies `jsonTokenizer` (exact JSON, `JSON_LANGUAGE`); an unknown
+language is left unhighlighted rather than reported. Shiki is not built.
+
 The harness also carries a page (`examples/richtext/harness.html`, served from
 source with `pnpm exec vite examples/richtext`) for exercising the editable
 adapter in a real browser, where jsdom cannot reach: real typing, a real
