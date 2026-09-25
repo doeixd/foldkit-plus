@@ -6897,6 +6897,13 @@ document form takes a set.
 
 ## What is not here
 
+A producer ships with the substrate too: `searchDecorations(document, query)` returns every
+occurrence of a query as a `search` decoration — one per occurrence, a match across two runs
+kept whole, and none across two blocks — with `positionInBlock(block, offset)` as the read it
+shares with `textRangeBefore`, the block-offset-to-position mapping both need. The read-only
+view draws such a set without any hand-made decoration, so §64's first example now runs end to
+end.
+
 The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping
 one text node per run, and splitting a run at decoration edges would break that mapping
 unless the overlay is drawn another way — the CSS Custom Highlight API, or overlay elements

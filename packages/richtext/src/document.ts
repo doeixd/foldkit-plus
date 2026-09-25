@@ -361,6 +361,27 @@ export const textBefore = (document: Document, position: Position): string => {
 }
 
 /**
+ * The position a block's text offset addresses, or `undefined` when it is past the end. The
+ * inverse of `textBefore` for one block: a rule, a search match, or any producer working in
+ * a block's own text needs it to say where what it found is.
+ */
+export const positionInBlock = (block: Block, offset: number): Position | undefined => {
+  let consumed = 0
+  for (const run of block.children) {
+    const next = consumed + run.text.length
+    if (offset <= next) {
+      return {
+        node: run.id,
+        offset: offset - consumed,
+        affinity: offset === next ? 'after' : 'before',
+      }
+    }
+    consumed = next
+  }
+  return undefined
+}
+
+/**
  * The range covering the `length` characters before `position` in its block, or
  * `undefined` when the position does not resolve, `length` is not positive, or fewer
  * characters precede it. The inverse of `textBefore`: an input rule or a menu deletes
@@ -384,23 +405,8 @@ export const textRangeBefore = (
   const end = lead + Math.max(0, position.offset)
   const start = end - length
   if (start < 0) return undefined
-  const at = (offset: number): Position | undefined => {
-    let consumed = 0
-    for (const run of block.children) {
-      const next = consumed + run.text.length
-      if (offset <= next) {
-        return {
-          node: run.id,
-          offset: offset - consumed,
-          affinity: offset === next ? 'after' : 'before',
-        }
-      }
-      consumed = next
-    }
-    return undefined
-  }
-  const anchor = at(start)
-  const focus = at(end)
+  const anchor = positionInBlock(block, start)
+  const focus = positionInBlock(block, end)
   return anchor === undefined || focus === undefined ? undefined : { type: 'Range', anchor, focus }
 }
 

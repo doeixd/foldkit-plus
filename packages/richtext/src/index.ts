@@ -17,6 +17,7 @@ export {
   locateRun,
   textBefore,
   textRangeBefore,
+  positionInBlock,
   Text,
   Paragraph,
   Heading,
@@ -94,6 +95,7 @@ export {
   type DecorationSpan,
   decorationsIn,
 } from './decoration.js'
+export { SEARCH_DECORATION, searchDecorations } from './search.js'
 export {
   Slice,
   emptySlice,

@@ -382,6 +382,26 @@ describe('decorations over the read-only renderer (§64)', () => {
   it('renders exactly as before when the set is empty', () => {
     expect(renderDocument(document())).toEqual(renderDocument(document(), RichText.noRendering, []))
   })
+
+  it('draws a search the core found, with no hand-made decoration', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'find me', marks: [] }],
+        },
+      ],
+    })
+    const rendered = renderDocument(
+      content,
+      RichText.noRendering,
+      RichText.searchDecorations(content, 'me'),
+    ) as unknown as VNode
+    expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('search')
+    expect(text(decorated(rendered) ?? null)).toBe('me')
+  })
 })
 
 describe('the standard vocabulary through the read-only renderer', () => {

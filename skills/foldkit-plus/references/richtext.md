@@ -186,7 +186,10 @@ real `<a href>`; a tag Foldkit has no builder for is reported, not swapped.
 Decorations (§64, §126) are derived, ephemeral presentation over a document range — a
 search match, a lint warning, a syntax token — and never document content:
 `Decoration` / `DecorationSet` are plain data, `decorationsIn(document, set)` projects a
-set onto runs (cut at each run's edge, unresolvable endpoints skipped, text order), and
+set onto runs (cut at each run's edge, unresolvable endpoints skipped, text order),
+`searchDecorations(document, query)` produces them for every occurrence of a query (one
+decoration per occurrence, across runs but never across blocks; `positionInBlock(block,
+offset)` is the offset-to-position read it shares), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
 `span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
 overlay decorations yet.

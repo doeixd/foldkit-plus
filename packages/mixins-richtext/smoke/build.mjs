@@ -200,6 +200,13 @@ check(
   projected.get(richtext.NodeId.make('a'))?.[0]?.to === 2,
 )
 
+// §126: a producer for the substrate, so a search needs no hand-made decoration.
+check(
+  'a search produces decorations through the build',
+  richtext.searchDecorations(document, 'a').length === 1 &&
+    richtext.positionInBlock(document.children[0], 0)?.offset === 0,
+)
+
 // §125: the standard vocabulary's rendering, which is what makes a declared kind an
 // element rather than a placeholder — and a void one stays open.
 const standard = richtext.decodeDocument({

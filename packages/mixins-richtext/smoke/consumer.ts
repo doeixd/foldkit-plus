@@ -50,6 +50,8 @@ export type Surface = [
   typeof RichText.standardRendering,
   typeof RichText.renderingOver,
   typeof RichText.decorationsIn,
+  typeof RichText.searchDecorations,
+  typeof RichText.positionInBlock,
   RichText.Decoration,
   RichText.DecorationSet,
   RichText.DecorationSpan,
