@@ -85,11 +85,16 @@ version changed; `pnpm` skips versions already in the registry.
   draws its Builder this way. Phase 7 of the page builder design.
   The inspector labels a prop with its Schema's `title`, and a Block asks for a
   prop's control with `Block.annotate(BuilderView.controls({ ... }))`, such as
-  `Input.multiline()`, or `Input.hidden()` to leave it out.
+  `Input.multiline()`, or `Input.hidden()` to leave it out. A row in the
+  layers or a node on the page can be dragged onto another with the pointer:
+  the Builder's `drag` says where a drop would land (`dropAt`), the target is
+  marked only where the page allows it, and a drop is one undoable, announced
+  move.
 - **`foldkit-composition/foldkit`: the edit wrappers carry the marks.**
-  `render` in edit mode takes `selected` and `hovered`, and puts
-  `data-composition-selected` and `data-composition-hovered` on those nodes'
-  wrappers, so an editor's CSS draws the selection.
+  `render` in edit mode takes `selected`, `hovered` and `drop`, and puts
+  `data-composition-selected`, `data-composition-hovered` and
+  `data-composition-drop` on those nodes' wrappers, so an editor's CSS draws
+  the selection and where a drop lands.
 - **`foldkit-primitives`: `PointerDrag`, dragging one marked element onto
   another.** A Mount and a Behavior on a container: a press that moves past
   4px starts a drag, the element under the pointer is reported with the third

@@ -56,15 +56,17 @@ describe('drawing a Document', () => {
     expect(typeof inner === 'string' ? inner : classes(inner)).toEqual(['hero'])
   })
 
-  it('marks the selected and hovered nodes in edit mode, for a stylesheet to outline', () => {
+  it('marks the selected, hovered and drop target nodes in edit mode, for a stylesheet', () => {
     const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, {
       mode: 'edit',
       selected: id('start'),
       hovered: id('hero'),
+      drop: { id: id('start'), zone: 'before' },
     })
     const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
     expect(marked.map(node => attr(node, 'data-composition-selected'))).toEqual([undefined, ''])
     expect(marked.map(node => attr(node, 'data-composition-hovered'))).toEqual(['', undefined])
+    expect(marked.map(node => attr(node, 'data-composition-drop'))).toEqual([undefined, 'before'])
     const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, { selected: id('start') })
     expect(all(viewed).some(node => attr(node, 'data-composition-selected') !== undefined)).toBe(
       false,

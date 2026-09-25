@@ -1052,14 +1052,17 @@ What remains of Phase 7, in order:
   that replaces one node's drawing, where the editor's host goes. It uses only
   `foldkit-richtext-dom`'s public `editorAt`; if that package is still moving,
   7c-3 goes first.
-- **7c-3, pointer drag and drop,** without `@foldkit/ui`'s DragAndDrop, which
+- **7c-3, pointer drag and drop. Done.** Without `@foldkit/ui`'s DragAndDrop, which
   writes a listbox's roles and keys onto rows that are a tree's. A `PointerDrag`
   Behavior in `foldkit-primitives/interaction`, beside `Targets`: a threshold,
   then the node under the pointer and a zone (before, after, inside) measured
   on move and never stored. `Builder.dropAt(document, dragged, target, zone)`
   is the Position, by the palette's Region rules, or `undefined`. The drop line
   is a `data-composition-drop` attribute; a drop is announced; the keyboard
-  stays the accessible way to reorder.
+  stays the accessible way to reorder. As built, the Builder's Model keeps
+  `drag: { id, over, at }`; `at` is found by dry-running the move through
+  `apply`, so a mark never promises a drop the page would refuse, and a drop
+  inside a node that takes nothing lands after it, which `over.zone` reports.
 
 **Phase 8: appearance and conditions.**
 

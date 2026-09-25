@@ -3,8 +3,8 @@
 **In development, not published.** Phases 1 to 7 of the page builder design are
 built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
 editing Operations, migrations, a Foldkit renderer, the headless Builder, the
-CMS example's pages, and the drawn editor. Pointer drag and drop and rich text
-edited on the canvas are not.
+CMS example's pages, and the drawn editor with pointer drag and drop. Rich
+text edited on the canvas is not.
 
 ## What it owns
 
@@ -101,15 +101,20 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
 
 - Model: `page` (an undo history from `foldkit-primitives/state`; `page.present`
   is the Document; `PageBuilder.document(model)` reads it), `selected`,
-  `hovered`, `panel`, `viewport`, `refused`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
+  `hovered`, `panel`, `viewport`, `refused`, `drag`. Messages: `Applied({ op })`, `InsertAsked({ block, at })`,
   `DuplicateAsked({ id, at })`, `Minted` (from its own Command), `Selected`,
-  `Hovered`, `Undid`, `Redid`, `PanelChosen`, `ViewportChosen`.
+  `Hovered`, `Undid`, `Redid`, `PanelChosen`, `ViewportChosen`, and
+  `DragStarted({ id })`, `DraggedOver({ over: { id, zone } | null })`,
+  `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
+  (`dropAt`; inside a node that takes nothing is after it, and `over.zone`
+  says so), `null` where the page refuses; a drop is one undoable move.
 - Ids are minted in a Command; an edit and its undo step change together;
   a new node is selected; a refusal is kept in `refused` until the next edit.
 - As a form key: a change of the Document is an edit (autosaved by CMS), a
   selection is not; fill replaces the page and starts undo over.
 - Helpers: `PageBuilder.placeFor(doc, selected, block)`,
-  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.replace`, `PageBuilder.settle`.
+  `PageBuilder.moveBy(doc, id, delta)`, `PageBuilder.dropAt(doc, dragged, target, zone)`,
+  `PageBuilder.replace`, `PageBuilder.settle`.
 - Places `TreeNavigation` (`Layers`, open by default) and `LiveAnnounce`
   (`Announcer`) in its Model; layers focus selects the node. Shortcuts:
   `PageBuilder.keyCommand(model, key, modifiers)` (Alt+arrows move, out of and
@@ -144,8 +149,11 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Inspector labels are the prop Schema's `title`, else the key. A Block asks
   for a control with
   `Block.annotate(BuilderView.controls({ body: Input.multiline(), ref: Input.hidden() }))`.
-- Style the selection with `[data-composition-selected]` and
-  `[data-composition-hovered]`, which the edit wrappers carry.
+- `PointerDrag` on `tree` (rows carry `data-builder-row`) and `canvas`.
+- Style the marks on the edit wrappers' child (a wrapper is
+  `display: contents`): `[data-composition-selected] > *`,
+  `[data-composition-hovered] > *`, `[data-composition-drop='before'|'inside'|'after'] > *`;
+  rows carry `data-builder-drop` and `data-builder-dragging`.
 
 ## Gotchas
 

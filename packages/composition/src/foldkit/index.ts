@@ -48,6 +48,8 @@ export const PLACEHOLDER_ATTRIBUTE = 'composition-placeholder'
 /** In edit mode, on the selected node's element and the hovered one's, for a stylesheet to outline. */
 export const SELECTED_ATTRIBUTE = 'composition-selected'
 export const HOVERED_ATTRIBUTE = 'composition-hovered'
+/** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */
+export const DROP_ATTRIBUTE = 'composition-drop'
 
 const make =
   <Message>() =>
@@ -81,6 +83,8 @@ const render = <Blocks extends AnyBlock, Message>(
     readonly selected?: NodeId | null
     /** In edit mode, the node to mark hovered. */
     readonly hovered?: NodeId | null
+    /** In edit mode, the node a drop is aimed at, and where. */
+    readonly drop?: { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | null
   } = {},
 ): ReadonlyArray<Html> => {
   const mode = options.mode ?? 'view'
@@ -119,6 +123,9 @@ const render = <Blocks extends AnyBlock, Message>(
             h.Style({ display: 'contents' }),
             ...(options.selected === id ? [h.DataAttribute(SELECTED_ATTRIBUTE, '')] : []),
             ...(options.hovered === id ? [h.DataAttribute(HOVERED_ATTRIBUTE, '')] : []),
+            ...(options.drop?.id === id
+              ? [h.DataAttribute(DROP_ATTRIBUTE, options.drop.zone)]
+              : []),
           ],
           [html],
         )

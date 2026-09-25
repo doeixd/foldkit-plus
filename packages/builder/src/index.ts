@@ -48,6 +48,22 @@ export const layersArgs: TreeNavigation.Args = { openByDefault: true }
 export const Announcer = Bundle.declare(LiveAnnounce.bundle, 'announcer')
 const announcerArgs: LiveAnnounce.Args = { debounceMs: 150, clearAfterMs: 5000 }
 
+/** Where over a node a drop lands: before it, inside it, or after it. */
+export const DropZone = Schema.Literals(['before', 'inside', 'after'])
+export type DropZone = typeof DropZone.Type
+
+/** A drag under way: the node dragged, what it is over, and where it would go. */
+export const Drag = Schema.Struct({
+  id: NodeId,
+  over: Schema.NullOr(Schema.Struct({ id: NodeId, zone: DropZone })),
+  /**
+   * Where a drop now puts it, or `null` when a drop there would be refused.
+   * `over.zone` is where it lands: `inside` a node that takes nothing is `after`.
+   */
+  at: Schema.NullOr(Composition.Position),
+})
+export type Drag = typeof Drag.Type
+
 export const Model = Schema.Struct({
   ...Layers.fields,
   ...Announcer.fields,
@@ -60,6 +76,8 @@ export const Model = Schema.Struct({
   viewport: Viewport,
   /** Why the last edit was refused, until the next one goes through. */
   refused: Schema.NullOr(Schema.Struct({ code: Schema.String, message: Schema.String })),
+  /** A pointer drag under way, or `null`. */
+  drag: Schema.NullOr(Drag),
 })
 export type Model = typeof Model.Type
 
@@ -86,6 +104,13 @@ export const Message = defineMessageUnion({
   Redid: {},
   PanelChosen: { panel: Panel },
   ViewportChosen: { viewport: Viewport },
+  /** A pointer drag of a node began: it is selected, and nothing moves until the drop. */
+  DragStarted: { id: NodeId },
+  /** The dragged node is over another, in a zone of it, or over nothing. */
+  DraggedOver: { over: Schema.NullOr(Schema.Struct({ id: NodeId, zone: DropZone })) },
+  /** The drag ended where it is: the node moves there, when it may. */
+  DragDropped: {},
+  DragCancelled: {},
 })
 export type Message = typeof Message.Type
 
@@ -154,6 +179,66 @@ const moveBy = (document: Document, id: NodeId, delta: number): Operation | unde
       ? Composition.root(to)
       : Composition.region(place.parent, place.region ?? '', to),
   )
+}
+
+/**
+ * Where a node dragged over `target`, in `zone`, lands: before or after it
+ * among its siblings, or last in the first of its Regions that accepts it,
+ * with the zone it landed in. `inside` a node that takes it nowhere lands
+ * after it. `undefined` when the page would refuse the move, such as into the
+ * dragged node itself.
+ */
+const landing = (
+  catalog: Catalog,
+  document: Document,
+  dragged: NodeId,
+  target: NodeId,
+  zone: DropZone,
+): { readonly at: Position; readonly zone: DropZone } | undefined => {
+  const place = Composition.index(document).get(target)
+  const node = document.nodes[dragged]
+  if (dragged === target || place === undefined || node === undefined) return undefined
+  // A move takes the node out before putting it back, so places count without it.
+  const without = (ids: ReadonlyArray<NodeId>) => ids.filter(id => id !== dragged)
+  const beside = (offset: 0 | 1): Position => {
+    const siblings =
+      place.parent === undefined
+        ? document.roots
+        : (document.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+    const at = without(siblings).indexOf(target) + offset
+    return place.parent === undefined
+      ? Composition.root(at)
+      : Composition.region(place.parent, place.region ?? '', at)
+  }
+  const inside = (): Position | undefined => {
+    const holder = document.nodes[target]
+    const block = Catalog.block(catalog, node.block)
+    const owner = holder === undefined ? undefined : Catalog.block(catalog, holder.block)
+    const region = Object.entries(owner?.regions ?? {}).find(([, candidate]) =>
+      (block?.provides ?? []).some(content => candidate.accepts.includes(content)),
+    )
+    if (region === undefined || holder === undefined) return undefined
+    const [regionName] = region
+    return Composition.region(target, regionName, without(holder.regions[regionName] ?? []).length)
+  }
+  const candidates: ReadonlyArray<{ readonly at: Position | undefined; readonly zone: DropZone }> =
+    zone === 'before'
+      ? [{ at: beside(0), zone }]
+      : zone === 'after'
+        ? [{ at: beside(1), zone }]
+        : [
+            { at: inside(), zone },
+            { at: beside(1), zone: 'after' },
+          ]
+  for (const candidate of candidates) {
+    const { at } = candidate
+    if (
+      at !== undefined &&
+      Result.isSuccess(Composition.apply(catalog, document, Composition.Op.move(dragged, at)))
+    )
+      return { at, zone: candidate.zone }
+  }
+  return undefined
 }
 
 /** The Document being edited. */
@@ -257,13 +342,15 @@ const replace = (model: Model, document: Document): Model => ({
     model.selected !== null && document.nodes[model.selected] !== undefined ? model.selected : null,
   hovered: null,
   refused: null,
+  drag: null,
 })
 
-/** The Model with nothing in flight, as a stored draft is shown again: no hover, no undo, no refusal. */
+/** The Model with nothing in flight, as a stored draft is shown again: no hover, no drag, no undo, no refusal. */
 const settle = (model: Model): Model => ({
   ...model,
   hovered: null,
   refused: null,
+  drag: null,
   page: History.clear(model.page),
 })
 
@@ -305,6 +392,7 @@ export const Builder = {
       panel: 'insert',
       viewport: 'wide',
       refused: null,
+      drag: null,
     }).model
 
     /** Says `text` to assistive technology, once the Builder's transition is done. */
@@ -455,6 +543,47 @@ export const Builder = {
             commands: announce(message._tag === 'Undid' ? 'Undone' : 'Redone'),
           }
         }
+        case 'DragStarted':
+          return documentOf(model).nodes[message.id] === undefined
+            ? { model }
+            : {
+                model: {
+                  ...model,
+                  drag: { id: message.id, over: null, at: null },
+                  selected: message.id,
+                },
+              }
+        case 'DraggedOver': {
+          if (model.drag === null) return { model }
+          const { over } = message
+          const landed =
+            over === null
+              ? undefined
+              : landing(catalog, documentOf(model), model.drag.id, over.id, over.zone)
+          return {
+            model: {
+              ...model,
+              drag: {
+                ...model.drag,
+                // Where it lands: a drop inside a node that takes nothing is after it.
+                over: over === null || landed === undefined ? over : { ...over, zone: landed.zone },
+                at: landed?.at ?? null,
+              },
+            },
+          }
+        }
+        case 'DragDropped': {
+          if (model.drag === null) return { model }
+          const { id, at } = model.drag
+          const ended = { ...model, drag: null }
+          return at === null
+            ? { model: ended, commands: announce('Not moved') }
+            : applyOp(ended, Composition.Op.move(id, at))
+        }
+        case 'DragCancelled':
+          return model.drag === null
+            ? { model }
+            : { model: { ...model, drag: null }, commands: announce('Not moved') }
         case 'PanelChosen':
           return { model: { ...model, panel: message.panel } }
         case 'ViewportChosen':
@@ -672,6 +801,9 @@ export const Builder = {
       placeFor: (document: Document, selected: NodeId | null, block: Blocks['name']) =>
         placeFor(catalog, document, selected, block),
       moveBy,
+      /** Where a node dragged over `target`, in `zone`, would go, or `undefined` where it may not. */
+      dropAt: (document: Document, dragged: NodeId, target: NodeId, zone: DropZone) =>
+        landing(catalog, document, dragged, target, zone)?.at,
       replace,
       settle,
       keyCommand,

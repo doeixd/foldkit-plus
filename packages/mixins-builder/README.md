@@ -71,17 +71,20 @@ Place `Drawn` as you would any Bundle. Its view draws:
 
 ## The keyboard and the pointer
 
-Three Behaviors are attached, each from `foldkit-primitives`:
+Four Behaviors are attached, each from `foldkit-primitives`:
 
 | Where | Behavior | What it does |
 | --- | --- | --- |
 | `tree`, `row` | `TreeNavigation` | Up, Down, Home and End move focus between rows; Right opens a row, then moves to its first child; Left closes it, then moves to its parent. Focus moving selects the row's node. |
 | `layers` | the Builder's `keyCommand` | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo. |
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
+| `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
 
 The shortcuts are on the layers panel, not the whole editor, so Delete in a
 text box edits the text. The action buttons send the same Messages the
-shortcuts do.
+shortcuts do. A drag is the pointer's way to do what Alt with an arrow does;
+it adds no roles or keys to the tree, and a drop is announced like a key's
+move.
 
 A structural edit is announced, such as "Moved Heading, 2 of 3 in Section
 body". The Builder owns the words; this package draws the region.
@@ -107,11 +110,19 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 
 The page on the canvas is the site's own markup, so it is styled by the site's
 CSS. The editor's marks are data attributes on each node's wrapper:
-`data-composition-selected` and `data-composition-hovered`.
+`data-composition-selected`, `data-composition-hovered`, and
+`data-composition-drop` (`before`, `inside` or `after`) on the node a drop
+would land at. A wrapper is `display: contents` and draws nothing, so style
+the element inside it. The layer rows carry `data-builder-drop` and
+`data-builder-dragging` the same way.
 
 ```css
-[data-composition-selected] { outline: 2px solid Highlight; }
-[data-composition-hovered] { outline: 1px dashed GrayText; }
+[data-composition-selected] > * { outline: 2px solid Highlight; }
+[data-composition-hovered] > * { outline: 1px dashed GrayText; }
+[data-composition-drop='before'] > * { box-shadow: 0 -3px 0 Highlight; }
+[data-composition-drop='after'] > * { box-shadow: 0 3px 0 Highlight; }
+[data-composition-drop='inside'] > * { outline: 2px dashed Highlight; }
+[data-builder-dragging] { opacity: 0.5; }
 ```
 
 ## As a form key
@@ -175,8 +186,8 @@ is shown, with its props, but not edited.
 
 - Rich text on the canvas is not edited in place: its Block's props are shown
   in the inspector.
-- There is no pointer drag and drop. Reorder with the keyboard or the actions.
-  `@foldkit/ui`'s DragAndDrop writes a listbox's roles and keys, which a tree's
-  rows cannot also carry.
+- A drag moves one node, the selected one; there is no multiple selection.
+- A drag does not scroll the layers or the canvas when the pointer nears an
+  edge.
 - The viewport frame sets a width. It does not load the page in an iframe, so
   the page's media queries see the editor's width.

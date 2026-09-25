@@ -167,6 +167,30 @@ describe('the drawn Builder', () => {
     expect(text(frame)).toBe('New headingHello')
   })
 
+  it('marks the row and the node a drag is over, only where the drop would land', () => {
+    const heading = required(
+      PageBuilder.document(page).nodes[section]?.regions['body']?.[0],
+      'the heading',
+    )
+    const banner = required(page.selected, 'the banner')
+    const dragging = send(page, Message.DragStarted({ id: heading }))
+    const over = send(dragging, Message.DraggedOver({ over: { id: banner, zone: 'after' } }))
+    const root = draw(over)
+    const rows = byRole(root, 'treeitem')
+    expect(rows.map(row => attr(row, 'data-builder-row'))).toEqual([section, heading, banner])
+    expect(rows.map(row => attr(row, 'data-builder-drop'))).toEqual([undefined, undefined, 'after'])
+    expect(rows.map(row => attr(row, 'data-builder-dragging'))).toEqual([undefined, '', undefined])
+    const dropped = all(root).find(node => attr(node, 'data-composition-drop') !== undefined)
+    expect(attr(dropped, 'data-composition-node')).toBe(banner)
+    expect(attr(dropped, 'data-composition-drop')).toBe('after')
+    // A Heading may not go before the Section, at the root: nothing is marked.
+    const refused = draw(
+      send(dragging, Message.DraggedOver({ over: { id: section, zone: 'before' } })),
+    )
+    expect(all(refused).some(node => attr(node, 'data-builder-drop') !== undefined)).toBe(false)
+    expect(all(refused).some(node => attr(node, 'data-composition-drop') !== undefined)).toBe(false)
+  })
+
   it('shows a refusal, and the live region the Builder speaks through', () => {
     const refused = send(
       page,
@@ -203,8 +227,9 @@ describe('its Behaviors', () => {
     ).toBe('None')
   })
 
-  it('moves focus in the tree, and watches the canvas for the node under the pointer', () => {
+  it('moves focus in the tree, and watches the tree and the canvas for the pointer', () => {
     expect(Attributes.find(builders.tree.attrs(), 'OnKeyDownFocus')).toBeDefined()
+    expect(Attributes.find(builders.tree.attrs(), 'OnMount')).toBeDefined()
     expect(Attributes.find(builders.canvas.attrs(), 'OnMount')).toBeDefined()
   })
 

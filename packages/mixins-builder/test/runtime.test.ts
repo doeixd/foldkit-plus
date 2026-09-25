@@ -3,7 +3,7 @@
  * The drawn Builder on the real Foldkit runtime: the palette adds, the tree's
  * keys move focus and the selection with it, Alt with an arrow moves a node
  * and the live region says so, a click on the page selects what it lands on,
- * and Delete removes.
+ * a row or a node dragged onto another moves there, and Delete removes.
  */
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
@@ -95,10 +95,39 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     document.querySelector<HTMLElement>('[aria-label="Page"] .banner')?.click()
     await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Banner'))
 
+    // Dragging the Banner's row onto the Heading's lands it after the Heading
+    // (jsdom has no boxes, so the pointer is inside a Heading, which takes
+    // nothing), and the click the drop ends with selects nothing.
+    const pointer = (row: Element | undefined, type: string, clientY: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.assign(event, { button: 0, clientX: 10, clientY })
+      row?.dispatchEvent(event)
+    }
+    pointer(rowNamed('Banner'), 'pointerdown', 0)
+    pointer(rowNamed('Heading'), 'pointermove', 20)
+    await vi.waitFor(() =>
+      expect(rowNamed('Heading')?.getAttribute('data-builder-drop')).toBe('after'),
+    )
+    pointer(rowNamed('Heading'), 'pointerup', 20)
+    rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(canvasText()).toEqual(['New heading', 'Hello']))
+    expect(selectedRow()?.textContent).toBe('Banner')
+    expect(document.querySelector('[data-builder-drop]')).toBeNull()
+
+    // A drag on the page itself: the Heading onto the Banner lands it after,
+    // and selects the Heading it dragged.
+    const onPage = (selector: string) =>
+      document.querySelector(`[aria-label="Page"] ${selector}`) ?? undefined
+    pointer(onPage('h2'), 'pointerdown', 0)
+    pointer(onPage('.banner'), 'pointermove', 20)
+    pointer(onPage('.banner'), 'pointerup', 20)
+    await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading']))
+    expect(selectedRow()?.textContent).toBe('Heading')
+
     // Delete on the layers removes the selected node.
-    key(rowNamed('Banner'), 'Delete')
-    await vi.waitFor(() => expect(canvasText()).toEqual(['New heading']))
-    expect(rowNamed('Banner')).toBeUndefined()
+    key(rowNamed('Heading'), 'Delete')
+    await vi.waitFor(() => expect(canvasText()).toEqual(['Hello']))
+    expect(rowNamed('Heading')).toBeUndefined()
   } finally {
     handle.dispose()
   }

@@ -6,10 +6,9 @@ Operations, with a selection and undo beside it, and it is designed to be one
 form key's control: the page is the key's value, so the form validates it,
 submits it, and a CMS autosaves it.
 
-> **Status: in development, not published.** Phase 5 of the
-> [page builder design](../../docs/design/pagebuilder-DESIGN.md): the headless
-> Builder and a plain view. The drawn editor, with a canvas you drag on, is
-> Phase 7.
+> **Status: in development, not published.** The headless Builder and a plain
+> view, from the [page builder design](../../docs/design/pagebuilder-DESIGN.md).
+> The drawn editor is [`foldkit-mixins-builder`](../mixins-builder/README.md).
 
 ## What it owns
 
@@ -75,6 +74,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `Selected({ id })`, `Hovered({ id })` | what the inspector and the node actions work on |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
+| `DragStarted({ id })`, `DraggedOver({ over })`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
@@ -136,6 +136,26 @@ out, as it has no clock to wait on.
 Placed alone, with `Bundle.withChild`, the same Bundle is a page editor whose
 parent owns the Model.
 
+## Dragging
+
+A pointer drag is four Messages, the facts `foldkit-primitives`' `PointerDrag`
+reports:
+
+- **`DragStarted({ id })`** selects the node and puts `{ id, over: null, at:
+  null }` in the Model's `drag`. Nothing moves yet.
+- **`DraggedOver({ over })`** says which node the pointer is over and in which
+  zone of it, `before`, `inside` or `after`. The Builder works out where a drop
+  would land, `drag.at`: before or after that node among its siblings, or last
+  in the first of its Regions that accepts the dragged Block. Inside a node
+  that takes nothing is after it, and `drag.over.zone` says so. Where the page
+  would refuse the move, such as into the node itself, `at` is `null`.
+- **`DragDropped()`** applies the move to `drag.at` as one edit, undone and
+  announced like a key's; with no `at`, nothing moves and "Not moved" is
+  announced. **`DragCancelled()`** ends the drag the same way.
+
+A drawing marks `drag.over` only while `drag.at` is set, so the mark is where
+the node will go. The keyboard's way to move a node is `keyCommand`.
+
 ## Helpers
 
 - `PageBuilder.placeFor(document, selected, block)` is where the palette puts a
@@ -143,14 +163,13 @@ parent owns the Model.
   selection, else last among the roots.
 - `PageBuilder.moveBy(document, id, delta)` is the Operation that moves a node
   among its siblings, or `undefined` at an end.
+- `PageBuilder.dropAt(document, dragged, target, zone)` is where a drag over
+  `target` would put `dragged`, or `undefined` where the page refuses it.
 - `PageBuilder.replace(model, document)` and `PageBuilder.settle(model)` are what
   the form control's fill and settle do.
 
 ## Limits
 
 - One node is selected at a time.
-- Reordering is by keyboard and the node actions. Pointer drag and drop is not
-  here: `@foldkit/ui`'s DragAndDrop writes a listbox's roles and keys, which a
-  tree's rows cannot also carry.
 - The plain view is plain. The drawn editor is `foldkit-mixins-builder`.
 - A starting props value must encode with its Block's Schema.

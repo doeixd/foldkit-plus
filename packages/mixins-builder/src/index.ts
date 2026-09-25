@@ -28,7 +28,7 @@ import { Entity } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { Behavior, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
-import { LiveAnnounce, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
+import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
 import type { KeyboardModifiers } from 'foldkit/html'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
@@ -43,7 +43,7 @@ export const BuilderSlots = Slots.define({
   /** The layers panel: it takes the editor's keyboard shortcuts. */
   layers: Slot.make({ capability: Capability.Interactive }),
   /** The `role="tree"` element, and one `treeitem` row per node showing. */
-  tree: Slot.make({ capability: Capability.Interactive }),
+  tree: Slot.make({ capability: Capability.Container }),
   row: Slot.make({ capability: Capability.Focusable }),
   /** Move, duplicate and delete for the selected node. */
   actions: Slot.make({ capability: Capability.Container }),
@@ -99,6 +99,29 @@ export const rowsOf = (document: Document): ReadonlyArray<TreeNavigation.Row> =>
   }
   for (const root of document.roots) visit(root, null)
   return rows
+}
+
+/** The attribute a layer row carries, holding its node's id, for a drag to find. */
+export const ROW_ATTRIBUTE = 'builder-row'
+/** On the row a drop is aimed at, holding where: `before`, `inside` or `after`. */
+export const ROW_DROP_ATTRIBUTE = 'builder-drop'
+/** On the row being dragged. */
+export const ROW_DRAGGING_ATTRIBUTE = 'builder-dragging'
+
+/** The Builder's Message for what a drag reports. */
+const dragMessage = (fact: PointerDrag.DragFact): Message => {
+  switch (fact._tag) {
+    case 'DragStarted':
+      return Message.DragStarted({ id: NodeId.make(fact.id) })
+    case 'DraggedOver':
+      return Message.DraggedOver({
+        over: fact.over === null ? null : { id: NodeId.make(fact.over.id), zone: fact.over.zone },
+      })
+    case 'DragDropped':
+      return Message.DragDropped()
+    case 'DragCancelled':
+      return Message.DragCancelled()
+  }
 }
 
 /** The DOM id a layer row carries, so keyboard focus can find it. */
@@ -167,6 +190,8 @@ export const BuilderView = {
     ): Html => {
       const document = builder.document(model)
       const selected = model.selected
+      // A drop is marked only where it would land: `at` is null where the page refuses it.
+      const drop = model.drag?.at == null ? null : model.drag.over
       const button = (
         slot: SlotView.SlotBuilder<Message>,
         label: string,
@@ -206,6 +231,9 @@ export const BuilderView = {
             slots.row.attrs(
               [
                 h.Key(row.id),
+                h.DataAttribute(ROW_ATTRIBUTE, row.id),
+                ...(drop?.id === row.id ? [h.DataAttribute(ROW_DROP_ATTRIBUTE, drop.zone)] : []),
+                ...(model.drag?.id === row.id ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')] : []),
                 h.AriaSelected(row.id === selected),
                 h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
               ],
@@ -258,6 +286,7 @@ export const BuilderView = {
               mode: 'edit',
               selected,
               hovered: model.hovered,
+              drop,
             }),
           ],
         ),
@@ -375,6 +404,21 @@ export const BuilderView = {
               fact._tag === 'TargetHovered'
                 ? Message.Hovered({ id: asNodeId(fact.id) })
                 : Message.Selected({ id: asNodeId(fact.id) }),
+          }),
+        ),
+        // A row or a node is dragged onto another; the keyboard's way is the shortcuts.
+        Behavior.attach(
+          PointerDrag.behavior(BuilderSlots)<Model, Message>({
+            container: 'tree',
+            attribute: `data-${ROW_ATTRIBUTE}`,
+            toMessage: dragMessage,
+          }),
+        ),
+        Behavior.attach(
+          PointerDrag.behavior(BuilderSlots)<Model, Message>({
+            container: 'canvas',
+            attribute: `data-${NODE_ATTRIBUTE}`,
+            toMessage: dragMessage,
           }),
         ),
         Behavior.attach(

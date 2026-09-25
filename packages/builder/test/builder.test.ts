@@ -343,3 +343,102 @@ describe('the keyboard, the layers and the announcer', () => {
     })
   })
 })
+
+describe('dragging a node', () => {
+  const id = NodeId.make
+  // A Section holding a Heading, an empty Group and a Heading; an empty Section after it.
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [id('s1'), id('s2')],
+      nodes: {
+        [id('s1')]: {
+          block: 'Section',
+          props: {},
+          regions: { body: [id('h1'), id('g'), id('h2')] },
+        },
+        [id('h1')]: { block: 'Heading', props: { text: 'One' }, regions: {} },
+        [id('g')]: { block: 'Group', props: {}, regions: { items: [] } },
+        [id('h2')]: { block: 'Heading', props: { text: 'Two' }, regions: {} },
+        [id('s2')]: { block: 'Section', props: {}, regions: { body: [] } },
+      },
+    }),
+  )
+  const document = page.page.present
+
+  it('drops before, after or inside a node, counting places without the node dragged', () => {
+    const drop = PageBuilder.dropAt
+    expect(drop(document, id('h1'), id('h2'), 'after')).toEqual(
+      Composition.region(id('s1'), 'body', 2),
+    )
+    expect(drop(document, id('h2'), id('h1'), 'before')).toEqual(
+      Composition.region(id('s1'), 'body', 0),
+    )
+    expect(drop(document, id('h1'), id('g'), 'inside')).toEqual(
+      Composition.region(id('g'), 'items', 0),
+    )
+    expect(drop(document, id('s2'), id('s1'), 'before')).toEqual(Composition.root(0))
+  })
+
+  it('drops inside a node that takes nothing as after it, and nowhere the page refuses', () => {
+    const drop = PageBuilder.dropAt
+    expect(drop(document, id('h1'), id('h2'), 'inside')).toEqual(
+      Composition.region(id('s1'), 'body', 2),
+    )
+    // A Section fits neither in a Group nor among a Section's Flow.
+    expect(drop(document, id('s2'), id('g'), 'inside')).toBeUndefined()
+    expect(drop(document, id('h1'), id('h1'), 'after')).toBeUndefined()
+    expect(drop(document, id('h1'), id('gone'), 'after')).toBeUndefined()
+  })
+
+  it('selects what it drags, and moves it on the drop as one undoable, announced edit', () => {
+    const started = send(page, Message.DragStarted({ id: id('h1') }))
+    expect(started.selected).toBe(id('h1'))
+    const over = send(started, Message.DraggedOver({ over: { id: id('g'), zone: 'inside' } }))
+    expect(over.drag).toEqual({
+      id: id('h1'),
+      over: { id: id('g'), zone: 'inside' },
+      at: Composition.region(id('g'), 'items', 0),
+    })
+    // Nothing moves until the drop.
+    expect(over.page).toBe(page.page)
+    const dropped = send(over, Message.DragDropped())
+    expect(dropped.drag).toBeNull()
+    expect(dropped.page.present.nodes[id('g')]?.regions['items']).toEqual([id('h1')])
+    expect(dropped.announcer.pending?.message).toBe('Moved Heading, 1 of 1 in Group items')
+    expect(send(dropped, Message.Undid()).page.present).toBe(document)
+  })
+
+  it('moves nothing on a drop the page refuses, or a cancel, and says so', () => {
+    const refused = send(
+      send(page, Message.DragStarted({ id: id('s2') })),
+      Message.DraggedOver({ over: { id: id('g'), zone: 'inside' } }),
+    )
+    expect(refused.drag?.at).toBeNull()
+    // Over a Heading, which takes nothing inside, the drop is marked where it lands.
+    const beside = send(
+      send(page, Message.DragStarted({ id: id('h1') })),
+      Message.DraggedOver({ over: { id: id('h2'), zone: 'inside' } }),
+    )
+    expect(beside.drag?.over).toEqual({ id: id('h2'), zone: 'after' })
+    const dropped = send(refused, Message.DragDropped())
+    expect(dropped.page).toBe(page.page)
+    expect(dropped.drag).toBeNull()
+    expect(dropped.announcer.pending?.message).toBe('Not moved')
+    const cancelled = send(refused, Message.DragCancelled())
+    expect(cancelled.page).toBe(page.page)
+    expect(cancelled.drag).toBeNull()
+    expect(cancelled.announcer.pending?.message).toBe('Not moved')
+  })
+
+  it('ignores a drag of no node, drag news with no drag, and settles with none', () => {
+    expect(send(page, Message.DragStarted({ id: id('gone') })).drag).toBeNull()
+    expect(send(page, Message.DraggedOver({ over: null }))).toBe(page)
+    expect(send(page, Message.DragDropped())).toBe(page)
+    expect(send(page, Message.DragCancelled())).toBe(page)
+    const dragging = send(page, Message.DragStarted({ id: id('h1') }))
+    expect(PageBuilder.settle(dragging).drag).toBeNull()
+    expect(PageBuilder.replace(dragging, document).drag).toBeNull()
+  })
+})
