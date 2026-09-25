@@ -5430,10 +5430,17 @@ what filters it, which is why the condition above can be computed *in the view*.
 left to own is the highlighted entry — one value, and it belongs beside the editor's
 (`EditorState`), because the editor's `update` is what resolves Enter.
 
-The list behaviour is `foldkit-primitives`'s, not a new one:
-`interaction/list-navigation` already owns a `current` id and a typeahead `query`, moves
-by ArrowUp/Down/Home/End/PageUp/PageDown over slots, and renders through Mixins
-Behaviors. That is the shape the menu wants, and it is why the menu belongs in
+The list behaviour is `foldkit-primitives`'s, but not `ListNavigation`'s. Its Bundle
+owns a *typeahead* query and an expiry Command, and printable keys are its business —
+while a slash menu's query is the document's text before the caret and printable keys
+must keep typing into it. Adopting it would swallow those keys and keep a second query
+beside the document's. What the menu needs is only the movement rule, and that is
+`RovingTabindex.move`: pure, over the enabled indices, `current = -1` landing on the
+first or last item, Home/End, PageUp/PageDown clamping at the ends, loop optional, and a
+modified key moving nothing. So neither primitive changes; the menu composes `move` with
+`slashMenu`.
+
+That composition is a view question, and it is why the menu belongs in
 `foldkit-mixins-richtext` — the family that already owns the editor's chrome (§120) —
 rather than in `foldkit-richtext-dom`, which stays the adapter and its reads.
 
@@ -5450,13 +5457,14 @@ change to a published chord dialect.
 Slices:
 
 1. Nothing to build for the editor's bindings: §119 slice 3 is dropped, not deferred.
-2. `foldkit-mixins-richtext` gains the menu as a slot view over `ListNavigation`:
-   entries that emit `RetypedBlock` and mark Messages, and a container whose
-   `OnKeyDownPreventDefault` handles the arrows and Escape only while a query is live.
+2. `foldkit-mixins-richtext` gains the menu as a slot view: entries from
+   `slashEntries`, movement by `RovingTabindex.move` (not `ListNavigation`, whose
+   typeahead would swallow the keys that must keep typing), and a container whose
+   `OnKeyDownPreventDefault` handles those keys only while a query is live.
    — **started**: the vocabulary landed (`slashQuery`, `slashEntries`, `matchingEntries`,
    and `slashMenu` — the one value a view and an `update` share — in
    `packages/mixins-richtext/src/slash.ts`, re-exported from the package). The slot view
-   and the `ListNavigation` Behavior are what remain.
+   and the `foldkit-primitives` dependency it needs are what remain.
 3. `EditorState` gains the highlighted entry, and the Bundle's `update` resolves
    `Entered` against a live query before it splits.
 4. The skill and an example (the harness or a small demo) drive it.
