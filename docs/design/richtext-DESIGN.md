@@ -4696,11 +4696,13 @@ scheduled publication.
 
 ## Phase 7 — richer Nodes
 
-Not started: lists, links, quotes, code, image, callout, mentions, custom embeds,
-and the Surface-backed and React-backed node proofs. Links need the mark-props
-work, which now exists; lists, quotes, and code needed nested children, which now
-exist (§116), so what remains is declaring the kinds — all three interpreters render
-a declared kind through one registry (§121 slices 1–4).
+Partially done: the standard vocabulary declares lists, links, quotes, code, images, and
+tables (`standardNodes`/`standardMarks`, §125), and all three interpreters render a
+declared kind through one registry (§121 slices 1–4). Link marks carry a real href (§121).
+
+Not done: mentions, callouts as a declared kind, custom embeds, and the Surface-backed and
+React-backed node proofs. The vocabulary is declarations; the command layer does not yet
+refuse an edit a constraint forbids (§125).
 
 ## Phases 8–12
 
@@ -5738,6 +5740,12 @@ Table → TableRow → TableCell → blocks
 
 So I'd add a small Kit-level structural constraint API rather than hard-code standard nodes into the editor.
 
+> **Built (2026-09-25), as §125.** `standardNodes` and `standardMarks` are declarations in
+> the main entry, and the constraint API is `blocksOf(...kinds)` on `children` plus
+> `marks: 'none'` on a node; `validate` reports `UnexpectedChild` and `ForbiddenMark`.
+> §125 records the decisions and the two boundaries it keeps — the rules are
+> `validate`-level for now, and the codec never enforces a Kit.
+
 ---
 
 ## 3. Full CommonMark + GFM support
@@ -6694,4 +6702,71 @@ Agent editing             20% → 100%   13
 The most important strategic change is that **Markdown should come before collaboration**. Markdown, source mode, syntax highlighting, slash commands, code blocks, tables, links, and real CMS authoring will put far more pressure on the semantic command/document boundaries than another round of design review will. If those all remain clean, then the CRDT backend will be adapting a mature editor semantics rather than helping define them.
 
 And the end state is quite compelling: not “Foldkit has a rich-text widget,” but **Foldkit has a semantic document/editor platform with Markdown, HTML, SSR, CMS, source editing, code highlighting, collaboration, annotations, and agents as interoperable interpreters and producers around one Foldkit-owned model.**
+
+---
+
+# 125. The standard vocabulary and content rules
+
+§124 §2 asks for a standard semantic vocabulary and for rules stricter than
+`textContent` versus `blockContent`. Both are built; this records where each lives and
+what it deliberately does not do.
+
+## The vocabulary
+
+`foldkit-richtext` exports `standardNodes` and `standardMarks` — declarations only, no
+renderers and no executable code (§34) — and an application spreads them into its Kit:
+
+```ts
+RichText.kit({
+  nodes: [...RichText.standardNodes, Callout],
+  marks: [...RichText.standardMarks, Highlight],
+})
+```
+
+`standardNodes` is `Paragraph`, `Heading`, `Quote`, `List`, `ListItem`, `TaskItem`,
+`CodeBlock`, `ThematicBreak`, `Image`, `Table`, `TableRow`, `TableCell`. `standardMarks`
+is the shipped `Bold`/`Italic`/`Code` plus `Strikethrough` and `Link`, whose `href` is a
+prop so the serializer renders a real `<a href>` (§121).
+
+Three decisions worth keeping:
+
+- **`Code` is the inline-code mark, so there is no `InlineCode`.** A second name for the
+  same meaning is a second vocabulary to keep in step, and `shippedMarks` already had it.
+- **`HardBreak` is absent.** It is inline content, and the model has no inline atoms
+  (§116, deferred); declaring it would promise a shape the codec cannot hold.
+- **The vocabulary lives in the main entry, not a subpath or a new package.** It is
+  semantic data with the same dependency shape as `shippedMarks` and nothing consumes it
+  differently; a `foldkit-richtext/standard` subpath is a cheap move if that changes.
+
+## Content rules
+
+A kind's `children` may now be a constraint rather than only a mode, and a node may
+declare that its runs carry no marks:
+
+```ts
+RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
+RichText.node('CodeBlock', { Props: Language, children: RichText.textContent, marks: 'none' })
+```
+
+`blocksOf(...kinds)` is block content restricted to those kinds; `marks: 'none'` forbids
+every mark on the kind's own runs. `validate` reports two new diagnostics:
+`UnexpectedChild` (the offending child's id, its kind, and the kinds the parent accepts)
+and `ForbiddenMark` (the mark, and the kind that forbids it). `atom` now takes `Props`, so
+an `Image` is an atom carrying a source rather than a run holder that happens to be empty,
+which `validate` checks the same way.
+
+Two boundaries are deliberate:
+
+- **These are `validate`-level rules, not `run`-level ones, for now.** §117 puts the
+  vocabulary at the command layer and structure in `apply`, and `validate` is where a
+  document is checked against a Kit. Refusing a `ToggleMark` inside a `CodeBlock`, or an
+  `InsertNode` of something other than a `ListItem` into a `List`, needs the Kit at the
+  command layer; that is the next slice, not the same rules copied into two places.
+- **A constraint is checked, never enforced by the codec.** `decodeDocument` keeps a
+  document a Kit would reject, because the codec cannot know a Kit — the same separation
+  as unknown kinds and props.
+
+`validate`'s block loop became one path along the way: a preserved block, an application
+node, and a built-in block now share one declaration lookup and one report, which is what
+let the two new checks sit beside the existing ones instead of in a second walk.
 

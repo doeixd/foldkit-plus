@@ -54,16 +54,27 @@ stale content snapshot. `read` performs a linear lookup.
 `validate(document, kit)` reports `UnknownNode` / `UnsupportedNode` /
 `UnknownMark` / `InvalidProps` / `MismatchedDefinition` diagnostics without
 changing the document, walking nested blocks as it goes. A node declaration says
-what content its kind holds — `RichText.node(name, { Props, children })` with
-`RichText.textContent` (the default) or `RichText.blockContent` — and `validate`
-reports a declaration the document contradicts: an atom holding runs, a
-`blockContent` kind held as a run holder, a `textContent` kind held as a
-container. An empty application node is accepted either way, because a document
-cannot say whether it is an atom or a run holder with no runs. The Kit is what
-`run` may add marks from; `apply` still takes no Kit, so a content contract is
-enforced at validation rather than at the operation. Parsing stays with the
-caller, and `foldkit-richtext-dom`'s parser maps `<ul>`/`<ol>`/`<li>` to a
-`List`/`ListItem` the Kit declares.
+what content its kind holds — `RichText.node(name, { Props, children, marks })` with
+`RichText.textContent` (the default), `RichText.blockContent`, or
+`RichText.blocksOf('ListItem', …)` (block content restricted to those kinds), and
+`marks: 'none'` to forbid marks on the kind's runs — and `validate` reports a declaration
+the document contradicts: an atom holding runs, a `blockContent` kind held as a run
+holder, a `textContent` kind held as a container, a child kind a constraint excludes
+(`UnexpectedChild`), or a mark a mark-free kind forbids (`ForbiddenMark`). `atom` takes
+`Props` too, so an `Image` carries a source. An empty application node is accepted either
+way, because a document cannot say whether it is an atom or a run holder with no runs. The
+Kit is what `run` may add marks from; `apply` still takes no Kit, and the command layer does
+not yet refuse an edit a constraint forbids, so a content contract is enforced at
+validation rather than at the operation. Parsing stays with the caller, and
+`foldkit-richtext-dom`'s parser maps `<ul>`/`<ol>`/`<li>` to a `List`/`ListItem` the Kit
+declares.
+
+`RichText.standardNodes` and `RichText.standardMarks` are a standard vocabulary — the kinds
+and marks a document uses to mean what Markdown and HTML also mean (`Quote`, `List`,
+`ListItem`, `TaskItem`, `CodeBlock`, `ThematicBreak`, `Image`, `Table`, `TableRow`,
+`TableCell`; `Bold`, `Italic`, `Code`, `Strikethrough`, `Link`) — spread into an
+application's Kit. `Code` is the inline-code mark, so there is no `InlineCode`, and
+`HardBreak` is absent until inline atoms exist.
 
 `History` is snapshot undo over `EditorState`, kept in the application Model:
 `commit(history, previous, { group })`, `undo`, `redo`, with `groupFor(command)`

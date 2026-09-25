@@ -501,17 +501,44 @@ plain data, with no renderers or executable code:
 ```ts
 const ArticleKit = RichText.kit({
   nodes: [RichText.block('Paragraph'), RichText.block('Heading'), RichText.atom('Image')],
-  marks: ['Bold', 'Italic'],
+  marks: [RichText.Bold, RichText.Italic],
 })
 
 RichText.validate(document, ArticleKit)
-// → [] when the document fits; otherwise UnknownNode / UnsupportedNode / UnknownMark
+// → [] when the document fits; otherwise a diagnostic the caller decides on
 ```
 
+`foldkit-richtext` also ships a standard vocabulary — the kinds and marks a document
+uses to mean what Markdown and HTML also mean:
+
+```ts
+RichText.kit({
+  nodes: [...RichText.standardNodes, Callout],
+  marks: [...RichText.standardMarks, Highlight],
+})
+```
+
+`standardNodes` is `Paragraph`, `Heading`, `Quote`, `List`, `ListItem`, `TaskItem`,
+`CodeBlock`, `ThematicBreak`, `Image`, `Table`, `TableRow`, `TableCell`; `standardMarks`
+is the shipped three plus `Strikethrough` and `Link`.
+
+A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
+those block kinds, and `marks: 'none'` forbids marks on the kind's own runs:
+
+```ts
+RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
+RichText.node('CodeBlock', { Props: Language, children: RichText.textContent, marks: 'none' })
+RichText.atom('Image', { Props: Schema.Struct({ src: Schema.String }) })
+```
+
+`validate` reports those violations as `UnexpectedChild` and `ForbiddenMark`, and checks
+an atom's props the same way it checks a node's. They are `validate`-level rules: the
+codec keeps a document a Kit would reject, and the command layer does not yet refuse an
+edit a constraint forbids.
+
 `validate` reads the document and never repairs it: callers decide whether a
-diagnostic blocks publishing or shows a placeholder. Prop schemas, nested
-children, transforms, and metadata arrive with node definitions; the Kit does
-not yet drive parsing or `apply`.
+diagnostic blocks publishing or shows a placeholder. The Kit does not drive parsing
+or `apply`.
 
 ## Current semantics
 

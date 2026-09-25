@@ -99,15 +99,20 @@ export {
 export {
   type NodeDefinition,
   type NodeDefinitionOf,
+  type BlockConstraint,
+  type ChildrenDeclaration,
+  type MarksPolicy,
   type Kit,
   type Diagnostic,
   block,
   atom,
   node,
+  blocksOf,
   kit,
   inspectKit,
   validate,
 } from './kit.js'
+export { Strikethrough, Link, standardMarks, standardNodes } from './standard.js'
 export {
   type Migration,
   type MigrationApplied,

@@ -13,20 +13,47 @@ import {
 } from './document.js'
 import { markName, markProps, type MarkDef } from './marks.js'
 
+/** Whether a kind's runs may carry formatting marks; `all` unless declared otherwise. */
+export type MarksPolicy = 'all' | 'none'
+
+/**
+ * Block content that accepts only the named kinds, so a `List` can declare that its
+ * children are `ListItem`s and `validate` can report one that is not (§13, §125).
+ */
+export interface BlockConstraint {
+  readonly mode: typeof blockContent
+  readonly of: ReadonlyArray<string>
+}
+
+/** Declares that a node holds nested blocks, only of the named kinds. */
+export const blocksOf = (...kinds: ReadonlyArray<string>): BlockConstraint =>
+  Object.freeze({ mode: blockContent, of: [...kinds] })
+
+/** A kind's declared content: a mode, or block content restricted to named kinds. */
+export type ChildrenDeclaration = ContentMode | BlockConstraint
+
 /**
  * The node shapes this version can declare: a `block` is one of the built-in
- * text blocks, an `atom` is an addressable node holding nothing, and an
- * application `node` holds runs or nested blocks plus props its own schema
- * validates (§13).
+ * text blocks, an `atom` is an addressable node holding nothing (with optional
+ * props), and an application `node` holds runs or nested blocks plus props its own
+ * schema validates (§13).
  */
 export type NodeDefinition =
   | { readonly name: string; readonly kind: 'block'; readonly children: 'text' }
-  | { readonly name: string; readonly kind: 'atom'; readonly children: 'none' }
+  | {
+      readonly name: string
+      readonly kind: 'atom'
+      readonly children: 'none'
+      /** An atom's props decode at this boundary too, so an `Image` carries a source. */
+      readonly props?: PropsSchema | undefined
+    }
   | {
       readonly name: string
       readonly kind: 'node'
-      /** `textContent` holds runs; `blockContent` holds nested blocks, as a list needs. */
-      readonly children: ContentMode
+      /** `textContent` holds runs; `blockContent` or `blocksOf(…)` holds nested blocks. */
+      readonly children: ChildrenDeclaration
+      /** `none` forbids marks on this kind's runs, as a `CodeBlock` needs. */
+      readonly marks: MarksPolicy
       /** Validates a `Node` block's `props` at this boundary, not in the codec. */
       readonly props?: PropsSchema | undefined
     }
@@ -39,11 +66,12 @@ export type NodeDefinition =
 export interface NodeDefinitionOf<
   Name extends string,
   Props extends PropsSchema | undefined,
-  Children extends ContentMode = typeof textContent,
+  Children extends ChildrenDeclaration = typeof textContent,
 > {
   readonly name: Name
   readonly kind: 'node'
   readonly children: Children
+  readonly marks: MarksPolicy
   readonly props: Props
 }
 
@@ -54,25 +82,39 @@ export const block = (name: string): NodeDefinition => ({
   children: 'text',
 })
 
-/** Declares an atom: an addressable node with no text content. */
-export const atom = (name: string): NodeDefinition => ({ name, kind: 'atom', children: 'none' })
+/**
+ * Declares an atom: an addressable node with no text content. Its optional props
+ * decode at the same boundary as a `node`'s, so an `Image` is an atom carrying a
+ * source rather than a run holder.
+ */
+export const atom = (
+  name: string,
+  options: { readonly Props?: PropsSchema | undefined } = {},
+): NodeDefinition => ({ name, kind: 'atom', children: 'none', props: options.Props })
 
 /**
  * Declares an application node kind: a `Node` block whose props this schema
- * validates and whose content the `children` mode declares. The document codec
- * keeps those props as JSON; the Kit is where an application's types meet them.
+ * validates and whose content the `children` declaration states — a mode, or block
+ * content restricted to the kinds `blocksOf` names. `marks: 'none'` forbids marks on
+ * its runs. The document codec keeps those props as JSON; the Kit is where an
+ * application's types meet them.
  */
 export const node = <
   const Name extends string,
   Props extends PropsSchema | undefined = undefined,
-  Children extends ContentMode = typeof textContent,
+  Children extends ChildrenDeclaration = typeof textContent,
 >(
   name: Name,
-  options: { readonly Props?: Props; readonly children?: Children } = {},
+  options: {
+    readonly Props?: Props
+    readonly children?: Children
+    readonly marks?: MarksPolicy
+  } = {},
 ): NodeDefinitionOf<Name, Props, Children> => ({
   name,
   kind: 'node',
   children: (options.children ?? textContent) as Children,
+  marks: options.marks ?? 'all',
   props: options.Props as Props,
 })
 
@@ -94,7 +136,13 @@ export const kit = (definition: {
 
 export interface Diagnostic {
   readonly code:
-    'UnknownNode' | 'UnsupportedNode' | 'UnknownMark' | 'InvalidProps' | 'MismatchedDefinition'
+    | 'UnknownNode'
+    | 'UnsupportedNode'
+    | 'UnknownMark'
+    | 'InvalidProps'
+    | 'MismatchedDefinition'
+    | 'UnexpectedChild'
+    | 'ForbiddenMark'
   readonly message: string
   readonly node?: NodeId
   readonly detail?: string
@@ -114,6 +162,14 @@ const heldContent = (block: Block): 'text' | 'blocks' | 'either' => {
   return block.children.length > 0 ? 'text' : 'either'
 }
 
+/** The content mode a declaration names, or `'none'` for an atom. */
+const declaredContent = (definition: NodeDefinition): ContentMode | 'none' =>
+  definition.kind === 'atom'
+    ? 'none'
+    : typeof definition.children === 'string'
+      ? definition.children
+      : blockContent
+
 /**
  * Whether a declared definition agrees with the block it is declared for, and
  * why not. A `block` declaration expects a built-in block and a `node` or `atom`
@@ -126,12 +182,43 @@ const definitionMismatch = (definition: NodeDefinition, block: Block): string | 
   if (held !== expected) {
     return `"${definition.name}" is declared as ${definition.kind}, but the document holds it as ${held}`
   }
-  const declared = definition.kind === 'atom' ? 'none' : definition.children
+  const declared = declaredContent(definition)
   const content = heldContent(block)
   const agrees = content === 'either' ? declared !== 'blocks' : declared === content
   return agrees
     ? undefined
     : `"${definition.name}" is declared to hold ${declared}, but the document holds ${content}`
+}
+
+/**
+ * A block's semantic kind: an application node's declared kind, a preserved node's
+ * original type, or a built-in block's own type. This is what a `blocksOf`
+ * constraint names.
+ */
+const kindOf = (block: Block): string =>
+  block.type === 'Node' ? block.kind : block.type === 'Unknown' ? block.originalType : block.type
+
+/**
+ * The children a constrained kind does not accept. A declaration without a
+ * constraint accepts any block, and a block that holds runs has no children to
+ * check; `definitionMismatch` is what reports the mode itself.
+ */
+const childKindDiagnostics = (
+  definition: NodeDefinition,
+  block: Block,
+): ReadonlyArray<Diagnostic> => {
+  if (definition.kind !== 'node' || typeof definition.children === 'string') return []
+  if (block.type !== 'Node' || block.blocks === undefined) return []
+  const allowed = definition.children.of
+  const permitted = new Set(allowed)
+  return block.blocks
+    .filter(child => !permitted.has(kindOf(child)))
+    .map(child => ({
+      code: 'UnexpectedChild' as const,
+      node: child.id,
+      detail: kindOf(child),
+      message: `"${block.kind}" accepts only ${allowed.join(', ')}`,
+    }))
 }
 
 /**
@@ -195,57 +282,56 @@ export const validate = (document: Document, definition: Kit): ReadonlyArray<Dia
         detail: block.originalType,
         message: `Unimplemented node type "${block.originalType}"`,
       })
-    } else if (block.type === 'Node') {
-      const declared = byName.get(block.kind)
-      if (declared === undefined) {
+      return
+    }
+    const kind = kindOf(block)
+    const declared = byName.get(kind)
+    if (declared === undefined) {
+      diagnostics.push({
+        code: 'UnsupportedNode',
+        node: block.id,
+        detail: kind,
+        message: `The Kit does not declare ${block.type === 'Node' ? 'node ' : ''}"${kind}"`,
+      })
+    } else {
+      const mismatch = definitionMismatch(declared, block)
+      if (mismatch !== undefined) {
         diagnostics.push({
-          code: 'UnsupportedNode',
+          code: 'MismatchedDefinition',
           node: block.id,
-          detail: block.kind,
-          message: `The Kit does not declare node "${block.kind}"`,
+          detail: kind,
+          message: mismatch,
         })
       } else {
-        const mismatch = definitionMismatch(declared, block)
-        if (mismatch !== undefined) {
-          diagnostics.push({
-            code: 'MismatchedDefinition',
-            node: block.id,
-            detail: block.kind,
-            message: mismatch,
-          })
-        } else if (propsFailure(declared.kind === 'node' ? declared.props : undefined, block)) {
+        if (
+          block.type === 'Node' &&
+          declared.kind !== 'block' &&
+          propsFailure(declared.props, block)
+        ) {
           diagnostics.push({
             code: 'InvalidProps',
             node: block.id,
-            detail: block.kind,
-            message: `"${block.kind}" props do not match its declared schema`,
+            detail: kind,
+            message: `"${kind}" props do not match its declared schema`,
           })
         }
-      }
-    } else {
-      const declared = byName.get(block.type)
-      if (declared === undefined) {
-        diagnostics.push({
-          code: 'UnsupportedNode',
-          node: block.id,
-          detail: block.type,
-          message: `The Kit does not declare "${block.type}"`,
-        })
-      } else {
-        const mismatch = definitionMismatch(declared, block)
-        if (mismatch !== undefined) {
-          diagnostics.push({
-            code: 'MismatchedDefinition',
-            node: block.id,
-            detail: block.type,
-            message: mismatch,
-          })
-        }
+        diagnostics.push(...childKindDiagnostics(declared, block))
       }
     }
+    // A kind declared mark-free has no formatting to carry, so any mark it does is
+    // reported as well as checked against the vocabulary that declared it.
+    const forbidsMarks = declared?.kind === 'node' && declared.marks === 'none'
     for (const run of block.children) {
       for (const mark of run.marks) {
         const name = markName(mark)
+        if (forbidsMarks) {
+          diagnostics.push({
+            code: 'ForbiddenMark',
+            node: run.id,
+            detail: name,
+            message: `"${kind}" accepts no marks`,
+          })
+        }
         const declaredMark = declaredMarks.get(name)
         if (declaredMark === undefined) {
           diagnostics.push({

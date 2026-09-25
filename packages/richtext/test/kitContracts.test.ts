@@ -206,3 +206,127 @@ describe('node definitions keep the caller’s types', () => {
     void wrong
   })
 })
+
+describe('content rules a declaration can state', () => {
+  const List = RichText.node('List', { children: RichText.blocksOf('ListItem') })
+  const ListItem = RichText.node('ListItem', { children: RichText.blockContent })
+  const CodeBlock = RichText.node('CodeBlock', {
+    Props: Schema.Struct({ language: Schema.optional(Schema.String) }),
+    marks: 'none',
+  })
+  const Image = RichText.atom('Image', { Props: Schema.Struct({ src: Schema.String }) })
+
+  const container = (kind: string, blocks: ReadonlyArray<unknown>, props = {}) => ({
+    type: 'Node',
+    kind,
+    id: kind,
+    props,
+    children: [],
+    blocks,
+  })
+  const runs = (kind: string, marks: ReadonlyArray<string>, props = {}) => ({
+    type: 'Node',
+    kind,
+    id: kind,
+    props,
+    children: [{ type: 'Text', id: `${kind}-t`, text: 'x', marks }],
+  })
+  const paragraph = (id: string) => ({
+    type: 'Paragraph',
+    id,
+    children: [{ type: 'Text', id: `${id}-t`, text: 'x', marks: [] }],
+  })
+  const doc = (children: ReadonlyArray<unknown>) =>
+    RichText.decodeDocument({ version: 1, children })
+  const codes = (children: ReadonlyArray<unknown>, declared: RichText.Kit) =>
+    RichText.validate(doc(children), declared).map(diagnostic => diagnostic.code)
+
+  it('accepts only the child kinds a constraint names', () => {
+    const declared = RichText.kit({
+      nodes: [List, ListItem, RichText.block('Paragraph')],
+      marks: [],
+    })
+    expect(codes([container('List', [paragraph('p')])], declared)).toEqual(['UnexpectedChild'])
+    expect(codes([container('List', [container('ListItem', [paragraph('p')])])], declared)).toEqual(
+      [],
+    )
+  })
+
+  it('treats a constrained kind as block content, so runs are a mismatch', () => {
+    const declared = RichText.kit({
+      nodes: [List, ListItem, RichText.block('Paragraph')],
+      marks: [],
+    })
+    const asRuns = {
+      type: 'Node',
+      kind: 'List',
+      id: 'l',
+      props: {},
+      children: [{ type: 'Text', id: 'l-t', text: 'x', marks: [] }],
+    }
+    expect(RichText.validate(doc([asRuns]), declared)).toEqual([
+      {
+        code: 'MismatchedDefinition',
+        node: 'l',
+        detail: 'List',
+        message: '"List" is declared to hold blocks, but the document holds text',
+      },
+    ])
+  })
+
+  it('names the offending child and the kinds its parent accepts', () => {
+    const declared = RichText.kit({
+      nodes: [List, ListItem, RichText.block('Paragraph')],
+      marks: [],
+    })
+    expect(
+      RichText.validate(doc([container('List', [paragraph('p')])]), declared)[0],
+    ).toMatchObject({
+      code: 'UnexpectedChild',
+      node: 'p',
+      detail: 'Paragraph',
+      message: '"List" accepts only ListItem',
+    })
+  })
+
+  it('applies a constrained container at every depth', () => {
+    const Table = RichText.node('Table', { children: RichText.blocksOf('TableRow') })
+    const TableRow = RichText.node('TableRow', { children: RichText.blocksOf('TableCell') })
+    const TableCell = RichText.node('TableCell', { children: RichText.blockContent })
+    const declared = RichText.kit({
+      nodes: [Table, TableRow, TableCell, RichText.block('Paragraph')],
+      marks: [],
+    })
+    const valid = [
+      container('Table', [container('TableRow', [container('TableCell', [paragraph('p')])])]),
+    ]
+    expect(codes(valid, declared)).toEqual([])
+    const misplaced = doc([container('Table', [container('TableRow', [paragraph('p')])])])
+    expect(RichText.validate(misplaced, declared).map(diagnostic => diagnostic.code)).toEqual([
+      'UnexpectedChild',
+    ])
+    expect(RichText.validate(misplaced, declared)[0]?.detail).toBe('Paragraph')
+  })
+
+  it('forbids every mark on a kind declared mark-free', () => {
+    const declared = RichText.kit({ nodes: [CodeBlock], marks: [RichText.Bold] })
+    // The mark is declared, so it is not unknown — it is forbidden by this kind.
+    const marked = doc([runs('CodeBlock', ['Bold'])])
+    expect(RichText.validate(marked, declared).map(diagnostic => diagnostic.code)).toEqual([
+      'ForbiddenMark',
+    ])
+    expect(RichText.validate(marked, declared)[0]).toMatchObject({
+      detail: 'Bold',
+      message: '"CodeBlock" accepts no marks',
+    })
+    expect(codes([runs('CodeBlock', [], { language: 'ts' })], declared)).toEqual([])
+  })
+
+  it('validates an atom’s props, which a node declaration could not carry', () => {
+    const declared = RichText.kit({ nodes: [Image], marks: [] })
+    const missing = { type: 'Node', kind: 'Image', id: 'i', props: {}, children: [] }
+    expect(codes([missing], declared)).toEqual(['InvalidProps'])
+    const held = { type: 'Node', kind: 'Image', id: 'i', props: { src: 'x' }, children: [] }
+    expect(codes([held], declared)).toEqual([])
+  })
+})
