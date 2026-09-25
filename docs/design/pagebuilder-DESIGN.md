@@ -1,3292 +1,996 @@
-# Foldkit Plus Composition & Page Builder
+# Composition and the Page Builder
 
-**Status:** Proposed architecture
+**Status:** Proposed. Revised 2026-09-25 against the tree at 0.11.0: it now
+builds on `foldkit-richtext`'s document discipline, `foldkit-entity`'s Query
+semantics, `foldkit-ssr`, `Bundle.compose` and `Bundle.lazy`, the Mixins recipe
+and theme system, and the `foldkit-primitives/interaction` subpath, none of
+which the first draft could assume. Nothing here is built.
 **Target:** `doeixd/foldkit-plus`
-**Primary new packages:** `foldkit-composition`, `foldkit-builder`
-**Primary integrations:** `foldkit-form`, `foldkit-cms`, `foldkit-bundle`, `foldkit-surface`, `foldkit-mixins`, `foldkit-remote`, `foldkit-agent`
-**Goal:** Provide a native, typed, inspectable, extensible composition system capable of powering Builder.io-style visual page authoring without creating a second state system, component framework, CMS lifecycle, data layer, or action runtime.
+**New packages:** `foldkit-composition`, `foldkit-builder`, `foldkit-mixins-builder`
+**Changed packages:** `foldkit-form` (a control backed by a Bundle, shared with
+the rich-text design's §44), `foldkit-surface` (a shared Message action, §20)
 
 ---
 
-# 1. Executive decision
+## 0. What the revision changed
 
-Foldkit Plus should introduce a general **Composition** abstraction and build the visual **Builder** as one editor for it.
+The first draft had the right ownership split and five problems. Each is decided
+below rather than left open.
 
-The architecture should be:
+| Problem in the first draft | Decision | Where |
+| --- | --- | --- |
+| One strict, Catalog-derived Schema was both the stored field and the validity check, so a page using a removed Block could not be read, and an old revision could not be restored | Two layers: a tolerant codec stores any Document; `Composition.validate` against a Catalog decides whether it may be published | §6 |
+| Its Form change (a structured draft, with the Builder outside the Form) conflicted with the rich-text design's (a control backed by a Bundle), and would send a whole Document through the Form for every keystroke | One Form change for both: `Input.bundle`. The Builder *is* the `document` key's control, and its Messages carry Operations, not Documents | §11 |
+| Undo was a stack of inverse Operations the Form could change underneath | History is snapshots in the same Model as the Document, committed in the same transition; anything that replaces the Document from outside clears it | §9 |
+| Operations did not say where new ids come from, so they were not deterministic | Every id an Operation creates is in the Operation | §8 |
+| It proposed its own `Expr` and waited for Query work that has since shipped | Documents never name a query; a Block does, in code. Persisted conditions are a small data IR with `foldkit-entity`'s operator semantics | §15, §16 |
 
-```text
-                       application code
+It also gains what it did not mention: how a page relates to a rich-text
+document (§4), how a published page is served through `foldkit-ssr` (§14), URL
+safety (§22), and budgets a 1,000-node page must meet (§25).
 
-                ┌────────────────────────┐
-                │      Catalog           │
-                │                        │
-                │ Blocks                 │
-                │ Regions                │
-                │ metadata               │
-                └────────────┬───────────┘
-                             │
-                             ▼
-                ┌────────────────────────┐
-                │   Composition.Document │
-                │                        │
-                │ persistent page data   │
-                └────────────┬───────────┘
-                             │
-             ┌───────────────┼────────────────┐
-             │               │                │
-             ▼               ▼                ▼
-        renderer        visual Builder       tooling
-                                              AI
-                                           migrations
-                                              diff
-                                              tests
-
-
-For authored CMS content:
-
-Entity field
-    │
-    ▼
-Form control
-    │
-    ▼
-Composition.Document
-    │
-    ▼
-foldkit-builder
-    │ edits through Form Messages
-    ▼
-Cms.editor
-    │
-    ├── autosave
-    ├── drafts
-    ├── revisions
-    ├── conflicts
-    ├── scheduling
-    ├── publish
-    └── preview
-```
-
-The central rule is:
-
-> **Composition defines what a page is. Builder defines one way to edit it. Foldkit's existing packages continue to own state, persistence, authoring, rendering, effects, and application behavior.**
-
-This means the page builder does **not** introduce:
-
-```text
-PageBuilderStore
-PageBuilderDraft
-PageBuilderRevision
-PageBuilderMutation
-PageBuilderRouter
-PageBuilderDataSource
-PageBuilderActionRuntime
-PageBuilderComponentFramework
-```
-
-Those concerns already have owners.
-
----
-
-# 2. The core architectural split
-
-The system should distinguish five different things.
-
-```text
-Block
-    What kind of compositional element may exist?
-
-Document
-    Which Blocks exist here, with which props and children?
-
-Renderer
-    How does a Block become actual UI?
-
-Editor
-    How may a human manipulate a Document?
-
-Authoring lifecycle
-    How is that Document saved, previewed, revised and published?
-```
-
-Foldkit Plus already has good owners for the latter concerns.
-
-Therefore:
-
-```text
-foldkit-composition
-    Block
-    Region
-    Catalog
-    Document
-    Node
-    Value
-    Binding
-    Operation
-    validation
-    inspection
-
-foldkit-builder
-    canvas
-    selection
-    drag/drop
-    layers
-    inspector
-    viewport
-    undo/redo UI
-```
-
-while:
-
-```text
-foldkit-form
-    owns the editable field draft
-
-foldkit-cms
-    owns saved drafts, revisions and publishing
-
-foldkit-bundle
-    owns reusable editor state machines
-
-foldkit-surface
-    owns feature observation boundaries
-
-foldkit-mixins
-    owns view customization
-
-foldkit-remote
-    owns server data and preview overlays
-
-foldkit-agent
-    owns external typed capabilities that become Messages
-```
-
----
-
-# 3. Why this belongs below “page builder”
-
-The new primitive should not be named after pages.
-
-A page is only one use of structured composition.
-
-The same model could eventually describe:
-
-```text
-landing pages
-CMS articles with structured sections
-email layouts
-dashboards
-reports
-documentation pages
-product detail layouts
-forms composed from reusable sections
-AI-generated interfaces
-presentation-like documents
-embedded marketing sections
-```
-
-Therefore the reusable substrate should be:
-
-```text
-foldkit-composition
-```
-
-and the Builder should merely edit Composition documents.
-
-This follows the existing Foldkit Plus pattern:
-
-```text
-Entity      describes domain structure
-Form        describes editing
-Crud        composes operations
-Cms         adds publishing semantics
-
-Composition describes structural UI/content composition
-Builder     adds visual editing
-```
-
----
-
-# 4. `foldkit-composition`
-
-`foldkit-composition` should be a pure package.
-
-It should depend on as little as possible:
-
-```text
-effect
-foldkit-metadata
-```
-
-It should not depend on:
-
-```text
-foldkit
-foldkit-form
-foldkit-cms
-foldkit-remote
-foldkit-surface
-foldkit-bundle
-DOM
-React
-Drizzle
-```
-
-Suggested public concepts:
-
-```ts
-Composition
-Catalog
-Block
-Region
-Content
-Document
-Node
-NodeId
-Value
-Binding
-Expr
-Operation
-Diagnostic
-```
-
-Its values should be:
-
-```text
-immutable
-typed
-inspectable
-serializable where persistent
-deterministically describable
-renderer independent
-```
-
----
-
-# 5. Block
-
-A `Block` is the semantic definition of one composable thing.
-
-For example:
-
-```ts
-const Hero = Block.define("Hero", {
-  Props: Schema.Struct({
-    eyebrow: Schema.String,
-    title: Schema.String,
-    align: Schema.Literals(["left", "center"]),
-  }),
-
-  regions: {
-    actions: Region.many({
-      accepts: Content.Interactive,
-    }),
-  },
-})
-```
-
-This says nothing yet about HTML or Foldkit.
-
-It says:
-
-```text
-There is a kind of thing called Hero.
-
-A Hero has:
-    eyebrow
-    title
-    align
-
-A Hero has one structural insertion point:
-    actions
-
-That insertion point accepts interactive content.
-```
-
-The same Block may later be interpreted by:
-
-```text
-a Foldkit renderer
-a React renderer
-an editor inspector
-an AI generation catalog
-a static analyzer
-a documentation generator
-```
-
----
-
-# 6. Blocks are adapters, not a second component system
-
-A Block must not become another view abstraction.
-
-Existing Foldkit views remain views.
-
-A Block associates composition semantics with an existing implementation.
-
-Conceptually:
-
-```ts
-const HeroBlock = Hero.pipe(
-  Block.view(HeroView),
-)
-```
-
-or through a renderer registry:
-
-```ts
-Renderer.register(Hero, HeroView)
-```
-
-The exact API can be decided experimentally.
-
-The dependency direction matters more:
-
-```text
-Block
-  semantic composition contract
-
-        interpreted by
-
-Foldkit View
-React component
-static renderer
-email renderer
-etc.
-```
-
-Do not put actual component functions into persisted Documents.
-
-A Document stores:
-
-```text
-block identity
-props
-regions
-optional semantic expressions
-```
-
-not executable component implementations.
-
----
-
-# 7. Props use Effect Schema
-
-A Block's props are defined by Effect Schema.
-
-Example:
-
-```ts
-const Image = Block.define("Image", {
-  Props: Schema.Struct({
-    src: Schema.String,
-    alt: Schema.String,
-    width: Schema.optional(Schema.Number),
-    fit: Schema.Literals(["cover", "contain"]),
-  }),
-})
-```
-
-This gives the system one validation truth.
-
-The same Schema can drive:
-
-```text
-document decoding
-editor inputs
-AI tool schemas
-migration checking
-runtime validation
-documentation
-JSON Schema output
-```
-
-Do not introduce another property type system.
-
-The same rule used by Entity applies here:
-
-```text
-Schema
-    validity
-
-metadata
-    meaning and editing hints
-```
-
----
-
-# 8. Regions
-
-A `Region` is a structural insertion point.
-
-Example:
-
-```ts
-const Columns = Block.define("Columns", {
-  Props: Schema.Struct({
-    ratio: Schema.Literals([
-      "1:1",
-      "1:2",
-      "2:1",
-    ]),
-  }),
-
-  regions: {
-    left: Region.many({
-      accepts: Content.Flow,
-    }),
-
-    right: Region.many({
-      accepts: Content.Flow,
-    }),
-  },
-})
-```
-
-Regions answer:
-
-> Which Blocks may be structurally inserted here?
-
-They should support at least:
-
-```ts
-Region.one(...)
-Region.many(...)
-```
-
-Potential options:
-
-```ts
-Region.one({
-  accepts,
-  optional: true,
-})
-
-Region.many({
-  accepts,
-  min: 0,
-  max: 6,
-})
-```
-
----
-
-# 9. Regions are not Mixins Slots
-
-This distinction must remain explicit.
-
-A Mixins Slot is:
-
-> A rendered extension point where Style or Behavior may attach.
-
-A Composition Region is:
-
-> A persistent structural position where another Block may be placed.
-
-Example:
-
-```text
-Hero
-
-Composition Regions:
-    actions
-
-Mixins Slots:
-    root
-    eyebrow
-    title
-    actionsContainer
-```
-
-The renderer might choose to render:
-
-```text
-Region actions
-    inside
-Mixin Slot actionsContainer
-```
-
-but those are separate contracts.
-
-This preserves the meaning of the current Mixins architecture and prevents the page builder from turning DOM extension points into content-model structure.
-
----
-
-# 10. Content capabilities
-
-Regions should not rely only on explicit block allowlists.
-
-A small semantic capability system makes composition substantially more flexible.
-
-For example:
-
-```ts
-const Heading = Block.define(...).pipe(
-  Block.provides(Content.Flow),
-)
-
-const Button = Block.define(...).pipe(
-  Block.provides(
-    Content.Flow,
-    Content.Interactive,
-  ),
-)
-
-const Hero = Block.define(...).pipe(
-  Block.provides(Content.Section),
-)
-```
-
-Then:
-
-```ts
-Region.many({
-  accepts: Content.Interactive,
-})
-```
-
-allows future Button-like Blocks automatically.
-
-Suggested initial vocabulary:
-
-```text
-Content.Root
-Content.Section
-Content.Flow
-Content.Inline
-Content.Interactive
-Content.Media
-Content.Form
-Content.Data
-```
-
-This vocabulary should remain deliberately small.
-
-Applications may define their own capabilities.
-
-Do not conflate these with Mixins element capabilities.
-
-```text
-Content capability
-    where may this Block be structurally inserted?
-
-Mixin capability
-    what kind of rendered element is this attachment point?
-```
-
----
-
-# 11. Catalog
-
-A `Catalog` defines the composition vocabulary available in one context.
-
-```ts
-const Site = Catalog.make({
-  blocks: [
-    Hero,
-    Columns,
-    RichText,
-    Image,
-    Button,
-    ProductGrid,
-  ],
-})
-```
-
-A Catalog should primarily answer:
-
-```text
-Which Blocks exist here?
-
-Given a stable Block name/id:
-    what is its descriptor?
-
-Can this Block go into this Region?
-
-What Schema describes its props?
-```
-
-The Catalog should not become another application registry.
-
-Avoid:
-
-```ts
-Catalog.make({
-  blocks,
-  queries,
-  routes,
-  auth,
-  database,
-  mutations,
-  navigation,
-  forms,
-  services,
-})
-```
-
-That would recreate the Gen-style monolith the rest of Foldkit Plus deliberately avoided.
-
-Additional concerns should attach through metadata or adapter packages.
-
----
-
-# 12. Stable Block identity
-
-Persisted Documents need stable identities.
-
-A Block should have:
-
-```ts
-interface BlockIdentity<Name extends string> {
-  readonly name: Name
-  readonly token: symbol
-}
-```
-
-At runtime, identity can preserve semantic equality across decorators.
-
-Persisted representation uses the stable public name:
-
-```text
-"Hero"
-```
-
-The Catalog is the namespace in which that name resolves.
-
-Applications should treat changing the persisted Block name as a content migration.
-
----
-
-# 13. Document
-
-The canonical persistent value should be a normalized `Document`.
-
-Conceptually:
-
-```ts
-interface Document {
-  readonly version: number
-  readonly roots: ReadonlyArray<NodeId>
-  readonly nodes: Readonly<Record<NodeId, Node>>
-}
-```
-
-A Node:
-
-```ts
-interface Node {
-  readonly id: NodeId
-  readonly block: string
-
-  readonly props: Readonly<
-    Record<string, Value<unknown>>
-  >
-
-  readonly regions: Readonly<
-    Record<string, ReadonlyArray<NodeId>>
-  >
-
-  readonly visibility?: Expr<boolean>
-}
-```
-
-The exact encoded shape should be defined with Effect Schema.
-
----
-
-# 14. Why normalized rather than recursively nested
-
-Visually, a page may be:
-
-```text
-Page
- ├─ Hero
- │   └─ actions
- │      ├─ Button
- │      └─ Button
- │
- ├─ FeatureGrid
- │   └─ items
- │      ├─ Feature
- │      └─ Feature
- │
- └─ Footer
-```
-
-But persistence should be closer to:
-
-```text
-roots:
-    hero-1
-    grid-1
-    footer-1
-
-nodes:
-    hero-1
-    cta-1
-    cta-2
-    grid-1
-    feature-1
-    feature-2
-    footer-1
-```
-
-This makes common editor operations much cleaner:
-
-```text
-move
-insert
-delete
-duplicate
-select
-diff
-patch
-undo
-redo
-migrate
-merge
-AI edits
-collaboration
-```
-
-It also means Node identity survives reordering.
-
----
-
-# 15. Document validity
-
-A Document is valid relative to a Catalog.
-
-Validation should check at least:
-
-```text
-root ids exist
-node ids are unique
-all referenced nodes exist
-no node has multiple structural parents unless explicitly supported
-no structural cycle exists
-block identity resolves
-props decode against Block Props schema
-every Region exists on the Block
-region cardinality is satisfied
-children satisfy Region capabilities
-unknown props are handled according to migration/version policy
-expressions type-check
-```
-
-API:
-
-```ts
-Composition.validate(Site, document)
-```
-
-should return structured diagnostics rather than booleans.
-
-Example diagnostics:
-
-```text
-composition:unknown-block
-composition:missing-node
-composition:cycle
-composition:unknown-region
-composition:region-cardinality
-composition:region-rejects-block
-composition:invalid-prop
-composition:unknown-prop
-composition:binding-type-mismatch
-composition:expression-type-mismatch
-```
-
----
-
-# 16. Documents should be schema-backed values
-
-A Catalog should be able to produce or expose a Schema capable of validating its Documents.
-
-Conceptually:
-
-```ts
-Site.Document
-```
-
-or:
-
-```ts
-Composition.schema(Site)
-```
-
-This is important because the Document can then simply be an Entity field:
-
-```ts
-const Page = Entity.define(
-  "Page",
-  Schema.Struct({
-    id: PageId,
-    title: Schema.String,
-    slug: Schema.String,
-    document: Composition.schema(Site),
-  }),
-)
-```
-
-This connection is central to the architecture.
-
----
-
-# 17. Operations
-
-Editing should happen through a small semantic operation algebra.
-
-For example:
-
-```ts
-Composition.Op.insert(...)
-Composition.Op.remove(...)
-Composition.Op.move(...)
-Composition.Op.duplicate(...)
-Composition.Op.setProp(...)
-Composition.Op.unsetProp(...)
-Composition.Op.setVisibility(...)
-```
-
-Possibly:
-
-```ts
-Composition.Op.batch(...)
-```
-
-All operations should themselves be Schema-backed serializable data.
-
-Example:
-
-```ts
-Composition.Op.setProp({
-  node: "hero-1",
-  prop: "title",
-  value: Value.literal("Build what comes next"),
-})
-```
-
-And:
-
-```ts
-Composition.apply(
-  catalog,
-  document,
-  operation,
-)
-```
-
-is pure.
-
----
-
-# 18. Document is state; Operations are transitions
-
-The system should not store the operation stream as the canonical page.
-
-The relationship is:
-
-```text
-Document
-   +
-Operation
-   ↓
-Document
-```
-
-not:
-
-```text
-Operations
-   ↓
-page exists only by replay
-```
-
-That mirrors Foldkit itself:
-
-```text
-Model
-   +
-Message
-   ↓
-Model
-```
-
-The Model is still the state.
-
-This gives the best of both:
-
-```text
-simple persistence
-simple reads
-semantic editing operations
-possible undo history
-possible Sync later
-possible AI tools
-```
-
-without turning the CMS into an event-sourced page store.
-
----
-
-# 19. Undo and redo
-
-The Builder may keep local undo history as editor state.
-
-For initial implementation:
-
-```text
-past Documents or inverse Operations
-current Document is still Form-owned
-```
-
-The Builder's undo system must not become the authority over the Document.
-
-Possible model:
-
-```ts
-interface BuilderModel {
-  readonly selected: NodeId | null
-  readonly hovered: NodeId | null
-  readonly viewport: Viewport
-  readonly panel: Panel
-  readonly drag: DragState | null
-
-  readonly undo: ReadonlyArray<Operation>
-  readonly redo: ReadonlyArray<Operation>
-}
-```
-
-or store inverse Operations.
-
-The Builder still emits:
-
-```text
-ApplyOperation(op)
-```
-
-to its parent.
-
----
-
-# 20. `Value<A>`
-
-Initially, Block props may simply be literal values.
-
-But the persistent model should leave room for props that derive from something else.
-
-A minimal architecture:
-
-```ts
-type Value<A> =
-  | Literal<A>
-  | Binding<A>
-  | Computed<A>
-```
-
-Initial release may support only:
-
-```ts
-Value.literal(...)
-```
-
-while reserving the semantic boundary.
-
-That is preferable to storing arbitrary JavaScript.
-
----
-
-# 21. No persisted arbitrary code
-
-Do not allow:
-
-```ts
-{
-  value: "product.price * 0.8"
-}
-```
-
-or:
-
-```ts
-{
-  onClick: "fetch('/admin/delete')"
-}
-```
-
-or persisted arbitrary JS functions.
-
-Persistent composition should remain:
-
-```text
-data
-typed references
-small expression IR
-declared capabilities
-```
-
-This enables:
-
-```text
-inspection
-validation
-security review
-migration
-AI generation
-alternative rendering
-SSR
-static analysis
-```
-
----
-
-# 22. Expressions
-
-A tiny expression layer may eventually support:
-
-```text
-literal
-binding
-boolean operators
-comparison
-conditional
-registered pure computation
-```
-
-For example:
-
-```ts
-Expr.eq(...)
-Expr.and(...)
-Expr.when(...)
-```
-
-Do not build a general programming language.
-
-The initial page builder does not need:
-
-```text
-loops
-arbitrary lambdas
-user-defined runtime code
-general mutation
-```
-
-Structural repetition should be its own concept if and when needed.
-
----
-
-# 23. Repetition
-
-Dynamic list rendering is useful enough to deserve first-class semantics eventually.
-
-Conceptually:
-
-```ts
-Repeat.make({
-  source: ProductsQuery,
-  key: Product.fields.id,
-  template: ProductCardDocument,
-})
-```
-
-or a Node-level structural construct.
-
-But this should wait until the ongoing Query/Expr work has produced a stable source-neutral query abstraction.
-
-Do not create:
-
-```text
-BuilderDataSource
-BuilderQuery
-BuilderFetch
-```
-
-in parallel with Foldkit's data architecture.
-
----
-
-# 24. Data binding: wait for Query semantics
-
-The existing design direction for Foldkit data distinguishes:
-
-```text
-Query
-    which rows?
-
-Selection
-    which facts?
-
-ReadContract
-    how does a consumer require them?
-```
-
-Composition should eventually consume those concepts rather than invent its own data layer.
-
-A future binding might look conceptually like:
-
-```ts
-Binding.from(CurrentProduct)
-  .field(Product.fields.title)
-```
-
-But this should come after the general Query/Binding substrate exists.
-
-Version 1 should focus on content composition, not become a second query framework.
-
----
-
-# 25. Rendering
-
-Composition rendering should be an interpreter.
-
-Conceptually:
-
-```ts
-Composition.render({
-  catalog: Site,
-  document,
-  renderer: FoldkitRenderer,
-  context,
-})
-```
-
-or:
-
-```ts
-FoldkitComposition.render(
-  Site,
-  document,
-  h,
-)
-```
-
-The exact packaging can be determined after a spike.
-
-Important invariant:
-
-> Production rendering and editor preview rendering must use the same Block implementations.
-
-There should not be:
-
-```text
-HeroProduction
-HeroBuilderPreview
-```
-
-unless an application explicitly supplies a preview substitute.
-
----
-
-# 26. Foldkit Block renderer
-
-A Foldkit adapter should bind Blocks to ordinary Foldkit views.
-
-For example:
-
-```ts
-const Hero = Block.define(...)
-
-const HeroRenderer = FoldkitBlock.render(
-  Hero,
-  (node, regions, h) =>
-    HeroView(
-      {
-        ...node.props,
-        actions: regions.actions,
-      },
-      h,
-    ),
-)
-```
-
-A renderer receives:
-
-```text
-decoded props
-rendered Region children
-composition context
-HtmlBuilder
-```
-
-and returns ordinary `Html`.
-
-No new reconciler.
-
-No new component runtime.
-
----
-
-# 27. Surface-backed Blocks
-
-Some Blocks should represent actual application features.
-
-For example:
-
-```text
-ProductGrid
-ShoppingCartSummary
-UserProfile
-NewsletterSignup
-SearchResults
-```
-
-These already exist as Foldkit features with explicit data requirements and Messages.
-
-A future adapter can expose a Surface-backed feature as a Block:
-
-```ts
-Block.fromSurface(ProductGridSurface, {
-  Props: ProductGridProps,
-  params: props => ({
-    category: props.category,
-  }),
-})
-```
-
-The Surface continues to own:
-
-```text
-what the feature observes
-what Messages it may cause
-```
-
-The Composition Document only chooses:
-
-```text
-that the feature exists here
-its configuration
-```
-
-This is one of the most important synergies.
-
-The page builder can visually compose real application features without getting access to the entire root Model.
-
----
-
-# 28. React-backed Blocks
-
-`foldkit-react` makes third-party components practical.
-
-A React component may be adapted into a Block renderer:
-
-```ts
-const MapIsland = ReactComponent.define(
-  MapComponent,
-  {
-    events: ["onMarkerSelected"],
-  },
-)
-```
-
-and then:
-
-```ts
-const Map = Block.define("Map", {
-  Props: MapProps,
-}).pipe(
-  Block.renderWith(
-    ReactBlock.of(MapIsland),
-  ),
-)
-```
-
-The Composition model remains identical.
-
-This is useful for complex authoring controls and application Blocks backed by existing React ecosystems.
-
----
-
-# 29. Stateful Blocks
-
-Stateful Blocks should not introduce:
-
-```text
-nodeState: Record<NodeId, unknown>
-```
-
-inside a secret Composition runtime.
-
-The current `foldkit-bundle` provides the right eventual foundation.
-
-Suppose:
-
-```text
-Carousel
-Accordion
-Configurator
-InteractiveCalculator
-```
-
-truly need state.
-
-They should be backed by ordinary Bundles.
-
-Conceptually:
-
-```ts
-Block.fromBundle(Carousel, {
-  Props: CarouselProps,
-})
-```
-
-The application can then place instances through a keyed:
-
-```text
-Bundle.each
-```
-
-using:
-
-```text
-NodeId
-```
-
-as the key.
-
-Conceptually:
-
-```text
-Composition nodes
-      │
-      ▼
-stateful nodes by Block kind
-      │
-      ▼
-Bundle collection keyed by NodeId
-      │
-      ▼
-ordinary child Models in parent Model
-```
-
-The application remains the only state owner.
-
-This feature should not be part of the initial implementation.
-
-Static and Surface-backed Blocks should be proven first.
-
----
-
-# 30. Form integration
-
-This is the most important integration.
-
-A composition document should be editable as an ordinary Form key.
-
-Example:
-
-```ts
-const PageInput = Entity.input(
-  Page,
-  Schema.Struct({
-    title: Page.fields.title.schema,
-    slug: Page.fields.slug.schema,
-    document: Page.fields.document.schema,
-  }),
-)
-```
-
-Then:
-
-```ts
-const PageForm = Form.make(
-  "PageForm",
-  PageInput,
-  {
-    inputs: {
-      slug: Cms.slug("title"),
-      document: Composition.input(Site),
-    },
-  },
-)
-```
-
-The page builder is therefore an editor for:
-
-```text
-one Form control
-```
-
-not a replacement for Form.
-
----
-
-# 31. Form needs structured custom drafts
-
-The existing Form control primitive is excellent, but its draft shapes are currently optimized for:
-
-```text
-text
-boolean
-lists of ids
-nested forms
-```
-
-Composition needs a structured draft.
-
-The general solution should be broader than a special `Blocks` control.
-
-Form should support an arbitrary Schema-backed Draft type.
-
-Conceptually:
-
-```ts
-Input.kind("Composition", {
-  Draft: Composition.Document,
-  initial: Composition.empty(),
-  toValue: draft => draft,
-  fromValue: value => value,
-})
-```
-
-or a lower-level primitive:
-
-```ts
-Input.structured("Composition", {
-  Draft: Composition.Document,
-  empty: () => Composition.empty(),
-})
-```
-
-Existing controls can conceptually become specialized versions of the same idea:
-
-```text
-Text
-    Draft = string
-
-Toggle
-    Draft = boolean
-
-RelationMany
-    Draft = string[]
-
-Composition
-    Draft = Document
-```
-
-The exact generic Form API needs a prototype because this affects the Form model and message schema.
-
----
-
-# 32. A structured draft must still follow Form semantics
-
-A Composition control should receive all the same guarantees as any other Form control:
-
-```text
-fill
-reset
-dirty editing
-validation
-partial
-submit
-saved Form Model
-resume
-whole-input validation
-```
-
-The Form continues to decide:
-
-> Is the operation's input valid?
-
-Composition decides:
-
-> Is this Document structurally valid for this Catalog?
-
-The Page's field Schema ties those together.
-
----
-
-# 33. Builder integration with Form
-
-The Builder should never own the authoritative Document.
-
-Instead:
-
-```text
-Form
-    owns Document draft
-
-Builder
-    owns editor-only state
-```
-
-Builder state may include:
-
-```ts
-interface BuilderModel {
-  readonly selected: NodeId | null
-  readonly hovered: NodeId | null
-
-  readonly viewport:
-    | "desktop"
-    | "tablet"
-    | "mobile"
-
-  readonly panel:
-    | "insert"
-    | "layers"
-    | "properties"
-    | "data"
-
-  readonly drag: DragState | null
-}
-```
-
-The Document is passed as view input.
-
----
-
-# 34. Builder as a Bundle
-
-`foldkit-builder` should expose an ordinary Bundle.
-
-Conceptually:
-
-```ts
-const PageBuilder = Builder.make(
-  "PageBuilder",
-  {
-    catalog: Site,
-  },
-)
-```
-
-Its Bundle owns only editor interaction state.
-
-Its OutMessages might include:
-
-```ts
-{
-  _tag: "OperationRequested"
-  operation: Composition.Operation
-}
-```
-
-The parent maps that to a Form update.
-
-This makes the Builder reusable outside CMS.
-
----
-
-# 35. Form ↔ Builder bridge
-
-A small integration package or helper can remove boilerplate.
-
-Conceptually:
-
-```ts
-Builder.field({
-  form: PageForm,
-  key: "document",
-  builder: PageBuilder,
-})
-```
-
-or:
-
-```ts
-CompositionForm.bind(
-  PageForm,
-  "document",
-  PageBuilder,
-)
-```
-
-Its responsibility is tiny:
-
-```text
-read current Document from Form
-      │
-      ▼
-render Builder
-      │
-      ▼
-Builder emits Operation
-      │
-      ▼
-Composition.apply
-      │
-      ▼
-Form.Message.Changed
-```
-
-It should own no state itself.
-
----
-
-# 36. CMS integration
-
-Once Page is an Entity and the Page Form contains the composition field, existing CMS machinery should work unchanged.
-
-Example:
-
-```ts
-const Pages = Cms.content(
-  "pages",
-  {
-    entity: Page,
-
-    form: PageForm,
-
-    publish: {
-      create: CreatePage,
-      update: UpdatePage,
-    },
-
-    words: {
-      one: "Page",
-      many: "Pages",
-    },
-
-    preview: (value, id) => [
-      {
-        entity: "Page",
-        id,
-        values: value,
-      },
-    ],
-  },
-)
-```
-
-Then the page builder inherits:
-
-```text
-autosave
-saved drafts
-partial invalid drafts
-conflict detection
-revision history
-restore
-scheduling
-publishing
-unpublishing
-archiving
-audience boundaries
-preview
-```
-
-No page-builder-specific implementation of those features is necessary.
-
----
-
-# 37. Preview
-
-The existing CMS preview design should remain the authoring preview.
-
-When preview is active:
-
-```text
-Form partial value
-      │
-      ▼
-Cms.content.preview
-      │
-      ▼
-Remote overlay
-      │
-      ▼
-application's normal page view
-```
-
-This means the preview is the actual application.
-
-The page builder does not need its own parallel page renderer.
-
-Editor-specific overlays such as:
-
-```text
-hover outlines
-selection rectangles
-drop indicators
-node labels
-```
-
-may wrap the production renderer during authoring.
-
-But the actual content rendering should remain the same.
-
----
-
-# 38. Canvas/editor bridge
-
-A visual editor often needs geometry information that ordinary rendering does not expose.
-
-The Builder may therefore need a small editor bridge.
-
-Conceptually:
-
-```text
-Production renderer
-      │
-      ├── renders Block output
-      │
-      └── in edit mode:
-             marks root with NodeId
-             reports geometry
-             reports pointer hover
-```
-
-This should not alter Block semantics.
-
-Potential low-level capabilities:
-
-```text
-node root marker
-measure node
-hit testing
-drop zone geometry
-scroll into view
-```
-
-Most of this can be implemented with Foldkit Mounts / browser primitives.
-
----
-
-# 39. Builder UI
-
-A Builder.io-style authoring interface can be composed from four major views:
-
-```text
-Insert palette
-
-    available Blocks
-    categories
-    search
-
-
-Canvas
-
-    production rendering
-    selection overlay
-    drop targets
-
-
-Layers
-
-    Document topology
-    reorder
-    selection
-
-
-Inspector
-
-    selected Block props
-    Region information
-    eventually bindings / styles / events
-```
-
-These are ordinary Foldkit views over Builder state and the current Document.
-
----
-
-# 40. Property inspector
-
-Because every Block has a Props Schema, a generic inspector can derive simple editors.
-
-It should use the same principle as Form:
-
-```text
-explicit metadata
-    first
-
-semantic/schema inference
-    second
-
-unknown complex value
-    diagnostic / custom renderer
-```
-
-The system should not over-guess.
-
-Eventually, Block prop metadata could reuse Form `Input` concepts.
-
-For example:
-
-```ts
-Block.props({
-  title: Input.text(),
-  body: Input.multiline(),
-})
-```
-
-or attach metadata to the Schema/Block prop descriptor.
-
-Avoid embedding concrete React/Foldkit components.
-
----
-
-# 41. Builder inspector and Form should share control vocabulary where useful
-
-A Page Form edits the whole Page.
-
-The Builder inspector edits one Block's props inside the Document.
-
-Those are different ownership boundaries, but they need similar controls.
-
-The preferred direction is to reuse:
-
-```text
-Input control descriptions
-renderer registries
-```
-
-rather than duplicate:
-
-```text
-Form.TextInput
-Builder.TextInput
-```
-
-A Block prop inspector may interpret the same `Input.Control` values without becoming a Form itself.
-
-This is a good example of why `Input.kind` was correctly designed as renderer-neutral data.
-
----
-
-# 42. Metadata
-
-`foldkit-metadata` should be the extension mechanism for Blocks and Catalog entries.
-
-Possible independent metadata packages can attach:
-
-```text
-palette category
-palette icon
-AI description
-documentation
-editor grouping
-authoring visibility
-design-system classification
-analytics name
-migration hints
-SEO semantics
-```
-
-Example:
-
-```ts
-const Hero = HeroBase.pipe(
-  Block.annotate(
-    Palette.category("Marketing"),
-  ),
-
-  Block.annotate(
-    Palette.icon("layout-template"),
-  ),
-
-  Block.annotate(
-    Ai.describe(
-      "Large introductory section with heading and call-to-action content",
-    ),
-  ),
-)
-```
-
-Block core should know none of these meanings.
-
----
-
-# 43. Appearance editing
-
-Visual builders commonly expose:
-
-```text
-spacing
-background
-typography
-alignment
-border
-radius
-layout
-```
-
-Foldkit should not invent another CSS system for this.
-
-The correct target is current Mixins `Style`.
-
-A Block renderer can declare which existing Slots are author-styleable.
-
-Conceptually:
-
-```ts
-Appearance.forBlock(Hero, HeroSlots, {
-  root: Appearance.box(),
-  title: Appearance.typography(),
-  eyebrow: Appearance.typography(),
-})
-```
-
-The persistent page stores renderer-neutral appearance values.
-
-The Foldkit interpreter converts those values into:
-
-```ts
-Style.forSlots(...)
-```
-
-attachments.
-
-This preserves existing Mixins guarantees:
-
-```text
-hidden slots remain inaccessible
-protected style properties remain protected
-theme tokens remain typed
-event ownership remains unchanged
-slot capabilities remain checked
-```
-
----
-
-# 44. Appearance should be constrained, not arbitrary CSS
-
-A visual builder should not automatically expose every CSS property on every Block.
-
-The component author declares the authoring surface.
-
-Example:
-
-```text
-Hero.root
-    background
-    spacing
-
-Hero.title
-    typography
-    alignment
-
-Hero.actions
-    gap
-    alignment
-```
-
-Not:
-
-```text
-arbitrary selector
-arbitrary CSS text
-!important
-DOM traversal
-```
-
-Applications may deliberately provide an escape hatch, but it should be visibly outside the typed path.
-
----
-
-# 45. Events and actions
-
-A page builder eventually needs:
-
-```text
-Button pressed
-Form submitted
-Card clicked
-```
-
-to cause application behavior.
-
-Foldkit Plus already has a powerful rule:
-
-> Capabilities should ultimately dispatch existing Messages.
-
-`foldkit-agent` already represents roughly:
-
-```text
-description
-input Schema
-map input to Message
-```
-
-Composition should converge with that model rather than create a parallel action runtime.
-
-A future shared abstraction may look like:
-
-```ts
-MessageCapability.define({
-  name: "addToCart",
-  description: "Add the selected product to the cart",
-  Input: Schema.Struct({
-    productId: ProductId,
-  }),
-  toMessage: input =>
-    Message.AddedToCart(input),
-})
-```
-
-Both:
-
-```text
-Agent
-Composition event binding
-command palette
-automation
-```
-
-could use it.
-
-Do not extract this until Composition becomes the second proven consumer.
-
----
-
-# 46. Event bindings
-
-A future Node may hold:
-
-```ts
-events: {
-  press: {
-    capability: "addToCart",
-    input: {
-      productId: Binding.from(...)
-    }
-  }
-}
-```
-
-At runtime:
-
-```text
-Block event
-     │
-     ▼
-MessageCapability
-     │
-     ▼
-existing application Message
-     │
-     ▼
-update
-```
-
-The page document never executes an arbitrary mutation.
-
----
-
-# 47. AI generation
-
-Composition should be exceptionally agent-friendly.
-
-A Catalog can be transformed into an allowed vocabulary:
-
-```text
-Available Blocks
-
-Hero
-  props...
-  regions...
-
-Button
-  props...
-
-Columns
-  props...
-  regions...
-```
-
-The agent can then manipulate the page through the same Operations used by the human editor.
-
-For example:
-
-```text
-insertBlock
-moveBlock
-removeBlock
-setBlockProp
-```
-
-This is preferable to asking the model to rewrite raw JSON or JSX.
-
-Flow:
-
-```text
-human drag
-property inspector
-keyboard command
-AI agent
-migration tool
-        │
-        ▼
-Composition.Operation
-        │
-        ▼
-Composition.apply
-        │
-        ▼
-Form change
-        │
-        ▼
-Cms.editor
-```
-
-One semantic path.
-
----
-
-# 48. AI must be Catalog constrained
-
-An agent should not be allowed to hallucinate:
-
-```text
-unknown Block names
-unknown props
-invalid child placement
-arbitrary actions
-arbitrary data sources
-```
-
-Agent tools should be generated or validated against the Catalog.
-
-The Catalog is therefore both:
-
-```text
-editor vocabulary
-AI safety boundary
-```
-
-without becoming the application itself.
-
----
-
-# 49. Reusable compositions
-
-A composition system should eventually support reusable groups.
-
-Two useful concepts should remain distinct.
-
-## Pattern
-
-A Pattern is copied on insertion.
-
-```text
-"Pricing section"
-    ↓
-insert its nodes into this Document
-```
-
-After insertion, the nodes are independent.
-
-## Composite Block
-
-A reusable Composition exposed as a Block.
-
-For example:
-
-```ts
-const Callout = Composite.define(
-  "Callout",
-  {
-    Props: Schema.Struct({
-      title: Schema.String,
-      tone: Schema.Literals([
-        "info",
-        "warning",
-      ]),
-    }),
-
-    document: CalloutDocument,
-  },
-)
-```
-
-A Composite Block may expose some inner values as props.
-
-This yields a useful recursive property:
-
-```text
-code-defined Block
-        and
-composition-defined Block
-
-both become Blocks to the parent
-```
-
----
-
-# 50. Templates
-
-Templates should be ordinary values or functions that create Documents.
-
-For example:
-
-```ts
-Template.make("LandingPage", () =>
-  Composition.document(...)
-)
-```
-
-Creating from a template copies a Document.
-
-Templates do not require special runtime behavior.
-
----
-
-# 51. Versioning and migrations
-
-Documents are persistent data and need migration support.
-
-The Document should carry:
-
-```ts
-version
-```
-
-The Catalog and/or Blocks may expose migrations.
-
-Examples:
-
-```text
-Hero prop:
-    "alignment"
-        renamed to
-    "align"
-
-Gallery:
-    removed "columns"
-    replaced by layout mode
-
-Block:
-    "OldHero"
-        migrated to
-    "Hero"
-```
-
-A migration system should operate on plain Document data.
-
-Conceptually:
-
-```ts
-Composition.migrate(
-  catalog,
-  document,
-)
-```
-
-Migrations should be:
-
-```text
-deterministic
-pure where possible
-inspectable
-versioned
-testable
-```
-
----
-
-# 52. Unknown Blocks
-
-A CMS must not destroy content merely because an application deployment no longer knows a Block.
-
-Decoding policy should distinguish:
-
-```text
-invalid Document
-unknown future/deprecated Block
-```
-
-The system may need an `UnknownNode` representation during migration/recovery.
-
-The authoring UI can then say:
-
-```text
-This block type is not available in this version of the application.
-```
-
-rather than dropping it.
-
-This deserves explicit design during persistence implementation.
-
----
-
-# 53. Introspection
-
-Every major descriptor should expose deterministic structural descriptions.
-
-For example:
-
-```ts
-Block.inspect(Hero)
-Catalog.inspect(Site)
-Composition.inspect(document)
-Composition.describe(document)
-```
-
-Useful output:
-
-```text
-block names
-prop schemas
-Regions
-capabilities
-metadata summaries
-document topology
-bindings
-events
-validation findings
-```
-
-This can feed:
-
-```text
-DevTools
-docs
-tests
-agents
-CI
-migration tooling
-architecture manifests
-```
-
-This aligns strongly with existing Surface/Module/Mixins introspection.
-
----
-
-# 54. Security model
-
-Persistent Composition is not trusted executable code.
-
-The system should preserve these invariants:
-
-```text
-Block implementation comes from application code.
-
-Document may only reference Blocks in the Catalog.
-
-Props decode through Schema.
-
-Children must satisfy declared Regions.
-
-Actions may only reference explicitly exposed capabilities.
-
-Bindings may only reference explicitly exposed sources.
-
-No arbitrary persisted JavaScript executes.
-
-Client visibility is never server authorization.
-
-CMS audience rules remain server enforced.
-```
-
-This makes Composition suitable for content edited by less-trusted users or agents.
-
----
-
-# 55. CMS Page example
-
-A complete Page domain might look like:
-
-```ts
-const Page = Entity.define(
-  "Page",
-  Schema.Struct({
-    id: PageId,
-
-    title: Schema.String
-      .check(Schema.isMinLength(1)),
-
-    slug: Schema.String,
-
-    document: Composition.schema(Site),
-
-    publishedAt:
-      Schema.NullOr(Schema.String),
-  }),
-).pipe(
-  Cms.roles({
-    label: "title",
-    slug: "slug",
-    published: "publishedAt",
-  }),
-)
-```
-
-Input:
-
-```ts
-const PageInput = Entity.input(
-  Page,
-  Schema.Struct({
-    title: Page.fields.title.schema,
-    slug: Page.fields.slug.schema,
-    document: Page.fields.document.schema,
-  }),
-)
-```
-
-Form:
-
-```ts
-const PageForm = Form.make(
-  "PageForm",
-  PageInput,
-  {
-    inputs: {
-      slug: Cms.slug("title"),
-
-      document:
-        Composition.input(Site),
-    },
-  },
-)
-```
-
-CMS:
-
-```ts
-const Pages = Cms.content(
-  "pages",
-  {
-    entity: Page,
-
-    form: PageForm,
-
-    publish: {
-      create: CreatePage,
-      update: UpdatePage,
-    },
-
-    words: {
-      one: "Page",
-      many: "Pages",
-    },
-
-    preview: (value, id) => [
-      {
-        entity: "Page",
-        id,
-        values: value,
-      },
-    ],
-  },
-)
-```
-
-Builder:
-
-```ts
-const PageBuilder = Builder.make(
-  "PageBuilder",
-  {
-    catalog: Site,
-  },
-)
-```
-
-The Builder is attached to the `document` control.
-
-Nothing else about the CMS lifecycle changes.
-
----
-
-# 56. Relationship with Crud
-
-A Page remains an ordinary Entity.
-
-Therefore:
-
-```text
-Page list
-    Crud.list
-
-Page detail
-    Crud.detail
-
-Page metadata editor
-    Form / Crud.editor if desired
-
-Page authoring lifecycle
-    Cms.editor
-
-Page document editing
-    Builder control inside the CMS editor
-```
-
-The visual page builder should not replace generic Crud.
-
----
-
-# 57. Relationship with Bundle
-
-Builder itself should be a Bundle.
-
-Stateful Block instances may later compile to Bundle collections.
-
-These are different uses.
-
-```text
-Builder Bundle
-    owns editor chrome state
-
-Block Bundle
-    owns runtime state of one compositional feature
-```
-
-Both remain ordinary Bundle placements and therefore participate in the same ownership checks.
-
----
-
-# 58. Relationship with Surface
-
-Surface remains the feature/read boundary.
-
-Composition should not become a replacement.
-
-A Surface-backed Block adapts:
-
-```text
-static composition placement
-        │
-        ▼
-Surface params
-        │
-        ▼
-normal Surface observation / Messages
-```
-
-The Block chooses where the feature appears.
-
-The Surface continues to define what it may observe and cause.
-
----
-
-# 59. Relationship with Remote
-
-Composition core knows nothing about Remote.
-
-Remote may appear in three places:
-
-```text
-CMS published Page Entity
-CMS draft preview overlay
-Surface-backed Blocks requiring server data
-```
-
-All through existing APIs.
-
-No `CompositionRemoteStore` should exist.
-
----
-
-# 60. Relationship with Sync
-
-Initial page authoring should continue using current CMS conflict semantics.
-
-Two authors editing one page simultaneously is a different product.
-
-Later, Composition Operations are promising Sync payloads:
-
-```text
-MoveNode
-SetProp
-InsertNode
-DeleteNode
-```
-
-because they express author intent more cleanly than replacing an entire Document.
-
-But simultaneous editing should be designed when there is a concrete requirement.
-
-Do not make CRDT concerns distort v1.
-
----
-
-# 61. Relationship with Durable
-
-CMS revisions should remain CMS revisions.
-
-Composition Operations should not automatically become a Durable journal.
-
-Durable may eventually record composition actions for an application that wants:
-
-```text
-audit history
-workflow replay
-event-sourced collaboration
-```
-
-but the core Composition Document must not depend on Durable.
-
----
-
-# 62. Relationship with React codegen
-
-Composition does not need React codegen to work.
-
-A Block rendered through ordinary Foldkit views may separately be eligible for `foldkit-react-codegen`.
-
-That provides an interesting future target:
-
-```text
-Composition Document
-    +
-Catalog of Foldkit views
-    ↓
-static React output
-```
-
-but this should remain an interpreter/tooling feature, not core design.
-
----
-
-# 63. Suggested package layout
-
-Initial:
-
-```text
-packages/
-  composition/
-  builder/
-```
-
-Potential integration package if needed:
-
-```text
-  composition-form/
-```
-
-Avoid introducing:
-
-```text
-page/
-page-builder-runtime/
-builder-cms/
-builder-remote/
-builder-storage/
-```
-
-until a real package boundary appears.
-
-Most integrations should initially be tiny adapters inside the closest consumer.
-
----
-
-# 64. `foldkit-composition` responsibilities
-
-It should own:
-
-```text
-Block
-Region
-Content capabilities
-Catalog
-Node
-Document
-Value
-Operation
-pure apply
-pure validation
-schema generation
-inspection
-diff
-migration primitives
-```
-
-It should not own:
-
-```text
-editor state
-form state
-saving
-publishing
-network requests
-DOM geometry
-drag and drop
-routing
-authentication
-database
-application state
-```
-
----
-
-# 65. `foldkit-builder` responsibilities
-
-It should own:
-
-```text
-selected node
-hovered node
-viewport
-open editor panel
-drag state
-drop targeting
-layers UI
-insert palette UI
-property inspector UI
-local undo/redo interaction
-canvas editor chrome
-```
-
-It should not own:
-
-```text
-Document authority
-CMS drafts
-CMS revisions
-publish state
-application Remote data
-authorization
-Block runtime state
-```
-
----
-
-# 66. Rejected: page builder as its own state framework
-
-Reject:
-
-```ts
-createPageBuilder({
-  state: ...,
-  actions: ...,
-  dataSources: ...,
-  components: ...,
-  routes: ...,
-  persistence: ...,
-})
-```
-
-That would reproduce the exact kind of parallel application architecture Foldkit Plus has worked to avoid.
-
----
-
-# 67. Rejected: storing JSX or HTML
-
-Do not store:
-
-```text
-JSX source
-rendered HTML
-serialized virtual DOM
-component functions
-```
-
-Store semantic composition values.
-
-A stored Document can then be:
-
-```text
-re-rendered
-restyled
-migrated
-validated
-AI-edited
-rendered differently
-```
-
----
-
-# 68. Rejected: recursively nested canonical JSON
-
-A recursive export format may be convenient for interoperability.
-
-It should not be canonical internal structure.
-
-Normalized identity makes editor operations and tooling substantially simpler.
-
----
-
-# 69. Rejected: arbitrary CSS as core appearance model
-
-Do not make the system's default authoring API:
-
-```text
-className
-style string
-CSS selector
-```
-
-Appearance should target explicitly exposed Mixins Slots and semantic property groups.
-
----
-
-# 70. Rejected: automatic access to application data
-
-Dropping a ProductGrid onto a page should not magically mean:
-
-```sql
-SELECT * FROM products
-```
-
-A Surface-backed or later Query-backed Block must explicitly state how its configuration becomes existing application requirements.
-
----
-
-# 71. Rejected: Block implies interactivity
-
-A Block is not automatically a stateful component.
-
-Most Blocks should remain pure structural rendering.
-
-State is opt-in through existing Foldkit constructs.
-
----
-
-# 72. Rejected: Builder-specific action implementation
-
-Do not implement:
-
-```ts
-Builder.action("deleteSomething", async () => ...)
-```
-
-Application effects continue to follow:
-
-```text
-Message
-  ↓
-update
-  ↓
-Command
-```
-
-The Builder eventually binds events to existing Message capabilities.
-
----
-
-# 73. Rejected: Builder-specific data fetches
-
-Do not implement:
-
-```ts
-Builder.source({
-  fetch: async ...
-})
-```
-
-Wait for general Foldkit Query semantics and adapt those.
-
----
-
-# 74. Implementation sequence
-
-## Phase 1 — structured Form drafts
-
-Before Composition, prove Form can support a structured custom draft whose Schema is not one of:
-
-```text
-string
-boolean
-string[]
-nested rows
-```
-
-Acceptance case:
-
-```text
-one Form key holds a small structured JSON value
-a custom renderer edits it
-fill works
-partial works
-submit works
-resume works
-CMS saves its Model
-```
-
-Do not mention page building in the primitive if the generalization is clean.
-
----
-
-## Phase 2 — `foldkit-composition` core
-
-Implement:
-
-```text
-Block
-Region
-Content capabilities
-Catalog
-Document
-Node
-NodeId
-literal props
-Document Schema
-validation
-inspect
-```
-
-No visual editor yet.
-
-Build Documents by hand in tests.
-
-Render a basic document with a test interpreter.
-
----
-
-## Phase 3 — Operations
-
-Add:
-
-```text
-Insert
-Remove
-Move
-Duplicate
-SetProp
-```
-
-and:
-
-```ts
-Composition.apply
-```
-
-Tests should prove:
-
-```text
-stable Node IDs
-Region constraints
-no cycles
-correct reorder semantics
-deterministic results
-```
-
----
-
-## Phase 4 — Foldkit renderer
-
-Render:
-
-```text
-Hero
-Text
-Image
-Columns
-Button
-```
-
-through ordinary Foldkit views.
-
-No editor chrome yet.
-
-Use the same renderer in a normal application route.
-
----
-
-## Phase 5 — Form adapter
-
-Implement:
-
-```text
-Composition Input kind
-Form renderer adapter
-```
-
-A crude interface with:
-
-```text
-Add Hero
-Delete selected
-Move up/down
-edit props
-```
-
-is enough.
-
-Prove the Document can be edited entirely through normal Form Messages.
-
----
-
-## Phase 6 — CMS proof
-
-Add Page to `examples/cms`.
-
-Demonstrate:
-
-```text
-create page
-add blocks
-autosave
-reload
-resume draft
-preview through application route
-publish
-visitor sees page
-edit again
-revision exists
-restore revision
-schedule page
-conflicting author
-```
-
-The Page Builder itself should add no CMS-specific state during this phase.
-
----
-
-## Phase 7 — `foldkit-builder`
-
-Build the actual visual editing Bundle:
-
-```text
-canvas
-selection
-layers
-insert palette
-inspector
-drag/drop
-viewport
-undo/redo
-```
-
-It emits Composition Operations.
-
-The Form remains Document owner.
-
----
-
-## Phase 8 — Mixins appearance integration
-
-Add:
-
-```text
-author-styleable Slot declarations
-appearance descriptors
-inspector controls
-Style compilation
-```
-
-Prove protected/hidden Mixins rules still apply.
-
----
-
-## Phase 9 — Surface Blocks
-
-Adapt one real feature:
-
-```text
-ProductGrid
-```
-
-or another small Surface.
-
-Prove that:
-
-```text
-Block config
-    → Surface params
-
-Surface still owns reads/Messages
-Composition owns only placement
-```
-
----
-
-## Phase 10 — AI operations
-
-Expose Catalog and Composition Operations to `foldkit-agent`.
-
-Prove:
-
-```text
-"Add a hero above the feature grid"
-```
-
-results in valid Operations, not raw JSON replacement.
-
----
-
-# 75. Tests that should exist before declaring the model stable
-
-The design should be exercised against difficult cases:
-
-```text
-nested columns
-empty Regions
-required one Region
-moving between compatible Regions
-moving to incompatible Region
-duplicating a subtree
-deleting a subtree
-cyclic malformed input
-unknown Block
-Block prop schema evolution
-renamed Block
-deep page
-1000 nodes
-undo after move
-CMS restore of older Document
-preview of partially edited page
-AI operation rejected by Region constraint
-Surface Block beside static Block
-React Block beside Foldkit Block
-```
-
----
-
-# 76. Important open questions
-
-The first implementation should deliberately answer these through prototypes rather than abstract debate:
-
-```text
-What exact Form API supports structured Draft types cleanly?
-
-Should Block renderer association live on Block metadata,
-or in a separate renderer registry?
-
-Should `Document.nodes` be Record<NodeId, Node>
-or an ordered map-like encoded structure?
-
-How should Unknown Blocks survive decoding and migration?
-
-Should Region constraints use a generic capability substrate
-shared with Mixins internally, while preserving separate vocabularies?
-
-What minimum appearance IR compiles naturally to Mixins?
-
-When Query lands, what is the smallest typed Binding IR
-that can point from QueryRef + Selection into a Block prop?
-
-When Composition becomes the second Message-capability consumer,
-what exactly should be extracted from Agent?
-```
-
-None of these require changing the core ownership model.
-
----
-
-# 77. Success criteria
-
-The design is successful if all of these are true.
-
-A developer can declare:
-
-```text
-Block semantics once
-```
-
-and use the same Block in:
-
-```text
-production rendering
-visual editor
-AI editing
-inspection
-validation
-documentation
-```
-
-A Page is:
-
-```text
-an ordinary Entity
-```
-
-whose Document is:
-
-```text
-an ordinary Form field
-```
-
-whose authoring lifecycle is:
-
-```text
-ordinary Cms.editor
-```
-
-whose preview uses:
-
-```text
-ordinary application views and Remote overlay
-```
-
-whose feature Blocks use:
-
-```text
-ordinary Surfaces
-```
-
-whose stateful Blocks eventually use:
-
-```text
-ordinary Bundles
-```
-
-whose appearance uses:
-
-```text
-ordinary Mixins
-```
-
-whose actions eventually dispatch:
-
-```text
-ordinary Messages
-```
-
-and whose external AI editor uses:
-
-```text
-the same Operations as the human editor.
-```
-
 ---
-
-# 78. Final conceptual model
-
-The entire architecture can be summarized as:
-
-```text
-Effect Schema
-    defines valid props and Documents
-
-Block
-    defines compositional meaning
-
-Region
-    defines structural topology
-
-Catalog
-    defines the allowed vocabulary
-
-Document
-    is the persistent composition
-
-Operation
-    describes a semantic edit
-
-Form
-    owns the editable Document draft
-
-Builder
-    owns editor interaction state
-
-CMS
-    owns authoring lifecycle
-
-Renderer
-    interprets Blocks as real views
-
-Surface
-    connects Blocks to application facts
-
-Bundle
-    owns reusable stateful machinery
-
-Mixins
-    owns appearance/customization
-
-Remote
-    owns server facts and preview overlays
 
-Agent
-    gives external actors typed access
-    to the same semantic transitions
-```
+## 1. The decision
 
-Or, more compactly:
+Foldkit Plus gains a general **Composition**: a persistent, typed description of
+which Blocks make up a page, with which props, in which Regions. The visual
+**Builder** is one editor of it.
 
 ```text
 Composition says what the page is.
-
-Builder changes it.
-
-Form owns the change.
-
-CMS saves and publishes it.
-
-Foldkit renders and runs it.
+The Builder changes it, through Operations.
+The Form owns the change: the Builder is the control of one key.
+The CMS saves, revises, schedules and publishes it.
+Foldkit renders it, on the server through foldkit-ssr and in the browser.
 ```
 
-That should be the guiding constraint for every API decision in this feature.
+Nothing here introduces a page store, a page draft, a page revision, a page
+router, a page data source, a page action runtime or a page component framework.
+Each of those already has an owner:
+
+| Concern | Owner |
+| --- | --- |
+| What a page is | `foldkit-composition`: the Document, validated against a Catalog |
+| The editable draft, validation, fill, reset, resume | `foldkit-form`, through the `document` key's control |
+| Selection, drag, panels, undo | `foldkit-builder`, inside that control's Model |
+| Saved drafts, revisions, schedule, publish, audience | `foldkit-cms` and `foldkit-cms-drizzle` |
+| Server facts, preview overlays | `foldkit-remote` |
+| What a feature observes and may cause | `foldkit-surface` |
+| Reusable state machines, lazy code | `foldkit-bundle` |
+| Appearance and element behavior | `foldkit-mixins` |
+| Serving a published page | `foldkit-ssr` |
+| External actors | `foldkit-agent` |
+
+A page is also not only a page. The same Document describes a landing page, a
+structured article, an email layout, a dashboard or a report. That is why the
+substrate is named Composition and the Builder is only one editor of it.
+
+## 2. Mental model
+
+```text
+                         code (deployed)                         data (stored)
+  ┌──────────────────────────────────────────────┐     ┌──────────────────────────┐
+  │ Block      what may exist, its props, Regions │     │ Document                 │
+  │ Catalog    the Blocks one context allows      │◄───►│   roots: [NodeId]        │
+  │ Renderer   how a Block becomes Html           │     │   nodes: { id: Node }    │
+  │ Migration  how stored data moves forward      │     │ Node: block, props,      │
+  └──────────────────────────────────────────────┘     │       regions, when?     │
+                                                        └────────────┬─────────────┘
+                                                                     │
+   Operation ── Composition.apply(catalog, document, op) ──► Document | Diagnostic
+```
+
+Code decides what *may* exist; data records what *does*. A Document refers to
+code only by name, so it can outlive the code: a Block removed from a
+deployment leaves a node that still loads, still round-trips, and is reported,
+never dropped.
+
+The one equation mirrors Foldkit's `Model + Message → Model`:
+
+```text
+Document + Operation → Document        (pure and deterministic, or a diagnostic
+                                        with no partial result)
+```
+
+The Document is the state. Operations are transitions, not the storage format,
+so the CMS stores a value rather than becoming an event-sourced page store.
+
+## 3. Sixty seconds
+
+A Catalog of two Blocks, one edit, and a check. No view, no editor, no Form.
+This is the shape Phase 1 must make true; every name is a proposal.
+
+```ts
+import { Schema } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId, Region } from 'foldkit-composition'
+
+const Heading = Block.define('Heading', {
+  Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
+  provides: [Content.Flow],
+})
+
+const Section = Block.define('Section', {
+  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+
+const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
+
+const result = Composition.apply(
+  Site,
+  Composition.empty(),
+  Composition.Op.insert({
+    id: NodeId.make('section-1'),
+    block: 'Section',
+    props: { tone: 'plain' },
+    at: Composition.root(0),
+  }),
+)
+// → { document, changed: ['section-1'] } or { diagnostic }
+
+Composition.validate(Site, result.document) // → [] when it fits the Catalog
+```
+
+- `Block.define` and `Catalog.make` describe; they perform no work.
+- `apply` returns a new Document and what it changed, or a diagnostic. It never
+  repairs, never generates an id, and never returns half an edit.
+- `validate` reads and reports. Callers decide whether a diagnostic blocks
+  publishing or shows a placeholder, exactly as `RichText.validate` does.
+
+## 4. Composition and rich text are two documents, on purpose
+
+`foldkit-richtext` already has persistent documents with stable node ids,
+application node kinds with schema-checked props, a Kit as vocabulary,
+validation, migrations and a rendering registry. The obvious question is
+whether a page is a rich-text document with layout nodes. It is not:
+
+| | Rich text | Composition |
+| --- | --- | --- |
+| Address of an edit | a position: node, run, text offset | a node and a Region index |
+| Children | text runs, sometimes blocks | Blocks in named Regions |
+| Editing surface | a `contenteditable` subtree the browser mutates | a canvas the application renders; nothing is `contenteditable` |
+| A unit of content | prose | a configured component |
+
+Forcing layout into text positions, or prose into Regions, makes each worse. So
+they stay two documents, and they meet in one direction: **a Composition holds
+rich text as a prop.**
+
+```ts
+const Text = Block.define('Text', {
+  Props: Schema.Struct({ body: RichText.Document }),
+  kits: { body: ArticleKit },
+  provides: [Content.Flow],
+})
+```
+
+The Text Block names the rich-text Kit its body accepts, so `Composition.validate`
+runs `RichText.validate` on the body and reports its findings by path (§6). On
+the canvas, the selected Text node's body is edited by `foldkit-richtext-dom`'s
+editor Bundle, placed at the selection: one live editor at a time, committing a
+`setProp` when the selection leaves it (§13).
+
+What Composition adopts from rich text, because rich text paid for these lessons:
+
+- **Props are JSON at the codec and schema-checked at the vocabulary.** Rich
+  text's node props are JSON in the document codec and validated by the Kit.
+  That is the tolerant-storage, strict-validation split of §6.
+- **Identity survives migration, enforced rather than hoped for.** Rich text
+  throws when a migration changes an id, and rejects ids duplicated across
+  blocks; its review found the second check missing (R16). Composition's
+  migrations run both checks from the start (§17).
+- **Unknown content is preserved, and promoted rather than rewritten.** A
+  `promoteUnknown` declines when legacy data does not decode.
+- **Vocabulary is not state.** Rich text's §122 kept its rendering registry out
+  of the Model and out of Bundle args, because a Model holds state and a
+  registry holds functions. A Catalog and its Renderer follow the same rule:
+  they are module-level values, never Model fields and never args (§11).
+- **History is snapshots in the Model, bounded, grouped without a clock.** Rich
+  text's `History` is the pattern for §9.
+
+## 5. Blocks, Regions, Content, Catalog
+
+**A Block** is the semantic definition of one composable thing: a stable name,
+a props Schema, its Regions, the Content it provides, and metadata. It contains
+no view.
+
+```ts
+const Hero = Block.define('Hero', {
+  Props: Schema.Struct({
+    eyebrow: Schema.String,
+    title: Schema.String,
+    align: Schema.Literals(['start', 'center']),
+  }),
+  regions: { actions: Region.many({ accepts: [Content.Interactive], max: 3 }) },
+  provides: [Content.Section],
+}).pipe(Block.annotate(Palette.category('Marketing')))
+```
+
+- **The name is the persisted identity.** Renaming a Block is a content
+  migration (§17), never a refactor.
+- **Props are Effect Schema, and nothing else.** One schema drives decoding,
+  inspector controls, agent tool input and documentation. Meaning and editing
+  hints are `foldkit-metadata` annotations, as they are on an Entity, owned by
+  the package that reads them. Block core knows no annotation's meaning.
+- **A Block may name an input per prop** for the inspector:
+  `Block.inputs({ title: Input.multiline() })`, the same renderer-neutral
+  `Input` control data `foldkit-form` resolves (§12).
+
+**A Region** is a persistent structural position: `Region.one({ accepts, optional? })`
+or `Region.many({ accepts, min?, max? })`.
+
+**Content capabilities** decide what a Region accepts, so a Region written
+today accepts a Block written next year. Each is a value, not a string, so two
+libraries' `Interactive` cannot collide:
+
+```ts
+Content.Section, Content.Flow, Content.Inline, Content.Interactive, Content.Media, Content.Data
+const Pricing = Content.define('Pricing') // an application's own
+```
+
+A Region accepts a Block when the Block provides any capability the Region
+lists. The shipped vocabulary stays that small.
+
+**Regions are not Mixins Slots, and Content capabilities are not Mixins
+capabilities.** A Slot is a rendered point where Style or Behavior attaches; a
+Region is a stored position where a Block is placed. A Hero has one Region,
+`actions`, and perhaps four Slots, one of them the element the Region renders
+into. The two contracts share no type, and a Renderer maps one to the other.
+That keeps DOM extension points from turning into content structure.
+
+**A Catalog** is the vocabulary of one context: its Blocks, which Content may be
+a root, the context its conditions read (§16), and the actions its Documents may
+reference (§20).
+
+```ts
+const Site = Catalog.make({ blocks: [Hero, Section, Text, Image, Button], roots: [Content.Section] })
+```
+
+It answers which Blocks exist, what a name resolves to, whether a Block may go
+in a Region, and what a Block's props are. It is not an application registry:
+queries, routes, auth, services and forms do not go in it. A Block that needs
+data declares that in its own code (§15). Two Blocks with one name in one
+Catalog throw when the Catalog is made.
+
+## 6. The Document, and its two schemas
+
+```ts
+interface Document {
+  readonly format: 1                                     // the codec's own version
+  readonly roots: ReadonlyArray<NodeId>
+  readonly nodes: Readonly<Record<NodeId, Node>>
+}
+
+interface Node {
+  readonly block: string                                 // a name, resolved by a Catalog
+  readonly props: Readonly<Record<string, Json>>
+  readonly regions: Readonly<Record<string, ReadonlyArray<NodeId>>>
+  readonly when?: Condition                              // §16
+  readonly appearance?: Appearance                       // §18
+  readonly actions?: Readonly<Record<string, ActionRef>> // §20
+}
+```
+
+Decisions:
+
+- **Normalized, keyed by id.** Order lives only in `roots` and in each Region's
+  array. A node does not also store its own id, so an id and its key cannot
+  disagree. `Link.collectionById` now checks that invariant at runtime; here it
+  holds by construction.
+- **Exactly one parent.** A node appears once, in `roots` or in one Region's
+  array. Sharing is a Composite Block (§21), never a second parent. The parent
+  index is derived by `Composition.index(document)`, pure and memoized per
+  Document value, and never stored.
+- **Every field is reserved now.** `when`, `appearance` and `actions` exist in
+  the codec from `format: 1` although Phases 1 to 3 write none, so the phases
+  that add them need no format migration.
+- **`format` is the codec's version, not the Catalog's.** A Catalog changes
+  through named migrations (§17), as rich text's vocabulary does.
+
+**Two schemas, never one.** This is the correction that matters most.
+
+```ts
+Composition.Document       // tolerant: any well-formed Document, any Block name,
+                           // props as JSON. What is stored, read and revised.
+Composition.valid(Site)    // strict: a Schema check that runs `validate` against
+                           // a Catalog. What an input must satisfy to publish.
+```
+
+The Page Entity stores the tolerant one, so any row reads, any revision
+restores, and an unknown Block survives. The page's operation input checks the
+strict one, so nothing that does not fit the deployed Catalog is published:
+
+```ts
+const Page = Entity.define('Page', Schema.Struct({
+  id: PageId,
+  title: Schema.String.check(Schema.isMinLength(1)),
+  slug: Schema.String,
+  document: Composition.Document,
+  publishedAt: Schema.NullOr(Schema.String),
+})).pipe(Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }))
+
+const PageInput = Entity.input(Page, Schema.Struct({
+  title: Page.fields.title.schema,
+  slug: Page.fields.slug.schema,
+  document: Composition.Document.check(Composition.valid(Site)),
+}))
+```
+
+A saved draft may be invalid; the CMS already keeps a draft that does not decode
+through the form's `partial`. Only a publish must be valid. In the database the
+column is JSON, read and written only through the tolerant codec.
+
+**Validation** returns diagnostics, never a boolean:
+
+```text
+composition:missing-node       a root or Region names an id with no node
+composition:orphan             a node no root or Region reaches
+composition:second-parent      a node reached twice
+composition:cycle
+composition:unknown-block      a name the Catalog does not have (preserved, not dropped)
+composition:invalid-props      the Block's schema refused them, with the Schema issue
+composition:unknown-region
+composition:region-cardinality
+composition:region-rejects     a child whose Content the Region does not accept
+composition:root-rejects
+composition:unsafe-url         §22
+composition:unknown-action     §20
+composition:unknown-context    §16
+composition:unknown-token      §18
+composition:nested             a rich-text prop's own RichText.validate findings, by path
+```
+
+## 7. Operations
+
+Operations are Schema-backed, serializable data: what an agent sends, what a
+keyboard command produces, and what Sync might one day carry.
+
+```text
+insert         { id, block, props, at }             a new node at a position
+insertTree     { nodes: { id: Node }, root, at }    a subtree: a Pattern, a paste
+remove         { id }                               the node and its subtree
+move           { id, to }                           keeps every id
+duplicate      { id, ids: { old: new }, at }        the subtree, with its new ids given
+setProp        { id, prop, value }                  one prop, decoded against the Block
+unsetProp      { id, prop }                         only an optional prop
+setWhen        { id, when | null }
+setAppearance  { id, appearance | null }
+setAction      { id, name, action | null }
+batch          { ops }                              all or nothing
+```
+
+`at` and `to` are positions, `Composition.root(index)` or
+`Composition.region(parentId, region, index)`. A position is resolved against
+the Document it is applied to, so a `move` within one array uses the index after
+removal. The docs state that once, and tests pin both ends of an array.
+
+`apply` checks against the Catalog as it goes: a Region's `accepts` and `max`, a
+prop's schema, and a cycle a `move` would create. An Operation that would leave
+the Document invalid for a reason the Operation caused is refused with that
+diagnostic. An Operation on a Document that is already invalid somewhere else,
+such as an unknown Block in another section, is allowed, because an author must
+be able to keep working around content the deployment no longer knows.
+
+## 8. Ids are minted by the caller
+
+`apply` is pure, so it cannot mint ids, and an Operation that did would not
+replay. Every id an Operation creates is in the Operation: `insert` carries
+`id`, `insertTree` carries every node's id, and `duplicate` carries the whole
+old-to-new map, refused unless it covers the subtree exactly.
+
+The Builder mints ids in a Command (`Composition.mint(count)`, random, answering
+with a Message), so `update` stays pure and a replay reproduces the result. An
+agent may send its own ids; `apply` refuses one already in the Document
+(`composition:id-taken`). A Pattern or a paste is re-keyed through
+`Composition.rekey(tree, ids)` before it is inserted, so two pastes of one
+clipboard never collide.
+
+## 9. History
+
+Undo is interaction state. It is kept beside the Document in the Builder's
+control Model (§11) and committed in the **same transition** as the edit it
+records, so the two cannot disagree. The pattern is rich text's `History`:
+
+- **Snapshots, not inverse Operations.** A Document is normalized and shares
+  structure, so a snapshot costs roughly the changed nodes. A snapshot cannot be
+  applied to the wrong Document; an inverse Operation can.
+- **Grouped without a clock.** Consecutive `setProp`s of one prop of one node
+  are one step, so typing a title is one undo. Every structural Operation stands
+  alone.
+- **Bounded**, at 200 steps by default. A new edit after an undo clears redo.
+- **Cleared whenever the Document is replaced from outside** the Builder: a
+  fill, a reset, a restored revision, a resolved conflict. This is the rule the
+  first draft was missing, and it is enforced by `Input.bundle`'s `fill` (§11),
+  not left to each application.
+- **An agent's edit is undoable,** because it arrives as the same Message a
+  human's does.
+
+## 10. Rendering
+
+A Renderer turns a Block into ordinary `Html` with the builder it is given. It
+adds no reconciler, no component runtime, and no per-node state.
+
+```ts
+import { Renderer } from 'foldkit-composition/foldkit'
+import { renderDocument } from 'foldkit-richtext-dom/view'
+
+const SiteRenderer = Renderer.make(Site, {
+  Hero: ({ props, regions, h }) => HeroView({ ...props, actions: regions.actions }, h),
+  Section: ({ props, regions, h }) =>
+    h.section([h.DataAttribute('tone', props.tone)], regions.body),
+  Text: ({ props }) => renderDocument(props.body, ArticleRendering),
+  // Image, Button …
+})
+
+Renderer.render(SiteRenderer, document, h) // Html
+```
+
+- **Totality is typed.** `Renderer.make` requires an entry for every Block in
+  the Catalog, so a Block added without a view is a type error, not a blank on a
+  live page.
+- **An unknown or invalid node renders a placeholder,** empty in production and
+  labeled in edit mode. Rendering never throws on stored data.
+- **Production and the canvas use the same Renderer.** There is no
+  `HeroBuilderPreview`. Edit mode adds a marker attribute to each node's root
+  for hit testing, and nothing else (§13).
+- **The builder is a parameter,** so the same Renderer runs under Foldkit's
+  inert builder inside `SSR.static` (§14).
+- **It lives in a subpath,** `foldkit-composition/foldkit`, with `foldkit` an
+  optional peer, the way `foldkit-primitives/interaction` takes
+  `foldkit-mixins`. The core stays pure, and a server-only validator installs no
+  view code.
+
+A React component can be a Block's view through `foldkit-react`'s islands. The
+Document is unchanged; only that Renderer entry differs.
+
+## 11. The Builder is a Form control: `Input.bundle`
+
+This is the change `foldkit-form` needs, and it is the change the rich-text
+design specifies in its §44. That design's spike in `examples/form` (a color
+picker with a popover, a Command, a Subscription and a Resource) recorded what
+Form cannot carry today:
+
+```text
+a draft that is a child Model     Draft is string | boolean | string[]
+the control's own Messages        the form's Message union is fixed
+the control's Commands            lifted only for validation and submit
+the control's Subscriptions       none
+the control's Resources           none
+fill / partial / settled          expressed over drafts, not over a child Model
+```
+
+One primitive serves both consumers:
+
+```ts
+const DocumentInput = Input.bundle('Composition', {
+  bundle: PageBuilder,                            // an ordinary Bundle
+  value: model => model.document,                 // what the key holds, validates and submits
+  fill: (model, document) => Builder.replace(model, document), // clears history and selection
+  settled: model => Builder.settle(model),        // drag, hover and pending mints cleared
+  saved: model => Builder.saved(model),           // what a resumed draft keeps
+})
+
+const PageForm = Form.make('PageForm', PageInput, {
+  inputs: { slug: Cms.slug('title'), document: DocumentInput },
+})
+```
+
+What follows from it:
+
+- **The Builder's Messages are the control's Messages.** An edit is
+  `Applied({ op })`, a few bytes, not a `Changed` carrying a whole Document.
+  That removes the per-keystroke copy the first draft's bridge would have made,
+  and the bridge itself.
+- **`authoredChanged` reads `value`,** comparing the Document by reference
+  first. CMS autosave already consumes `authoredChanged`, so a selection change
+  never triggers a save.
+- **Validation still runs on `value(model)`,** so the key's strict schema (§6)
+  and the form's checks keep their meaning.
+- **Ownership stays single.** The Form owns the key; the key's control Model
+  holds the Document and the editor state beside it; nothing else holds either.
+- **Outside a Form,** the same Bundle is placed with `Bundle.withChild`, and its
+  parent owns the Model. Nothing in the Builder knows about Form.
+- **The Catalog and Renderer are in neither the Model nor the args** (§4).
+  `PageBuilder` closes over them where it is defined:
+  `Builder.make('PageBuilder', Site, SiteRenderer)`.
+
+Constraints known from the rich-text spike, and their answers here:
+`Bundle.withEach` refuses Managed Resources, so a Builder inside a repeated form
+row is unsupported, and `Form.make` says so when it resolves one. A resumed
+Form Model restores the control through `saved`, which keeps the Document and
+drops history, drag and pending mints (§30 asks whether it keeps the
+selection).
+
+## 12. The Builder: headless, then drawn
+
+Following `foldkit-form` and `foldkit-mixins-form`, the Builder is split in two.
+
+**`foldkit-builder`** is headless: the Bundle, its Model, its Messages, and pure
+helpers.
+
+```ts
+interface BuilderModel {
+  readonly document: Document
+  readonly selected: ReadonlyArray<NodeId>
+  readonly anchor: NodeId | null                 // for a Shift range in Layers
+  readonly hovered: NodeId | null
+  readonly panel: 'insert' | 'layers' | 'properties'
+  readonly viewport: 'wide' | 'medium' | 'narrow'
+  readonly drag: DragState | null
+  readonly history: History
+  readonly pendingMint: PendingMint | null
+  readonly editingText: { node: NodeId; prop: string } | null // §13
+}
+```
+
+Its Messages include `Selected`, `Hovered`, `DragStarted`, `DragMoved`,
+`Dropped`, `Applied({ op })`, `Undid`, `Redid`, `Minted` and `PanelChosen`.
+Keyboard commands produce the same Operations as pointer ones: Alt with an
+arrow moves, Mod+D duplicates, Delete removes.
+
+**`foldkit-mixins-builder`** draws it, every element a Mixins Slot, with the
+interaction primitives that already exist rather than new ones:
+
+| Part | Built from |
+| --- | --- |
+| Layers tree | `RovingTabindex` and `Selection` (with `Ranged`) from `foldkit-primitives/interaction`, with `aria-level` per depth |
+| Insert palette | `Typeahead` for search and `DismissLayer` for the popover, grouped by the `Palette.category` annotation |
+| Drag and drop | `Move` for pointer capture; drop targets from `Builder.dropTargets(document, catalog, geometry)`, a pure function |
+| Keyboard reorder | the same Operations as the pointer path, announced through `LiveAnnounce` ("Moved Hero to position 2 of 3") |
+| Inspector | the Block's props as `Input` controls, drawn by `foldkit-mixins-form`'s renderers, so a custom kind such as `Cents` works unchanged |
+| Canvas | the production Renderer inside a frame at the chosen viewport width, with a selection overlay |
+| Focus | `FocusScope` in the inspector and palette, returning focus to the node on close |
+
+The inspector reuses Form's control vocabulary without becoming a Form. It
+resolves an `Input` control per prop the way `Form.make` does: `Block.inputs`
+first, then metadata, then the schema's shape, and a throw naming the prop when
+none applies. Each change becomes a `setProp`.
+
+The Builder is placed through `Bundle.lazy`, so the editor's code loads only for
+authors. A visitor's page never includes it.
+
+## 13. The canvas
+
+The canvas renders the real Renderer and learns geometry through Mounts, not a
+second renderer:
+
+- In edit mode, each node's root element carries
+  `data-composition-node="<id>"`. That is the only change edit mode makes to a
+  Block's output.
+- One Mount on the canvas reports hover by walking
+  `closest('[data-composition-node]')`, and measures the selected node and the
+  current drop candidates with `getBoundingClientRect`, answering with a
+  Message. Geometry is transient and never stored in the Document.
+- A Block whose view has no single root element gets a `display: contents`
+  wrapper in edit mode only, so hit testing always has an element.
+- **Rich text on the canvas.** Double-clicking a Text node sets `editingText`
+  and places `foldkit-richtext-dom`'s editor Bundle on that node's host, with
+  the Text Block's rendering registry through `editorAt(hostId, rendering)`.
+  Leaving the node commits one `setProp` of the body. Exactly one rich-text
+  editor is live at a time, so no per-node editor state exists.
+
+## 14. Serving a published page
+
+A visitor's page is ordinary Foldkit rendered through `foldkit-ssr`, and a
+composed page is its best case:
+
+- **Static Blocks render inside `SSR.static`.** A region no Message changes
+  renders once on the server, with the inert builder, and the browser adopts its
+  markup without the data it came from. So for a page of static Blocks, **the
+  Document is not sent to the browser at all**, only the markup.
+- **Interactive Blocks** (§15, §19) are the part the browser owns. They are in
+  the resume plan like any other feature, and the plan check still verifies what
+  the browser reads.
+- **Code for interactive Blocks** loads through `Bundle.lazy`, listed in the
+  SSR configuration's `lazy`, so a Catalog of fifty Blocks does not put fifty
+  views in the boot chunk.
+- **Preview is the application's own route,** fed by the CMS preview overlay
+  (`Cms.content`'s `preview`), so an author sees what a visitor will.
+
+## 15. Data: Blocks name queries, Documents do not
+
+`foldkit-entity` now has `Expr` and `Query`, and `foldkit-remote` has
+`Query.define`, whose body a server compiles. Composition consumes them in code
+and never persists one. A Document holds a Block's props; the **Block** says how
+its props become a query's input.
+
+```ts
+const ProductGrid = Block.fromQuery(ProductsByCategory, {
+  Props: Schema.Struct({ category: CategoryId, columns: Schema.Literals([2, 3, 4]) }),
+  input: props => ({ category: props.category }),
+  selection: ProductCard, // an Entity.select
+  provides: [Content.Data],
+})
+```
+
+- The author chooses a category; the author never writes a query. Dropping a
+  grid on a page never means reading every product.
+- The read goes through Remote like any other: cached, normalized, authorized on
+  the server, and carried to the browser by `Remote.resume` under SSR.
+- **Surface-backed Blocks** do the same for a whole feature:
+  `Block.fromSurface(CartSummary, { Props, params: props => ({ … }) })`.
+  Surfaces already take `params`, so the Block chooses where the feature appears
+  and with which params, and the Surface still owns what it reads and which
+  Messages it may cause.
+- The first draft's `Value<A>` (literal, binding, computed) is dropped. A prop
+  is a literal; a binding is a Block written in code. Nothing executable and
+  nothing query-like is left in stored data.
+- **Repetition,** a template per row, is a Query-backed Block whose Renderer
+  maps rows. A Document-level `Repeat` waits for a case a Block cannot express.
+
+## 16. Conditions
+
+`when` hides a node unless a condition over the page's **context** holds.
+Context is a Schema the Catalog declares, and the application supplies its
+values, such as audience, locale, a feature flag or a date.
+
+```ts
+const Site = Catalog.make({
+  blocks,
+  roots: [Content.Section],
+  context: Schema.Struct({
+    audience: Schema.Literals(['guest', 'member']),
+    locale: Schema.String,
+  }),
+})
+```
+
+A Condition is a small data IR rather than `foldkit-entity`'s `Expr` itself,
+because an `Expr`'s inputs carry Schemas and are built in code, while a
+Condition is stored. It follows `Expr`'s semantics deliberately:
+
+- the operations are `eq`, `isNull`, `isNotNull` and `contains`, which is
+  case-insensitive and ASCII-folded, as `Expr.contains` defines it;
+- a list is a conjunction, and there is no `not` and no branch;
+- a key the context does not declare, or a value of the wrong type, is a
+  diagnostic when validated (`composition:unknown-context`), not a node that
+  silently never shows.
+
+**Viewport is not a Condition.** The server cannot know the viewport, so a node
+hidden on narrow screens is an appearance (§18), compiled to a
+`Style.responsive` rule. The SSR markup and the browser's then agree.
+
+**`when` is presentation, not authorization.** A member-only section hidden from
+guests is still in the Document a guest could fetch. Content a guest must not
+receive belongs behind the CMS audience boundary or a server-authorized read,
+and the docs say so where `when` is introduced.
+
+## 17. Migrations and unknown Blocks
+
+Migrations follow `RichText.migrate`, and are enforced the same way:
+
+```ts
+Composition.migrate(document, [
+  Composition.renameBlock('OldHero', 'Hero'),
+  Composition.migration('AlignmentToAlign', 'Hero', node =>
+    'alignment' in node.props
+      ? { ...node, props: renameKey(node.props, 'alignment', 'align') }
+      : undefined,
+  ),
+  Composition.promoteUnknown('LegacyEmbed', 'Embed', EmbedProps),
+])
+// → { document, applied: [{ name, node }], unused: ['…'] }
+```
+
+- **Named and chained.** The list order is the chain; a later migration sees
+  what an earlier one produced.
+- **Run at a boundary the application chooses,** such as load, publish or an
+  explicit upgrade, and never on every read.
+- **Identity survives.** A migration that changes an id, or introduces one
+  already present, throws.
+- **The result is still content.** It is decoded and validated after each
+  changed pass.
+- **Declining is allowed.** Returning `undefined` keeps the node, which is what
+  `promoteUnknown` does when legacy props do not decode.
+
+**An unknown Block** is a node whose name the Catalog lacks. It loads,
+round-trips unchanged through every Operation that does not touch it, renders a
+placeholder, is labeled in the Layers panel ("This Block is not in this version
+of the application"), can be moved or removed, and blocks publishing through the
+strict schema. It is never dropped.
+
+## 18. Appearance
+
+Visual builders expose spacing, color, type and alignment. Foldkit already has a
+typed system for all of it, so the Document stores **choices within that
+system**, not CSS:
+
+- **Recipe axes.** A Block's author declares its author-styleable Slots as a
+  `Style.recipeFor(Slots)` recipe whose variant axes are the choices, such as
+  `{ tone: 'accent', space: 'roomy' }`. The Document stores the selection, a
+  record of literals, and the inspector draws each axis as a `Select`.
+- **Tokens.** Where an axis would have one variant per token, the choice is a
+  token name checked against the theme, such as `{ gap: 'space.m' }`, resolved
+  through `Theme.ref(theme)`. A missing token is `composition:unknown-token`,
+  not a broken `var()`.
+- **Responsive choices** are keyed by the theme's breakpoint names and compile to
+  `Style.responsive`, which is also how viewport visibility works.
+
+```ts
+const t = Theme.ref(theme)
+
+const HeroLook = Appearance.forBlock(Hero, HeroSlots, Style.recipeFor(HeroSlots)({
+  base: { root: Style.class('hero') },
+  variants: {
+    tone: { plain: {}, accent: { root: Style.inline({ background: t.accent.base }) } },
+    space: {
+      snug: { root: Style.inline({ paddingBlock: t.space.s }) },
+      roomy: { root: Style.inline({ paddingBlock: t.space.xl }) },
+    },
+  },
+  defaults: { tone: 'plain', space: 'snug' },
+}))
+```
+
+The Renderer compiles a node's stored selection with that recipe and attaches it
+through `Style.forSlots`, in the `app` layer of `Layers.standard`. Every Mixins
+guarantee holds: hidden Slots stay unreachable, a property a Behavior owns
+conflicts with an author's choice (`mixins:style-property-conflict`) rather than
+silently losing, and tokens stay typed. Arbitrary CSS, selectors, class names and
+`!important` are not in the Document. An application that wants an escape hatch
+writes a Block for it, visibly outside the typed path.
+
+**Layout Blocks are Mixins layouts.** A `Columns` Block's view is
+`Layout.switcher` or `Layout.sidebar`, and its axes are that layout's
+parameters.
+
+## 19. Stateful Blocks
+
+Most Blocks are pure rendering. A Block that truly has state, such as a carousel,
+an accordion or a configurator, is backed by an ordinary Bundle:
+
+```ts
+const Carousel = Block.fromBundle(CarouselBundle, {
+  Props: CarouselProps,
+  args: props => ({ interval: props.interval }),
+})
+```
+
+The page's parent places those Bundles with `Bundle.withEach`, keyed by NodeId,
+for the stateful nodes `Composition.statefulNodes(Site, document)` lists. Each
+instance is an ordinary child Model in the application's Model. There is no
+`nodeState: Record<NodeId, unknown>` anywhere. The constraint that `withEach`
+refuses Managed Resources applies, and each such Block documents it.
+
+## 20. Actions
+
+A Button must eventually do something. The rule from `foldkit-agent` holds: a
+capability ends in an existing Message.
+
+The shared shape is extracted now, because Composition is its second consumer,
+and it goes into `foldkit-surface`, which already owns what a consumer may cause:
+
+```ts
+const AddToCart = Action.define({
+  name: 'addToCart',
+  description: 'Add a product to the cart',
+  Input: Schema.Struct({ productId: ProductId }),
+  toMessage: input => Message.AddedToCart(input),
+})
+```
+
+`Agent.variant` is re-expressed over it without changing its public API. A
+Catalog lists the actions its Documents may reference, and a node stores only
+`{ action: 'addToCart', input: { productId: '…' } }`, as literals. The Renderer
+dispatches `toMessage(input)` through the Block's handler. A name the Catalog
+lacks is `composition:unknown-action`. No stored value executes, and `update`
+stays the only place a Message has effects.
+
+## 21. Patterns, Composite Blocks, templates
+
+- **A Pattern** is a stored subtree inserted by copy (`insertTree`, re-keyed).
+  After insertion its nodes are independent.
+- **A Composite Block** is a Document exposed as a Block, with some inner props
+  surfaced as its own. It is how content is shared between pages, and why §6
+  never needs a second parent. It is deferred until after Phase 7.
+- **A template** is a function returning a Document. Creating from one copies it.
+
+## 22. Security
+
+A Document is untrusted input, possibly written by a less-trusted author or an
+agent. The invariants:
+
+- Block implementations come from deployed code. A Document names Blocks; it
+  never carries code, JSX, HTML or selectors.
+- Props decode through the Block's schema before any Renderer sees them.
+- **URLs are a type, not a string.** `Composition.Url` accepts `https:`, `http:`,
+  `mailto:`, `tel:` and relative URLs, and refuses `javascript:`, `data:` and
+  `vbscript:` after the whitespace and case folding browsers apply. The Image
+  and Link Blocks use it, and so should rich text's Link mark renderer. Rich
+  text's registry already refuses malformed tag and attribute names; this is the
+  same class of rule for values.
+- Actions reference only Catalog-listed actions, with schema-checked input.
+- Data Blocks read only through Remote, which the server authorizes.
+- `when` hides; it does not protect (§16).
+- An agent's Operation passes through the same `apply` and `validate` as a
+  human's, so a hallucinated Block, prop or position is a diagnostic it is
+  shown, never a change.
+
+## 23. Agents
+
+`foldkit-agent` exposes the Builder's own Message, so an agent edits through the
+same path a human does:
+
+```ts
+const PageAgent = AgentBuilder.make({
+  context: PageOutline, // a Surface projecting Composition.describe(document)
+  messages: AgentBuilder.expose(BuilderMessage, {
+    Applied: Agent.variant({
+      name: 'edit_page',
+      description: 'Insert, move, remove or configure blocks on the page',
+      input: Composition.operationSchema(Site), // Block names and props from the Catalog
+      toMessage: op => ({ op }),
+    }),
+  }),
+})
+```
+
+- `operationSchema(Site)` is generated from the Catalog, with Block names as
+  literals and each Block's props schema, so the tool's own input schema already
+  rejects an unknown Block before `apply` sees it.
+- The agent mints its own ids (§8), and a taken id is refused.
+- A Block's description for an agent is a `foldkit-metadata` annotation the
+  application attaches; Composition core knows no annotation's meaning.
+- The edit is undoable, autosaved and revisioned like any other.
+
+## 24. Everything else, briefly
+
+| Package | Role here |
+| --- | --- |
+| `foldkit-crud` | The page list is `Crud.list`; nothing about pages is special there |
+| `foldkit-mirror` | The selected node and panel can mirror into the URL with `Mirror.url`, so a link opens the editor on a Block |
+| `foldkit-sync` | Later. Operations are good Sync payloads because they carry intent. v1 keeps CMS conflict detection, which is single-author |
+| `foldkit-durable` | Not involved. CMS revisions stay CMS revisions |
+| `foldkit-react-codegen` | Later, as an interpreter: a Document and a Catalog of Foldkit views compiled to static React |
+| `foldkit-metadata` | Palette category and icon, agent description and docs, as annotations owned by the package that reads them |
+
+## 25. Budgets
+
+"A deep page of 1,000 nodes" becomes numbers, measured by a benchmark in
+`packages/composition/bench`, as `packages/richtext/bench` measures rich text.
+They are targets for Phase 2 to confirm or revise, on the CI runner:
+
+| On a 1,000-node Document | Target |
+| --- | --- |
+| `apply` of one `setProp` or `move` | under 1 ms, touching only the changed nodes |
+| `validate` of the whole Document | under 10 ms |
+| `Composition.index` | under 5 ms, computed once per Document value |
+| Re-rendering the Layers tree after one edit | only the changed rows, by `createKeyedLazy` per node |
+| An undo snapshot | proportional to the changed nodes, not to the page |
+
+A result that misses a target is recorded here with its number, as rich text's
+R9 remainder is, rather than silently accepted.
+
+## 26. Packages
+
+```text
+packages/
+  composition/        pure: Block, Region, Content, Catalog, Document, Operations,
+                      apply, validate, index, migrate, Condition, Url, describe
+    ./foldkit         subpath: Renderer and Appearance compilation
+                      (optional peers foldkit and foldkit-mixins)
+    ./richtext        subpath: the Text Block and nested validation
+                      (optional peer foldkit-richtext)
+  builder/            the headless Builder Bundle and its Input.bundle control
+  mixins-builder/     the Builder's views, every element a Slot
+```
+
+`foldkit-composition` depends on `effect` and `foldkit-metadata` only.
+`foldkit-builder` depends on `foldkit-composition`, `foldkit-bundle` and
+`foldkit-form`. `foldkit-mixins-builder` adds `foldkit-mixins`,
+`foldkit-mixins-form` and `foldkit-primitives`.
+
+Not created: `page`, `page-builder-runtime`, `builder-cms`, `builder-remote`,
+`builder-storage`. An integration starts as a small adapter in its closest
+consumer and becomes a package only when a real boundary appears.
+
+## 27. Rejected
+
+- **A page builder as its own state framework.** A `createPageBuilder({ state,
+  actions, dataSources, components, routes, persistence })` is the parallel
+  architecture this repository exists to avoid.
+- **Storing JSX, HTML, virtual DOM or functions.** Stored data must re-render,
+  restyle, migrate, validate and be edited by an agent.
+- **Nested JSON as the canonical form.** It may be an export format; canonical
+  storage is normalized for identity and cheap edits.
+- **One schema for storage and validity.** It makes unknown content unreadable
+  (§6).
+- **The Builder outside Form, bridged by whole-Document `Changed` Messages**
+  (§11).
+- **Inverse-Operation undo** (§9).
+- **Stored bindings and expressions.** Code names data; data names choices
+  (§15, §16).
+- **Arbitrary CSS as the appearance model** (§18).
+- **A Block implies interactivity.** State is opt-in through a Bundle (§19).
+- **Builder-specific actions or fetches.** Actions end in Messages (§20); data
+  goes through Remote (§15).
+
+## 28. Phases
+
+Each phase ends with its tests green, mutation-checked, its docs written to the
+repository's standard, and the skill reference updated if it adds public API.
+
+**Phase 0: `Input.bundle` in `foldkit-form`.** Shared with the rich-text design's
+§44 and built once for both. Acceptance: the `examples/form` color picker and a
+small structured control each work as a Form key, with fill, reset, partial,
+submit, settled, resume through `saved`, `authoredChanged`, validation on
+`value`, and the control's own Messages, Commands and Subscriptions routed. CMS
+autosaves the color key without knowing its Messages. Nothing in the primitive
+mentions pages.
+
+**Phase 1: the core.** Block, Region, Content, Catalog, the tolerant codec,
+`valid`, `validate` with every diagnostic in §6, `index` and `describe`.
+Documents are built by hand in tests.
+
+**Phase 2: Operations and history.** Every Operation in §7, `apply`, the id rules
+of §8, `rekey`, History (§9), and the benchmark (§25).
+
+**Phase 3: migrations and unknown Blocks.** `migrate`, `renameBlock`, `migration`
+and `promoteUnknown` with the enforced rules, and a restored old revision proving
+an unknown Block survives.
+
+**Phase 4: the Foldkit renderer.** Hero, Section, Text, Image, Button and Columns
+through ordinary views; `Composition.Url`; placeholders; and a published route
+through `foldkit-ssr` with static Blocks in `SSR.static`, proving the Document
+is not in the page's resume envelope.
+
+**Phase 5: the headless Builder as the `document` control.** A crude view (add a
+Hero, select, move up and down, edit props, undo) is enough. It proves a
+Document is edited entirely through the control's Messages, and that a fill
+clears history.
+
+**Phase 6: the CMS proof, in `examples/cms`.** Create a page, add Blocks,
+autosave, reload, resume the draft, preview through the application route,
+publish, see it as a visitor, edit again, find the revision, restore it, schedule
+it, and meet a conflicting author. The Builder adds no CMS state.
+
+**Phase 7: `foldkit-mixins-builder`.** Canvas, Layers, palette, inspector, drag
+and drop, keyboard reorder with announcements, viewport frames, and rich-text
+editing on the canvas, with `A11y.validate` run for each Slot contract.
+
+**Phase 8: appearance.** Recipe axes, token choices, responsive choices, and a
+test that a property a Behavior owns conflicts with an author's choice.
+
+**Phase 9: data and state.** One Query-backed Block, one Surface-backed Block and
+one Bundle-backed Block on one page, served by SSR with the data Block in the
+resume plan.
+
+**Phase 10: actions and agents.** `Action` in `foldkit-surface`, with
+`Agent.variant` re-expressed over it; the Catalog's actions; the `edit_page`
+tool. "Add a hero above the feature grid" produces one valid `insert`, and an
+agent's Block outside the Catalog is refused by the tool's own schema.
+
+**Later, on a concrete need:** Composite Blocks, a Document-level `Repeat`, Sync
+of Operations, and React codegen export.
+
+## 29. Tests that must exist before the model is called stable
+
+```text
+nested Columns three deep                   a move into an incompatible Region, refused
+an empty Region and a required one          a move that would create a cycle, refused
+a duplicated subtree, with its id map       a duplicate whose map misses a node, refused
+a removed subtree                           an insert with a taken id, refused
+malformed input: a cycle, an orphan, a second parent, one id in two Regions
+an unknown Block that loads, moves, round-trips and blocks publishing
+a prop schema evolved by a migration        a migration that changes an id, thrown
+a renamed Block                             an old revision restored with a removed Block
+1,000 nodes within §25's budgets            undo after a move, and undo cleared by a fill
+preview of a partially edited page          a publish refused by the strict schema
+javascript: in an Image src, refused        a when over an undeclared context key, reported
+an agent Operation refused by a Region      a Surface Block beside a static one
+a React Block beside a Foldkit Block        a static page whose envelope has no Document
+```
+
+## 30. Open questions
+
+Each is answered by building, not by debate, and none changes the ownership model.
+
+- Should `Input.bundle`'s `saved` keep the selection across a resume, or is the
+  Document alone enough?
+- When a Block wants a Region's `max` to be configurable, does it belong in the
+  Region or in the Block's props as a refinement?
+- For a large page, should `Composition.describe` give an agent every node's
+  props, or an outline plus reading a node on demand?
+- When `Action` moves into `foldkit-surface`, does `MessageSet` become a set of
+  Actions, or stay separate?
