@@ -5291,6 +5291,21 @@ editing loop through a *prop-carrying* mark, not a snapshot of its markup.
    element, while the editable adapter created a `div` and ignored the entry. All
    three now agree, so a kind is declared once and rendered the same way in each.
 
+## The element is part of the block's shape
+
+`patch` keeps an existing element when the document still says the same runs and
+nested blocks are there, because rebuilding a block is what it exists to avoid. But
+run ids are not the whole shape: a block can keep its identity and every run while
+the element it renders as changes. `RichText.Edit.setNodeProps` does exactly that —
+it re-levels a heading in place, so `h2` becomes `h3` with the same two runs — and a
+declared node kind whose entry changes the tag is the same case, which is what made
+the gap visible once the registry reached the adapter.
+
+So both routes compare the element: `patch` decides to keep a block only when the
+element still is what the block renders as, and `repair` treats a block as drifted
+when it is not. Text, marks, run ids and child ids were already compared; the tag
+now is too, and a rebuilt block takes its runs with it, as any re-render does.
+
 ---
 
 # 122. Getting a renderer to the editor Bundle

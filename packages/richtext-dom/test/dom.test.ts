@@ -279,6 +279,19 @@ describe('patching only what changed', () => {
     expect(toText(after)).toBe('ab!cd\nTitle')
   })
 
+  it('re-renders a block whose element changed, not only whose runs did', () => {
+    const before = mount(document, content())
+    const heading = before.elements.get(id('h')) as HTMLElement
+    expect(heading.tagName.toLowerCase()).toBe('h2')
+    // The heading keeps its identity and both its runs; only its level moved.
+    const result = success(RichText.apply(state(null), [RichText.Edit.setNodeProps(id('h'), 3)]))
+    const after = patch(before, result.state.document, result.changeSet)
+    const demoted = after.elements.get(id('h')) as HTMLElement
+    expect(demoted.tagName.toLowerCase()).toBe('h3')
+    expect(demoted).not.toBe(heading)
+    expect(toText(after)).toBe('abcd\nTitle')
+  })
+
   it('drops elements for identities normalization retires', () => {
     const mergeable = RichText.decodeDocument({
       version: 1,
@@ -335,6 +348,38 @@ describe('repairing a subtree the browser touched', () => {
     expect(toText(after)).toBe('abcd\nTitle')
     expect(after.elements.get(id('h'))).toBe(before.elements.get(id('h')))
     expect(after.elements.get(id('a'))).not.toBe(run)
+  })
+
+  it('rebuilds a block whose element drifted, with nothing else wrong', () => {
+    const before = mount(document, content())
+    const heading = before.elements.get(id('h')) as HTMLElement
+    const raised = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: 'ab', marks: [] },
+            { type: 'Text', id: 'b', text: 'cd', marks: ['Bold', 'Italic'] },
+          ],
+        },
+        {
+          type: 'Heading',
+          id: 'h',
+          level: 3,
+          children: [{ type: 'Text', id: 'c', text: 'Title', marks: [] }],
+        },
+      ],
+    })
+    // The text and the runs are unchanged; only the element the block renders as.
+    const after = repair(before, raised)
+    const demoted = after.elements.get(id('h')) as HTMLElement
+    expect(demoted.tagName.toLowerCase()).toBe('h3')
+    expect(demoted).not.toBe(heading)
+    // Only the drifted block is rebuilt; the paragraph beside it is untouched.
+    expect(after.elements.get(id('a'))).toBe(before.elements.get(id('a')))
+    expect(toText(after)).toBe('abcd\nTitle')
   })
 
   it('drops elements the document no longer knows', () => {

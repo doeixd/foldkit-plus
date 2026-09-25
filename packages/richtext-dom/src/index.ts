@@ -27,6 +27,16 @@ const blockTag = (block: RichText.Block): string => {
   return 'p'
 }
 
+/** The element a block should render as: its entry, or its own type's element. */
+const blockRendering = (
+  rendering: RichText.Rendering,
+  block: RichText.Block,
+): RichText.ElementRendering =>
+  (block.type === 'Node' ? RichText.nodeRendering(rendering, block) : undefined) ?? {
+    tag: blockTag(block),
+    attributes: {},
+  }
+
 /** The element a renderer entry names, with its attributes; children come later. */
 const renderElement = (owner: Document, entry: RichText.ElementRendering): HTMLElement => {
   const element = owner.createElement(entry.tag)
@@ -72,9 +82,7 @@ const renderBlock = (
   // A declared node kind renders as its entry (§121); every other block keeps the
   // tag its own type implies. The id attribute is the interpreter's, so it wins
   // over an entry that names it.
-  const entry = block.type === 'Node' ? RichText.nodeRendering(rendering, block) : undefined
-  const element =
-    entry === undefined ? owner.createElement(blockTag(block)) : renderElement(owner, entry)
+  const element = renderElement(owner, blockRendering(rendering, block))
   element.setAttribute('data-block', block.id)
   if (block.type === 'Unknown') {
     // Preserved content is shown as a diagnostic placeholder, never executed.
@@ -185,8 +193,12 @@ const patchBlocks = (
   for (const [index, block] of blocks.entries()) {
     const existing = elements.get(block.id)
     const nested = block.type === 'Node' && block.blocks !== undefined ? block.blocks : []
+    // A block is kept only when its element and its child list are still what the
+    // document says. The run ids alone are not enough: a heading whose level moved
+    // keeps both while its element changes from `h2` to `h3`.
     const sameStructure =
       existing !== undefined &&
+      existing.tagName.toLowerCase() === blockRendering(rendering, block).tag &&
       sameIds(
         childIds(existing, 'data-run'),
         block.children.map(run => run.id),
@@ -343,8 +355,8 @@ const runMatches = (
  * Recovery, not domain state (§31): makes the subtree match the document again
  * after something outside the semantic pipeline touched it — a cancelled IME
  * composition leaves text the document never had, and a browser extension can
- * mutate anything. Blocks whose rendered text already matches are left alone,
- * so this costs nothing in the normal case and returns the same `EditorDom`
+ * mutate anything. Blocks whose rendered text and element already match are left
+ * alone, so this costs nothing in the normal case and returns the same `EditorDom`
  * when nothing was wrong.
  */
 export const repair = (dom: EditorDom, content: RichText.Document): EditorDom => {
@@ -368,6 +380,7 @@ export const repair = (dom: EditorDom, content: RichText.Document): EditorDom =>
         block.children.every(run => runMatches(elements.get(run.id), dom.rendering, run))
       const shapeMatches =
         element !== undefined &&
+        element.tagName.toLowerCase() === blockRendering(dom.rendering, block).tag &&
         element.textContent === renderedText(block) &&
         marksMatch &&
         sameIds(childIds(element, 'data-run'), runs) &&

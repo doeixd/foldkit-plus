@@ -89,11 +89,14 @@ Read the calls literally:
   chord bindings, checked before the built-in chords.
 - `patch(dom, content, changeSet)` removes the identities the change set removed,
   re-renders the ones it marked dirty, and places inserted or moved elements in
-  document order. Every other element is left alone.
+  document order. Every other element is left alone — but "left alone" is decided
+  against the whole block, not its text: an element that is no longer what its block
+  renders as (a heading re-leveled to `h3`, or a kind whose entry names another tag)
+  is re-rendered rather than kept as the old one.
 - `repair(dom, content)` is recovery, not domain state (§31): it drops anything the
-  subtree holds that the document does not, re-renders blocks whose rendered text
-  drifted, and returns the same `EditorDom` when nothing was wrong. Call it after a
-  cancelled IME.
+  subtree holds that the document does not, re-renders blocks whose rendering
+  drifted (text, marks, or the element itself), and returns the same `EditorDom`
+  when nothing was wrong. Call it after a cancelled IME.
 - `positionToRange` and `rangeToPosition` translate between a semantic `Position`
   and a DOM `Range`. A DOM caret carries no affinity, so mapping back derives it
   (`after` at a run's end, `before` elsewhere) rather than pretending to
