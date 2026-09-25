@@ -8,15 +8,14 @@
  * stay text and no rule claims them.
  */
 import type { InputRule } from 'foldkit-richtext'
-
-const LEVELS = [1, 2, 3, 4, 5, 6] as const
+import { HEADING_LEVELS } from './levels.js'
 
 /**
  * The rule for one level. The hashes and the space that completes them must be the whole
  * text before the caret, which is what puts them at the block's start — the same place
  * Markdown reads a heading marker — and what keeps `see # ` mid-sentence as text.
  */
-const headingRule = (level: (typeof LEVELS)[number]): InputRule => {
+const headingRule = (level: (typeof HEADING_LEVELS)[number]): InputRule => {
   const marker = `${'#'.repeat(level)} `
   return {
     name: `heading-${level}`,
@@ -31,4 +30,6 @@ const headingRule = (level: (typeof LEVELS)[number]): InputRule => {
 }
 
 /** The block markers the standard vocabulary can carry out, one rule per heading level. */
-export const markdownInputRules: ReadonlyArray<InputRule> = LEVELS.map(level => headingRule(level))
+export const markdownInputRules: ReadonlyArray<InputRule> = HEADING_LEVELS.map(level =>
+  headingRule(level),
+)

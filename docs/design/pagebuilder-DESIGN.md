@@ -573,7 +573,7 @@ second renderer:
   wrapper in edit mode only, so hit testing always has an element.
 - **Rich text on the canvas.** Double-clicking a Text node sets `editingText`
   and places `foldkit-richtext-dom`'s editor Bundle on that node's host, with
-  the Text Block's rendering registry through `editorAt(hostId, rendering)`.
+  the Text Block's rendering registry through `editorAt(hostId, { rendering })`.
   Leaving the node commits one `setProp` of the body. Exactly one rich-text
   editor is live at a time, so no per-node editor state exists.
 

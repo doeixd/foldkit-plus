@@ -137,7 +137,7 @@ interface InputRule {
 }
 ```
 
-`applyInputRules(rules, textBefore, text, insertion)` builds the action — the insertion,
+`applyInputRules(rules, { textBefore, text, insertion })` builds the action — the insertion,
 one `DeleteBackward` per character the rule consumed, then the rule's commands. The deletes
 are what let a rule work without a range: `# ` is not in the document until the insertion
 that completes it has run, so a range read before that would be the wrong range.

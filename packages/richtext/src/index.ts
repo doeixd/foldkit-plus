@@ -62,7 +62,7 @@ export {
   run,
   runAction,
 } from './command.js'
-export { type InputMatch, type InputRule, applyInputRules } from './input.js'
+export { type InputContext, type InputMatch, type InputRule, applyInputRules } from './input.js'
 export {
   History,
   type CommitOptions,

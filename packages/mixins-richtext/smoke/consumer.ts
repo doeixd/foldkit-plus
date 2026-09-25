@@ -107,7 +107,7 @@ export const renderedWith = (document: RichText.Document, renderer: RichText.Ren
  * the registry reaches a view without entering the Bundle's schema-decoded args.
  */
 export const placed = (renderer: RichText.Rendering) => [
-  editorAt('smoke-host', renderer),
+  editorAt('smoke-host', { rendering: renderer }),
   renderingFor('smoke-host'),
   placeRendering('smoke-other', renderer),
 ]

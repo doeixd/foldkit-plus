@@ -20,7 +20,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { placeInputRules, renderingFor } from '../src/host.js'
+import { renderingFor } from '../src/host.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -428,7 +428,7 @@ describe('the patch acknowledgement', () => {
 describe('placing a renderer with the Bundle (§122)', () => {
   it('records the registry a placement supplies for its own host id', () => {
     const registry = RichText.rendering({ marks: { Link: { tag: 'a', attributes: {} } } })
-    editorAt('editor-with-renderer', registry)
+    editorAt('editor-with-renderer', { rendering: registry })
     expect(renderingFor('editor-with-renderer')).toBe(registry)
     // A placement without a registry leaves the default, and ids are independent.
     editorAt('editor-without-renderer')
@@ -441,8 +441,8 @@ describe('placing a vocabulary with the Bundle (§125)', () => {
   const CodeBlock = RichText.node('CodeBlock', { children: RichText.textContent, marks: 'none' })
 
   it('refuses a mark added inside a mark-free kind, in the child transition', () => {
-    editorAt('constrained-editor', RichText.noRendering, {
-      nodes: RichText.nodeRegistry([CodeBlock, RichText.block('Paragraph')]),
+    editorAt('constrained-editor', {
+      vocabulary: { nodes: RichText.nodeRegistry([CodeBlock, RichText.block('Paragraph')]) },
     })
     const document = RichText.decodeDocument({
       version: 1,
@@ -470,7 +470,7 @@ describe('placing a vocabulary with the Bundle (§125)', () => {
 
     // Control: the same toggle on the same document lands when the placement placed no
     // vocabulary, so it is the placement's declaration that refused it.
-    editorAt('unconstrained-editor', RichText.noRendering)
+    editorAt('unconstrained-editor')
     const free: Model = {
       ...initial,
       editor: { ...constrained.editor, hostId: 'unconstrained-editor' },
@@ -490,7 +490,7 @@ describe('an input rule placed for the editor (§124 §4)', () => {
   }
 
   it('runs the rule as the marker is completed, in the same transition', () => {
-    placeInputRules('rule-editor', [heading])
+    editorAt('rule-editor', { inputRules: [heading] })
     const initial = start(caret('a', 0))
     const placed: Model = { ...initial, editor: { ...initial.editor, hostId: 'rule-editor' } }
     // The hash alone is text; the space is what completes the marker.

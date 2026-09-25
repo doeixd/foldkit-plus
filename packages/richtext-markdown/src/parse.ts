@@ -10,6 +10,7 @@ import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { gfm } from 'micromark-extension-gfm'
 import * as RichText from 'foldkit-richtext'
 import type { MarkdownDiagnostic } from './diagnostic.js'
+import { HEADING_LEVELS } from './levels.js'
 
 export interface ParseOptions {
   /** Identity for every block and run this mints; the codec refuses a repeat. */
@@ -25,8 +26,6 @@ export interface ParsedMarkdown {
 type Props = Readonly<Record<string, string | number | boolean>>
 
 const nodeType = (node: { readonly type: string }): string => node.type
-
-const LEVELS = [1, 2, 3, 4, 5, 6] as const
 
 /**
  * One block's inline content, cut wherever a hard break ended the line. Two runs with the
@@ -211,7 +210,7 @@ const blockFrom = (
         {
           type: 'Heading',
           id: RichText.NodeId.make(mint()),
-          level: LEVELS[Math.min(Math.max(Math.trunc(node.depth), 1), 6) - 1]!,
+          level: HEADING_LEVELS[Math.min(Math.max(Math.trunc(node.depth), 1), 6) - 1]!,
           children: runsFrom(node.children, [], diagnostics, mint).flat(),
         },
       ]

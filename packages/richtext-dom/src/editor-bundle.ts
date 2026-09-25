@@ -16,6 +16,7 @@ import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import {
   inputRulesFor,
+  placeInputRules,
   placeRendering,
   placeVocabulary,
   vocabularyFor,
@@ -250,12 +251,11 @@ export const Editor = Bundle.make({
       queryRange !== undefined
         ? [{ type: 'SetSelection', selection: queryRange }, { type: 'DeleteBackward' }, command]
         : message._tag === 'Typed'
-          ? RichText.applyInputRules(
-              inputRulesFor(model.hostId),
-              textBeforeOf(model),
-              message.text,
-              command,
-            )
+          ? RichText.applyInputRules(inputRulesFor(model.hostId), {
+              textBefore: textBeforeOf(model),
+              text: message.text,
+              insertion: command,
+            })
           : [command],
       { mint: () => `e${nextId++}` },
       { marks: vocabulary.marks, nodes: vocabulary.nodes },
@@ -327,18 +327,27 @@ const editorLink: Link<
 })
 
 /**
- * Places one editor, bound to the host element the view renders and the patch
- * Command finds. Each placement picks its own id. A rendering registry (§121) is
- * placed for that id rather than passed as an arg (§122): it holds functions, so
- * the mount looks it up by host id instead.
+ * What a placement gives its editor. Each is placed by host id rather than passed as an arg
+ * (§122): all three hold functions or schemas, which a schema-decoded arg cannot describe.
  */
-export const editorAt = (
-  hostId: string,
-  rendering: RichText.Rendering = RichText.noRendering,
-  vocabulary: Vocabulary = {},
-) => {
-  placeRendering(hostId, rendering)
-  placeVocabulary(hostId, vocabulary)
+export interface EditorPlacement {
+  /** How this editor's marks and node kinds render (§121). Defaults to `noRendering`. */
+  readonly rendering?: RichText.Rendering | undefined
+  /** The vocabulary its edits resolve against (§125). Defaults to none. */
+  readonly vocabulary?: Vocabulary | undefined
+  /** The rules applied to what is typed (§128). Defaults to none. */
+  readonly inputRules?: ReadonlyArray<RichText.InputRule> | undefined
+}
+
+/**
+ * Places one editor, bound to the host element the view renders and the patch Command
+ * finds. Each placement picks its own id and names what it places; one call records all
+ * three, so a placement cannot half-apply.
+ */
+export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
+  placeRendering(hostId, placement.rendering ?? RichText.noRendering)
+  placeVocabulary(hostId, placement.vocabulary ?? {})
+  placeInputRules(hostId, placement.inputRules ?? [])
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.

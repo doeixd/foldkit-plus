@@ -5371,11 +5371,12 @@ function through both `decodeUnknownSync` and `encodeUnknownSync` unchanged, so 
 That is still the wrong place to put it, for the reason the package already states:
 a Model holds state, and this is a vocabulary — a definition, like the Kit. A registry
 in `EditorView` would travel through devtools and time travel as a bag of closures,
-and `editorAt(hostId, registry)` would make every placement's *args* carry a value
+and `editorAt(hostId, { rendering: registry })` would make every placement's *args* carry a
+value
 the schema cannot describe, typed `unknown` and cast at the boundary.
 
 So the registry registers where the package already keeps per-placement state: the
-host. `editorAt(hostId, registry?)` records it for that id and the mount looks it up
+host. `editorAt(hostId, { rendering })` records it for that id and the mount looks it up
 when `events` executes — the shape `host.ts` already uses for attachments, with the
 id standing in for the element because the placement happens before the element
 exists. Nothing enters the Model or the args, the mount keeps its default when no
@@ -5399,7 +5400,7 @@ Slices:
 1. `host.ts` gains `placeRendering(hostId, rendering)` and `renderingFor(hostId)`.
    — **done**, and a release deliberately keeps the record.
 2. `events` reads the registry for `element.id` and hands it to `attachEditor`;
-   `editorAt(hostId, registry?)` places it. — **done.**
+   `editorAt(hostId, { rendering })` places it. — **done.**
 3. A test that a Link placed through `editorAt` renders as `<a href>` in the editable
    subtree, and that a mount with no placement keeps the default. — **done**, plus a
    re-mount after a release, which is what caught the forgetting.
@@ -6834,7 +6835,8 @@ node, and a built-in block now share one declaration lookup and one report, whic
 let the two new checks sit beside the existing ones instead of in a second walk.
 
 The editor Bundle places the vocabulary the way it places a rendering registry (§122):
-`editorAt(hostId, renderer?, vocabulary?)` records `{ marks, nodes }` for that host id and
+`editorAt(hostId, { rendering, vocabulary, inputRules })` records all three for that host id
+and
 the child's `update` reads it, so an application using the Bundle gets `run`'s refusal and
 not only `validate`'s report. `foldkit-richtext-dom/host` exports `placeVocabulary` and
 `vocabularyFor`, and for the same reason the rendering pair lives there: the registries
@@ -7001,7 +7003,7 @@ interface InputMatch {
 
 A rule is a pure read of the text before the caret: it sees that text and nothing else, so
 it cannot depend on a selection, a clock, or the Model. `remove` is how many characters it
-consumed; `commands` is what to do. `applyInputRules(rules, textBefore, text, insertion)`
+consumed; `commands` is what to do. `applyInputRules(rules, { textBefore, text, insertion })`
 returns the whole action — the insertion, one `DeleteBackward` per consumed character, then
 the rule's commands — so one transition and one undo step cover typing the marker and the
 change it made.

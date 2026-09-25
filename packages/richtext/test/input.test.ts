@@ -22,18 +22,26 @@ const retype = (level: 1 | 2 | 3): RichText.Command => ({
   to: { type: 'Heading', level },
 })
 
+/** The action for typing one character into a block whose text was `textBefore`. */
+const action = (
+  rules: ReadonlyArray<RichText.InputRule>,
+  textBefore: string,
+  text: string,
+): RichText.Action => RichText.applyInputRules(rules, { textBefore, text, insertion })
+
 describe('turning what was typed into an action', () => {
   it('is the insertion alone when no rule matches', () => {
-    expect(RichText.applyInputRules([rule('h1', '# ', 2)], 'plain', ' ', insertion)).toEqual([
-      insertion,
-    ])
-    expect(RichText.applyInputRules([], '#', ' ', insertion)).toEqual([insertion])
+    expect(action([rule('h1', '# ', 2)], 'plain', ' ')).toEqual([insertion])
+    expect(action([], '#', ' ')).toEqual([insertion])
   })
 
   it('inserts, consumes the match backwards, then runs the rule’s commands', () => {
-    expect(
-      RichText.applyInputRules([rule('h1', '# ', 2, [retype(1)])], '#', ' ', insertion),
-    ).toEqual([insertion, { type: 'DeleteBackward' }, { type: 'DeleteBackward' }, retype(1)])
+    expect(action([rule('h1', '# ', 2, [retype(1)])], '#', ' ')).toEqual([
+      insertion,
+      { type: 'DeleteBackward' },
+      { type: 'DeleteBackward' },
+      retype(1),
+    ])
   })
 
   it('shows a rule the text the insertion will produce, not only what is there', () => {
@@ -45,17 +53,14 @@ describe('turning what was typed into an action', () => {
         return undefined
       },
     }
-    RichText.applyInputRules([watching], '#', ' ', insertion)
+    action([watching], '#', ' ')
     expect(seen).toEqual(['# '])
   })
 
   it('lets the first matching rule win', () => {
-    const action = RichText.applyInputRules(
-      [rule('first', '# ', 1), rule('second', '# ', 3)],
-      '#',
-      ' ',
+    expect(action([rule('first', '# ', 1), rule('second', '# ', 3)], '#', ' ')).toEqual([
       insertion,
-    )
-    expect(action).toEqual([insertion, { type: 'DeleteBackward' }])
+      { type: 'DeleteBackward' },
+    ])
   })
 })

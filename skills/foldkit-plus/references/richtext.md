@@ -18,7 +18,10 @@ ChangeSets, merge normalization, mark definitions with boundary expansion and
 prop schemas, unknown node preservation, bounded decode limits, Kits with
 vocabulary validation, a command layer resolving intent into transactions (and
 `runAction`, which commits an ordered command list as one step, so removing what a rule
-matched and acting on it is one transition), reads for
+matched and acting on it is one transition), input rules (`InputRule` is
+`{ name, match(textBefore) }`, and `applyInputRules(rules, { textBefore, text, insertion })`
+builds the action — the insertion, a backward delete per character the rule consumed, then
+its commands, so a marker and the change it made are one edit), reads for
 the marks a selection carries (`marksInRange`, for a toolbar's active button) and for
 the text of a block before a position (`textBefore`, what a slash menu queries; and
 `textRangeBefore`, the range covering the characters before a caret that such a rule
@@ -131,7 +134,7 @@ the subtree behind the document. `onSelection` reports a caret the application d
 not just commit, and `mountInto(host, content, options)` at
 `foldkit-richtext-dom/host` renders into a view's host element and records the
 attachment a patch Command later finds. A registry can also be `placeRendering`d for
-a host id — what the editor Bundle's `editorAt(hostId, renderer?)` does — and the
+a host id — what the editor Bundle's `editorAt(hostId, placement?)` does — and the
 mount reads it by that id, so a renderer reaches a view's mount without entering a
 Model or schema-decoded args (`renderingFor` reads the record back). A Kit passed to `attach` degrades
 undeclared node kinds, and its `keymap` adds or overrides chord bindings
@@ -167,7 +170,7 @@ host element's `OnMount`, and `patchEditor`, the work a patch Command runs again
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, renderer?, vocabulary?)`,
+Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules })`,
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
@@ -229,8 +232,8 @@ micromark and `mdast`, reading the same set back; raw HTML, a link definition, a
 and a hard line break are reported rather than guessed at. The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
-`###### ` retype a block as the space is typed — where the editor applies the rules placed
-for it (`foldkit-richtext-dom/host`'s `placeInputRules`), so it carries no Markdown itself.
+`###### ` retype a block as the space is typed — where the editor applies the rules its
+placement names (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself.
 A marker needing the block wrapped or replaced is not a rule yet, because no command does
 that.
 

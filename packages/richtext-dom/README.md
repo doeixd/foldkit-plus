@@ -238,13 +238,13 @@ bare name (`DataAttribute('unknown', …)` → `data-unknown`).
 `editor-bundle` is the editor as a Bundle whose authoritative document may live in
 the parent (§27). `Editor` is the Bundle; `EditorState` and `EditorView` are the
 state the parent owns beside the document — selection, stored marks, history, the
-menu highlight (`menuIndex`), and the identity counter; `editorAt(hostId, renderer?)`
+menu highlight (`menuIndex`), and the identity counter; `editorAt(hostId, placement?)`
 places one
 editor and binds it to the host element its view renders. A `renderer` is placed for
 that host id rather than passed as an arg, because a registry holds functions and the
 Bundle's args are schema-decoded (§122): `placeRendering` and `renderingFor` at
 `foldkit-richtext-dom/host` are the same record the editor's mount reads, and a
-placement without one renders with the default. `editorAt(hostId, renderer?, vocabulary?)`
+placement without one renders with the default. `editorAt(hostId, { rendering, vocabulary, inputRules })`
 takes a vocabulary too — `{ marks, nodes }` — and `placeVocabulary`/`vocabularyFor` are
 its record: the child's `update` passes those registries to `RichText.runAction`, so an
 edit a declaration forbids is refused here, not only reported by `validate` (§125).
