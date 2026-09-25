@@ -119,7 +119,8 @@ version changed; `pnpm` skips versions already in the registry.
   stores which action an event runs with literal input. `validate` and
   `Op.setAction` check them (`composition:invalid-action`,
   `composition:unknown-action`), and a Renderer's view gets `on(event)`, the
-  Message the action makes from input its Schema decoded first.
+  Message the action makes from input its Schema decoded first. The drawn
+  Builder's inspector picks each event's action and edits its input.
 - **`foldkit-composition`: stateful Blocks.** A Block marked `stateful` is
   backed by a Bundle the page's parent places once per node, keyed by its id.
   `Composition.statefulNodes` lists them; `Stateful.sync` (in `/foldkit`) keeps

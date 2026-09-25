@@ -103,7 +103,8 @@ Presentation, not authorization.
 input })`; in a `Renderer.forMessages<Message>()` view, `on('press')` is the
 Message (input decoded first) or `undefined`. Codes:
 `composition:invalid-action`, `composition:unknown-action`. `Catalog.describe`
-lists each Block's `events`.
+lists each Block's `events`. The drawn Builder's inspector picks an action per
+event (`on press`) and edits its input field by field, seeded with empty values.
 
 ## Stateful Blocks
 

@@ -168,6 +168,13 @@ always. A choice is one `setWhen` holding an `eq` condition for that key;
 conditions of other kinds are kept as they are, and clearing the last removes
 the node's `when`.
 
+Last, each event the Block names says what it runs: `on press` is a `select`
+of the Catalog's actions, blank for nothing, and under it the chosen action's
+input, one field each, drawn as a prop would be. Choosing an action starts its
+input from empty values (the first choice of a select); a start the action's
+Schema still refuses is refused and shown in the alert. Each change is one
+`setAction`, and choosing nothing removes it.
+
 ## Previewing a context
 
 With a Catalog `context`, a `role="group"` labelled "Preview as" (the

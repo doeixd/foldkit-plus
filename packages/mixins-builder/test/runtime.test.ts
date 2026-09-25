@@ -170,6 +170,27 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     space('', '')
     await vi.waitFor(() => expect(stored()).toBeUndefined())
 
+    // The Banner's press runs an action: its input starts from empty values, is
+    // edited field by field, and choosing nothing removes it.
+    const actions = () => {
+      const now = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
+      return Object.values(now?.nodes ?? {}).find(node => node.block === 'Banner')?.actions
+    }
+    pick('[aria-label="Properties"] select[id$="-on-press"]', 'subscribe')
+    await vi.waitFor(() =>
+      expect(actions()).toEqual({
+        press: { action: 'subscribe', input: { list: 'news', note: '' } },
+      }),
+    )
+    pick('[aria-label="Properties"] select[id$="-on-press-list"]', 'offers')
+    await vi.waitFor(() =>
+      expect(actions()).toEqual({
+        press: { action: 'subscribe', input: { list: 'offers', note: '' } },
+      }),
+    )
+    pick('[aria-label="Properties"] select[id$="-on-press"]', '')
+    await vi.waitFor(() => expect(actions()).toBeUndefined())
+
     // Clearing the last choice leaves no appearance behind at all.
     const page = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
     const banner = Object.values(page?.nodes ?? {}).find(node => node.block === 'Banner')

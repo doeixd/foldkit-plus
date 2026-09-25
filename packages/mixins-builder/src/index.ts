@@ -166,6 +166,28 @@ const contextChoices = (control: Control | undefined): ReadonlyArray<string> | u
         ? ['true', 'false']
         : undefined
 
+/**
+ * An action's input to start from: an empty value for each field the inspector
+ * can draw, the first choice of a select. What still does not check is refused
+ * as any edit is, and the alert says why.
+ */
+const seedOf = (input: Schema.Top): { readonly [key: string]: Schema.Json } =>
+  Object.fromEntries(
+    Object.entries(structFields(input)).flatMap(
+      ([key, schema]): ReadonlyArray<[string, Schema.Json]> => {
+        const control = Input.resolve(Entity.unmapped, schema)
+        if (control === undefined) return []
+        if (Input.Toggle.is(control)) return [[key, false]]
+        if (Input.Number.is(control)) return [[key, 0]]
+        if (Input.Select.is(control)) {
+          const [first] = control.data.options
+          return first === undefined ? [] : [[key, first]]
+        }
+        return Input.Text.is(control) || Input.Multiline.is(control) ? [[key, '']] : []
+      },
+    ),
+  )
+
 /** The fields a Block's props Schema declares, when it is a struct. */
 const fieldsOf = (block: AnyBlock): Readonly<Record<string, Schema.Top>> => {
   const fields = (block.Props as { readonly fields?: unknown }).fields
@@ -407,6 +429,63 @@ export const BuilderView = {
       ])
     }
 
+    /** One value, drawn by the control it resolves to: a prop, or an action's input. */
+    const valueField = (
+      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
+      h: HtmlBuilder<Message>,
+      field: {
+        readonly id: string
+        readonly label: string
+        readonly control: Control | undefined
+        readonly value: Schema.Json | undefined
+        readonly set: (value: Schema.Json) => Message
+      },
+    ): Html => {
+      const { id: fieldId, label, control, value, set } = field
+      const input = (() => {
+        if (control !== undefined && Input.Toggle.is(control))
+          return h.input(
+            slots.control.attrs([
+              h.Id(fieldId),
+              h.Type('checkbox'),
+              h.Checked(value === true),
+              h.OnClick(set(value !== true)),
+            ]),
+          )
+        if (control !== undefined && Input.Select.is(control))
+          return h.select(
+            slots.control.attrs([h.Id(fieldId), h.OnChange(choice => set(choice))]),
+            control.data.options.map(option =>
+              h.option([h.Value(option), h.Selected(option === value)], [option]),
+            ),
+          )
+        if (control !== undefined && Input.Number.is(control))
+          return h.input(
+            slots.control.attrs([
+              h.Id(fieldId),
+              h.Value(typeof value === 'number' ? String(value) : ''),
+              h.OnInput(text =>
+                set(Number.isFinite(Number(text)) && text.trim() !== '' ? Number(text) : text),
+              ),
+            ]),
+          )
+        const text = [
+          h.Id(fieldId),
+          h.Value(typeof value === 'string' ? value : ''),
+          h.OnInput((typed: string) => set(typed)),
+        ]
+        if (control !== undefined && Input.Multiline.is(control))
+          // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
+          // and these never carry.
+          return h.textarea(slots.control.attrs(text) as Parameters<typeof h.textarea>[0])
+        if (control !== undefined && Input.Text.is(control))
+          return h.input(slots.control.attrs(text))
+        // A kind this inspector does not draw is shown, not edited.
+        return h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)])
+      })()
+      return h.div(slots.field.attrs(), [h.label([h.For(fieldId)], [label]), input])
+    }
+
     /** The selected node's props, one field each, drawn by the control its Schema resolves to. */
     const inspect = (
       document: Document,
@@ -426,58 +505,15 @@ export const BuilderView = {
         const control = controlFor(block, key, schema)
         return control !== undefined && Input.Hidden.is(control) ? [] : [{ key, schema, control }]
       })
-      const fields = drawn.map(({ key, schema, control }) => {
-        const fieldId = `${builder.name}-${id}-${key}`
-        const value = node.props[key]
-        const input = (() => {
-          if (control !== undefined && Input.Toggle.is(control))
-            return h.input(
-              slots.control.attrs([
-                h.Id(fieldId),
-                h.Type('checkbox'),
-                h.Checked(value === true),
-                h.OnClick(set(key, value !== true)),
-              ]),
-            )
-          if (control !== undefined && Input.Select.is(control))
-            return h.select(
-              slots.control.attrs([h.Id(fieldId), h.OnChange(choice => set(key, choice))]),
-              control.data.options.map(option =>
-                h.option([h.Value(option), h.Selected(option === value)], [option]),
-              ),
-            )
-          if (control !== undefined && Input.Number.is(control))
-            return h.input(
-              slots.control.attrs([
-                h.Id(fieldId),
-                h.Value(typeof value === 'number' ? String(value) : ''),
-                h.OnInput(text =>
-                  set(
-                    key,
-                    Number.isFinite(Number(text)) && text.trim() !== '' ? Number(text) : text,
-                  ),
-                ),
-              ]),
-            )
-          const text = [
-            h.Id(fieldId),
-            h.Value(typeof value === 'string' ? value : ''),
-            h.OnInput((typed: string) => set(key, typed)),
-          ]
-          if (control !== undefined && Input.Multiline.is(control))
-            // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
-            // and these never carry.
-            return h.textarea(slots.control.attrs(text) as Parameters<typeof h.textarea>[0])
-          if (control !== undefined && Input.Text.is(control))
-            return h.input(slots.control.attrs(text))
-          // A kind this inspector does not draw is shown, not edited.
-          return h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)])
-        })()
-        return h.div(slots.field.attrs(), [
-          h.label([h.For(fieldId)], [labelFor(key, schema)]),
-          input,
-        ])
-      })
+      const fields = drawn.map(({ key, schema, control }) =>
+        valueField(slots, h, {
+          id: `${builder.name}-${id}-${key}`,
+          label: labelFor(key, schema),
+          control,
+          value: node.props[key],
+          set: value => set(key, value),
+        }),
+      )
       // The node's look: one choice per axis its Block offers, blank for the default,
       // and on a responsive axis one more per breakpoint it may change at.
       const chosen = isChoices(node.appearance) ? node.appearance : {}
@@ -572,10 +608,58 @@ export const BuilderView = {
             },
           }),
       )
+      // What each of the Block's events runs: an action the Catalog offers, blank for
+      // none, then that action's input, one field each.
+      const stored = isChoices(node.actions) ? node.actions : {}
+      const events = block.events.flatMap(event => {
+        const reference = stored[event]
+        const ref = isChoices(reference) ? reference : {}
+        const input = isChoices(ref['input']) ? ref['input'] : {}
+        const action = builder.catalog.actions.find(each => each.name === ref['action'])
+        const run = (name: string, given: { readonly [key: string]: Schema.Json }): Message =>
+          Message.Applied({
+            op: Composition.Op.setAction(id, event, { action: name, input: given }),
+          })
+        const pickId = `${builder.name}-${id}-on-${event}`
+        const pick = h.div(slots.field.attrs(), [
+          h.label([h.For(pickId)], [`on ${event}`]),
+          h.select(
+            slots.control.attrs([
+              h.Id(pickId),
+              h.OnChange(name => {
+                const chosen = builder.catalog.actions.find(each => each.name === name)
+                return chosen === undefined
+                  ? Message.Applied({ op: Composition.Op.setAction(id, event, null) })
+                  : run(chosen.name, seedOf(chosen.input))
+              }),
+            ]),
+            ['', ...builder.catalog.actions.map(each => each.name)].map(name =>
+              h.option(
+                [h.Value(name), h.Selected((action?.name ?? '') === name)],
+                [name === '' ? 'nothing' : name],
+              ),
+            ),
+          ),
+        ])
+        const inputs =
+          action === undefined
+            ? []
+            : Object.entries(structFields(action.input)).map(([key, schema]) =>
+                valueField(slots, h, {
+                  id: `${pickId}-${key}`,
+                  label: labelFor(key, schema),
+                  control: Input.resolve(Entity.unmapped, schema),
+                  value: input[key],
+                  set: value => run(action.name, { ...input, [key]: value }),
+                }),
+              )
+        return [pick, ...inputs]
+      })
       return h.div(slots.inspector.attrs([h.AriaLabel('Properties')]), [
         ...fields,
         ...looks,
         ...conditions,
+        ...events,
       ])
     }
 

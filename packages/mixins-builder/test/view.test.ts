@@ -102,6 +102,7 @@ describe('the drawn Builder', () => {
       'space at md',
       'when audience',
       'when beta',
+      'on press',
     ])
     const controls = all(inspector).filter(node =>
       ['input', 'select', 'code'].includes(node.sel ?? ''),
@@ -111,6 +112,7 @@ describe('the drawn Builder', () => {
       ['select', undefined],
       ['input', undefined],
       ['input', 'checkbox'],
+      ['select', undefined],
       ['select', undefined],
       ['select', undefined],
       ['select', undefined],

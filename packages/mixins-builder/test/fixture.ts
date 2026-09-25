@@ -28,7 +28,15 @@ export const Banner = Block.define('Banner', {
     tone: { kind: 'variant', values: ['plain', 'loud'] },
     space: { kind: 'token', values: ['s', 'm'], breakpoints: ['md'] },
   },
+  events: ['press'],
 })
+/** What a Banner's press may run: subscribe to a list, with a note. */
+export const Subscribe = {
+  name: 'subscribe',
+  description: 'Subscribe to a list',
+  input: Schema.Struct({ list: Schema.Literals(['news', 'offers']), note: Schema.String }),
+  toMessage: (input: { readonly list: string; readonly note: string }) => input,
+}
 /** A Block whose props ask for their controls: a title, a multiline hint, a hidden prop. Not offered. */
 export const Quote = Block.define('Quote', {
   Props: Schema.Struct({
@@ -42,6 +50,7 @@ export const Site = Catalog.make({
   blocks: [Section, Heading, Banner, Quote],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']), beta: Schema.Boolean }),
+  actions: [Subscribe],
 })
 
 export const SiteRenderer = Renderer.make(Site, {
