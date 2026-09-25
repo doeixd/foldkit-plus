@@ -15,7 +15,7 @@
  * `look.styles` is every rule any selection can use, for `Style.stylesheet`.
  */
 import { Style, SlotView } from 'foldkit-mixins'
-import type { Declarations, NamedStyle, StyleOptions, StylePieces } from 'foldkit-mixins'
+import type { Declarations, MixinFor, NamedStyle, StyleOptions, StylePieces } from 'foldkit-mixins'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Block, type AnyBlock, type AppearanceAxes, type AppearanceChoice } from '../block.js'
 
@@ -57,10 +57,16 @@ export interface Look<Slots> {
   readonly styles: ReadonlyArray<NamedStyle<Slots>>
   /** The pieces a stored selection attaches: base, each chosen value, matching compounds, tokens. */
   readonly select: (appearance: Appearance) => ReadonlyArray<NamedStyle<Slots>>
-  /** The Block's Slots, with a node's chosen Style attached, for its view to draw with. */
+  /**
+   * The Block's Slots, with a node's chosen Style attached, for its view to
+   * draw with. `with` attaches more after the look, such as a Behavior's
+   * `mixin`; a style property a Behavior owns and a choice also sets is
+   * `mixins:style-property-conflict`, not a silent winner.
+   */
   readonly draw: <Message>(context: {
     readonly appearance: Appearance
     readonly h: HtmlBuilder<Message>
+    readonly with?: ReadonlyArray<MixinFor<Message>>
   }) => SlotView.SlotBuilders<Slots, Message>
 }
 
@@ -181,10 +187,11 @@ const make = <Slots>(
     draw: <Message>(context: {
       readonly appearance: Appearance
       readonly h: HtmlBuilder<Message>
+      readonly with?: ReadonlyArray<MixinFor<Message>>
     }) =>
       SlotView.buildersFor(
         slots,
-        select(context.appearance).map(style => style.mixin),
+        [...select(context.appearance).map(style => style.mixin), ...(context.with ?? [])],
         { input: undefined, h: context.h },
       ),
   })

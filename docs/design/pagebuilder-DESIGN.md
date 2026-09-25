@@ -1086,7 +1086,8 @@ What remains of Phase 7, in order:
   > `select` as a variant's. Only token choices are responsive: a variant's
   > pieces may be classes, which no media query can hold, and a responsive
   > token is drawn as rules because an inline value beats every breakpoint.
-  > The Behavior conflict test remains.
+  > A Block's Behaviors attach after the look through `look.draw`'s `with`,
+  > and a test shows a Behavior's style property conflicting with a choice.
 - **8-2, layout Blocks. Done.** Columns becomes `Layout.switcher` or `Layout.sidebar`,
   its parameters appearance axes.
 - **8-3, conditions (§16),** which no phase had named. **Done.** A `when` is a

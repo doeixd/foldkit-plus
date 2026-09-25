@@ -5,8 +5,8 @@
  * made from `look.styles` holds every class a node can be drawn with.
  */
 import { Schema } from 'effect'
-import { Attributes, Capability, Slot, Slots, Style } from 'foldkit-mixins'
-import { inertHtml, type Html } from 'foldkit/html'
+import { Attributes, Behavior, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { Block, Catalog, Composition, Content, NodeId } from '../src/index.js'
 import { Appearance } from '../src/appearance/index.js'
@@ -172,6 +172,25 @@ describe('a look', () => {
     // One name for every viewport draws only the base rule.
     const one = Wide.draw({ appearance: { gap: 'm' }, h: inertHtml }).root.attrs()
     expect(String(Attributes.find(one, 'Class')?.value ?? '').split(' ')).toHaveLength(1)
+  })
+
+  it('attaches more after the look, and a Behavior’s style property conflicts with a choice', () => {
+    // A Behavior that writes the gap itself owns it.
+    const Spaced = Behavior.forSlots(HeroSlots)<unknown, string>(
+      {
+        root: Behavior.slot({
+          attributes: ({ h }: { readonly input: unknown; readonly h: HtmlBuilder<string> }) => [
+            h.Style({ gap: '0' }),
+          ],
+        }),
+      },
+      { name: 'Spaced' },
+    )
+    const h = SlotView.inertBuilder<string>()
+    const plain = HeroLook.draw({ appearance: {}, h, with: [Spaced.mixin] })
+    expect(Attributes.find(plain.root.attrs(), 'Style')?.value).toEqual({ gap: '0' })
+    const chosen = HeroLook.draw({ appearance: { gap: 'm' }, h, with: [Spaced.mixin] })
+    expect(() => chosen.root.attrs()).toThrow('two owners for style property "gap"')
   })
 
   it('refuses a name that is both a recipe axis and a token axis', () => {

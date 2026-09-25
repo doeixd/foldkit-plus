@@ -119,6 +119,8 @@ const Hero = Block.define('Hero', { Props, provides }).pipe(Appearance.attach(He
 - Every piece compiles once; a selection attaches base + chosen values
   (or defaults) + matching compounds + token declarations side by side.
 - The Renderer's `appearance` holds only choices the Block offers.
+- `look.draw({ appearance, h, with: [SomeBehavior.mixin] })` attaches Behaviors
+  after the look; a style property both set is `mixins:style-property-conflict`.
 - `Block.withAppearance({ axis: { kind: 'variant' | 'token', values, breakpoints? } })`
   sets axes by hand. A token axis made with
   `Appearance.token(t.space, { slot, property, breakpoints: Theme.tokens.breakpoint })`

@@ -102,7 +102,9 @@ version changed; `pnpm` skips versions already in the registry.
   the choices the Block offers. The drawn Builder's inspector chooses them.
   A token axis given `breakpoints` is responsive: a node stores
   `{ base: 'sm', md: 'lg' }`, drawn as rules the widest matching breakpoint
-  wins. A layout Block is a Mixins layout this way: the test site's Columns is
+  wins. `look.draw({ appearance, h, with })` attaches a Block's own Behaviors
+  after the look, and a style property a Behavior owns that a choice also sets
+  is `mixins:style-property-conflict`. A layout Block is a Mixins layout this way: the test site's Columns is
   `Layout.switcher`, with its ratio, when it stacks, and its gap as choices.
   Phase 8 of the page builder design.
 - **`foldkit-composition`: conditions.** A Catalog may declare a `context`

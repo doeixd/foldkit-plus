@@ -376,6 +376,10 @@ const SiteRenderer = Renderer.make(Site, {
   matching compound, and a token's declaration. A Renderer hands each view
   `appearance`, the node's choices its Block offers; a stored name it does not
   offer is left out, not drawn.
+- **A Block with its own interaction** attaches its Behaviors after the look:
+  `look.draw({ appearance, h, with: [Carousel.mixin] })`. A style property a
+  Behavior owns that a choice also sets is `mixins:style-property-conflict`,
+  thrown when the slot is drawn, never a silent winner.
 - **Each piece is compiled once,** when the look is made, and a selection
   attaches the ones it picks side by side. `Style.stylesheet(...look.styles)`
   holds every rule any node can use; pass `layer` to `Appearance.make` to
