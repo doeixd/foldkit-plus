@@ -263,8 +263,11 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     neither the layers panel (a scrolling list) nor the canvas scrolled to it,
     so the new Block was out of view in both. *Proposed:* the Builder's
     layers and canvas Behaviors bring the selected row and node into view when
-    the selection changes (`scrollIntoView({ block: 'nearest' })`). Status:
-    proposed.
+    the selection changes (`scrollIntoView({ block: 'nearest' })`). **Fixed**
+    (plan area 5c): `KeepInView({ selector })` in `foldkit-primitives/dom` scrolls
+    what newly matches into view, and the Builder mounts it on the layers and the
+    canvas; its jsdom test asserts an inserted Block's row and element are
+    scrolled to.
 
 25. **Publish is offered to someone who may not publish.** A writer sees the
     same Publish button as an editor and learns on clicking that "This author

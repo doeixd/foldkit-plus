@@ -68,6 +68,12 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
       }),
     ),
   )
+  // jsdom lays nothing out; recording what is scrolled into view is what can be asserted.
+  const scrolled: Element[] = []
+  const scroll = Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = function (this: Element) {
+    scrolled.push(this)
+  }
   try {
     await vi.waitFor(() => expect(buttonNamed('Add Section')).toBeDefined())
     buttonNamed('Add Section')?.click()
@@ -77,6 +83,11 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     buttonNamed('Add Banner')?.click()
     await vi.waitFor(() => expect(canvasText()).toEqual(['New heading', 'Hello']))
     expect(selectedRow()?.textContent).toBe('Banner')
+    // What was inserted is selected, and brought into view in the layers and on the page.
+    await vi.waitFor(() => {
+      expect(scrolled).toContain(rowNamed('Banner'))
+      expect(scrolled).toContain(document.querySelector('[aria-label="Page"] .banner'))
+    })
 
     // Up in the tree moves focus to the Heading, and the selection follows.
     key(rowNamed('Banner'), 'ArrowUp')
@@ -236,5 +247,6 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     expect(rowNamed('Heading')).toBeUndefined()
   } finally {
     handle.dispose()
+    Element.prototype.scrollIntoView = scroll
   }
 })

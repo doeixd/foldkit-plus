@@ -53,6 +53,7 @@ success and failure in the same reducer so the view can display feedback. Wire
 | --- | --- | --- |
 | `Autofocus` | Mount: focuses on insert, emits `Focused` | element |
 | `InputMask` | Mount: masks a field, emits `Input { value, raw }` | `{ pattern }` (`#`/`A`/`*`, ASCII) |
+| `KeepInView` | Mount: scrolls what newly matches `selector` in its subtree into view (`nearest`); no Message | `{ selector }` |
 | `applyMask` | pure: value + pattern → masked and raw | — |
 | `copyText` | Command: `Copied` / `CopyFailed` | text |
 | `share` | Command: `Shared` / `Dismissed` / `ShareFailed` | `{ title?, text?, url? }` |

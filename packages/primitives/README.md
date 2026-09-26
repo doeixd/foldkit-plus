@@ -95,7 +95,7 @@ Each subpath is one concern, one import:
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -372,6 +372,12 @@ masks a field against `#`/`A`/`*` placeholders with literal separators,
 rewrites the field with approximate caret restore, and emits
 `Input { value, raw }` with masked and unmasked text. The parent owns the
 state, like any controlled input.
+
+`KeepInView({ selector })` keeps what is marked in view: whenever an element in
+its subtree newly matches `selector` (the row just selected, the node just
+inserted), it is scrolled into view the least amount that shows it. It sends no
+Message and redraws nothing, so a focused row stays focused. Where there is no
+layout (jsdom), it scrolls nothing.
 
 ## State: `foldkit-primitives/state`
 

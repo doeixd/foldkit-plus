@@ -73,7 +73,7 @@ export const PLACEHOLDER_ATTRIBUTE = 'composition-placeholder'
  * attribute, so a node both hovered and selected is marked selected, whatever
  * order a stylesheet writes its rules in.
  */
-const MARK_ATTRIBUTE = 'composition-mark'
+export const MARK_ATTRIBUTE = 'composition-mark'
 /** In edit mode, on a node whose `when` does not hold in the context drawn for. */
 export const HIDDEN_ATTRIBUTE = 'composition-hidden'
 /** In edit mode, on the node a drop is aimed at, holding where: `before`, `inside` or `after`. */

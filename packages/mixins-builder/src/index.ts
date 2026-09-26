@@ -25,11 +25,12 @@ import {
   type Document,
   type Position,
 } from 'foldkit-composition'
-import { NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
+import { MARK_ATTRIBUTE, NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
 import { Entity, Words } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { Behavior, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { KeepInView } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
 import type { KeyboardModifiers } from 'foldkit/html'
@@ -901,6 +902,22 @@ export const BuilderView = {
               }),
             },
             { name: 'BuilderShortcuts' },
+          ),
+        ),
+        // What is selected, however it was (a click, a shortcut, an insert, the
+        // address), is brought into view in the layers and on the canvas.
+        Behavior.attach(
+          Behavior.forSlots(BuilderSlots)<BuilderInput, Message>(
+            {
+              layers: Behavior.slot({
+                mount: () => KeepInView({ selector: '[role="treeitem"][aria-selected="true"]' }),
+              }),
+              canvas: Behavior.slot({
+                // The mark is on a `display: contents` wrapper, which has no box: the Block's own element does.
+                mount: () => KeepInView({ selector: `[data-${MARK_ATTRIBUTE}="selected"] > *` }),
+              }),
+            },
+            { name: 'KeepSelectionInView' },
           ),
         ),
       )

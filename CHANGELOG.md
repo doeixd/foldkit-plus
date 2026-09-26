@@ -282,6 +282,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-primitives`: `KeepInView({ selector })`,** a Mount that scrolls
+  whatever newly matches in its subtree into view. `foldkit-mixins-builder`
+  mounts it on the layers panel and the canvas, so a new selection (an inserted
+  Block, say) is in view. `foldkit-composition` exports `MARK_ATTRIBUTE`.
 - **`foldkit-form`: a number-literal schema resolves to a `Select`,** whose
   `options` may be text or numbers and whose value is the chosen option itself.
   `Control.parse` now receives the control's `data`. `foldkit-mixins-builder`'s

@@ -121,6 +121,8 @@ into a chord answer. Slices that must survive reload persist through
   ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
+- **Keep the selection in view:** the `KeepInView({ selector })` Mount (`foldkit-primitives/dom`) on a
+  scrolling list or canvas scrolls whatever newly matches `selector` into view (`nearest`); no Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
   `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
 - **Focus ring for keyboard users only:** place `InputModality` (`events`; `{ modality }` from window keydown and pointerdown)

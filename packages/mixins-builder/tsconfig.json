@@ -17,6 +17,7 @@
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
       "foldkit-primitives/state": ["../primitives/src/state/index.ts"],
+      "foldkit-primitives/dom": ["../primitives/src/dom/index.ts"],
       "foldkit-primitives/interaction": ["../primitives/src/interaction/index.ts"],
       "foldkit-builder": ["../builder/src/index.ts"],
       "foldkit-mixins-builder": ["./src/index.ts"]

@@ -71,13 +71,14 @@ Place `Drawn` as you would any Bundle. Its view draws:
 
 ## The keyboard and the pointer
 
-Four Behaviors are attached, each from `foldkit-primitives`:
+Five Behaviors are attached, each from `foldkit-primitives`:
 
 | Where | Behavior | What it does |
 | --- | --- | --- |
 | `tree`, `row` | `TreeNavigation` | Up, Down, Home and End move focus between rows; Right opens a row, then moves to its first child; Left closes it, then moves to its parent. Focus moving selects the row's node. |
 | `layers` | the Builder's `keyCommand` | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo. |
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
+| `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
 | `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
 
 The shortcuts are on the layers panel, not the whole editor, so Delete in a
