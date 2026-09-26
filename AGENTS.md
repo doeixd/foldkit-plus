@@ -772,6 +772,12 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   subscription retries" in three places. Before writing that something
   happens again, find the condition that makes it happen and check the
   failure path meets it.
+- **`extends` does not carry `references`.** `foldkit-richtext-markdown`'s
+  `tsconfig.build.json` extended a `tsconfig.json` that referenced the core, and had none of
+  its own; nothing noticed until a second project referenced it, which failed with `TS6059`
+  and `TS6307` and wrote `.d.ts` files beside the core's sources. Give every
+  `tsconfig.build.json` its own `references`, and delete stray emitted files after a failed
+  build.
 - **Map every workspace dep in a composite example's `paths`.** A package's
   `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
   import through `exports` fails on a clean checkout; a stale local `dist` hides
