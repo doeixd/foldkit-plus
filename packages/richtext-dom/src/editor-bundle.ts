@@ -16,12 +16,14 @@ import type * as Update from 'foldkit/update'
 import { events, Message, patchEditor, slashEntries, slashMenu } from './editor.js'
 import {
   inputRulesFor,
+  placeDecorations,
   placeInputRules,
   placeRendering,
   placeVocabulary,
   vocabularyFor,
   type Vocabulary,
 } from './host.js'
+import type { Decorate } from './events.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({
@@ -331,7 +333,7 @@ const editorLink: Link<
 
 /**
  * What a placement gives its editor. Each is placed by host id rather than passed as an arg
- * (§122): all three hold functions or schemas, which a schema-decoded arg cannot describe.
+ * (§122): each holds functions or schemas, which a schema-decoded arg cannot describe.
  */
 export interface EditorPlacement {
   /** How this editor's marks and node kinds render (§121). Defaults to `noRendering`. */
@@ -340,17 +342,23 @@ export interface EditorPlacement {
   readonly vocabulary?: Vocabulary | undefined
   /** The rules applied to what is typed (§128). Defaults to none. */
   readonly inputRules?: ReadonlyArray<RichText.InputRule> | undefined
+  /**
+   * What is drawn over the document (§129), derived from it on every patch: code
+   * highlighting, for one. Defaults to nothing.
+   */
+  readonly decorate?: Decorate | undefined
 }
 
 /**
  * Places one editor, bound to the host element the view renders and the patch Command
  * finds. Each placement picks its own id and names what it places; one call records all
- * three, so a placement cannot half-apply.
+ * of it, so a placement cannot half-apply.
  */
 export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
   placeRendering(hostId, placement.rendering ?? RichText.noRendering)
   placeVocabulary(hostId, placement.vocabulary ?? {})
   placeInputRules(hostId, placement.inputRules ?? [])
+  placeDecorations(hostId, placement.decorate ?? (() => []))
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.

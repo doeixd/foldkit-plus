@@ -6,7 +6,7 @@
  */
 import * as RichText from 'foldkit-richtext'
 import { mount } from './index.js'
-import { attach, type AttachOptions, type Attachment } from './events.js'
+import { attach, type AttachOptions, type Attachment, type Decorate } from './events.js'
 
 const attachments = new WeakMap<Element, Attachment>()
 const renderings = new Map<string, RichText.Rendering>()
@@ -33,6 +33,19 @@ export const placeVocabulary = (hostId: string, vocabulary: Vocabulary): void =>
 
 /** The vocabulary placed for a host id, or none — `run` then uses its own defaults. */
 export const vocabularyFor = (hostId: string): Vocabulary => vocabularies.get(hostId) ?? {}
+
+const decorators = new Map<string, Decorate>()
+
+/**
+ * Records what a placement's editor draws over its document, by host id, for the reason a
+ * rendering registry is placed: a function cannot ride in the Bundle's schema-decoded args.
+ */
+export const placeDecorations = (hostId: string, decorate: Decorate): void => {
+  decorators.set(hostId, decorate)
+}
+
+/** What is drawn over a host's document, or nothing when none was placed. */
+export const decorationsFor = (hostId: string): Decorate => decorators.get(hostId) ?? (() => [])
 
 const ruleSets = new Map<string, ReadonlyArray<RichText.InputRule>>()
 
@@ -79,7 +92,7 @@ export const mountInto = (
   // A mount runs once per element, so this is defensive: a remount replaces the
   // subtree rather than leaving two.
   releaseMount(host)
-  const dom = mount(host.ownerDocument, content, rendering)
+  const dom = mount(host.ownerDocument, content, rendering, options.decorate?.(content))
   host.append(dom.root)
   const attachment = attach(dom, options)
   attachments.set(host, attachment)

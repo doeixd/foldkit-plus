@@ -361,6 +361,25 @@ describe('decorations over the read-only renderer (§64)', () => {
     expect(text(span ?? null)).toBe('plain')
   })
 
+  it('keeps a run’s marks on the pieces a decoration does not cover', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'b', text: 'bold', marks: ['Bold'] }],
+        },
+      ],
+    })
+    const rendered = renderDocument(content, RichText.noRendering, [
+      decoration(['b', 1], ['b', 3]),
+    ]) as unknown as VNode
+    // Three pieces, `b` `ol` `d`, and every one is still bold.
+    expect(tags(rendered).filter(tag => tag === 'strong')).toHaveLength(3)
+    expect(text(rendered)).toBe('bold')
+  })
+
   it('cuts the run at the decoration’s edges and leaves the rest bare', () => {
     const rendered = renderDocument(document(), RichText.noRendering, [
       decoration(['b', 1], ['b', 3]),
@@ -401,6 +420,29 @@ describe('decorations over the read-only renderer (§64)', () => {
     ) as unknown as VNode
     expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('search')
     expect(text(decorated(rendered) ?? null)).toBe('me')
+  })
+
+  it('draws a code block’s tokens, found by a tokenizer for its language', () => {
+    const content = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'c',
+          props: { language: 'json' },
+          children: [{ type: 'Text', id: 'a', text: '[42]', marks: [] }],
+        },
+      ],
+    })
+    const numbers: RichText.CodeTokenizer = () => [{ from: 1, to: 3, kind: 'syntax-number' }]
+    const rendered = renderDocument(
+      content,
+      RichText.standardRendering,
+      RichText.codeDecorations(content, new Map([['json', numbers]])),
+    ) as unknown as VNode
+    expect(attr(decorated(rendered) ?? null, 'data-decoration')).toBe('syntax-number')
+    expect(text(decorated(rendered) ?? null)).toBe('42')
   })
 })
 

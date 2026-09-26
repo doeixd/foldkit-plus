@@ -11,7 +11,8 @@ import { Effect, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, mountInto, releaseMount, renderingFor } from './host.js'
+import { attachmentIn, decorationsFor, mountInto, releaseMount, renderingFor } from './host.js'
+import type { Decorate } from './events.js'
 
 export const Message = defineMessageUnion({
   Typed: { text: Schema.String },
@@ -186,17 +187,22 @@ export const slashMenu = <Payload>(
   return { query, matches, highlighted: matches[index] ?? matches[0] }
 }
 
+/** How an attached editor draws: its rendering registry and what it draws over the document. */
+export interface EditorDrawing {
+  readonly rendering?: RichText.Rendering | undefined
+  readonly decorate?: Decorate | undefined
+}
+
 /**
  * Attaches the translation to a host element and reports each Message through
  * `emit`. Separate from the mount so a test can drive the DOM without pulling a
- * stream, and so a caller embedding the editor directly can hand it a rendering
- * registry.
+ * stream, and so a caller embedding the editor directly can say how it draws.
  */
 export const attachEditor = (
   host: Element,
   content: RichText.Document,
   emit: (message: EditorEvent) => void,
-  rendering: RichText.Rendering = RichText.noRendering,
+  drawing: EditorDrawing = {},
 ) =>
   mountInto(
     host,
@@ -208,8 +214,9 @@ export const attachEditor = (
       },
       onHistory: direction => emit(direction === 'undo' ? Message.Undone() : Message.Redone()),
       onSelection: selection => emit(Message.Selected({ selection })),
+      decorate: drawing.decorate,
     },
-    rendering,
+    drawing.rendering,
   )
 
 /**
@@ -251,12 +258,10 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Stream.callback<EditorEvent>(queue =>
       Effect.acquireRelease(
         Effect.sync(() =>
-          attachEditor(
-            element,
-            content,
-            message => Queue.offerUnsafe(queue, message),
-            renderingFor(element.id),
-          ),
+          attachEditor(element, content, message => Queue.offerUnsafe(queue, message), {
+            rendering: renderingFor(element.id),
+            decorate: decorationsFor(element.id),
+          }),
         ),
         () => Effect.sync(() => releaseMount(element)),
       ),

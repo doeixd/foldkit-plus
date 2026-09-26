@@ -117,7 +117,7 @@ attributes are read — a link's `href`, an image's `src`/`alt`, a fence's langu
 each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it),
 which refuses a scheme outside http/https/mailto/tel after
 removing control characters and leaves a relative URL alone; `style` and `onclick` are
-never read. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
+never read. The adapter's `mount(ownerDocument, content, renderer?, decorations?)` builds an owned
 `contenteditable` subtree and takes the same `rendering(...)` registry — as do
 `mountInto` and `attachEditor` — so each mark
 nests as an element inside its run element exactly as the read-only view nests it,
@@ -172,7 +172,7 @@ host element's `OnMount`, and `patchEditor`, the work a patch Command runs again
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules })`,
+Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`,
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
@@ -191,10 +191,17 @@ search match, a lint warning, a syntax token — and never document content:
 set onto runs (cut at each run's edge, unresolvable endpoints skipped, text order),
 `searchDecorations(document, query)` produces them for every occurrence of a query (one
 decoration per occurrence, across runs but never across blocks; `positionInBlock(block,
-offset)` is the offset-to-position read it shares), and
+offset)` is the offset-to-position read it shares), `codeDecorations(document, tokenizers)`
+runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
+its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
+`jsonTokenizer` is the first grammar, and never throws on half-typed JSON), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
-`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
-overlay decorations yet.
+`span[data-decoration=<kind>]` with the run's marks inside. The editable adapter draws the
+same elements: `mount(…, decorations)` and `patch(dom, content, changeSet, decorations)`
+take the render's set, a run whose decorations changed is redrawn with no edit, and the
+position mapping reads across the pieces. An editor placed with
+`editorAt(hostId, { decorate })` draws `decorate(document)` at its mount and on every patch
+(a pure read of the document, so code highlighting rather than a search held in the Model).
 
 The harness also carries a page (`examples/richtext/harness.html`, served from
 source with `pnpm exec vite examples/richtext`) for exercising the editable

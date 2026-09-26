@@ -4,6 +4,7 @@
     { "path": "./packages/richtext" },
     { "path": "./packages/richtext-dom" },
     { "path": "./packages/richtext-markdown" },
+    { "path": "./packages/richtext-code" },
     { "path": "./packages/agent" },
     { "path": "./packages/agent-webmcp" },
     { "path": "./packages/agent-mcp" },

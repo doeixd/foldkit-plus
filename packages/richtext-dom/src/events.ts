@@ -201,7 +201,15 @@ export interface AttachOptions {
   readonly kit?: RichText.Kit | undefined
   /** Chords the application adds or overrides, checked before the built-ins. */
   readonly keymap?: ReadonlyArray<KeyBinding> | undefined
+  /**
+   * What is drawn over the document (§129), derived from it each time it is synced — code
+   * highlighting, say. A pure read: it sees the document and nothing else.
+   */
+  readonly decorate?: Decorate | undefined
 }
+
+/** What is drawn over a document, derived from it on every render (§129). */
+export type Decorate = (document: RichText.Document) => RichText.DecorationSet
 
 export interface Attachment {
   /** The current subtree; replaced as patches are applied. */
@@ -349,7 +357,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     current: () => current,
     composing: () => composing,
     sync: (state, changeSet) => {
-      current = patchInto(current, state.document, changeSet)
+      current = patchInto(current, state.document, changeSet, options.decorate?.(state.document))
       lastSelection = state.selection
       restoreSelection(current, state.selection)
     },

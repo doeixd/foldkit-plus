@@ -6143,7 +6143,9 @@ For async Shiki, let a Bundle Command compute the highlighting and commit the ep
 > **Designed (2026-09-25), as §130.** The seam and its homes are decided — `CodeTokenizer` and
 > `codeDecorations` in the core (format-agnostic, like `searchDecorations`), a JSON lexer in
 > `foldkit-richtext-code`, Shiki in `foldkit-richtext-code-shiki` — and §129 decides how the
-> editable adapter draws the result. Nothing is built yet.
+> editable adapter draws the result. The core half is built: `CodeTokenizer` and
+> `codeDecorations`, drawn by the read-only view. The JSON grammar and the editable overlay
+> followed (see §130 and §129).
 
 ---
 
@@ -6909,7 +6911,7 @@ shares with `textRangeBefore`, the block-offset-to-position mapping both need. T
 view draws such a set without any hand-made decoration, so §64's first example now runs end to
 end.
 
-The **editable** adapter does not overlay decorations yet. Its runs map a caret by keeping one
+The **editable** adapter did not overlay decorations at first (built since; see §129). Its runs mapped a caret by keeping one
 text node per run, and splitting a run at decoration edges breaks that mapping unless the
 mapping learns to read across the text nodes. §129 decides that: the adapter nests the same
 elements the view does and the mapping concatenates a run's text nodes, rather than the CSS
@@ -7101,6 +7103,22 @@ tokenizer names its kinds `syntax-string`, `syntax-number` — a registry over `
 over marks, is the alternative), and whether the editable subtree should clip a decoration to
 the rendered window.
 
+> **Built (2026-09-26).** `mount` and `patch` take a decoration set and draw it as the view
+> does, from one shared cut (`RichText.runPieces`), and the mapping reads a run's text nodes
+> in order. One correction to the plan above: a decoration change is *not* carried by the
+> `ChangeSet`. A new search query changes the decorations with no edit at all. So `patch`
+> compares each run's share of the new set with what it drew and redraws the runs that
+> differ; the same set again redraws nothing. `repair` compares a run with a fresh render of
+> it, which covers decorations as well as marks.
+>
+> **Wired (2026-09-26).** A placement names `decorate(document) => DecorationSet`
+> (`editorAt(hostId, { decorate })`, recorded by host id like the rendering, the vocabulary,
+> and the input rules). The mount draws `decorate(content)`, and every `attachment.sync`
+> draws `decorate` of the synced document. It reads the document and nothing else, which
+> covers highlighting derived from the document (code, lint). A decoration derived from
+> application state, such as a search query held in the Model, is not covered: it would need
+> the set held in editor state and passed with the patch, which is undecided.
+
 ---
 
 # 130. Where a code tokenizer lives
@@ -7131,3 +7149,15 @@ seam — a tokenizer, its decoration kinds, and the read-only view drawing them 
 of a half-right JavaScript lexer. TypeScript and JavaScript should wait for Shiki rather than be
 hand-rolled.
 
+
+> **Built (2026-09-26): the core half.** `CodeToken`, `CodeTokenizer`, and
+> `codeDecorations(document, tokenizers)` are in `foldkit-richtext`. The registry is a `Map`
+> keyed by language, because the language is read from the document. A token outside its
+> block's text, covering nothing, or at a fractional offset throws with the language, rather
+> than becoming a highlight over the wrong text. The read-only view draws the result with no
+> change of its own.
+>
+> **Built (2026-09-26): the JSON grammar.** `foldkit-richtext-code` exports `jsonTokenizer`,
+> exact on JSON and total on anything else: it never throws, and an unterminated string ends
+> at the line break. A key is `syntax-property`, told from a string value by the colon after
+> it. The Shiki adapter remains; the editable overlay is built (§129).

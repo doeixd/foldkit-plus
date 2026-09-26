@@ -485,6 +485,27 @@ because what a document has between blocks is structure rather than text. `posit
 offset)` is the read it shares with `textRangeBefore` — the position a block's own text offset
 addresses — and the one any producer of ranges needs.
 
+Code highlighting is the second producer. A `CodeBlock` holds its `language` and plain text,
+and a `CodeTokenizer` — a pure `(text) => ReadonlyArray<{ from, to, kind }>` over that text —
+says what is in it; `codeDecorations(document, tokenizers)` runs the tokenizer registered for
+each block's language and returns the tokens as decorations, so the document never holds a
+token. The registry is a `Map` keyed by language, and a block whose language nothing is
+registered for yields nothing. A token outside its block's text, covering nothing, or at a
+fractional offset throws, naming the language: a tokenizer's bug should not become a
+highlight over the wrong text. The grammars themselves are not here — they are
+format-specific, and belong to `foldkit-richtext-code` (§130).
+
+```ts
+const numbers: RichText.CodeTokenizer = text =>
+  Array.from(text.matchAll(/\d+/g), match => ({
+    from: match.index,
+    to: match.index + match[0].length,
+    kind: 'syntax-number',
+  }))
+
+RichText.codeDecorations(document, new Map([['json', numbers]]))
+```
+
 ## Clipboard slices
 Clipboard content is semantic, not HTML. A `Slice` is a versioned fragment with
 its own identities:

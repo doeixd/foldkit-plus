@@ -20,7 +20,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { renderingFor } from '../src/host.js'
+import { decorationsFor, renderingFor } from '../src/host.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -476,6 +476,17 @@ describe('placing a vocabulary with the Bundle (§125)', () => {
       editor: { ...constrained.editor, hostId: 'unconstrained-editor' },
     }
     expect(update(free, toggled('Bold')).model.document).not.toBe(free.document)
+  })
+})
+
+describe('decorations placed for the editor (§129)', () => {
+  it('records what a placement draws over its document, and nothing when it names none', () => {
+    const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'a')
+    editorAt('decorating-editor', { decorate })
+    expect(decorationsFor('decorating-editor')).toBe(decorate)
+    // Re-placing an id without one replaces what it had.
+    editorAt('decorating-editor')
+    expect(decorationsFor('decorating-editor')(document())).toEqual([])
   })
 })
 

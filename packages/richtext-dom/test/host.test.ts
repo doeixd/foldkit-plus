@@ -5,7 +5,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
-import { attachmentIn, mountInto, placeRendering, releaseMount, renderingFor } from '../src/host.js'
+import {
+  attachmentIn,
+  decorationsFor,
+  mountInto,
+  placeDecorations,
+  placeRendering,
+  releaseMount,
+  renderingFor,
+} from '../src/host.js'
 
 const at = (node: string, offset: number): RichText.Position => ({
   node: RichText.NodeId.make(node),
@@ -166,5 +174,58 @@ describe('a rendering registry placed for a host id (§122)', () => {
     // A host can unmount and mount again; the placement is the view author's, so
     // the id still renders the way it was placed (§122).
     expect(renderingFor('registry-3')).toBe(placed)
+  })
+})
+
+describe('decorations drawn over a mounted editor (§129)', () => {
+  const found = (element: Element) =>
+    Array.from(element.querySelectorAll('[data-decoration]'), span => span.textContent)
+
+  it('draws what `decorate` derives, at the mount and again on every sync', () => {
+    const element = host()
+    const seen: Array<RichText.Document> = []
+    const decorate = (document: RichText.Document) => {
+      seen.push(document)
+      return RichText.searchDecorations(document, 'b')
+    }
+    const attachment = mountInto(element, content(), { onIntent: () => {}, decorate })
+    expect(found(element)).toEqual(['b'])
+    const next = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'a', text: 'ab', marks: [] }],
+        },
+        {
+          type: 'Paragraph',
+          id: 'q',
+          children: [{ type: 'Text', id: 'c', text: 'bf', marks: [] }],
+        },
+      ],
+    })
+    attachment.sync(
+      { document: next, selection: null },
+      {
+        dirtyNodes: new Set([RichText.NodeId.make('c')]),
+        insertedNodes: new Set(),
+        removedNodes: new Set(),
+        textChanged: new Set([RichText.NodeId.make('c')]),
+        structureChanged: false,
+        selectionChanged: false,
+      },
+    )
+    // The synced document is what it reads, so the new `b` is found too.
+    expect(seen.at(-1)).toBe(next)
+    expect(found(element)).toEqual(['b', 'b'])
+    releaseMount(element)
+  })
+
+  it('records what a placement draws, and draws nothing where none was placed', () => {
+    const decorate = (document: RichText.Document) => RichText.searchDecorations(document, 'e')
+    placeDecorations('decorated-host', decorate)
+    expect(decorationsFor('decorated-host')).toBe(decorate)
+    expect(decorationsFor('undecorated-host')(content())).toEqual([])
   })
 })
