@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Equal, Schema } from 'effect'
 import {
   NodeId,
   blockAtPath,
@@ -61,7 +61,8 @@ export type Command =
   /**
    * Wraps the block the selection starts in, in new containers listed outermost first: a
    * `Quote`, or a `List` holding a `ListItem`. The block keeps its identity and its runs,
-   * so the caret stays where it was.
+   * so the caret stays where it was. Given a vocabulary, a list wrap right after a list of the
+   * same kind and props adds the block to it as a new item.
    */
   | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
   /**
@@ -153,6 +154,16 @@ const refusesProps = (nodes: NodeRegistry | undefined, container: Container): bo
     declared !== undefined &&
     declared.kind !== 'block' &&
     propsFailure(declared.props, container.props ?? {})
+  )
+}
+
+/** Whether the vocabulary names `itemKind` among the kinds `listKind` holds, as `List` names `ListItem`. */
+const holdsItem = (nodes: NodeRegistry, listKind: string, itemKind: string): boolean => {
+  const declared = nodes.definitionFor(listKind)
+  return (
+    declared?.kind === 'node' &&
+    typeof declared.children !== 'string' &&
+    declared.children.of.includes(itemKind)
   )
 }
 
@@ -502,14 +513,11 @@ const itemAround = (
   const container = blockAtPath(document, containerPath)
   const list = blockAtPath(document, containerPath.slice(0, -1))
   if (container?.type !== 'Node' || list?.type !== 'Node') return undefined
-  const declaredList = nodes.definitionFor(list.kind)
   const declaredItem = nodes.definitionFor(container.kind)
-  const holdsItems =
-    declaredList?.kind === 'node' &&
-    typeof declaredList.children !== 'string' &&
-    declaredList.children.of.includes(container.kind)
   const isolating = declaredItem?.kind === 'node' && declaredItem.isolating === true
-  return holdsItems && !isolating ? { container, containerPath, list } : undefined
+  return holdsItem(nodes, list.kind, container.kind) && !isolating
+    ? { container, containerPath, list }
+    : undefined
 }
 
 /**
@@ -624,10 +632,28 @@ const runBlockCommand = (
           kindAccepts(options.nodes, container.kind, kinds[at + 1]!),
       )
     if (!allowed) return failure('UnexpectedChild')
-    const containerIds = command.containers.map(() => NodeId.make(ids.mint()))
+    // A list wrap right after a list of the same kind and props adds an item to it, as
+    // Markdown reads the two; a second list beside the first would print as one.
+    const siblings =
+      parent === undefined
+        ? state.document.children
+        : parent.type === 'Node'
+          ? (parent.blocks ?? [])
+          : []
+    const before = siblings[index - 1]
+    const item = command.containers[1]
+    const joins =
+      options.nodes !== undefined &&
+      item !== undefined &&
+      holdsItem(options.nodes, outer.kind, item.kind) &&
+      before?.type === 'Node' &&
+      before.kind === outer.kind &&
+      Equal.equals(before.props, outer.props ?? {})
+    const created = joins ? command.containers.slice(1) : command.containers
+    const containerIds = created.map(() => NodeId.make(ids.mint()))
     // Built from the inside out, so each container holds the next and the innermost is
     // empty until the block moves into it.
-    const chain = command.containers.reduceRight<Block | undefined>(
+    const chain = created.reduceRight<Block | undefined>(
       (inner, container, at) => ({
         type: 'Node',
         kind: container.kind,
@@ -639,7 +665,9 @@ const runBlockCommand = (
       undefined,
     )!
     return apply(state, [
-      Edit.insertBlock(chain, index, parent?.id),
+      joins
+        ? Edit.insertBlock(chain, before.blocks?.length ?? 0, before.id)
+        : Edit.insertBlock(chain, index, parent?.id),
       Edit.moveBlock(block.id, 0, containerIds[containerIds.length - 1]!),
     ])
   }

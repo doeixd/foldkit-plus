@@ -7209,9 +7209,15 @@ at 1, as the parser writes it.
 
 Not decided here, and not needed until they are:
 
-- **Joining a neighbour.** A list marker typed right after a list starts a second list beside
-  it. The printer writes two lists, and a Markdown parser reads them back as one. Markdown's own reading would add an item to
-  the list above; that is a merge of containers, which is its own command.
+- **Joining a neighbour.** A list marker typed right after a list started a second list beside
+  it, which the printer wrote as two lists and a Markdown parser read back as one. Built since:
+  given a vocabulary, a wrap whose outer container is declared to hold its next container as an
+  item (`List` holds `ListItem`) joins a previous sibling of the same kind and equal props,
+  inserting only the inner chain as its last item. A quote holds blocks, not items, so two
+  quotes stay two, as Markdown keeps them apart across a blank line. Props compare exactly,
+  so `3. ` under a list numbered from one starts a new list where Markdown would continue it;
+  and a list *below* is not joined, since that would be the merge of two existing containers,
+  its own command.
 - **The fence** turned out to need a *replace*, not a wrap or a retype: see below.
 - **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
   block back out. Built since: see *The lift* below.

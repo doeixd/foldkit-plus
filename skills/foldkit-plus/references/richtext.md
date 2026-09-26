@@ -226,7 +226,8 @@ clock. `RetypeBlock` changes the type of the block the selection starts in — a
 paragraph, or a heading at a level — and keeps that block's runs, so identities and
 the caret survive; a node block is refused, because its content is its Kit's contract.
 `WrapBlock` moves that block into new containers listed outermost first (`[{ kind: 'List',
-props }, { kind: 'ListItem' }]`), keeping its identity and the caret. `ConvertBlock` replaces
+props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
+wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces
 a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
 new identities and moving the selection onto them. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out

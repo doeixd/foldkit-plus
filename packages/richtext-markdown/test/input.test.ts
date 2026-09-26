@@ -5,6 +5,8 @@
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import { markdownInputRules } from '../src/input.js'
+import { parse } from '../src/parse.js'
+import { print } from '../src/print.js'
 
 /** The first rule that has something to say about this text, as the editor would find it. */
 const match = (textBefore: string) => {
@@ -153,6 +155,29 @@ describe('the rules applied to a document, as the editor applies them', () => {
     expect(code).toMatchObject({ type: 'Node', kind: 'CodeBlock', props: { language: 'ts' } })
     expect(code?.children.map(run => run.text).join('')).toBe('const x')
     expect(after.selection).toMatchObject({ anchor: { offset: 0 } })
+  })
+
+  it('adds `- ` typed under a list to that list, so it prints as the one list it reads as', () => {
+    let count = 0
+    const mint = () => `m${++count}`
+    const { document } = parse('- milk\n\n-eggs\n', { mint })
+    const run = document.children[1]?.children[0]
+    if (run === undefined) throw new Error('no paragraph after the list')
+    const caret = { node: run.id, offset: 1, affinity: 'after' } as const
+    const action = RichText.applyInputRules(markdownInputRules, {
+      textBefore: '-',
+      text: ' ',
+      insertion: { type: 'InsertText', text: ' ' },
+    })
+    const result = RichText.runAction(
+      { document, selection: { type: 'Range', anchor: caret, focus: caret } },
+      action,
+      { mint },
+      { nodes: RichText.nodeRegistry(RichText.standardNodes) },
+    )
+    if (!result.ok) throw new Error(result.error)
+    expect(result.state.document.children).toHaveLength(1)
+    expect(print(result.state.document).markdown).toBe('- milk\n- eggs\n')
   })
 
   it('turns `> ` into a quote, and `3. ` into a list numbered from three', () => {

@@ -158,7 +158,10 @@ being copied, so its identity, its runs, and the caret all survive. Given a voca
 wrap the vocabulary would not hold is refused with `UnexpectedChild`: the parent must accept
 the outermost container, each container must be a kind declared to hold nested blocks, and
 each must accept the next. A container's props must decode as its kind declares them, or the
-wrap is refused with `InvalidInput`.
+wrap is refused with `InvalidInput`. With a vocabulary, a wrap whose outer container holds
+items (as `List` holds `ListItem`) and whose block sits right after a container of that kind
+and those props joins it: the block becomes its last item instead of starting a second list,
+which Markdown would read back as the same one.
 
 `ConvertBlock` replaces a paragraph or heading with a node kind that holds text —
 `{ type: 'ConvertBlock', to: { kind: 'CodeBlock', props: { language: 'ts' } } }` — carrying

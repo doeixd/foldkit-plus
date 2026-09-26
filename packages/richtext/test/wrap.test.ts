@@ -160,6 +160,104 @@ describe('wrapping a block in new containers', () => {
   })
 })
 
+describe('joining the list above', () => {
+  const paragraph = (block: string) => ({
+    type: 'Paragraph' as const,
+    id: block,
+    children: [{ type: 'Text' as const, id: `${block}-t`, text: block, marks: [] }],
+  })
+  const container = (
+    kind: string,
+    block: string,
+    props: object,
+    blocks: ReadonlyArray<object>,
+  ) => ({
+    type: 'Node' as const,
+    kind,
+    id: block,
+    props,
+    children: [],
+    blocks,
+  })
+  const lists = (props: object) =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        container('List', 'l', props, [container('ListItem', 'li', {}, [paragraph('a')])]),
+        paragraph('p'),
+        paragraph('r'),
+        container('Quote', 'q', {}, [paragraph('qa')]),
+        paragraph('s'),
+        container('Table', 't', {}, [
+          container('TableRow', 'tr', {}, [container('TableCell', 'tc', {}, [paragraph('c')])]),
+        ]),
+        paragraph('u'),
+      ],
+    })
+  const wrapIn = (
+    props: object,
+    block: string,
+    containers: ReadonlyArray<RichText.Container>,
+    options: RichText.RunOptions = { nodes: standard },
+  ) => {
+    const result = RichText.run(
+      { document: lists(props), selection: caret(`${block}-t`, 1) },
+      { type: 'WrapBlock', containers },
+      ids(),
+      options,
+    )
+    if (!result.ok) throw new Error(result.error)
+    return result.state
+  }
+
+  it('adds the block to the list above as its last item, keeping the caret', () => {
+    const state = wrapIn({}, 'p', [{ kind: 'List' }, { kind: 'ListItem' }])
+    expect(shape(state.document.children).slice(0, 2)).toEqual([
+      'List(l)[ListItem(li)[Paragraph(a)], ListItem(new-1)[Paragraph(p)]]',
+      'Paragraph(r)',
+    ])
+    expect(state.selection).toEqual(caret('p-t', 1))
+  })
+
+  it('joins a list whose props are the same in another key order', () => {
+    const state = wrapIn({ ordered: true, start: 3 }, 'p', [
+      { kind: 'List', props: { start: 3, ordered: true } },
+      { kind: 'ListItem' },
+    ])
+    expect(shape(state.document.children)[0]).toBe(
+      'List(l)[ListItem(li)[Paragraph(a)], ListItem(new-1)[Paragraph(p)]]',
+    )
+  })
+
+  it.each<[string, string, ReadonlyArray<RichText.Container>, RichText.RunOptions?]>([
+    [
+      'a list with other props',
+      'p',
+      [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
+    ],
+    ['a list that is not directly above', 'r', [{ kind: 'List' }, { kind: 'ListItem' }]],
+    [
+      'a quote, which holds blocks rather than items',
+      's',
+      [{ kind: 'Quote' }, { kind: 'ListItem' }],
+    ],
+    ['a quote, wrapping in a quote alone', 's', [{ kind: 'Quote' }]],
+    ['a table, which holds items of another kind', 'u', [{ kind: 'List' }, { kind: 'ListItem' }]],
+    [
+      'a list, with no vocabulary to say it holds items',
+      'p',
+      [{ kind: 'List' }, { kind: 'ListItem' }],
+      {},
+    ],
+  ])('starts a new container beside %s', (_, block, containers, options) => {
+    const state = wrapIn({}, block, containers, options)
+    const children = state.document.children
+    const at = children.findIndex(child => shape([child])[0]!.includes(`(${block})`))
+    expect(shape([children[at]!])[0]).toMatch(new RegExp(`^${containers[0]!.kind}\\(new-1\\)`))
+    expect(shape(children).slice(0, 1)).toEqual(['List(l)[ListItem(li)[Paragraph(a)]]'])
+  })
+})
+
 describe('converting a text block to a node kind that holds text', () => {
   const twoRuns = () =>
     RichText.decodeDocument({
