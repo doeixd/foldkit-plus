@@ -285,8 +285,13 @@ const renderBlock = (block: RichText.Block, printing: Printing): ReadonlyArray<s
     return renderInline(block, printing).split('\n').map(protectLine)
   }
   if (block.type === 'Heading') {
+    const text = inlineLine(block, printing)
+    // Setext has an underline for levels 1 and 2 only; deeper headings stay ATX.
+    if (printing.style.heading === 'setext' && block.level <= 2) {
+      return [protectLine(text), (block.level === 1 ? '=' : '-').repeat(Math.max(3, text.length))]
+    }
     // A trailing `#` would be read as the heading's optional closing sequence.
-    return [`${'#'.repeat(block.level)} ${inlineLine(block, printing).replace(/#$/, '\\#')}`]
+    return [`${'#'.repeat(block.level)} ${text.replace(/#$/, '\\#')}`]
   }
   if (block.kind === 'Quote') return quote(renderBlocks(block.blocks ?? [], printing))
   if (block.kind === 'List') return list(block, printing)

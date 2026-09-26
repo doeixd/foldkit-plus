@@ -90,7 +90,7 @@ each is reported as `UnsafeUrl`.
 that prints the same, which is how the two directions are tested against each other.
 
 The same Markdown means the canonical spellings: `*` for emphasis, `-` for a bullet, backtick
-fences. Text written as `_hello_` or `* item` is kept that way by the `style` `parse` also
+fences, `#` headings. Text written as `_hello_`, `* item`, or a heading underlined with `===` is kept that way by the `style` `parse` also
 returns — which spelling each construct took, first occurrence each, and never part of the
 document — handed back to `print`:
 

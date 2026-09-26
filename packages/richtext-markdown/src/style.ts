@@ -17,6 +17,8 @@ export const MarkdownStyle = Schema.Struct({
   fence: Schema.optionalKey(Schema.Literals(['`', '~'])),
   /** The character a thematic break repeats. */
   rule: Schema.optionalKey(Schema.Literals(['-', '*', '_'])),
+  /** `#` before a heading, or a setext underline beneath one (levels 1 and 2 only). */
+  heading: Schema.optionalKey(Schema.Literals(['atx', 'setext'])),
 })
 export type MarkdownStyle = typeof MarkdownStyle.Type
 
@@ -28,6 +30,7 @@ export const canonicalStyle: Required<MarkdownStyle> = {
   delimiter: '.',
   fence: '`',
   rule: '-',
+  heading: 'atx',
 }
 
 /**
@@ -60,6 +63,8 @@ export const styleOf = (markdown: string, root: Root): MarkdownStyle => {
     } else if (node.type === 'code' && found.fence === undefined) {
       // An indented code block has no fence to learn from.
       if (source.startsWith('```') || source.startsWith('~~~')) found.fence = source[0] as '`' | '~'
+    } else if (node.type === 'heading' && found.heading === undefined) {
+      found.heading = source.startsWith('#') ? 'atx' : 'setext'
     } else if (node.type === 'thematicBreak' && found.rule === undefined) {
       if (/^[-*_]/.test(source)) found.rule = source[0] as '-' | '*' | '_'
     }

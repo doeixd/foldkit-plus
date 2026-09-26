@@ -7553,7 +7553,8 @@ spelling per construct rather than per node:
 ```text
 parse(markdown)            → { document, diagnostics, style }
 style                      emphasis * | _, strong ** | __, bullet - | * | +,
-                           delimiter . | ), fence ` | ~, rule - | * | _
+                           delimiter . | ), fence ` | ~, rule - | * | _,
+                           heading atx | setext (levels 1 and 2; deeper stay atx)
 print(document, { style }) the style's spellings, canonical for anything it leaves out
 ```
 
@@ -7578,4 +7579,4 @@ the session's, so a construct the new text no longer contains keeps its old spel
 unedited session hands back the one it opened with. The application keeps it beside the
 document.
 
-Not yet: headings (ATX or setext), and per-node spellings.
+Not yet: per-node spellings.

@@ -91,13 +91,13 @@ describe('a Markdown source session', () => {
       original,
       minted(),
     )
-    expect(first.style).toEqual({ emphasis: '_', bullet: '*' })
+    expect(first.style).toEqual({ heading: 'atx', emphasis: '_', bullet: '*' })
     // Reopening with that style prints the document as it was written, not canonically.
     const again = openSource(first.document, first.style)
     expect(again.draft).toBe('# Title\n\n_marked_ and\n\n* a\n')
     // Closing it unedited keeps the style; editing keeps what the new text no longer spells.
     expect(closeSource(again, first.document, minted()).style).toEqual(first.style)
     const edited = closeSource({ ...again, draft: '__bold__\n' }, first.document, minted())
-    expect(edited.style).toEqual({ emphasis: '_', bullet: '*', strong: '__' })
+    expect(edited.style).toEqual({ heading: 'atx', emphasis: '_', bullet: '*', strong: '__' })
   })
 })

@@ -14,6 +14,11 @@ const minted = () => {
 
 /** Every construct in its less common spelling, laid out as the printer lays text out. */
 const alternate = [
+  'Title',
+  '=====',
+  '',
+  '### Deeper',
+  '',
   '_a_ and __b__',
   '',
   '* x',
@@ -39,6 +44,7 @@ describe('the style a text was written in', () => {
       delimiter: ')',
       fence: '~',
       rule: '*',
+      heading: 'setext',
     })
     expect(parse('*a* then _b_, **c** then __d__\n', minted()).style).toEqual({
       emphasis: '*',
@@ -55,7 +61,7 @@ describe('the style a text was written in', () => {
     expect(print(parsed.document, { style: parsed.style }).markdown).toBe(alternate)
     // Without the style, the same document prints canonically.
     expect(print(parsed.document).markdown).toBe(
-      '*a* and **b**\n\n- x\n- y\n\n1. one\n2. two\n\n```js\ncode\n```\n\n---\n',
+      '# Title\n\n### Deeper\n\n*a* and **b**\n\n- x\n- y\n\n1. one\n2. two\n\n```js\ncode\n```\n\n---\n',
     )
   })
 
