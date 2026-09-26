@@ -77,7 +77,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
 | `DragStarted({ id })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
 | `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
-| `Inspected({ message })` | a Message of the selected node's settings form: see below |
+| `Inspected({ id, message })` | a Message of the selected node's settings form: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
@@ -101,21 +101,23 @@ its props; the form only holds what its fields show:
 
 ```text
 node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key
-                                                              │
-               a key that decodes and differs ─► setProp ─────┘  a key that does not: its error, no edit
+   a key the Message changed that decodes, and the node lacks ─► setProp
+   a key that does not decode ─► its error, no edit
 ```
 
-- **A change that decodes is an edit**, one `setProp` per key whose value
+- **A change that decodes is an edit**, one `setProp` per key the Message
   changed, grouped in history like any other, so typing a word undoes as one.
+  A field left alone is never written back, and typing back the value the node
+  holds adds no undo step.
 - **Text that does not decode** (`"abc"` for a number) stays in its field with
   the form's error, and changes nothing.
 - **A node changed another way** (an undo, the canvas, an agent) refills every
   field but one holding text that does not decode. Moving the selection drops
   what was held; the next node's fields fill from its props.
 - `PageBuilder.inspecting(model)` is the selected node's form and its Model,
-  for a view to draw; `settings.encodeMessage(message)` makes the
-  `Inspected` a view sends. The form's Model is held as JSON, so a saved
-  Builder still is.
+  for a view to draw; `Inspected({ id, message: settings.encodeMessage(message) })`
+  is what a view sends, and one for a node no longer selected is ignored. The
+  form's Model is held as JSON, so a saved Builder still is.
 - A prop is labelled with its Schema's `title`, else its key spaced
   (`maxItems` is "Max items"). A Block asks for a control where the Schema
   does not say, with `Block.annotate(Builder.controls({ body: Input.multiline() }))`;

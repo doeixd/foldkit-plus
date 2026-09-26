@@ -27,12 +27,10 @@ import {
   type Settings,
 } from 'foldkit-builder'
 import {
-  Block,
   Catalog,
   Composition,
   NodeId,
   fieldsOf,
-  type AnyBlock,
   type Document,
   type Position,
 } from 'foldkit-composition'
@@ -54,7 +52,7 @@ import { KeepInView } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
 import type { KeyboardModifiers } from 'foldkit/html'
-import { inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
+import { createLazy, inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
 
 /** The Builder's public customization contract: every element the editor draws. */
@@ -386,12 +384,19 @@ export interface BuilderOption {
 /** What the drawn Builder's Slots and Behaviors read: its Model and its inputs. */
 export type BuilderInput = Model & BuilderViewInputs
 
-// How many settings forms have started drawing. `h.submodel` throws before it
-// draws when there is no runtime frame, so a throw with this unchanged is that.
-let settingsDrawn = 0
-
-type SettingsModel = Settings['form']['initial']
-type SettingsMessage = Settings['form']['Message']['Type']
+// Whether a runtime render is under way, which `h.submodel` needs. Foldkit offers
+// no way to ask; a lazy slot reads the current frame before anything else and
+// throws without one. Any other throw, such as a slot drawn twice, is left to surface.
+const probe = createLazy()
+const nothing = () => null
+const inRender = (): boolean => {
+  try {
+    probe(nothing, [])
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
  * How the inspector's settings forms look: Styles attached to every Block's
@@ -404,7 +409,7 @@ export interface SettingsLook {
   readonly form?: SlotView.SlotViewTransform
 }
 
-/** A Block's settings form, drawn with `look`: plain, and counting each drawing it starts. */
+/** A Block's settings form, drawn with `look`. */
 const settingsViewOf = (settings: Settings, look: SettingsLook) => {
   const field = FormView.field(settings.form)
   const drawn = FormView.define(settings.form, {
@@ -414,15 +419,7 @@ const settingsViewOf = (settings: Settings, look: SettingsLook) => {
     settings.form,
     look.form === undefined ? drawn : drawn.pipe(look.form),
   )
-  return {
-    view,
-    counted: Submodel.defineView<SettingsModel, SettingsMessage, FormViewInputs>(
-      (model, inputs, h) => {
-        settingsDrawn++
-        return view(model, inputs, h)
-      },
-    ),
-  }
+  return view
 }
 
 /** The drawn Builder: what `BuilderView.define` returns. */
@@ -594,7 +591,7 @@ export const BuilderView = {
       ])
     }
 
-    /** One value, drawn by the control it resolves to: a prop, or an action's input. */
+    /** One value of an action's input, drawn by the control it resolves to. */
     const valueField = (
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
@@ -604,47 +601,9 @@ export const BuilderView = {
         readonly control: Control | undefined
         readonly value: Schema.Json | undefined
         readonly set: (value: Schema.Json) => Message
-        /** A relation picker's choices; none until the application gives them. */
-        readonly options?: ReadonlyArray<BuilderOption> | undefined
-        /** Whether it may be left empty, stored as `null`: a relation picker offers a blank. */
-        readonly optional?: boolean | undefined
       },
     ): Html => {
-      const { id: fieldId, label, control, value, set, options = [] } = field
-      if (control !== undefined && Input.RelationMany.is(control)) {
-        const chosen = Array.isArray(value)
-          ? value.filter((each): each is string => typeof each === 'string')
-          : []
-        // A chosen value the choices lack stays, shown, so it can be let go.
-        const choices = [
-          ...options,
-          ...chosen
-            .filter(each => !options.some(option => option.value === each))
-            .map(stray => ({ value: stray, label: `? ${stray}` })),
-        ]
-        return h.div(slots.field.attrs([h.Id(fieldId), h.Role('group'), h.AriaLabel(label)]), [
-          h.span(slots.label.attrs(), [label]),
-          ...choices.map(choice =>
-            h.label(slots.option.attrs(), [
-              h.input(
-                slots.control.attrs([
-                  h.Type('checkbox'),
-                  h.Value(choice.value),
-                  h.Checked(chosen.includes(choice.value)),
-                  h.OnClick(
-                    set(
-                      chosen.includes(choice.value)
-                        ? chosen.filter(each => each !== choice.value)
-                        : [...chosen, choice.value],
-                    ),
-                  ),
-                ]),
-              ),
-              choice.label,
-            ]),
-          ),
-        ])
-      }
+      const { id: fieldId, label, control, value, set } = field
       const input = (() => {
         if (control !== undefined && Input.Toggle.is(control))
           return h.input(
@@ -670,18 +629,6 @@ export const BuilderView = {
                 [String(option)],
               ),
             ),
-          )
-        if (control !== undefined && Input.RelationOne.is(control))
-          return h.select(
-            slots.control.attrs([
-              h.Id(fieldId),
-              h.OnChange(choice => set(choice === '' ? null : choice)),
-            ]),
-            optionsOf(h, slots.selectOption, {
-              blank: field.optional === true ? 'none' : undefined,
-              choices: options,
-              current: typeof value === 'string' ? value : undefined,
-            }),
           )
         if (control !== undefined && Input.Number.is(control))
           return h.input(
@@ -771,7 +718,7 @@ export const BuilderView = {
       const fields = Option.match(inspecting, {
         onNone: () => [],
         onSome: target => {
-          const { view, counted } = settingsView(target.settings)
+          const view = settingsView(target.settings)
           const inputs: FormViewInputs = {
             submits: false,
             words: { none: 'none' },
@@ -782,31 +729,28 @@ export const BuilderView = {
               ),
             ),
           }
-          const before = settingsDrawn
-          const form = (() => {
-            try {
-              return h.submodel({
+          const form = inRender()
+            ? h.submodel({
                 slotId: `${builder.name}-settings`,
                 model: target.model,
-                view: counted,
+                view,
                 toParentMessage: sent =>
-                  Message.Inspected({ message: target.settings.encodeMessage(sent) }),
+                  Message.Inspected({
+                    id: target.id,
+                    message: target.settings.encodeMessage(sent),
+                  }),
                 viewInputs: inputs,
               })
-            } catch (error) {
-              if (settingsDrawn !== before) throw error
-              // No runtime frame (a test, a static description): nothing carries the form's
+            : // No runtime frame (a test, a static description): nothing carries the form's
               // Messages to the Builder, and no handler can run, so it is drawn as it is.
-              return view(target.model, inputs, SlotView.inertBuilder())
-            }
-          })()
+              view(target.model, inputs, SlotView.inertBuilder())
           return [
             form,
             ...target.settings
               .shown(node.props)
-              .map(([key, value]) =>
+              .map(({ label, value }) =>
                 h.div(slots.field.attrs(), [
-                  h.span(slots.label.attrs(), [spaced(key)]),
+                  h.span(slots.label.attrs(), [label]),
                   h.code(slots.control.attrs(), [JSON.stringify(value)]),
                 ]),
               ),

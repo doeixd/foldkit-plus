@@ -11,6 +11,8 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
+import { Message as BuilderMessage, Model as BuilderModel } from 'foldkit-builder'
+import { Composition, NodeId } from 'foldkit-composition'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView } from './fixture.js'
 
@@ -280,5 +282,56 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
   } finally {
     handle.dispose()
     Element.prototype.scrollIntoView = scroll
+  }
+})
+
+// Two inspectors of one Builder name share a slot. That is an error to see, not an
+// inspector drawn without the runtime, whose changes would reach nothing.
+it('says so when one Builder is drawn twice, rather than drawing a dead inspector', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const crashes: Array<string> = []
+  const spy = vi
+    .spyOn(console, 'error')
+    .mockImplementation((...args) => crashes.push(args.map(String).join(' ')))
+  const container = document.createElement('div')
+  container.id = 'twice'
+  document.body.appendChild(container)
+  const section = NodeId.make('s')
+  const heading = NodeId.make('h')
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [section],
+      nodes: {
+        [section]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [heading] } },
+        [heading]: { block: 'Heading', props: { text: 'Hi' }, regions: {} },
+      },
+    }),
+  )
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: BuilderModel,
+      container,
+      init: () => ({
+        model: PageBuilder.bundle.update(page, BuilderMessage.Selected({ id: heading }), undefined)
+          .model,
+      }),
+      update: (model: BuilderModel, message: BuilderMessage) =>
+        PageBuilder.bundle.update(model, message, undefined),
+      view: (model: BuilderModel, h: HtmlBuilder<BuilderMessage>) =>
+        h.div([], [PageView(model, h), PageView(model, h)]),
+    }),
+  )
+  try {
+    await vi.waitFor(() =>
+      expect(crashes.join('\n')).toContain('duplicate h.submodel slotId "PageBuilder-settings"'),
+    )
+  } finally {
+    handle.dispose()
+    spy.mockRestore()
   }
 })

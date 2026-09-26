@@ -766,8 +766,9 @@ const SettingsForm = Form.make(`${block.name}Settings`, Settings, {
 >   re-checked against the whole Schema. `toEncoded` drops a check made after
 >   a transformation.
 > - `h.submodel` needs a runtime frame, and `inertHtml` is the same builder as
->   every view's `h`, so frameless drawing is detected by what throws before
->   drawing starts.
+>   every view's `h`, so a frameless drawing is found by asking a lazy slot,
+>   which throws only for a missing frame. A catch around `h.submodel` itself
+>   also caught its duplicate-slot error and drew a dead form.
 >
 > The inspector's Content is the form, drawn by `FormView`, styled through
 > `settings: { field, form }`. `foldkit-mixins-form` gained `words.none` and

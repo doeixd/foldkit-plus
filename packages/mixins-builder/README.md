@@ -353,6 +353,10 @@ the page for that context: a node hidden there is still drawn, marked
 - Rich text on the canvas is not edited in place: its Block's props are shown
   in the inspector.
 - A drag moves one node, the selected one; there is no multiple selection.
+- Two Builders on one page need different names: the inspector's form is placed
+  under the Builder's name, and one drawn twice is a crash that says so. Its
+  fields' ids are `<Block>Settings-<prop>`, so two Builders over one Catalog
+  showing the same Block also share ids.
 - A drag does not scroll the layers or the canvas when the pointer nears an
   edge.
 - The viewport frame sets a width: `--fk-frame-width` on the frame, read by

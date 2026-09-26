@@ -30,7 +30,7 @@ import {
 } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
-import { controls, settingsOf, spaced, type Settings } from './settings.js'
+import { controls, settingsOf, type Settings } from './settings.js'
 import { LiveAnnounce, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History, HistoryModel } from 'foldkit-primitives/state'
 import * as Command from 'foldkit/command'
@@ -158,8 +158,11 @@ export const Message = defineMessageUnion({
   PreviewChosen: { key: Schema.String, value: ContextValue },
   /** The author previews the page with one context key unset. */
   PreviewCleared: { key: Schema.String },
-  /** A Message of the selected node's settings form, encoded to JSON. */
-  Inspected: { message: Schema.Json },
+  /**
+   * A Message of a node's settings form, encoded to JSON. One for a node no
+   * longer selected, such as a form's Command answering late, is ignored.
+   */
+  Inspected: { id: NodeId, message: Schema.Json },
 })
 export type Message = typeof Message.Type
 
@@ -561,51 +564,61 @@ export const Builder = {
       })
 
     /**
-     * A settings form Message: the form takes it, and each prop whose decoded
-     * value now differs from the node's is set, one Operation each. A field
-     * that does not decode sets nothing and shows its error.
+     * A settings form Message: the form takes it, and each prop whose value it
+     * changed, and that the node does not already hold, is set, one Operation
+     * each. A field that does not decode sets nothing and shows its error.
      */
     const inspect = (
       model: Model,
-      held: Schema.Json,
+      message: { readonly id: NodeId; readonly message: Schema.Json },
     ): { readonly model: Model; readonly commands?: Commands } =>
-      Option.match(inspecting(model), {
-        onNone: () => ({ model }),
-        onSome: ({ id, settings, model: form }) =>
-          Option.match(settings.decodeMessage(held), {
-            onNone: () => ({ model }),
-            onSome: formMessage => {
-              const next = settings.form.bundle.update(form, formMessage, undefined)
-              const props = documentOf(model).nodes[id]?.props ?? {}
-              const ops = Object.entries(settings.form.partial(next.model)).flatMap(
-                ([key, value]) =>
-                  Option.match(settings.stored(key, value), {
-                    onNone: () => [],
-                    onSome: stored =>
-                      JSON.stringify(stored) === JSON.stringify(props[key])
-                        ? []
-                        : [Composition.Op.setProp(id, key, stored)],
-                  }),
-              )
-              let result: { readonly model: Model; readonly commands?: Commands } = {
-                model: {
-                  ...model,
-                  inspector: Option.some({ id, form: settings.encode(next.model) }),
-                },
-              }
-              const commands: Array<CommandOf<Message>> = [
-                ...Command.mapMessages(next.commands, sent =>
-                  Message.Inspected({ message: settings.encodeMessage(sent) }),
-                ),
-              ]
-              for (const op of ops) {
-                result = applyOp(result.model, op)
-                commands.push(...(result.commands ?? []))
-              }
-              return { model: result.model, commands }
-            },
-          }),
-      })
+      Option.match(
+        Option.filter(inspecting(model), target => target.id === message.id),
+        {
+          onNone: () => ({ model }),
+          onSome: ({ id, settings, model: form }) =>
+            Option.match(settings.decodeMessage(message.message), {
+              onNone: () => ({ model }),
+              onSome: formMessage => {
+                const next = settings.form.bundle.update(form, formMessage, undefined)
+                const props = documentOf(model).nodes[id]?.props ?? {}
+                // Stored props are JSON, so their text tells two apart.
+                const text = (value: unknown) => JSON.stringify(value)
+                const before: Readonly<Record<string, unknown>> = settings.form.partial(form)
+                // Only what this Message changed: a field left alone is never written
+                // back, even where its draft does not give back the stored value exactly.
+                const ops = Object.entries(settings.form.partial(next.model)).flatMap(
+                  ([key, value]) =>
+                    Object.hasOwn(before, key) && text(before[key]) === text(value)
+                      ? []
+                      : Option.match(settings.stored(key, value), {
+                          onNone: () => [],
+                          onSome: stored =>
+                            text(stored) === text(props[key])
+                              ? []
+                              : [Composition.Op.setProp(id, key, stored)],
+                        }),
+                )
+                let result: { readonly model: Model; readonly commands?: Commands } = {
+                  model: {
+                    ...model,
+                    inspector: Option.some({ id, form: settings.encode(next.model) }),
+                  },
+                }
+                const commands: Array<CommandOf<Message>> = [
+                  ...Command.mapMessages(next.commands, sent =>
+                    Message.Inspected({ id, message: settings.encodeMessage(sent) }),
+                  ),
+                ]
+                for (const op of ops) {
+                  result = applyOp(result.model, op)
+                  commands.push(...(result.commands ?? []))
+                }
+                return { model: result.model, commands }
+              },
+            }),
+        },
+      )
 
     /**
      * The inspector after a transition not its own: dropped when the selection
@@ -805,7 +818,7 @@ export const Builder = {
           return { model: { ...model, preview: others } }
         }
         case 'Inspected':
-          return inspect(model, message.message)
+          return inspect(model, message)
         case 'PanelChosen':
           return { model: { ...model, panel: message.panel } }
         case 'ViewportChosen':

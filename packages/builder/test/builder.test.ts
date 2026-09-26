@@ -530,7 +530,14 @@ describe('the inspector, a form over the selected node', () => {
         [s]: { block: 'Section', props: {}, regions: { body: [stat, heading] } },
         [stat]: {
           block: 'Stat',
-          props: { value: 3, caption: 'posts', frame: { width: 2 }, rank: '1' },
+          props: {
+            value: 3,
+            caption: 'posts',
+            frame: { width: 2 },
+            rank: '1',
+            note: '',
+            source: null,
+          },
           regions: {},
         },
         [heading]: { block: 'Heading', props: { text: 'Hello' }, regions: {} },
@@ -541,10 +548,11 @@ describe('the inspector, a form over the selected node', () => {
   const inspecting = (model: Model) => some(PageBuilder.inspecting(model), 'a node inspected')
   /** Types `value` into the selected node's `key` field. */
   const type = (model: Model, key: string, value: string): Model => {
-    const { settings } = inspecting(model)
+    const { id, settings } = inspecting(model)
     return send(
       model,
       Message.Inspected({
+        id,
         message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
       }),
     )
@@ -559,14 +567,20 @@ describe('the inspector, a form over the selected node', () => {
   it('fills its fields from the node, labelled, with the controls the Block asks for', () => {
     // A prop no control fits is shown as stored, not edited.
     expect(inspecting(selected).settings.shown(props(selected, stat) ?? {})).toEqual([
-      ['frame', { width: 2 }],
+      { key: 'frame', label: 'Frame', value: { width: 2 } },
     ])
     const { settings } = inspecting(selected)
     expect(settings.form.controls.map(each => [each.key, each.control.kind, each.label])).toEqual([
       ['value', 'Number', 'Value'],
       ['caption', 'Multiline', 'What it counts'],
       ['rank', 'Text', 'Rank'],
+      ['note', 'Text', 'Note'],
+      ['source', 'Text', 'Source'],
     ])
+    // Its words are the prop's, which its stored side does not carry.
+    expect(settings.form.controls.find(each => each.key === 'source')?.description).toBe(
+      'Where the number comes from',
+    )
     expect(field(selected, 'value').value).toBe('3')
     expect(field(selected, 'caption').value).toBe('posts')
   })
@@ -587,6 +601,8 @@ describe('the inspector, a form over the selected node', () => {
       caption: 'people',
       frame: { width: 2 },
       rank: '1',
+      note: '',
+      source: null,
     })
     expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
     expect(props(type(selected, 'value', '12'), stat)).toEqual({
@@ -594,6 +610,8 @@ describe('the inspector, a form over the selected node', () => {
       caption: 'posts',
       frame: { width: 2 },
       rank: '1',
+      note: '',
+      source: null,
     })
   })
 
@@ -605,6 +623,8 @@ describe('the inspector, a form over the selected node', () => {
       value: 'abc',
       errors: ['Enter a number'],
     })
+    // Typed back to what the node holds: nothing to set, so no step to undo.
+    expect(type(typed, 'value', '3').page).toBe(selected.page)
     // What the prop's own Schema checks is said at the field too.
     const long = type(selected, 'caption', 'posts and comments')
     expect(long.page).toBe(selected.page)
@@ -639,7 +659,14 @@ describe('the inspector, a form over the selected node', () => {
           [s]: { block: 'Section', props: {}, regions: { body: [stat] } },
           [stat]: {
             block: 'Stat',
-            props: { value: 'many', caption: 'posts', frame: { width: 2 }, rank: '1' },
+            props: {
+              value: 'many',
+              caption: 'posts',
+              frame: { width: 2 },
+              rank: '1',
+              note: '',
+              source: null,
+            },
             regions: {},
           },
         },
@@ -660,6 +687,15 @@ describe('the inspector, a form over the selected node', () => {
     const held = type(selected, 'value', 'abc')
     const saved = JSON.parse(JSON.stringify(Schema.encodeSync(Model)(held)))
     expect(field(Schema.decodeUnknownSync(Model)(saved), 'value').value).toBe('abc')
+  })
+
+  it('ignores a form Message for a node no longer selected', () => {
+    const { settings } = inspecting(selected)
+    const late = Message.Inspected({
+      id: heading,
+      message: settings.encodeMessage(settings.form.Message.Changed({ key: 'value', value: '9' })),
+    })
+    expect(send(selected, late)).toEqual(selected)
   })
 
   it('forgets what it held when the selection moves', () => {

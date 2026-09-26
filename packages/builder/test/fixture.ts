@@ -26,6 +26,12 @@ export const Stat = Block.define('Stat', {
     frame: Schema.Struct({ width: Schema.Number }),
     // Stored as text: its check is on the decoded number, past the transformation.
     rank: Schema.NumberFromString.check(Schema.isGreaterThan(0, { message: 'Above zero' })),
+    // Its empty field reads back as `null`, not the `''` a node may hold.
+    note: Schema.NullOr(Schema.String),
+    // An `Option` asks for no control: stored as text or `null`, it is typed as text.
+    source: Schema.OptionFromNullOr(Schema.String).annotate({
+      description: 'Where the number comes from',
+    }),
   }),
   provides: [Content.Flow],
 }).pipe(Block.annotate(Builder.controls({ caption: Input.multiline() })))

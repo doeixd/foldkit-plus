@@ -34,15 +34,22 @@ const controlsKey = Metadata.key<Readonly<Record<string, Control>>>('foldkit-bui
 export const controls = (given: Readonly<Record<string, Control>>): Metadata =>
   controlsKey.of(given)
 
+/** A prop's words: its Schema's `title`, else its key spaced, and its description. */
+const wordsOf = (key: string, schema: Schema.Top) => {
+  const { title, description } = Words.of(schema)
+  return { label: Option.getOrElse(title, () => spaced(key)), description }
+}
+
 const make = (block: AnyBlock) => {
   const fields = fieldsOf(block.Props)
-  // A prop no control fits (a struct, a list that is not a relation) is shown, not edited.
+  // A prop is edited as the Document stores it, so a control fits it or not there:
+  // an `Option` of an id is a picker or text; a struct, or a list that is not a
+  // relation, fits none and is shown, not edited.
   const editable = Object.entries(fields).filter(
-    ([key, schema]) => controlOf(block, key, schema) !== undefined,
+    ([key, schema]) => controlOf(block, key, Schema.toEncoded(schema)) !== undefined,
   )
-  // A prop is edited as the Document stores it, its encoded side, so a prop drawn
-  // as an `Option` is chosen as an id or nothing; the check that it decodes keeps
-  // what its full Schema says (a brand, a length) at the field.
+  // Checked against the whole Schema, so what it says (a brand, a length, a check
+  // past a transformation, which the encoded side drops) is said at the field.
   const decoders = Object.fromEntries(
     editable.map(([key, schema]) => [
       key,
@@ -65,13 +72,12 @@ const make = (block: AnyBlock) => {
       ]),
     ) as Readonly<Record<string, Schema.Top>>,
   )
-  // Labelled as the rest of the editor names things: a prop's `title`, else its key,
-  // spaced. The encoded side has no title of its own to read.
+  // The encoded side has no words of its own to read, so they come from the prop.
   const labels = Object.fromEntries(
-    editable.map(([key, schema]) => [
-      key,
-      Form.label(Option.getOrElse(Words.of(schema).title, () => spaced(key))),
-    ]),
+    editable.map(([key, schema]) => {
+      const { label, description } = wordsOf(key, schema)
+      return [key, Form.label(label, Option.getOrUndefined(description))]
+    }),
   )
   const entity = Entity.define(`${block.name}Settings`, Props).pipe(Entity.annotateMembers(labels))
   const form = Form.make(`${block.name}Settings`, Entity.input(entity, Props), {
@@ -85,11 +91,13 @@ const make = (block: AnyBlock) => {
 
   return {
     form,
-    /** The props the form does not edit, as stored: shown, not changed. */
-    shown: (stored: Readonly<Record<string, unknown>>): ReadonlyArray<readonly [string, unknown]> =>
-      Object.keys(fields)
-        .filter(key => !Object.hasOwn(decoders, key))
-        .map(key => [key, stored[key]] as const),
+    /** The props the form does not edit, labelled as its fields are, and as stored: shown, not changed. */
+    shown: (
+      stored: Readonly<Record<string, unknown>>,
+    ): ReadonlyArray<{ readonly key: string; readonly label: string; readonly value: unknown }> =>
+      Object.entries(fields)
+        .filter(([key]) => !Object.hasOwn(decoders, key))
+        .map(([key, schema]) => ({ key, label: wordsOf(key, schema).label, value: stored[key] })),
     /**
      * `model` with the fields `keep` spares filled from a node's stored props.
      * A stored prop that does not decode is shown as it is, with its error.
