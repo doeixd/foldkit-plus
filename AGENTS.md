@@ -790,6 +790,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   `examples/entity` failed CI this way with the dependency declared. To
   reproduce locally, move the package's `dist` aside and run
   `npx tsc -b --force <example>`.
+- **A hidden browser tab shows its first frame for good.** Foldkit renders on
+  `requestAnimationFrame`, which a hidden tab never runs, so a page driven by
+  the browser tools sat on "Loading…" while its Model had long filled, and an
+  hour went to a bug that was not there. Before calling a screen stuck, check
+  `document.visibilityState` and read the Model, not the DOM.
 - **Vite serves a pre-bundled copy of a workspace package.** After a
   package's `pnpm build`, a running example kept the old code from
   `node_modules/.vite`, and a stale `dist` from before an API change left the
