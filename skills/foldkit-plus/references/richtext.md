@@ -178,7 +178,10 @@ nor a link at the caret) and `ClearedMark` from inside a link, and keeps no stat
 `SourceEditorSlots` (`root`, `text`, `warnings`, `warning`, `done`) out; the application keeps
 `SourceSession | null` and commits `closeSource(...)` when `done` arrives. `sourcePreview<Message>()`
 beside it is split mode: `{ session, document, rendering? }`, the draft rendered read-only as
-the document it would become.
+the document it would become. `editorStatus<Message>()` is the status line: `{ document,
+diagnostics? }` in, `EditorStatusSlots` (`root`, `counts`, `problems`, `problem`) out; the counts
+are `RichText.count(document)` (`{ words, characters }`), the problems whatever the caller passes,
+usually `RichText.validate` against its Kit.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,

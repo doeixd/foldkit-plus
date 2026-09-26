@@ -15,9 +15,9 @@ lit.
 ## Status
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
-versions. The mark toolbar, the block style picker, the slash menu, the link editor, and the
-Markdown source editor are built; the rest of the design's editor chrome (floating toolbar, block handle, status)
-arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
+versions. The mark toolbar, the block style picker, the slash menu, the link editor, the
+Markdown source editor, and the status line are built; the rest of the design's editor chrome
+(floating toolbar, block handle) arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
 because it is drawn inside the editable subtree this package stays out of.
 
 ## The mark toolbar
@@ -82,6 +82,32 @@ undo what it shows.
 | `root` | Container | the picker's wrapper |
 | `toolbar` | Collection | the row, `role="toolbar"` |
 | `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
+
+## The status line
+
+How long the document is, and what the application found wrong with it. It sends nothing.
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { editorStatus } from 'foldkit-mixins-richtext'
+
+editorStatus<Message>()(
+  { document: model.document, diagnostics: RichText.validate(model.document, ArticleKit) },
+  h,
+)
+```
+
+The counts are `RichText.count`: words and characters as `Intl.Segmenter` splits them, kept per
+document value so a caret move does not count again. The problems are whatever `diagnostics`
+holds, one item each with its `message`; the view does not validate, because which Kit a
+document answers to is the application's. Leave `diagnostics` out and none is shown.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the status line's wrapper |
+| `counts` | Base | `2 words · 11 characters`, `data-status="counts"` |
+| `problems` | Collection | the list, `data-status="problems"` |
+| `problem` | Base | one diagnostic, `data-code`, and `data-node` when it has one |
 
 ## The Markdown source editor
 

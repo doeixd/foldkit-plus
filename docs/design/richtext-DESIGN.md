@@ -7,8 +7,8 @@ Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules 
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
-mark toolbar, the block style picker, the slash menu, link editing, and the placeholder
-(§119, §123, §132, §133, §134), with their views in
+mark toolbar, the block style picker, the slash menu, link editing, the placeholder, and the
+status line (§119, §123, §132, §133, §134, §141), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
@@ -4703,9 +4703,10 @@ decorations               placed per host and drawn in the editable subtree (§1
 placeholder               placed per host, drawn by the adapter (§133)
 block type picker         `textBlockAt` in the core, `blockStyles` in the Mixins
                           family (§134)
-block handle, status,
-command palette, floating
-toolbar                   not started (§11, §120 slice 2)
+status                    `count` in the core, `editorStatus` in the Mixins family,
+                          showing the problems the caller passes (§141)
+block handle, command
+palette, floating toolbar not started (§11, §120 slice 2)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7657,3 +7658,29 @@ skipped, because the script has no DOM to draw into; the resume assertion reads 
 which is what a browser would redraw from. And the content type stays inside one module and
 reaches the server through `openServer`'s `MoreContent` argument, because exporting a form
 that holds the editor hits §139's `TS7056` limit.
+
+---
+
+# 141. The status line
+
+§11's "status/diagnostic surface" is `editorStatus` in `foldkit-mixins-richtext`: the document's
+counts, then a list of problems. It sends nothing.
+
+The counts are `RichText.count(document)`, in the core because any view might want one and it
+reads nothing but the document. Words and characters are what `Intl.Segmenter` gives in the
+default locale, not whitespace splits and UTF-16 lengths, so an emoji is one character and
+Chinese text has words. Runs join within a block before segmenting, because a mark boundary is
+not a word boundary (`Wa**ter**` is one word); blocks do not join, because a block boundary is
+one. The view keeps the counts per document value in a `WeakMap`: a caret move redraws the
+status without changing the document, and segmenting the whole document again for each one
+would be wasted work.
+
+The problems are an input, not something the view computes. `validate` needs a Kit, and which
+Kit a document answers to is the application's (the CMS might hold a stricter one for publish
+than the editor's vocabulary). Each item carries `data-code`, and `data-node` when the
+diagnostic names one, so a Behavior can find the block. Clicking a problem does not select its
+block: the adapter draws no node selection (`restoreSelection` clears the page's and stops), so a `Selected` with a
+node would change the Model and show nothing.
+
+Not done: a live region. Announcing counts on every keystroke is noise, and whether a new
+problem should interrupt a writer is the application's call, so the view sets no `aria-live`.

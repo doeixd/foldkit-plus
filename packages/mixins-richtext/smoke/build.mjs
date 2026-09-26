@@ -97,6 +97,8 @@ check(
     typeof family.sourcePreview === 'function' &&
     typeof family.SourceEditorSlots === 'object' &&
     typeof family.BlockStyleSlots === 'object' &&
+    typeof family.editorStatus === 'function' &&
+    typeof family.EditorStatusSlots === 'object' &&
     typeof family.LinkEditorSlots === 'object',
 )
 
