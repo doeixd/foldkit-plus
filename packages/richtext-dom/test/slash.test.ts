@@ -24,13 +24,17 @@ describe('the query a caret is in', () => {
 })
 
 describe('the entries the editor offers', () => {
-  it('leads with the text blocks, then the marks, each keyed by a stable id', () => {
+  it('leads with the text blocks, then the containers, then the marks, each keyed by a stable id', () => {
     const ids = slashEntries.map(entry => entry.id)
     expect(ids).toEqual([
       'paragraph',
       'heading-1',
       'heading-2',
       'heading-3',
+      'quote',
+      'bulleted-list',
+      'numbered-list',
+      'code-block',
       'bold',
       'italic',
       'code',
@@ -44,6 +48,14 @@ describe('the entries the editor offers', () => {
       Message.RetypedBlock({ block: { type: 'Heading', level: 2 } }),
     )
     expect(byId.get('bold')?.message).toEqual(Message.ToggledMark({ mark: 'Bold' }))
+    expect(byId.get('numbered-list')?.message).toEqual(
+      Message.WrappedBlock({
+        containers: [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
+      }),
+    )
+    expect(byId.get('code-block')?.message).toEqual(
+      Message.ConvertedBlock({ to: { kind: 'CodeBlock' } }),
+    )
   })
 })
 

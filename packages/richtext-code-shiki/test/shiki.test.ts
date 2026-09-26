@@ -137,6 +137,23 @@ describe('Shiki grammars as tokenizers', () => {
     expect(read('typescript', text)).toContainEqual(['2', 'syntax-number'])
   })
 
+  it('turns off Shiki’s per-line time limit, which makes its explanations throw when hit', () => {
+    // The failure needs a line slow enough to be cut short, which a test cannot arrange
+    // reliably, so this checks the setting reaches Shiki.
+    const seen: Array<unknown> = []
+    const watched = new Proxy(highlighter, {
+      get: (target, key, receiver) =>
+        key === 'codeToTokens'
+          ? (...args: Parameters<typeof target.codeToTokens>) => {
+              seen.push(args[1])
+              return target.codeToTokens(...args)
+            }
+          : Reflect.get(target, key, receiver),
+    })
+    shikiTokenizer(watched, 'json')('{}')
+    expect(seen).toEqual([expect.objectContaining({ tokenizeTimeLimit: 0 })])
+  })
+
   it('refuses, when it is made, a language or a theme the highlighter lacks', () => {
     expect(() => shikiTokenizer(highlighter, 'python')).toThrow(/python/)
     const themeless = createHighlighterCoreSync({

@@ -170,6 +170,29 @@ parent must accept it (`UnexpectedChild`), its props must decode as the kind dec
 (`InvalidInput`), and a kind that forbids marks refuses a block that carries any
 (`ForbiddenMark`).
 
+`LiftBlock` is the inverse of a wrap: it moves the block the selection starts in out of its
+container — before it when it was first, after it when it was last, and between the two halves
+of a split container when it was in the middle — and deletes a container it leaves empty. With
+a vocabulary, it keeps lifting while the new parent does not hold the block's kind, so a list
+item's paragraph leaves both the item and the list; without one it takes a single step. It
+never leaves a container declared `isolating`, such as the standard `TableCell`, and a block
+with nothing to leave is refused with `InvalidInput`. The block keeps its identity, and the
+caret with it.
+
+`DeleteBackward` at the start of a container's first block used to do nothing, having no
+sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
+`> ` or `- ` typed at a block's start. Without a vocabulary, in a table cell, and forwards, the
+edge still does nothing.
+
+`SplitBlock` inside a list item works on the item, with a vocabulary to say what an item is: a
+container its parent declares it holds (a `List` holds `ListItem`s), and not isolating. Enter
+splits the block, and the second half, with every block after it in the item, becomes a new
+item of the same kind and props right after; the caret lands at its start. Enter in an empty
+block that is the item's whole content leaves the list instead, as Backspace does. Over a range
+inside an item, the range is deleted first. The new item copies the old one's props, so Enter in
+a checked task starts another checked task. Without a vocabulary, in a quote, and in a table
+cell, Enter splits only the block, as before.
+
 `InsertText` takes an optional `marks`. With it, the inserted text carries
 exactly that set wherever it lands; without it, the boundary rule decides and the
 text inherits the marks of the run it joins. A mark the caller's vocabulary does
@@ -614,7 +637,8 @@ application adds its own kinds beside the standard ones. A `TableRow` that is th
 renders `data-header`.
 
 A kind can state rules stricter than its content mode. `blocksOf(...kinds)` accepts only
-those block kinds, and `marks: 'none'` forbids marks on the kind's own runs:
+those block kinds, `marks: 'none'` forbids marks on the kind's own runs, and `isolating: true`
+makes the kind a boundary a lift never crosses, as a table cell is:
 
 ```ts
 RichText.node('List', { children: RichText.blocksOf('ListItem', 'TaskItem') })
