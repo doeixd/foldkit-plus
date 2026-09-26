@@ -184,7 +184,9 @@ its CSS is appended to one `<style data-foldkit-styles>` element, in the
 microtask after the draw and before the browser paints, after the standard
 layer order. Classes a stylesheet already on the page carries are left out, so
 installing `Style.stylesheet(...)` yourself (for the first paint, or on the
-server) never duplicates them. Outside a browser nothing is injected.
+server) never duplicates them. Outside a browser nothing is injected: a server
+puts `Style.usedIn(html)`, the CSS of every compiled class the page's markup
+uses, in the page's head (with `foldkit-ssr`, through its `head` option).
 
 ## What the resolver guarantees
 

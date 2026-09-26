@@ -110,7 +110,11 @@ SSR.hydrate(config, Editor, { buildId })
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
-- `SSR.entry(config, plan, { buildId, template, flags? })` returns the
+- `SSR.page(template, result, { head? })`, `SSR.generate` and `SSR.entry` take
+  `head: rendered => string`, put before `</head>`: with `foldkit-mixins`,
+  `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships the
+  page's CSS in its first paint.
+- `SSR.entry(config, plan, { buildId, template, flags?, head? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest`. `GET`
   and `HEAD` render, `POST` is handled for a plan with `fallback: 'server'`;
   other methods get `405`; a refused, failed or throwing render, or `flags`

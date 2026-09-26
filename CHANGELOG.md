@@ -15,6 +15,11 @@ version changed; `pnpm` skips versions already in the registry.
   after the standard layer order, unless a stylesheet on the page already
   carries it. A Style left out of an application's `Style.stylesheet` now
   draws instead of silently drawing nothing. `Style.stylesheet` is unchanged.
+- **`foldkit-mixins`: `Style.usedIn(html)`**, the CSS of every compiled class a
+  page's markup uses, after the layer order: what a server puts in the head.
+  **`foldkit-ssr`:** `SSR.page`, `SSR.generate` and `SSR.entry` take
+  `head: rendered => string`, put before the template's `</head>` (a template
+  without one is refused when there is something to add).
 - **`foldkit-mixins-builder`: what the editor calls a Block.**
   `Block.annotate(BuilderView.describe({ label, description, group }))` names a
   Block, says what it is for, and files it in a palette group. The palette is

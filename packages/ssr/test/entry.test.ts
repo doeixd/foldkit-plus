@@ -29,6 +29,18 @@ describe('SSR.entry through handleRequest', () => {
     expect(body).not.toContain('HUGE server-only report')
   })
 
+  it('puts what `head` returns in the page’s head', async () => {
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      template,
+      head: () => '<style id="used"></style>',
+    })
+    const body = await (
+      await serve(new Request('https://example.test/', { headers: html }), entry)
+    ).text()
+    expect(body).toMatch(/<style id="used"><\/style><\/head>/)
+  })
+
   it('answers HEAD with the same status and no body', async () => {
     const response = await serve(
       new Request('https://example.test/', { method: 'HEAD', headers: html }),

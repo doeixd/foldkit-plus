@@ -70,3 +70,13 @@ it('inserts a drawn Style’s keyframes once', async () => {
   await Promise.resolve()
   expect((injected()?.textContent ?? '').split(`@keyframes ${pulse.name}`).length - 1).toBe(1)
 })
+
+it('gives a server the CSS of the classes a page’s markup uses, and no others', () => {
+  const Unused = Style.forSlots(TestSlots)({ root: Style.self({ color: 'rgb(9, 9, 9)' }) })
+  const [unused] = Unused.rules
+  if (unused === undefined) throw new Error('the unused Style compiles to one class')
+  const css = Style.usedIn(`<div class="x ${rule.className}"></div>`)
+  expect(css.startsWith(`@layer ${L.names.join(', ')};`)).toBe(true)
+  expect(css).toContain(rule.css)
+  expect(css).not.toContain(unused.className)
+})

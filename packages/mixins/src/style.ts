@@ -15,7 +15,7 @@ import type { Any as AnySlot, HiddenOf } from './slot.js'
 import type { Placement } from './layers.js'
 import type { SlotItem } from './slotItem.js'
 import * as SlotView from './slotView.js'
-import { register } from './inject.js'
+import { register, usedIn } from './inject.js'
 import * as Rules from './styleRules.js'
 import {
   allowDiscrete,
@@ -620,4 +620,5 @@ export const Style = {
   recipe,
   recipeFor,
   stylesheet,
+  usedIn,
 } as const

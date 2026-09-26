@@ -21,6 +21,23 @@ export const register = (className: string, css: string): void => {
 /** A compiled class in CSS text: `.style-` and its hash. */
 const COMPILED_CLASS = /\.(style-[0-9a-z]+)/g
 
+/** The standard layer order, as one `@layer` statement. */
+const layerOrder = (): string => standard.declare.globalCss?.join('') ?? ''
+
+/**
+ * The CSS for every compiled class that `html` carries, after the standard
+ * layer order: what a server puts in a page's head, so it is styled before
+ * any script runs. The browser's injection then finds these classes present
+ * and adds nothing twice.
+ */
+export const usedIn = (html: string): string => {
+  const found = new Set<string>()
+  for (const [className] of html.matchAll(/style-[0-9a-z]+/g)) {
+    if (registry.has(className)) found.add(className)
+  }
+  return [layerOrder(), ...[...found].map(className => registry.get(className) ?? '')].join('')
+}
+
 let element: HTMLStyleElement | undefined
 const present = new Set<string>()
 const globals = new Set<string>()
@@ -40,7 +57,7 @@ const target = (): HTMLStyleElement => {
   element = document.createElement('style')
   element.setAttribute('data-foldkit-styles', '')
   // The layer order first, so rules inserted in any order still cascade by layer.
-  element.textContent = standard.declare.globalCss?.join('') ?? ''
+  element.textContent = layerOrder()
   document.head.appendChild(element)
   return element
 }

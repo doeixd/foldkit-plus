@@ -254,6 +254,13 @@ point instead of per element.
   classes and CSS. This replaces the compile-twice test that stood in for
   server/client equality.
 
+> **1c done, 2026-09-26,** without a marker attribute: `Style.usedIn(html)`
+> returns the layer order and the CSS of each compiled class the markup uses,
+> and `foldkit-ssr`'s new `head` option (on `page`, `generate` and `entry`)
+> puts it before `</head>`. The browser's injector finds those classes by
+> scanning the sheet, as it does any other. `foldkit-ssr` does not depend on
+> `foldkit-mixins`.
+
 ### 1d. Conditional rules: already done
 
 The findings said `Style.whenInput` refuses a piece with rules
