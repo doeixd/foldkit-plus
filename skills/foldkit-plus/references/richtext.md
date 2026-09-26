@@ -115,7 +115,8 @@ vocabulary's `blockquote`, `pre`, `hr`, `img`, `table`/`tr`/`td`/`th`, `s`/`del`
 `data-unknown` round-trip, other elements are unwrapped or dropped with a diagnostic,
 and `script`/`style`/`iframe` are dropped with their content. Only a fixed few
 attributes are read — a link's `href`, an image's `src`/`alt`, a fence's language — and
-each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it),
+each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it, and
+`standardRendering` applies it again to what it draws),
 which refuses a scheme outside http/https/mailto/tel after
 removing control characters and leaves a relative URL alone; `style` and `onclick` are
 never read. The adapter's `mount(ownerDocument, content, renderer?, decorations?)` builds an owned

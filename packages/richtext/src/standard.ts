@@ -21,6 +21,7 @@ import { blockContent, textContent } from './document.js'
 import { atom, block, blocksOf, node, type NodeDefinition } from './kit.js'
 import { Bold, Code, Italic, mark, markProps, type MarkDef } from './marks.js'
 import { rendering, type Rendering } from './rendering.js'
+import { safeUrl } from './url.js'
 
 /**
  * A struck-through span. It expands `after`, so typing at its edge continues it, as
@@ -85,6 +86,16 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
 ]
 
 /**
+ * A URL attribute, or none when the value fails the URL policy. Import already applies the
+ * policy, but a document also arrives decoded, synchronized, or edited through `SetMark`,
+ * and this is where a `javascript:` href would become live.
+ */
+const urlAttribute = (name: string, value: unknown): Readonly<Record<string, string>> => {
+  const safe = typeof value === 'string' ? safeUrl(value) : undefined
+  return safe === undefined ? {} : { [name]: safe }
+}
+
+/**
  * How the standard vocabulary renders (§121): the element each kind is, with the props
  * that belong in attributes read from the block, so a `Link` is an `<a href>`, an `Image`
  * carries its source, and a `List` is an `<ol>` or a `<ul>`. The shipped marks already
@@ -98,7 +109,7 @@ export const standardNodes: ReadonlyArray<NodeDefinition> = [
 export const standardRendering: Rendering = rendering({
   marks: {
     Strikethrough: { tag: 's', attributes: {} },
-    Link: mark => ({ tag: 'a', attributes: { href: String(markProps(mark)?.href ?? '') } }),
+    Link: mark => ({ tag: 'a', attributes: urlAttribute('href', markProps(mark)?.href) }),
   },
   nodes: {
     Quote: { tag: 'blockquote', attributes: {} },
@@ -123,7 +134,7 @@ export const standardRendering: Rendering = rendering({
     Image: block => ({
       tag: 'img',
       attributes: {
-        src: String(block.props.src ?? ''),
+        ...urlAttribute('src', block.props.src),
         alt: String(block.props.alt ?? ''),
       },
     }),

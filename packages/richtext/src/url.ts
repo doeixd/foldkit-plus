@@ -1,7 +1,8 @@
 /**
  * The URL policy every importer shares (§70, §124 §10). A link's `href` and an image's `src`
  * arrive from pasted HTML or Markdown, which is untrusted, and the standard rendering writes
- * them into attributes, so each passes here before it can become a prop.
+ * them into attributes, so each passes here before it can become a prop, and again before
+ * the standard rendering writes it.
  */
 
 /** Schemes a link or a source may carry; anything else — `javascript:`, `data:` — is refused. */

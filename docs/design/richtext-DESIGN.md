@@ -7342,4 +7342,12 @@ so no run is split, and the caret keeps its node.
 
 Not built yet: the popover itself (the Messages the editor Bundle sends, and a Mixins slot for
 the view). `SetMark` knows no mark's props, so it stores an `href` as given; the URL policy
-belongs where the link is drawn, below.
+belongs where the link is drawn.
+
+Checking that turned up a gap older than this section: `safeUrl` ran only at import, and
+`standardRendering` wrote any stored `href` or `src` into its attribute. A document decoded
+from storage, arriving through sync, or edited by `SetMark` never passes an importer, so a
+`javascript:` link drawn from one was live. The standard rendering now applies the policy
+too and leaves a refused URL out: an `<a>` with no `href`, an `<img>` with no `src`. The
+document still holds the value, since refusing it there would need every mark's props to
+carry a policy; what is drawn is what an attacker needs.

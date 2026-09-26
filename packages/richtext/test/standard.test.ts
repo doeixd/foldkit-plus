@@ -174,6 +174,24 @@ describe('how the standard vocabulary renders', () => {
     ).toEqual([{ tag: 'a', attributes: { href: '/x' } }])
   })
 
+  it('drops a link or image URL the URL policy refuses, however the document got it', () => {
+    const href = (value: unknown) =>
+      RichText.runRendering(
+        RichText.standardRendering,
+        textRun([{ name: 'Link', props: { href: value } }]),
+      ).nest
+    expect(href('javascript:alert(1)')).toEqual([{ tag: 'a', attributes: {} }])
+    expect(href('java\tscript:alert(1)')).toEqual([{ tag: 'a', attributes: {} }])
+    expect(href(42)).toEqual([{ tag: 'a', attributes: {} }])
+    expect(href('mailto:a@b.test')).toEqual([{ tag: 'a', attributes: { href: 'mailto:a@b.test' } }])
+    expect(render('Image', { src: 'data:text/html,x', alt: 'a' })).toEqual({
+      tag: 'img',
+      attributes: { alt: 'a' },
+    })
+    const built = doc([paragraph('p', [{ name: 'Link', props: { href: 'javascript:x' } }])])
+    expect(RichText.documentToHtml(built, RichText.standardRendering)).toBe('<p><a>x</a></p>')
+  })
+
   it('serializes as those elements, leaving a void one open', () => {
     const built = doc([
       container('List', 'l', { ordered: true, start: 2 }, [
