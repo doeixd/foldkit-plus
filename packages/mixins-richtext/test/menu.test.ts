@@ -150,3 +150,14 @@ describe('the slash menu in an application', () => {
     )
   })
 })
+
+describe('its customization contract', () => {
+  it.each([
+    ['a menu with matches', input()],
+    ['a menu with none', input({ textBefore: '/nothing' })],
+  ])('draws everything through its Slots, with no fixed inline style: %s', (_, drawn) => {
+    const root = Inert.draw(slashMenuView<Message>(), drawn)
+    expect(Inert.unslotted(root)).toEqual([])
+    expect(Inert.fixedInline(root)).toEqual([])
+  })
+})

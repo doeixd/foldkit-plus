@@ -370,6 +370,20 @@ the suites need.
   headless Builder's plain view and `richtext-dom`'s view are fixed or
   allowlisted with a reason.
 
+> **2b done, 2026-09-26,** as `Inert.draw`, `unslotted` and `fixedInline` in
+> `foldkit-mixins/testing`, not `SlotView.assertSlotted`. `buildersFor` marks
+> an element with its Slot only while an internal flag is on, so nested views
+> are covered and a real render carries nothing. Every package view's test
+> expects both lists empty:
+>
+> - `mixins-builder`, `mixins-form` and `mixins-crud` had markup outside any
+>   Slot (options, checkbox labels, `thead`/`tbody`). Each now has a Slot.
+> - `mixins-richtext`'s menu and toolbar were already clean.
+> - Out of scope: `mixins-ui` publishes the Slots `@foldkit/ui` gives it, and
+>   its markup is upstream's; `mixins-surface`'s `SurfaceView.define` draws the
+>   application's own markup. The headless Builder's plain view and
+>   `richtext-dom`'s view are not SlotViews and publish no Slots.
+
 ### 2c. Typed item data (M)
 
 A Slot drawn once per item may declare what each item carries:

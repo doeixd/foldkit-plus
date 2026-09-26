@@ -139,3 +139,11 @@ describe('the mark toolbar in an application', () => {
     )
   })
 })
+
+describe('its customization contract', () => {
+  it('draws everything through its Slots, with no fixed inline style', () => {
+    const root = Inert.draw(markToolbar<Message>(), input())
+    expect(Inert.unslotted(root)).toEqual([])
+    expect(Inert.fixedInline(root)).toEqual([])
+  })
+})
