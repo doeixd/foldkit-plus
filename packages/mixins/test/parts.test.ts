@@ -3,12 +3,13 @@
  * An assembly's parts, on the runtime: each is drawn again only when a value
  * it reads changed, and its Behaviors see the values it was drawn from.
  */
-import { Schema } from 'effect'
+import { Schema, Stream } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
+import type { MountAction } from 'foldkit/mount'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
-import { Behavior, Capability, Diagnostics, Slot, SlotView, Slots, Style } from '../src/index.js'
+import { Behavior, Capability, Slot, SlotView, Slots, Style } from '../src/index.js'
 
 const PanelSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -135,19 +136,66 @@ it('draws every part again when a Mixin attached to the whole view reads the inp
   }
 })
 
-it('refuses a part drawn twice in one render', () => {
-  const Twice = Parts.assemble((_input, slots, h, draw) =>
-    h.div(slots.root.attrs(), [draw(Title), draw(Title)]),
+// Throws once there is a count, from a part itself or from an item it draws.
+const fragile = (
+  slots: SlotView.SlotBuilders<typeof PanelSlots, Message>,
+  h: HtmlBuilder<Message>,
+  count: number,
+) => {
+  drawn.push('Fragile')
+  if (count > 0) throw new Error('Fragile cannot count')
+  return h.p(slots.count.attrs(), [String(count)])
+}
+const FragilePart = Parts.part('Fragile', { reads: ['count'] }, (input, slots, h) =>
+  fragile(slots, h, input.count),
+)
+const FragileItem = Parts.part('FragileItem', { reads: ['count'] }, (input, slots) =>
+  slots.count.lazy({ index: 0 }, fragile, [input.count]),
+)
+
+it.each([
+  ['a part', FragilePart],
+  ['an item', FragileItem],
+])('lets an error from %s through as it is, drawn once', async (_, part) => {
+  const Broken = Parts.assemble((_input, slots, h, draw) =>
+    h.div(slots.root.attrs(), [
+      h.button([h.Id('counted'), h.OnClick(Message.Counted())], ['Count']),
+      draw(Title),
+      draw(part),
+    ]),
   )
-  const codeOf = (): string | undefined => {
-    try {
-      Twice({ title: 'First', count: 0, other: 0 }, SlotView.inertBuilder<Message>())
-      return undefined
-    } catch (error) {
-      return error instanceof Diagnostics.DiagnosticError ? error.diagnostic.code : String(error)
-    }
+  const { handle, press } = await run((model, h) => Broken(model, h))
+  try {
+    await press('counted', () => expect(drawn).toContain('Fragile'))
+    // Not caught and drawn again as if there were no runtime to memoize under.
+    expect(drawn).toEqual(['Fragile'])
+  } finally {
+    handle.dispose()
   }
-  expect(codeOf()).toBe('mixins:part-drawn-twice')
+})
+
+it('draws a part placed twice in both places, however often it is reused', async () => {
+  const Twice = Parts.assemble((input, slots, h, draw) =>
+    h.div(slots.root.attrs(), [
+      h.button([h.Id('retitle'), h.OnClick(Message.Retitled())], ['Retitle']),
+      h.button([h.Id('elsewhere'), h.OnClick(Message.Elsewhere())], [String(input.other)]),
+      draw(Title),
+      draw(Title),
+    ]),
+  )
+  const { handle, find, press } = await run((model, h) => Twice(model, h))
+  const titles = () => Array.from(document.querySelectorAll('h2'), title => title.textContent)
+  try {
+    expect(titles()).toEqual(['First', 'First'])
+    await press('retitle', () => expect(titles()).toEqual(['First!', 'First!']))
+    // Reused, not drawn: both places still show it.
+    await press('elsewhere', () => expect(find('#elsewhere')?.textContent).toBe('1'))
+    expect(drawn).toEqual([])
+    expect(titles()).toEqual(['First!', 'First!'])
+    await press('retitle', () => expect(titles()).toEqual(['First!!', 'First!!']))
+  } finally {
+    handle.dispose()
+  }
 })
 
 // Rows under one part: each a per-item drawing, with a roving tab stop a
@@ -161,9 +209,10 @@ const ListModel = Schema.Struct({
   rows: Schema.Array(Schema.String),
   current: Schema.Number,
   other: Schema.Number,
+  stamp: Schema.Number,
 })
 type ListModel = typeof ListModel.Type
-const ListMessage = defineMessageUnion({ Moved: {}, Renamed: {}, Elsewhere: {} })
+const ListMessage = defineMessageUnion({ Moved: {}, Renamed: {}, Elsewhere: {}, Stamped: {} })
 type ListMessage = typeof ListMessage.Type
 
 const rowsDrawn: Array<string> = []
@@ -215,6 +264,35 @@ const Grouped = ListParts.part(
   // Index 9, which no tab stop reaches, so only the rows inside could tell a move.
   (input, slots) => slots.group.lazy({ index: 9, id: 'group' }, drawGroup, [input.rows]),
 )
+// A mount made with one function and a Date in its args: a Date's time is not
+// an own key, so only comparing it by identity tells two stamps apart.
+const stampedDrawn: Array<string> = []
+const watch: MountAction<ListMessage>['f'] = () => Stream.empty
+const Stamp = Behavior.forSlots(ListSlots)<Pick<ListModel, 'stamp'>, ListMessage>({
+  row: Behavior.slot({
+    mount: input => ({ name: 'Stamp', args: { at: new Date(input.stamp) }, f: watch }),
+  }),
+})
+const drawStamped = (
+  slots: SlotView.SlotBuilders<typeof ListSlots, ListMessage>,
+  h: HtmlBuilder<ListMessage>,
+  index: number,
+  text: string,
+) => {
+  stampedDrawn.push(text)
+  return h.li(slots.row.attrs([h.Key(text)], { index, id: text }), [text])
+}
+const StampedRows = ListParts.part(
+  'Stamped',
+  { reads: ['rows', 'stamp'], behaviors: [Stamp] },
+  (input, slots, h) =>
+    h.ol(
+      slots.root.attrs(),
+      input.rows.map((text, index) =>
+        slots.row.lazy({ index, id: text }, drawStamped, [index, text]),
+      ),
+    ),
+)
 const List = ListParts.assemble((input, _slots, h, draw) =>
   h.div(
     [],
@@ -222,8 +300,10 @@ const List = ListParts.assemble((input, _slots, h, draw) =>
       h.button([h.Id('moved'), h.OnClick(ListMessage.Moved())], ['Move']),
       h.button([h.Id('renamed'), h.OnClick(ListMessage.Renamed())], ['Rename']),
       h.button([h.Id('elsewhere'), h.OnClick(ListMessage.Elsewhere())], [String(input.other)]),
+      h.button([h.Id('stamped'), h.OnClick(ListMessage.Stamped())], [String(input.stamp)]),
       draw(Rows),
       draw(Grouped),
+      draw(StampedRows),
     ],
   ),
 )
@@ -240,7 +320,7 @@ it('draws a row again only when its values or what a Behavior gave it changed', 
     Runtime.makeElement({
       Model: ListModel,
       container,
-      init: () => ({ model: { rows: ['a', 'b', 'c', 'd'], current: 0, other: 0 } }),
+      init: () => ({ model: { rows: ['a', 'b', 'c', 'd'], current: 0, other: 0, stamp: 0 } }),
       update: (model: ListModel, message: ListMessage) => {
         switch (message._tag) {
           case 'Moved':
@@ -249,6 +329,8 @@ it('draws a row again only when its values or what a Behavior gave it changed', 
             return { model: { ...model, rows: model.rows.map(row => (row === 'd' ? 'e' : row)) } }
           case 'Elsewhere':
             return { model: { ...model, other: model.other + 1 } }
+          case 'Stamped':
+            return { model: { ...model, stamp: model.stamp + 1 } }
         }
       },
       view: (model: ListModel, h: HtmlBuilder<ListMessage>) => List(model, h),
@@ -281,6 +363,13 @@ it('draws a row again only when its values or what a Behavior gave it changed', 
 
     await press('elsewhere', () => expect(find('#elsewhere')?.textContent).toBe('1'))
     expect(rowsDrawn).toEqual([])
+
+    // Twice, so the second is not the miss that follows the first draw.
+    for (const stamp of ['1', '2']) {
+      stampedDrawn.length = 0
+      await press('stamped', () => expect(find('#stamped')?.textContent).toBe(stamp))
+      expect(stampedDrawn).toEqual(['a', 'b', 'c', 'e'])
+    }
   } finally {
     handle.dispose()
   }

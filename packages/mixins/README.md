@@ -564,8 +564,6 @@ to it and reach every part's Slots.
   Styles cost nothing.
 - **Memoizing needs a running application.** Drawn inert (a test, a server's
   first pass), every part is drawn afresh.
-- **A part has one place.** Drawing one part twice in a render throws
-  `mixins:part-drawn-twice`, since one cached drawing cannot be two elements.
 
 A Slot drawn once per item can memoize each item, in a part or any SlotView:
 
@@ -592,6 +590,9 @@ left and the row it reached, and no other. `drawRow` reads only its arguments,
 so define it once, not per render. A Mixin that gives an item a handler made per
 render, and an item drawing that holds another, are drawn every time: correct,
 not cached.
+Items are remembered by key for the life of the page, as Foldkit's keyed memo
+is, so key by something bounded (a node id), not by something that keeps
+changing (a search's results).
 
 ## With `foldkit-surface`
 

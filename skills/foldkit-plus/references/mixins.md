@@ -44,7 +44,8 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
 - **Parts** cut a big view so each piece redraws only when what it reads changes:
   `const P = SlotView.parts(S)<Input, Message>()`, `P.part(name, { reads: ['k'], behaviors },
   (input, slots, h) => …)` (input is `Pick<Input, 'k'>`), `P.assemble((input, slots, h, draw) =>
-  … draw(Part) …)` is a SlotView. A whole-view Mixin that reads input makes parts redraw every time.
+  … draw(Part) …)` is a SlotView; a part may be drawn in more than one place. A whole-view Mixin
+  that reads input makes parts redraw every time.
   Per item: `slots.row.lazy(item, drawRow, [args])` with `drawRow(slots, h, ...args)` defined once;
   an item redraws when an arg changes or what Mixins give its Slots changes.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.

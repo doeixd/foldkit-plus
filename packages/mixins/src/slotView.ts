@@ -7,7 +7,6 @@
  */
 import { createKeyedLazy, createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { NamedBehavior } from './behavior.js'
-import { DiagnosticError } from './diagnostics.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
 import { SLOT_MARK, isMarking } from './slotMark.js'
@@ -155,17 +154,44 @@ const itemMemoOf = (draw: object): ItemMemo => {
 let pending: (() => Html) | undefined
 const runPending = (..._compared: ReadonlyArray<unknown>): Html => pending!()
 
+// How many memoized drawings have started. Foldkit's lazy slot throws before
+// it calls the drawing when there is no runtime frame, so a throw with this
+// unchanged is that, and a throw after it moved is the drawing's own error.
+let started = 0
+
 /**
- * Whether two evaluated contributions hold the same data: functions by
- * identity, everything else by value. A handler made per render is never the
- * same, so an item a Mixin gives one is drawn again every time: correct, not cached.
+ * `memoized()` under a lazy slot, or `plain()` where there is no runtime frame
+ * to memoize under (a test, a server's first pass). An error from the drawing
+ * itself is thrown as it is, not drawn a second time.
+ */
+const memoizedOr = (memoized: () => Html, plain: () => Html): Html => {
+  const before = started
+  try {
+    return memoized()
+  } catch (error) {
+    if (started !== before) throw error
+    return plain()
+  }
+}
+
+const isPlain = (value: object): boolean => {
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null || Array.isArray(value)
+}
+
+/**
+ * Whether two evaluated contributions hold the same data: arrays and plain
+ * objects (Foldkit's attributes and Messages are) by value, anything else by
+ * identity, since a `Map` or a `Date` keeps its contents where `Object.keys`
+ * does not see them. A handler made per render is never the same, so an item
+ * a Mixin gives one is drawn again every time: correct, not cached.
  */
 const sameData = (left: unknown, right: unknown, depth = 0): boolean => {
   if (Object.is(left, right)) return true
   if (depth > 8) return false
   if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
     return false
-  if (Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) return false
+  if (!isPlain(left) || Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) return false
   const keys = Object.keys(left)
   if (keys.length !== Object.keys(right).length) return false
   return keys.every(
@@ -199,6 +225,7 @@ const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
   const memo = itemMemoOf(draw)
   const key = item.id ?? item.index
   const run = (): Html => {
+    started++
     using = new Set()
     try {
       const html = draw(context.builders, context.h, ...args)
@@ -217,10 +244,7 @@ const drawItem = <Slots, Message, Args extends ReadonlyArray<unknown>>(
   memo.given.set(key, given)
   pending = run
   try {
-    return memo.lazy(key, runPending, [draw, given, ...args])
-  } catch {
-    // No runtime frame to memoize under (a test, a server's first pass).
-    return run()
+    return memoizedOr(() => memo.lazy(key, runPending, [draw, given, ...args]), run)
   } finally {
     pending = undefined
   }
@@ -378,7 +402,8 @@ export interface Parts<Slots, Input, Message> {
   ) => SlotView<Slots, Input, Message>
 }
 
-// A part's memo; one per part, since a part is drawn at one place.
+// A part's memo. A part drawn twice in one render is the same drawing twice,
+// which Foldkit copies for the second place.
 const lazies = new WeakMap<object, ReturnType<typeof createLazy>>()
 const lazyOf = (part: object): ReturnType<typeof createLazy> => {
   const known = lazies.get(part)
@@ -410,6 +435,7 @@ const drawPart = <Slots, Input, Message>(
   whole: unknown,
   ...values: Array<unknown>
 ): Html => {
+  started++
   const selection = Object.fromEntries(part.reads.map((key, at) => [key, values[at]]))
   const groups = [
     { mixins: part.mixins, input: selection },
@@ -445,17 +471,7 @@ export const parts =
         // A Mixin attached to the whole view that reads the input is resolved
         // against all of it, so a part it reaches redraws whenever the input changes.
         const whole = anyDynamic(mixins) ? input : undefined
-        const drawn = new Set<Part<Slots, Input, Message>>()
         return render(input, builders, h, part => {
-          // A cached drawing placed twice would be patched as one element in two places.
-          if (drawn.has(part))
-            throw new DiagnosticError({
-              source: 'mixins',
-              code: 'mixins:part-drawn-twice',
-              severity: 'error',
-              message: `Part "${part.name}" is drawn twice in one render; a part has one place`,
-            })
-          drawn.add(part)
           const args: Parameters<typeof drawPart<Slots, Input, Message>> = [
             part,
             slots,
@@ -464,12 +480,10 @@ export const parts =
             whole,
             ...part.reads.map(key => input[key]),
           ]
-          try {
-            return lazyOf(part)(drawPart<Slots, Input, Message>, args)
-          } catch {
-            // No runtime frame to memoize under (a test, a server's first pass).
-            return drawPart(...args)
-          }
+          return memoizedOr(
+            () => lazyOf(part)(drawPart<Slots, Input, Message>, args),
+            () => drawPart(...args),
+          )
         })
       }),
   })
