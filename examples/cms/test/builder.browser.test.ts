@@ -127,3 +127,24 @@ it('draws a Style that the stylesheet leaves out', async () => {
   // BuilderStyle makes the canvas scroll on its own.
   expect(getComputedStyle(page).overflow).toBe('auto')
 })
+
+// The rows are drawn once and reused (dx-and-builder-PLAN.md, 3d): what the
+// tree's keyboard gives each row must still follow the selection.
+it('moves the selection and the tab stop with the keyboard, over reused rows', async () => {
+  unmount = mount(stylesheet)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const rows = () => Array.from(document.querySelectorAll<HTMLElement>('[role="treeitem"]'))
+  const marked = (attribute: string, value: string) =>
+    rows().flatMap((row, index) => (row.getAttribute(attribute) === value ? [index] : []))
+
+  rows()[1]?.click()
+  await vi.waitFor(() => expect(marked('aria-selected', 'true')).toEqual([1]))
+  rows()[1]?.focus()
+  for (const expected of [2, 3]) {
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+    )
+    await vi.waitFor(() => expect(marked('aria-selected', 'true')).toEqual([expected]))
+    expect(marked('tabindex', '0')).toEqual([expected])
+  }
+})
