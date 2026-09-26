@@ -40,7 +40,7 @@ export {
   type PropsOf,
   type StoredPropsOf,
 } from './block.js'
-export { Catalog, type BlockDescription, type BlockName } from './catalog.js'
+export { Catalog, type BlockDescription, type BlockName, type Pattern } from './catalog.js'
 export { Content } from './content.js'
 export { Document, Node, NodeId, type Place } from './document.js'
 export type { Migrated, Migration } from './migrate.js'

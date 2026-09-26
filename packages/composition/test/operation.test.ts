@@ -1,4 +1,4 @@
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import { Action } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
@@ -52,11 +52,20 @@ const Frame = Block.define('Frame', {
   regions: { content: Region.many({ accepts: [Content.Flow], min: 1 }) },
   provides: [Content.Section],
 })
+/** A Hero with its button, as a pattern stores it. */
+const welcome = {
+  root: 'hero',
+  nodes: {
+    hero: { block: 'Hero', props: { title: 'Welcome' }, regions: { actions: ['go'] } },
+    go: { block: 'Button', props: { label: 'Start' }, regions: {} },
+  },
+}
 const Site = Catalog.make({
   blocks: [Heading, Button, Hero, Section, Frame],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']) }),
   actions: [AddToCart],
+  patterns: [{ name: 'HeroWithButton', description: 'A title and a way in', tree: welcome }],
 })
 
 const id = NodeId.make
@@ -366,6 +375,85 @@ describe('duplicate, a tree, and new ids', () => {
   })
 })
 
+describe('patterns', () => {
+  it('inserts a pattern under the ids it is given, as often as asked', () => {
+    const use = (hero: string, go: string, at = root(1)) =>
+      Op.usePattern({
+        pattern: 'HeroWithButton',
+        ids: { [id('hero')]: id(hero), [id('go')]: id(go) },
+        at,
+      })
+    const once = applied(start, use('h1', 'g1'))
+    expect(once.document.roots).toEqual([id('s'), id('h1')])
+    expect(once.document.nodes[id('h1')]).toEqual({
+      block: 'Hero',
+      props: { title: 'Welcome' },
+      regions: { actions: [id('g1')] },
+    })
+    const twice = applied(once.document, use('h2', 'g2', root(0)))
+    expect(twice.document.roots).toEqual([id('h2'), id('s'), id('h1')])
+    // A name the Catalog lacks, ids that miss a node, an id taken, a place it does not fit.
+    expect(refused(start, Op.usePattern({ pattern: 'Carousel', ids: {}, at: root(1) })).code).toBe(
+      'composition:unknown-pattern',
+    )
+    expect(
+      refused(
+        start,
+        Op.usePattern({ pattern: 'HeroWithButton', ids: { [id('hero')]: id('h1') }, at: root(1) }),
+      ).code,
+    ).toBe('composition:malformed-tree')
+    expect(refused(once.document, use('h1', 'g3')).code).toBe('composition:id-taken')
+    expect(refused(start, use('h1', 'g1', region(id('s'), 'body', 0))).code).toBe(
+      'composition:region-rejects',
+    )
+  })
+
+  it('names a pattern for people, by its name spaced unless given a label', () => {
+    expect(Option.map(Catalog.pattern(Site, 'HeroWithButton'), pattern => pattern.words)).toEqual(
+      Option.some({ label: 'Hero with button', description: Option.some('A title and a way in') }),
+    )
+    expect(Catalog.pattern(Site, 'constructor')).toEqual(Option.none())
+  })
+
+  it('refuses where the Catalog is made a pattern that does not hold together or fit', () => {
+    const make = (tree: typeof Composition.Tree.Encoded) => () =>
+      Catalog.make({
+        blocks: [Heading, Button, Hero],
+        roots: [Content.Section],
+        patterns: [{ name: 'Broken', tree }],
+      })
+    const heading = (props: Readonly<Record<string, Schema.Json>>) => ({
+      block: 'Heading',
+      props,
+      regions: {},
+    })
+    expect(
+      make({ root: 'a', nodes: { a: { block: 'Carousel', props: {}, regions: {} } } }),
+    ).toThrow(/pattern "Broken" does not fit the Catalog: .*Carousel/)
+    expect(make({ root: 'a', nodes: { a: heading({ text: 'A' }) } })).toThrow(/"a"'s props/)
+    expect(
+      // @ts-expect-error: a key a tree does not have
+      make({ root: 'a', nodes: { a: heading({ text: 'A', level: 1 }) }, extra: 1 }),
+    ).toThrow(/pattern "Broken" is not a tree/)
+    expect(
+      make({
+        root: 'a',
+        nodes: { a: heading({ text: 'A', level: 1 }), b: heading({ text: 'B', level: 1 }) },
+      }),
+    ).toThrow(/does not reach/)
+    expect(() =>
+      Catalog.make({
+        blocks: [Heading],
+        roots: [Content.Flow],
+        patterns: [
+          { name: 'Twice', tree: { root: 'a', nodes: { a: heading({ text: 'A', level: 1 }) } } },
+          { name: 'Twice', tree: { root: 'a', nodes: { a: heading({ text: 'A', level: 1 }) } } },
+        ],
+      }),
+    ).toThrow('two patterns are named "Twice"')
+  })
+})
+
 describe('props and the reserved fields', () => {
   it('sets a prop, checked against the Block', () => {
     const result = applied(start, Op.setProp(id('a'), 'text', 'Hello'))
@@ -585,6 +673,17 @@ describe('the Operations an agent may send', () => {
     const section = decode({ _tag: 'Insert', id: 'n', block: 'Section', props: {}, at })
     if (Result.isFailure(section)) throw new Error('the schema refused a Section')
     expect(refused(start, section.success).code).toBe('composition:region-rejects')
+    // A pattern names each of its ids, so none is missing and none is extra.
+    const use = (ids: unknown, pattern = 'HeroWithButton') => ({
+      _tag: 'UsePattern',
+      pattern,
+      ids,
+      at,
+    })
+    expect(Result.isSuccess(strict(use({ hero: 'h1', go: 'g1' })))).toBe(true)
+    expect(Result.isFailure(strict(use({ hero: 'h1' })))).toBe(true)
+    expect(Result.isFailure(strict(use({ hero: 'h1', go: 'g1', more: 'm' })))).toBe(true)
+    expect(Result.isFailure(strict(use({ hero: 'h1', go: 'g1' }, 'Carousel')))).toBe(true)
     // A whole subtree is left to code.
     expect(
       Result.isFailure(decode({ _tag: 'InsertTree', tree: { root: 'x', nodes: {} }, at })),
@@ -605,6 +704,7 @@ describe('Operations as data', () => {
       Op.remove(id('a')),
       Op.move(id('a'), root(0)),
       Op.duplicate({ id: id('a'), ids: { [id('a')]: id('a2') }, at: root(0) }),
+      Op.usePattern({ pattern: 'HeroWithButton', ids: { [id('hero')]: id('h') }, at: root(0) }),
       Op.setProp(id('a'), 'text', 'x'),
       Op.unsetProp(id('a'), 'anchor'),
       Op.setWhen(id('a'), null),

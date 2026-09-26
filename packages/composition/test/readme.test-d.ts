@@ -74,6 +74,41 @@ const PublishPage = Entity.input(
 expectTypeOf(PublishPage.schema.Type.document).toEqualTypeOf<Document>()
 expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
 
+// Patterns
+{
+  const Site = Catalog.make({
+    blocks: [Heading, Section],
+    roots: [Content.Section],
+    patterns: [
+      {
+        name: 'Intro',
+        description: 'A section that opens with a heading',
+        tree: {
+          root: 'intro',
+          nodes: {
+            intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+            title: { block: 'Heading', props: { text: 'Welcome', level: 1 }, regions: {} },
+          },
+        },
+      },
+    ],
+  })
+
+  const { Op, root } = Composition
+  Composition.apply(
+    Site,
+    page,
+    Op.usePattern({
+      pattern: 'Intro',
+      ids: {
+        [NodeId.make('intro')]: NodeId.make('intro-2'),
+        [NodeId.make('title')]: NodeId.make('title-2'),
+      },
+      at: root(1),
+    }),
+  )
+}
+
 // Editing: Operations
 {
   const { Op, region } = Composition

@@ -17,7 +17,7 @@ import { Block } from './block.js'
 import { Catalog } from './catalog.js'
 import { When, check as checkWhen } from './condition.js'
 import { accepts } from './content.js'
-import { Node, NodeId, index, type Document, type Place } from './document.js'
+import { Node, NodeId, empty, index, type Document, type Place } from './document.js'
 import { bounds } from './region.js'
 
 /** Where a node goes: among the roots, or in a parent's Region, at an index. */
@@ -47,6 +47,12 @@ const Duplicate = Schema.TaggedStruct('Duplicate', {
   ids: Schema.Record(NodeId, NodeId),
   at: Position,
 })
+const UsePattern = Schema.TaggedStruct('UsePattern', {
+  pattern: Schema.String,
+  /** A new id for each of the pattern's nodes, by the id it has in the pattern. */
+  ids: Schema.Record(NodeId, NodeId),
+  at: Position,
+})
 const SetProp = Schema.TaggedStruct('SetProp', {
   id: NodeId,
   prop: Schema.String,
@@ -70,6 +76,7 @@ type Single =
   | typeof Remove.Type
   | typeof Move.Type
   | typeof Duplicate.Type
+  | typeof UsePattern.Type
   | typeof SetProp.Type
   | typeof UnsetProp.Type
   | typeof SetWhen.Type
@@ -84,6 +91,7 @@ const Singles = [
   Remove,
   Move,
   Duplicate,
+  UsePattern,
   SetProp,
   UnsetProp,
   SetWhen,
@@ -125,8 +133,25 @@ export const operationSchema = (catalog: Catalog): Schema.Codec<Operation, unkno
       onSome: description => insert.annotate({ description }),
     })
   })
+  // A pattern's ids are named one by one, so the schema says which it needs.
+  const patterns = catalog.patterns.map(pattern => {
+    const use = Schema.TaggedStruct('UsePattern', {
+      pattern: Schema.Literal(pattern.name),
+      ids: Schema.Struct(
+        Object.fromEntries(Object.keys(pattern.tree.nodes).map(id => [id, NodeId] as const)),
+      ),
+      at: Position,
+    })
+    return use.annotate({
+      description: Option.match(pattern.words.description, {
+        onNone: () => pattern.words.label,
+        onSome: description => `${pattern.words.label}: ${description}`,
+      }),
+    })
+  })
   const Edit: Schema.Codec<Operation, unknown> = Schema.Union([
     ...inserts,
+    ...patterns,
     Remove,
     Move,
     Duplicate,
@@ -167,6 +192,7 @@ export type RefusalCode =
   | 'composition:unknown-context'
   | 'composition:invalid-action'
   | 'composition:unknown-action'
+  | 'composition:unknown-pattern'
 
 /** Why an Operation was refused. The Document is as it was. */
 export interface Refusal {
@@ -556,6 +582,13 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
       addTree(catalog, draft, tree, op.at)
       return
     }
+    case 'UsePattern': {
+      const pattern = Option.getOrElse(Catalog.pattern(catalog, op.pattern), () =>
+        refuse('composition:unknown-pattern', `the Catalog has no pattern "${op.pattern}"`),
+      )
+      addTree(catalog, draft, rekey(pattern.tree, op.ids), op.at)
+      return
+    }
     case 'SetProp':
     case 'UnsetProp': {
       const node = nodeOf(draft, op.id)
@@ -609,6 +642,20 @@ const step = (catalog: Catalog, draft: Draft, op: Operation): void => {
 }
 
 /**
+ * Why a tree could not go into any page, checked alone: none when it holds
+ * together and every node fits the Catalog. Where it would go is not checked.
+ */
+export const treeRefusal = (catalog: Catalog, tree: Tree): Option.Option<Refusal> => {
+  try {
+    checkTree(catalog, start(empty()), tree)
+    return Option.none()
+  } catch (error) {
+    if (error instanceof Refused) return Option.some(error.refusal)
+    throw error
+  }
+}
+
+/**
  * Applies an Operation. Pure: the Document given is unchanged, and a refusal
  * returns no partial result, a batch's included.
  */
@@ -651,6 +698,10 @@ export const Op = {
   move: (id: NodeId, to: Position): Operation => ({ _tag: 'Move', id, to }),
   duplicate: (fields: Omit<typeof Duplicate.Type, '_tag'>): Operation => ({
     _tag: 'Duplicate',
+    ...fields,
+  }),
+  usePattern: (fields: Omit<typeof UsePattern.Type, '_tag'>): Operation => ({
+    _tag: 'UsePattern',
     ...fields,
   }),
   setProp: (id: NodeId, prop: string, value: Schema.Json): Operation => ({

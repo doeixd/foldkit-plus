@@ -64,6 +64,11 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
 - **New ids:** `Composition.newIds(n)` is an Effect: run it in a Command and put
   the ids in the Operation; `apply` never mints one. Copy and paste:
   `Composition.rekey(Composition.takeTree(doc, id), ids)`.
+- **Patterns:** `Catalog.make({ ..., patterns: [{ name, label?, description?, tree: { root,
+  nodes } }] })`, the tree as a Document stores it, checked there (throws on a bad one);
+  insert one with `Op.usePattern({ pattern, ids: { [its id]: newId, ... }, at })`
+  (`composition:unknown-pattern`). `Catalog.pattern(catalog, name)` is an `Option`.
+  `operationSchema` has a `UsePattern` per pattern whose `ids` name exactly its nodes.
 - **Undo** is not here: the Builder keeps the page in `foldkit-primitives/state`'s `history`.
 - **Migrate stored pages:** `Composition.migrate(doc, [Composition.renameBlock(from, to),
   Composition.renameProp(block, from, to), Composition.promoteUnknown(name, from, ToBlock),

@@ -253,6 +253,8 @@ Agent.expose(Message, {
 - The agent mints the ids of what it adds (`composition:id-taken` for one in
   use), and reads the page as `Composition.describe(Site, document)`, ids and
   props included.
+- A pattern (see [Patterns](#patterns)) goes in by `UsePattern`, whose `ids`
+  name exactly the pattern's nodes.
 - `examples/cms` has one, `pageAgent.ts`.
 
 ## Reading a Document
@@ -334,6 +336,60 @@ const result = Composition.apply(
   `Composition.rekey(tree, ids)` renames every id in it, which is how a paste
   is inserted twice without a collision. A reference to a node the tree does
   not hold is kept as it is, for `apply` to refuse by name.
+
+## Patterns
+
+A pattern is an arrangement of Blocks an author inserts as one: a section that
+opens with a heading, a hero with its button. The Catalog holds it as a tree,
+in the form a Document stores, under ids of its own:
+
+```ts
+const Site = Catalog.make({
+  blocks: [Heading, Section],
+  roots: [Content.Section],
+  patterns: [
+    {
+      name: 'Intro',
+      description: 'A section that opens with a heading',
+      tree: {
+        root: 'intro',
+        nodes: {
+          intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+          title: { block: 'Heading', props: { text: 'Welcome', level: 1 }, regions: {} },
+        },
+      },
+    },
+  ],
+})
+
+const { Op, root } = Composition
+Composition.apply(
+  Site,
+  page,
+  Op.usePattern({
+    pattern: 'Intro',
+    ids: {
+      [NodeId.make('intro')]: NodeId.make('intro-2'),
+      [NodeId.make('title')]: NodeId.make('title-2'),
+    },
+    at: root(1),
+  }),
+)
+```
+
+- **Checked where the Catalog is made:** a tree that does not decode, does
+  not hold together, or names a Block, a prop or a Region the Catalog refuses
+  throws there, not when an author first uses it. Where it may go is checked
+  by each use, as any insert is.
+- **`usePattern` carries a new id for each of its nodes**, by the id it has in
+  the pattern, like `duplicate`, so a replay makes the same nodes. A pattern
+  the Catalog lacks is `composition:unknown-pattern`.
+- **An agent's tool takes it too.** `operationSchema` has one `UsePattern` per
+  pattern, its name a literal and its `ids` a struct of exactly its nodes'
+  ids, described by its label and description: an agent inserts structure
+  the Catalog vouches for without being trusted with an arbitrary tree.
+- `Catalog.pattern(catalog, name)` finds one (an `Option`); its `words` are
+  its label, by default its name spaced, and its description.
 
 ## Undo
 
