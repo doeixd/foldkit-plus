@@ -1360,11 +1360,8 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
       centred('68rem'),
       Style.self({ aspectRatio: '21 / 9', borderRadius: t.radius.xl }),
     ),
-    // Prose writes its measure and leading inline, where a rule cannot reach:
-    // they are set through its option and its variable.
     body: Style.compose(
-      L.in('components', Prose.style({ measure: '44rem' })),
-      Style.vars({ '--fk-leading-relaxed': '1.75' }),
+      L.in('components', Prose.style({ measure: '44rem', leading: '1.75' })),
       Style.self({ fontFamily: serif, fontSize: '1.25rem', marginInline: 'auto', width: '100%' }),
     ),
     back: Style.compose(

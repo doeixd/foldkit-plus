@@ -238,14 +238,15 @@ export const grid = <const Area extends string>(
     }
   }
   return Object.freeze({
-    style: inline({
+    // Rules, not inline declarations, so a later layer can override the template.
+    style: self({
       display: 'grid',
       gridTemplateAreas: config.areas.map(row => `"${row.join(' ')}"`).join(' '),
       ...(config.columns === undefined ? {} : { gridTemplateColumns: config.columns }),
       ...(config.rows === undefined ? {} : { gridTemplateRows: config.rows }),
       ...(config.gap === undefined ? {} : { gap: config.gap }),
     }),
-    area: (name: Exclude<Area, '.'>) => inline({ gridArea: name }),
+    area: (name: Exclude<Area, '.'>) => self({ gridArea: name }),
     areas: Object.freeze(names),
   })
 }

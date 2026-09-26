@@ -8,7 +8,7 @@ import { Block, Composition, NodeId } from 'foldkit-composition'
 import { Input } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { Message, type Model } from 'foldkit-builder'
-import { Attributes, A11y, Capability, SlotView } from 'foldkit-mixins'
+import { Attributes, A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
@@ -462,7 +462,10 @@ describe('the drawn Builder', () => {
       node => node.sel === 'div' && attr(node, 'data-viewport') !== undefined,
     )
     expect(attr(frame, 'data-viewport')).toBe('narrow')
-    expect(frame?.data?.style).toMatchObject({ 'max-width': viewportWidths.narrow })
+    // The width is a variable on the frame, read by the Builder's default rule.
+    expect(frame?.data?.style).toMatchObject({ '--fk-frame-width': viewportWidths.narrow })
+    const frameClasses = Object.keys(frame?.data?.class ?? {}).join(' ')
+    expect(Style.usedIn(`class="${frameClasses}"`)).toContain('max-width:var(--fk-frame-width)')
     const selected = all(frame).find(node => attr(node, 'data-composition-mark') === 'selected')
     expect(attr(selected, 'data-composition-node')).toBe(some(narrow.selected, 'the selection'))
     expect(attr(buttonNamed(root, 'Narrow'), 'aria-pressed')).toBe('true')

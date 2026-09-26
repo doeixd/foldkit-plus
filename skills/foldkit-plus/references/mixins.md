@@ -276,8 +276,8 @@ them by layer order alone.
   input; its CSS is always in the stylesheet. Also: `Style.states({ open: {...} })` (`[data-state]`
   rules), `Style.responsive(breakpoints, map)`, `Style.enter(decl)` (`@starting-style`) with
   `Style.allowDiscrete`, `Style.vars`, `Style.viewTransitionName`, `Style.grid({ areas, columns?,
-  rows?, gap? })` (typed areas: `.style` on the container, `.area(name)` on a child; ragged rows
-  raise `mixins:ragged-grid-areas`), and `Selector.*` builders.
+  rows?, gap? })` (typed areas, as rules: `.style` on the container, `.area(name)` on a child;
+  ragged rows raise `mixins:ragged-grid-areas`), and `Selector.*` builders.
 - Multi-slot recipes (every field optional): `Style.recipeFor(Slots)({ base, variants, defaults, compound })` returns
   `selection => StylePieces` (`null` unsets a defaulted axis) with `.extend(patch)` merging per
   slot (`mixins:unknown-slot` for a slot the contract lacks). `Style.perItem(item => piece)` and
@@ -312,7 +312,7 @@ them by layer order alone.
   `controls`; `all` excludes `reset`) from `foldkit-mixins/defaults` are `:where()` element CSS over
   `--fk-*` tokens with fallbacks, unlayered: place them with `L.in('reset', …)` / `L.in('defaults',
   …)`. Headings are `text-overt`; a colored band sets `Style.vars({ '--fk-heading': 'currentColor',
-  '--fk-ink': 'currentColor' })` and its headings and unfilled (`outline`/`ghost`) buttons take its color. `Prose.style({ measure?, rhythm?: { paragraph, heading, list, figure } })` from
+  '--fk-ink': 'currentColor' })` and its headings and unfilled (`outline`/`ghost`) buttons take its color. `Prose.style({ measure?, leading?, rhythm?: { paragraph, heading, list, figure } })` from
   `foldkit-mixins/prose` is one class for every caller; options are `--fk-prose-*` variables on
   the element. Put it in `components`.
 - Layout: `foldkit-mixins/layout` exports `Layout.stack/cluster/split/sidebar/switcher/reel/center/

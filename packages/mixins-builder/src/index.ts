@@ -29,7 +29,15 @@ import { MARK_ATTRIBUTE, NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/fo
 import { Entity, Words } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
-import { Behavior, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import {
+  Behavior,
+  Capability,
+  Layers as StyleLayers,
+  Slot,
+  Slots,
+  SlotView,
+  Style,
+} from 'foldkit-mixins'
 import { KeepInView } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
@@ -104,6 +112,15 @@ export const BuilderSlots = Slots.define({
   /** The live region the Builder's announcements are read from. */
   live: Slot.make({ capability: Capability.Base }),
 })
+
+/**
+ * What the drawn Builder needs to work unstyled: the frame as wide as the
+ * viewport, centred. In `components`, so an application's style overrides it.
+ */
+const FrameDefaults = Style.forSlots(BuilderSlots)(
+  { frame: Style.self({ maxWidth: 'var(--fk-frame-width)', marginInline: 'auto' }) },
+  { name: 'BuilderDefaults', layer: StyleLayers.standard.layer('components') },
+)
 
 /** The width each viewport draws the page at. */
 export const viewportWidths = { wide: '100%', medium: '768px', narrow: '375px' } as const
@@ -734,7 +751,8 @@ export const BuilderView = {
           h.div(
             slots.frame.attrs([
               h.DataAttribute('viewport', model.viewport),
-              h.Style({ maxWidth: viewportWidths[model.viewport], margin: '0 auto' }),
+              // The width is the frame's own; the rule that reads it is `FrameDefaults`.
+              h.Style({ '--fk-frame-width': viewportWidths[model.viewport] }),
             ]),
             [
               ...(document.roots.length === 0
@@ -1210,6 +1228,7 @@ export const BuilderView = {
         name: 'Builder',
       })
       .pipe(
+        Style.attach(FrameDefaults),
         Behavior.attach(
           TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<BuilderInput, Message>({
             container: 'tree',

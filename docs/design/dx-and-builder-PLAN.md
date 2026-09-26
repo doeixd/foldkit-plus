@@ -289,6 +289,19 @@ on any inline property that is not a custom property. `Style.vars` and
 `Style.inline` stay public for applications, documented as the escape hatch
 they are.
 
+> **1e done, 2026-09-26,** for Prose (with a `leading` option), grid,
+> `stagger` and the Builder's frame (a default rule in `components` reading
+> `--fk-frame-width`). Two sites stay inline, on purpose:
+>
+> - **An appearance token without breakpoints.** It is an author's choice on
+>   one node, which should beat a stylist's defaults; and inline, the resolver
+>   refuses a Behavior owning the same property ("two owners"), a check a rule
+>   would lose. Tried and reverted.
+> - **The Renderer's `display: contents` edit wrapper.** It is structure, not a
+>   look, and `foldkit-composition`'s renderer draws without Styles.
+>
+> The check that no other inline declaration is fixed is Phase 2b's.
+
 ### 1f. The static sheet becomes optional (S)
 
 - `Style.stylesheet(...)` stays, for foundations and for preloading what the
@@ -297,6 +310,9 @@ they are.
   theme and defaults. The list of scoped Styles and `lookStyles` go.
 - A development warning (`style:unregistered-class`) fires once per class an
   element carries that the registry lacks: a hand-written class, or a typo.
+  **Dropped:** with injection, a list can no longer be forgotten. A class the
+  registry lacks can only come from a second copy of `foldkit-mixins`, and the
+  package has no warning channel to report it through. Revisit if seen.
 
 **Acceptance for the phase.** Phase 0c's missing-style test passes. The
 example has no list of scoped Styles. Prose's measure is overridable by a later

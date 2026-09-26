@@ -255,7 +255,7 @@ error; the compiler writes the kebab-case name. Values are not checked, so
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
 | `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
 | `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => StylePieces`; `null` unsets a defaulted axis; `.extend(patch)` merges per slot and refuses a slot the contract lacks |
-| `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` and a `calc` delay |
+| `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.self` / `pseudo` / `media` / `supports` / `container` / `nest` | rule-based appearance; `self` is a rule on the element's own class (`&{…}`), for declarations a layer must hold |
 | `Style.keyframes` / `global` | class-independent CSS |
@@ -299,7 +299,8 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
 - `Style.grid({ areas: [['header', 'header'], ['nav', 'main']], columns, rows, gap })`, a grid
   template with typed areas: `.style` for the container and `.area('main')` for a child, where
   a name the template lacks is a type error and a ragged template raises
-  `mixins:ragged-grid-areas`;
+  `mixins:ragged-grid-areas`. Both are rules, not inline declarations, so a later layer can
+  override the template;
 - `Selector.attr`, `not`, `is`, `child`, `descendant`, `sibling`, `siblings` build the selector
   strings `pseudo` and `nest` take. Each takes a selector list: every top-level selector is
   scoped to the class (`:is(a, b)` is not split), and a selector that writes `&` places the class
@@ -400,9 +401,10 @@ with or without a theme. Headings are `text-overt` unless a container sets `--fk
 drawn in its own color writes `Style.vars({ '--fk-heading': 'currentColor' })` and the headings
 inside take its color, with no rule on the heading. `foldkit-mixins-ui`'s unfilled buttons read
 `--fk-ink` the same way. `foldkit-mixins/prose` is the longform contract: `Prose.style({ measure?,
-rhythm? })` is one class for every caller (the rhythm between unlike elements: heading to
+leading?, rhythm? })` is one class for every caller (the rhythm between unlike elements: heading to
 paragraph, list to paragraph, around figures) whose options are `--fk-prose-*` variables on the
-element. Both are unlayered; the page places them:
+element. Its measure and line height are a rule reading those variables, so a later layer can
+override them. Both are unlayered; the page places them:
 
 ```ts
 import { Layers, Style } from 'foldkit-mixins'

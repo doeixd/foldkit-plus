@@ -343,8 +343,9 @@ writing page with its settings beside it) found these.
     full width with no sign why. The way through is Prose's own `measure`
     option and its `--fk-leading-relaxed` variable. *Proposed:* Prose's
     declarations as a rule (`Style.self`) in the layer it is placed in, so a
-    later layer can override them as `Style.self`'s docs promise. Status:
-    worked around.
+    later layer can override them as `Style.self`'s docs promise. **Fixed**
+    (dx-and-builder plan 1e): the measure and leading are a rule, with a
+    `leading` option, and the example uses it.
 
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
 The larger changes this work pointed to, across the packages, are in

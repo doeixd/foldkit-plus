@@ -127,14 +127,14 @@ describe('grid with typed areas', () => {
       columns: '12rem 1fr',
       gap: '1rem',
     })
-    expect(Page.style.style).toEqual({
-      display: 'grid',
-      gridTemplateAreas: '"header header" "nav main" ". main"',
-      gridTemplateColumns: '12rem 1fr',
-      gap: '1rem',
-    })
+    // Rules, not inline declarations, so a later layer can override them.
+    expect(Page.style.style).toEqual({})
+    expect(Style.stylesheet(Page.style)).toMatch(
+      /\{display:grid;gap:1rem;grid-template-areas:"header header" "nav main" "\. main";grid-template-columns:12rem 1fr\}/,
+    )
     expect(Page.areas).toEqual(['header', 'nav', 'main'])
-    expect(Page.area('main').style).toEqual({ gridArea: 'main' })
+    expect(Page.area('main').style).toEqual({})
+    expect(Style.stylesheet(Page.area('main'))).toContain('{grid-area:main}')
     // @ts-expect-error footer is not an area of this template
     Page.area('footer')
   })

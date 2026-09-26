@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   **`foldkit-ssr`:** `SSR.page`, `SSR.generate` and `SSR.entry` take
   `head: rendered => string`, put before the template's `</head>` (a template
   without one is refused when there is something to add).
+- **Fixed declarations are rules, not inline styles**, so a later layer can
+  override them: `Prose.style`'s measure and line height (with a new `leading`
+  option), `Style.grid`'s template and areas, and `Style.stagger`'s delay (its
+  `--fk-index` stays inline). The drawn Builder's frame writes
+  `--fk-frame-width`, read by a default rule in `components`.
 - **`foldkit-mixins-builder`: what the editor calls a Block.**
   `Block.annotate(BuilderView.describe({ label, description, group }))` names a
   Block, says what it is for, and files it in a palette group. The palette is

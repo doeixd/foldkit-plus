@@ -308,5 +308,7 @@ the page for that context: a node hidden there is still drawn, marked
 - A drag moves one node, the selected one; there is no multiple selection.
 - A drag does not scroll the layers or the canvas when the pointer nears an
   edge.
-- The viewport frame sets a width. It does not load the page in an iframe, so
-  the page's media queries see the editor's width.
+- The viewport frame sets a width: `--fk-frame-width` on the frame, read by
+  the Builder's one default rule (in `components`, so any application style
+  overrides it). It does not load the page in an iframe, so the page's media
+  queries see the editor's width.

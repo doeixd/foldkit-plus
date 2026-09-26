@@ -110,11 +110,12 @@ export const stagger = (options: {
   readonly stepMs: number
   readonly property?: 'transitionDelay' | 'animationDelay'
 }): StyleValue =>
-  perItem(item =>
-    inline({
-      '--fk-index': String(item.index),
+  compose(
+    // The delay is a rule; only the index is the item's own, inline.
+    self({
       [options.property ?? 'transitionDelay']: `calc(var(--fk-index) * ${options.stepMs}ms)`,
     }),
+    perItem(item => inline({ '--fk-index': String(item.index) })),
   )
 
 /** Fold every active condition and item piece (recursively) into a plain style. */
