@@ -1,4 +1,3 @@
-import { Schema } from 'effect'
 import {
   blockContent,
   eachBlock,
@@ -9,7 +8,6 @@ import {
   type NodeBlock,
   type NodeId,
   type PropsSchema,
-  type RunMark,
 } from './document.js'
 import { markName, markProps, propsFailure, type MarkDef } from './marks.js'
 
@@ -254,12 +252,6 @@ export const nodeRegistry = (definitions: ReadonlyArray<NodeDefinition>): NodeRe
   const byName = new Map(definitions.map(definition => [definition.name, definition]))
   return Object.freeze({ definitionFor: (kind: string) => byName.get(kind) })
 }
-
-/**
- * Whether a mark's props decode against its declared schema, and why not. The
- * same stability rule as node props: only the verdict travels, not a schema's
- * message. A mark that declares props must carry them.
- */
 
 /**
  * Checks a document against a Kit's vocabulary without changing it, walking
