@@ -6,7 +6,7 @@
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import * as RichText from 'foldkit-richtext'
-import { describe, expect, it } from 'vitest'
+import { describe, it } from 'vitest'
 import { marksToolbar, type ToolbarState } from '../src/toolbar.js'
 
 interface Message {

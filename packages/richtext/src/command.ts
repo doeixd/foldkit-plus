@@ -12,7 +12,6 @@ import {
   type BlockPath,
   type Document,
   type EditorState,
-  type Mark,
   type MarkValue,
   type Position,
   type RunMark,

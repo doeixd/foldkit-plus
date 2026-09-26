@@ -5,7 +5,6 @@ import {
   type Block,
   type ContentMode,
   type Document,
-  type NodeBlock,
   type NodeId,
   type PropsSchema,
 } from './document.js'

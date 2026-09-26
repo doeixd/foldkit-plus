@@ -8,7 +8,6 @@
  * contributions resolve at the element the view creates (§120). The two share
  * `markActive` instead.
  */
-import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { markActive, type ToolbarState } from 'foldkit-richtext-dom/toolbar'

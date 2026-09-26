@@ -722,6 +722,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
+- **Nothing reports an unused import here.** `tsconfig.base.json` leaves
+  `noUnusedLocals` off, so moving `propsFailure` out of `kit.ts` left `Schema` and
+  `RunMark` imported for nothing, and seven more dead imports had built up in the
+  richtext packages. After moving or deleting code, run
+  `npx tsc -p packages/<name> --noEmit --noUnusedLocals` over the packages touched.
 - **`pnpm ci` is a pnpm builtin, not your script.** A root script named `ci`
   never runs (`ERR_PNPM_CI_NOT_IMPLEMENTED`). The full-check script is `check`:
   run `pnpm check`.

@@ -1,5 +1,5 @@
 import { Equal, Schema } from 'effect'
-import { markName, resolveInsertion, sameMark } from './marks.js'
+import { markName, sameMark } from './marks.js'
 import {
   Block,
   eachBlock,
@@ -8,7 +8,6 @@ import {
   Position,
   RunMark,
   Selection,
-  blockAtPath,
   compareRunPlaces,
   selectionIsValid,
   type BlockPath,
