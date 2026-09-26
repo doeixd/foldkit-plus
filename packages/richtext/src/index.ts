@@ -67,6 +67,7 @@ export {
   markExtent,
   type MarkExtent,
   textBlockAt,
+  coversText,
   run,
   runAction,
 } from './command.js'

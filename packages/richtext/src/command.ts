@@ -240,6 +240,10 @@ const isCollapsed = (selection: Extract<Selection, { readonly type: 'Range' }>):
   selection.anchor.node === selection.focus.node &&
   selection.anchor.offset === selection.focus.offset
 
+/** Whether a selection covers text: a range that is not a caret. What a mark or a link applies to. */
+export const coversText = (selection: Selection | null): boolean =>
+  selection?.type === 'Range' && !isCollapsed(selection)
+
 /** A caret is a range whose endpoints coincide; direction is not yet meaningful. */
 const caretAt = (position: Position): Selection => ({
   type: 'Range',
