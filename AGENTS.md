@@ -465,6 +465,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   encoded side. And `Schema.toEncoded` keeps inner checks but drops one made
   after a transformation: `NumberFromString.check(isGreaterThan(0))` accepted
   `'-1'`. Re-check against the whole Schema.
+- **A Mount's acquire that throws halfway fails silently and leaks.** `Measure`
+  attached a MutationObserver, then `new ResizeObserver` threw in jsdom; the
+  Mount's stream neither ended nor reported, and the observer it left called
+  `measure` later ("Cannot access 'sizes' before initialization"). Make every
+  observer before any observes, and test with the constructor stubbed away.
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
