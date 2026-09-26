@@ -117,6 +117,29 @@ optimistic change and returns the Command, the Command does the work, and the
 Message it returns reconciles. That is the same three phases, written in the
 architecture that was already there.
 
+## Presentation state is not a fact
+
+Some of what a screen shows is known only to the DOM: where an element is, what
+the pointer is over, where the caret sits in a field. Putting it in the Model
+costs a Message and a render per pointer move or scroll, for a value no
+transition reads.
+
+The test for whether something belongs in the Model: **is it replayed, stored,
+sent, or does it decide a Message?** If any of those, it is a fact, and the
+Model owns it. If none, it is presentation, and it lives in a Behavior or a
+Mount on the DOM, where it is measured and drawn without a transition.
+
+- The page builder's selection is a fact: it decides what a Delete removes,
+  and a link can name it. The box drawn over the selected node is not: where
+  that node is on screen is measured by `Measure` (`foldkit-primitives/dom`)
+  and written as CSS custom properties, with no Message.
+- A form's draft is a fact, even text that does not parse yet, because a
+  submit is decided by it. The caret inside the field is not.
+- A hover sits on the line: the builder keeps its hovered node in the Model,
+  because a layer row's hover must mark the node on the canvas and a Message
+  is the only path between the two. It is still presentation, so a stored
+  Builder shown again drops it (`settle`) rather than showing a stale hover.
+
 ## The rule
 
 A setter is not unsafe — it is intentionally powerful infrastructure. What
