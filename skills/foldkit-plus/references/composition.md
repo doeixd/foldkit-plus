@@ -279,10 +279,11 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Inspector labels are the prop Schema's `title`, else the key spaced. A Block asks
   for a control with
   `Block.annotate(Builder.controls({ body: Input.multiline(), ref: Input.hidden() }))`
-  (`Builder` from `foldkit-builder`). Headless, a Block's props are a `foldkit-form` form
-  (`PageBuilder.inspecting(model)`): a change that decodes is one `setProp`; text that
-  does not (`"abc"` for a number) stays in its field with the error and edits nothing,
-  held in the Model's `inspector` as JSON.
+  (`Builder` from `foldkit-builder`). A Block's props are a `foldkit-form` form over their
+  stored side (`PageBuilder.inspecting(model)`), drawn by `FormView` (style it with
+  `FieldSlots`/`FormSlots`): a change that decodes is one `setProp`; text that does not
+  (`"abc"` for a number) stays in its field with the error and edits nothing, held in the
+  Model's `inspector` as JSON. Field ids are `<Block>Settings-<prop>`.
   A prop holding an id takes `Input.relationOne(Category)` (a `select`) or
   `Input.relationMany(Tag)` (checkboxes over an id array); its choices come in
   `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,

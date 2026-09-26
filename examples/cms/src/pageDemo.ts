@@ -155,7 +155,11 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
     }
     /** The options of the inspector's select for a prop of the selected Block, drawn as the editor draws it. */
     const pickerOf = (prop: string) => {
-      const selected = Option.getOrElse(builder().selected, () => '')
+      // The inspector's fields are its Block's settings form's: `<Block>Settings-<prop>`.
+      const block = Option.match(builder().selected, {
+        onNone: () => '',
+        onSome: id => builder().page.present.nodes[id]?.block ?? '',
+      })
       const drawn = elements(
         PageEditing(
           { ...builder(), ...builderInputs(model) },
@@ -163,9 +167,7 @@ export const runPageDemo = async (): Promise<ReadonlyArray<string>> => {
         ),
       )
       const picker = drawn.find(
-        node =>
-          node.sel === 'select' &&
-          String(node.data?.props?.['id']).endsWith(`-${selected}-${prop}`),
+        node => node.sel === 'select' && node.data?.props?.['id'] === `${block}Settings-${prop}`,
       )
       return elements(picker ?? null)
         .filter(node => node.sel === 'option')

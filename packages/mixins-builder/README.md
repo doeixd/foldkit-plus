@@ -203,18 +203,23 @@ canvas draws with `Renderer.make`, so a Block's actions do not run there.
 
 ## What the inspector draws
 
-Each field of the selected Block's props Schema is resolved as a form would
-resolve it:
+The selected node's props are its Block's settings form, a `foldkit-form` form
+that `foldkit-builder` makes (see its README), drawn by `foldkit-mixins-form`'s
+`FormView`. So each prop gets the control a form would give it, and its fields
+are styled through `FieldSlots` and `FormSlots`, as any form's are:
 
 | Prop Schema | Control |
 | --- | --- |
 | `Schema.Boolean` | `input type="checkbox"` |
 | `Schema.Literals([...])` | `select` of the literals, text or numbers; a number is stored as a number |
-| `Schema.Number` | `input`; text that is not a number is kept, and the page refuses it |
-| `Schema.String`, and a brand of it such as `Url` | `input` |
+| `Schema.Number` | `input type="text"`, so "1." is kept while it is typed |
+| `Schema.String`, and a brand of it such as `Url` | `input type="text"` |
 | anything else | its JSON, shown and not edited |
 
-A field is labelled with its Schema's `title`, else its prop key.
+A field is labelled with its Schema's `title`, else its prop key, spaced. A
+change that decodes is one `setProp`, and typing a word is one undo step. One
+that does not (`abc` for a number, an address its brand refuses) shows its
+error at its field and changes nothing.
 
 Where the Schema alone does not say, the Block asks for a control through
 metadata. `Input.multiline()` draws a `textarea`, and `Input.hidden()` leaves
@@ -280,17 +285,16 @@ EditorSlot.view(model, h, {
 })
 ```
 
-A `relationOne` offers a blank, stored as `null`, when its Schema admits
-`null`, and otherwise only while nothing is chosen. A chosen id the choices lack
-(a row since deleted, or choices not loaded yet) is shown as `? id`; in a
-`relationMany` it stays chosen until it is unchecked. The inspector lists the
-choices it is given and has no search box.
+A `relationOne` always offers "none", stored as `null` where the Schema admits
+it; choosing it for a prop that needs an id says so at the field. A chosen id
+the choices lack (a row since deleted, or choices not loaded yet) is shown as
+`? id`; in a `relationMany` it stays chosen until it is unchecked. The
+inspector lists the choices it is given and has no search box.
 
-Each edit is one `setProp`, checked by the Block's Schema; a refused edit shows
-in the alert and changes nothing. A node whose Block the Catalog does not know
-is shown, with its props, but not edited. A stored value a `select` does not
-offer, such as a choice an older version made, is shown as `? value` and
-chosen, rather than as the blank.
+A node whose Block the Catalog does not know is shown, with its props, but not
+edited. A stored value a `select` does not offer, such as a choice an older
+version made, is shown as `? value` and chosen, with its error, rather than as
+the blank.
 
 The props are under Content, labelled by their Schema's `title`, else their
 key spaced (`text` is "Text"). Under Style, each appearance axis the Block

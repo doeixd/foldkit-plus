@@ -144,7 +144,7 @@ it('draws a relation prop’s picker with the choices the form view gives the Bu
       )
     })
     const category = await vi.waitFor(() => {
-      const select = document.querySelector<HTMLSelectElement>('select[id$="-f-category"]')
+      const select = document.querySelector<HTMLSelectElement>('select[id$="-category"]')
       expect(select).not.toBeNull()
       return select
     })
@@ -155,9 +155,11 @@ it('draws a relation prop’s picker with the choices the form view gives the Bu
       'Tables',
     ])
     expect(category?.value).toBe('c1')
-    // Required, and chosen: nothing to go back to.
-    const maker = document.querySelector<HTMLSelectElement>('select[id$="-f-maker"]')
-    expect(Array.from(maker?.options ?? [], option => option.text)).toEqual(['Acme'])
+    // A relation always offers nothing, since its choices may not hold the stored id yet;
+    // choosing it for a required one says so at the field.
+    const maker = document.querySelector<HTMLSelectElement>('select[id$="-maker"]')
+    expect(Array.from(maker?.options ?? [], option => option.text)).toEqual(['none', 'Acme'])
+    expect(maker?.value).toBe('m1')
     if (category !== null) {
       category.value = 'c2'
       category.dispatchEvent(new Event('change', { bubbles: true }))
@@ -178,7 +180,7 @@ it('draws a relation prop’s picker with the choices the form view gives the Bu
     await vi.waitFor(() => expect(featured()).toBe('c2: gone, t2'))
     document.querySelector<HTMLElement>('[aria-label="Tags"] input[value="gone"]')?.click()
     await vi.waitFor(() => expect(featured()).toBe('c2: t2'))
-    const none = document.querySelector<HTMLSelectElement>('select[id$="-f-category"]')
+    const none = document.querySelector<HTMLSelectElement>('select[id$="-category"]')
     if (none !== null) {
       none.value = ''
       none.dispatchEvent(new Event('change', { bubbles: true }))

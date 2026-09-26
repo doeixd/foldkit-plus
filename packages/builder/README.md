@@ -94,8 +94,10 @@ const PageForm = Form.make('PageForm', PageInput, {
 ## The inspector is a form
 
 Each Block's props are edited through a `foldkit-form` form made from its props
-Schema, once per Block, at the first use. The node owns its props; the form
-only holds what its fields show:
+Schema, once per Block, at the first use. The form edits a prop as the
+Document stores it, so a prop drawn as an `Option` is chosen as an id or
+nothing, and checks each value against the prop's whole Schema. The node owns
+its props; the form only holds what its fields show:
 
 ```text
 node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key

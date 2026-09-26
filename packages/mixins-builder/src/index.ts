@@ -22,7 +22,9 @@ import {
   layersArgs,
   type ContextValue,
   type DropZone,
+  type Inspecting,
   type Model,
+  type Settings,
 } from 'foldkit-builder'
 import {
   Block,
@@ -47,6 +49,7 @@ import {
   SlotView,
   Style,
 } from 'foldkit-mixins'
+import { FormView, type FormViewInputs } from 'foldkit-mixins-form'
 import { KeepInView } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
@@ -150,6 +153,9 @@ export interface BuilderLike {
     selected: Option.Option<NodeId>,
     block: string,
   ): Option.Option<Position>
+  readonly inspecting: (
+    model: Pick<Model, 'page' | 'selected' | 'inspector'>,
+  ) => Option.Option<Inspecting>
   readonly keyCommand: (
     model: Pick<Model, 'page' | 'selected'>,
     key: string,
@@ -379,6 +385,35 @@ export interface BuilderOption {
 
 /** What the drawn Builder's Slots and Behaviors read: its Model and its inputs. */
 export type BuilderInput = Model & BuilderViewInputs
+
+// How many settings forms have started drawing. `h.submodel` throws before it
+// draws when there is no runtime frame, so a throw with this unchanged is that.
+let settingsDrawn = 0
+
+type SettingsModel = Settings['form']['initial']
+type SettingsMessage = Settings['form']['Message']['Type']
+
+// Each Block's settings form, drawn: made once per form, as the form is once per Block.
+const settingsViewOf = (settings: Settings) => {
+  const view = FormView.submodel(settings.form, FormView.define(settings.form))
+  return {
+    view,
+    counted: Submodel.defineView<SettingsModel, SettingsMessage, FormViewInputs>(
+      (model, inputs, h) => {
+        settingsDrawn++
+        return view(model, inputs, h)
+      },
+    ),
+  }
+}
+const settingsViews = new WeakMap<Settings, ReturnType<typeof settingsViewOf>>()
+const settingsView = (settings: Settings) => {
+  const known = settingsViews.get(settings)
+  if (known !== undefined) return known
+  const made = settingsViewOf(settings)
+  settingsViews.set(settings, made)
+  return made
+}
 
 /** The drawn Builder: what `BuilderView.define` returns. */
 export type BuilderSlotView = SlotView.SlotView<typeof BuilderSlots, BuilderInput, Message>
@@ -661,6 +696,7 @@ export const BuilderView = {
       id: NodeId,
       options: Readonly<Record<string, ReadonlyArray<BuilderOption>>>,
       actions: Html,
+      inspecting: Option.Option<Inspecting>,
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
     ): Html => {
@@ -705,24 +741,53 @@ export const BuilderView = {
             ]),
           ),
         ])
-      const set = (key: string, value: Schema.Json): Message =>
-        Message.Applied({ op: Composition.Op.setProp(id, key, value) })
-      const drawn = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
-        const control = controlOf(block, key, schema)
-        return control !== undefined && Input.Hidden.is(control) ? [] : [{ key, schema, control }]
+      // The props: the Block's settings form, whose changes the Builder turns into edits,
+      // then any prop no control fits, as it is stored.
+      const fields = Option.match(inspecting, {
+        onNone: () => [],
+        onSome: target => {
+          const { view, counted } = settingsView(target.settings)
+          const inputs: FormViewInputs = {
+            submits: false,
+            words: { none: 'none' },
+            // The application's choices are keyed `'Block.prop'`; the form's by prop.
+            options: Object.fromEntries(
+              Object.entries(options).flatMap(([at, choices]) =>
+                at.startsWith(`${node.block}.`) ? [[at.slice(node.block.length + 1), choices]] : [],
+              ),
+            ),
+          }
+          const before = settingsDrawn
+          const form = (() => {
+            try {
+              return h.submodel({
+                slotId: `${builder.name}-settings`,
+                model: target.model,
+                view: counted,
+                toParentMessage: sent =>
+                  Message.Inspected({ message: target.settings.encodeMessage(sent) }),
+                viewInputs: inputs,
+              })
+            } catch (error) {
+              if (settingsDrawn !== before) throw error
+              // No runtime frame (a test, a static description): nothing carries the form's
+              // Messages to the Builder, and no handler can run, so it is drawn as it is.
+              return view(target.model, inputs, SlotView.inertBuilder())
+            }
+          })()
+          return [
+            form,
+            ...target.settings
+              .shown(node.props)
+              .map(([key, value]) =>
+                h.div(slots.field.attrs(), [
+                  h.span(slots.label.attrs(), [spaced(key)]),
+                  h.code(slots.control.attrs(), [JSON.stringify(value)]),
+                ]),
+              ),
+          ]
+        },
       })
-      const fields = drawn.map(({ key, schema, control }) =>
-        valueField(slots, h, {
-          id: `${builder.name}-${id}-${key}`,
-          label: labelFor(key, schema),
-          control,
-          value: node.props[key],
-          set: value => set(key, value),
-          options: options[`${node.block}.${key}`],
-          // Asked of what is stored: a prop decoded to an `Option` is stored as `null`.
-          optional: Option.exists(Block.stored(block, key), stored => Schema.is(stored)(null)),
-        }),
-      )
       // The node's look: one choice per axis its Block offers, blank for the default,
       // and on a responsive axis one more per breakpoint it may change at.
       const chosen = isChoices(node.appearance) ? node.appearance : {}
@@ -1176,7 +1241,7 @@ export const BuilderView = {
 
     const Inspector = Parts.part(
       'Inspector',
-      { reads: ['page', 'selected', 'options'] },
+      { reads: ['page', 'selected', 'options', 'inspector'] },
       (input, slots, h) => {
         const modifierOf = { plain, alt, ctrl } as const
         const actions = h.div(
@@ -1209,7 +1274,15 @@ export const BuilderView = {
               ),
             ]),
           onSome: id =>
-            inspect(builder.document(input), id, input.options ?? {}, actions, slots, h),
+            inspect(
+              builder.document(input),
+              id,
+              input.options ?? {},
+              actions,
+              builder.inspecting(input),
+              slots,
+              h,
+            ),
         })
       },
     )

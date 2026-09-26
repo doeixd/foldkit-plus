@@ -28,6 +28,9 @@
       "path": "../mixins/tsconfig.build.json"
     },
     {
+      "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
       "path": "../primitives/tsconfig.build.json"
     }
   ]

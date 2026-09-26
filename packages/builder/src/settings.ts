@@ -37,78 +37,75 @@ export const controls = (given: Readonly<Record<string, Control>>): Metadata =>
 const make = (block: AnyBlock) => {
   const fields = fieldsOf(block.Props)
   // A prop no control fits (a struct, a list that is not a relation) is shown, not edited.
-  const editable: Readonly<Record<string, Schema.Top>> = Object.fromEntries(
-    Object.entries(fields).filter(([key, schema]) => controlOf(block, key, schema) !== undefined),
+  const editable = Object.entries(fields).filter(
+    ([key, schema]) => controlOf(block, key, schema) !== undefined,
   )
-  const Props = Schema.Struct(editable)
-  // A prop without a title is labelled by its key, spaced, as the rest of the editor names things.
+  // A prop is edited as the Document stores it, its encoded side, so a prop drawn
+  // as an `Option` is chosen as an id or nothing; the check that it decodes keeps
+  // what its full Schema says (a brand, a length) at the field.
+  const decoders = Object.fromEntries(
+    editable.map(([key, schema]) => [
+      key,
+      // A Block's props are stored JSON: decoding one needs no services.
+      Schema.decodeUnknownResult(schema as Schema.Codec<unknown, unknown>),
+    ]),
+  )
+  const Props = Schema.Struct(
+    Object.fromEntries(
+      editable.map(([key, schema]) => [
+        key,
+        Schema.toEncoded(schema).check(
+          Schema.makeFilter(value =>
+            Result.match(decoders[key]!(value), {
+              onSuccess: () => undefined,
+              onFailure: error => error.message,
+            }),
+          ),
+        ),
+      ]),
+    ) as Readonly<Record<string, Schema.Top>>,
+  )
+  // Labelled as the rest of the editor names things: a prop's `title`, else its key,
+  // spaced. The encoded side has no title of its own to read.
   const labels = Object.fromEntries(
-    Object.entries(editable).flatMap(([key, schema]) =>
-      Option.isSome(Words.of(schema).title) ? [] : [[key, Form.label(spaced(key))]],
-    ),
+    editable.map(([key, schema]) => [
+      key,
+      Form.label(Option.getOrElse(Words.of(schema).title, () => spaced(key))),
+    ]),
   )
   const entity = Entity.define(`${block.name}Settings`, Props).pipe(Entity.annotateMembers(labels))
   const form = Form.make(`${block.name}Settings`, Entity.input(entity, Props), {
     inputs: controlsKey.get(block.metadata)[0] ?? {},
   })
-  // A Block's props are stored JSON: coding one needs no services.
-  const codecs = Object.fromEntries(
-    Object.entries(editable).map(([key, schema]) => {
-      const codec = schema as Schema.Codec<unknown, unknown>
-      return [
-        key,
-        { decode: Schema.decodeUnknownResult(codec), encode: Schema.encodeUnknownResult(codec) },
-      ]
-    }),
-  )
   const encodeModel = Schema.encodeSync(form.bundle.Model)
   const decodeModel = Schema.decodeUnknownResult(form.bundle.Model)
   const encodeMessage = Schema.encodeSync(form.bundle.Message)
   const decodeMessage = Schema.decodeUnknownResult(form.bundle.Message)
   type FormModel = typeof form.initial
 
-  /** Each stored prop the form edits, decoded on its own, so one bad prop spoils no other. */
-  const decoded = (stored: Readonly<Record<string, unknown>>) =>
-    Object.entries(codecs).map(([key, codec]) => ({
-      key,
-      raw: stored[key],
-      value: Result.getSuccess(codec.decode(stored[key])),
-    }))
-
   return {
     form,
     /** The props the form does not edit, as stored: shown, not changed. */
     shown: (stored: Readonly<Record<string, unknown>>): ReadonlyArray<readonly [string, unknown]> =>
       Object.keys(fields)
-        .filter(key => !Object.hasOwn(codecs, key))
+        .filter(key => !Object.hasOwn(decoders, key))
         .map(key => [key, stored[key]] as const),
     /**
-     * `form` with the fields `keep` spares filled from a node's stored props.
-     * A prop that does not decode shows what is stored, with its error.
+     * `model` with the fields `keep` spares filled from a node's stored props.
+     * A stored prop that does not decode is shown as it is, with its error.
      */
     fill: (
-      form_: FormModel,
+      model: FormModel,
       stored: Readonly<Record<string, unknown>>,
       keep: (key: string) => boolean = () => false,
     ): FormModel => {
-      const props = decoded(stored).filter(({ key }) => !keep(key))
-      const good = Object.fromEntries(
-        props.flatMap(({ key, value }) => (Option.isSome(value) ? [[key, value.value]] : [])),
-      )
-      // A draft of the wrong kind (text for a toggle) is ignored, so only text is offered.
-      return props
-        .filter(({ value, raw }) => Option.isNone(value) && raw !== undefined)
+      const keys = Object.keys(decoders).filter(key => !keep(key))
+      const filled = form.fill(model, Object.fromEntries(keys.map(key => [key, stored[key]]))).model
+      return keys
+        .filter(key => stored[key] !== undefined && Result.isFailure(decoders[key]!(stored[key])))
         .reduce(
-          (model, { key, raw }) =>
-            form.bundle.update(
-              model,
-              form.Message.Changed({
-                key,
-                value: typeof raw === 'string' ? raw : JSON.stringify(raw),
-              }),
-              undefined,
-            ).model,
-          form.fill(form_, good).model,
+          (next, key) => form.bundle.update(next, form.Message.Blurred({ key }), undefined).model,
+          filled,
         )
     },
     /** The form's Model as the Builder's Model holds it: JSON. */
@@ -119,13 +116,9 @@ const make = (block: AnyBlock) => {
       encodeMessage(message) as Schema.Json,
     decodeMessage: (held: Schema.Json): Option.Option<typeof form.Message.Type> =>
       Result.getSuccess(decodeMessage(held)),
-    /** One decoded prop as the Document stores it; none if it does not encode. */
+    /** A value from the form, as the Document stores it; none for a prop the form does not edit. */
     stored: (key: string, value: unknown): Option.Option<Schema.Json> =>
-      Object.hasOwn(codecs, key)
-        ? Result.getSuccess(codecs[key]!.encode(value)).pipe(
-            Option.map(json => json as Schema.Json),
-          )
-        : Option.none(),
+      Object.hasOwn(decoders, key) ? Option.some(value as Schema.Json) : Option.none(),
   }
 }
 

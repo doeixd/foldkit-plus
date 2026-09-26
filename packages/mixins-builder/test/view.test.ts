@@ -196,10 +196,11 @@ describe('the drawn Builder', () => {
     expect(
       controls.map(node => [node.sel, Inert.value(node, 'type') ?? Inert.value(node, 'type')]),
     ).toEqual([
-      ['input', undefined],
+      ['input', 'text'],
       ['select', undefined],
       ['select', undefined],
-      ['input', undefined],
+      // A number is typed as text, so "1." is kept while it is being typed.
+      ['input', 'text'],
       ['input', 'checkbox'],
       ['select', undefined],
       ['select', undefined],

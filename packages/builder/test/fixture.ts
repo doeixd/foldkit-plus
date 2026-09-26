@@ -20,8 +20,12 @@ export const Button = Block.define('Button', {
 export const Stat = Block.define('Stat', {
   Props: Schema.Struct({
     value: Schema.Number,
-    caption: Schema.String.annotate({ title: 'What it counts' }),
+    caption: Schema.String.annotate({ title: 'What it counts' }).check(
+      Schema.isMaxLength(12, { message: 'Keep it short' }),
+    ),
     frame: Schema.Struct({ width: Schema.Number }),
+    // Stored as text: its check is on the decoded number, past the transformation.
+    rank: Schema.NumberFromString.check(Schema.isGreaterThan(0, { message: 'Above zero' })),
   }),
   provides: [Content.Flow],
 }).pipe(Block.annotate(Builder.controls({ caption: Input.multiline() })))

@@ -75,7 +75,8 @@ export const Featured = Block.define('Featured', {
   Props: Schema.Struct({
     // Stored as `null` when none is chosen, drawn as an Option.
     category: Schema.OptionFromNullOr(Schema.String),
-    maker: Schema.String,
+    // Required: an empty id is no maker.
+    maker: Schema.String.check(Schema.isMinLength(1)),
     tags: Schema.Array(Schema.String),
   }),
   provides: [Content.Flow],

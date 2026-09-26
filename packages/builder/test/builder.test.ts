@@ -530,7 +530,7 @@ describe('the inspector, a form over the selected node', () => {
         [s]: { block: 'Section', props: {}, regions: { body: [stat, heading] } },
         [stat]: {
           block: 'Stat',
-          props: { value: 3, caption: 'posts', frame: { width: 2 } },
+          props: { value: 3, caption: 'posts', frame: { width: 2 }, rank: '1' },
           regions: {},
         },
         [heading]: { block: 'Heading', props: { text: 'Hello' }, regions: {} },
@@ -565,6 +565,7 @@ describe('the inspector, a form over the selected node', () => {
     expect(settings.form.controls.map(each => [each.key, each.control.kind, each.label])).toEqual([
       ['value', 'Number', 'Value'],
       ['caption', 'Multiline', 'What it counts'],
+      ['rank', 'Text', 'Rank'],
     ])
     expect(field(selected, 'value').value).toBe('3')
     expect(field(selected, 'caption').value).toBe('posts')
@@ -581,12 +582,18 @@ describe('the inspector, a form over the selected node', () => {
 
   it('sets a prop from a field that decodes, typing a word as one undo step', () => {
     const typed = type(type(selected, 'caption', 'po'), 'caption', 'people')
-    expect(props(typed, stat)).toEqual({ value: 3, caption: 'people', frame: { width: 2 } })
+    expect(props(typed, stat)).toEqual({
+      value: 3,
+      caption: 'people',
+      frame: { width: 2 },
+      rank: '1',
+    })
     expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
     expect(props(type(selected, 'value', '12'), stat)).toEqual({
       value: 12,
       caption: 'posts',
       frame: { width: 2 },
+      rank: '1',
     })
   })
 
@@ -598,6 +605,16 @@ describe('the inspector, a form over the selected node', () => {
       value: 'abc',
       errors: ['Enter a number'],
     })
+    // What the prop's own Schema checks is said at the field too.
+    const long = type(selected, 'caption', 'posts and comments')
+    expect(long.page).toBe(selected.page)
+    expect(field(long, 'caption')).toMatchObject({ _tag: 'Invalid', value: 'posts and comments' })
+    expect(JSON.stringify(field(long, 'caption'))).toContain('Keep it short')
+    // A check past a transformation too: the rank is stored as text, and checked as a number.
+    const negative = type(selected, 'rank', '-1')
+    expect(negative.page).toBe(selected.page)
+    expect(JSON.stringify(field(negative, 'rank'))).toContain('Above zero')
+    expect(props(type(selected, 'rank', '4'), stat)?.['rank']).toBe('4')
   })
 
   it('refills a field when the node changes another way, but keeps text that does not decode', () => {
@@ -622,7 +639,7 @@ describe('the inspector, a form over the selected node', () => {
           [s]: { block: 'Section', props: {}, regions: { body: [stat] } },
           [stat]: {
             block: 'Stat',
-            props: { value: 'many', caption: 'posts', frame: { width: 2 } },
+            props: { value: 'many', caption: 'posts', frame: { width: 2 }, rank: '1' },
             regions: {},
           },
         },
