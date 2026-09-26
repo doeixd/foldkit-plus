@@ -347,6 +347,8 @@ writing page with its settings beside it) found these.
     worked around.
 
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
+The larger changes this work pointed to, across the packages, are in
+[dx-and-builder-FINDINGS.md](./dx-and-builder-FINDINGS.md).
 
 ## Checked in the browser
 
