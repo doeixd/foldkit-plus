@@ -159,21 +159,16 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
 
     // Choosing the Banner's tone in the inspector redraws it; choosing the blank
     // goes back to the default.
-    const tone = () =>
-      document.querySelector<HTMLSelectElement>(
-        `[aria-label="Properties"] select[id$="-appearance-tone"]`,
-      )
-    const choose = (value: string) => {
-      const select = tone()
-      if (select === null) throw new Error('no tone select')
-      select.value = value
-      select.dispatchEvent(new Event('change', { bubbles: true }))
-    }
+    const tone = () => document.querySelector('[aria-label="Properties"] [aria-label="Tone"]')
+    const choose = (text: string) =>
+      Array.from(tone()?.querySelectorAll('button') ?? [])
+        .find(button => button.textContent === text)
+        ?.click()
     rowNamed('Banner')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(tone()).not.toBeNull())
-    choose('loud')
+    choose('Loud')
     await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('loud'))
-    choose('')
+    choose('Default')
     await vi.waitFor(() => expect(onPage('.banner')?.getAttribute('data-tone')).toBe('plain'))
     // A responsive axis: a name at a breakpoint, then a base, is a name per
     // point; with only the base left it is one name again.

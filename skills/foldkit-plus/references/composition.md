@@ -265,7 +265,9 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Draws: palette (grouped buttons named `Add <label>`, titled with where they
   go, disabled with no place), layers as `role="tree"` rows (label, the node's
   first text in brief, a toggle on a branch; tab stop on the selected row),
-  actions, inspector
+  inspector (the Block's label and actions, then Content, Style, Visibility,
+  Interactions; a look of up to four values is a row of pressed-state buttons;
+  with nothing selected, the shortcuts),
   (Boolean: checkbox; literals: select; Number, String: input; else JSON
   shown), undo/redo, viewport frame, refusal as `role="alert"`, live region,
   and the page via the site's Renderer in edit mode.
@@ -274,7 +276,7 @@ const PageForm = Form.make('PageForm', PageInput, {
   navigate). No state, no Messages of its own.
 - A Block's words: `Block.annotate(BuilderView.describe({ label, description, group }))`;
   the label defaults to the name spaced. Palette items and rows carry `data-block`.
-- Inspector labels are the prop Schema's `title`, else the key. A Block asks
+- Inspector labels are the prop Schema's `title`, else the key spaced. A Block asks
   for a control with
   `Block.annotate(BuilderView.controls({ body: Input.multiline(), ref: Input.hidden() }))`.
   A prop holding an id takes `Input.relationOne(Category)` (a `select`) or
@@ -285,7 +287,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 - With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's
   `preview` Model field, `PreviewChosen({ key, value })`, seeded by
   `Builder.make(..., { preview })`); the canvas draws for it, marking hidden
-  nodes. The inspector's `when <key>` fields store `eq` conditions.
+  nodes. The inspector's `Shown when <key> is` fields store `eq` conditions.
 - Style the marks on the edit wrappers' child (a wrapper is
   `display: contents`): `[data-composition-mark='selected'|'hovered'] > *` (selected
   wins on a node that is both), `[data-composition-drop='before'|'inside'|'after'] > *`;

@@ -165,7 +165,7 @@ it('draws a relation prop’s picker with the choices the form view gives the Bu
     await vi.waitFor(() => expect(featured()).toBe('c2: gone'))
     // A tag the choices lack stays chosen, shown, until it is let go.
     const tags = () =>
-      Array.from(document.querySelectorAll<HTMLInputElement>('[aria-label="tags"] input'), box => [
+      Array.from(document.querySelectorAll<HTMLInputElement>('[aria-label="Tags"] input'), box => [
         box.parentElement?.textContent,
         box.checked,
       ])
@@ -174,9 +174,9 @@ it('draws a relation prop’s picker with the choices the form view gives the Bu
       ['Pine', false],
       ['? gone', true],
     ])
-    document.querySelector<HTMLElement>('[aria-label="tags"] input[value="t2"]')?.click()
+    document.querySelector<HTMLElement>('[aria-label="Tags"] input[value="t2"]')?.click()
     await vi.waitFor(() => expect(featured()).toBe('c2: gone, t2'))
-    document.querySelector<HTMLElement>('[aria-label="tags"] input[value="gone"]')?.click()
+    document.querySelector<HTMLElement>('[aria-label="Tags"] input[value="gone"]')?.click()
     await vi.waitFor(() => expect(featured()).toBe('c2: t2'))
     const none = document.querySelector<HTMLSelectElement>('select[id$="-f-category"]')
     if (none !== null) {

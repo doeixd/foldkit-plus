@@ -19,6 +19,18 @@ version changed; `pnpm` skips versions already in the registry.
   `paletteHeading`, `paletteLabel`, `paletteHint`, `rowToggle`, `rowLabel`,
   `rowSummary`; palette buttons and rows carry `data-block`. A palette button's
   text is now the label, not `Add <Block>`: find it by its accessible name.
+- **`foldkit-mixins-builder`: the inspector in parts.** It opens with the
+  selected Block's label, description and actions (now drawn there, each
+  titled with its shortcut and carrying `data-action`), then its settings under
+  Content, Style, Visibility and Interactions. A look of up to four values is a
+  row of buttons, one pressed, instead of a `select`. Labels are the key spaced
+  when there is no `title` ("Text", "Shown when audience is", "On press"), and
+  viewport buttons read "Wide", "Medium", "Narrow". With nothing selected it
+  says how to begin and lists the shortcuts. New Slots: `inspectorHead`,
+  `inspectorTitle`, `inspectorHint`, `inspectorSection`,
+  `inspectorSectionTitle`, `choices`, `choice`, `shortcuts`, `shortcutKeys`,
+  `shortcutWhat`, and `label` and `option` for a field's name and a
+  many-choice picker's choice, which were drawn outside any Slot.
 - **`foldkit-surface`: `Action`, a named capability that ends in a Message.**
   `Action.define({ name, description, input, toMessage })` declares one, and
   `Action.run(action, data)` decodes the data as its input before making the

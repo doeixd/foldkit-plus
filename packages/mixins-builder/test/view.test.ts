@@ -72,8 +72,9 @@ describe('the drawn Builder', () => {
     const items = (root: Html) =>
       all(root).filter(node => node.sel === 'button' && attr(node, 'data-block') !== undefined)
     const root = draw(PageBuilder.initial)
+    const [palette] = all(root).filter(node => attr(node, 'aria-label') === 'Add a block')
     expect(
-      all(root)
+      all(palette)
         .filter(node => node.sel === 'h3')
         .map(text),
     ).toEqual(['Layout', 'Text'])
@@ -165,24 +166,34 @@ describe('the drawn Builder', () => {
     ).toEqual(['Heading'])
   })
 
-  it('draws the selected node’s props, each as the control its Schema calls for', () => {
+  it('draws the selected node’s settings under its Block, in parts, each as its Schema calls for', () => {
     const root = draw(page)
     const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    // The head names the Block, says what it is for, and holds its actions.
+    expect(
+      all(inspector)
+        .filter(node => node.sel === 'h2')
+        .map(text),
+    ).toEqual(['Promo banner'])
+    expect(text(all(inspector).find(node => node.sel === 'p'))).toBe('A line that stands out')
+    const parts = all(inspector)
+      .filter(node => node.sel === 'h3')
+      .map(text)
+    expect(parts).toEqual(['Content', 'Style', 'Visibility', 'Interactions'])
     const fields = all(inspector)
       .filter(node => node.sel === 'label')
       .map(text)
     expect(fields).toEqual([
-      'text',
-      'size',
-      'columns',
-      'count',
-      'shown',
-      'tone',
-      'space',
-      'space at md',
-      'when audience',
-      'when beta',
-      'on press',
+      'Text',
+      'Size',
+      'Columns',
+      'Count',
+      'Shown',
+      'Space',
+      'Space at md',
+      'Shown when audience is',
+      'Shown when beta is',
+      'On press',
     ])
     const controls = all(inspector).filter(node =>
       ['input', 'select', 'code'].includes(node.sel ?? ''),
@@ -198,16 +209,24 @@ describe('the drawn Builder', () => {
       ['select', undefined],
       ['select', undefined],
       ['select', undefined],
-      ['select', undefined],
     ])
-    // The look's axis offers its values and a blank for the default, which is chosen.
-    const tone = all(controls[5]).filter(node => node.sel === 'option')
-    expect(tone.map(option => [prop(option, 'value'), text(option)])).toEqual([
+    // A look of a few values is buttons, the default pressed; a responsive one stays a select.
+    const tone = all(inspector).find(node => attr(node, 'aria-label') === 'Tone')
+    expect(
+      all(tone)
+        .filter(node => node.sel === 'button')
+        .map(button => [text(button), attr(button, 'aria-pressed')]),
+    ).toEqual([
+      ['Default', 'true'],
+      ['Plain', 'false'],
+      ['Loud', 'false'],
+    ])
+    const space = all(controls[5]).filter(node => node.sel === 'option')
+    expect(space.map(option => [prop(option, 'value'), text(option)])).toEqual([
       ['', 'default'],
-      ['plain', 'plain'],
-      ['loud', 'loud'],
+      ['s', 's'],
+      ['m', 'm'],
     ])
-    expect(tone.map(option => prop(option, 'selected'))).toEqual([true, false, false])
     expect(prop(controls[0], 'value')).toBe('Hello')
     // A number-literal prop is a select of its numbers, as text.
     expect(
@@ -219,6 +238,30 @@ describe('the drawn Builder', () => {
       ['2', false],
     ])
     expect(prop(controls[3], 'value')).toBe('1')
+  })
+
+  it('says how to begin with nothing selected, and lists the shortcuts', () => {
+    const root = draw(send(page, Message.Deselected()))
+    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    expect(text(all(inspector).find(node => node.sel === 'p'))).toBe(
+      'Select a block on the page or in the layers to change it.',
+    )
+    const keys = all(inspector)
+      .filter(node => node.sel === 'dt')
+      .map(text)
+    expect(keys).toEqual([
+      '↑ ↓',
+      '← →',
+      'Alt+↑',
+      'Alt+↓',
+      'Alt+←',
+      'Alt+→',
+      'Ctrl+D',
+      'Delete',
+      'Ctrl+Z',
+      'Ctrl+Shift+Z',
+    ])
+    expect(all(root).some(node => attr(node, 'aria-label') === 'Selected block')).toBe(false)
   })
 
   it('draws the canvas with the data its inputs give each node, as a published page is', () => {
@@ -255,9 +298,19 @@ describe('the drawn Builder', () => {
     )
     const root = draw(send(unknown, Message.Selected({ id: NodeId.make('c') })))
     const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
-    expect(text(inspector)).toBe(
-      'This block is not in this version of the application, so its settings cannot be edited here.interval5',
+    expect(
+      all(inspector)
+        .filter(node => node.sel === 'h2')
+        .map(text),
+    ).toEqual(['? Carousel'])
+    expect(text(all(inspector).find(node => node.sel === 'p'))).toBe(
+      'This block is not in this version of the application, so its settings cannot be edited here.',
     )
+    expect(
+      all(inspector)
+        .filter(node => node.sel === 'code')
+        .map(text),
+    ).toEqual(['5'])
     expect(
       all(inspector).some(node => ['input', 'select', 'textarea'].includes(node.sel ?? '')),
     ).toBe(false)
@@ -293,7 +346,12 @@ describe('the drawn Builder', () => {
       all(all(root).find(node => String(prop(node, 'id') ?? '').endsWith(suffix)))
         .filter(node => node.sel === 'option' && prop(node, 'selected') === true)
         .map(text)
-    expect(chosen('-appearance-tone')).toEqual(['? shouty'])
+    const tone = all(root).find(node => String(prop(node, 'id') ?? '').endsWith('-appearance-tone'))
+    expect(
+      all(tone)
+        .filter(node => node.sel === 'button' && attr(node, 'aria-pressed') === 'true')
+        .map(button => [text(button), prop(button, 'disabled')]),
+    ).toEqual([['? shouty', true]])
     expect(chosen('-on-press')).toEqual(['? deleteAll'])
     expect(chosen('-when-audience')).toEqual(['member'])
   })
@@ -324,7 +382,7 @@ describe('the drawn Builder', () => {
       all(inspector)
         .filter(node => node.sel === 'label')
         .map(text),
-    ).toEqual(['Quotation', 'source', 'when audience', 'when beta'])
+    ).toEqual(['Quotation', 'Source', 'Shown when audience is', 'Shown when beta is'])
     expect(
       all(inspector)
         .filter(node => node.sel === 'textarea' || node.sel === 'input')
@@ -399,12 +457,14 @@ describe('the drawn Builder', () => {
   it('draws the page in edit mode, in a frame as wide as the viewport, marking the selection', () => {
     const narrow = send(page, Message.ViewportChosen({ viewport: 'narrow' }))
     const root = draw(narrow)
-    const frame = all(root).find(node => attr(node, 'data-viewport') !== undefined)
+    const frame = all(root).find(
+      node => node.sel === 'div' && attr(node, 'data-viewport') !== undefined,
+    )
     expect(attr(frame, 'data-viewport')).toBe('narrow')
     expect(frame?.data?.style).toMatchObject({ 'max-width': viewportWidths.narrow })
     const selected = all(frame).find(node => attr(node, 'data-composition-mark') === 'selected')
     expect(attr(selected, 'data-composition-node')).toBe(some(narrow.selected, 'the selection'))
-    expect(attr(buttonNamed(root, 'narrow'), 'aria-pressed')).toBe('true')
+    expect(attr(buttonNamed(root, 'Narrow'), 'aria-pressed')).toBe('true')
     expect(text(frame)).toBe('New headingHello')
   })
 
@@ -447,6 +507,7 @@ describe('the drawn Builder', () => {
   it('offers the selected node’s actions as the shortcuts would send them', () => {
     const root = draw(page)
     expect(prop(buttonNamed(root, 'Move up'), 'disabled')).toBe(false)
+    expect(prop(buttonNamed(root, 'Duplicate'), 'title')).toBe('Duplicate (Ctrl+D)')
     expect(prop(buttonNamed(root, 'Move down'), 'disabled')).toBe(true)
     expect(prop(buttonNamed(root, 'Undo'), 'disabled')).toBe(false)
     expect(prop(buttonNamed(root, 'Redo'), 'disabled')).toBe(true)

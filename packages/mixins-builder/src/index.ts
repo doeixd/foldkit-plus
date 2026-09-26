@@ -34,7 +34,7 @@ import { KeepInView } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
 import type { KeyboardModifiers } from 'foldkit/html'
-import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import { inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
 
 /** The Builder's public customization contract: every element the editor draws. */
@@ -59,13 +59,31 @@ export const BuilderSlots = Slots.define({
   /** A row's Block, and what its node says, in brief. */
   rowLabel: Slot.make({ capability: Capability.Base }),
   rowSummary: Slot.make({ capability: Capability.Base }),
-  /** Move, duplicate and delete for the selected node. */
+  /** Move, duplicate and delete for the selected node, in the inspector's head. Each carries `data-action`. */
   actions: Slot.make({ capability: Capability.Container }),
   action: Slot.make({ capability: Capability.Interactive }),
-  /** The selected node's props, one field each. */
+  /** The selected node's settings, or, with nothing selected, how to begin and the shortcuts. */
   inspector: Slot.make({ capability: Capability.Container }),
+  /** The selected node's Block: its label, what it is for, and its actions. */
+  inspectorHead: Slot.make({ capability: Capability.Container }),
+  inspectorTitle: Slot.make({ capability: Capability.Base }),
+  inspectorHint: Slot.make({ capability: Capability.Base }),
+  /** One part of the settings, such as Content or Style, and its heading. */
+  inspectorSection: Slot.make({ capability: Capability.Container }),
+  inspectorSectionTitle: Slot.make({ capability: Capability.Base }),
   field: Slot.make({ capability: Capability.Container }),
+  /** A field's name: a `label`, or a `span` naming a group of controls. */
+  label: Slot.make({ capability: Capability.Base }),
   control: Slot.make({ capability: Capability.Interactive }),
+  /** One choice of a many-choice picker: its checkbox and its words. */
+  option: Slot.make({ capability: Capability.Base }),
+  /** A look's few values as buttons, one pressed: drawn in place of a select. */
+  choices: Slot.make({ capability: Capability.Container }),
+  choice: Slot.make({ capability: Capability.Interactive }),
+  /** The editor's shortcuts, as a list of keys and what they do. */
+  shortcuts: Slot.make({ capability: Capability.Container }),
+  shortcutKeys: Slot.make({ capability: Capability.Base }),
+  shortcutWhat: Slot.make({ capability: Capability.Base }),
   history: Slot.make({ capability: Capability.Container }),
   undo: Slot.make({ capability: Capability.Interactive }),
   redo: Slot.make({ capability: Capability.Interactive }),
@@ -283,13 +301,35 @@ const spaced = (name: string): string => {
 /** The longest summary a layer row shows before it is cut short. */
 const SUMMARY_LENGTH = 40
 
+/** The most values a look offers as buttons; one with more is a select. */
+const CHOICES_SHOWN = 4
+
+/** The node actions: what each is called, its shortcut, and the key `keyCommand` takes for it. */
+const ACTIONS = [
+  { id: 'move-up', label: 'Move up', keys: 'Alt+↑', key: 'ArrowUp', modifiers: 'alt' },
+  { id: 'move-down', label: 'Move down', keys: 'Alt+↓', key: 'ArrowDown', modifiers: 'alt' },
+  { id: 'move-out', label: 'Move out', keys: 'Alt+←', key: 'ArrowLeft', modifiers: 'alt' },
+  { id: 'move-in', label: 'Move in', keys: 'Alt+→', key: 'ArrowRight', modifiers: 'alt' },
+  { id: 'duplicate', label: 'Duplicate', keys: 'Ctrl+D', key: 'd', modifiers: 'ctrl' },
+  { id: 'delete', label: 'Delete', keys: 'Delete', key: 'Delete', modifiers: 'plain' },
+] as const
+
+/** Every shortcut, as the empty inspector lists them. */
+const SHORTCUTS: ReadonlyArray<readonly [keys: string, what: string]> = [
+  ['↑ ↓', 'Go to the layer above or below'],
+  ['← →', 'Close or open a layer'],
+  ...ACTIONS.map(action => [action.keys, action.label] as const),
+  ['Ctrl+Z', 'Undo'],
+  ['Ctrl+Shift+Z', 'Redo'],
+]
+
 /** The control a Block asked for its prop, else the one its Schema resolves to. */
 const controlFor = (block: AnyBlock, key: string, schema: Schema.Top): Control | undefined =>
   controlsKey.get(block.metadata)[0]?.[key] ?? Input.resolve(Entity.unmapped, schema)
 
-/** A prop's label: its Schema's `title`, else its key. */
+/** A prop's label: its Schema's `title`, else its key, spaced. */
 const labelFor = (key: string, schema: Schema.Top): string =>
-  Option.getOrElse(Words.of(schema).title, () => key)
+  Option.getOrElse(Words.of(schema).title, () => spaced(key))
 
 /**
  * What the drawn Builder is given beside its Model, by the page's parent: the
@@ -425,7 +465,7 @@ export const BuilderView = {
         slot: SlotView.SlotBuilder<Message>,
         label: string,
         message: Option.Option<Message>,
-        extra: ReadonlyArray<ReturnType<HtmlBuilder<Message>['AriaPressed']>> = [],
+        extra: ReadonlyArray<Attribute<Message>> = [],
       ) =>
         h.button(
           slot.attrs([
@@ -559,22 +599,35 @@ export const BuilderView = {
       // The tree inside is what is named "Layers"; the panel around it is not named twice.
       const layers = h.section(slots.layers.attrs(), [tree])
 
-      const actions = Option.isNone(selected)
-        ? []
-        : [
-            h.div(slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]), [
-              button(slots.action, 'Move up', builder.keyCommand(model, 'ArrowUp', alt)),
-              button(slots.action, 'Move down', builder.keyCommand(model, 'ArrowDown', alt)),
-              button(slots.action, 'Move out', builder.keyCommand(model, 'ArrowLeft', alt)),
-              button(slots.action, 'Move in', builder.keyCommand(model, 'ArrowRight', alt)),
-              button(slots.action, 'Duplicate', builder.keyCommand(model, 'd', ctrl)),
-              button(slots.action, 'Delete', builder.keyCommand(model, 'Delete', plain)),
-            ]),
-          ]
+      const modifierOf = { plain, alt, ctrl } as const
+      const actions = h.div(
+        slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]),
+        ACTIONS.map(action =>
+          button(
+            slots.action,
+            action.label,
+            builder.keyCommand(model, action.key, modifierOf[action.modifiers]),
+            [h.DataAttribute('action', action.id), h.Title(`${action.label} (${action.keys})`)],
+          ),
+        ),
+      )
 
       const inspector = Option.match(selected, {
-        onNone: () => [],
-        onSome: id => [inspect(document, id, model.options ?? {}, slots, h)],
+        onNone: () =>
+          h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
+            h.p(slots.inspectorHint.attrs(), [
+              'Select a block on the page or in the layers to change it.',
+            ]),
+            h.h3(slots.inspectorSectionTitle.attrs(), ['Shortcuts in the layers']),
+            h.dl(
+              slots.shortcuts.attrs(),
+              SHORTCUTS.flatMap(([keys, what]) => [
+                h.dt(slots.shortcutKeys.attrs(), [keys]),
+                h.dd(slots.shortcutWhat.attrs(), [what]),
+              ]),
+            ),
+          ]),
+        onSome: id => inspect(document, id, model.options ?? {}, actions, slots, h),
       })
 
       const history = h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
@@ -582,20 +635,28 @@ export const BuilderView = {
           slots.undo,
           'Undo',
           History.canUndo(model.page) ? Option.some(Message.Undid()) : Option.none(),
+          [h.Title('Undo (Ctrl+Z)')],
         ),
         button(
           slots.redo,
           'Redo',
           History.canRedo(model.page) ? Option.some(Message.Redid()) : Option.none(),
+          [h.Title('Redo (Ctrl+Shift+Z)')],
         ),
       ])
 
       const viewports = h.div(
         slots.viewports.attrs([h.Role('group'), h.AriaLabel('Viewport')]),
         (['wide', 'medium', 'narrow'] as const).map(viewport =>
-          button(slots.viewport, viewport, Option.some(Message.ViewportChosen({ viewport })), [
-            h.AriaPressed(model.viewport === viewport ? 'true' : 'false'),
-          ]),
+          button(
+            slots.viewport,
+            spaced(viewport),
+            Option.some(Message.ViewportChosen({ viewport })),
+            [
+              h.DataAttribute('viewport', viewport),
+              h.AriaPressed(model.viewport === viewport ? 'true' : 'false'),
+            ],
+          ),
         ),
       )
 
@@ -645,8 +706,7 @@ export const BuilderView = {
       return h.div(slots.root.attrs(), [
         palette,
         layers,
-        ...actions,
-        ...inspector,
+        inspector,
         history,
         viewports,
         ...preview,
@@ -683,7 +743,7 @@ export const BuilderView = {
         onSome: value => (value === null ? '' : String(value)),
       })
       return h.div(slots.field.attrs(), [
-        h.label([h.For(fieldId)], [label]),
+        h.label(slots.label.attrs([h.For(fieldId)]), [label]),
         choices === undefined
           ? h.input(
               slots.control.attrs([
@@ -731,28 +791,25 @@ export const BuilderView = {
             .map(stray => ({ value: stray, label: `? ${stray}` })),
         ]
         return h.div(slots.field.attrs([h.Id(fieldId), h.Role('group'), h.AriaLabel(label)]), [
-          h.span([], [label]),
+          h.span(slots.label.attrs(), [label]),
           ...choices.map(choice =>
-            h.label(
-              [],
-              [
-                h.input(
-                  slots.control.attrs([
-                    h.Type('checkbox'),
-                    h.Value(choice.value),
-                    h.Checked(chosen.includes(choice.value)),
-                    h.OnClick(
-                      set(
-                        chosen.includes(choice.value)
-                          ? chosen.filter(each => each !== choice.value)
-                          : [...chosen, choice.value],
-                      ),
+            h.label(slots.option.attrs(), [
+              h.input(
+                slots.control.attrs([
+                  h.Type('checkbox'),
+                  h.Value(choice.value),
+                  h.Checked(chosen.includes(choice.value)),
+                  h.OnClick(
+                    set(
+                      chosen.includes(choice.value)
+                        ? chosen.filter(each => each !== choice.value)
+                        : [...chosen, choice.value],
                     ),
-                  ]),
-                ),
-                choice.label,
-              ],
-            ),
+                  ),
+                ]),
+              ),
+              choice.label,
+            ]),
           ),
         ])
       }
@@ -818,10 +875,10 @@ export const BuilderView = {
       // A kind this inspector does not draw is shown, not edited: no control to label.
       return input === undefined
         ? h.div(slots.field.attrs(), [
-            h.span([], [label]),
+            h.span(slots.label.attrs(), [label]),
             h.code(slots.control.attrs([h.Id(fieldId)]), [JSON.stringify(value ?? null)]),
           ])
-        : h.div(slots.field.attrs(), [h.label([h.For(fieldId)], [label]), input])
+        : h.div(slots.field.attrs(), [h.label(slots.label.attrs([h.For(fieldId)]), [label]), input])
     }
 
     /** The selected node's props, one field each, drawn by the control its Schema resolves to. */
@@ -829,13 +886,38 @@ export const BuilderView = {
       document: Document,
       id: NodeId,
       options: Readonly<Record<string, ReadonlyArray<BuilderOption>>>,
+      actions: Html,
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
       h: HtmlBuilder<Message>,
     ): Html => {
       const node = document.nodes[id]
       const block = node === undefined ? undefined : Catalog.block(builder.catalog, node.block)
+      const head = h.div(slots.inspectorHead.attrs(), [
+        h.h2(slots.inspectorTitle.attrs(), [node === undefined ? id : labelOf(node.block)]),
+        ...Option.match(
+          node === undefined
+            ? Option.none()
+            : (described.get(node.block)?.description ?? Option.none()),
+          {
+            onNone: () => [],
+            onSome: hint => [h.p(slots.inspectorHint.attrs(), [hint])],
+          },
+        ),
+        actions,
+      ])
+      /** A part of the settings under its heading; none when it has nothing in it. */
+      const section = (title: string, fields: ReadonlyArray<Html>): ReadonlyArray<Html> =>
+        fields.length === 0
+          ? []
+          : [
+              h.div(slots.inspectorSection.attrs([h.Role('group'), h.AriaLabel(title)]), [
+                h.h3(slots.inspectorSectionTitle.attrs(), [title]),
+                ...fields,
+              ]),
+            ]
       if (node === undefined || block === undefined)
         return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
+          head,
           h.p(
             [],
             [
@@ -844,7 +926,7 @@ export const BuilderView = {
           ),
           ...Object.entries(node?.props ?? {}).map(([key, value]) =>
             h.div(slots.field.attrs(), [
-              h.span([], [key]),
+              h.span(slots.label.attrs(), [key]),
               h.code(slots.control.attrs(), [JSON.stringify(value)]),
             ]),
           ),
@@ -901,10 +983,65 @@ export const BuilderView = {
               op: Composition.Op.setAppearance(id, Object.keys(next).length === 0 ? null : next),
             })
           }
+        const label = spaced(axis)
+        if ((breakpoints ?? []).length === 0 && values.length <= CHOICES_SHOWN) {
+          const current = at['base']
+          // A stored value the look lacks is shown pressed, and choosing it again sends nothing.
+          const stray =
+            current !== undefined && !values.includes(current)
+              ? Option.some(current)
+              : Option.none()
+          return [
+            h.div(slots.field.attrs(), [
+              h.span(slots.label.attrs(), [label]),
+              h.div(
+                slots.choices.attrs([
+                  h.Id(`${builder.name}-${id}-appearance-${axis}`),
+                  h.Role('group'),
+                  h.AriaLabel(label),
+                ]),
+                [
+                  ...[
+                    ['', 'Default'] as const,
+                    ...values.map(value => [value, spaced(value)] as const),
+                  ].map(([value, text]) =>
+                    h.button(
+                      slots.choice.attrs([
+                        h.Type('button'),
+                        h.AriaPressed(
+                          (value === '' ? current === undefined : current === value)
+                            ? 'true'
+                            : 'false',
+                        ),
+                        h.OnClick(choose('base')(value)),
+                      ]),
+                      [text],
+                    ),
+                  ),
+                  ...Option.match(stray, {
+                    onNone: () => [],
+                    onSome: value => [
+                      h.button(
+                        slots.choice.attrs([
+                          h.Type('button'),
+                          h.AriaPressed('true'),
+                          h.Disabled(true),
+                        ]),
+                        [`? ${value}`],
+                      ),
+                    ],
+                  }),
+                ],
+              ),
+            ]),
+          ]
+        }
         return ['base', ...(breakpoints ?? [])].map(point => {
           const fieldId = `${builder.name}-${id}-appearance-${axis}${point === 'base' ? '' : `-${point}`}`
           return h.div(slots.field.attrs(), [
-            h.label([h.For(fieldId)], [point === 'base' ? axis : `${axis} at ${point}`]),
+            h.label(slots.label.attrs([h.For(fieldId)]), [
+              point === 'base' ? label : `${label} at ${point}`,
+            ]),
             h.select(
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
               optionsOf(h, point === 'base' ? 'default' : 'unchanged', named(values), at[point]),
@@ -933,7 +1070,7 @@ export const BuilderView = {
       const conditions = Object.entries(fieldsOf(builder.catalog.context)).map(([key, schema]) =>
         contextField(slots, h, {
           id: `${builder.name}-${id}-when-${key}`,
-          label: `when ${key}`,
+          label: `Shown when ${key} is`,
           schema,
           current: eqOf(key),
           blank: 'always',
@@ -963,7 +1100,7 @@ export const BuilderView = {
           })
         const pickId = `${builder.name}-${id}-on-${event}`
         const pick = h.div(slots.field.attrs(), [
-          h.label([h.For(pickId)], [`on ${event}`]),
+          h.label(slots.label.attrs([h.For(pickId)]), [`On ${event}`]),
           h.select(
             slots.control.attrs([
               h.Id(pickId),
@@ -997,10 +1134,11 @@ export const BuilderView = {
         return [pick, ...inputs]
       })
       return h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
-        ...fields,
-        ...looks,
-        ...conditions,
-        ...events,
+        head,
+        ...section('Content', fields),
+        ...section('Style', looks),
+        ...section('Visibility', conditions),
+        ...section('Interactions', events),
       ])
     }
 

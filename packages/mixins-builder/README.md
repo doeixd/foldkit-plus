@@ -66,8 +66,10 @@ Place `Drawn` as you would any Bundle. Its view draws:
   with a roving tab stop on the selected row; a row shows its Block's label and
   the node's first text in brief, and one that holds others has a toggle that
   opens and closes it;
-- the selected node's **actions** (move up, down, out and in; duplicate;
-  delete) and its props in an **inspector**;
+- an **inspector**: the selected node's Block, what it is for, and its
+  **actions** (move up, down, out and in; duplicate; delete; each titled with
+  its shortcut), then its settings under Content, Style, Visibility and
+  Interactions; with nothing selected, how to begin and the shortcuts;
 - **undo** and **redo**, a **viewport** picker, and the reason the last edit
   was refused, as a `role="alert"`;
 - the **canvas**: the page in edit mode, in a frame as wide as the viewport;
@@ -258,20 +260,26 @@ is shown, with its props, but not edited. A stored value a `select` does not
 offer, such as a choice an older version made, is shown as `? value` and
 chosen, rather than as the blank.
 
-After the props, each appearance axis the Block offers is a `select` of its
-values, with a blank for the default; a choice is one `setAppearance`, and
-clearing the last one removes the node's `appearance`. A responsive token axis
-adds one `select` per breakpoint (`space at md`), blank for unchanged; with
-only the base chosen, one name is stored.
+The props are under Content, labelled by their Schema's `title`, else their
+key spaced (`text` is "Text"). Under Style, each appearance axis the Block
+offers: one of up to four values is a row of buttons, "Default" and each value,
+the chosen one pressed (a stored value the axis lacks is shown pressed as
+`? value`); one with more values is a `select`, with a blank for the default. A
+choice is one `setAppearance`, and choosing the default for the last one
+removes the node's `appearance`. A responsive token axis is a `select` per
+breakpoint (`Space at md`), blank for unchanged; with only the base chosen, one
+name is stored.
 
-Then, when the Catalog declares a `context`, one field per context key says
-when the node shows: `when audience` is a `select` of the key's literals (a
+Then, under Visibility, when the Catalog declares a `context`, one field per
+context key says when the node shows: `Shown when audience is` is a `select` of
+the key's literals (a
 flag's is `true` and `false`, other keys are typed in), with a blank for
 always. A choice is one `setWhen` holding an `eq` condition for that key;
 conditions of other kinds are kept as they are, and clearing the last removes
 the node's `when`.
 
-Last, each event the Block names says what it runs: `on press` is a `select`
+Last, under Interactions, each event the Block names says what it runs:
+`On press` is a `select`
 of the Catalog's actions, blank for nothing, and under it the chosen action's
 input, one field each, drawn as a prop would be. Choosing an action starts its
 input from empty values (the first choice of a select); a start the action's
