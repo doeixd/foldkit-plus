@@ -25,7 +25,8 @@ its commands, so a marker and the change it made are one edit), reads for
 the marks a selection carries (`marksInRange`, for a toolbar's active button) and for
 the text of a block before a position (`textBefore`, what a slash menu queries; and
 `textRangeBefore`, the range covering the characters before a caret that such a rule
-removes),
+removes; `rangeStart` is the end of a range that comes first, which is where typing over
+it lands),
 local
 undo history with explicit grouping, clipboard slices with a strict codec, HTML
 export, and inspection. Unknown marks load verbatim and round-trip;
@@ -113,7 +114,8 @@ vocabulary's `blockquote`, `pre`, `hr`, `img`, `table`/`tr`/`td`/`th`, `s`/`del`
 `data-unknown` round-trip, other elements are unwrapped or dropped with a diagnostic,
 and `script`/`style`/`iframe` are dropped with their content. Only a fixed few
 attributes are read — a link's `href`, an image's `src`/`alt`, a fence's language — and
-each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it), which refuses a scheme outside http/https/mailto/tel after
+each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it),
+which refuses a scheme outside http/https/mailto/tel after
 removing control characters and leaves a relative URL alone; `style` and `onclick` are
 never read. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
 `contenteditable` subtree and takes the same `rendering(...)` registry — as do
@@ -234,7 +236,8 @@ become markup, and a table's first row is printed as its header, which is where 
 anywhere but first is reported. `parse(markdown, { mint })` returns `{ document, diagnostics }` through
 micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote,
 and a hard line break are reported rather than guessed at, and a link or image URL passes
-the same `safeUrl` policy HTML import uses (refused ones are reported as `UnsafeUrl`). The two directions are tested
+the same `safeUrl` policy HTML import uses (refused ones are reported as `UnsafeUrl`).
+The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
 `###### ` retype a block as the space is typed — where the editor applies the rules its

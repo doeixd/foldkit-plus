@@ -92,14 +92,15 @@ that prints the same, which is how the two directions are tested against each ot
 ## Input rules
 
 `markdownInputRules` retypes a block when a heading marker is completed at its start — `# `
-through `###### ` — which is the set the command vocabulary can carry out. `foldkit-richtext-dom`
-places and applies them, so this package holds no editor state and the editor holds no
-Markdown:
+through `###### ` — which is the set the command vocabulary can carry out. An editor
+placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
+editor state and the editor holds no Markdown:
 
 ```ts
-import { placeInputRules } from 'foldkit-richtext-dom/host'
+import { editorAt } from 'foldkit-richtext-dom/editor-bundle'
+import { markdownInputRules } from 'foldkit-richtext-markdown'
 
-placeInputRules('article-body', markdownInputRules)
+const body = editorAt('article-body', { inputRules: markdownInputRules })
 ```
 
 The markers that need a block *wrapped* in a container or *replaced* by an atom — `> `,
