@@ -15,6 +15,7 @@
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
+import * as prettier from 'prettier'
 
 const root = resolve(
   dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')),
@@ -67,7 +68,7 @@ const sourcesOf = dir =>
 
 const importPattern = /(?:from\s+|import\(\s*)['"]([^'"]+)['"]/g
 const problems = []
-let rewritten = 0
+const rewritten = []
 
 for (const dir of [...dirs('packages'), ...dirs('examples')]) {
   const tsconfigPath = join(dir, 'tsconfig.json')
@@ -131,8 +132,16 @@ for (const dir of [...dirs('packages'), ...dirs('examples')]) {
     continue
   }
   tsconfig.compilerOptions = { ...tsconfig.compilerOptions, paths }
-  writeFileSync(tsconfigPath, `${JSON.stringify(tsconfig, null, 2)}\n`)
-  rewritten += 1
+  // In the repository's style, so a rewrite never fails `format:check`.
+  const options = (await prettier.resolveConfig(tsconfigPath)) ?? {}
+  writeFileSync(
+    tsconfigPath,
+    await prettier.format(JSON.stringify(tsconfig, null, 2), {
+      ...options,
+      filepath: tsconfigPath,
+    }),
+  )
+  rewritten.push(tsconfigPath)
 }
 
 if (problems.length > 0) {
@@ -140,4 +149,6 @@ if (problems.length > 0) {
   console.error(check ? '\nRun `node scripts/workspace-paths.mjs` to rewrite the paths.' : '')
   process.exit(1)
 }
-if (!check) console.log(`workspace-paths: ${rewritten} tsconfig(s) rewritten`)
+if (!check) {
+  console.log(`workspace-paths: ${rewritten.length} tsconfig(s) rewritten`)
+}
