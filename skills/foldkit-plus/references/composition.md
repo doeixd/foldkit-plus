@@ -284,6 +284,11 @@ const PageForm = Form.make('PageForm', PageInput, {
   `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,
   loaded by the application.
 - `PointerDrag` on `tree` (rows carry `data-builder-row`) and `canvas`.
+- Your own layout: `const parts = BuilderView.parts(PageBuilder)`, then
+  `BuilderView.assemble((model, slots, h, draw) => h.div(slots.root.attrs(), [draw(parts.Palette),
+  draw(parts.Canvas)]))`. Parts: `Palette`, `Layers`, `Inspector`, `History`, `Crumbs`,
+  `Viewports`, `Preview`, `Alert`, `Canvas`, `Live`; each brings its Behaviors and redraws only
+  when the Model fields it reads change.
 - With a Catalog `context`: a "Preview as" group (`preview` Slot, the Builder's
   `preview` Model field, `PreviewChosen({ key, value })`, seeded by
   `Builder.make(..., { preview })`); the canvas draws for it, marking hidden

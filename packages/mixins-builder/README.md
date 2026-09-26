@@ -136,6 +136,34 @@ the element inside it. The layer rows carry `data-builder-drop` and
 [data-builder-dragging] { opacity: 0.5; }
 ```
 
+## Your own layout
+
+`BuilderView.define` places every part of the editor. To leave some out, move
+them, or draw your own elements among them, take the parts and assemble them:
+
+```ts
+const parts = BuilderView.parts(PageBuilder)
+const Compact = BuilderView.assemble((_model, slots, h, draw) =>
+  h.div(slots.root.attrs(), [
+    h.h1([], ['Home page']),
+    draw(parts.Palette),
+    draw(parts.Canvas),
+    draw(parts.Inspector),
+  ]),
+)
+```
+
+The parts are `Palette`, `Layers`, `Inspector`, `History`, `Crumbs`,
+`Viewports`, `Preview`, `Alert`, `Canvas` and `Live`. Each brings its own
+Behaviors: `Layers` its tree keyboard and dragging, `Canvas` the pointer, and
+both the shortcuts. A layout without `Layers` has no tree keyboard. Styles
+attach to `Compact` as to `define`'s view.
+
+Each part names the Model fields it reads and is drawn again only when one of
+them changed: a hover redraws the canvas and nothing else. A Style that reads
+the Model (`Style.whenInput`) attached to the whole view makes every part it
+reaches redraw on every change. It is still correct, just not cached.
+
 ## As a form key
 
 `builder.inputWith(view)` is the Builder's form control, `builder.input`, drawn

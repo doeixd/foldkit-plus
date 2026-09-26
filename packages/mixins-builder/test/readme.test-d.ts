@@ -81,3 +81,17 @@ BuilderView.describe({ icon: 'quote' })
     }),
   ).toEqualTypeOf<BuilderViewInputs>()
 }
+
+// "Your own layout".
+{
+  const parts = BuilderView.parts(PageBuilder)
+  const Compact = BuilderView.assemble((_model, slots, h, draw) =>
+    h.div(slots.root.attrs(), [
+      h.h1([], ['Home page']),
+      draw(parts.Palette),
+      draw(parts.Canvas),
+      draw(parts.Inspector),
+    ]),
+  )
+  expectTypeOf(Compact).toEqualTypeOf<ReturnType<typeof BuilderView.define>>()
+}

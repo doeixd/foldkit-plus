@@ -629,11 +629,40 @@ describe('its customization contract', () => {
   })
 })
 
-describe('its Behaviors', () => {
-  const builders = SlotView.buildersFor(BuilderSlots, PageView.mixins, { input: page, h })
+describe('a layout of its own', () => {
+  const parts = BuilderView.parts(PageBuilder)
+  // The page and its palette only, beside an element of the application's own.
+  const Compact = BuilderView.assemble((_input, slots, h, draw) =>
+    h.div(slots.root.attrs(), [h.h1([], ['Home page']), draw(parts.Palette), draw(parts.Canvas)]),
+  )
 
-  it.each(['layers', 'canvas'] as const)('takes the editor’s shortcuts on the %s', slot => {
-    const handler = Attributes.find(builders[slot].attrs(), 'OnKeyDownPreventDefault')?.f
+  it('draws only the parts it places, around its own markup', () => {
+    const root = Inert.draw(Compact, page)
+    expect(Inert.text(Inert.byTag(root, 'h1')[0])).toBe('Home page')
+    expect(Inert.bySlot(root, 'palette')).toHaveLength(1)
+    expect(Inert.bySlot(root, 'canvas')).toHaveLength(1)
+    expect(Inert.bySlot(root, 'tree')).toEqual([])
+    expect(Inert.bySlot(root, 'inspector')).toEqual([])
+  })
+
+  it('brings the Behaviors of the parts it places', () => {
+    const [canvas] = Inert.bySlot(Inert.draw(Compact, page), 'canvas')
+    // The shortcuts come with the Canvas part, not with the default layout.
+    expect(Object.keys(canvas?.data?.on ?? {})).toContain('keydown')
+  })
+})
+
+describe('its Behaviors', () => {
+  // Each part's Behaviors, resolved as the part resolves them.
+  const parts = BuilderView.parts(PageBuilder)
+  const layers = SlotView.buildersFor(BuilderSlots, parts.Layers.mixins, { input: page, h })
+  const canvas = SlotView.buildersFor(BuilderSlots, parts.Canvas.mixins, { input: page, h })
+
+  it.each([
+    ['layers', layers.layers],
+    ['canvas', canvas.canvas],
+  ] as const)('takes the editor’s shortcuts on the %s', (slot, builder) => {
+    const handler = Attributes.find(builder.attrs(), 'OnKeyDownPreventDefault')?.f
     if (handler === undefined) throw new Error(`no shortcuts on the ${slot}`)
     const up = handler('ArrowUp', { shiftKey: false, ctrlKey: false, altKey: true, metaKey: false })
     expect(up._tag === 'Some' && up.value._tag).toBe('Applied')
@@ -643,9 +672,9 @@ describe('its Behaviors', () => {
   })
 
   it('moves focus in the tree, and watches the tree and the canvas for the pointer', () => {
-    expect(Attributes.find(builders.tree.attrs(), 'OnKeyDownFocus')).toBeDefined()
-    expect(Attributes.find(builders.tree.attrs(), 'OnMount')).toBeDefined()
-    expect(Attributes.find(builders.canvas.attrs(), 'OnMount')).toBeDefined()
+    expect(Attributes.find(layers.tree.attrs(), 'OnKeyDownFocus')).toBeDefined()
+    expect(Attributes.find(layers.tree.attrs(), 'OnMount')).toBeDefined()
+    expect(Attributes.find(canvas.canvas.attrs(), 'OnMount')).toBeDefined()
   })
 
   it('meets the tree’s accessibility contract', () => {

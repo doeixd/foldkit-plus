@@ -134,7 +134,7 @@ export interface BuilderLike {
   // `any`: a Renderer's entries are keyed by its own Blocks, so no one Blocks type fits every Builder's.
   readonly renderer: Renderer<any, never>
   readonly offered: ReadonlyArray<string>
-  readonly document: (model: Model) => Document
+  readonly document: (model: Pick<Model, 'page'>) => Document
   // Method syntax: a Builder whose Blocks are named narrower still fits.
   placeFor(
     document: Document,
@@ -142,7 +142,7 @@ export interface BuilderLike {
     block: string,
   ): Option.Option<Position>
   readonly keyCommand: (
-    model: Model,
+    model: Pick<Model, 'page' | 'selected'>,
     key: string,
     modifiers: KeyboardModifiers,
   ) => Option.Option<Message>
@@ -394,6 +394,33 @@ export type BuilderInput = Model & BuilderViewInputs
 /** The drawn Builder: what `BuilderView.define` returns. */
 export type BuilderSlotView = SlotView.SlotView<typeof BuilderSlots, BuilderInput, Message>
 
+const Parts = SlotView.parts(BuilderSlots)<BuilderInput, Message>()
+
+/** One piece of the drawn Builder, placed by `BuilderView.assemble`. */
+export type BuilderPart = SlotView.Part<typeof BuilderSlots, BuilderInput, Message>
+
+/** The drawn Builder's pieces, by what they show. */
+export interface BuilderParts {
+  /** The Blocks a page may gain, each a button that inserts it. */
+  readonly Palette: BuilderPart
+  /** The page's nodes as an ARIA tree, with the keyboard and dragging. */
+  readonly Layers: BuilderPart
+  /** The selected node's props, looks, conditions and actions, or the shortcuts. */
+  readonly Inspector: BuilderPart
+  readonly History: BuilderPart
+  /** Where the selection is, from the page down. */
+  readonly Crumbs: BuilderPart
+  readonly Viewports: BuilderPart
+  /** The context the page is previewed for; nothing where the Catalog has none. */
+  readonly Preview: BuilderPart
+  /** Why the last edit was refused; nothing when none was. */
+  readonly Alert: BuilderPart
+  /** The page, drawn by the site's Renderer, with the pointer. */
+  readonly Canvas: BuilderPart
+  /** What the Builder announces to a screen reader. */
+  readonly Live: BuilderPart
+}
+
 export const BuilderView = {
   /**
    * Block metadata: the control the inspector draws a prop with, where its
@@ -433,11 +460,11 @@ export const BuilderView = {
     ) => Html),
 
   /**
-   * The Builder drawn, as a `SlotView` over the Builder's Model. Style and
-   * extend it through `BuilderSlots` like any other SlotView; its Behaviors
-   * (the layers' keyboard, the canvas's pointer, the shortcuts) are attached.
+   * The Builder's parts, each drawn again only when what it reads changed,
+   * with its Behaviors (the layers' keyboard, the canvas's pointer, the
+   * shortcuts) declared with it. Place them with `assemble`.
    */
-  define: (builder: BuilderLike) => {
+  parts: (builder: BuilderLike): BuilderParts => {
     const described = new Map(
       builder.catalog.blocks.map(block => {
         const given = wordsKey.get(block.metadata)[0] ?? {}
@@ -482,326 +509,6 @@ export const BuilderView = {
       else names.push(name)
     }
     const groups = [...grouped]
-
-    const draw = (
-      model: BuilderInput,
-      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
-      h: HtmlBuilder<Message>,
-    ): Html => {
-      const document = builder.document(model)
-      const { selected } = model
-      // A drop is marked only where it would land: `at` is none where the page refuses it.
-      const drop = Option.flatMap(model.drag, drag =>
-        Option.isSome(drag.at) ? drag.over : Option.none(),
-      )
-      const dragged = Option.map(model.drag, drag => drag.id)
-      const button = (
-        slot: SlotView.SlotBuilder<Message>,
-        label: string,
-        message: Option.Option<Message>,
-        extra: ReadonlyArray<Attribute<Message>> = [],
-      ) =>
-        h.button(
-          slot.attrs([
-            h.Type('button'),
-            h.Disabled(Option.isNone(message)),
-            ...Option.match(message, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }),
-            ...extra,
-          ]),
-          [label],
-        )
-
-      const labelAt = (id: NodeId): string =>
-        Option.match(Option.fromUndefinedOr(document.nodes[id]), {
-          onNone: () => id,
-          onSome: node => labelOf(node.block),
-        })
-      // Where an insert lands, said on the Block's button, from the place itself.
-      const whereItGoes = (at: Option.Option<Position>): string =>
-        Option.match(at, {
-          onNone: () =>
-            Option.match(selected, {
-              onNone: () => 'Select a block that can hold it',
-              onSome: id => `It cannot go in or after the ${labelAt(id)}`,
-            }),
-          onSome: position => {
-            if (position._tag === 'Root') {
-              const before = document.roots[position.index - 1]
-              return position.index === document.roots.length
-                ? 'Adds it to the end of the page'
-                : before === undefined
-                  ? 'Adds it to the top of the page'
-                  : `Adds it after the ${labelAt(before)}`
-            }
-            const before =
-              document.nodes[position.parent]?.regions[position.region]?.[position.index - 1]
-            return Option.contains(selected, position.parent) || before === undefined
-              ? `Adds it inside the ${labelAt(position.parent)}`
-              : `Adds it after the ${labelAt(before)}`
-          },
-        })
-      const palette = h.nav(
-        slots.palette.attrs([h.AriaLabel('Add a block')]),
-        groups.map(([group, names]) =>
-          h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(group)]), [
-            ...(groups.length > 1 ? [h.h3(slots.paletteHeading.attrs(), [group])] : []),
-            ...names.map(name => {
-              const at = builder.placeFor(document, selected, name)
-              const label = labelOf(name)
-              return h.button(
-                slots.paletteItem.attrs([
-                  h.Type('button'),
-                  h.DataAttribute('block', name),
-                  h.AriaLabel(`Add ${label}`),
-                  h.Title(whereItGoes(at)),
-                  h.Disabled(Option.isNone(at)),
-                  ...Option.match(at, {
-                    onNone: () => [],
-                    onSome: position => [
-                      h.OnClick(Message.InsertAsked({ block: name, at: position })),
-                    ],
-                  }),
-                ]),
-                [
-                  h.span(slots.paletteLabel.attrs(), [label]),
-                  ...Option.match(described.get(name)?.description ?? Option.none(), {
-                    onNone: () => [],
-                    onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
-                  }),
-                ],
-              )
-            }),
-          ]),
-        ),
-      )
-
-      const shown = TreeNavigation.shown(rowsOf(document), model.layers, layersArgs)
-      const tree = h.ul(
-        slots.tree.attrs([h.Role('tree'), h.AriaLabel('Layers')]),
-        shown.map((row, index) => {
-          const node = document.nodes[NodeId.make(row.id)]
-          const open = TreeNavigation.isOpen(model.layers, layersArgs, row.id)
-          return h.li(
-            slots.row.attrs(
-              [
-                h.Key(row.id),
-                h.DataAttribute(ROW_ATTRIBUTE, row.id),
-                ...(node === undefined ? [] : [h.DataAttribute('block', node.block)]),
-                ...Option.match(
-                  Option.filter(drop, over => over.id === row.id),
-                  {
-                    onNone: () => [],
-                    onSome: over => [h.DataAttribute(ROW_DROP_ATTRIBUTE, over.zone)],
-                  },
-                ),
-                ...(Option.contains(dragged, NodeId.make(row.id))
-                  ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')]
-                  : []),
-                h.AriaSelected(Option.contains(selected, NodeId.make(row.id))),
-                h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
-                // Pointing at a row marks its node on the page, as pointing at the page does.
-                h.OnMouseEnter(Message.Hovered({ id: NodeId.make(row.id) })),
-                h.OnMouseLeave(Message.Unhovered()),
-              ],
-              { index, id: row.id },
-            ),
-            [
-              ...(row.branch
-                ? [
-                    h.span(
-                      slots.rowToggle.attrs([
-                        // The row says whether it is open; this is the pointer's way to change it.
-                        h.AriaHidden(true),
-                        h.OnClick(
-                          Layers.wrapper.make(
-                            open
-                              ? TreeNavigation.Message.Closed({ id: row.id })
-                              : TreeNavigation.Message.Opened({ id: row.id }),
-                          ),
-                        ),
-                      ]),
-                      [],
-                    ),
-                  ]
-                : []),
-              h.span(slots.rowLabel.attrs(), [node === undefined ? row.id : labelOf(node.block)]),
-              ...Option.match(node === undefined ? Option.none() : summaryOf(node), {
-                onNone: () => [],
-                onSome: summary => [h.span(slots.rowSummary.attrs(), [summary])],
-              }),
-            ],
-          )
-        }),
-      )
-      // The tree inside is what is named "Layers"; the panel around it is not named twice.
-      const layers = h.section(slots.layers.attrs(), [tree])
-
-      const modifierOf = { plain, alt, ctrl } as const
-      const actions = h.div(
-        slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]),
-        ACTIONS.map(action =>
-          button(
-            slots.action,
-            action.label,
-            builder.keyCommand(model, action.key, modifierOf[action.modifiers]),
-            [h.DataAttribute('action', action.id), h.Title(`${action.label} (${action.keys})`)],
-          ),
-        ),
-      )
-
-      const inspector = Option.match(selected, {
-        onNone: () =>
-          h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
-            h.p(slots.inspectorHint.attrs(), [
-              'Select a block on the page or in the layers to change it.',
-            ]),
-            h.h3(slots.inspectorSectionTitle.attrs(), ['Shortcuts, in the layers or on the page']),
-            h.dl(
-              slots.shortcuts.attrs(),
-              SHORTCUTS.flatMap(([keys, what]) => [
-                h.dt(slots.shortcutKeys.attrs(), [keys]),
-                h.dd(slots.shortcutWhat.attrs(), [what]),
-              ]),
-            ),
-          ]),
-        onSome: id => inspect(document, id, model.options ?? {}, actions, slots, h),
-      })
-
-      const history = h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
-        button(
-          slots.undo,
-          'Undo',
-          History.canUndo(model.page) ? Option.some(Message.Undid()) : Option.none(),
-          [h.Title('Undo (Ctrl+Z)')],
-        ),
-        button(
-          slots.redo,
-          'Redo',
-          History.canRedo(model.page) ? Option.some(Message.Redid()) : Option.none(),
-          [h.Title('Redo (Ctrl+Shift+Z)')],
-        ),
-      ])
-
-      // The page, then each node from the top down to the selected one, which is where you are.
-      const holders = (id: NodeId): ReadonlyArray<NodeId> => {
-        const places = Composition.index(document)
-        const chain: Array<NodeId> = [id]
-        for (
-          let place = places.get(id);
-          place?.parent !== undefined;
-          place = places.get(place.parent)
-        )
-          chain.unshift(place.parent)
-        return chain
-      }
-      const trail = Option.match(selected, { onNone: () => [], onSome: holders })
-      const crumbs = h.nav(slots.crumbs.attrs([h.AriaLabel('Where the selection is')]), [
-        h.button(
-          slots.crumb.attrs([
-            h.Type('button'),
-            h.OnClick(Message.Deselected()),
-            ...(trail.length === 0 ? [h.AriaCurrent('location')] : []),
-          ]),
-          ['Page'],
-        ),
-        ...trail.map((id, index) =>
-          h.button(
-            slots.crumb.attrs([
-              h.Type('button'),
-              h.OnClick(Message.Selected({ id })),
-              ...(index === trail.length - 1 ? [h.AriaCurrent('location')] : []),
-            ]),
-            [labelAt(id)],
-          ),
-        ),
-      ])
-
-      const viewports = h.div(
-        slots.viewports.attrs([h.Role('group'), h.AriaLabel('Viewport')]),
-        (['wide', 'medium', 'narrow'] as const).map(viewport =>
-          button(
-            slots.viewport,
-            spaced(viewport),
-            Option.some(Message.ViewportChosen({ viewport })),
-            [
-              h.DataAttribute('viewport', viewport),
-              h.AriaPressed(model.viewport === viewport ? 'true' : 'false'),
-            ],
-          ),
-        ),
-      )
-
-      const context = fieldsOf(builder.catalog.context)
-      const preview =
-        Object.keys(context).length === 0
-          ? []
-          : [
-              h.div(
-                slots.preview.attrs([h.Role('group'), h.AriaLabel('Preview as')]),
-                Object.entries(context).map(([key, schema]) =>
-                  contextField(slots, h, {
-                    id: `${builder.name}-preview-${key}`,
-                    label: key,
-                    schema,
-                    current: Option.fromUndefinedOr(model.preview[key]),
-                    blank: 'unset',
-                    send: value =>
-                      Option.match(value, {
-                        onNone: () => Message.PreviewCleared({ key }),
-                        onSome: chosen => Message.PreviewChosen({ key, value: chosen }),
-                      }),
-                  }),
-                ),
-              ),
-            ]
-
-      // Focusable, so a press on the page leaves the shortcuts where the selection is.
-      const canvas = h.div(
-        slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page'), h.Tabindex(0)]),
-        [
-          h.div(
-            slots.frame.attrs([
-              h.DataAttribute('viewport', model.viewport),
-              // The width is the frame's own; the rule that reads it is `FrameDefaults`.
-              h.Style({ '--fk-frame-width': viewportWidths[model.viewport] }),
-            ]),
-            [
-              ...(document.roots.length === 0
-                ? [
-                    h.p(slots.empty.attrs(), [
-                      'This page is empty. Add a block to begin: the palette offers what can go here.',
-                    ]),
-                  ]
-                : []),
-              ...Renderer.render(builder.renderer, document, inertHtml, {
-                mode: 'edit',
-                selected: Option.getOrUndefined(selected),
-                hovered: Option.getOrUndefined(model.hovered),
-                drop: Option.getOrUndefined(drop),
-                context: model.preview,
-                data: model.data,
-              }),
-            ],
-          ),
-        ],
-      )
-
-      return h.div(slots.root.attrs(), [
-        palette,
-        layers,
-        inspector,
-        history,
-        crumbs,
-        viewports,
-        ...preview,
-        ...Option.match(model.refused, {
-          onNone: () => [],
-          onSome: refused => [h.p(slots.alert.attrs([h.Role('alert')]), [refused.message])],
-        }),
-        canvas,
-        h.div(slots.live.attrs(), [LiveAnnounce.view(model.announcer, h)]),
-      ])
-    }
 
     // One field per context key: a choice, or typed in; blank is unset.
     const contextField = (
@@ -1235,26 +942,373 @@ export const BuilderView = {
       input,
       h,
     }: {
-      readonly input: BuilderInput
+      readonly input: Pick<BuilderInput, 'page' | 'selected'>
       readonly h: HtmlBuilder<Message>
     }) => [h.OnKeyDownPreventDefault((key, modifiers) => builder.keyCommand(input, key, modifiers))]
 
-    return SlotView.forMessages<Message>()
-      .define(BuilderSlots, (input: BuilderInput, slots, h) => draw(input, slots, h), {
-        name: 'Builder',
+    /** A button, disabled where there is nothing to send. */
+    const button = (
+      h: HtmlBuilder<Message>,
+      slot: SlotView.SlotBuilder<Message>,
+      label: string,
+      message: Option.Option<Message>,
+      extra: ReadonlyArray<Attribute<Message>> = [],
+    ) =>
+      h.button(
+        slot.attrs([
+          h.Type('button'),
+          h.Disabled(Option.isNone(message)),
+          ...Option.match(message, { onNone: () => [], onSome: sent => [h.OnClick(sent)] }),
+          ...extra,
+        ]),
+        [label],
+      )
+
+    const labelAt = (document: Document, id: NodeId): string =>
+      Option.match(Option.fromUndefinedOr(document.nodes[id]), {
+        onNone: () => id,
+        onSome: node => labelOf(node.block),
       })
-      .pipe(
-        Style.attach(FrameDefaults),
-        Behavior.attach(
-          TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<BuilderInput, Message>({
+    // Where an insert lands, said on the Block's button, from the place itself.
+    const whereItGoes = (
+      document: Document,
+      selected: Option.Option<NodeId>,
+      at: Option.Option<Position>,
+    ): string =>
+      Option.match(at, {
+        onNone: () =>
+          Option.match(selected, {
+            onNone: () => 'Select a block that can hold it',
+            onSome: id => `It cannot go in or after the ${labelAt(document, id)}`,
+          }),
+        onSome: position => {
+          if (position._tag === 'Root') {
+            const before = document.roots[position.index - 1]
+            return position.index === document.roots.length
+              ? 'Adds it to the end of the page'
+              : before === undefined
+                ? 'Adds it to the top of the page'
+                : `Adds it after the ${labelAt(document, before)}`
+          }
+          const before =
+            document.nodes[position.parent]?.regions[position.region]?.[position.index - 1]
+          return Option.contains(selected, position.parent) || before === undefined
+            ? `Adds it inside the ${labelAt(document, position.parent)}`
+            : `Adds it after the ${labelAt(document, before)}`
+        },
+      })
+    // A drop is marked only where it would land: `at` is none where the page refuses it.
+    const dropOf = (drag: Model['drag']) =>
+      Option.flatMap(drag, each => (Option.isSome(each.at) ? each.over : Option.none()))
+
+    // The shortcuts, on the layers and on the canvas; each part draws one of the two.
+    const Shortcuts = Behavior.forSlots(BuilderSlots)<
+      Pick<BuilderInput, 'page' | 'selected'>,
+      Message
+    >(
+      {
+        layers: Behavior.slot({ attributes: shortcuts }),
+        canvas: Behavior.slot({ attributes: shortcuts }),
+      },
+      { name: 'BuilderShortcuts' },
+    )
+    // What is selected, however it was (a click, a shortcut, an insert, the
+    // address), is brought into view in the layers and on the canvas.
+    const KeepSelectionInView = Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
+      {
+        layers: Behavior.slot({
+          mount: () => KeepInView({ selector: '[role="treeitem"][aria-selected="true"]' }),
+        }),
+        canvas: Behavior.slot({
+          // The mark is on a `display: contents` wrapper, which has no box: the Block's own element does.
+          mount: () => KeepInView({ selector: `[data-${MARK_ATTRIBUTE}="selected"] > *` }),
+        }),
+      },
+      { name: 'KeepSelectionInView' },
+    )
+
+    const Palette = Parts.part('Palette', { reads: ['page', 'selected'] }, (input, slots, h) => {
+      const document = builder.document(input)
+      return h.nav(
+        slots.palette.attrs([h.AriaLabel('Add a block')]),
+        groups.map(([group, names]) =>
+          h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(group)]), [
+            ...(groups.length > 1 ? [h.h3(slots.paletteHeading.attrs(), [group])] : []),
+            ...names.map(name => {
+              const at = builder.placeFor(document, input.selected, name)
+              const label = labelOf(name)
+              return h.button(
+                slots.paletteItem.attrs([
+                  h.Type('button'),
+                  h.DataAttribute('block', name),
+                  h.AriaLabel(`Add ${label}`),
+                  h.Title(whereItGoes(document, input.selected, at)),
+                  h.Disabled(Option.isNone(at)),
+                  ...Option.match(at, {
+                    onNone: () => [],
+                    onSome: position => [
+                      h.OnClick(Message.InsertAsked({ block: name, at: position })),
+                    ],
+                  }),
+                ]),
+                [
+                  h.span(slots.paletteLabel.attrs(), [label]),
+                  ...Option.match(described.get(name)?.description ?? Option.none(), {
+                    onNone: () => [],
+                    onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
+                  }),
+                ],
+              )
+            }),
+          ]),
+        ),
+      )
+    })
+
+    const LayersPart = Parts.part(
+      'Layers',
+      {
+        reads: ['page', 'selected', 'layers', 'drag'],
+        behaviors: [
+          TreeNavigation.behavior(Layers, layersArgs)(BuilderSlots)<
+            Pick<BuilderInput, 'page' | 'selected' | 'layers' | 'drag'>,
+            Message
+          >({
             container: 'tree',
             item: 'row',
-            rows: model => rowsOf(builder.document(model)),
+            rows: input => rowsOf(builder.document(input)),
             domId: id => layerId(builder, id),
           }),
+          // A row is dragged onto another; the keyboard's way is the shortcuts.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'tree',
+            attribute: `data-${ROW_ATTRIBUTE}`,
+            toMessage: dragMessage,
+          }),
+          Shortcuts,
+          KeepSelectionInView,
+        ],
+      },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        const { selected } = input
+        const drop = dropOf(input.drag)
+        const dragged = Option.map(input.drag, drag => drag.id)
+        const shown = TreeNavigation.shown(rowsOf(document), input.layers, layersArgs)
+        const tree = h.ul(
+          slots.tree.attrs([h.Role('tree'), h.AriaLabel('Layers')]),
+          shown.map((row, index) => {
+            const node = document.nodes[NodeId.make(row.id)]
+            const open = TreeNavigation.isOpen(input.layers, layersArgs, row.id)
+            return h.li(
+              slots.row.attrs(
+                [
+                  h.Key(row.id),
+                  h.DataAttribute(ROW_ATTRIBUTE, row.id),
+                  ...(node === undefined ? [] : [h.DataAttribute('block', node.block)]),
+                  ...Option.match(
+                    Option.filter(drop, over => over.id === row.id),
+                    {
+                      onNone: () => [],
+                      onSome: over => [h.DataAttribute(ROW_DROP_ATTRIBUTE, over.zone)],
+                    },
+                  ),
+                  ...(Option.contains(dragged, NodeId.make(row.id))
+                    ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')]
+                    : []),
+                  h.AriaSelected(Option.contains(selected, NodeId.make(row.id))),
+                  h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
+                  // Pointing at a row marks its node on the page, as pointing at the page does.
+                  h.OnMouseEnter(Message.Hovered({ id: NodeId.make(row.id) })),
+                  h.OnMouseLeave(Message.Unhovered()),
+                ],
+                { index, id: row.id },
+              ),
+              [
+                ...(row.branch
+                  ? [
+                      h.span(
+                        slots.rowToggle.attrs([
+                          // The row says whether it is open; this is the pointer's way to change it.
+                          h.AriaHidden(true),
+                          h.OnClick(
+                            Layers.wrapper.make(
+                              open
+                                ? TreeNavigation.Message.Closed({ id: row.id })
+                                : TreeNavigation.Message.Opened({ id: row.id }),
+                            ),
+                          ),
+                        ]),
+                        [],
+                      ),
+                    ]
+                  : []),
+                h.span(slots.rowLabel.attrs(), [node === undefined ? row.id : labelOf(node.block)]),
+                ...Option.match(node === undefined ? Option.none() : summaryOf(node), {
+                  onNone: () => [],
+                  onSome: summary => [h.span(slots.rowSummary.attrs(), [summary])],
+                }),
+              ],
+            )
+          }),
+        )
+        // The tree inside is what is named "Layers"; the panel around it is not named twice.
+        return h.section(slots.layers.attrs(), [tree])
+      },
+    )
+
+    const Inspector = Parts.part(
+      'Inspector',
+      { reads: ['page', 'selected', 'options'] },
+      (input, slots, h) => {
+        const modifierOf = { plain, alt, ctrl } as const
+        const actions = h.div(
+          slots.actions.attrs([h.Role('toolbar'), h.AriaLabel('Selected block')]),
+          ACTIONS.map(action =>
+            button(
+              h,
+              slots.action,
+              action.label,
+              builder.keyCommand(input, action.key, modifierOf[action.modifiers]),
+              [h.DataAttribute('action', action.id), h.Title(`${action.label} (${action.keys})`)],
+            ),
+          ),
+        )
+        return Option.match(input.selected, {
+          onNone: () =>
+            h.div(slots.inspector.attrs([h.Role('group'), h.AriaLabel('Properties')]), [
+              h.p(slots.inspectorHint.attrs(), [
+                'Select a block on the page or in the layers to change it.',
+              ]),
+              h.h3(slots.inspectorSectionTitle.attrs(), [
+                'Shortcuts, in the layers or on the page',
+              ]),
+              h.dl(
+                slots.shortcuts.attrs(),
+                SHORTCUTS.flatMap(([keys, what]) => [
+                  h.dt(slots.shortcutKeys.attrs(), [keys]),
+                  h.dd(slots.shortcutWhat.attrs(), [what]),
+                ]),
+              ),
+            ]),
+          onSome: id =>
+            inspect(builder.document(input), id, input.options ?? {}, actions, slots, h),
+        })
+      },
+    )
+
+    const HistoryPart = Parts.part('History', { reads: ['page'] }, (input, slots, h) =>
+      h.div(slots.history.attrs([h.Role('toolbar'), h.AriaLabel('History')]), [
+        button(
+          h,
+          slots.undo,
+          'Undo',
+          History.canUndo(input.page) ? Option.some(Message.Undid()) : Option.none(),
+          [h.Title('Undo (Ctrl+Z)')],
         ),
-        Behavior.attach(
-          Targets.behavior(BuilderSlots)<BuilderInput, Message>({
+        button(
+          h,
+          slots.redo,
+          'Redo',
+          History.canRedo(input.page) ? Option.some(Message.Redid()) : Option.none(),
+          [h.Title('Redo (Ctrl+Shift+Z)')],
+        ),
+      ]),
+    )
+
+    const Crumbs = Parts.part('Crumbs', { reads: ['page', 'selected'] }, (input, slots, h) => {
+      const document = builder.document(input)
+      // The page, then each node from the top down to the selected one, which is where you are.
+      const holders = (id: NodeId): ReadonlyArray<NodeId> => {
+        const places = Composition.index(document)
+        const chain: Array<NodeId> = [id]
+        for (
+          let place = places.get(id);
+          place?.parent !== undefined;
+          place = places.get(place.parent)
+        )
+          chain.unshift(place.parent)
+        return chain
+      }
+      const trail = Option.match(input.selected, { onNone: () => [], onSome: holders })
+      return h.nav(slots.crumbs.attrs([h.AriaLabel('Where the selection is')]), [
+        h.button(
+          slots.crumb.attrs([
+            h.Type('button'),
+            h.OnClick(Message.Deselected()),
+            ...(trail.length === 0 ? [h.AriaCurrent('location')] : []),
+          ]),
+          ['Page'],
+        ),
+        ...trail.map((id, index) =>
+          h.button(
+            slots.crumb.attrs([
+              h.Type('button'),
+              h.OnClick(Message.Selected({ id })),
+              ...(index === trail.length - 1 ? [h.AriaCurrent('location')] : []),
+            ]),
+            [labelAt(document, id)],
+          ),
+        ),
+      ])
+    })
+
+    const Viewports = Parts.part('Viewports', { reads: ['viewport'] }, (input, slots, h) =>
+      h.div(
+        slots.viewports.attrs([h.Role('group'), h.AriaLabel('Viewport')]),
+        (['wide', 'medium', 'narrow'] as const).map(viewport =>
+          button(
+            h,
+            slots.viewport,
+            spaced(viewport),
+            Option.some(Message.ViewportChosen({ viewport })),
+            [
+              h.DataAttribute('viewport', viewport),
+              h.AriaPressed(input.viewport === viewport ? 'true' : 'false'),
+            ],
+          ),
+        ),
+      ),
+    )
+
+    const context = fieldsOf(builder.catalog.context)
+    // Nothing where the Catalog has no context to preview.
+    const Preview = Parts.part('Preview', { reads: ['preview'] }, (input, slots, h) =>
+      Object.keys(context).length === 0
+        ? null
+        : h.div(
+            slots.preview.attrs([h.Role('group'), h.AriaLabel('Preview as')]),
+            Object.entries(context).map(([key, schema]) =>
+              contextField(slots, h, {
+                id: `${builder.name}-preview-${key}`,
+                label: key,
+                schema,
+                current: Option.fromUndefinedOr(input.preview[key]),
+                blank: 'unset',
+                send: value =>
+                  Option.match(value, {
+                    onNone: () => Message.PreviewCleared({ key }),
+                    onSome: chosen => Message.PreviewChosen({ key, value: chosen }),
+                  }),
+              }),
+            ),
+          ),
+    )
+
+    const Alert = Parts.part('Alert', { reads: ['refused'] }, (input, slots, h) =>
+      Option.match(input.refused, {
+        onNone: () => null,
+        onSome: refused => h.p(slots.alert.attrs([h.Role('alert')]), [refused.message]),
+      }),
+    )
+
+    // Focusable, so a press on the page leaves the shortcuts where the selection is.
+    const Canvas = Parts.part(
+      'Canvas',
+      {
+        reads: ['page', 'selected', 'hovered', 'drag', 'viewport', 'preview', 'data'],
+        behaviors: [
+          Targets.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             // A link on the page being edited selects its node; it does not navigate.
@@ -1269,48 +1323,92 @@ export const BuilderView = {
                     : Message.Selected({ id }),
               }),
           }),
-        ),
-        // A row or a node is dragged onto another; the keyboard's way is the shortcuts.
-        Behavior.attach(
-          PointerDrag.behavior(BuilderSlots)<BuilderInput, Message>({
-            container: 'tree',
-            attribute: `data-${ROW_ATTRIBUTE}`,
-            toMessage: dragMessage,
-          }),
-        ),
-        Behavior.attach(
-          PointerDrag.behavior(BuilderSlots)<BuilderInput, Message>({
+          // A node is dragged onto another; the keyboard's way is the shortcuts.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             toMessage: dragMessage,
           }),
-        ),
-        Behavior.attach(
-          Behavior.forSlots(BuilderSlots)<BuilderInput, Message>(
-            {
-              layers: Behavior.slot({ attributes: shortcuts }),
-              canvas: Behavior.slot({ attributes: shortcuts }),
-            },
-            { name: 'BuilderShortcuts' },
-          ),
-        ),
-        // What is selected, however it was (a click, a shortcut, an insert, the
-        // address), is brought into view in the layers and on the canvas.
-        Behavior.attach(
-          Behavior.forSlots(BuilderSlots)<BuilderInput, Message>(
-            {
-              layers: Behavior.slot({
-                mount: () => KeepInView({ selector: '[role="treeitem"][aria-selected="true"]' }),
+          Shortcuts,
+          KeepSelectionInView,
+        ],
+      },
+      (input, slots, h) => {
+        const document = builder.document(input)
+        return h.div(slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page'), h.Tabindex(0)]), [
+          h.div(
+            slots.frame.attrs([
+              h.DataAttribute('viewport', input.viewport),
+              // The width is the frame's own; the rule that reads it is `FrameDefaults`.
+              h.Style({ '--fk-frame-width': viewportWidths[input.viewport] }),
+            ]),
+            [
+              ...(document.roots.length === 0
+                ? [
+                    h.p(slots.empty.attrs(), [
+                      'This page is empty. Add a block to begin: the palette offers what can go here.',
+                    ]),
+                  ]
+                : []),
+              ...Renderer.render(builder.renderer, document, inertHtml, {
+                mode: 'edit',
+                selected: Option.getOrUndefined(input.selected),
+                hovered: Option.getOrUndefined(input.hovered),
+                drop: Option.getOrUndefined(dropOf(input.drag)),
+                context: input.preview,
+                data: input.data,
               }),
-              canvas: Behavior.slot({
-                // The mark is on a `display: contents` wrapper, which has no box: the Block's own element does.
-                mount: () => KeepInView({ selector: `[data-${MARK_ATTRIBUTE}="selected"] > *` }),
-              }),
-            },
-            { name: 'KeepSelectionInView' },
+            ],
           ),
-        ),
-      )
+        ])
+      },
+    )
+
+    const Live = Parts.part('Live', { reads: ['announcer'] }, (input, slots, h) =>
+      h.div(slots.live.attrs(), [LiveAnnounce.view(input.announcer, h)]),
+    )
+
+    return {
+      Palette,
+      Layers: LayersPart,
+      Inspector,
+      History: HistoryPart,
+      Crumbs,
+      Viewports,
+      Preview,
+      Alert,
+      Canvas,
+      Live,
+    }
+  },
+
+  /**
+   * A layout of your own: `render` places the parts with `draw`, around
+   * anything else you draw with its `h`. Styles and Behaviors attach to the
+   * result as to `define`'s.
+   */
+  assemble: (
+    render: SlotView.AssemblyRender<typeof BuilderSlots, BuilderInput, Message>,
+  ): BuilderSlotView =>
+    Parts.assemble(render, { name: 'Builder' }).pipe(Style.attach(FrameDefaults)),
+
+  /** The Builder drawn with every part, in the default layout. */
+  define: (builder: BuilderLike): BuilderSlotView => {
+    const parts = BuilderView.parts(builder)
+    return BuilderView.assemble((_input, slots, h, draw) =>
+      h.div(slots.root.attrs(), [
+        draw(parts.Palette),
+        draw(parts.Layers),
+        draw(parts.Inspector),
+        draw(parts.History),
+        draw(parts.Crumbs),
+        draw(parts.Viewports),
+        draw(parts.Preview),
+        draw(parts.Alert),
+        draw(parts.Canvas),
+        draw(parts.Live),
+      ]),
+    )
   },
 }
 

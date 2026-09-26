@@ -300,7 +300,7 @@ const landing = (
 }
 
 /** The Document being edited. */
-const documentOf = (model: Model): Document => model.page.present
+const documentOf = (model: Pick<Model, 'page'>): Document => model.page.present
 
 /**
  * The undo group an Operation joins: consecutive edits of one prop of one node
@@ -863,7 +863,7 @@ export const Builder = {
      * not handle.
      */
     const keyCommand = (
-      model: Model,
+      model: Pick<Model, 'page' | 'selected'>,
       key: string,
       modifiers: KeyboardModifiers,
     ): Option.Option<Message> => {
