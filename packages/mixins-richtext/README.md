@@ -72,7 +72,8 @@ import {
 slashQuery('see /head') // 'head' — opens at a block's start or after whitespace
 slashQuery('see/head') // undefined — that is text
 
-// Entries lead with the text blocks a caret can become, then the marks it can carry.
+// Entries lead with the text blocks a caret can become, then quote, lists, and code block,
+// then the marks it can carry.
 const entries = slashEntries(message => edited(message))
 matchingEntries(entries, 'mono').map(entry => entry.label) // ['Code']
 

@@ -149,7 +149,7 @@ history chord; `toMessage` turns each into a Message:
 ```ts
 const Message = defineMessageUnion({
   Typed, Backspace, DeletedForward, Entered, ToggledMark, RetypedBlock,
-  Selected, Pasted, Undone, Redone, Patched,
+  WrappedBlock, ConvertedBlock, LiftedBlock, Selected, Pasted, Undone, Redone, Patched,
 })
 ```
 
@@ -159,7 +159,8 @@ insertion carrying marks and a mark value with props come back `undefined` — t
 vocabulary has no shape for them yet, and silently losing the marks would be
 worse. `RetypedBlock` is the same kind of Message and never arrives from
 `toMessage`: no browser event means "make this block a heading", so an application
-sends it itself. `attachEditor(host, content, emit, { rendering?, decorate? })` attaches the translation to a host
+sends it itself. `WrappedBlock` (`{ containers }`), `ConvertedBlock` (`{ to }`), and
+`LiftedBlock` are the same for the core's `WrapBlock`, `ConvertBlock`, and `LiftBlock`. `attachEditor(host, content, emit, { rendering?, decorate? })` attaches the translation to a host
 element and reports each Message; `events({ content })` wraps the same thing in a
 `Mount.defineStream`, so a view renders a host element whose mount produces these
 Messages and releases the subtree when the element goes. `patchEditor(hostId,
@@ -186,8 +187,10 @@ slashQuery('see /head') // 'head' — opens at a block's start or after whitespa
 slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
 ```
 
-`slashEntries` leads with the text blocks a caret can become (`Paragraph`, `Heading 1`–`3`)
-and then the marks it can carry, each with a stable `id`, a `label`, the words a query may
+`slashEntries` leads with the text blocks a caret can become (`Paragraph`, `Heading 1`–`3`),
+then the standard vocabulary's containers (`Quote`, `Bulleted list`, `Numbered list`, and
+`Code block`, whose id is `code-block` because `code` is the Code mark's), and then the marks
+it can carry, each with a stable `id`, a `label`, the words a query may
 also match, and the Message choosing it. `matchingEntries` filters; an empty query offers
 everything. `slashMenu(entries, textBefore, index)` is the one value a view and `update`
 share — whether a query is open, what matches, and what Enter would send — with a stale
@@ -271,8 +274,8 @@ derived from application state, such as a search query, is not placed this way. 
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /
-`typed` / `pressed` / `toggled` / `retyped` / `selected` / `undone` / `redone` /
-`patched` build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
+`typed` / `pressed` / `toggled` / `retyped` / `wrapped` / `converted` / `lifted` /
+`selected` / `undone` / `redone` / `patched` build the Messages it dispatches. Every accepted edit returns a `RichText.patch`
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
 

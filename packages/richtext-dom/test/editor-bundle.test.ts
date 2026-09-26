@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
 import {
   application,
+  converted,
   editorAt,
+  lifted,
   patched,
   pressed,
   redone,
@@ -17,6 +19,7 @@ import {
   typed,
   undone,
   update,
+  wrapped,
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
@@ -370,6 +373,21 @@ describe('Enter in a live slash query (§123)', () => {
     })
   })
 
+  it('wraps the block in a list for the list entry, removing the query', () => {
+    const after = step(asked('/bul'), pressed('Entered'))
+    expect(after.document.children[0]).toMatchObject({ type: 'Node', kind: 'List' })
+    const [list] = after.document.children
+    const item = list?.type === 'Node' ? list.blocks?.[0] : undefined
+    const paragraph = item?.type === 'Node' ? item.blocks?.[0] : undefined
+    expect(paragraph).toMatchObject({ type: 'Paragraph', id: 'p' })
+    expect(paragraph?.children[0]?.text).toBe('')
+  })
+
+  it('converts the block to code for `/code`, whose first match is the block, not the mark', () => {
+    const after = step(asked('/code'), pressed('Entered'))
+    expect(after.document.children[0]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
+  })
+
   it('undoes a choice as one step, restoring the block and the query', () => {
     const chosen = step(asked('/h2'), pressed('Entered'))
     expect(RichText.inspectHistory(chosen.editor.history).past).toBe(1)
@@ -408,6 +426,22 @@ describe('Enter in a live slash query (§123)', () => {
   it('splits when the text before the caret is not a query', () => {
     const after = step(asked('plain text'), pressed('Entered'))
     expect(after.document.children).toHaveLength(2)
+  })
+})
+
+describe('the block Messages an application sends', () => {
+  it('wraps the caret’s block and lifts it back out, each one undoable step', () => {
+    const quoted = step(start(caret('a', 1)), wrapped([{ kind: 'Quote' }]))
+    expect(quoted.document.children[0]).toMatchObject({ type: 'Node', kind: 'Quote' })
+    const back = step(quoted, lifted())
+    expect(back.document.children.map(block => block.id)).toEqual(['p', 'q'])
+    expect(RichText.inspectHistory(back.editor.history).past).toBe(2)
+  })
+
+  it('converts the caret’s block to a kind that holds text', () => {
+    // `q`'s run is bold and no vocabulary is placed, so the marks are carried over.
+    const code = step(start(caret('b', 1)), converted({ kind: 'CodeBlock' }))
+    expect(code.document.children[1]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
   })
 })
 

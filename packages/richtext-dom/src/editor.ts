@@ -21,6 +21,12 @@ export const Message = defineMessageUnion({
   Entered: {},
   ToggledMark: { mark: Schema.String },
   RetypedBlock: { block: RichText.TextBlock },
+  /** The caret's block, wrapped in containers listed outermost first: a quote, a list item. */
+  WrappedBlock: { containers: Schema.Array(RichText.Container) },
+  /** The caret's paragraph or heading, replaced by a kind that holds text: a code block. */
+  ConvertedBlock: { to: RichText.Container },
+  /** The caret's block, lifted out of its container: the inverse of a wrap. */
+  LiftedBlock: {},
   Selected: { selection: Schema.NullOr(RichText.Selection) },
   Pasted: { slice: RichText.Slice },
   Undone: {},
@@ -116,9 +122,11 @@ const MARK_KEYWORDS: Readonly<Record<string, ReadonlyArray<string>>> = {
 }
 
 /**
- * The entries the editor offers, in menu order: the text blocks a caret can become,
- * then the marks it can carry. Each is a Message this module already defines, so a
- * chosen entry needs no editing vocabulary of its own.
+ * The entries the editor offers, in menu order: the text blocks a caret can become, the
+ * standard vocabulary's quote, lists, and code block, then the marks it can carry. Each is a
+ * Message this module already defines, so a chosen entry needs no editing vocabulary of its
+ * own. The standard kinds are named, not required: a placement whose vocabulary lacks them
+ * refuses the entry's edit, as it refuses any edit it does not declare.
  */
 export const slashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
   {
@@ -133,6 +141,33 @@ export const slashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
     keywords: heading.keywords,
     message: Message.RetypedBlock({ block: { type: 'Heading', level: heading.level } }),
   })),
+  {
+    id: 'quote',
+    label: 'Quote',
+    keywords: ['blockquote', 'citation'],
+    message: Message.WrappedBlock({ containers: [{ kind: 'Quote' }] }),
+  },
+  {
+    id: 'bulleted-list',
+    label: 'Bulleted list',
+    keywords: ['ul', 'unordered', 'bullet'],
+    message: Message.WrappedBlock({ containers: [{ kind: 'List' }, { kind: 'ListItem' }] }),
+  },
+  {
+    id: 'numbered-list',
+    label: 'Numbered list',
+    keywords: ['ol', 'ordered'],
+    message: Message.WrappedBlock({
+      containers: [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
+    }),
+  },
+  {
+    // `code` is the Code mark's id; the block is a different entry.
+    id: 'code-block',
+    label: 'Code block',
+    keywords: ['pre', 'fence', 'snippet'],
+    message: Message.ConvertedBlock({ to: { kind: 'CodeBlock' } }),
+  },
   ...RichText.shippedMarks.map(definition => ({
     id: definition.name.toLowerCase(),
     label: definition.name,
@@ -249,6 +284,9 @@ export const events = Mount.defineStream('RichTextDomEvents', {
     Message.Entered,
     Message.ToggledMark,
     Message.RetypedBlock,
+    Message.WrappedBlock,
+    Message.ConvertedBlock,
+    Message.LiftedBlock,
     Message.Selected,
     Message.Pasted,
     Message.Undone,

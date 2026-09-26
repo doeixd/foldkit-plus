@@ -1,4 +1,4 @@
-import type { Schema } from 'effect'
+import { Schema } from 'effect'
 import {
   NodeId,
   blockAtPath,
@@ -78,10 +78,11 @@ export type Command =
   | { readonly type: 'LiftBlock' }
 
 /** A container a block is wrapped in: a node kind, and the props it starts with. */
-export interface Container {
-  readonly kind: string
-  readonly props?: Schema.JsonObject | undefined
-}
+export const Container = Schema.Struct({
+  kind: Schema.NonEmptyString,
+  props: Schema.optionalKey(Schema.JsonObject),
+})
+export type Container = typeof Container.Type
 
 /** Caller-owned identity source. Live edits mint; replay applies transactions. */
 export interface CommandIds {

@@ -118,6 +118,12 @@ const toCommand = (message: CommandMessage): RichText.Command => {
       return { type: 'ToggleMark', mark: message.mark }
     case 'RetypedBlock':
       return { type: 'RetypeBlock', to: message.block }
+    case 'WrappedBlock':
+      return { type: 'WrapBlock', containers: message.containers }
+    case 'ConvertedBlock':
+      return { type: 'ConvertBlock', to: message.to }
+    case 'LiftedBlock':
+      return { type: 'LiftBlock' }
     case 'Selected':
       return { type: 'SetSelection', selection: message.selection }
     case 'Pasted':
@@ -402,6 +408,11 @@ export const pressed = (tag: 'Backspace' | 'DeletedForward' | 'Entered'): Parent
 export const toggled = (mark: string): ParentMessage => edited(Message.ToggledMark({ mark }))
 export const retyped = (block: RichText.TextBlock): ParentMessage =>
   edited(Message.RetypedBlock({ block }))
+export const wrapped = (containers: ReadonlyArray<RichText.Container>): ParentMessage =>
+  edited(Message.WrappedBlock({ containers }))
+export const converted = (to: RichText.Container): ParentMessage =>
+  edited(Message.ConvertedBlock({ to }))
+export const lifted = (): ParentMessage => edited(Message.LiftedBlock())
 export const selected = (selection: RichText.Selection | null): ParentMessage =>
   edited(Message.Selected({ selection }))
 export const undone = (): ParentMessage => edited(Message.Undone())

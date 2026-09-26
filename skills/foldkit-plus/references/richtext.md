@@ -149,7 +149,8 @@ selection covers does (`markActive` is that rule on its own).
 (`MarkToolbarSlots`, `markToolbar<Message>()`), for an application that restyles or
 extends its parts. The slash menu's vocabulary lives with the editor, in `foldkit-richtext-dom/editor`:
 `slashQuery` (the query the caret is in, read from `RichText.textBefore`), `slashEntries`
-(the text blocks and marks a menu offers, each with a stable id, a label, search keywords,
+(the text blocks, the standard quote, lists, and code block, and the marks a menu offers,
+each with a stable id, a label, search keywords,
 and the editor Message choosing it), `matchingEntries(entries, query)`, and
 `slashMenu(entries, textBefore, index)` — the one value a menu's view and the editor's
 `update` share: the query, the matches, and the entry Enter would send, with a stale index
@@ -172,7 +173,8 @@ vocabulary (`Typed`, `Entered`, `ToggledMark`, `RetypedBlock`, `Selected`, `Past
 host element's `OnMount`, and `patchEditor`, the work a patch Command runs against the
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
-`retyped(block)` for it. `foldkit-richtext-dom/editor-bundle` is the editor as a
+`retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, and `lifted()`
+for the wrap, convert, and lift commands. `foldkit-richtext-dom/editor-bundle` is the editor as a
 Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`,
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
