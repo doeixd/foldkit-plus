@@ -157,6 +157,13 @@ than kept by hand.
 - A style attached to a view but missing from `sheet.ts` still applies (this
   test fails until Phase 1 lands).
 
+> **Started, 2026-09-26.** The `browser` Vitest project runs
+> `*.browser.test.ts` in headless Chromium at 1440×900, in CI after
+> `playwright install`. The first file, `examples/cms/test/builder.browser.test.ts`,
+> pins the hidden live region and the full-window layout (both shown to fail
+> by mutation), and holds the Phase 1 missing-style test as `it.fails`. The
+> mount helper lives in that file until a second browser test needs it.
+
 ### 0d. Upstream: rendering in a hidden tab (S, outside this repository)
 
 Foldkit renders on `requestAnimationFrame`, which a hidden tab never runs, so

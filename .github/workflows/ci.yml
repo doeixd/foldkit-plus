@@ -31,6 +31,9 @@ jobs:
       # Forced, so a warm `.tsbuild` cannot hide a project-graph change.
       - run: pnpm typecheck:force
 
+      # The browser tests (`*.browser.test.ts`) run in headless Chromium.
+      - run: pnpm exec playwright install --with-deps chromium
+
       - run: pnpm test
 
       # Also proves the example runs against the packages' published entry

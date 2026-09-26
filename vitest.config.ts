@@ -1,8 +1,30 @@
-import { mergeConfig } from 'vitest/config'
+import { playwright } from '@vitest/browser-playwright'
+import { defineConfig, mergeConfig } from 'vitest/config'
 import { shared } from './vitest.shared.js'
 
-export default mergeConfig(shared, {
+const everywhere = ['packages/*/test/**/*.test.ts', 'examples/*/test/**/*.test.ts']
+const inBrowser = ['packages/*/test/**/*.browser.test.ts', 'examples/*/test/**/*.browser.test.ts']
+
+export default defineConfig({
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'examples/*/test/**/*.test.ts'],
+    projects: [
+      mergeConfig(shared, {
+        test: { name: 'unit', include: everywhere, exclude: [...inBrowser, '**/node_modules/**'] },
+      }),
+      // What jsdom cannot check: layout, focus, the caret. Headless Chromium,
+      // at a desktop size, so a full-screen layout is the one users see.
+      mergeConfig(shared, {
+        test: {
+          name: 'browser',
+          include: inBrowser,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium', viewport: { width: 1440, height: 900 } }],
+          },
+        },
+      }),
+    ],
   },
 })

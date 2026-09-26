@@ -43,6 +43,7 @@ jobs:
       # Never publish an unverified tree.
       - run: pnpm format:check
       - run: pnpm typecheck
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test
 
       # `pnpm release` builds, then publishes with `--access public`. pnpm

@@ -2,4 +2,7 @@
 import { mergeConfig } from 'vitest/config'
 import { shared } from '../../vitest.shared.js'
 
-export default mergeConfig(shared, { test: { include: ['test/**/*.test.ts'] } })
+// Browser tests (`*.browser.test.ts`) run from the root, in its `browser` project.
+export default mergeConfig(shared, {
+  test: { include: ['test/**/*.test.ts'], exclude: ['test/**/*.browser.test.ts'] },
+})
