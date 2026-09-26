@@ -501,6 +501,12 @@ and `Stream.mapAccum` take their seed as a thunk; a plain value type-checks
 against `LazyArg<unknown>` and fails at runtime with "initial is not a
 function". Check the installed `.d.ts` before reaching for a remembered API.
 
+A checked schema resolves to its **last check's** annotations, which carry
+what the check expects and no `title`: `Schema.String.annotate({ title })
+.check(…)` resolved directly has lost its title, and a check that set `title`
+of its own named a form field "fits the Catalog". Read words with
+`Words.of(schema)` from `foldkit-entity`, never `resolveAnnotations(…)?.title`.
+
 **Types**
 
 - **An `Option` compared with `undefined` or `null` type-checks and is always
