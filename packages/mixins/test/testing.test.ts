@@ -3,7 +3,7 @@
  * through one call, an element by its label however it is labelled.
  */
 import { Option } from 'effect'
-import { SlotView } from 'foldkit-mixins'
+import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, it } from 'vitest'
 
@@ -42,5 +42,39 @@ describe('Inert', () => {
     expect(Inert.pressed(publish)).toEqual(Option.none())
     expect(Inert.byRole(page, 'main')).toHaveLength(1)
     expect(Inert.text(page)).toBe('SaveNameHomePublish')
+  })
+})
+
+describe('Inert.draw and what it checks', () => {
+  const CardSlots = Slots.define({
+    root: Slot.make({ capability: Capability.Container }),
+    title: Slot.make({ capability: Capability.Container }),
+    body: Slot.make({ capability: Capability.Container }),
+  })
+  const Card = SlotView.forMessages<never>().define(CardSlots, (_: void, slots, h) =>
+    h.article(slots.root.attrs([h.Style({ '--fk-gap': '1rem', color: 'red' })]), [
+      h.h2(slots.title.attrs(), ['Title']),
+      h.span([], ['stray']),
+      h.div(slots.body.attrs(), [h.p([], ['the application’s own'])]),
+    ]),
+  )
+  const root = Inert.draw(Card, undefined)
+
+  it('marks what each Slot drew', () => {
+    expect(Inert.bySlot(root, 'title').map(Inert.text)).toEqual(['Title'])
+  })
+
+  it('lists what no Slot drew, but not what a Slot named `inside` holds', () => {
+    expect(Inert.unslotted(root, { inside: ['body'] })).toEqual(['article > span'])
+    expect(Inert.unslotted(root)).toEqual(['article > span', 'article > div > p'])
+  })
+
+  it('lists inline declarations that are not custom properties', () => {
+    expect(Inert.fixedInline(root)).toEqual(['article: color'])
+  })
+
+  it('leaves no mark on a view drawn as it would be for real', () => {
+    const drawn = Card(undefined, SlotView.inertBuilder())
+    expect(Inert.bySlot(drawn, 'title')).toEqual([])
   })
 })

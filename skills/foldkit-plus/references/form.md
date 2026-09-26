@@ -182,7 +182,7 @@ Render the placement with `placed.view(model, h, { options, words: { submit: 'Sa
 choices (`{ value, label }`); loading them is the application's query.
 `FormView.define(Rename)` alone is a complete unstyled form. `FieldSlots`: `root`,
 `label`, `description`, `error`, and one per control kind (`text`, `multiline`,
-`number`, `toggle`, `select`, `choices`, `choice`), plus `control`, `search`, and
+`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
 `submit`. The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of

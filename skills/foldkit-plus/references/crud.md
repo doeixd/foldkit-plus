@@ -174,7 +174,7 @@ PostTable(
 DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model) }, h)
 ```
 
-Slots: `ListSlots` (`root`, `status`, `table`, `headCell`, `sort`, `row`, `cell`,
+Slots: `ListSlots` (`root`, `status`, `table`, `head`, `headRow`, `body`, `headCell`, `sort`, `row`, `cell`,
 `open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
 `list`, the `dl`; `status`, `term`, `value`, `retry`). A failed read shows a `role="alert"` line; a failed refresh keeps the
 rows (or the detail's value) below it, and `onRetry` adds a button. The button

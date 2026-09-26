@@ -151,6 +151,8 @@ export const FieldSlots = Slots.define({
     events: [Event.Change, Event.Blur],
     attributes: [Attr.AriaInvalid, Attr.AriaDescribedby],
   }),
+  /** One choice of a `select`. */
+  option: Slot.make({ capability: Capability.Base }),
   /** Around the view of a control backed by a Bundle, when it is drawn with the Bundle's own view. */
   control: Slot.make({ capability: Capability.Container }),
   /** Around a control and its affixes, such as an address's prefix and its input. */
@@ -160,6 +162,8 @@ export const FieldSlots = Slots.define({
   /** A `RelationMany` picker: the group, and each thing in it. */
   choices: Slot.make({ capability: Capability.Collection }),
   choice: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** Around one choice's checkbox and its words. */
+  choiceLabel: Slot.make({ capability: Capability.Base }),
   /** Over a relation picker that searches: where the user types to find a choice. */
   search: Slot.make({ capability: Capability.TextInput, events: [Event.Input] }),
 })
@@ -367,9 +371,13 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
     blank: boolean,
   ): Html =>
     h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
-      ...(blank || draft === '' ? [h.option([h.Value(''), h.Selected(draft === '')], [''])] : []),
+      ...(blank || draft === ''
+        ? [h.option(slots.option.attrs([h.Value(''), h.Selected(draft === '')]), [''])]
+        : []),
       ...options.map(option =>
-        h.option([h.Value(option.value), h.Selected(draft === option.value)], [option.label]),
+        h.option(slots.option.attrs([h.Value(option.value), h.Selected(draft === option.value)]), [
+          option.label,
+        ]),
       ),
     ])
   return {
@@ -416,27 +424,24 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
       return h.div(
         slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
         input.options.map(option =>
-          h.label(
-            [],
-            [
-              h.input(
-                slots.choice.attrs([
-                  h.Type('checkbox'),
-                  h.Name(input.control.key),
-                  h.Value(option.value),
-                  h.Checked(chosen.includes(option.value)),
-                  h.OnClick(
-                    change(
-                      chosen.includes(option.value)
-                        ? chosen.filter(value => value !== option.value)
-                        : [...chosen, option.value],
-                    ),
+          h.label(slots.choiceLabel.attrs(), [
+            h.input(
+              slots.choice.attrs([
+                h.Type('checkbox'),
+                h.Name(input.control.key),
+                h.Value(option.value),
+                h.Checked(chosen.includes(option.value)),
+                h.OnClick(
+                  change(
+                    chosen.includes(option.value)
+                      ? chosen.filter(value => value !== option.value)
+                      : [...chosen, option.value],
                   ),
-                ]),
-              ),
-              option.label,
-            ],
-          ),
+                ),
+              ]),
+            ),
+            option.label,
+          ]),
         ),
       )
     },

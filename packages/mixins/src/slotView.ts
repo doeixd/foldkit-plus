@@ -8,6 +8,7 @@
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
+import { SLOT_MARK, isMarking } from './slotMark.js'
 import { evaluate, type AnyMixin, type Mixin, type MixinFor, type StaticMixin } from './mixin.js'
 import { pipeSelf, type Pipeable } from './pipe.js'
 import { resolve, type SlotAttributes } from './resolver.js'
@@ -68,7 +69,9 @@ export const buildersFor = <Slots, Message, Input>(
             contributions.push(evaluated)
           }
         }
-        return resolve(base, contributions, { slot: name, protected: protection })
+        const resolved = resolve(base, contributions, { slot: name, protected: protection })
+        // Only while a test draws with `Inert.draw`: never for a real render.
+        return isMarking() ? [...resolved, context.h.DataAttribute(SLOT_MARK, name)] : resolved
       },
     }
   }

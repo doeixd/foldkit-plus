@@ -93,6 +93,10 @@ export const ListSlots = Slots.define({
   /** Loading, failed, or empty: what is said in place of rows. */
   status: Slot.make({ capability: Capability.Base }),
   table: Slot.make({ capability: Capability.Container }),
+  /** The table's `thead`, its one row, and its `tbody`. */
+  head: Slot.make({ capability: Capability.Container }),
+  headRow: Slot.make({ capability: Capability.Container }),
+  body: Slot.make({ capability: Capability.Container }),
   headCell: Slot.make({ capability: Capability.Base }),
   /** The button in the header of a column that sorts. */
   sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
@@ -196,35 +200,30 @@ const list = <Message>() => ({
           return h.div(slots.root.attrs([h.Id(listed.name)]), [
             ...notice,
             h.table(slots.table.attrs(refreshing ? [h.AriaBusy(true)] : []), [
-              h.thead(
-                [],
-                [
-                  h.tr(
-                    [],
-                    columns.map(column => {
-                      const sorting = input.sort?.[column.key]
-                      return h.th(
-                        slots.headCell.attrs([
-                          h.Scope('col'),
-                          ...(sorting === undefined
-                            ? []
-                            : [h.AriaSort(ariaSort(sorting.direction))]),
-                        ]),
-                        [
-                          sorting === undefined
-                            ? column.label
-                            : h.button(
-                                slots.sort.attrs([h.Type('button'), h.OnClick(sorting.message)]),
-                                [column.label],
-                              ),
-                        ],
-                      )
-                    }),
-                  ),
-                ],
-              ),
+              h.thead(slots.head.attrs(), [
+                h.tr(
+                  slots.headRow.attrs(),
+                  columns.map(column => {
+                    const sorting = input.sort?.[column.key]
+                    return h.th(
+                      slots.headCell.attrs([
+                        h.Scope('col'),
+                        ...(sorting === undefined ? [] : [h.AriaSort(ariaSort(sorting.direction))]),
+                      ]),
+                      [
+                        sorting === undefined
+                          ? column.label
+                          : h.button(
+                              slots.sort.attrs([h.Type('button'), h.OnClick(sorting.message)]),
+                              [column.label],
+                            ),
+                      ],
+                    )
+                  }),
+                ),
+              ]),
               h.tbody(
-                [],
+                slots.body.attrs(),
                 page.items.map((row, position) => {
                   const values = row as Readonly<Record<string, unknown>>
                   const key =

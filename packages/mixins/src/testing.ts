@@ -7,6 +7,8 @@
  */
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
+import { SLOT_MARK, drawMarked } from './slotMark.js'
+import * as SlotView from './slotView.js'
 
 /** An element or text node of an inert tree. */
 export type Node = Exclude<Html, null>
@@ -92,7 +94,92 @@ const pressed = (node: Html | undefined): Option.Option<boolean> =>
     state => state === 'true' || state === true,
   )
 
+/**
+ * A SlotView drawn inert, each element a Slot draws marked with the Slot's
+ * name, however deeply nested its view, for `bySlot` and `unslotted`. Only
+ * here: a view drawn for real carries no mark.
+ */
+const draw = <Slots, Input, Message>(
+  view: SlotView.SlotView<Slots, Input, Message>,
+  input: Input,
+): Html => drawMarked(() => view(input, SlotView.inertBuilder<Message>()))
+
+/** The Slot a node was drawn by, in a tree from `draw`; none for one no Slot drew. */
+const slotOf = (node: Html | undefined): Option.Option<string> => {
+  const name = value(node, `data-${SLOT_MARK}`)
+  return typeof name === 'string' ? Option.some(name) : Option.none()
+}
+
+/** Every element a Slot drew, in a tree from `draw`. */
+const bySlot = (root: Html | undefined, slot: string): ReadonlyArray<Node> =>
+  all(root).filter(node => Option.contains(slotOf(node), slot))
+
+/** Where each element sits: its tags from the root, `main > nav > a`. */
+const pathsOf = (root: Html | undefined): ReadonlyMap<Node, string> => {
+  const paths = new Map<Node, string>()
+  const walk = (node: Html | undefined, above: string): void => {
+    if (node === null || node === undefined || node.sel === undefined) return
+    const here = above === '' ? node.sel : `${above} > ${node.sel}`
+    paths.set(node, here)
+    for (const child of children(node)) walk(child, here)
+  }
+  walk(root, '')
+  return paths
+}
+
+/** The elements of the package's own markup: every element, except inside a Slot named in `inside`. */
+const own = (root: Html | undefined, inside: ReadonlyArray<string>): ReadonlyArray<Node> => {
+  const skipped = new Set(inside)
+  const found: Array<Node> = []
+  const walk = (node: Html | undefined): void => {
+    if (node === null || node === undefined || node.sel === undefined) return
+    found.push(node)
+    if (Option.exists(slotOf(node), name => skipped.has(name))) return
+    for (const child of children(node)) walk(child)
+  }
+  walk(root)
+  return found
+}
+
+/**
+ * Every element in a tree from `draw` that no Slot drew, by its path: markup a
+ * stylist could reach only through a selector into the package. What a Slot
+ * named in `inside` holds is not the package's, such as a canvas drawing the
+ * application's own page, and is skipped.
+ */
+const unslotted = (
+  root: Html | undefined,
+  options: { readonly inside?: ReadonlyArray<string> } = {},
+): ReadonlyArray<string> => {
+  const paths = pathsOf(root)
+  return own(root, options.inside ?? [])
+    .filter(node => Option.isNone(slotOf(node)))
+    .map(node => paths.get(node) ?? node.sel ?? '')
+}
+
+/**
+ * Every inline declaration that is not a custom property, by its element's
+ * path, skipping what a Slot named in `inside` holds: a fixed value inline
+ * outranks every rule, so a later layer could not override it. A value known
+ * only per element belongs in a custom property that a rule reads.
+ */
+const fixedInline = (
+  root: Html | undefined,
+  options: { readonly inside?: ReadonlyArray<string> } = {},
+): ReadonlyArray<string> => {
+  const paths = pathsOf(root)
+  return own(root, options.inside ?? []).flatMap(node =>
+    Object.keys(style(node))
+      .filter(property => !property.startsWith('--'))
+      .map(property => `${paths.get(node) ?? node.sel ?? ''}: ${property}`),
+  )
+}
+
 export const Inert = {
+  draw,
+  bySlot,
+  unslotted,
+  fixedInline,
   all,
   children,
   byTag,

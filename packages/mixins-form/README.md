@@ -120,9 +120,9 @@ EditForm.view(model, h, {
 | `Multiline` | `textarea` | `multiline` |
 | `Number` | `input type="text" inputmode="decimal"` | `number` |
 | `Toggle` | `input type="checkbox"` | `toggle` |
-| `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select` |
-| `RelationOne` | `select` of `options[key]`, with a blank | `select` |
-| `RelationMany` | a `role="group"` of checkboxes over `options[key]` | `choices`, `choice` |
+| `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select`, `option` |
+| `RelationOne` | `select` of `options[key]`, with a blank | `select`, `option` |
+| `RelationMany` | a `role="group"` of checkboxes over `options[key]`, each in a `label` with its words | `choices`, `choiceLabel`, `choice` |
 | `Nested` | a `fieldset` with a `legend`, a `div` per row holding the nested form's fields, and `button type="button"`s to add and remove a row | `group`, `legend`, `row`, `add`, `remove` |
 
 A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an

@@ -585,6 +585,50 @@ describe('the drawn Builder', () => {
   })
 })
 
+describe('its customization contract', () => {
+  // A Featured node selected, with its pickers' choices given: options and checkboxes.
+  const featured = send(
+    PageBuilder.replace(
+      PageBuilder.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [NodeId.make('s')],
+        nodes: {
+          [NodeId.make('s')]: {
+            block: 'Section',
+            props: { tone: 'plain' },
+            regions: { body: [NodeId.make('f')] },
+          },
+          [NodeId.make('f')]: {
+            block: 'Featured',
+            props: { category: null, maker: 'c1', tags: ['t1'] },
+            regions: {},
+          },
+        },
+      }),
+    ),
+    Message.Selected({ id: NodeId.make('f') }),
+  )
+  const options = {
+    'Featured.category': [{ value: 'c1', label: 'Oak' }],
+    'Featured.tags': [{ value: 't1', label: 'Pine' }],
+  }
+
+  // The page on the canvas is the application's markup, and the live region's
+  // is LiveAnnounce's, visually hidden: neither is the Builder's to publish.
+  it.each([
+    ['an empty page', PageBuilder.initial],
+    ['a node with every kind of prop selected', page],
+    ['nothing selected', send(page, Message.Deselected())],
+    ['a node with pickers selected', { ...featured, options }],
+  ])('draws everything through its Slots, with no fixed inline style: %s', (_, model) => {
+    const root = Inert.draw(PageView, model)
+    const inside = ['frame', 'live']
+    expect(Inert.unslotted(root, { inside })).toEqual([])
+    expect(Inert.fixedInline(root, { inside })).toEqual([])
+  })
+})
+
 describe('its Behaviors', () => {
   const builders = SlotView.buildersFor(BuilderSlots, PageView.mixins, { input: page, h })
 

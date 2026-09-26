@@ -85,6 +85,8 @@ export const BuilderSlots = Slots.define({
   control: Slot.make({ capability: Capability.Interactive }),
   /** One choice of a many-choice picker: its checkbox and its words. */
   option: Slot.make({ capability: Capability.Base }),
+  /** One choice of a `select`. */
+  selectOption: Slot.make({ capability: Capability.Base }),
   /** A look's few values as buttons, one pressed: drawn in place of a select. */
   choices: Slot.make({ capability: Capability.Container }),
   choice: Slot.make({ capability: Capability.Interactive }),
@@ -234,20 +236,29 @@ const named = (values: ReadonlyArray<string>): ReadonlyArray<BuilderOption> =>
  */
 const optionsOf = <Message>(
   h: HtmlBuilder<Message>,
-  blank: string | undefined,
-  choices: ReadonlyArray<BuilderOption>,
-  current: string | undefined,
+  option: SlotView.SlotBuilder<Message>,
+  select: {
+    /** What the blank choice reads as; with none, a blank only while nothing is chosen. */
+    readonly blank?: string | undefined
+    readonly choices: ReadonlyArray<BuilderOption>
+    readonly current?: string | undefined
+  },
 ): ReadonlyArray<Html> => {
+  const { blank, choices, current } = select
   const empty = current === undefined || current === ''
   const stray = !empty && !choices.some(choice => choice.value === current)
   return [
     ...(blank !== undefined || empty
-      ? [h.option([h.Value(''), h.Selected(empty)], [blank ?? ''])]
+      ? [h.option(option.attrs([h.Value(''), h.Selected(empty)]), [blank ?? ''])]
       : []),
     ...choices.map(choice =>
-      h.option([h.Value(choice.value), h.Selected(current === choice.value)], [choice.label]),
+      h.option(option.attrs([h.Value(choice.value), h.Selected(current === choice.value)]), [
+        choice.label,
+      ]),
     ),
-    ...(stray ? [h.option([h.Value(current), h.Selected(true)], [`? ${current}`])] : []),
+    ...(stray
+      ? [h.option(option.attrs([h.Value(current), h.Selected(true)]), [`? ${current}`])]
+      : []),
   ]
 }
 
@@ -830,7 +841,7 @@ export const BuilderView = {
                 h.Id(fieldId),
                 h.OnChange(raw => send(contextValue(control, raw))),
               ]),
-              optionsOf(h, blank, named(choices), shown),
+              optionsOf(h, slots.selectOption, { blank, choices: named(choices), current: shown }),
             ),
       ])
     }
@@ -906,7 +917,10 @@ export const BuilderView = {
               ),
             ]),
             control.data.options.map(option =>
-              h.option([h.Value(String(option)), h.Selected(option === value)], [String(option)]),
+              h.option(
+                slots.selectOption.attrs([h.Value(String(option)), h.Selected(option === value)]),
+                [String(option)],
+              ),
             ),
           )
         if (control !== undefined && Input.RelationOne.is(control))
@@ -915,12 +929,11 @@ export const BuilderView = {
               h.Id(fieldId),
               h.OnChange(choice => set(choice === '' ? null : choice)),
             ]),
-            optionsOf(
-              h,
-              field.optional === true ? 'none' : undefined,
-              options,
-              typeof value === 'string' ? value : undefined,
-            ),
+            optionsOf(h, slots.selectOption, {
+              blank: field.optional === true ? 'none' : undefined,
+              choices: options,
+              current: typeof value === 'string' ? value : undefined,
+            }),
           )
         if (control !== undefined && Input.Number.is(control))
           return h.input(
@@ -1117,7 +1130,11 @@ export const BuilderView = {
             ]),
             h.select(
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
-              optionsOf(h, point === 'base' ? 'default' : 'unchanged', named(values), at[point]),
+              optionsOf(h, slots.selectOption, {
+                blank: point === 'base' ? 'default' : 'unchanged',
+                choices: named(values),
+                current: at[point],
+              }),
             ),
           ])
         })
@@ -1184,12 +1201,11 @@ export const BuilderView = {
                   : run(chosen.name, seedOf(chosen.input))
               }),
             ]),
-            optionsOf(
-              h,
-              'nothing',
-              named(builder.catalog.actions.map(each => each.name)),
-              typeof ref['action'] === 'string' ? ref['action'] : undefined,
-            ),
+            optionsOf(h, slots.selectOption, {
+              blank: 'nothing',
+              choices: named(builder.catalog.actions.map(each => each.name)),
+              current: typeof ref['action'] === 'string' ? ref['action'] : undefined,
+            }),
           ),
         ])
         const inputs =

@@ -8,8 +8,9 @@ import { Schema } from 'effect'
 import { Crud, Display } from 'foldkit-crud'
 import { Entity, Relation } from 'foldkit-entity'
 import { SlotView, Style } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import { Query, type Page, type RemoteData } from 'foldkit-remote'
-import type { HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -73,6 +74,8 @@ const ready: RemoteData<Page<Row>> = {
   _tag: 'Ready',
   value: { items: rows, hasNext: true, hasPrevious: false },
 }
+
+const offline = { _tag: 'RemoteQueryError', message: 'offline' } as never
 
 const Table = ListView.forMessages<Message>()
   .define(Posts)
@@ -183,6 +186,32 @@ it('draws a list as a table and a detail as a description list, and sends the ap
   }
 })
 
+it.each([
+  ['ready', ready],
+  ['loading', { _tag: 'Loading' } as const],
+  [
+    'refreshing after a failure',
+    { _tag: 'Failed', error: offline, previous: ready.value } as const,
+  ],
+])('draws everything through its Slots, with no fixed inline style: a list %s', (_, page) => {
+  const root = Inert.draw(Table, {
+    page,
+    onOpen: row => Message.Opened({ id: row.id }),
+    onMore: Message.AskedForMore(),
+    sort: { title: { direction: 'asc', message: Message.Sorted() } },
+  })
+  expect(Inert.unslotted(root)).toEqual([])
+  expect(Inert.fixedInline(root)).toEqual([])
+})
+
+it('draws a detail through its Slots too', () => {
+  const [row] = rows
+  if (row === undefined) throw new Error('a row to show')
+  const root = Inert.draw(Lines, { value: { _tag: 'Ready', value: row } })
+  expect(Inert.unslotted(root)).toEqual([])
+  expect(Inert.fixedInline(root)).toEqual([])
+})
+
 it('draws every column of a kind through the renderer given for that kind', () => {
   const Plain = ListView.forMessages<Message>().define(Posts)
   const root = Plain(
@@ -196,14 +225,10 @@ it('draws every column of a kind through the renderer given for that kind', () =
       cells: { title: (row, h) => h.strong([], [row.title]) },
     },
     SlotView.inertBuilder(),
-  ) as unknown as { readonly children: ReadonlyArray<unknown> }
-  const found: Array<string> = []
-  const walk = (node: unknown): void => {
-    const { sel, children } = (node ?? {}) as { sel?: string; children?: ReadonlyArray<unknown> }
-    if (sel === 'span' || sel === 'strong') found.push(sel)
-    for (const child of children ?? []) walk(child)
-  }
-  walk(root)
+  )
+  const found = Inert.all(root)
+    .filter(node => node.sel === 'span' || node.sel === 'strong')
+    .map(node => node.sel)
   expect(found).toEqual(['strong', 'span', 'strong', 'span'])
 })
 
@@ -218,17 +243,7 @@ it('gives a renderer the badge Slot, which the list’s Style reaches', () => {
     },
     SlotView.inertBuilder(),
   )
-  const pills: Array<string> = []
-  const walk = (node: unknown): void => {
-    const { sel, data, children } = (node ?? {}) as {
-      sel?: string
-      data?: { class?: Readonly<Record<string, boolean>> }
-      children?: ReadonlyArray<unknown>
-    }
-    if (sel === 'span' && data?.class?.['pill'] === true) pills.push(sel)
-    for (const child of children ?? []) walk(child)
-  }
-  walk(root)
+  const pills = Inert.byTag(root, 'span').filter(node => Inert.classes(node).includes('pill'))
   expect(pills).toHaveLength(2)
 })
 
@@ -236,14 +251,8 @@ it('says what stands in for the rows: loading, failed, and empty', () => {
   // Rendered without a runtime: the states are text, read off the tree.
   const Plain = ListView.forMessages<Message>().define(Posts)
   const read = (page: RemoteData<Page<Row>>, words?: { readonly empty?: string }) => {
-    const node = Plain({ page, words }, SlotView.inertBuilder()) as unknown as {
-      readonly children: ReadonlyArray<{
-        readonly data?: { readonly attrs?: Readonly<Record<string, unknown>> }
-        readonly children?: ReadonlyArray<{ readonly text?: string }>
-      }>
-    }
-    const [status] = node.children
-    return [status?.data?.attrs?.role, status?.children?.[0]?.text]
+    const [status] = Inert.children(Plain({ page, words }, SlotView.inertBuilder()))
+    return [Inert.value(status, 'role'), Inert.children(status)[0]?.text]
   }
   expect(read({ _tag: 'Loading' })).toEqual(['status', 'Loading…'])
   expect(
@@ -258,32 +267,17 @@ it('says what stands in for the rows: loading, failed, and empty', () => {
 })
 
 /** Every element of a rendered tree, in order: its tag, role and own text. */
-const outline = (node: unknown): ReadonlyArray<string> => {
-  const found: Array<string> = []
-  const walk = (current: unknown): void => {
-    const { sel, data, children, text } = (current ?? {}) as {
-      sel?: string
-      data?: { attrs?: Readonly<Record<string, unknown>> }
-      children?: ReadonlyArray<unknown>
-      text?: string
-    }
-    if (sel !== undefined) {
-      const role = data?.attrs?.role
-      const own = (children ?? [])
-        .map(child => (child as { text?: string }).text)
-        .filter(value => value !== undefined)
+const outline = (node: Html): ReadonlyArray<string> =>
+  Inert.all(node)
+    .filter(element => element.sel !== undefined)
+    .map(element => {
+      const role = Inert.value(element, 'role')
+      const own = Inert.children(element)
+        .map(child => child.text)
+        .filter(text => text !== undefined)
         .join('')
-      found.push([sel, role === undefined ? '' : `[${String(role)}]`, own].join(''))
-    } else if (text !== undefined) {
-      return
-    }
-    for (const child of children ?? []) walk(child)
-  }
-  walk(node)
-  return found
-}
-
-const offline = { _tag: 'RemoteQueryError', message: 'offline' } as never
+      return [element.sel, role === undefined ? '' : `[${String(role)}]`, own].join('')
+    })
 
 it('keeps the rows a failed refresh left, and says it failed above them', () => {
   const Plain = ListView.forMessages<Message>().define(Posts)

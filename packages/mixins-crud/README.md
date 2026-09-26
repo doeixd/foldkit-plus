@@ -182,6 +182,7 @@ A `dl` with a `dt` per shown field and its value in a `dd`. It takes `cells` and
 | Loading, failed, or empty | `p role="status"`, or `role="alert"` for a failure | `status` |
 | Asking again after a failure | `button type="button"`, when `onRetry` is given | `retry` |
 | The rows | `table`, `aria-busy` while refreshing | `table` |
+| The header and the body | `thead`, its `tr`, and `tbody` | `head`, `headRow`, `body` |
 | A column header | `th scope="col"`, with `aria-sort` when it sorts | `headCell` |
 | A header that sorts | `button type="button"` | `sort` |
 | A row | `tr`, keyed by `rowKey`, else the row's `id`, else its position | `row` |

@@ -150,6 +150,26 @@ describe('FormView markup', () => {
   })
 })
 
+describe('its customization contract', () => {
+  it.each([
+    ['a first render, every picker with its choices', initial, []],
+    ['a form with a failure of its own', initial, ['The title and the slug disagree.']],
+  ] as const)(
+    'draws everything through its Slots, with no fixed inline style: %s',
+    (_, model, errors) => {
+      const root = Inert.draw(FormView.define(Edit), {
+        model,
+        errors,
+        canSubmit: Edit.canSubmit(model),
+        options,
+      })
+      // A control backed by a Bundle draws the Bundle's own view, which is not the form's.
+      expect(Inert.unslotted(root, { inside: ['control'] })).toEqual([])
+      expect(Inert.fixedInline(root, { inside: ['control'] })).toEqual([])
+    },
+  )
+})
+
 describe('FormView styling', () => {
   it('takes Style on the slots of the form and of a field, by input', () => {
     const Field = FormView.field(Edit).pipe(

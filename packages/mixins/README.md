@@ -617,6 +617,13 @@ const root = Probe({ value: 'Ada', invalid: false }, SlotView.inertBuilder<Messa
 Inert.value(Inert.byTag(root, 'input')[0], 'value') // 'Ada'
 ```
 
+`Inert.draw(view, input)` draws a SlotView with every element a Slot draws marked with the
+Slot's name, however deeply its views nest; a view drawn for real is never marked. On that tree,
+`Inert.bySlot(root, 'input')` finds a Slot's elements, `Inert.unslotted(root, { inside })` lists
+every element no Slot drew (skipping what a Slot named in `inside` holds, such as a canvas drawing
+the application's page), and `Inert.fixedInline(root, { inside })` every inline declaration that
+is not a custom property. A package view's test expects both lists to be empty.
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer

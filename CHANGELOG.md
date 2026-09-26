@@ -22,6 +22,13 @@ version changed; `pnpm` skips versions already in the registry.
   `head: rendered => string`, put before the template's `</head>` (a template
   without one is refused when there is something to add; `SSR.entry` refuses it
   when it is made, and answers a `head` that throws `500`).
+- **`foldkit-mixins/testing`: `Inert.draw`, `unslotted`, `fixedInline` and
+  `bySlot`,** which check a package view's customization contract: every
+  element it draws comes from a Slot, however deeply its views nest, and no
+  fixed declaration is inline. They found markup outside any Slot in three
+  packages, now Slots of their own: `foldkit-mixins-builder`'s `selectOption`,
+  `foldkit-mixins-form`'s `option` and `choiceLabel`, and
+  `foldkit-mixins-crud`'s `head`, `headRow` and `body`.
 - **`foldkit-mixins/testing`: `Inert`, queries over a view drawn with the
   inert builder** (`all`, `children`, `byTag`, `byRole`, `byLabel`, `text`,
   `value`, `classes`, `style`, `pressed`), replacing a tree walker seven test
