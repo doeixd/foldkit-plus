@@ -1,3 +1,4 @@
+import type { Schema } from 'effect'
 import {
   NodeId,
   blockAtPath,
@@ -6,6 +7,7 @@ import {
   locateBlock,
   locateRun,
   pathKey,
+  textContent,
   type Block,
   type BlockPath,
   type Document,
@@ -56,6 +58,18 @@ export type Command =
   | { readonly type: 'Paste'; readonly slice: Slice }
   /** Retypes the block the selection starts in: a paragraph, or a heading. */
   | { readonly type: 'RetypeBlock'; readonly to: TextBlock }
+  /**
+   * Wraps the block the selection starts in, in new containers listed outermost first: a
+   * `Quote`, or a `List` holding a `ListItem`. The block keeps its identity and its runs,
+   * so the caret stays where it was.
+   */
+  | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
+
+/** A container a block is wrapped in: a node kind, and the props it starts with. */
+export interface Container {
+  readonly kind: string
+  readonly props?: Schema.JsonObject | undefined
+}
 
 /** Caller-owned identity source. Live edits mint; replay applies transactions. */
 export interface CommandIds {
@@ -99,12 +113,32 @@ const acceptsChild = (
   kind: string,
   nodes: NodeRegistry | undefined,
 ): boolean => {
-  if (nodes === undefined) return true
   const parent = blockAtPath(document, path)
-  if (parent === undefined) return true
-  const declared = nodes.definitionFor(blockKind(parent))
+  return parent === undefined || kindAccepts(nodes, blockKind(parent), kind)
+}
+
+/** Whether a kind's declaration lets it hold another as a nested block; undeclared is open. */
+const kindAccepts = (
+  nodes: NodeRegistry | undefined,
+  parentKind: string,
+  childKind: string,
+): boolean => {
+  if (nodes === undefined) return true
+  const declared = nodes.definitionFor(parentKind)
   if (declared?.kind !== 'node' || typeof declared.children === 'string') return true
-  return declared.children.of.includes(kind)
+  return declared.children.of.includes(childKind)
+}
+
+/**
+ * Whether a kind can be a new container. Unlike an existing parent, a kind a wrap creates
+ * must be declared as holding nested blocks when there is a vocabulary: wrapping in an
+ * undeclared kind, or a text kind such as `CodeBlock`, would make content `validate`
+ * refuses.
+ */
+const holdsBlocks = (nodes: NodeRegistry | undefined, kind: string): boolean => {
+  if (nodes === undefined) return true
+  const declared = nodes.definitionFor(kind)
+  return declared?.kind === 'node' && declared.children !== textContent
 }
 
 type Failure =
@@ -470,6 +504,49 @@ export const run = (
       return failure('UnexpectedChild')
     }
     return apply(state, [Edit.retypeBlock(at.blockId, command.to)])
+  }
+
+  if (command.type === 'WrapBlock') {
+    const [outer] = command.containers
+    if (outer === undefined) return failure('InvalidInput')
+    // The same block RetypeBlock acts on: the caret's, or the first a range covers.
+    const start = isCollapsed(selection)
+      ? selection.anchor
+      : ordered(state.document, selection)?.start
+    if (start === undefined) return failure('InvalidSelection')
+    const at = locate(state.document, start.node)
+    if (at === undefined) return failure('MissingText')
+    const block = blockAtPath(state.document, at.path)
+    if (block === undefined) return failure('MissingText')
+    const parentPath = at.path.slice(0, -1)
+    const kinds = [...command.containers.map(container => container.kind), blockKind(block)]
+    const allowed =
+      acceptsChild(state.document, parentPath, outer.kind, options.nodes) &&
+      command.containers.every(
+        (container, index) =>
+          holdsBlocks(options.nodes, container.kind) &&
+          kindAccepts(options.nodes, container.kind, kinds[index + 1]!),
+      )
+    if (!allowed) return failure('UnexpectedChild')
+    const containerIds = command.containers.map(() => NodeId.make(ids.mint()))
+    // Built from the inside out, so each container holds the next and the innermost is
+    // empty until the block moves into it.
+    const chain = command.containers.reduceRight<Block | undefined>(
+      (inner, container, index) => ({
+        type: 'Node',
+        kind: container.kind,
+        id: containerIds[index]!,
+        props: container.props ?? {},
+        children: [],
+        blocks: inner === undefined ? [] : [inner],
+      }),
+      undefined,
+    )!
+    const parent = parentPath.length === 0 ? undefined : blockAtPath(state.document, parentPath)
+    return apply(state, [
+      Edit.insertBlock(chain, at.path[at.path.length - 1]!, parent?.id),
+      Edit.moveBlock(block.id, 0, containerIds[containerIds.length - 1]!),
+    ])
   }
 
   if (command.type === 'DeleteBackward' || command.type === 'DeleteForward') {

@@ -151,6 +151,14 @@ a `Heading` at a level — and keeps that block's runs, so identities and the ca
 survive; a node block or preserved content is refused, because its content is not
 runs.
 
+`WrapBlock` puts that same block inside new containers, listed outermost first —
+`{ type: 'WrapBlock', containers: [{ kind: 'Quote' }] }`, or a `List` holding a `ListItem`
+— built where the block stood, with identities from `mint`. The block moves rather than
+being copied, so its identity, its runs, and the caret all survive. Given a vocabulary, a
+wrap the vocabulary would not hold is refused with `UnexpectedChild`: the parent must accept
+the outermost container, each container must be a kind declared to hold nested blocks, and
+each must accept the next.
+
 `InsertText` takes an optional `marks`. With it, the inserted text carries
 exactly that set wherever it lands; without it, the boundary rule decides and the
 text inherits the marks of the run it joins. A mark the caller's vocabulary does

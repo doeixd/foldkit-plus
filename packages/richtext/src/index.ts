@@ -58,6 +58,7 @@ export {
 export {
   type Action,
   type Command,
+  type Container,
   type CommandIds,
   type RunOptions,
   marksInRange,
