@@ -755,6 +755,28 @@ const SettingsForm = Form.make(`${block.name}Settings`, Settings, {
 - **Removed.** `valueField`, `optionsOf`, `seedOf`, `contextField` and
   `controlFor` in `foldkit-mixins-builder`, about 400 lines.
 
+> **Props done, 2026-09-26.** The spike answered both questions: one form
+> per Block, made lazily, fits `Form.make`; and the Builder need not place it
+> as a Bundle. It runs the form itself and holds its Model as JSON in
+> `inspector`, since one fixed Model cannot name a per-Block form's type. Two
+> findings changed the design:
+>
+> - A form checks a draft against its key's *type* side and cannot draw an
+>   `Option`, so the settings form edits each prop on its *stored* side,
+>   re-checked against the whole Schema. `toEncoded` drops a check made after
+>   a transformation.
+> - `h.submodel` needs a runtime frame, and `inertHtml` is the same builder as
+>   every view's `h`, so frameless drawing is detected by what throws before
+>   drawing starts.
+>
+> The inspector's Content is the form, drawn by `FormView`, styled through
+> `settings: { field, form }`. `foldkit-mixins-form` gained `words.none` and
+> shows a chosen value its choices lack as `? value`. **Not yet:** looks,
+> conditions and actions as groups of the same form (still the Builder's own
+> controls), and a control with Subscriptions (`Input.bundle`'s color picker),
+> which a form run as functions cannot start. Acceptance: "abc" in a number
+> and an undo while focused are tested; the color picker is not.
+
 **Spike first (S).** A Form over one Block's `Settings`, filled from a node,
 with one change mapped to `setProp`. It decides:
 

@@ -304,7 +304,9 @@ export const define = <Slots, Input, Message>(
  * Foldkit's `inertHtml` typed for a Message universe, for rendering a view
  * outside a runtime (tests, demos, static description). `inertHtml` is
  * `HtmlBuilder<never>`, and the builder is invariant in `Message`, so this is
- * the one cast: sound because inert handlers are never dispatched.
+ * the one cast: sound outside a runtime render, where no handler is ever
+ * dispatched. Inside one it is the same builder every view is given, so its
+ * handlers would reach the frame's `update`: use the view's own `h` there.
  */
 export const inertBuilder = <Message>(): HtmlBuilder<Message> =>
   inertHtml as unknown as HtmlBuilder<Message>
