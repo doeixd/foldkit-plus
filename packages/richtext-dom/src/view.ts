@@ -67,8 +67,7 @@ const renderRun = (
   }
   if (spans.length === 0) return [piece(run.text, [])]
   // Cut the run at every decoration edge and give each piece the decorations covering
-  // it. A piece no decoration covers stays a bare string, so a run outside every
-  // decoration renders exactly as it did before.
+  // it. Every piece keeps the run's marks, a piece no decoration covers included.
   const edges = new Set<number>([0, run.text.length])
   for (const span of spans) {
     edges.add(Math.max(0, Math.min(run.text.length, span.from)))
@@ -84,7 +83,7 @@ const renderRun = (
       .filter(span => span.from <= from && to <= span.to)
       .map(span => span.decoration)
     const text = run.text.slice(from, to)
-    pieces.push(covering.length === 0 ? text : piece(text, covering))
+    pieces.push(piece(text, covering))
   }
   return pieces
 }
