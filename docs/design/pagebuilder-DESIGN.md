@@ -886,6 +886,13 @@ R9 remainder is, rather than silently accepted.
 > running application does not. Per-row laziness waits for a measurement in a
 > running application that asks for it.
 
+> **Measured (view plan 3c), 2026-09-26,** in the browser tier (headless
+> Chromium) over a Section of 1,000 Headings, from the event to the next
+> frame, medians of 20 hovers and 5 selections: memoizing the canvas's nodes
+> took a hover from 48 ms to 35 ms and a selection from 45 ms to 36 ms. The
+> canvas was about a quarter of the redraw; the rest is the root pass and the
+> Layers rows, which the per-part and per-row boundaries of plan 3d address.
+
 ## 26. Packages
 
 ```text
