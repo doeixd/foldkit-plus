@@ -7,6 +7,7 @@ import { liveViewStateChanges } from 'foldkit/mount'
 import { userEvent } from 'vitest/browser'
 import { afterEach, expect, it, vi } from 'vitest'
 import {
+  EditAsked,
   EditableText,
   TextCancelled,
   TextCommitted,
@@ -196,6 +197,20 @@ it('turns the lines a paste brings into one, in a one-line field', async () => {
     await vi.waitFor(() =>
       expect(facts.slice(-1)).toEqual([TextEdited.make({ field: 'title', text: 'Aone two' })]),
     )
+  } finally {
+    await stop()
+  }
+})
+
+it('asks for a field to be edited on a double-click, and not once it is editable', async () => {
+  const { field, facts, stop } = await mount('Hi', { editable: 'false' })
+  try {
+    await userEvent.dblClick(field)
+    await vi.waitFor(() => expect(facts).toEqual([EditAsked.make({ field: 'title' })]))
+    field.contentEditable = 'plaintext-only'
+    await userEvent.dblClick(field)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(facts).toEqual([EditAsked.make({ field: 'title' })])
   } finally {
     await stop()
   }

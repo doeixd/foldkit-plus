@@ -763,6 +763,8 @@ field is editable, and focuses it; the Mount reads what is typed:
   on Escape, which also puts the text the field had when it was focused back
   in the DOM. A view that stopped redrawing the field while it was edited would
   not. An edit ends once: the blur after Enter commits nothing more.
+- **`EditAsked { field }`** on a double-click over a marked field that is not
+  editable yet: the view's cue to make it so.
 
 The Mount is `EditableText({ attribute })` in `foldkit-primitives/dom`;
 `EditableText.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`

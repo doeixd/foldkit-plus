@@ -9,6 +9,7 @@ import { Behavior, Capability } from 'foldkit-mixins'
 import { EditableText as EditableTextMount, type TextFact } from '../dom/editable-text.js'
 
 export {
+  EditAsked,
   EditableText as mount,
   TextCancelled,
   TextCommitted,

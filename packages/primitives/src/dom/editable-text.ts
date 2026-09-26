@@ -2,7 +2,8 @@
  * Text typed into an editable descendant of an element, as a Mount: one set of
  * listeners on the container, like `Targets`. A field is a descendant marked
  * by an attribute whose value names it, while it is `contenteditable`; the
- * view decides which one is, and focuses it.
+ * view decides which one is, and focuses it. A double-click on a marked field
+ * that is not editable yet asks for it to be (`EditAsked`).
  *
  * It reads `innerText`, never `innerHTML`, so what arrives is text. A field is
  * one line unless it carries `aria-multiline="true"`: in one line, a line
@@ -38,7 +39,13 @@ export const TextCancelled = Schema.TaggedStruct('TextCancelled', {
 })
 export type TextCancelled = typeof TextCancelled.Type
 
-export type TextFact = TextEdited | TextCommitted | TextCancelled
+export const EditAsked = Schema.TaggedStruct('EditAsked', {
+  /** A marked field, not editable yet, that was double-clicked. */
+  field: Schema.String,
+})
+export type EditAsked = typeof EditAsked.Type
+
+export type TextFact = TextEdited | TextCommitted | TextCancelled | EditAsked
 
 /** Whether a field takes more than one line. */
 const multiline = (element: HTMLElement) => element.getAttribute('aria-multiline') === 'true'
@@ -56,7 +63,7 @@ export const textOf = (element: HTMLElement): string => {
 const composing = (event: KeyboardEvent) => event.isComposing || event.keyCode === 229
 
 export const EditableText = Mount.defineStream('EditableText', {
-  messages: [TextEdited, TextCommitted, TextCancelled],
+  messages: [TextEdited, TextCommitted, TextCancelled, EditAsked],
   args: {
     /** The attribute that marks a field, holding its name. */
     attribute: Schema.String,
@@ -77,15 +84,16 @@ export const EditableText = Mount.defineStream('EditableText', {
             | undefined
           let composingText = false
 
-          /** The editable field at or above an event's target, inside the container. */
-          const fieldOf = (target: EventTarget | null): HTMLElement | undefined => {
+          /** The marked field at or above an event's target, inside the container. */
+          const markedOf = (target: EventTarget | null): HTMLElement | undefined => {
             if (!(target instanceof Element)) return undefined
             const field = target.closest(`[${attribute}]`)
-            return field instanceof HTMLElement &&
-              element.contains(field) &&
-              field.isContentEditable
-              ? field
-              : undefined
+            return field instanceof HTMLElement && element.contains(field) ? field : undefined
+          }
+          /** The same, while it is editable. */
+          const fieldOf = (target: EventTarget | null): HTMLElement | undefined => {
+            const field = markedOf(target)
+            return field?.isContentEditable === true ? field : undefined
           }
           /** Begins an edit of `field`, unless one of it is under way: on focus, or typing. */
           const begin = (field: HTMLElement) => {
@@ -134,6 +142,18 @@ export const EditableText = Mount.defineStream('EditableText', {
           }
 
           const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
+            [
+              'dblclick',
+              event => {
+                const field = markedOf(event.target)
+                // In an editable field, a double-click selects a word.
+                if (field === undefined || field.isContentEditable) return
+                Queue.offerUnsafe(
+                  queue,
+                  EditAsked.make({ field: field.getAttribute(attribute) ?? '' }),
+                )
+              },
+            ],
             [
               'focusin',
               event => {
