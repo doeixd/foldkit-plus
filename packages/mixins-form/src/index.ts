@@ -38,6 +38,8 @@ export interface FormViewWords {
   readonly submit?: string | undefined
   /** Before the label on a picker's search box (`Search Author`). Default `Search`. */
   readonly search?: string | undefined
+  /** The choice of nothing, in a picker that may be left empty. Default: blank. */
+  readonly none?: string | undefined
   /** On the button that adds a row to a nested key. Default `Add {label}`. */
   readonly add?: string | undefined
   /** On the button that removes a row; `{position}` counts from 1. Default `Remove {label} {position}`. */
@@ -84,6 +86,8 @@ export interface FieldInput<Key extends string = string> {
   readonly id: string
   /** The word before the label on its search box: the view's `words.search`. */
   readonly searchWord?: string | undefined
+  /** The choice of nothing in a picker: the view's `words.none`. */
+  readonly noneWord?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
@@ -356,6 +360,24 @@ export type Renderers<Message> = Readonly<Record<string, Renderer<Message>>>
  * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
  * its own beside them.
  */
+/**
+ * The choices, and after them each chosen value they lack, as `? value`: a
+ * stored id whose row is gone, or a value the choices have not loaded yet,
+ * stays shown and can be let go, rather than dropped from sight.
+ */
+const withChosen = (
+  options: ReadonlyArray<Option>,
+  chosen: ReadonlyArray<string>,
+): ReadonlyArray<Option> => {
+  const known = new Set(options.map(option => option.value))
+  return [
+    ...options,
+    ...chosen
+      .filter(value => value !== '' && !known.has(value))
+      .map(value => ({ value, label: `? ${value}` })),
+  ]
+}
+
 const defaultRenderers = <Message>(): Renderers<Message> => {
   const typed = ({ state, draft, change, blurred, h }: RenderContext<Message>) => [
     ...state,
@@ -366,15 +388,19 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
   // A blank option whenever nothing is chosen, required or not: without one the
   // browser shows its first option as chosen while the draft is still empty.
   const pick = (
-    { state, draft, change, blurred, slots, h }: RenderContext<Message>,
+    { state, draft, change, blurred, input, slots, h }: RenderContext<Message>,
     options: ReadonlyArray<Option>,
     blank: boolean,
   ): Html =>
     h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
       ...(blank || draft === ''
-        ? [h.option(slots.option.attrs([h.Value(''), h.Selected(draft === '')]), [''])]
+        ? [
+            h.option(slots.option.attrs([h.Value(''), h.Selected(draft === '')]), [
+              input.noneWord ?? '',
+            ]),
+          ]
         : []),
-      ...options.map(option =>
+      ...withChosen(options, typeof draft === 'string' ? [draft] : []).map(option =>
         h.option(slots.option.attrs([h.Value(option.value), h.Selected(draft === option.value)]), [
           option.label,
         ]),
@@ -421,19 +447,20 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
     [Input.RelationOne.kind]: context => pick(context, context.input.options, true),
     [Input.RelationMany.kind]: ({ input, draft, change, slots, h }) => {
       const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
+      const isChosen = new Set(chosen)
       return h.div(
         slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
-        input.options.map(option =>
+        withChosen(input.options, chosen).map(option =>
           h.label(slots.choiceLabel.attrs(), [
             h.input(
               slots.choice.attrs([
                 h.Type('checkbox'),
                 h.Name(input.control.key),
                 h.Value(option.value),
-                h.Checked(chosen.includes(option.value)),
+                h.Checked(isChosen.has(option.value)),
                 h.OnClick(
                   change(
-                    chosen.includes(option.value)
+                    isChosen.has(option.value)
                       ? chosen.filter(value => value !== option.value)
                       : [...chosen, option.value],
                   ),
@@ -601,6 +628,7 @@ export const FormView = {
                     search: walk.search(key),
                     following: walk.following(key),
                     searchWord: input.words?.search,
+                    noneWord: input.words?.none,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),

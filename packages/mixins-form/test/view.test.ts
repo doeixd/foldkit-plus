@@ -66,6 +66,48 @@ describe('FormView markup', () => {
     expect(Inert.text(byId(root, 'Edit-tagIds'))).toBe('TypeScriptDatabases')
   })
 
+  it('shows a chosen value its choices lack, chosen, so it can be let go', () => {
+    const root = render(
+      send(
+        Edit.Message.Changed({ key: 'editorId', value: 'gone' }),
+        Edit.Message.Changed({ key: 'tagIds', value: ['t2', 'lost'] }),
+      ),
+    )
+    expect(
+      Inert.children(byId(root, 'Edit-editorId')).map(option => [
+        option.data?.props?.value,
+        Inert.text(option),
+        option.data?.props?.selected,
+      ]),
+    ).toEqual([
+      ['', '', false],
+      ['a1', 'Ada', false],
+      ['a2', 'Grace', false],
+      ['gone', '? gone', true],
+    ])
+    const boxes = Inert.byTag(byId(root, 'Edit-tagIds'), 'input')
+    expect(boxes.map(box => [box.data?.props?.value, box.data?.props?.checked])).toEqual([
+      ['t1', false],
+      ['t2', true],
+      ['lost', true],
+    ])
+  })
+
+  it('words the choice of nothing as the view is told to', () => {
+    const worded = FormView.define(Edit)(
+      {
+        model: initial,
+        errors: [],
+        canSubmit: false,
+        options,
+        words: { none: 'none' },
+      },
+      SlotView.inertBuilder(),
+    )
+    const blank = Inert.children(byId(worded, 'Edit-editorId'))[0]
+    expect([blank?.data?.props?.value, Inert.text(blank)]).toEqual(['', 'none'])
+  })
+
   it('shows the draft: a value, a checked box, a selected option, the chosen ids', () => {
     const root = render(
       send(

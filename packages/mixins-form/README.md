@@ -128,9 +128,15 @@ EditForm.view(model, h, {
 A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 `input type="search"` above it, in the `search` slot, labelled `Search <label>`
 and naming the picker it controls with `aria-controls`. `words.search` in the
-view inputs replaces the word. All of the view's words (`submit`, `search`,
-`add`, `remove`) are text, with `{label}` and `{position}` as blanks; see
-[words in one place](../form/README.md#words-as-text-in-one-place).
+view inputs replaces the word. The blank choice of a `select` has no words
+unless `words.none` gives it some ("none"). All of the view's words (`submit`,
+`search`, `none`, `add`, `remove`) are text, with `{label}` and `{position}` as
+blanks; see [words in one place](../form/README.md#words-as-text-in-one-place).
+
+A chosen value its choices lack stays in sight: after the choices comes
+`? value`, chosen, in a `select` and in a `RelationMany`'s checkboxes. It is a
+stored id whose row is gone, or one the application has not loaded yet, and
+the author can see it and let it go.
 
 ### Renderers
 
