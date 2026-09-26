@@ -251,7 +251,10 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 
 ## Limits
 
-- `allow` is asked about every transition.
+- `allow` is asked about every transition, and again when an entry is read with
+  `may`: the entry's `may` is the transitions `allow` lets the reader ask
+  (`Cms.transitions` filtered), so the client can leave out what would be
+  refused. Whether the entry offers one now is its `state`'s to say.
 - `CmsPublish` needs a draft. To show an unpublished row again as it is, the
   editor's publish saves what is there first; a client of your own does the same.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the

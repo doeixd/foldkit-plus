@@ -156,6 +156,7 @@ Editor.Message.PublishAsked() // also: ScheduleAsked({ at }), UnscheduleAsked, D
 
 PostEditor.status(model) // Opened | Editing | Saving | Saved | Conflict | Publishing | Published | ...
 PostEditor.state(model) // Option: the entry's lifecycle state, as the server last derived it
+PostEditor.may(model, 'publish') // whether the server's `allow` lets this principal ask it; false until read
 PostEditor.pageId(model) // Option: the row's id, or the entry's until there is a row: what a preview shows under
 PostEditor.storedEntry(model) // Option: the entry the server knows, none until something new is first saved
 ```

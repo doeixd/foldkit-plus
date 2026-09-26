@@ -31,7 +31,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Subscription from 'foldkit/subscription'
 import * as Submodel from 'foldkit/submodel'
 import type * as Update from 'foldkit/update'
-import type { State } from './lifecycle.js'
+import type { State, Transition } from './lifecycle.js'
 import { slugTaken } from './slug.js'
 
 /** How the form came to hold what it holds. */
@@ -484,7 +484,10 @@ export const makeEditor =
         archivedAt: true,
       } as never,
     )
-    const EntryState = Entity.select(cms.Entities.Entry as never, { state: true } as never)
+    const EntryState = Entity.select(
+      cms.Entities.Entry as never,
+      { state: true, may: true } as never,
+    )
     const DraftRead = Entity.select(
       cms.Entities.Draft as never,
       {
@@ -973,6 +976,16 @@ export const makeEditor =
           /** The entry's lifecycle state, as the server last derived it; none until it is read. */
           state: (root: Root): Option.Option<State> =>
             Option.fromUndefinedOr(held<{ readonly state: State }>(read(root, 'state'))?.state),
+          /**
+           * Whether the signed-in principal may ask this transition of the open
+           * entry, by the server's `allow`, as the server said with the entry: false
+           * until it is read. Whether the entry offers it now is its `state`'s to
+           * say. For hiding what would be refused; the server still decides.
+           */
+          may: (root: Root, transition: Transition): boolean =>
+            held<{ readonly may: ReadonlyArray<Transition> }>(read(root, 'state'))?.may.includes(
+              transition,
+            ) === true,
           /** Why the last publish, save, discard or unpublish failed. */
           error: failure,
 

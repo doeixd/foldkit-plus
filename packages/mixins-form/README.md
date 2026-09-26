@@ -105,6 +105,8 @@ EditForm.view(model, h, {
 
 - `FormView.define(Edit)` alone is a complete, unstyled form. `field` is only
   for changing how fields are drawn.
+- `submits: false` draws the form without its submit button, for someone who
+  may not submit it (a writer, where the submit publishes).
 - `options` is keyed by the form's keys and is where a relation picker's choices
   come from. The form names the target Entity; listing it is a query you make,
   so the choices are yours to load, filter, and label.

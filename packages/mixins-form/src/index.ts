@@ -65,6 +65,12 @@ export interface FormViewInputs<Key extends string = string> {
   readonly controls?: Readonly<Record<string, unknown>> | undefined
   /** The view's own words, for wording and for translation. */
   readonly words?: FormViewWords | undefined
+  /**
+   * Whether the form is drawn with its submit button. Default: it is. `false`
+   * for someone who may not submit it, such as a writer where submitting
+   * publishes, so what would be refused is not offered.
+   */
+  readonly submits?: boolean | undefined
 }
 
 /** What a field's Style and Behavior attachments may read. */
@@ -658,9 +664,13 @@ export const FormView = {
           ...(input.errors.length === 0
             ? []
             : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
-          h.button(slots.submit.attrs([h.Type('submit'), h.Disabled(!input.canSubmit)]), [
-            input.words?.submit ?? 'Submit',
-          ]),
+          ...(input.submits === false
+            ? []
+            : [
+                h.button(slots.submit.attrs([h.Type('submit'), h.Disabled(!input.canSubmit)]), [
+                  input.words?.submit ?? 'Submit',
+                ]),
+              ]),
         ])
       },
       { name: form.bundle.name },

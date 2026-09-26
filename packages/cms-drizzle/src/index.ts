@@ -24,7 +24,7 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { Effect, Exit, Schema, Semaphore } from 'effect'
-import { Cms, type Content, type Facts } from 'foldkit-cms'
+import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
 import type { MutationDescriptor } from 'foldkit-remote'
 import {
   DrizzleDatabase,
@@ -60,18 +60,6 @@ export interface ServedContent<P = any> {
   readonly create: MutationSource<P, DrizzleDatabase>
   readonly update: MutationSource<P, DrizzleDatabase>
 }
-
-/** What an author may be refused, by `allow`. */
-export type Asked =
-  | 'save'
-  | 'discard'
-  | 'publish'
-  | 'unpublish'
-  | 'schedule'
-  | 'unschedule'
-  | 'archive'
-  | 'unarchive'
-  | 'restore'
 
 /**
  * Runs some work so that it happened entirely or did not. Drizzle's own
@@ -161,7 +149,7 @@ export interface CmsServerConfig<P> {
    * Whether this author may make this transition. It is asked after the entry is
    * found and the transition is one its state offers. Default: any author may.
    */
-  readonly allow?: (principal: P, transition: Asked, entry: EntryRow) => boolean
+  readonly allow?: (principal: P, transition: Transition, entry: EntryRow) => boolean
   /** The server's clock, passed in so a test can hold it. */
   readonly now?: () => Date
   /**
@@ -262,7 +250,7 @@ export const CmsServer = {
           },
         },
         // Not a column: this server derives it, below, with its own clock.
-        derived: { state: { supplied: true } },
+        derived: { state: { supplied: true }, may: { supplied: true } },
       },
       Draft: { table: tables.drafts, visible: authorsOnly },
       Revision: { table: tables.revisions, visible: authorsOnly },
@@ -367,45 +355,69 @@ export const CmsServer = {
         return row as EntryRow | undefined
       })
 
-    // An entry's `state` is not a column. The generated source reads the rest; the
-    // state is derived from what is known of each entry, with this server's clock.
+    // An entry's `state` and `may` are not columns. The generated source reads the
+    // rest; the state is derived from what is known of each entry, with this server's
+    // clock, and `may` is what `allow` lets the reader ask of it.
     const generated = source<P>(Db.Entry)
     const entries: EntitySource<P, DrizzleDatabase> = {
       ...generated,
       read: context =>
         Effect.gen(function* () {
           const wantsState = context.fields.includes('state')
-          const fields = context.fields.filter(field => field !== 'state')
+          const wantsMay = context.fields.includes('may')
+          const fields = context.fields.filter(field => field !== 'state' && field !== 'may')
           const records = yield* generated.read({
             ...context,
-            // The state needs these of each entry, asked for or not.
-            fields: wantsState
-              ? [...new Set([...fields, 'type', 'targetId', 'archivedAt'])]
-              : fields,
+            // Both need these of each entry, asked for or not; `allow` is given the row.
+            fields:
+              wantsState || wantsMay
+                ? [
+                    ...new Set([
+                      ...fields,
+                      'type',
+                      'targetId',
+                      'archivedAt',
+                      ...(wantsMay ? ['label', 'revision'] : []),
+                    ]),
+                  ]
+                : fields,
           })
-          if (!wantsState) return records
-          const facts = yield* factsOf(
-            records.map(record => ({
-              id: record.id,
-              type: String(record.values.type),
-              targetId: (record.values.targetId as string | null) ?? null,
-              label: '',
-              archivedAt: (record.values.archivedAt as string | null) ?? null,
-              revision: null,
-            })),
-          )
-          const at = now()
-          return records.map(record => ({
+          if (!wantsState && !wantsMay) return records
+          const rows = records.map((record): EntryRow => ({
             id: record.id,
-            values: {
-              ...Object.fromEntries(
-                Object.entries(record.values).filter(
-                  ([field]) => field === 'id' || context.fields.includes(field),
-                ),
-              ),
-              state: Cms.state(facts.get(record.id)!, at),
-            },
+            type: String(record.values.type),
+            targetId: (record.values.targetId as string | null) ?? null,
+            label: String(record.values.label ?? ''),
+            archivedAt: (record.values.archivedAt as string | null) ?? null,
+            revision: (record.values.revision as number | null) ?? null,
           }))
+          const facts = yield* factsOf(rows)
+          const at = now()
+          return records.map((record, index) => {
+            const row = rows[index]!
+            const known = facts.get(record.id)!
+            return {
+              id: record.id,
+              values: {
+                ...Object.fromEntries(
+                  Object.entries(record.values).filter(
+                    ([field]) => field === 'id' || context.fields.includes(field),
+                  ),
+                ),
+                ...(wantsState ? { state: Cms.state(known, at) } : {}),
+                // What `allow` lets this reader ask of this entry, whatever its state
+                // offers now: the state says that, and a draft saved a moment later
+                // changes it without asking the server again.
+                ...(wantsMay
+                  ? {
+                      may: Cms.transitions.filter(
+                        transition => config.allow?.(context.principal, transition, row) !== false,
+                      ),
+                    }
+                  : {}),
+              },
+            }
+          })
         }),
     }
 
@@ -452,7 +464,7 @@ export const CmsServer = {
       })
 
     /** Whether the application lets this author do this, once the entry is known. */
-    const asking = (principal: P, transition: Asked, entry: EntryRow | undefined) =>
+    const asking = (principal: P, transition: Transition, entry: EntryRow | undefined) =>
       entry !== undefined && config.allow?.(principal, transition, entry) === false
         ? Effect.fail(refuse(`This author may not ${transition} this entry`))
         : Effect.void
@@ -614,7 +626,7 @@ export const CmsServer = {
       }),
     )
 
-    const done: Readonly<Record<Exclude<Asked, 'save' | 'discard'>, string>> = {
+    const done: Readonly<Record<Exclude<Transition, 'save' | 'discard'>, string>> = {
       publish: 'published',
       unpublish: 'unpublished',
       schedule: 'scheduled',
@@ -624,7 +636,7 @@ export const CmsServer = {
       restore: 'restored',
     }
     /** The entry, if its state offers this transition now. */
-    const offering = (id: string, transition: Exclude<Asked, 'save' | 'discard'>) =>
+    const offering = (id: string, transition: Exclude<Transition, 'save' | 'discard'>) =>
       Effect.gen(function* () {
         const entry = yield* findEntry(id)
         if (entry === undefined) return yield* refuse('There is no such entry')

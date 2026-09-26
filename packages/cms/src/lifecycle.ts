@@ -5,6 +5,7 @@
  * them. A scheduled publish that failed reads scheduled and overdue, which is
  * true, and not published, which would not be.
  */
+import { Schema } from 'effect'
 
 /** What is known of one entry. The server gathers it; nothing here reads a database. */
 export interface Facts {
@@ -45,16 +46,18 @@ export interface State {
 }
 
 /** What an author may ask of an entry. Each is an operation the server runs after asking `allow`. */
-export type Transition =
-  | 'save'
-  | 'discard'
-  | 'publish'
-  | 'schedule'
-  | 'unschedule'
-  | 'unpublish'
-  | 'archive'
-  | 'unarchive'
-  | 'restore'
+export const Transitions = Schema.Literals([
+  'save',
+  'discard',
+  'publish',
+  'schedule',
+  'unschedule',
+  'unpublish',
+  'archive',
+  'unarchive',
+  'restore',
+])
+export type Transition = typeof Transitions.Type
 
 const scheduleOf = (draft: Facts['draft'], now: Date): Schedule | null =>
   draft === null || draft.scheduledFor === null

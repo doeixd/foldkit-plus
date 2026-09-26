@@ -188,29 +188,38 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
         ? [
             // The form's own submit is the publish: publishing submits the form, so
             // its rules and checks decide, and an invalid form publishes nothing.
-            EditorSlot.view(model, h, { words: { submit: 'Publish' } }),
+            EditorSlot.view(model, h, {
+              words: { submit: 'Publish' },
+              // What the server's `allow` would refuse this chair is not offered.
+              submits: PostEditor.may(model, 'publish'),
+            }),
             h.div(slots.toolbar.attrs(), [
-              h.input(
-                slots.search.attrs([
-                  h.Id('at'),
-                  h.Type('datetime-local'),
-                  h.AriaLabel('Publish at'),
-                  h.Value(model.scheduleAt),
-                  h.OnInput(text => Message.TypedSchedule({ text })),
-                  h.Style({ width: 'auto' }),
-                ]),
-              ),
-              button(
-                'schedule',
-                'Schedule',
-                ask(
-                  Editor.Message.ScheduleAsked({
-                    at: Number.isNaN(at.getTime()) ? '' : at.toISOString(),
-                  }),
-                ),
-                !Number.isNaN(at.getTime()),
-              ),
-              ...(!Option.exists(state, known => known.schedule !== null)
+              ...(PostEditor.may(model, 'schedule')
+                ? [
+                    h.input(
+                      slots.search.attrs([
+                        h.Id('at'),
+                        h.Type('datetime-local'),
+                        h.AriaLabel('Publish at'),
+                        h.Value(model.scheduleAt),
+                        h.OnInput(text => Message.TypedSchedule({ text })),
+                        h.Style({ width: 'auto' }),
+                      ]),
+                    ),
+                    button(
+                      'schedule',
+                      'Schedule',
+                      ask(
+                        Editor.Message.ScheduleAsked({
+                          at: Number.isNaN(at.getTime()) ? '' : at.toISOString(),
+                        }),
+                      ),
+                      !Number.isNaN(at.getTime()),
+                    ),
+                  ]
+                : []),
+              ...(!PostEditor.may(model, 'unschedule') ||
+              !Option.exists(state, known => known.schedule !== null)
                 ? []
                 : [button('unschedule', 'Unschedule', ask(Editor.Message.UnscheduleAsked()))]),
               ...(PostEditor.canPreview
@@ -221,7 +230,7 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
                   ]
                 : []),
               button('discard', 'Discard draft', ask(Editor.Message.DiscardAsked())),
-              ...(stateIs(state, 'Published', 'Changed')
+              ...(PostEditor.may(model, 'unpublish') && stateIs(state, 'Published', 'Changed')
                 ? [button('unpublish', 'Unpublish', ask(Editor.Message.UnpublishAsked()))]
                 : []),
               stateIs(state, 'Archived')

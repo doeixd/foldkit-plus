@@ -276,7 +276,11 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
     what an entry offers, not what this principal may do. *Proposed:* the
     editor exposes what the signed-in principal may do (the server says so with
     the entry), so an application can hide or disable what would be refused.
-    Status: proposed.
+    **Fixed** (plan area 5b): the Entry has a server-derived `may`, the
+    transitions `allow` lets the reader ask; the editor gives
+    `placed.may(model, transition)`; `FormView` takes `submits: false`. The
+    example leaves out Publish, Schedule and Unpublish for a writer. (Not checked
+    in the browser: the window was hidden, so the tab did not render.)
 
 26. **The inspector loses a Block prop's title given before a check.** Found
     while writing the plan: mixins-builder's `labelFor` reads

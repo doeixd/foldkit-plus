@@ -156,6 +156,16 @@ describe('FormView markup', () => {
     expect(button(saved)?.data?.props?.disabled).toBe(false)
     expect(text(button(saved))).toBe('Save')
   })
+
+  it('draws no submit for someone who may not submit it', () => {
+    const withheld = FormView.define(Edit)(
+      { model: initial, errors: [], canSubmit: true, submits: false },
+      SlotView.inertBuilder(),
+    ) as unknown as Node
+    expect(all(withheld).some(node => node.sel === 'button')).toBe(false)
+    // The fields are drawn as ever.
+    expect(byId(withheld, 'Edit-title')).toBeDefined()
+  })
 })
 
 describe('FormView styling', () => {

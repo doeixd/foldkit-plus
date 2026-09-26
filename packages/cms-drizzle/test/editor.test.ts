@@ -9,7 +9,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Cms } from 'foldkit-cms'
+import { Cms, type Transition } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, RemoteClient } from 'foldkit-remote'
@@ -162,6 +162,8 @@ const world = () => {
     ],
     transaction: Transaction.statements,
     isAuthor,
+    // Grace writes; she may not take a post off the site.
+    allow: (principal, transition) => transition !== 'unpublish' || principal?.name !== 'grace',
     nameOf: principal => principal?.name ?? null,
   })
   const server = RemoteServer.make({
@@ -254,6 +256,7 @@ const world = () => {
       // Read as plain values, so each assertion says what it expects in one word.
       resumed: () => Option.getOrUndefined(PostEditor.resumed(model)),
       state: () => Option.getOrUndefined(Option.map(PostEditor.state(model), state => state._tag)),
+      may: (transition: Transition) => PostEditor.may(model, transition),
       schedule: () =>
         Option.getOrUndefined(Option.map(PostEditor.state(model), state => state.schedule)),
       previewing: () => PostEditor.previewing(model),
@@ -378,6 +381,24 @@ describe('something new', () => {
     await ada.send(ada.form(Editor.Message.DiscardAsked()))
     expect(ada.status()).toBe('Closed')
     expect(sent).toEqual([])
+  })
+})
+
+describe('what the principal may do', () => {
+  it('is what allow lets them ask, said with the entry, and nothing before it is read', async () => {
+    const { author } = world()
+    const ada = author('ada')
+    expect(ada.may('archive')).toBe(false)
+    await ada.open('e1')
+    // Whatever the state offers now: e1 has no draft, and publishing is still hers to ask.
+    expect((['publish', 'unpublish', 'archive'] as const).map(ada.may)).toEqual([true, true, true])
+    const grace = author('grace')
+    await grace.open('e1')
+    expect((['publish', 'unpublish', 'archive'] as const).map(grace.may)).toEqual([
+      true,
+      false,
+      true,
+    ])
   })
 })
 

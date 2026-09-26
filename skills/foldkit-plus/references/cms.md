@@ -86,6 +86,8 @@ Editor.Message.PublishAsked() // ScheduleAsked({ at }), UnscheduleAsked, Discard
 PostEditor.status(model) // Closed Loading NotFound LoadFailed Opened Editing Saving Saved Conflict SaveFailed
 // Publishing Published PublishFailed Scheduling Scheduled ScheduleFailed
 PostEditor.state(model); PostEditor.resumed(model); PostEditor.error(model) // each an Option
+PostEditor.may(model, 'publish') // `allow`'s answer for this principal, read with the entry; false until then.
+// Hide what would be refused: EditorSlot.view(model, h, { submits: PostEditor.may(model, 'publish') })
 PostEditor.pageId(model) // Option: row id, else the entry's: what the app's own pages and a preview use
 PostEditor.entry(model) // Option: the entry open, none while closed
 PostEditor.storedEntry(model) // Option: none until something new is first saved; what a link may name

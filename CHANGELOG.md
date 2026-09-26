@@ -282,6 +282,13 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-cms`: the Entry has a server-derived `may`,** the transitions the
+  reader may ask by the server's `allow`; the placed editor gives
+  `may(model, transition)`, and `Cms.transitions` lists them all.
+  `foldkit-cms-drizzle` supplies it; its `Asked` type is removed for
+  `foldkit-cms`'s `Transition`, which it duplicated.
+- **`foldkit-mixins-form`: `FormView`'s `submits: false`** draws a form without
+  its submit button.
 - **`foldkit-primitives`: `KeepInView({ selector })`,** a Mount that scrolls
   whatever newly matches in its subtree into view. `foldkit-mixins-builder`
   mounts it on the layers panel and the canvas, so a new selection (an inserted

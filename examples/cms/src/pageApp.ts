@@ -321,5 +321,7 @@ export const builderInputs = (model: Model): BuilderViewInputs => {
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   EditorSlot.view(model, h, {
     words: { submit: 'Publish' },
+    // A writer may not publish: what the server would refuse is not offered.
+    submits: PageEditor.may(model, 'publish'),
     controls: { document: builderInputs(model) },
   })
