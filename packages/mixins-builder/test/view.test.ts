@@ -102,6 +102,7 @@ describe('the drawn Builder', () => {
     expect(fields).toEqual([
       'text',
       'size',
+      'columns',
       'count',
       'shown',
       'tone',
@@ -117,6 +118,7 @@ describe('the drawn Builder', () => {
     expect(controls.map(node => [node.sel, attr(node, 'type') ?? prop(node, 'type')])).toEqual([
       ['input', undefined],
       ['select', undefined],
+      ['select', undefined],
       ['input', undefined],
       ['input', 'checkbox'],
       ['select', undefined],
@@ -127,7 +129,7 @@ describe('the drawn Builder', () => {
       ['select', undefined],
     ])
     // The look's axis offers its values and a blank for the default, which is chosen.
-    const tone = all(controls[4]).filter(node => node.sel === 'option')
+    const tone = all(controls[5]).filter(node => node.sel === 'option')
     expect(tone.map(option => [prop(option, 'value'), text(option)])).toEqual([
       ['', 'default'],
       ['plain', 'plain'],
@@ -135,7 +137,16 @@ describe('the drawn Builder', () => {
     ])
     expect(tone.map(option => prop(option, 'selected'))).toEqual([true, false, false])
     expect(prop(controls[0], 'value')).toBe('Hello')
-    expect(prop(controls[2], 'value')).toBe('1')
+    // A number-literal prop is a select of its numbers, as text.
+    expect(
+      all(controls[2])
+        .filter(node => node.sel === 'option')
+        .map(option => [prop(option, 'value'), prop(option, 'selected')]),
+    ).toEqual([
+      ['1', true],
+      ['2', false],
+    ])
+    expect(prop(controls[3], 'value')).toBe('1')
   })
 
   it('draws the canvas with the data its inputs give each node, as a published page is', () => {

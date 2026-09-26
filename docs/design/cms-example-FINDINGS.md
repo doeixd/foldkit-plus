@@ -60,7 +60,9 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
    `Select`), so `LatestPages.count` shows `3` as code. The new Blocks use string
    literals (`'3' | '6' | '9'`) to get a select. *Proposed:* the inspector (or
    `Input.resolve`) offers a select for number literals and stores the number.
-   Status: worked around.
+   **Fixed** (plan area 5c): `Select`'s options are text or numbers, its draft is
+   the option as text, and the value (in a form, and as a Builder prop) is the
+   option itself. The example's PostList `count` is `3 | 6 | 9` again.
 
 7. **An unsaved new entry had no public name.** Writing the open entry into the
    address put a page's id there before its first save, so a reload asked for

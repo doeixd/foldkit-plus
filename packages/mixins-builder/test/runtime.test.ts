@@ -171,6 +171,14 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     space('', '')
     await vi.waitFor(() => expect(stored()).toBeUndefined())
 
+    // A number-literal prop is chosen as text and stored as the number.
+    const columns = () => {
+      const now = drawn === undefined ? undefined : PageBuilder.document(drawn.editor)
+      return Object.values(now?.nodes ?? {}).find(node => node.block === 'Banner')?.props['columns']
+    }
+    pick('[aria-label="Properties"] select[id$="-columns"]', '2')
+    await vi.waitFor(() => expect(columns()).toBe(2))
+
     // The Banner's press runs an action: its input starts from empty values, is
     // edited field by field, and choosing nothing removes it.
     const actions = () => {

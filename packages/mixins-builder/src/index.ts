@@ -204,7 +204,7 @@ const contextChoices = (control: Control | undefined): ReadonlyArray<string> | u
   control === undefined
     ? undefined
     : Input.Select.is(control)
-      ? control.data.options
+      ? control.data.options.map(String)
       : Input.Toggle.is(control)
         ? ['true', 'false']
         : undefined
@@ -601,10 +601,16 @@ export const BuilderView = {
             ]),
           )
         if (control !== undefined && Input.Select.is(control))
+          // A `<select>` holds text; the prop is stored as the option itself, so `3` stays a number.
           return h.select(
-            slots.control.attrs([h.Id(fieldId), h.OnChange(choice => set(choice))]),
+            slots.control.attrs([
+              h.Id(fieldId),
+              h.OnChange(choice =>
+                set(control.data.options.find(option => String(option) === choice) ?? choice),
+              ),
+            ]),
             control.data.options.map(option =>
-              h.option([h.Value(option), h.Selected(option === value)], [option]),
+              h.option([h.Value(String(option)), h.Selected(option === value)], [String(option)]),
             ),
           )
         if (control !== undefined && Input.RelationOne.is(control))

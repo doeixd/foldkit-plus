@@ -115,6 +115,26 @@ describe('Form.make controls', () => {
     expect(Naming.controls[0]).toMatchObject({ label: 'Name', description: 'Who it is' })
   })
 
+  it('offers a select for number literals, and reads the chosen one as the number', () => {
+    const Sized = Entity.define('Sized', Schema.Struct({ id: Schema.String, count: Schema.Number }))
+    const Sizing = Form.make(
+      'Sizing',
+      Entity.input(Sized, Schema.Struct({ count: Schema.Literals([3, 6, 9]) })),
+    )
+    expect(Sizing.controls[0]?.control).toEqual(Input.select([3, 6, 9]))
+    const chose = (draft: string) =>
+      Sizing.bundle.update(
+        Sizing.bundle.init(undefined).model,
+        Sizing.Message.Changed({ key: 'count', value: draft }),
+        undefined,
+      ).model
+    expect(Sizing.partial(chose('6'))).toEqual({ count: 6 })
+    expect(chose('7').fields.count).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Choose one of the options'],
+    })
+  })
+
   it('labels from the schema annotation, then Form.label, then the key', () => {
     const byKey = Object.fromEntries(CreatePost.controls.map(entry => [entry.key, entry]))
     expect(byKey.title).toMatchObject({ label: 'Title', description: 'Shown in the feed' })

@@ -72,7 +72,8 @@ const RenameForm = Page.at(Slot, {
   its key (`name=<key>`; a relation picker's checkboxes also carry `value`), so
   a plain form post carries the drafts.
 - **Draw it:** `Rename.controls` is the keys in order, each with `control`
-  (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options`,
+  (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options` (string or number
+  literals; the value is the option itself),
   `RelationOne` / `RelationMany` with `target`), `label`, `description`,
   `required`, and the Entity `member`. Read a key's state from
   `model.rename.fields[key]` with `foldkit/fieldValidation` (`match`,

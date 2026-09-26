@@ -398,9 +398,9 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
     [Input.Select.kind]: context =>
       pick(
         context,
-        (Input.Select.is(context.control) ? context.control.data.options : []).map(value => ({
-          value,
-          label: value,
+        (Input.Select.is(context.control) ? context.control.data.options : []).map(option => ({
+          value: String(option),
+          label: String(option),
         })),
         !context.input.control.required,
       ),

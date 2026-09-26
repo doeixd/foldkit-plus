@@ -83,7 +83,7 @@ const home = {
       { tone: 'neutral', variant: 'outline' },
     ),
     latest: node('Section', { heading: '' }, { body: ['posts'] }),
-    posts: node('PostList', { heading: 'Latest writing', count: '3' }),
+    posts: node('PostList', { heading: 'Latest writing', count: 3 }),
     featured: node('Section', { heading: '' }, { body: ['feature'] }, { tone: 'muted' }),
     feature: node('FeaturedPost', { post: 'post-page-as-data' }),
     about: node(

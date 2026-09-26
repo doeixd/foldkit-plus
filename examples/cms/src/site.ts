@@ -489,13 +489,13 @@ export const postGrid = <M>(h: HtmlBuilder<M>, posts: ReadonlyArray<PostCard>): 
 export const PostList = QueryBlock.define('PostList', {
   Props: Schema.Struct({
     heading: Schema.String.annotate({ title: 'Heading', description: 'Leave empty for none.' }),
-    count: Schema.Literals(['3', '6', '9']).annotate({ title: 'How many' }),
+    count: Schema.Literals([3, 6, 9]).annotate({ title: 'How many' }),
   }),
   provides: [Content.Flow],
   query: RecentPosts,
   input: () => ({}),
   select: PostCard,
-  first: props => Number(props.count),
+  first: props => props.count,
 }).pipe(Appearance.attach(PostsLook))
 
 /** One post, chosen from the blog, drawn large. */
@@ -734,7 +734,7 @@ export const PageBuilder = Builder.make('PageBuilder', {
     Callout: { title: 'Good to know', body: 'Say the one thing a reader should not miss.' },
     Divider: {},
     Button: { label: 'Read the blog', href: Url.make('/site/blog') },
-    PostList: { heading: 'From the blog', count: '3' },
+    PostList: { heading: 'From the blog', count: 3 },
     FeaturedPost: { post: Option.none() },
     LatestPages: { count: 3, except: Option.none() },
   },

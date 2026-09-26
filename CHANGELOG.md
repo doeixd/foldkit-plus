@@ -282,6 +282,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
+- **`foldkit-form`: a number-literal schema resolves to a `Select`,** whose
+  `options` may be text or numbers and whose value is the chosen option itself.
+  `Control.parse` now receives the control's `data`. `foldkit-mixins-builder`'s
+  inspector draws the select and stores a number as a number.
 - **`foldkit-entity`: `Selected<typeof selection>`,** the value a Selection
   reads.
 - **`foldkit-cms`: the editor's Commands carry the form's requirements, not

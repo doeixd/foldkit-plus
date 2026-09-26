@@ -577,7 +577,7 @@ const planOf = (
       bundled !== undefined
         ? bundled.value(draft)
         : control.parse !== undefined && typeof draft === 'string'
-          ? control.parse(draft)
+          ? control.parse(draft, control.data)
           : draft
     if (value === undefined) return Result.fail(say.unparsed)
     return Result.mapError(decode(value), error => say.invalid(error.message))

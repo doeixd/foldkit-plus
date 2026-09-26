@@ -132,7 +132,7 @@ included.
 | `Hidden` | `string` | only when asked for: a key the form carries and does not show, such as the id being edited |
 | `Number` | `string` | the schema is a number |
 | `Toggle` | `boolean` | the schema is a boolean |
-| `Select` | `string` | the schema is a union of string literals; carries `options` |
+| `Select` | `string` | the schema is a union of string or number literals; carries `options`, and gives the chosen option itself, so `3` is `3` |
 | `RelationOne` | `string` (an id, `""` for none) | the key is `Relation.input` of a `one` |
 | `RelationMany` | `string[]` | the key is `Relation.input` of a `many` |
 

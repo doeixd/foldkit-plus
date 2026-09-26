@@ -170,7 +170,7 @@ resolve it:
 | Prop Schema | Control |
 | --- | --- |
 | `Schema.Boolean` | `input type="checkbox"` |
-| `Schema.Literals([...])` | `select` of the literals |
+| `Schema.Literals([...])` | `select` of the literals, text or numbers; a number is stored as a number |
 | `Schema.Number` | `input`; text that is not a number is kept, and the page refuses it |
 | `Schema.String`, and a brand of it such as `Url` | `input` |
 | anything else | its JSON, shown and not edited |

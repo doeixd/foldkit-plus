@@ -21,6 +21,7 @@ export const Banner = Block.define('Banner', {
   Props: Schema.Struct({
     text: Schema.String,
     size: Schema.Literals(['small', 'large']),
+    columns: Schema.Literals([1, 2]),
     count: Schema.Number,
     shown: Schema.Boolean,
   }),
@@ -111,7 +112,7 @@ export const PageBuilder = Builder.make('PageBuilder', {
   starters: {
     Section: { tone: 'plain' },
     Heading: { text: 'New heading' },
-    Banner: { text: 'Hello', size: 'small', count: 1, shown: true },
+    Banner: { text: 'Hello', size: 'small', columns: 1, count: 1, shown: true },
   },
   preview: { audience: 'guest' },
 })
