@@ -934,6 +934,18 @@ between two Headings.
   are a literal union, so an unknown one is refused by the tool's own input
   schema.
 
+> **Done, 2026-09-26, with three changes.** The system clipboard holds the
+> copy as `text/plain` JSON tagged `{ format: 'foldkit-composition' }`, not a
+> custom MIME type, which the async Clipboard API does not write; text read
+> wins over the Model's `clipboard`, used only when the browser will not let
+> it be read (`readText`, new in `foldkit-primitives/dom`). **`usePattern`
+> is an Operation of its own**, `{ pattern, ids, at }` like `duplicate`, not
+> a paste, so a replay makes the same nodes; in `operationSchema` its `ids`
+> are a struct of exactly the pattern's node ids. **A pattern's tile is
+> pressed, not dragged**: dragging one needs a third drag source, left until
+> an author asks. The CMS example offers one pattern. Found on the way:
+> `Measure` leaked a MutationObserver where ResizeObserver is missing; fixed.
+
 ### 5e. Text edited in place (L)
 
 Three pieces, in this order.

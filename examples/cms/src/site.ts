@@ -710,6 +710,28 @@ export const Site = Catalog.make({
     LatestPages,
   ],
   roots: [Content.Section],
+  patterns: [
+    {
+      name: 'Welcome',
+      label: 'Hero with a button',
+      description: 'A headline and a way in',
+      tree: {
+        root: 'hero',
+        nodes: {
+          hero: {
+            block: 'Hero',
+            props: { eyebrow: 'Welcome', title: 'Say what the site is for', lead: '' },
+            regions: { actions: ['start'] },
+          },
+          start: {
+            block: 'Button',
+            props: { label: 'Start here', href: '/site/blog' },
+            regions: {},
+          },
+        },
+      },
+    },
+  ],
 })
 
 const waiting = <M>(h: HtmlBuilder<M>, what: string): Html =>
