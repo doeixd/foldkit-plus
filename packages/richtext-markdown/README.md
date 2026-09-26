@@ -21,7 +21,7 @@ pnpm add foldkit-richtext-markdown
 
 The Markdown *syntax*, and nothing else. The document stays `foldkit-richtext`'s, the
 editable subtree stays `foldkit-richtext-dom`'s, and no state lives here: `print` is a pure
-function of a `Document`.
+function of a `Document`, and a source session is a value the application keeps.
 
 ## Print a document
 
@@ -112,6 +112,34 @@ splits a block and a rule sees only what is typed. Converting gives the block's 
 identities. Under the standard vocabulary, whose `CodeBlock` forbids marks, a fence typed into
 a block that carries marks is refused, and the editor keeps the fence as the text it typed. A list marker typed right after a list starts a new list beside it
 rather than adding an item to that one.
+
+## Edit the Markdown itself
+
+A source session lets a person edit the document as Markdown and switch back. It is a value,
+not a store: the application keeps it in its Model while source mode is on, and the rich
+document stands still meanwhile, so only one representation is ever being edited.
+
+```ts
+import { closeSource, openSource } from 'foldkit-richtext-markdown'
+
+// Entering source mode: the draft starts as the printed document.
+const session = openSource(model.document)
+
+// Each keystroke in the source editor replaces the draft.
+const edited = { ...session, draft: '# Title\n\nNew text\n' }
+
+// Leaving it: a pure read, so it serves as a preview too.
+const closed = closeSource(edited, model.document, { mint: () => crypto.randomUUID() })
+```
+
+`openSource` prints the document and keeps what the printer could not show — a mark Markdown
+has no syntax for — as `unprintable`. `closeSource` compares the draft with what was printed:
+unedited, it returns the caller's own document untouched (`changed: false`), identities and
+unprintable marks included, so switching modes without typing loses nothing. Edited, it
+parses the draft into a new document and reports, in `diagnostics`, the unprintable content
+the edit loses followed by what parsing refused. Nothing is committed until the application
+puts `closed.document` in its Model, so it can warn first. `SourceSession` is a schema, so the
+session fits in a Model as it is.
 
 ## Limits
 

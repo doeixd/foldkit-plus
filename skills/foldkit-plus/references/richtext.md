@@ -279,7 +279,11 @@ against each other: `print(parse(markdown))` returns the Markdown it started fro
 `###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
 or a list (`WrapBlock`), and a fence such as `` ```ts `` converts it to a `CodeBlock`
 (`ConvertBlock`) — where the editor applies the rules its placement names
-(`editorAt(hostId, { inputRules })`), so it carries no Markdown itself.
+(`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A source session edits
+the Markdown itself: `openSource(document)` gives `{ printed, draft, unprintable }` (a
+`SourceSession` schema the Model holds), and `closeSource(session, document, { mint })` returns
+the caller's document untouched when the draft was not edited, or the parsed draft with the
+diagnostics of what the edit loses.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable

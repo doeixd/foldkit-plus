@@ -10,7 +10,8 @@ and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki 
 mark toolbar, the block style picker, the slash menu, link editing, and the placeholder
 (§119, §123, §132, §133, §134), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
-and none is released yet. Still to do: the rest of milestone 6's chrome, then source mode,
+and none is released yet. Milestone 7's source session is built (§136); its Bundle is not.
+Still to do: the rest of milestone 6's chrome, then the rest of source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
@@ -7470,3 +7471,41 @@ node('TaskItem', { Props, children: blockContent, splitProps: { checked: false }
 declares none copies its props whole, as before. It is data, as the rest of a Kit is, and it is
 read only where a split makes a new item, so a wrap, a paste, and a lift are untouched. The
 standard `TaskItem` declares `{ checked: false }`.
+
+---
+
+# 136. The source session
+
+§8 asks for a Markdown source mode, with one representation editable at a time. Its first slice
+is the value underneath the mode, in `foldkit-richtext-markdown`, with no DOM:
+
+```text
+openSource(document)                    → { printed, draft, unprintable }
+edit                                    → replace draft
+closeSource(session, document, { mint })
+  draft = printed                       → { document (the caller's own), changed: false }
+  draft edited                          → { parse(draft).document, changed: true,
+                                            diagnostics: unprintable ++ parse diagnostics }
+```
+
+Decided here:
+
+- **The session holds no document.** While it is open the rich document cannot be edited, so
+  the caller still has the one that was printed; closing an unedited session returns it. A copy
+  in the session would be a second owner of the content (the repository's standing rule), and
+  would go stale if the document changed another way, such as a collaborator's edit. An
+  unedited draft carries no user intent, so the current document is the right answer either
+  way.
+- **Toggling without typing loses nothing.** The printer drops what Markdown cannot say (an
+  undeclared mark, say) and a parse mints new identities; neither happens unless the draft
+  was edited. That is the round-trip guarantee §9's source maps would extend to edited text.
+- **The loss is reported at close, not at open.** Opening only records what the printer could
+  not show. It becomes a loss when an edited draft replaces the document, so `closeSource`
+  puts it first in the diagnostics, followed by what the parser refused, and the caller warns
+  before committing. `closeSource` is pure, so the same call is the preview §8 asks for.
+- **`SourceSession` and `MarkdownDiagnostic` are schemas**, so the session goes in a Model as
+  it is.
+
+Next: the `MarkdownEditor` Bundle §8 sketches, which holds the mode and the session beside the
+rich editor's Model and switches between them with Messages, then split mode and §9's
+round-trip hints.
