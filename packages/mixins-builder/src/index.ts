@@ -14,7 +14,14 @@
  * a node), and the Builder's `keyCommand` shortcuts on the layers panel.
  */
 import { Option, Schema } from 'effect'
-import { Layers, Message, layersArgs, type ContextValue, type Model } from 'foldkit-builder'
+import {
+  Layers,
+  Message,
+  layersArgs,
+  type ContextValue,
+  type DropZone,
+  type Model,
+} from 'foldkit-builder'
 import {
   Block,
   Catalog,
@@ -1065,6 +1072,66 @@ export const BuilderView = {
       )
     })
 
+    /**
+     * One layer row, from what it shows alone. Its arguments are compared by
+     * identity, so an absent node or drop arrives as `undefined`, not as an
+     * `Option`, which would be a new value on every draw.
+     */
+    const drawRow = (
+      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
+      h: HtmlBuilder<Message>,
+      index: number,
+      id: string,
+      branch: boolean,
+      node: Document['nodes'][NodeId] | undefined,
+      open: boolean,
+      selected: boolean,
+      drop: DropZone | undefined,
+      dragged: boolean,
+    ): Html =>
+      h.li(
+        slots.row.attrs(
+          [
+            h.Key(id),
+            h.DataAttribute(ROW_ATTRIBUTE, id),
+            ...(node === undefined ? [] : [h.DataAttribute('block', node.block)]),
+            ...(drop === undefined ? [] : [h.DataAttribute(ROW_DROP_ATTRIBUTE, drop)]),
+            ...(dragged ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')] : []),
+            h.AriaSelected(selected),
+            h.OnClick(Message.Selected({ id: NodeId.make(id) })),
+            // Pointing at a row marks its node on the page, as pointing at the page does.
+            h.OnMouseEnter(Message.Hovered({ id: NodeId.make(id) })),
+            h.OnMouseLeave(Message.Unhovered()),
+          ],
+          { index, id },
+        ),
+        [
+          ...(branch
+            ? [
+                h.span(
+                  slots.rowToggle.attrs([
+                    // The row says whether it is open; this is the pointer's way to change it.
+                    h.AriaHidden(true),
+                    h.OnClick(
+                      Layers.wrapper.make(
+                        open
+                          ? TreeNavigation.Message.Closed({ id })
+                          : TreeNavigation.Message.Opened({ id }),
+                      ),
+                    ),
+                  ]),
+                  [],
+                ),
+              ]
+            : []),
+          h.span(slots.rowLabel.attrs(), [node === undefined ? id : labelOf(node.block)]),
+          ...Option.match(node === undefined ? Option.none() : summaryOf(node), {
+            onNone: () => [],
+            onSome: summary => [h.span(slots.rowSummary.attrs(), [summary])],
+          }),
+        ],
+      )
+
     const LayersPart = Parts.part(
       'Layers',
       {
@@ -1097,60 +1164,25 @@ export const BuilderView = {
         const shown = TreeNavigation.shown(rowsOf(document), input.layers, layersArgs)
         const tree = h.ul(
           slots.tree.attrs([h.Role('tree'), h.AriaLabel('Layers')]),
-          shown.map((row, index) => {
-            const node = document.nodes[NodeId.make(row.id)]
-            const open = TreeNavigation.isOpen(input.layers, layersArgs, row.id)
-            return h.li(
-              slots.row.attrs(
-                [
-                  h.Key(row.id),
-                  h.DataAttribute(ROW_ATTRIBUTE, row.id),
-                  ...(node === undefined ? [] : [h.DataAttribute('block', node.block)]),
-                  ...Option.match(
-                    Option.filter(drop, over => over.id === row.id),
-                    {
-                      onNone: () => [],
-                      onSome: over => [h.DataAttribute(ROW_DROP_ATTRIBUTE, over.zone)],
-                    },
-                  ),
-                  ...(Option.contains(dragged, NodeId.make(row.id))
-                    ? [h.DataAttribute(ROW_DRAGGING_ATTRIBUTE, '')]
-                    : []),
-                  h.AriaSelected(Option.contains(selected, NodeId.make(row.id))),
-                  h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
-                  // Pointing at a row marks its node on the page, as pointing at the page does.
-                  h.OnMouseEnter(Message.Hovered({ id: NodeId.make(row.id) })),
-                  h.OnMouseLeave(Message.Unhovered()),
-                ],
-                { index, id: row.id },
+          // Each row drawn again only when what it shows changed: a new selection
+          // redraws the row it left and the row it reached.
+          shown.map((row, index) =>
+            slots.row.lazy({ index, id: row.id }, drawRow, [
+              index,
+              row.id,
+              row.branch,
+              document.nodes[NodeId.make(row.id)],
+              TreeNavigation.isOpen(input.layers, layersArgs, row.id),
+              Option.contains(selected, NodeId.make(row.id)),
+              Option.getOrUndefined(
+                Option.map(
+                  Option.filter(drop, over => over.id === row.id),
+                  over => over.zone,
+                ),
               ),
-              [
-                ...(row.branch
-                  ? [
-                      h.span(
-                        slots.rowToggle.attrs([
-                          // The row says whether it is open; this is the pointer's way to change it.
-                          h.AriaHidden(true),
-                          h.OnClick(
-                            Layers.wrapper.make(
-                              open
-                                ? TreeNavigation.Message.Closed({ id: row.id })
-                                : TreeNavigation.Message.Opened({ id: row.id }),
-                            ),
-                          ),
-                        ]),
-                        [],
-                      ),
-                    ]
-                  : []),
-                h.span(slots.rowLabel.attrs(), [node === undefined ? row.id : labelOf(node.block)]),
-                ...Option.match(node === undefined ? Option.none() : summaryOf(node), {
-                  onNone: () => [],
-                  onSome: summary => [h.span(slots.rowSummary.attrs(), [summary])],
-                }),
-              ],
-            )
-          }),
+              Option.contains(dragged, NodeId.make(row.id)),
+            ]),
+          ),
         )
         // The tree inside is what is named "Layers"; the panel around it is not named twice.
         return h.section(slots.layers.attrs(), [tree])

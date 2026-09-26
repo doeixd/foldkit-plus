@@ -893,6 +893,14 @@ R9 remainder is, rather than silently accepted.
 > canvas was about a quarter of the redraw; the rest is the root pass and the
 > Layers rows, which the per-part and per-row boundaries of plan 3d address.
 
+> **Measured (view plan 3d), 2026-09-26,** the same way, with the editor cut
+> into parts that each redraw only when the Model fields they read change, and
+> each layer row drawn again only when what it shows changed. With every memo
+> off, then on: a hover 50 ms, then 16 ms; a selection 48 ms, then 17 ms; a
+> keystroke in the inspector 49 ms, then 17 ms. Each lands in the next frame. A
+> first selection costs about 90 ms, once, while each row learns which Slots it
+> uses. The Layers budget above ("only the changed rows") is met.
+
 ## 26. Packages
 
 ```text

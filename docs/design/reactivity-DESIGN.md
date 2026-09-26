@@ -7,8 +7,9 @@
 
 ---
 
-> **Status: not started here, and it cannot start here.** Checked against both
-> sides.
+> **Status: Phase 1's package-view form is built here (see the 2026-09-26
+> result below); the rest is not started, and cannot start here.** Checked
+> against both sides.
 >
 > Nothing in this repository implements any of it: there is no
 > `packages/reactivity` and no `packages/reactivity-html`.
@@ -45,6 +46,21 @@
 > view is given only its selection, so dependencies are explicit **and**
 > cannot drift. Proxy tracking is not built. A development check samples cache
 > hits instead, as a safety net.
+>
+> **Phase 1 result, 2026-09-26: the package-view form.** Three boundaries,
+> each on Foldkit's own lazy slots:
+>
+> - `Renderer.render` memoizes each page node on its node object, marks and data;
+> - `SlotView.parts` gives a part only the input keys it names and memoizes it on them;
+> - `slots.x.lazy` memoizes an item on its arguments and on what the Mixins gave
+>   its Slots, compared by value.
+>
+> Over 1,000 nodes in the page builder, in headless Chromium, from the event to
+> the next frame, a hover went from about 50 ms to 16 ms, a selection from 48 ms
+> to 17 ms, and a keystroke in the inspector from 49 ms to 17 ms. Each now lands
+> in the next frame. The application-view form (`Reactive.view` over a
+> Projection) and the development check that samples hits are **not built**:
+> nothing needed them yet, since a part cannot read outside its selection.
 
 # 1. Purpose
 

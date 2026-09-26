@@ -588,6 +588,15 @@ result.
 >
 > A runtime test counts view calls; the Builder's parts and per-row
 > boundaries come with 3d.
+>
+> **Per-item boundaries done with 3d, 2026-09-26,** as `slots.row.lazy(item,
+> drawRow, args)`: one change from the design above. An item's key also holds
+> what the Mixins gave the Slots it used for it, compared by value. So a
+> Behavior's per-item attributes (a roving tab stop worked out from the whole
+> tree) need no declared key to stay fresh. An item drawing that holds another
+> is not cached. The development check is not built. Measured in
+> `pagebuilder-DESIGN.md` §25 and in `reactivity-DESIGN.md`: hover, selection
+> and a keystroke each went from about 50 ms to the next frame.
 
 ### 3d. Parts and an assembly (L)
 
@@ -635,6 +644,17 @@ const Editor = BuilderView.assemble(PageBuilder, p => [
 them, with the tree Behavior declared by its part. The spike decides whether
 Behaviors can be declared per part and attached by the assembly with the
 current `Behavior.attach`, or need a new `Parts.behavior`.
+
+> **Done, 2026-09-26, but for regions and B10.** `SlotView.parts(Slots)<Input,
+> Message>()` makes parts and an assembly. A part's Behaviors are declared
+> with it over its selection, which answers the spike: the current
+> `Behavior.attach` is not used for them, and no `Parts.behavior` was needed.
+> A Mixin attached to the whole assembly that reads the input makes the
+> parts it reaches redraw every time. It stays correct, just not cached.
+> The Builder is `BuilderView.parts(builder)`, ten parts, with
+> `BuilderView.assemble(render)` for an application's own layout and
+> `define` as the default. The default markup is unchanged: B9's regions
+> as Slots, and the CMS editor and `ListView`, are still to do.
 
 **B10 lands here.** `Renderer.render`'s edit options take `Option`s
 (`selected`, `drop`, and `editing` from Phase 5e). `RenderContext.on` returns
