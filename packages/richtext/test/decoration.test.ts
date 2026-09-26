@@ -156,6 +156,8 @@ describe('the pieces a run is drawn as', () => {
   it('is the whole run, empty or not, when nothing covers it', () => {
     expect(drawn('abc', [])).toEqual([['abc', []]])
     expect(drawn('', [])).toEqual([['', []]])
+    // Spans handed over by a caller, not projected, can still name an empty run.
+    expect(drawn('', [span(0, 1, 'x')])).toEqual([['', []]])
   })
 
   it('cuts at every edge and gives each piece what covers all of it', () => {

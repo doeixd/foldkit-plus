@@ -21,9 +21,9 @@ import {
   placeRendering,
   placeVocabulary,
   vocabularyFor,
-  type Decorate,
   type Vocabulary,
 } from './host.js'
+import type { Decorate } from './events.js'
 
 /** Interaction state the parent owns beside the document. */
 export const EditorState = Schema.Struct({

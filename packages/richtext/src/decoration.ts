@@ -92,15 +92,15 @@ export interface RunPiece<Data = unknown> {
 
 /**
  * A run's text cut at every edge of the spans over it, each piece with the decorations
- * that cover it — what every interpreter draws, so each draws the same pieces. A run no
- * span touches is one piece, even when its text is empty, because an interpreter still has
- * to render somewhere for a caret to sit.
+ * that cover it — what every interpreter draws, so each draws the same pieces. An empty run,
+ * or one no span touches, is one undecorated piece: an interpreter still has to render
+ * somewhere for a caret to sit, and nothing can be drawn over no text.
  */
 export const runPieces = <Data>(
   text: string,
   spans: ReadonlyArray<DecorationSpan<Data>>,
 ): ReadonlyArray<RunPiece<Data>> => {
-  if (spans.length === 0) return [{ text, decorations: [] }]
+  if (spans.length === 0 || text.length === 0) return [{ text, decorations: [] }]
   const edges = new Set<number>([0, text.length])
   for (const span of spans) {
     edges.add(Math.max(0, Math.min(text.length, span.from)))

@@ -230,10 +230,11 @@ piece becomes a `span` with `data-decoration=<kind>`, with the run's marks insid
 stylesheet reaches both — and a run no decoration covers renders exactly as before.
 `renderBlocks` takes no set: a slice's positions cannot be resolved without the document
 they came from. The editable adapter draws the same elements (`mount`/`patch` above), so a
-stylesheet serves both interpreters. Through an attachment, the set comes from `attach`'s
-`decorate(document)` option: the mount draws `decorate(content)` and every
+stylesheet serves both interpreters. Through an attachment, the set comes from the
+`decorate(document)` option: `mountInto` draws `decorate(content)`, and every
 `attachment.sync` draws `decorate` of the synced document, so a derived highlight follows
-each edit.
+each edit. `attach` on its own draws nothing until the first sync; pass the first set to
+`mount` yourself.
 
 Foldkit types one builder per tag name and publishes no builder for an arbitrary tag,
 so a renderer tag outside the tags Foldkit can build — a custom element's, say — is

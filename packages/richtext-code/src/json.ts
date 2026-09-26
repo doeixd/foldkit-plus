@@ -1,9 +1,9 @@
 /**
  * A JSON tokenizer (§130): exact to JSON's grammar, and total over any text, because what a
- * code block holds while someone types is usually not valid JSON yet. It never throws and
- * every token lies inside the text, in order, without overlap — the contract
- * `codeDecorations` enforces — so a half-typed document highlights what it can and leaves the
- * rest plain.
+ * code block holds while someone types is usually not valid JSON yet. It never throws, and
+ * every token lies inside the text, in order, without overlap — `codeDecorations` refuses a
+ * token outside the text, and the order is this lexer's own — so a half-typed document
+ * highlights what it can and leaves the rest plain.
  */
 import type { CodeToken, CodeTokenizer } from 'foldkit-richtext'
 

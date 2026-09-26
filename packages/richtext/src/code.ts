@@ -29,8 +29,8 @@ export type CodeTokenizer = (text: string) => ReadonlyArray<CodeToken>
  * because the language is read from the document, and a plain object would answer a
  * language named `constructor` from its prototype.
  *
- * A token outside its block's text, or one that covers nothing, throws with the language
- * that produced it: it is a tokenizer's bug, and a decoration guessed from it would
+ * A token outside its block's text, one that covers nothing, or one at a fractional offset
+ * throws with the language that produced it: it is a tokenizer's bug, and a decoration guessed from it would
  * highlight the wrong text.
  */
 export const codeDecorations = (
