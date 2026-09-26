@@ -101,10 +101,15 @@ const make =
  * again, or whose view throws is a placeholder, which is nothing in view mode
  * and a labelled box in edit mode.
  */
-const render = <Blocks extends AnyBlock, Message>(
+const render = <Blocks extends AnyBlock, Message, Into = Message>(
   renderer: Renderer<Blocks, Message>,
   document: Document,
-  h: HtmlBuilder<Message>,
+  /**
+   * The builder to draw with: the application's own. A Renderer that sends
+   * nothing (`Renderer.make`) draws with any application's, since its views
+   * cannot make a Message; one that sends Messages takes a builder of those.
+   */
+  given: HtmlBuilder<[Message] extends [never] ? Into : Message>,
   options: {
     readonly mode?: Mode
     /** In edit mode, the node to mark selected. */
@@ -127,6 +132,9 @@ const render = <Blocks extends AnyBlock, Message>(
       { readonly id: NodeId; readonly zone: 'before' | 'inside' | 'after' } | undefined
   } = {},
 ): ReadonlyArray<Html> => {
+  // For a Renderer that sends nothing, `Into` is the application's Message, and
+  // no view can make one: drawing with the application's builder is safe.
+  const h = given as unknown as HtmlBuilder<Message>
   const mode = options.mode ?? 'view'
   const entries = renderer.entries as unknown as Readonly<
     Record<string, (context: RenderContext<AnyBlock, Message>) => Html>

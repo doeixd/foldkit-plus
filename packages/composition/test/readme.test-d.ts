@@ -122,6 +122,10 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
       h.section([h.DataAttribute('tone', props.tone)], [...regions.body]),
   })
   expectTypeOf(Renderer.render(SiteRenderer, page, inertHtml)).toEqualTypeOf<ReadonlyArray<Html>>()
+  // A Renderer that sends nothing draws with the application's own builder, whatever its Messages.
+  const appBuilder = (h: HtmlBuilder<{ readonly _tag: 'Opened' }>) =>
+    Renderer.render(SiteRenderer, page, h)
+  void appBuilder
 
   // URLs
   const Image = Block.define('Image', {
@@ -280,6 +284,11 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
     Renderer.render(SiteRenderer, after, h, {
       data: Stateful.views(Placed, Site, Carousel, after, model, h),
     })
+  // One that sends Messages draws only with a builder of those Messages.
+  const other = (h: HtmlBuilder<{ readonly _tag: 'Elsewhere' }>) =>
+    // @ts-expect-error the page's Messages are not this builder's
+    Renderer.render(SiteRenderer, after, h)
+  void other
   void step
   void draw
 }

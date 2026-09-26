@@ -355,7 +355,10 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   props do not decode, that is missing or reached twice, or whose view throws
   is a placeholder: nothing for a visitor, a labelled box in edit mode.
 - **The builder is a parameter,** so one Renderer draws in the browser, in a
-  test with `inertHtml`, and on the server.
+  test with `inertHtml`, and on the server. A Renderer made with
+  `Renderer.make` sends nothing, so it takes any application's builder, the
+  view's own `h`; one made with `Renderer.forMessages<Message>()` takes a
+  builder of those Messages only.
 - **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
   element carrying `data-composition-node`, so an editor's canvas draws the
   page a visitor sees. The wrapper also carries the editor's marks, from the

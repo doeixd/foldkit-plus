@@ -6,7 +6,7 @@
 import { Option } from 'effect'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
-import { inertHtml, type Document, type Html, type HtmlBuilder } from 'foldkit/html'
+import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import {
   actives,
   blogRead,
@@ -47,10 +47,9 @@ const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
     onNone: () => [
       status(slots, h, pending(tagOf(pageRead(model), model), 'There is no page at this address.')),
     ],
-    // The site's Blocks send nothing, so they draw with a builder that sends nothing, as
-    // the Builder's canvas does; their links are followed by the application's routing.
+    // The site's Blocks send nothing; their links are followed by the application's routing.
     onSome: document =>
-      Renderer.render(SiteRenderer, document, inertHtml, { data: actives.blocks.data(model) }),
+      Renderer.render(SiteRenderer, document, h, { data: actives.blocks.data(model) }),
   })
 
 const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {

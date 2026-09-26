@@ -48,7 +48,10 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
    own `h`; it draws with `inertHtml`, as the Builder's canvas does. That works
    (the result is plain `Html`), but nothing says so. *Proposed:* document it in
    the composition README's "Drawing a page", or let `render` accept any builder
-   when the Renderer sends nothing. Status: worked around.
+   when the Renderer sends nothing. **Fixed** (plan area 4b): a message-free
+   Renderer takes any application's builder, so the site view draws with its own
+   `h`; one with Messages still refuses another application's (a type test pins
+   both).
 
 6. **The inspector draws a number-literal prop as text it cannot edit.**
    `Schema.Literals([3, 5])` resolves to no control (only string literals make a

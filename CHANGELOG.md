@@ -273,6 +273,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Data.fetch` and the fold's `fetch` are removed. `Remote.query` and
   `Remote.queryMessage` still run one page by hand. The store gains `grown`
   and the `WindowGrown` Message.
+- **`foldkit-composition`: `Renderer.render` of a Renderer that sends nothing
+  takes any application's builder,** so a view passes its own `h` instead of
+  `inertHtml`.
 - **`foldkit-remote-drizzle`: `query` is written without type arguments;** the
   README says how the principal is inferred from `where`'s parameter.
   `foldkit-cms-drizzle` dropped its own.
