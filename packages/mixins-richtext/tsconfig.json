@@ -8,8 +8,10 @@
     "noEmit": false,
     "paths": {
       "foldkit-mixins": ["../mixins/src/index.ts"],
+      "foldkit-primitives/interaction": ["../primitives/src/interaction/index.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom": ["../richtext-dom/src/index.ts"],
+      "foldkit-richtext-dom/editor": ["../richtext-dom/src/editor.ts"],
       "foldkit-richtext-dom/toolbar": ["../richtext-dom/src/toolbar.ts"]
     }
   },
@@ -17,6 +19,9 @@
   "references": [
     {
       "path": "../mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../primitives/tsconfig.build.json"
     },
     {
       "path": "../richtext/tsconfig.build.json"
