@@ -607,7 +607,8 @@ export const Builder = {
 
     const refuse = (
       model: Model,
-      refusal: Refusal,
+      // An Operation `apply` refused, or a paste of nothing: no Operation at all.
+      refusal: Refusal | { readonly code: 'builder:nothing-to-paste'; readonly message: string },
     ): { readonly model: Model; readonly commands: Commands } => ({
       model: { ...model, refused: Option.some(refusal) },
       commands: announce(refusal.message, 'assertive'),
@@ -970,7 +971,7 @@ export const Builder = {
           })
           if (Option.isNone(tree))
             return refuse(model, {
-              code: 'composition:malformed-tree',
+              code: 'builder:nothing-to-paste',
               message: Option.isSome(message.text)
                 ? 'The clipboard holds no part of a page'
                 : 'Nothing has been copied',

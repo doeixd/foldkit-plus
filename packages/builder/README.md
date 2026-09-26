@@ -191,7 +191,8 @@ pastes in another.
   every node against the Catalog. Anything that does not decode or fit (text
   that is not part of a page, an unknown Block, a prop of the wrong type, a
   child it names but does not hold) is refused whole: nothing goes in, and
-  `refused` says why.
+  `refused` says why. Text that is not part of a page, or no copy at all, is
+  `builder:nothing-to-paste`; the rest are `apply`'s own codes.
 - **It goes where a new node of its root's Block would** (`placeFor`): inside
   the selection when it fits there, else after it. Where it fits nowhere, it
   is tried last on the page, and refused there with the reason.

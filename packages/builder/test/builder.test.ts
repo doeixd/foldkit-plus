@@ -709,7 +709,10 @@ describe('copy, cut and paste', () => {
 
   it('says so when nothing was copied and the system clipboard cannot be read', () => {
     const refused = send(page, Message.PasteAsked())
-    expect(some(refused.refused, 'a refusal').message).toBe('Nothing has been copied')
+    expect(some(refused.refused, 'a refusal')).toEqual({
+      code: 'builder:nothing-to-paste',
+      message: 'Nothing has been copied',
+    })
   })
 
   it('cuts a node into the clipboard, and does not cut one its Region needs', () => {
