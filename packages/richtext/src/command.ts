@@ -998,9 +998,18 @@ export const run = (
         : runAction(state, [{ type: 'DeleteBackward' }, { type: 'SplitBlock' }], ids, options)
     }
     const textId = ids.mint()
+    const blockId = ids.mint()
+    // Enter at the end of a heading starts the body under it, not another heading: what
+    // follows a title is text. Mid-heading, both halves stay the heading they were.
+    const block = blockAtPath(state.document, at.path)
+    const endsHeading =
+      block?.type === 'Heading' &&
+      caret.offset >= at.text.length &&
+      block.children.slice(at.runIndex + 1).every(run => run.text.length === 0)
     return apply(state, [
       ...deletions,
-      Edit.splitBlock(at.blockId, at.id, caret.offset, ids.mint(), textId),
+      Edit.splitBlock(at.blockId, at.id, caret.offset, blockId, textId),
+      ...(endsHeading ? [Edit.retypeBlock(NodeId.make(blockId), { type: 'Paragraph' })] : []),
       Edit.setSelection(caretAt({ node: NodeId.make(textId), offset: 0, affinity: 'after' })),
     ])
   }

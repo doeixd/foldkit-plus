@@ -192,6 +192,9 @@ edge still does nothing. At the start of a kind the vocabulary declares as holdi
 as a `CodeBlock`, Backspace retypes it to a paragraph instead of joining it to the block
 above, which undoes a fence the way a lift undoes a list marker.
 
+`SplitBlock` at the end of a heading starts a paragraph under it, since what follows a title is
+text; in the middle of one, both halves stay headings.
+
 `SplitBlock` inside a list item works on the item, with a vocabulary to say what an item is: a
 container its parent declares it holds (a `List` holds `ListItem`s), and not isolating. Enter
 splits the block, and the second half, with every block after it in the item, becomes a new

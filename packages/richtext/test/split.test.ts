@@ -280,3 +280,78 @@ describe('split blocks', () => {
     },
   )
 })
+
+describe('Enter in a heading', () => {
+  /** `Title`, then a bold run holding `trailing`: empty unless a case says otherwise. */
+  const heading = (trailing: string) =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Heading',
+          id: 'h',
+          level: 2,
+          children: [
+            { type: 'Text', id: 'v', text: 'Title', marks: [] },
+            { type: 'Text', id: 'w', text: trailing, marks: ['Bold'] },
+          ],
+        },
+      ],
+    })
+  const caret = (node: string, offset: number): RichText.Selection => ({
+    type: 'Range',
+    anchor: position(node, offset),
+    focus: position(node, offset),
+  })
+
+  it.each<[string, string, RichText.Selection, ReadonlyArray<string>]>([
+    ['at its end starts a paragraph', '', caret('v', 5), ['Heading', 'Paragraph']],
+    [
+      'at the end of a run with text after it keeps a heading',
+      '!',
+      caret('v', 5),
+      ['Heading', 'Heading'],
+    ],
+    ['in its middle keeps both halves headings', '', caret('v', 2), ['Heading', 'Heading']],
+    [
+      'over a range to its end keeps a heading, as the deletion decides what is left',
+      '',
+      { type: 'Range', anchor: position('v', 2), focus: position('v', 5) },
+      ['Heading', 'Heading'],
+    ],
+  ])('%s', (_, trailing, selection, blocks) => {
+    let n = 0
+    const result = success(
+      RichText.run(
+        { document: heading(trailing), selection },
+        { type: 'SplitBlock' },
+        { mint: () => `new-${++n}` },
+      ),
+    )
+    expect(result.state.document.children.map(block => block.type)).toEqual(blocks)
+  })
+
+  it('leaves Enter at the end of a code block splitting it, as a retype would be refused', () => {
+    const code = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'c',
+          props: {},
+          children: [{ type: 'Text', id: 'c-t', text: 'let x', marks: [] }],
+        },
+      ],
+    })
+    let n = 0
+    const result = success(
+      RichText.run(
+        { document: code, selection: caret('c-t', 5) },
+        { type: 'SplitBlock' },
+        { mint: () => `new-${++n}` },
+      ),
+    )
+    expect(result.state.document.children).toHaveLength(2)
+  })
+})
