@@ -104,9 +104,10 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
   vocabulary, domain, application and story, placed the same way.
 - `siteApp.ts` and `siteView.ts` are the public site: its routes, its reads, and
   its view. `seed.ts` is what `pnpm dev` starts with.
-- `shell.ts`, `view.ts` and `pagesView.ts` are the studio's views; `style.ts` and
-  `sheet.ts` its appearance and the site's, as `foldkit-mixins` Style compiled
-  into one stylesheet.
+- `shell.ts`, `view.ts` and `pagesView.ts` are the studio's views, and
+  `icons.ts` its icons, drawn as SVG by the same html builder; `style.ts` and
+  `sheet.ts` are its appearance and the site's, as `foldkit-mixins` Style
+  compiled into one stylesheet.
 
 ## In the browser
 
@@ -117,13 +118,15 @@ in-process one:
 
 | Address | What it is |
 | --- | --- |
-| `/` | **The studio's posts**: the worklist (with search and the archive) beside the editor, the post's own page under the form (where a preview shows), and its history. |
-| `/pages` | **The studio's pages**: the site's pages, and the page form with the page Builder in it. |
-| `/site` | **The public site**: the home page, `/site/blog`, a post at `/site/blog/<slug>`, and any other page at `/site/<slug>`, read as a visitor may see them. |
+| `/` | **The studio's posts**: the worklist (active or archived, with search), and a post opened across the screen: a bar with its state and Publish, the post written as it will read, and its publishing, history and other actions beside it. Preview swaps the form for the site's own article. |
+| `/pages` | **The studio's pages**: the site's pages, and a page opened in the page Builder: the Blocks to add and the page's layers on the left, the page in the middle, the selected Block's settings on the right. |
+| `/site` | **The public site**: the home page, the blog at `/site/blog` (the newest post leading), a post at `/site/blog/<slug>`, and any other page at `/site/<slug>`, read as a visitor may see them. |
 
 **Which chair you sit in is in the address** (`?as=wren`, `?as=edda`,
-`?as=visitor`), so a reload is a change of chair, and two windows side by side
-are two authors on one entry. The site reads as a visitor unless the address
+`?as=visitor`), and the studio's sidebar switches it, so a reload is a change
+of chair, and two windows side by side are two authors on one entry. What a
+chair may do is the server's `allow`, read back per entry: the writer's editor
+has no Publish button and says an editor publishes, where the editor's has one. The site reads as a visitor unless the address
 says otherwise, so it shows only what is published.
 
 - **The site is the Builder's output, drawn by the same views.** `site.ts` is
