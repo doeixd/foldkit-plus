@@ -181,8 +181,10 @@ handler instead.
 A Style's compiled rules (`Style.pseudo`, `Style.media`, a layer) arrive with
 the Slot that draws them. In a browser, the first time a Slot draws a class,
 its CSS is appended to one `<style data-foldkit-styles>` element, in the
-microtask after the draw and before the browser paints, after the standard
-layer order. Classes a stylesheet already on the page carries are left out, so
+microtask after the draw and before the browser paints. The element is made
+only when there is something to add, and declares the standard layer order
+first unless a sheet on the page already declares one, which it leaves alone.
+Classes a stylesheet already on the page carries are left out, so
 installing `Style.stylesheet(...)` yourself (for the first paint, or on the
 server) never duplicates them. Outside a browser nothing is injected: a server
 puts `Style.usedIn(html)`, the CSS of every compiled class the page's markup

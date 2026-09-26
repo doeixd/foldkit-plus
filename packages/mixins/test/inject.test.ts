@@ -39,12 +39,32 @@ it('inserts a drawn class’s CSS once, after the layer order', async () => {
   expect(text).toContain(rule.css)
 })
 
-it('leaves out what a stylesheet on the page already carries', async () => {
+it('adds nothing, not even an element, when the page’s sheets carry what is drawn', async () => {
   const sheet = document.createElement('style')
   sheet.textContent = Style.stylesheet(Look)
   document.head.appendChild(sheet)
   await draw()
-  expect(injected()?.textContent ?? '').not.toContain(rule.className)
+  expect(injected()).toBeNull()
+})
+
+it('counts again when a sheet it counted is removed', async () => {
+  const sheet = document.createElement('style')
+  sheet.textContent = Style.stylesheet(Look)
+  document.head.appendChild(sheet)
+  await draw()
+  sheet.remove()
+  await draw()
+  expect(injected()?.textContent ?? '').toContain(rule.css)
+})
+
+it('leaves a layer order the page declares alone', async () => {
+  const sheet = document.createElement('style')
+  sheet.textContent = '@layer base, app;'
+  document.head.appendChild(sheet)
+  await draw()
+  const text = injected()?.textContent ?? ''
+  expect(text).toContain(rule.css)
+  expect(text).not.toContain('@layer reset')
 })
 
 it('starts afresh when its element is gone', async () => {

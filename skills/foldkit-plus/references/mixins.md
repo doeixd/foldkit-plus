@@ -327,7 +327,8 @@ them by layer order alone.
   (`Anchor.behavior(Slots)({ floating, config })`).
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is
-  appended once to a `<style data-foldkit-styles>`. Install `Style.stylesheet(L.declare, …)`
+  appended once to a `<style data-foldkit-styles>` (made only when needed; it declares the
+  standard layer order unless the page already declares one). Install `Style.stylesheet(L.declare, …)`
   yourself for the layer order, the theme and a first paint; injection skips what it carries. On a
   server, `Style.usedIn(html)` is the CSS of the classes the rendered markup uses.
 

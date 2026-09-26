@@ -11,9 +11,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 - **`foldkit-mixins`: a Style's rules arrive with the Slot that draws them.**
   Compiling a Style records each class with its CSS; in a browser, a class a
-  Slot draws is appended once to one `<style data-foldkit-styles>` element,
-  after the standard layer order, unless a stylesheet on the page already
-  carries it. A Style left out of an application's `Style.stylesheet` now
+  Slot draws is appended once to one `<style data-foldkit-styles>` element
+  (made only when there is something to add, declaring the standard layer
+  order unless the page declares its own), unless a stylesheet on the page
+  already carries it. A Style left out of an application's `Style.stylesheet` now
   draws instead of silently drawing nothing. `Style.stylesheet` is unchanged.
 - **`foldkit-mixins`: `Style.usedIn(html)`**, the CSS of every compiled class a
   page's markup uses, after the layer order: what a server puts in the head.

@@ -64,7 +64,7 @@ export const buildersFor = <Slots, Message, Input>(
               ...(item === undefined ? {} : { item }),
             })
             // What this Slot draws brings its CSS, whether or not a stylesheet listed it.
-            ensure(evaluated.classes ?? [], evaluated.globalCss)
+            ensure(evaluated)
             contributions.push(evaluated)
           }
         }
