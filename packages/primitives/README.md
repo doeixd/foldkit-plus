@@ -764,6 +764,13 @@ is measured by its first child (`boxOf`). The Mount is
 `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
 attaches it, and `zoneOf(box, y)` is the pure split.
 
+A drag may also land somewhere other than among its own: with
+`targets: { attribute: 'data-composition-node', within: '#page' }`, what is
+dragged is still one of the container's marked descendants (a palette's
+tiles), and `over` is an element marked by that attribute inside the one
+`within` selects (the page's nodes). Its own tiles, and a matching element
+outside that one, are then over nothing.
+
 `FocusVisible` is the one entry whose Bundle lives elsewhere: `InputModality`
 in `foldkit-primitives/events` keeps `{ modality }` (`'keyboard'`, `'pointer'`,
 or `'unknown'` before any input), fed by the window's `keydown` (a modifier

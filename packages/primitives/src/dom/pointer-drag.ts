@@ -86,16 +86,26 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
   args: {
     /** The attribute that marks a descendant, holding its id. */
     attribute: Schema.String,
+    /**
+     * Where a drag may land, when not on the element's own marked descendants:
+     * the elements marked by `attribute` inside the one `within` selects, such
+     * as a palette's Blocks dragged onto a page. A drop's `over` is then one of
+     * those; what is dragged is still one of the element's own.
+     */
+    targets: Schema.optionalKey(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
   },
-  execute: ({ element, attribute }) =>
+  execute: ({ element, attribute, targets }) =>
     Stream.callback<DragFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const owner = element.ownerDocument
+          // What a drop lands on: the element's own marked descendants, or those of `targets`.
+          const landsOn = targets?.attribute ?? attribute
           const find = (from: EventTarget | null): Element | null => {
             if (!(from instanceof Element)) return null
-            const marked = from.closest(`[${attribute}]`)
-            return marked !== null && element.contains(marked) ? marked : null
+            const region = targets === undefined ? element : owner.querySelector(targets.within)
+            const marked = from.closest(`[${landsOn}]`)
+            return marked !== null && region !== null && region.contains(marked) ? marked : null
           }
           // A press not yet a drag, or a drag under way: one pointer's, the first down.
           let pressed: {
@@ -117,8 +127,10 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                 ? owner.elementFromPoint(event.clientX, event.clientY ?? 0)
                 : null
             const marked = find(under ?? event.target)
-            const id = marked?.getAttribute(attribute) ?? null
-            if (marked === null || id === null || id === dragging) return null
+            const id = marked?.getAttribute(landsOn) ?? null
+            // Over itself is over nothing, where what is dragged is among what it lands on.
+            if (marked === null || id === null || (targets === undefined && id === dragging))
+              return null
             return { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
           }
           const ours = (event: Positioned) =>

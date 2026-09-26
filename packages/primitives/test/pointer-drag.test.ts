@@ -178,6 +178,64 @@ describe('PointerDrag', () => {
     }))
 })
 
+describe('PointerDrag onto another region', () => {
+  it('drags one of its own onto what another region marks, and nothing else', async () => {
+    // A palette of tiles, a page of nodes, and a node marked the same way outside the page.
+    const palette = document.createElement('ul')
+    const tile = row('Heading', 0)
+    palette.append(tile)
+    const page = document.createElement('div')
+    page.id = 'page'
+    const node = (id: string, top: number) => {
+      const element = document.createElement('div')
+      element.setAttribute('data-node', id)
+      element.getBoundingClientRect = () =>
+        DOMRect.fromRect({ x: 0, y: top, width: 100, height: 30 })
+      return element
+    }
+    const first = node('n1', 100)
+    const second = node('n2', 130)
+    page.append(first, second)
+    const stray = node('elsewhere', 200)
+    document.body.append(palette, page, stray)
+    try {
+      const facts = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({
+                attribute: 'data-row',
+                targets: { attribute: 'data-node', within: '#page' },
+              }).f(palette, Mount.liveViewStateChanges),
+              5,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          fire(tile, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+          // Its own tiles are not where it lands, nor is a node outside the page.
+          fire(tile, 'pointermove', { clientX: 10, clientY: 20 })
+          fire(first, 'pointermove', { clientX: 10, clientY: 125 })
+          fire(stray, 'pointermove', { clientX: 10, clientY: 210 })
+          fire(second, 'pointermove', { clientX: 10, clientY: 135 })
+          fire(second, 'pointerup')
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'Heading' }),
+        DraggedOver.make({ over: { id: 'n1', zone: 'after' } }),
+        DraggedOver.make({ over: null }),
+        DraggedOver.make({ over: { id: 'n2', zone: 'before' } }),
+        DragDropped.make({ id: 'Heading', over: { id: 'n2', zone: 'before' } }),
+      ])
+    } finally {
+      palette.remove()
+      page.remove()
+      stray.remove()
+    }
+  })
+})
+
 describe('PointerDrag, one pointer at a time', () => {
   it('follows the pointer that pressed, not a second one, and ends when its button is up', () =>
     withList(async ({ list, a, b, c }) => {

@@ -27,6 +27,11 @@ export interface BehaviorOptions<Slots, ParentMessage> {
   readonly container: keyof Slots & string
   /** The attribute that marks a descendant, holding its id. */
   readonly attribute: string
+  /**
+   * Where a drag may land when not among the container's own: elements marked
+   * by `attribute` inside the one `within` selects, such as a page for a palette.
+   */
+  readonly targets?: { readonly attribute: string; readonly within: string }
   /** Turns each fact into the view's Message. */
   readonly toMessage: (fact: DragFact) => ParentMessage
 }
@@ -41,7 +46,14 @@ export const behavior =
         [options.container]: Behavior.slot({
           requires: { capability: Capability.Container },
           mount: () =>
-            Mount.mapMessage(PointerDragMount({ attribute: options.attribute }), options.toMessage),
+            Mount.mapMessage(
+              PointerDragMount(
+                options.targets === undefined
+                  ? { attribute: options.attribute }
+                  : { attribute: options.attribute, targets: options.targets },
+              ),
+              options.toMessage,
+            ),
         }),
         // Keyed by a value the caller chose; `forSlots` checks the key exists.
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
