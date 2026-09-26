@@ -91,11 +91,11 @@ Each subpath is one concern, one import:
 - `time` — clock facts: Timer, Interval, Debounce, Throttle, relative time
 - `state` — owned UI state: Pagination, History, Locale, SelectionSet, Virtual, range
 - `motion` — animation state: Tween, Spring, Presence
-- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, PointerDrag, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
+- `interaction` — a Bundle (or Mount) and its `foldkit-mixins` Behavior: RovingTabindex, Typeahead, ListNavigation, GridNavigation, TreeNavigation, FocusScope, Press, LongPress, Move, Targets, PointerDrag, EditableText, FocusVisible, DismissLayer, ScrollLock, HideOutside, Selection, LiveAnnounce
 - `device` — hardware: Geolocation, MediaDevices, MediaStream, Permissions, Fullscreen
 - `events` — raw browser events: Visibility, WindowSize, Idle, InputModality, keyboard, pointer, scroll, focus
 - `observers` — element Mounts: Resize, Intersection, Mutation, Bounds
-- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Measure, Move, Targets, PointerDrag, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
+- `dom` — element Mounts and one-shot Commands: Autofocus, FocusScope, KeepInView, Measure, Move, Targets, PointerDrag, EditableText, ScrollLock, HideOutside, InputMask, clipboard, share, script loading
 
 ## Sixty seconds: follow the color scheme
 
@@ -746,6 +746,28 @@ navigating inside an editor's canvas. The Mount is `Targets({ attribute,
 preventDefault })` in `foldkit-primitives/dom`; `Targets.behavior(Slots)<Input,
 Message>({ container, attribute, preventDefault?, toMessage })` attaches it.
 `targetOf(container, from, attribute)` is the pure lookup.
+
+`EditableText` is text typed into a marked descendant of a container while it
+is `contenteditable`, as one Mount on the container. The view decides which
+field is editable, and focuses it; the Mount reads what is typed:
+
+- **Text, never markup.** It reads `innerText`. A field is one line unless it
+  carries `aria-multiline="true"`, and in one line a line break becomes a
+  space. Where the browser lacks `contenteditable="plaintext-only"`, a paste is
+  inserted as its text.
+- **`TextEdited { field, text }`** on each change, `field` being the marking
+  attribute's value. Nothing is reported while an input method composes; the
+  composed text arrives once.
+- **`TextCommitted { field, text }`** on Enter (Shift+Enter breaks a line in a
+  multiline field) or on leaving the field; **`TextCancelled { field, initial }`**
+  on Escape, which also puts the text the field had when it was focused back
+  in the DOM. A view that stopped redrawing the field while it was edited would
+  not. An edit ends once: the blur after Enter commits nothing more.
+
+The Mount is `EditableText({ attribute })` in `foldkit-primitives/dom`;
+`EditableText.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
+attaches it. What a change means (a prop set, an undo group) is the parent's
+`update`.
 
 `PointerDrag` is dragging one marked descendant onto another, marked the way
 `Targets` marks them. A primary press on one that moves more than

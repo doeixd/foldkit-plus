@@ -97,6 +97,11 @@ into a chord answer. Slices that must survive reload persist through
 - **Which item is under the pointer, or was clicked,** among many: `Targets.behavior(Slots)<Input, Message>({ container, attribute: 'data-row', preventDefault?, toMessage })`
   (the Mount is `Targets({ attribute, preventDefault })` in `/dom`): `TargetHovered { id | null }`,
   `TargetPressed { id, shiftKey, ... }`, from one set of listeners on the container.
+- **Text typed in place** (a heading edited on the page): `EditableText.behavior(Slots)<Input, Message>({ container,
+  attribute: 'data-field', toMessage })` (Mount `EditableText({ attribute })` in `/dom`) over the marked
+  field that is `contenteditable`: `TextEdited { field, text }` per change (not while an input method
+  composes), `TextCommitted` on Enter or blur, `TextCancelled { initial }` on Escape (the DOM gets
+  `initial` back). Text only; one line unless `aria-multiline="true"`.
 - **Dragging one item onto another** (reorder a tree or a canvas):
   `PointerDrag.behavior(Slots)<Input, Message>({ container, attribute, toMessage })`
   (Mount `PointerDrag({ attribute })` in `/dom`): `DragStarted { id }` past a 4px
