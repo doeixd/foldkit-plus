@@ -52,6 +52,12 @@ const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
       Renderer.render(SiteRenderer, document, h, { data: actives.blocks.data(model) }),
   })
 
+/** How long a post takes to read, at a reader's usual pace. */
+const readingTime = (body: string) => {
+  const words = body.split(/\s+/).filter(word => word !== '').length
+  return `${Math.max(1, Math.round(words / 230))} min read`
+}
+
 const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   const first = Option.flatMap(postRead(model), read => firstOf(read.read(model)))
   if (Option.isNone(first))
@@ -61,14 +67,19 @@ const post = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
   const found = first.value
   return [
     h.article(slots.article.attrs(), [
-      h.a(slots.back.attrs([h.Href(siteLink('/site/blog'))]), ['← The blog']),
-      h.h1(slots.title.attrs(), [found.title]),
-      h.p(slots.meta.attrs(), [dateOf(Option.fromNullOr(found.publishedAt))]),
+      h.header(slots.articleHead.attrs(), [
+        h.p(slots.meta.attrs(), [
+          `${dateOf(Option.fromNullOr(found.publishedAt))} · ${readingTime(found.body)}`,
+        ]),
+        h.h1(slots.title.attrs(), [found.title]),
+        ...(found.excerpt === '' ? [] : [h.p(slots.standfirst.attrs(), [found.excerpt])]),
+      ]),
       h.div(slots.cover.attrs([h.Style({ background: coverOf(found) })]), []),
       h.div(
         slots.body.attrs(),
         paragraphs(found.body).map(paragraph => h.p([], [paragraph])),
       ),
+      h.a(slots.back.attrs([h.Href(siteLink('/site/blog'))]), ['← More from the blog']),
     ]),
   ]
 }
@@ -81,7 +92,12 @@ const blog = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArra
       : Option.none()
   })
   return [
-    h.h1(slots.heading.attrs(), ['The blog']),
+    h.header(slots.masthead.attrs(), [
+      h.h1(slots.heading.attrs(), ['The blog']),
+      h.p(slots.lede.attrs(), [
+        'Essays on design, data and the craft of shipping, written in the open.',
+      ]),
+    ]),
     Option.match(posts, {
       onNone: () => status(slots, h, pending(tagOf(blogRead(model), model), '')),
       onSome: items =>
@@ -119,21 +135,25 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
     (slug === undefined || ('slug' in model.route && model.route.slug === slug))
       ? [h.AriaCurrent('page')]
       : []
+  // The site's sections: the header's links, and again in the footer.
+  const sections = [
+    { label: 'Home', path: '/site', current: here('Page', 'home') },
+    { label: 'Blog', path: '/site/blog', current: [...here('Blog'), ...here('Post')] },
+    { label: 'About', path: '/site/about', current: here('Page', 'about') },
+  ]
   return h.div(slots.root.attrs(), [
     h.header(slots.header.attrs(), [
-      h.a(slots.brand.attrs([h.Href(siteLink('/site'))]), ['Journal']),
+      h.a(slots.brand.attrs([h.Href(siteLink('/site'))]), [
+        h.span(slots.brandMark.attrs([h.AriaHidden(true)]), ['J']),
+        'Journal',
+      ]),
       h.nav(slots.nav.attrs([h.AriaLabel('Site')]), [
-        h.a(slots.navLink.attrs([h.Href(siteLink('/site')), ...here('Page', 'home')]), ['Home']),
-        h.a(
-          slots.navLink.attrs([h.Href(siteLink('/site/blog')), ...here('Blog'), ...here('Post')]),
-          ['Blog'],
+        ...sections.map(({ label, path, current }) =>
+          h.a(slots.navLink.attrs([h.Href(siteLink(path)), ...current]), [label]),
         ),
-        h.a(slots.navLink.attrs([h.Href(siteLink('/site/about')), ...here('Page', 'about')]), [
-          'About',
-        ]),
         ...(reader === 'visitor'
           ? []
-          : [h.a(slots.navLink.attrs([h.Href(`/?as=${reader}`)]), ['Studio ↗'])]),
+          : [h.a(slots.studio.attrs([h.Href(`/?as=${reader}`)]), ['Open the studio'])]),
       ]),
     ]),
     h.main(
@@ -144,7 +164,13 @@ const Site = SlotView.define(SiteSlots, (model: Model, slots, h: HtmlBuilder<Mes
           ? post(model, slots, h)
           : blog(model, slots, h),
     ),
-    h.footer(slots.footer.attrs(), ['Written in the Journal Studio, built with Foldkit Plus.']),
+    h.footer(slots.footer.attrs(), [
+      h.span([], ['Journal · written in the studio, built with Foldkit Plus.']),
+      h.nav(
+        slots.footerNav.attrs([h.AriaLabel('Footer')]),
+        sections.map(({ label, path }) => h.a([h.Href(siteLink(path))], [label])),
+      ),
+    ]),
   ])
 }).pipe(Style.attach(SiteStyle))
 

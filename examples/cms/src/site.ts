@@ -415,6 +415,8 @@ const PostsSlots = Slots.define({
   list: part,
   item: part,
   cover: part,
+  /** The card's words: its title, excerpt and date, beside or below the cover. */
+  body: part,
   title: part,
   excerpt: part,
   meta: part,
@@ -433,31 +435,72 @@ const PostsLook = Appearance.make(PostsSlots, {
         padding: '0',
       }),
       item: Style.compose(
-        Style.self({
-          background: t.surface.base,
-          border: `1px solid ${t.outline.subtle}`,
-          borderRadius: t.radius.lg,
-          display: 'grid',
-          overflow: 'hidden',
-        }),
+        Style.self({ display: 'grid', gap: t.space.sm, position: 'relative' }),
         Style.nest('a', { color: 'inherit', textDecoration: 'none' }),
-        Style.nest('a:hover', { color: t.accent.ink }),
+        // The title's link covers the card, so the whole card opens the post.
+        Style.nest('a::after', { content: '""', inset: '0', position: 'absolute' }),
+        Style.nest('&:hover a', { color: t.accent.ink }),
+        Style.nest('&:hover > :first-child', { opacity: '0.88' }),
       ),
-      cover: Style.self({ aspectRatio: '16 / 9' }),
+      cover: Style.self({
+        aspectRatio: '16 / 10',
+        borderRadius: t.radius.lg,
+        transition: 'opacity 150ms ease',
+      }),
+      body: Layout.stack({ gap: t.space['2xs'] }),
       title: Style.self({
         fontFamily: t.font.heading,
         fontSize: t.size.lg,
-        margin: `${t.space.md} ${t.space.md} 0`,
+        letterSpacing: '-0.01em',
+        lineHeight: '1.25',
+        margin: '0',
       }),
-      excerpt: Style.self({ color: t.text.muted, margin: `${t.space.xs} ${t.space.md} 0` }),
-      meta: Style.self({ color: t.text.subtle, fontSize: t.size.sm, margin: t.space.md }),
+      excerpt: Style.self({
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: '3',
+        color: t.text.muted,
+        display: '-webkit-box',
+        margin: '0',
+        overflow: 'hidden',
+      }),
+      meta: Style.self({
+        color: t.text.subtle,
+        fontSize: t.size.xs,
+        fontWeight: t.weight.semibold,
+        letterSpacing: '0.04em',
+        margin: '0',
+        textTransform: 'uppercase',
+      }),
     },
     variants: {
       layout: {
         grid: {
-          list: Style.self({ gridTemplateColumns: 'repeat(auto-fit, minmax(15rem, 1fr))' }),
+          list: Style.self({ gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))' }),
         },
         list: {},
+        // A magazine's front: the newest post leads across the page, its cover
+        // beside its words where there is room and above them where there is not.
+        magazine: {
+          list: Style.compose(
+            Style.self({
+              columnGap: t.space.lg,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))',
+              rowGap: t.space.xl,
+            }),
+            Style.nest('> :first-child', {
+              alignItems: 'center',
+              columnGap: t.space.xl,
+              gridColumn: '1 / -1',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 20rem), 1fr))',
+            }),
+            Style.nest('> :first-child > :first-child', { aspectRatio: '16 / 9' }),
+            Style.nest('> :first-child h3', {
+              fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
+              lineHeight: '1.15',
+            }),
+            Style.nest('> :first-child p:last-child', { fontSize: t.size.lg }),
+          ),
+        },
       },
     },
     defaults: { layout: 'grid' },
@@ -474,16 +517,18 @@ const postCards = <M>(
     posts.map(post =>
       h.li(drawn.item.attrs(), [
         h.div(drawn.cover.attrs([h.Style({ background: coverOf(post) })]), []),
-        h.h3(drawn.title.attrs(), [h.a([h.Href(postHref(post.slug))], [post.title])]),
-        h.p(drawn.excerpt.attrs(), [post.excerpt]),
-        h.p(drawn.meta.attrs(), [dateOf(Option.fromNullOr(post.publishedAt))]),
+        h.div(drawn.body.attrs(), [
+          h.p(drawn.meta.attrs(), [dateOf(Option.fromNullOr(post.publishedAt))]),
+          h.h3(drawn.title.attrs(), [h.a([h.Href(postHref(post.slug))], [post.title])]),
+          h.p(drawn.excerpt.attrs(), [post.excerpt]),
+        ]),
       ]),
     ),
   )
 
-/** Posts as cards, as the PostList Block draws them: the blog's index uses the same look. */
+/** The blog's index: the PostList Block's cards, laid out as a magazine's front. */
 export const postGrid = <M>(h: HtmlBuilder<M>, posts: ReadonlyArray<PostCard>): Html =>
-  postCards(h, PostsLook.draw({ appearance: {}, h }), posts)
+  postCards(h, PostsLook.draw({ appearance: { layout: 'magazine' }, h }), posts)
 
 /** The newest posts: an author picks how many and whether they sit in a grid. */
 export const PostList = QueryBlock.define('PostList', {

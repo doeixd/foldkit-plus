@@ -336,6 +336,16 @@ writing page with its settings beside it) found these.
     that every class a view emits is in an injected sheet, or a registry the
     sheet is built from. Status: worked around (listed).
 
+31. **`Prose.style` writes its measure and leading inline.** The article's body
+    composed `Prose.style` with a rule for `max-width` and `line-height`, and
+    neither applied: Prose sets `max-inline-size` and `line-height` as inline
+    styles, which outrank any rule in any layer, so the body ran the page's
+    full width with no sign why. The way through is Prose's own `measure`
+    option and its `--fk-leading-relaxed` variable. *Proposed:* Prose's
+    declarations as a rule (`Style.self`) in the layer it is placed in, so a
+    later layer can override them as `Style.self`'s docs promise. Status:
+    worked around.
+
 What to change, area by area, is in [cms-example-PLAN.md](./cms-example-PLAN.md).
 
 ## Checked in the browser

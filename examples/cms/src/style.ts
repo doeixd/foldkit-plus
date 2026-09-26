@@ -967,21 +967,36 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
 
 export const SiteSlots = Slots.define({
   root: part,
+  /** The bar across the top: the brand, the site's sections, and the way to the studio. */
   header: part,
   brand: part,
+  brandMark: part,
   nav: part,
   navLink: control,
+  /** The way back to the studio, for an author reading the site. */
+  studio: control,
   main: part,
-  footer: part,
+  /** The top of the blog: its name and what it is about. */
+  masthead: part,
   heading: part,
+  lede: part,
   article: part,
-  cover: part,
-  title: part,
+  /** A post's date, title and excerpt, centred above its cover. */
+  articleHead: part,
   meta: part,
+  title: part,
+  standfirst: part,
+  cover: part,
   body: part,
   back: control,
+  footer: part,
+  footerNav: part,
   status: part,
 })
+
+/** At most `width` wide, in the middle of what holds it. */
+const centred = (width: string) =>
+  Style.self({ marginInline: 'auto', maxWidth: width, width: '100%' })
 
 export const SiteStyle = Style.forSlots(SiteSlots)(
   {
@@ -996,67 +1011,143 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     header: Style.compose(
       L.in(
         'layouts',
-        Layout.cluster({ gap: t.space.lg, justify: 'space-between', align: 'center' }),
+        Layout.cluster({ gap: t.space.md, justify: 'space-between', align: 'center' }),
       ),
       Style.self({
+        backdropFilter: 'saturate(180%) blur(12px)',
+        background: `color-mix(in oklch, ${t.surface.base} 82%, transparent)`,
+        borderBottom: `1px solid ${t.outline.subtle}`,
         boxSizing: 'border-box',
-        margin: '0 auto',
-        maxWidth: '72rem',
-        padding: `${t.space.md} ${t.space.lg}`,
-        width: '100%',
+        // As wide as the page's content, without a wrapper around the header's parts.
+        paddingBlock: t.space.sm,
+        paddingInline: `max(${t.space.lg}, calc((100% - 72rem) / 2 + ${t.space.lg}))`,
+        position: 'sticky',
+        top: '0',
+        zIndex: '10',
       }),
     ),
     brand: Style.self({
+      alignItems: 'center',
       color: t.text.overt,
+      display: 'inline-flex',
       fontFamily: t.font.heading,
-      fontSize: t.size.xl,
+      fontSize: t.size.lg,
       fontWeight: t.weight.bold,
+      gap: t.space.xs,
       letterSpacing: '-0.02em',
       textDecoration: 'none',
     }),
-    nav: L.in('layouts', Layout.cluster({ gap: t.space['2xs'] })),
+    brandMark: Style.self({
+      alignItems: 'center',
+      background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 50%, ${t.tertiary.default}))`,
+      borderRadius: t.radius.md,
+      color: t.accent['on-fill'],
+      display: 'inline-flex',
+      fontSize: t.size.sm,
+      height: '1.75rem',
+      justifyContent: 'center',
+      width: '1.75rem',
+    }),
+    nav: L.in('layouts', Layout.cluster({ gap: '2px', align: 'center' })),
     navLink,
+    studio: Style.compose(primaryButton, Style.self({ marginInlineStart: t.space.xs })),
     main: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space.xl })),
+      L.in('layouts', Layout.stack({ gap: t.space['2xl'] })),
+      centred('72rem'),
       Style.self({
         boxSizing: 'border-box',
-        margin: '0 auto',
-        maxWidth: '72rem',
-        padding: `${t.space.md} ${t.space.lg} ${t.space['3xl']}`,
-        width: '100%',
+        paddingBlock: `${t.space.xl} ${t.space['3xl']}`,
+        paddingInline: t.space.lg,
       }),
     ),
-    footer: Style.self({
-      borderTop: `1px solid ${t.outline.subtle}`,
-      color: t.text.muted,
-      fontSize: t.size.sm,
-      padding: t.space.lg,
-      textAlign: 'center',
-    }),
+    masthead: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.xs })),
+      Style.self({ paddingBlockStart: t.space.xl, textAlign: 'center' }),
+    ),
     heading: Style.self({
+      color: t.text.overt,
       fontFamily: t.font.heading,
-      fontSize: 'clamp(2rem, 5vw, 3rem)',
-      letterSpacing: '-0.02em',
+      fontSize: 'clamp(2.4rem, 6vw, 3.6rem)',
+      letterSpacing: '-0.03em',
+      lineHeight: '1.05',
       margin: '0',
     }),
-    article: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space.md })),
-      Style.self({ margin: '0 auto', maxWidth: '46rem', width: '100%' }),
+    lede: Style.self({
+      color: t.text.muted,
+      fontSize: t.size.lg,
+      margin: '0 auto',
+      maxWidth: '36rem',
+    }),
+    article: L.in('layouts', Layout.stack({ gap: t.space.xl })),
+    articleHead: Style.compose(
+      centred('48rem'),
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      Style.self({ paddingBlockStart: t.space.lg, textAlign: 'center' }),
     ),
-    cover: Style.self({ aspectRatio: '21 / 9', borderRadius: t.radius.xl }),
+    meta: Style.self({
+      color: t.text.muted,
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.06em',
+      margin: '0',
+      textTransform: 'uppercase',
+    }),
     title: Style.self({
+      color: t.text.overt,
       fontFamily: t.font.heading,
-      fontSize: 'clamp(2.2rem, 5vw, 3.2rem)',
-      letterSpacing: '-0.02em',
-      lineHeight: '1.1',
+      fontSize: 'clamp(2.2rem, 5.5vw, 3.4rem)',
+      letterSpacing: '-0.03em',
+      lineHeight: '1.08',
       margin: '0',
+      textWrap: 'balance',
     }),
-    meta: Style.self({ color: t.text.muted, margin: '0' }),
-    body: Style.compose(
-      L.in('components', Prose.style({ measure: '68ch' })),
-      Style.self({ fontSize: t.size.lg }),
+    standfirst: Style.self({
+      color: t.text.muted,
+      fontSize: 'clamp(1.1rem, 2vw, 1.3rem)',
+      lineHeight: '1.5',
+      margin: '0',
+      textWrap: 'pretty',
+    }),
+    cover: Style.compose(
+      centred('68rem'),
+      Style.self({ aspectRatio: '21 / 9', borderRadius: t.radius.xl }),
     ),
-    back: Style.self({ color: t.accent.ink, fontWeight: t.weight.semibold }),
+    // Prose writes its measure and leading inline, where a rule cannot reach:
+    // they are set through its option and its variable.
+    body: Style.compose(
+      L.in('components', Prose.style({ measure: '44rem' })),
+      Style.vars({ '--fk-leading-relaxed': '1.75' }),
+      Style.self({ fontFamily: serif, fontSize: '1.25rem', marginInline: 'auto', width: '100%' }),
+    ),
+    back: Style.compose(
+      centred('44rem'),
+      Style.self({
+        color: t.accent.ink,
+        fontWeight: t.weight.semibold,
+        textDecoration: 'none',
+      }),
+      Style.pseudo(':hover', { textDecoration: 'underline' }),
+    ),
+    footer: Style.compose(
+      L.in(
+        'layouts',
+        Layout.cluster({ gap: t.space.md, justify: 'space-between', align: 'center' }),
+      ),
+      Style.self({
+        background: t.surface.subtle,
+        borderTop: `1px solid ${t.outline.subtle}`,
+        boxSizing: 'border-box',
+        color: t.text.muted,
+        fontSize: t.size.sm,
+        paddingBlock: t.space.lg,
+        paddingInline: `max(${t.space.lg}, calc((100% - 72rem) / 2 + ${t.space.lg}))`,
+      }),
+    ),
+    footerNav: Style.compose(
+      L.in('layouts', Layout.cluster({ gap: t.space.md })),
+      Style.nest('a', { color: 'inherit', textDecoration: 'none' }),
+      Style.nest('a:hover', { color: t.text.overt }),
+    ),
     status: Style.self({
       color: t.text.muted,
       padding: `${t.space['3xl']} 0`,
