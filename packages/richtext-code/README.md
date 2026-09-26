@@ -86,8 +86,9 @@ the tokens form a JSON value.
 
 ## Limits
 
-- **JSON only.** TypeScript, JavaScript, and the rest wait for the Shiki adapter rather than
-  a hand-written lexer that would be half right.
+- **JSON only.** TypeScript, JavaScript, and the rest come from
+  [`foldkit-richtext-code-shiki`](../richtext-code-shiki), which reads Shiki's grammars into
+  the same kinds, rather than a hand-written lexer that would be half right.
 - **Highlighting runs on every patch.** An editor placed with a `decorate` (below)
   retokenizes every code block each time it patches. That is cheap for JSON; caching by block
   is the Shiki adapter's job.

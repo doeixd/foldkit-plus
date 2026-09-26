@@ -195,7 +195,10 @@ decoration per occurrence, across runs but never across blocks; `positionInBlock
 offset)` is the offset-to-position read it shares), `codeDecorations(document, tokenizers)`
 runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
 its tokens as decorations (a token outside the text throws; `foldkit-richtext-code`'s
-`jsonTokenizer` is the first grammar, and never throws on half-typed JSON), and
+`jsonTokenizer` is the first grammar, and never throws on half-typed JSON;
+`foldkit-richtext-code-shiki`'s `shikiTokenizers(highlighter)` turns a synchronous Shiki
+highlighter into a tokenizer per loaded language, reading scopes into the same `syntax-*`
+kinds), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
 `span[data-decoration=<kind>]` with the run's marks inside. The editable adapter draws the
 same elements: `mount(…, decorations)` and `patch(dom, content, changeSet, decorations)`

@@ -1497,6 +1497,25 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/richtext-code-shiki:
+    dependencies:
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../richtext
+    devDependencies:
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+      shiki:
+        specifier: 4.4.3
+        version: 4.4.3
+      tsdown:
+        specifier: ^0.23.0
+        version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/richtext-dom:
     dependencies:
       foldkit-richtext:

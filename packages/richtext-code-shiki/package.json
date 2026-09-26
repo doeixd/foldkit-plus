@@ -1,0 +1,57 @@
+{
+  "name": "foldkit-richtext-code-shiki",
+  "version": "0.1.0",
+  "description": "Shiki grammars as foldkit-richtext code tokenizers, producing syntax decorations.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "rich-text",
+    "syntax-highlighting",
+    "shiki",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/richtext-code-shiki"
+  },
+  "homepage": "https://github.com/doeixd/foldkit-plus/tree/main/packages/richtext-code-shiki#readme",
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-richtext": "workspace:*"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc.116",
+    "shiki": "^4.4.3"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-rc.116",
+    "shiki": "4.4.3",
+    "tsdown": "^0.23.0",
+    "typescript": "5.9.3"
+  }
+}
