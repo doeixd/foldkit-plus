@@ -30,9 +30,11 @@ import {
 } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
+import { controls, settingsOf, spaced, type Settings } from './settings.js'
 import { LiveAnnounce, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History, HistoryModel } from 'foldkit-primitives/state'
-import type { Command } from 'foldkit/command'
+import * as Command from 'foldkit/command'
+import type { Command as CommandOf } from 'foldkit/command'
 import { inertHtml, type Html, type HtmlBuilder, type KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Submodel from 'foldkit/submodel'
@@ -95,8 +97,26 @@ export const Model = Schema.Struct({
    * drawn marked, not left out.
    */
   preview: Schema.Record(Schema.String, ContextValue),
+  /**
+   * What the inspector's fields hold for the node they show, as its settings
+   * form's Model encoded to JSON: text that does not decode yet stays here,
+   * not in the page. None until a field is changed, and after the selection
+   * moves; the form is then filled from the node. Stored only when some, so a
+   * Builder saved before there was one still reads.
+   */
+  inspector: Schema.OptionFromOptionalNullOr(Schema.Struct({ id: NodeId, form: Schema.Json })),
 })
 export type Model = typeof Model.Type
+
+/** The selected node as the inspector edits it: its Block, the Block's settings form, and that form's Model. */
+export interface Inspecting {
+  readonly id: NodeId
+  readonly block: AnyBlock
+  readonly settings: Settings
+  readonly model: Settings['form']['initial']
+}
+
+export { controlOf, settingsOf, spaced, type Settings } from './settings.js'
 
 /** An edit that creates nodes and waits for their new ids. */
 const Request = Schema.Union([
@@ -138,6 +158,8 @@ export const Message = defineMessageUnion({
   PreviewChosen: { key: Schema.String, value: ContextValue },
   /** The author previews the page with one context key unset. */
   PreviewCleared: { key: Schema.String },
+  /** A Message of the selected node's settings form, encoded to JSON. */
+  Inspected: { message: Schema.Json },
 })
 export type Message = typeof Message.Type
 
@@ -401,6 +423,7 @@ const replace = (model: Model, document: Document): Model => ({
   hovered: Option.none(),
   refused: Option.none(),
   drag: Option.none(),
+  inspector: Option.none(),
 })
 
 /** The Model with nothing in flight, as a stored draft is shown again: no hover, no drag, no undo, no refusal. */
@@ -424,6 +447,14 @@ const created = (op: Operation): Option.Option<NodeId> =>
 
 export const Builder = {
   /**
+   * Block metadata: the control the inspector draws a prop with, where its
+   * Schema alone does not say, as
+   * `Heading.pipe(Block.annotate(Builder.controls({ text: Input.multiline() })))`.
+   * `Input.hidden()` leaves a prop out of the inspector.
+   */
+  controls,
+
+  /**
    * A Builder for a Catalog: its Bundle, the form control that places it as a
    * key, and the helpers a view uses. `starters` gives the props a new node of
    * each Block starts with; the insert panel offers exactly those Blocks.
@@ -442,7 +473,7 @@ export const Builder = {
   ) => {
     const { catalog, renderer } = config
     const starters = config.starters as Readonly<Record<string, unknown>>
-    type Commands = ReadonlyArray<Command<Message>>
+    type Commands = ReadonlyArray<CommandOf<Message>>
 
     const capacity = config.capacity ?? 200
     const initial: Model = placements.initial({
@@ -454,6 +485,7 @@ export const Builder = {
       refused: Option.none(),
       drag: Option.none(),
       preview: { ...config.preview },
+      inspector: Option.none(),
     }).model
 
     /** Says `text` to assistive technology, once the Builder's transition is done. */
@@ -501,6 +533,120 @@ export const Builder = {
         effect: Effect.map(Composition.newIds(count), ids => Message.Minted({ ids, request })),
       },
     ]
+
+    /** A node's settings form, filled from its props; empty where they no longer decode. */
+    const filled = (settings: Settings, props: unknown) =>
+      Option.match(settings.props(props), {
+        onSome: decoded => settings.form.fill(settings.form.initial, decoded).model,
+        onNone: () => settings.form.initial,
+      })
+
+    /**
+     * The selected node's settings form and its Model: the one the inspector
+     * holds for that node, else one filled from its props. None when nothing
+     * is selected or its Block is not in the Catalog.
+     */
+    const inspecting = (
+      model: Pick<Model, 'page' | 'selected' | 'inspector'>,
+    ): Option.Option<Inspecting> =>
+      Option.flatMap(model.selected, id => {
+        const node = documentOf(model).nodes[id]
+        const block: AnyBlock | undefined =
+          node === undefined ? undefined : Catalog.block(catalog, node.block)
+        if (node === undefined || block === undefined) return Option.none()
+        const settings = settingsOf(block)
+        const held = Option.flatMap(
+          Option.filter(model.inspector, inspector => inspector.id === id),
+          inspector => settings.decode(inspector.form),
+        )
+        return Option.some({
+          id,
+          block,
+          settings,
+          model: Option.getOrElse(held, () => filled(settings, node.props)),
+        })
+      })
+
+    /**
+     * A settings form Message: the form takes it, and each prop whose decoded
+     * value now differs from the node's is set, one Operation each. A field
+     * that does not decode sets nothing and shows its error.
+     */
+    const inspect = (
+      model: Model,
+      held: Schema.Json,
+    ): { readonly model: Model; readonly commands?: Commands } =>
+      Option.match(inspecting(model), {
+        onNone: () => ({ model }),
+        onSome: ({ id, settings, model: form }) =>
+          Option.match(settings.decodeMessage(held), {
+            onNone: () => ({ model }),
+            onSome: formMessage => {
+              const next = settings.form.bundle.update(form, formMessage, undefined)
+              const props = documentOf(model).nodes[id]?.props ?? {}
+              const ops = Object.entries(settings.form.partial(next.model)).flatMap(
+                ([key, value]) =>
+                  Option.match(settings.stored(key, value), {
+                    onNone: () => [],
+                    onSome: stored =>
+                      JSON.stringify(stored) === JSON.stringify(props[key])
+                        ? []
+                        : [Composition.Op.setProp(id, key, stored)],
+                  }),
+              )
+              let result: { readonly model: Model; readonly commands?: Commands } = {
+                model: {
+                  ...model,
+                  inspector: Option.some({ id, form: settings.encode(next.model) }),
+                },
+              }
+              const commands: Array<CommandOf<Message>> = [
+                ...Command.mapMessages(next.commands, sent =>
+                  Message.Inspected({ message: settings.encodeMessage(sent) }),
+                ),
+              ]
+              for (const op of ops) {
+                result = applyOp(result.model, op)
+                commands.push(...(result.commands ?? []))
+              }
+              return { model: result.model, commands }
+            },
+          }),
+      })
+
+    /**
+     * The inspector after a transition not its own: dropped when the selection
+     * moved; refilled from the node when the page changed by another way (an
+     * undo, the canvas, an agent), except in a field the author is typing into
+     * that does not decode, which keeps its text.
+     */
+    const reconciled = (before: Model, after: Model): Model => {
+      if (Option.isNone(after.inspector)) return after
+      const { id } = after.inspector.value
+      if (!Option.contains(after.selected, id)) return { ...after, inspector: Option.none() }
+      if (documentOf(after) === documentOf(before)) return after
+      return Option.match(inspecting(after), {
+        onNone: () => ({ ...after, inspector: Option.none() }),
+        onSome: ({ settings, model: form }) =>
+          Option.match(settings.props(documentOf(after).nodes[id]?.props), {
+            onNone: () => after,
+            onSome: decoded => {
+              const refilled = Object.fromEntries(
+                Object.entries(decoded).filter(
+                  ([key]) => settings.form.field(form, key)._tag !== 'Invalid',
+                ),
+              )
+              return {
+                ...after,
+                inspector: Option.some({
+                  id,
+                  form: settings.encode(settings.form.fill(form, refilled).model),
+                }),
+              }
+            },
+          }),
+      })
+    }
 
     const own = (
       model: Model,
@@ -670,6 +816,8 @@ export const Builder = {
           const { [message.key]: _, ...others } = model.preview
           return { model: { ...model, preview: others } }
         }
+        case 'Inspected':
+          return inspect(model, message.message)
         case 'PanelChosen':
           return { model: { ...model, panel: message.panel } }
         case 'ViewportChosen':
@@ -681,7 +829,9 @@ export const Builder = {
 
     const assembled = placements.update(own)
     const update = (model: Model, message: Message) => {
-      const next = assembled(model, message)
+      const moved = assembled(model, message)
+      const next =
+        message._tag === 'Inspected' ? moved : { ...moved, model: reconciled(model, moved.model) }
       // Moving focus in the layers moves the selection with it.
       if (message._tag === Layers.wrapper.tag && message.message._tag === 'Focused') {
         const id = NodeId.make(message.message.id)
@@ -929,6 +1079,11 @@ export const Builder = {
       replace,
       settle,
       keyCommand,
+      /**
+       * The selected node's settings form and its Model, for the inspector to
+       * draw: the Model it holds for the node, else one filled from the props.
+       */
+      inspecting,
       /** The Blocks a new node may be, in the Catalog's order: those with starting props. */
       offered: catalog.blocks
         .filter(block => starters[block.name] !== undefined)

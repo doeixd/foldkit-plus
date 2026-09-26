@@ -718,9 +718,15 @@ importers:
       foldkit-composition:
         specifier: workspace:*
         version: link:../composition
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
       foldkit-form:
         specifier: workspace:*
         version: link:../form
+      foldkit-metadata:
+        specifier: workspace:*
+        version: link:../metadata
       foldkit-primitives:
         specifier: workspace:*
         version: link:../primitives
@@ -731,9 +737,6 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
-      foldkit-entity:
-        specifier: workspace:*
-        version: link:../entity
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins

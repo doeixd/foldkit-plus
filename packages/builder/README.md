@@ -18,6 +18,7 @@ submits it, and a CMS autosaves it.
 | The page being edited | the Builder's Model, as the form key's value |
 | Undo | the Builder's Model: the page is kept as a `foldkit-primitives/state` history |
 | What is selected, the open panel, the viewport | the Builder's Model, beside the page |
+| A prop's field while it holds text that does not decode yet | the Builder's Model, as `inspector` |
 | The layers' keyboard focus and which rows are open | the Builder's Model, as a `TreeNavigation` placement |
 | What the editor last said to assistive technology | the Builder's Model, as a `LiveAnnounce` placement |
 | Saving, revisions, publishing | the form, and `foldkit-cms` around it |
@@ -76,6 +77,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
 | `DragStarted({ id })`, `DraggedOver({ id, zone })`, `DraggedOff()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
 | `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
+| `Inspected({ message })` | a Message of the selected node's settings form: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
 
 - **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
@@ -88,6 +90,34 @@ const PageForm = Form.make('PageForm', PageInput, {
 - **A refused edit** leaves the page as it was and says why in `refused`, until
   the next edit goes through.
 - **A new node is selected**, and a removed one is no longer.
+
+## The inspector is a form
+
+Each Block's props are edited through a `foldkit-form` form made from its props
+Schema, once per Block, at the first use. The node owns its props; the form
+only holds what its fields show:
+
+```text
+node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key
+                                                              │
+               a key that decodes and differs ─► setProp ─────┘  a key that does not: its error, no edit
+```
+
+- **A change that decodes is an edit**, one `setProp` per key whose value
+  changed, grouped in history like any other, so typing a word undoes as one.
+- **Text that does not decode** (`"abc"` for a number) stays in its field with
+  the form's error, and changes nothing.
+- **A node changed another way** (an undo, the canvas, an agent) refills every
+  field but one holding text that does not decode. Moving the selection drops
+  what was held; the next node's fields fill from its props.
+- `PageBuilder.inspecting(model)` is the selected node's form and its Model,
+  for a view to draw; `settings.encodeMessage(message)` makes the
+  `Inspected` a view sends. The form's Model is held as JSON, so a saved
+  Builder still is.
+- A prop is labelled with its Schema's `title`, else its key spaced
+  (`maxItems` is "Max items"). A Block asks for a control where the Schema
+  does not say, with `Block.annotate(Builder.controls({ body: Input.multiline() }))`;
+  `Input.hidden()` leaves a prop out.
 
 ## The keyboard, the layers, and what the editor says
 

@@ -58,7 +58,7 @@ export const Quote = Block.define('Quote', {
     ref: Schema.String,
   }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+}).pipe(Block.annotate(Builder.controls({ text: Input.multiline(), ref: Input.hidden() })))
 /** A Block drawn from its node's read: what a Query Block's rows would be. Not offered. */
 export const Feed = Block.define('Feed', {
   Props: Schema.Struct({}),
@@ -81,7 +81,7 @@ export const Featured = Block.define('Featured', {
   provides: [Content.Flow],
 }).pipe(
   Block.annotate(
-    BuilderView.controls({
+    Builder.controls({
       category: Input.relationOne(Category),
       maker: Input.relationOne(Category),
       tags: Input.relationMany(Tag),

@@ -3,6 +3,7 @@ import { Effect, Schema } from 'effect'
 import { Block, Catalog, Content, Region } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Builder } from 'foldkit-builder'
+import { Input } from 'foldkit-form'
 
 export const Heading = Block.define('Heading', {
   Props: Schema.Struct({ text: Schema.String }),
@@ -12,6 +13,17 @@ export const Button = Block.define('Button', {
   Props: Schema.Struct({ label: Schema.String }),
   provides: [Content.Flow, Content.Interactive],
 })
+/**
+ * A number and its caption, for the inspector: a number typed as text, and a
+ * caption drawn as a multiline field. Not offered.
+ */
+export const Stat = Block.define('Stat', {
+  Props: Schema.Struct({
+    value: Schema.Number,
+    caption: Schema.String.annotate({ title: 'What it counts' }),
+  }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(Builder.controls({ caption: Input.multiline() })))
 /** Flow that holds Flow: a node can be moved into it from beside it. */
 export const Group = Block.define('Group', {
   Props: Schema.Struct({}),
@@ -24,7 +36,7 @@ export const Section = Block.define('Section', {
   provides: [Content.Section],
 })
 export const Site = Catalog.make({
-  blocks: [Heading, Button, Group, Section],
+  blocks: [Heading, Button, Group, Section, Stat],
   roots: [Content.Section],
 })
 
@@ -33,6 +45,7 @@ export const SiteRenderer = Renderer.make(Site, {
   Button: ({ props, h }) => h.span([h.Class('button')], [props.label]),
   Group: ({ regions, h }) => h.div([], [...regions.items]),
   Section: ({ regions, h }) => h.section([], [...regions.body]),
+  Stat: ({ props, h }) => h.p([], [`${props.value} ${props.caption}`]),
 })
 
 // Buttons have no starting props, so the insert panel does not offer them.

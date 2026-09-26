@@ -6,8 +6,7 @@
 import { Option } from 'effect'
 import { Block, Composition, NodeId } from 'foldkit-composition'
 import { Input } from 'foldkit-form'
-import { Metadata } from 'foldkit-metadata'
-import { Message, type Model } from 'foldkit-builder'
+import { Builder, Message, type Model } from 'foldkit-builder'
 import { Attributes, A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
@@ -402,18 +401,6 @@ describe('the drawn Builder', () => {
     ).toEqual([
       ['textarea', 'Less is more'],
       ['input', 'Mies'],
-    ])
-  })
-
-  it('keeps every prop two annotations ask for, the later one winning a prop', () => {
-    const annotated = Block.annotate(
-      BuilderView.controls({ source: Input.multiline(), ref: Input.text() }),
-    )(Quote)
-    expect(Metadata.summarize(annotated.metadata)).toEqual([
-      {
-        name: 'foldkit-mixins-builder/controls',
-        entries: ['text: Multiline, ref: Text, source: Multiline'],
-      },
     ])
   })
 

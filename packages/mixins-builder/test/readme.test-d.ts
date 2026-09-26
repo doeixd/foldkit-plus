@@ -1,6 +1,6 @@
 // The README's snippets, compiled. Keep the two in step.
 import { Schema } from 'effect'
-import type { Message, Model } from 'foldkit-builder'
+import { Builder, type Message, type Model } from 'foldkit-builder'
 import { Bundle } from 'foldkit-bundle'
 import { Block, Composition, Content } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
@@ -50,7 +50,7 @@ const Quote = Block.define('Quote', {
     ref: Schema.String,
   }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+}).pipe(Block.annotate(Builder.controls({ text: Input.multiline(), ref: Input.hidden() })))
 expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()
 
 const Described = Quote.pipe(
@@ -70,7 +70,7 @@ BuilderView.describe({ icon: 'quote' })
   const Featured = Block.define('Featured', {
     Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
     provides: [Content.Flow],
-  }).pipe(Block.annotate(BuilderView.controls({ category: Input.relationOne(Category) })))
+  }).pipe(Block.annotate(Builder.controls({ category: Input.relationOne(Category) })))
   expectTypeOf(Featured.name).toEqualTypeOf<'Featured'>()
 
   const categories: ReadonlyArray<{ readonly id: string; readonly name: string }> = []

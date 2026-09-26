@@ -223,8 +223,8 @@ the prop out:
 ```ts
 import { Schema } from 'effect'
 import { Block, Content } from 'foldkit-composition'
+import { Builder } from 'foldkit-builder'
 import { Input } from 'foldkit-form'
-import { BuilderView } from 'foldkit-mixins-builder'
 
 const Quote = Block.define('Quote', {
   Props: Schema.Struct({
@@ -232,10 +232,10 @@ const Quote = Block.define('Quote', {
     ref: Schema.String,
   }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ text: Input.multiline(), ref: Input.hidden() })))
+}).pipe(Block.annotate(Builder.controls({ text: Input.multiline(), ref: Input.hidden() })))
 ```
 
-The hint is the inspector's, kept on the Block beside any other package's
+The hint is `foldkit-builder`'s, kept on the Block beside any other package's
 metadata; `foldkit-composition` does not read it. A later annotation's prop
 replaces an earlier one's.
 
@@ -269,7 +269,7 @@ options are; the page's parent gives them in the Builder's view inputs, keyed
 const Featured = Block.define('Featured', {
   Props: Schema.Struct({ category: Schema.NullOr(Schema.String) }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.controls({ category: Input.relationOne(Category) })))
+}).pipe(Block.annotate(Builder.controls({ category: Input.relationOne(Category) })))
 
 EditorSlot.view(model, h, {
   controls: {

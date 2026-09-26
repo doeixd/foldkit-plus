@@ -13,6 +13,9 @@
       "path": "../composition/tsconfig.build.json"
     },
     {
+      "path": "../entity/tsconfig.build.json"
+    },
+    {
       "path": "../form/tsconfig.build.json"
     },
     {

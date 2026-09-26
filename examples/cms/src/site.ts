@@ -179,7 +179,7 @@ export const Hero = Block.define('Hero', {
   ),
 
   Appearance.attach(HeroLook),
-  Block.annotate(BuilderView.controls({ lead: Input.multiline() })),
+  Block.annotate(Builder.controls({ lead: Input.multiline() })),
 )
 
 // --- Section: a band of the page --------------------------------------------------
@@ -316,7 +316,7 @@ export const Text = Block.define('Text', {
   Block.annotate(BuilderView.describe({ group: 'Text', description: 'Paragraphs of writing' })),
 
   Appearance.attach(TextLook),
-  Block.annotate(BuilderView.controls({ body: Input.multiline() })),
+  Block.annotate(Builder.controls({ body: Input.multiline() })),
 )
 
 // --- Image, Quote, Callout, Divider -----------------------------------------------
@@ -388,7 +388,7 @@ export const Quote = Block.define('Quote', {
   Block.annotate(BuilderView.describe({ group: 'Text', description: 'Words someone said' })),
 
   Appearance.attach(QuoteLook),
-  Block.annotate(BuilderView.controls({ text: Input.multiline() })),
+  Block.annotate(Builder.controls({ text: Input.multiline() })),
 )
 
 const CalloutSlots = Slots.define({ root: part, title: part, body: part })
@@ -430,7 +430,7 @@ export const Callout = Block.define('Callout', {
   Block.annotate(BuilderView.describe({ group: 'Text', description: 'A note set apart in color' })),
 
   Appearance.attach(CalloutLook),
-  Block.annotate(BuilderView.controls({ body: Input.multiline() })),
+  Block.annotate(Builder.controls({ body: Input.multiline() })),
 )
 
 const DividerSlots = Slots.define({ root: part })
@@ -678,7 +678,7 @@ export const FeaturedPost = QueryBlock.define('FeaturedPost', {
   ),
 
   Appearance.attach(FeaturedLook),
-  Block.annotate(BuilderView.controls({ post: Input.relationOne(Post) })),
+  Block.annotate(Builder.controls({ post: Input.relationOne(Post) })),
 )
 
 /**
@@ -706,7 +706,7 @@ export const LatestPages = QueryBlock.define('LatestPages', {
       description: 'The site’s newest pages',
     }),
   ),
-  Block.annotate(BuilderView.controls({ except: Input.relationOne(Cms.Entities.Entry) })),
+  Block.annotate(Builder.controls({ except: Input.relationOne(Cms.Entities.Entry) })),
 )
 
 export const Site = Catalog.make({

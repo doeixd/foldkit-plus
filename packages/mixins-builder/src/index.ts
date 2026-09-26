@@ -16,6 +16,8 @@
 import { Option, Schema } from 'effect'
 import {
   Layers,
+  controlOf,
+  spaced,
   Message,
   layersArgs,
   type ContextValue,
@@ -301,18 +303,6 @@ const seedOf = (input: Schema.Top): { readonly [key: string]: Schema.Json } =>
     ),
   )
 
-const controlsKey = Metadata.key<Readonly<Record<string, Control>>>(
-  'foldkit-mixins-builder/controls',
-  {
-    // One record per Block: a later annotation's prop replaces an earlier one's.
-    merge: records => [Object.assign({}, ...records)],
-    summarize: record =>
-      Object.entries(record)
-        .map(([key, control]) => `${key}: ${control.kind}`)
-        .join(', '),
-  },
-)
-
 /** What the editor calls a Block, given with `BuilderView.describe`. */
 export interface BlockWords {
   /** Its name in the palette, the layers and the inspector. Default: its name, spaced (`PostList` is "Post list"). */
@@ -333,11 +323,6 @@ const wordsKey = Metadata.key<BlockWords>('foldkit-mixins-builder/words', {
 })
 
 /** A name in code as words: `PostList` is "Post list", `tone` is "Tone". */
-const spaced = (name: string): string => {
-  const words = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
-  return words.charAt(0).toUpperCase() + words.slice(1)
-}
-
 /** The longest summary a layer row shows before it is cut short. */
 const SUMMARY_LENGTH = 40
 
@@ -365,9 +350,6 @@ const SHORTCUTS: ReadonlyArray<readonly [keys: string, what: string]> = [
 ]
 
 /** The control a Block asked for its prop, else the one its Schema resolves to. */
-const controlFor = (block: AnyBlock, key: string, schema: Schema.Top): Control | undefined =>
-  controlsKey.get(block.metadata)[0]?.[key] ?? Input.resolve(Entity.unmapped, schema)
-
 /** A prop's label: its Schema's `title`, else its key, spaced. */
 const labelFor = (key: string, schema: Schema.Top): string =>
   Option.getOrElse(Words.of(schema).title, () => spaced(key))
@@ -430,14 +412,6 @@ export interface BuilderParts {
 
 export const BuilderView = {
   /**
-   * Block metadata: the control the inspector draws a prop with, where its
-   * Schema alone does not say, as
-   * `Heading.pipe(Block.annotate(BuilderView.controls({ text: Input.multiline() })))`.
-   * `Input.hidden()` leaves a prop out of the inspector.
-   */
-  controls: (controls: Readonly<Record<string, Control>>): Metadata => controlsKey.of(controls),
-
-  /**
    * Block metadata: what the editor calls a Block, as
    * `Hero.pipe(Block.annotate(BuilderView.describe({ label: 'Hero', group: 'Layout' })))`.
    */
@@ -477,7 +451,7 @@ export const BuilderView = {
         const given = wordsKey.get(block.metadata)[0] ?? {}
         // The props a layer row may quote: those drawn as text.
         const texts = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
-          const control = controlFor(block, key, schema)
+          const control = controlOf(block, key, schema)
           return control !== undefined && (Input.Text.is(control) || Input.Multiline.is(control))
             ? [key]
             : []
@@ -734,7 +708,7 @@ export const BuilderView = {
       const set = (key: string, value: Schema.Json): Message =>
         Message.Applied({ op: Composition.Op.setProp(id, key, value) })
       const drawn = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
-        const control = controlFor(block, key, schema)
+        const control = controlOf(block, key, schema)
         return control !== undefined && Input.Hidden.is(control) ? [] : [{ key, schema, control }]
       })
       const fields = drawn.map(({ key, schema, control }) =>

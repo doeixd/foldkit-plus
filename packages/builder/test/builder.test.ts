@@ -1,12 +1,13 @@
 import { Option, Result, Schema } from 'effect'
-import { Composition, NodeId, type Document } from 'foldkit-composition'
+import { Block, Composition, NodeId, type Document } from 'foldkit-composition'
 import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
-import { Form } from 'foldkit-form'
+import { Form, Input } from 'foldkit-form'
+import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import { Builder, Layers, Message, Model } from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
-import { PageBuilder, Site, SiteRenderer, answer, isTimer } from './fixture.js'
+import { PageBuilder, Site, SiteRenderer, Stat, answer, isTimer } from './fixture.js'
 
 const { update } = PageBuilder.bundle
 const step = (model: Model, message: Message) => update(model, message, undefined)
@@ -512,5 +513,106 @@ describe('previewing the page', () => {
       audience: null,
       beta: true,
     })
+  })
+})
+
+describe('the inspector, a form over the selected node', () => {
+  // A Section holding a Stat and a Heading, the Stat selected.
+  const s = NodeId.make('s')
+  const stat = NodeId.make('stat')
+  const heading = NodeId.make('heading')
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [s],
+      nodes: {
+        [s]: { block: 'Section', props: {}, regions: { body: [stat, heading] } },
+        [stat]: { block: 'Stat', props: { value: 3, caption: 'posts' }, regions: {} },
+        [heading]: { block: 'Heading', props: { text: 'Hello' }, regions: {} },
+      },
+    }),
+  )
+  const selected = send(page, Message.Selected({ id: stat }))
+  const inspecting = (model: Model) => some(PageBuilder.inspecting(model), 'a node inspected')
+  /** Types `value` into the selected node's `key` field. */
+  const type = (model: Model, key: string, value: string): Model => {
+    const { settings } = inspecting(model)
+    return send(
+      model,
+      Message.Inspected({
+        message: settings.encodeMessage(settings.form.Message.Changed({ key, value })),
+      }),
+    )
+  }
+  /** What the selected node's `key` field shows, and whether it is in error. */
+  const field = (model: Model, key: string) => {
+    const { settings, model: form } = inspecting(model)
+    return settings.form.field(form, key)
+  }
+  const props = (model: Model, id: NodeId) => model.page.present.nodes[id]?.props
+
+  it('fills its fields from the node, labelled, with the controls the Block asks for', () => {
+    const { settings } = inspecting(selected)
+    expect(settings.form.controls.map(each => [each.key, each.control.kind, each.label])).toEqual([
+      ['value', 'Number', 'Value'],
+      ['caption', 'Multiline', 'What it counts'],
+    ])
+    expect(field(selected, 'value').value).toBe('3')
+    expect(field(selected, 'caption').value).toBe('posts')
+  })
+
+  it('keeps every prop two control hints ask for, the later one winning a prop', () => {
+    const annotated = Block.annotate(
+      Builder.controls({ caption: Input.text(), value: Input.hidden() }),
+    )(Stat)
+    expect(Metadata.summarize(annotated.metadata)).toEqual([
+      { name: 'foldkit-builder/controls', entries: ['caption: Text, value: Hidden'] },
+    ])
+  })
+
+  it('sets a prop from a field that decodes, typing a word as one undo step', () => {
+    const typed = type(type(selected, 'caption', 'po'), 'caption', 'people')
+    expect(props(typed, stat)).toEqual({ value: 3, caption: 'people' })
+    expect(typed.page.past).toHaveLength(selected.page.past.length + 1)
+    expect(props(type(selected, 'value', '12'), stat)).toEqual({ value: 12, caption: 'posts' })
+  })
+
+  it('sets nothing from a field that does not decode, and says why at the field', () => {
+    const typed = type(selected, 'value', 'abc')
+    expect(typed.page).toBe(selected.page)
+    expect(field(typed, 'value')).toEqual({
+      _tag: 'Invalid',
+      value: 'abc',
+      errors: ['Enter a number'],
+    })
+  })
+
+  it('refills a field when the node changes another way, but keeps text that does not decode', () => {
+    const typed = type(selected, 'caption', 'people')
+    const undone = send(typed, Message.Undid())
+    expect(field(undone, 'caption').value).toBe('posts')
+
+    const held = type(type(selected, 'caption', 'people'), 'value', 'abc')
+    const undoneHeld = send(held, Message.Undid())
+    expect(field(undoneHeld, 'caption').value).toBe('posts')
+    expect(field(undoneHeld, 'value').value).toBe('abc')
+  })
+
+  it('reads a Builder saved before it held anything, and saves what it holds', () => {
+    const { inspector: _, ...before } = Schema.encodeSync(Model)(selected)
+    expect(Schema.decodeUnknownSync(Model)(before).inspector).toEqual(Option.none())
+    const held = type(selected, 'value', 'abc')
+    const saved = JSON.parse(JSON.stringify(Schema.encodeSync(Model)(held)))
+    expect(field(Schema.decodeUnknownSync(Model)(saved), 'value').value).toBe('abc')
+  })
+
+  it('forgets what it held when the selection moves', () => {
+    const held = type(selected, 'value', 'abc')
+    const moved = send(held, Message.Selected({ id: heading }))
+    expect(moved.inspector).toEqual(Option.none())
+    expect(field(moved, 'text').value).toBe('Hello')
+    // Back on the Stat, its field shows the node again.
+    expect(field(send(moved, Message.Selected({ id: stat })), 'value').value).toBe('3')
   })
 })
