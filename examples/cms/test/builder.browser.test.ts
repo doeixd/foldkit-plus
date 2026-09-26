@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 /**
  * The page builder in a real browser, at a desktop size: what jsdom cannot
  * lay out. Each test pins something first found by eye.
@@ -27,10 +28,10 @@ const Page = Bundle.parent({ Model, Message })
 const Editor = Page.at(Slot)
 const placements = Page.assemble(Editor)
 
-/** A page long enough to scroll: a Section holding forty Headings. */
-const longPage = () => {
+/** A page long enough to scroll: a Section holding `count` Headings. */
+const longPage = (count: number) => {
   const section = NodeId.make('s')
-  const headings = Array.from({ length: 40 }, (_, index) => NodeId.make(`h${index}`))
+  const headings = Array.from({ length: count }, (_, index) => NodeId.make(`h${index}`))
   return Composition.Document.make({
     format: 1,
     roots: [section],
@@ -50,8 +51,8 @@ const longPage = () => {
   })
 }
 
-/** Mounts the builder over `page`, with `css` as the page's only stylesheet. */
-const mount = (css: string) => {
+/** Mounts the builder over a page of `count` Headings, with `css` as the page's only stylesheet. */
+const mount = (css: string, count = 40) => {
   const style = document.createElement('style')
   style.textContent = css
   document.head.appendChild(style)
@@ -64,7 +65,7 @@ const mount = (css: string) => {
         Model,
         container,
         init: () =>
-          placements.initial({ editor: PageBuilder.replace(PageBuilder.initial, longPage()) }),
+          placements.initial({ editor: PageBuilder.replace(PageBuilder.initial, longPage(count)) }),
         update: placements.update(),
         view: (model: Model, h: HtmlBuilder<Message>) =>
           h.main([], [Editor.view(model, h, BuilderView.inputs())]),
@@ -148,3 +149,57 @@ it('moves the selection and the tab stop with the keyboard, over reused rows', a
     expect(marked('tabindex', '0')).toEqual([expected])
   }
 })
+
+/** The middle of some timings, rounded to a millisecond. */
+const median = (times: ReadonlyArray<number>): number =>
+  Math.round([...times].sort((left, right) => left - right)[Math.floor(times.length / 2)] ?? NaN)
+
+/** Resolves after the next frame has been drawn. */
+const nextFrame = () =>
+  new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)))
+
+/** How long `act` takes to reach the screen, `times` times over, as a median. */
+const timed = async (times: number, act: (index: number) => void): Promise<number> => {
+  const taken: Array<number> = []
+  for (let index = 0; index < times; index++) {
+    const start = performance.now()
+    act(index)
+    await nextFrame()
+    taken.push(performance.now() - start)
+  }
+  return median(taken)
+}
+
+// The budgets in pagebuilder-DESIGN.md §25, measured over 1,000 nodes. Timings
+// are machine-bound, so this prints them rather than asserting, and runs only
+// when asked: VITE_MEASURE=1 pnpm exec vitest run --project browser examples/cms/test/builder.browser.test.ts
+it.skipIf(import.meta.env.VITE_MEASURE === undefined)(
+  'measures a hover, a selection and a keystroke over 1,000 nodes',
+  async () => {
+    unmount = mount(stylesheet, 1000)
+    await vi.waitFor(() => expect(canvas()).not.toBeNull(), { timeout: 20_000 })
+    const headings = Array.from(document.querySelectorAll<HTMLElement>('[aria-label="Page"] h2'))
+    const heading = (index: number) => {
+      const found = headings[index]
+      if (found === undefined) throw new Error(`no heading ${index}`)
+      return found
+    }
+    const hover = await timed(20, index =>
+      heading(index * 7).dispatchEvent(new MouseEvent('mouseover', { bubbles: true })),
+    )
+    // The first selection also teaches each layer row which Slots it uses.
+    const first = await timed(1, () => heading(0).click())
+    const select = await timed(5, index => heading((index + 1) * 13).click())
+    const field = document.querySelector<HTMLInputElement>(
+      '[aria-label="Properties"] input:not([type="checkbox"])',
+    )
+    if (field === null) throw new Error('no text field in the inspector')
+    const keystroke = await timed(10, () => {
+      field.value += 'x'
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    console.log(JSON.stringify({ hover, first, select, keystroke }))
+    expect(field.value.endsWith('x'.repeat(10))).toBe(true)
+  },
+  60_000,
+)

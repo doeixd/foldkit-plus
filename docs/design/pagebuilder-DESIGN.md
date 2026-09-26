@@ -899,7 +899,9 @@ R9 remainder is, rather than silently accepted.
 > off, then on: a hover 50 ms, then 16 ms; a selection 48 ms, then 17 ms; a
 > keystroke in the inspector 49 ms, then 17 ms. Each lands in the next frame. A
 > first selection costs about 90 ms, once, while each row learns which Slots it
-> uses. The Layers budget above ("only the changed rows") is met.
+> uses. The Layers budget above ("only the changed rows") is met. To measure
+> again: `VITE_MEASURE=1 pnpm exec vitest run --project browser
+> examples/cms/test/builder.browser.test.ts`, which prints the medians.
 
 ## 26. Packages
 
