@@ -57,3 +57,23 @@ void Field
   const root = Probe({ value: 'Ada', invalid: false }, SlotView.inertBuilder<Message>())
   void Inert.value(Inert.byTag(root, 'input')[0], 'value')
 }
+
+// "Parts: redraw only what changed".
+const PanelSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  title: Slot.make({ capability: Capability.Container }),
+  count: Slot.make({ capability: Capability.Container }),
+})
+type Input = { readonly title: string; readonly count: number }
+const Parts = SlotView.parts(PanelSlots)<Input, Message>()
+
+const Title = Parts.part('Title', { reads: ['title'] }, (input, slots, h) =>
+  h.h2(slots.title.attrs(), [input.title]),
+)
+const Count = Parts.part('Count', { reads: ['count'] }, (input, slots, h) =>
+  h.p(slots.count.attrs(), [String(input.count)]),
+)
+const Panel = Parts.assemble((input, slots, h, draw) =>
+  h.section(slots.root.attrs(), [draw(Title), draw(Count)]),
+)
+void Panel

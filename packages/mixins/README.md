@@ -530,6 +530,43 @@ For per-item groups such as tabs, options or calendar cells, use
 `SlotView.buildersFor(slots, mixins, { input, h })` and map the items yourself. One contribution
 then applies to every item while each item's base attributes retain their own event ownership.
 
+### Parts: redraw only what changed
+
+A SlotView runs whole on every change to its input. A larger view can be cut
+into parts, each declaring the input keys it reads and given only those. A part
+runs again only when one of those values changed by identity; otherwise
+Foldkit reuses its last drawing without diffing it.
+
+```ts
+type Input = { readonly title: string; readonly count: number }
+const Parts = SlotView.parts(PanelSlots)<Input, Message>()
+
+const Title = Parts.part('Title', { reads: ['title'] }, (input, slots, h) =>
+  h.h2(slots.title.attrs(), [input.title]),
+)
+const Count = Parts.part('Count', { reads: ['count'] }, (input, slots, h) =>
+  h.p(slots.count.attrs(), [String(input.count)]),
+)
+const Panel = Parts.assemble((input, slots, h, draw) =>
+  h.section(slots.root.attrs(), [draw(Title), draw(Count)]),
+)
+```
+
+`input.count` inside `Title` does not compile, so a part cannot read a value it
+is not redrawn for. `Panel` is an ordinary SlotView: Styles and Behaviors attach
+to it and reach every part's Slots.
+
+- **A part's own Behaviors** go in its `behaviors` option, declared over the
+  part's selection (`Pick<Input, 'count'>`), and are resolved against it.
+- **A Mixin attached to the whole view that reads the input** (a Behavior's
+  `attributes`, `Style.whenInput`) is resolved against the whole input, so the
+  parts it reaches are drawn again on every change: correct, not cached. Static
+  Styles cost nothing.
+- **Memoizing needs a running application.** Drawn inert (a test, a server's
+  first pass), every part is drawn afresh.
+- **A part has one place.** Drawing one part twice in a render throws
+  `mixins:part-drawn-twice`, since one cached drawing cannot be two elements.
+
 ## With `foldkit-surface`
 
 Mixins do not require Surface, but the two fit naturally: Surface says **what a feature may

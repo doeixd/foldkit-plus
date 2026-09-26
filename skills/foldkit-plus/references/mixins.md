@@ -41,6 +41,10 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   metadata; declaring them installs nothing.
 - `Behavior.slot({ requires, attributes: ({ input, h }) => [...], mount })` — `requires`
   (capability/events/attributes) is checked against the slot **when `forSlots` runs**.
+- **Parts** cut a big view so each piece redraws only when what it reads changes:
+  `const P = SlotView.parts(S)<Input, Message>()`, `P.part(name, { reads: ['k'], behaviors },
+  (input, slots, h) => …)` (input is `Pick<Input, 'k'>`), `P.assemble((input, slots, h, draw) =>
+  … draw(Part) …)` is a SlotView. A whole-view Mixin that reads input makes parts redraw every time.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
 - `protected: { events, attributes, style }` forbids attachments from supplying those.
 - **Resolver rules:** classes additive + deduped into one `Class`; Style pieces' inline style
