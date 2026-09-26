@@ -35,6 +35,9 @@ export default defineConfig({
       'foldkit-richtext-markdown': fileURLToPath(
         new URL('./packages/richtext-markdown/src/index.ts', import.meta.url),
       ),
+      'foldkit-richtext-code-shiki': fileURLToPath(
+        new URL('./packages/richtext-code-shiki/src/index.ts', import.meta.url),
+      ),
       'foldkit-richtext-code': fileURLToPath(
         new URL('./packages/richtext-code/src/index.ts', import.meta.url),
       ),

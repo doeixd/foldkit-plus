@@ -7167,7 +7167,16 @@ hand-rolled.
 > **Built (2026-09-26): the JSON grammar.** `foldkit-richtext-code` exports `jsonTokenizer`,
 > exact on JSON and total on anything else: it never throws, and an unterminated string ends
 > at the line break. A key is `syntax-property`, told from a string value by the colon after
-> it. The Shiki adapter remains; the editable overlay is built (§129).
+> it. The editable overlay is built (§129).
+>
+> **Built (2026-09-26): the Shiki adapter,** without the asynchronous Command the plan above
+> expected. Shiki 4's `createHighlighterCoreSync` with its JavaScript regex engine tokenizes
+> synchronously once grammars are loaded, so the adapter is a pure `CodeTokenizer` like the
+> JSON one. The application loads grammars at startup, and `shikiTokenizers(highlighter)`
+> gives one tokenizer per loaded name. Scopes, not colours, become kinds: a table read first
+> match wins, with property before string because a JSON key sits inside `string`, and a test
+> caught that order wrong on its first run. Each tokenizer caches its last 64 texts. Not
+> built: loading a grammar after the editor is placed.
 
 ---
 
