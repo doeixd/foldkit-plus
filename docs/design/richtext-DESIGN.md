@@ -7311,3 +7311,35 @@ The new item copies the old one's props, which makes Enter in a checked `TaskIte
 checked one. The core does not know what `checked` means, and a prop reset per kind is a Kit
 declaration nobody has needed yet.
 
+
+---
+
+# 132. Editing a link
+
+§11 lists a link popover among the editor UX still missing. Before any popover, the core had
+no way to express what one does: `ToggleMark` keys on the name, so over a link it only removes
+it, and with a caret — where a popover opens — it does nothing at all.
+
+Two commands and a read, built:
+
+```text
+markExtent(document, position, name)   the mark on the caret's run, and the adjacent runs of its
+                                       block carrying the same mark with the same props
+SetMark { mark }                       exactly this mark on every covered run, replacing the
+                                       props of a same-named one (AddMark is already a set)
+ClearMark { mark: name }               the mark off every covered run, whatever its props
+```
+
+At a caret, `SetMark` and `ClearMark` act on `markExtent`, and outside a mark they do nothing,
+as a collapsed toggle does. That is what makes "change this link" one Message from a popover
+opened at the caret, instead of a selection change followed by an edit. A toggle at a caret is
+unchanged: it still has nothing to cover, because what a caret *carries* is the application's
+stored marks, not a run's.
+
+The extent stops at a run whose mark of that name has other props, so two neighbouring links
+stay two, and at the block's edge. It needs no new operation: the extent's ends are run edges,
+so no run is split, and the caret keeps its node.
+
+Not built yet: the popover itself (the Messages the editor Bundle sends, and a Mixins slot for
+the view). `SetMark` knows no mark's props, so it stores an `href` as given; the URL policy
+belongs where the link is drawn, below.

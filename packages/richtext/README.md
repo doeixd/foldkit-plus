@@ -111,8 +111,9 @@ RichText.run(state, { type: 'SplitBlock' }, ids)
 RichText.run(state, { type: 'RetypeBlock', to: { type: 'Heading', level: 2 } }, ids)
 ```
 
-`InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`,
-`SetSelection`, `Paste`, and `RetypeBlock` read the current selection, emit a
+`InsertText`, `DeleteBackward`, `DeleteForward`, `SplitBlock`, `ToggleMark`, `SetMark`,
+`ClearMark`, `SetSelection`, `Paste`, and the block commands below (`RetypeBlock`,
+`WrapBlock`, `ConvertBlock`, `LiftBlock`) read the current selection, emit a
 Transaction, and apply it in one step; the returned `ChangeSet` and `positionMap`
 describe the effect. Nothing mints identity unless the caller's `mint` does, and
 replay applies transactions rather than commands.
@@ -203,6 +204,14 @@ not declare is rejected. That is how *stored marks* stay the application's state
 the caret's format belongs to the caller, and the command layer reads no hidden
 cursor state. A collapsed `ToggleMark` is likewise a no-op — the application
 decides what the caret carries and passes it back on the next `InsertText`.
+
+A toggle can take a link off but cannot change where it points. `SetMark` puts exactly
+the given mark on every run a range covers, replacing the props of a same-named mark,
+and `ClearMark` takes a mark off by name. At a caret both act on the mark's extent
+around it, so an editor changes or removes the link the caret sits in without selecting
+it first; outside a mark they do nothing. `markExtent(document, position, name)` is that
+extent as a read: the mark, and the range of adjacent runs carrying it with the same
+props, which is what a link editor shows before it sends either command.
 
 `marksInRange(document, selection)` is the read beside them, for a toolbar's active
 button: the marks every run the selection covers carries. A caret reports its run's

@@ -62,6 +62,8 @@ export {
   type CommandIds,
   type RunOptions,
   marksInRange,
+  markExtent,
+  type MarkExtent,
   run,
   runAction,
 } from './command.js'
