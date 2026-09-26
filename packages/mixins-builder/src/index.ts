@@ -17,6 +17,7 @@ import { Option, Schema } from 'effect'
 import {
   Layers,
   controlOf,
+  inputOf,
   spaced,
   Message,
   layersArgs,
@@ -285,28 +286,6 @@ const contextChoices = (control: Control | undefined): ReadonlyArray<string> | u
       : Input.Toggle.is(control)
         ? ['true', 'false']
         : undefined
-
-/**
- * An action's input to start from: an empty value for each field the inspector
- * can draw, the first choice of a select. What still does not check is refused
- * as any edit is, and the alert says why.
- */
-const seedOf = (input: Schema.Top): { readonly [key: string]: Schema.Json } =>
-  Object.fromEntries(
-    Object.entries(fieldsOf(input)).flatMap(
-      ([key, schema]): ReadonlyArray<[string, Schema.Json]> => {
-        const control = Input.resolve(Entity.unmapped, schema)
-        if (control === undefined) return []
-        if (Input.Toggle.is(control)) return [[key, false]]
-        if (Input.Number.is(control)) return [[key, 0]]
-        if (Input.Select.is(control)) {
-          const [first] = control.data.options
-          return first === undefined ? [] : [[key, first]]
-        }
-        return Input.Text.is(control) || Input.Multiline.is(control) ? [[key, '']] : []
-      },
-    ),
-  )
 
 /** What the editor calls a Block, given with `BuilderView.describe`. */
 export interface BlockWords {
@@ -851,7 +830,7 @@ export const BuilderView = {
                 const chosen = builder.catalog.actions.find(each => each.name === name)
                 return chosen === undefined
                   ? Message.Applied({ op: Composition.Op.setAction(id, event, null) })
-                  : run(chosen.name, seedOf(chosen.input))
+                  : run(chosen.name, inputOf(block, event, chosen).seed())
               }),
             ]),
             optionsOf(h, slots.selectOption, {

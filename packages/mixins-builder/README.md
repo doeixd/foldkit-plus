@@ -336,8 +336,10 @@ Last, under Interactions, each event the Block names says what it runs:
 of the Catalog's actions, blank for nothing, and under it the chosen action's
 input as a form of its own, drawn and styled as the props are; its ids are
 `<Block>-<event>-<action>-<key>`. Choosing an action starts its input from
-empty values (the first choice of a select); a start the action's Schema still
-refuses is refused and shown in the alert. Each change to the input is one
+each field's empty value as stored (`''`, `null`, `false`), else zero or a
+select's first choice (`inputOf(block, event, action).seed()` in
+`foldkit-builder`); a start the action's Schema still refuses is refused and
+shown in the alert. Each change to the input is one
 `setAction` with the changed keys over the rest, and choosing nothing removes
 it.
 

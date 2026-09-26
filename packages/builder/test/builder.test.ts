@@ -9,9 +9,18 @@ import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
-import { Builder, Layers, Message, Model } from 'foldkit-builder'
+import { Builder, Layers, Message, Model, inputOf } from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
-import { ColorMessage, PageBuilder, Site, SiteRenderer, Stat, answer, isTimer } from './fixture.js'
+import {
+  ColorMessage,
+  PageBuilder,
+  Site,
+  SiteRenderer,
+  Stat,
+  Subscribe,
+  answer,
+  isTimer,
+} from './fixture.js'
 
 const { update } = PageBuilder.bundle
 const step = (model: Model, message: Message) => update(model, message, undefined)
@@ -694,6 +703,17 @@ describe('the inspector, a form over each action an event runs', () => {
       value: 'many',
       errors: ['Enter a number'],
     })
+  })
+
+  it('starts a newly chosen action’s input from its fields’ empty values, as stored', () => {
+    expect(inputOf(Stat, 'hold', Subscribe).seed()).toEqual({ list: 'news', times: 0, note: '' })
+    // A field drawn as an `Option` starts as the `null` it is stored as, not left out.
+    const Tagged = {
+      ...Subscribe,
+      name: 'tagged',
+      input: Schema.Struct({ tag: Schema.OptionFromNullOr(Schema.String) }),
+    }
+    expect(inputOf(Stat, 'hold', Tagged).seed()).toEqual({ tag: null })
   })
 
   it('names each event’s form for its event, so two that run one action draw apart', () => {

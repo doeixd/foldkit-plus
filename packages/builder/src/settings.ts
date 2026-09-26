@@ -144,6 +144,24 @@ const make = (
       // `never`: the form's type knows no Bundle-backed key; `control` refuses a key
       // that is not one, and the Bundle drops a Message it does not take.
       form.control(key as never).send(message as never),
+    /**
+     * What a new value starts from, as the Document stores it: each field's
+     * empty value where it decodes (`''`, `null`, `false`), else a number's
+     * zero or a select's first choice; a field with neither is left out.
+     */
+    seed: (): Readonly<Record<string, Schema.Json>> => {
+      const empty: Readonly<Record<string, unknown>> = form.partial(form.initial)
+      return Object.fromEntries(
+        editable.flatMap(([key, schema]): ReadonlyArray<readonly [string, Schema.Json]> => {
+          if (Object.hasOwn(empty, key)) return [[key, empty[key] as Schema.Json]]
+          const control = resolve(key, Schema.toEncoded(schema))
+          if (control !== undefined && Input.Number.is(control)) return [[key, 0]]
+          const [first] =
+            control !== undefined && Input.Select.is(control) ? control.data.options : []
+          return first === undefined ? [] : [[key, first]]
+        }),
+      )
+    },
     /** A value from the form, as the Document stores it; none for a prop the form does not edit. */
     stored: (key: string, value: unknown): Option.Option<Schema.Json> =>
       Object.hasOwn(decoders, key) ? Option.some(value as Schema.Json) : Option.none(),
