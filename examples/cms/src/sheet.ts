@@ -1,23 +1,13 @@
 /**
- * The example's one stylesheet: the layer order, the reset, the scales and the
- * palette, the element defaults, every style in `style.ts`, and every rule a
- * site Block's look can draw. `client.ts` injects it once.
+ * The example's stylesheet: the page's foundations, which no Slot draws — the
+ * layer order, the reset, the scales and the palette, the element defaults.
+ * `client.ts` injects it once. Every Style a view or a site Block's look
+ * attaches brings its own rules when it draws, so none is listed here.
  */
 import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
-import { lookStyles } from './site.js'
-import {
-  AdminStyle,
-  BuilderStyle,
-  FormStyle,
-  ListStyle,
-  SiteStyle,
-  WritingFieldStyle,
-  PageFieldStyle,
-  PageFormStyle,
-  theme,
-} from './style.js'
+import { theme } from './style.js'
 
 const L = Layers.standard
 
@@ -27,13 +17,4 @@ export const stylesheet = Style.stylesheet(
   L.in('tokens', Theme.root(Theme.tokens)),
   L.in('theme', Theme.root(theme, { omit: Theme.tokens })),
   L.in('defaults', Defaults.all),
-  ...lookStyles,
-  AdminStyle,
-  WritingFieldStyle,
-  PageFieldStyle,
-  FormStyle,
-  PageFormStyle,
-  ListStyle,
-  BuilderStyle,
-  SiteStyle,
 )

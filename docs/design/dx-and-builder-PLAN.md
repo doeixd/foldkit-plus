@@ -239,6 +239,9 @@ point instead of per element.
 >
 > The browser test that a Style left out of the stylesheet still draws, held
 > as `it.fails` in 0c, now passes.
+>
+> **1f done:** the example's `sheet.ts` holds only its foundations, and
+> `lookStyles` is gone; the studio and the site render as before.
 
 ### 1c. Server extraction (M)
 

@@ -1,8 +1,8 @@
 /**
  * The example's appearance, as `foldkit-mixins` Style: one theme, derived from
  * an accent color, and the Slots the views publish, styled here and nowhere
- * else. `sheet.ts` compiles every rule into the one stylesheet `client.ts`
- * injects; the views attach the same values, so their classes are the sheet's.
+ * else. A view attaches a Style, and its rules arrive when the view draws; the
+ * page's own stylesheet (`sheet.ts`) holds only the foundations.
  *
  * - `AdminSlots`: the authoring shell of the posts and the pages.
  * - `SiteSlots`: the public site's shell and its article.
@@ -32,7 +32,7 @@ export const t = Theme.ref(theme)
 export const serif = "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif"
 
 const L = Layers.standard
-/** Every slot style is born in `app`, so the value a view attaches is the one the sheet ships. */
+/** Every slot style is born in `app`, the last layer, so it wins over the foundations and the looks. */
 const app = L.layer('app')
 
 const part = Slot.make({ capability: Capability.Container })

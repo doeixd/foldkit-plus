@@ -105,9 +105,9 @@ takes must also fit the site's Catalog: `PageInput` checks its `document` with
 - `siteApp.ts` and `siteView.ts` are the public site: its routes, its reads, and
   its view. `seed.ts` is what `pnpm dev` starts with.
 - `shell.ts`, `view.ts` and `pagesView.ts` are the studio's views, and
-  `icons.ts` its icons, drawn as SVG by the same html builder; `style.ts` and
-  `sheet.ts` are its appearance and the site's, as `foldkit-mixins` Style
-  compiled into one stylesheet.
+  `icons.ts` its icons, drawn as SVG by the same html builder; `style.ts` is
+  its appearance and the site's, as `foldkit-mixins` Style, and `sheet.ts` the
+  page's foundations (layers, reset, tokens, theme).
 
 ## In the browser
 
@@ -142,10 +142,10 @@ says otherwise, so it shows only what is published.
 - **FeaturedPost's post is picked, not typed.** Its prop is
   `Input.relationOne(Post)`; the page app reads the published posts and gives
   them to the Builder as the picker's choices (`builderInputs`).
-- **There is no CSS file.** `style.ts` holds the theme (one accent color,
-  `Theme.oklch`) and the Slots the views publish, styled; `sheet.ts` compiles
-  them, with every rule a Block's look can draw, into the one stylesheet
-  `client.ts` injects.
+- **There is no CSS file, and no list of styles.** `style.ts` holds the theme
+  (one accent color, `Theme.oklch`) and the Slots the views publish, styled.
+  A Style's rules arrive when a view draws it, so `sheet.ts` holds only what
+  no Slot draws: the layer order, the reset, the tokens and the theme.
 - **The page editor's address says which page is open and which Block is
   selected** (`/pages?as=edda&page=…&block=…`), so a link opens the editor on a
   Block and a reload comes back to it. The Builder owns its selection: a

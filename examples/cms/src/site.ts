@@ -5,7 +5,7 @@
  *
  * Each Block's look is a `foldkit-mixins` recipe made into appearance axes by
  * `Appearance.make`: the inspector offers the axes, the Renderer draws the
- * chosen Style, and `sheet.ts` ships every rule once.
+ * chosen Style, whose rules arrive with it when it draws.
  */
 import { Array as Arr, Option, Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
@@ -727,22 +727,6 @@ export const Site = Catalog.make({
   ],
   roots: [Content.Section],
 })
-
-/** Every rule a look can draw, for `sheet.ts`. */
-export const lookStyles = [
-  ...HeroLook.styles,
-  ...SectionLook.styles,
-  ...ColumnsLook.styles,
-  ...HeadingLook.styles,
-  ...TextLook.styles,
-  ...ImageLook.styles,
-  ...QuoteLook.styles,
-  ...CalloutLook.styles,
-  ...DividerLook.styles,
-  ...ButtonLook.styles,
-  ...PostsLook.styles,
-  ...FeaturedLook.styles,
-]
 
 const waiting = <M>(h: HtmlBuilder<M>, what: string): Html =>
   h.p([h.Style({ color: t.text.muted })], [what])
