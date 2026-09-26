@@ -262,14 +262,18 @@ const PageForm = Form.make('PageForm', PageInput, {
 - A stored value a `select` lacks is shown as `? value`; an unknown Block's
   props are shown read-only. `fieldsOf(schema)` (from `foldkit-composition`)
   is a struct Schema's fields.
-- Draws: palette (`Add <Block>`, disabled with no place), layers as
-  `role="tree"` rows (tab stop on the selected row), actions, inspector
+- Draws: palette (grouped buttons named `Add <label>`, titled with where they
+  go, disabled with no place), layers as `role="tree"` rows (label, the node's
+  first text in brief, a toggle on a branch; tab stop on the selected row),
+  actions, inspector
   (Boolean: checkbox; literals: select; Number, String: input; else JSON
   shown), undo/redo, viewport frame, refusal as `role="alert"`, live region,
   and the page via the site's Renderer in edit mode.
 - Behaviors: `TreeNavigation` on `tree`/`row`; `keyCommand` shortcuts on
   `layers`; `Targets` on `canvas` (hover marks, press selects, a link does not
   navigate). No state, no Messages of its own.
+- A Block's words: `Block.annotate(BuilderView.describe({ label, description, group }))`;
+  the label defaults to the name spaced. Palette items and rows carry `data-block`.
 - Inspector labels are the prop Schema's `title`, else the key. A Block asks
   for a control with
   `Block.annotate(BuilderView.controls({ body: Input.multiline(), ref: Input.hidden() }))`.

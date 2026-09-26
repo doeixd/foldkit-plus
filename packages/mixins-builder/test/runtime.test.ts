@@ -30,9 +30,12 @@ const Editor = Page.at(Slot)
 const placements = Page.assemble(Editor)
 
 const buttonNamed = (name: string): HTMLButtonElement | undefined =>
-  Array.from(document.querySelectorAll('button')).find(button => button.textContent === name)
+  Array.from(document.querySelectorAll('button')).find(
+    button => (button.getAttribute('aria-label') ?? button.textContent) === name,
+  )
 const rows = () => Array.from(document.querySelectorAll('[role="treeitem"]'))
-const rowNamed = (name: string) => rows().find(row => row.textContent === name)
+/** The row of the one node of a Block. */
+const rowNamed = (block: string) => rows().find(row => row.getAttribute('data-block') === block)
 const selectedRow = () => rows().find(row => row.getAttribute('aria-selected') === 'true')
 const key = (target: Element | undefined, name: string, init: KeyboardEventInit = {}) =>
   target?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, ...init }))
@@ -80,9 +83,9 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     await vi.waitFor(() => expect(rowNamed('Section')).toBeDefined())
     buttonNamed('Add Heading')?.click()
     await vi.waitFor(() => expect(rowNamed('Heading')).toBeDefined())
-    buttonNamed('Add Banner')?.click()
+    buttonNamed('Add Promo banner')?.click()
     await vi.waitFor(() => expect(canvasText()).toEqual(['New heading', 'Hello']))
-    expect(selectedRow()?.textContent).toBe('Banner')
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Banner')
     // What was inserted is selected, and brought into view in the layers and on the page.
     await vi.waitFor(() => {
       expect(scrolled).toContain(rowNamed('Banner'))
@@ -91,8 +94,8 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
 
     // Up in the tree moves focus to the Heading, and the selection follows.
     key(rowNamed('Banner'), 'ArrowUp')
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))
-    expect(document.activeElement?.textContent).toBe('Heading')
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Heading'))
+    expect(document.activeElement?.getAttribute('data-block')).toBe('Heading')
 
     // Alt+Down moves the Heading after the Banner, and the live region says so.
     key(rowNamed('Heading'), 'ArrowDown', { altKey: true })
@@ -103,13 +106,21 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
       ),
     )
 
+    // The Section's toggle closes it, hiding what it holds, and opens it again.
+    const toggle = () => rowNamed('Section')?.querySelector('[aria-hidden="true"]')
+    toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(rowNamed('Heading')).toBeUndefined())
+    expect(rowNamed('Section')?.getAttribute('aria-expanded')).toBe('false')
+    toggle()?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(rowNamed('Heading')).toBeDefined())
+
     // A click on a row selects it.
     rowNamed('Section')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Section'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))
 
     // A click on the page selects the node it lands on.
     document.querySelector<HTMLElement>('[aria-label="Page"] .banner')?.click()
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Banner'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Banner'))
 
     // Dragging the Banner's row onto the Heading's lands it after the Heading
     // (jsdom has no boxes, so the pointer is inside a Heading, which takes
@@ -133,7 +144,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     pointer(rowNamed('Heading'), 'pointerup', 20)
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(canvasText()).toEqual(['New heading', 'Hello']))
-    expect(selectedRow()?.textContent).toBe('Banner')
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Banner')
     expect(document.querySelector('[data-builder-drop]')).toBeNull()
 
     // A drag on the page itself: the Heading onto the Banner lands it after,
@@ -144,7 +155,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     pointer(onPage('.banner'), 'pointermove', 20)
     pointer(onPage('.banner'), 'pointerup', 20)
     await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading']))
-    expect(selectedRow()?.textContent).toBe('Heading')
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Heading')
 
     // Choosing the Banner's tone in the inspector redraws it; choosing the blank
     // goes back to the default.
@@ -239,7 +250,7 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     await vi.waitFor(() => expect(bannerWhen()).toBeUndefined())
 
     rowNamed('Heading')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await vi.waitFor(() => expect(selectedRow()?.textContent).toBe('Heading'))
+    await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Heading'))
 
     // Delete on the layers removes the selected node.
     key(rowNamed('Heading'), 'Delete')

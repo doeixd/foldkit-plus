@@ -58,10 +58,14 @@ const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageE
 
 Place `Drawn` as you would any Bundle. Its view draws:
 
-- a **palette**: one `Add <Block>` button per Block with starting props, each
-  disabled where the selection leaves no place for it;
+- a **palette**: one button per Block with starting props, named
+  "Add <label>" and grouped, each titled with where it would go ("Adds it
+  inside the Section") or disabled, saying why, where the selection leaves no
+  place for it;
 - the **layers**: a `role="tree"` of the page's nodes, one `treeitem` row each,
-  with a roving tab stop on the selected row;
+  with a roving tab stop on the selected row; a row shows its Block's label and
+  the node's first text in brief, and one that holds others has a toggle that
+  opens and closes it;
 - the selected node's **actions** (move up, down, out and in; duplicate;
   delete) and its props in an **inspector**;
 - **undo** and **redo**, a **viewport** picker, and the reason the last edit
@@ -200,6 +204,23 @@ const Quote = Block.define('Quote', {
 The hint is the inspector's, kept on the Block beside any other package's
 metadata; `foldkit-composition` does not read it. A later annotation's prop
 replaces an earlier one's.
+
+### What the editor calls a Block
+
+A Block's `label`, `description` and palette `group` are metadata too:
+
+```ts
+const Described = Quote.pipe(
+  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Words someone said' })),
+)
+```
+
+The label defaults to the Block's name spaced (`PostList` is "Post list"), and
+Blocks given no group share one, "Blocks"; a group is headed only when there is
+more than one. The palette shows the label and the description, and a layer row
+the label and the node's first text prop, cut to forty characters. Palette
+buttons and layer rows carry `data-block` with the Block's name, so a Style can
+give each an icon.
 
 ### A prop that points at the application's things
 

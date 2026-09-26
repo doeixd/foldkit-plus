@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-builder`: what the editor calls a Block.**
+  `Block.annotate(BuilderView.describe({ label, description, group }))` names a
+  Block, says what it is for, and files it in a palette group. The palette is
+  grouped; each button is named "Add <label>", shows the description, and is
+  titled with where it would go ("Adds it inside the Section") or why it
+  cannot. A layer row shows the label and the node's first text in brief, and
+  a row that holds others has a toggle. New Slots: `paletteGroup`,
+  `paletteHeading`, `paletteLabel`, `paletteHint`, `rowToggle`, `rowLabel`,
+  `rowSummary`; palette buttons and rows carry `data-block`. A palette button's
+  text is now the label, not `Add <Block>`: find it by its accessible name.
 - **`foldkit-surface`: `Action`, a named capability that ends in a Message.**
   `Action.define({ name, description, input, toMessage })` declares one, and
   `Action.run(action, data)` decodes the data as its input before making the

@@ -68,16 +68,45 @@ const page = insert(insert(insert(PageBuilder.initial, 'Section'), 'Heading'), '
 const section = required(PageBuilder.document(page).roots[0], 'the section')
 
 describe('the drawn Builder', () => {
-  it('offers each Block with starting props, for where the selection says it goes', () => {
+  it('offers each Block with starting props, in its group, saying where it would go', () => {
+    const items = (root: Html) =>
+      all(root).filter(node => node.sel === 'button' && attr(node, 'data-block') !== undefined)
     const root = draw(PageBuilder.initial)
     expect(
       all(root)
-        .filter(node => node.sel === 'button' && text(node).startsWith('Add '))
+        .filter(node => node.sel === 'h3')
         .map(text),
-    ).toEqual(['Add Section', 'Add Heading', 'Add Banner'])
+    ).toEqual(['Layout', 'Text'])
     // An empty page takes only a Section.
-    expect(prop(buttonNamed(root, 'Add Heading'), 'disabled')).toBe(true)
-    expect(prop(buttonNamed(root, 'Add Section'), 'disabled')).toBe(false)
+    expect(
+      items(root).map(item => [
+        attr(item, 'aria-label'),
+        text(item),
+        prop(item, 'title'),
+        prop(item, 'disabled'),
+      ]),
+    ).toEqual([
+      ['Add Section', 'SectionA band of the page', 'Adds it to the end of the page', false],
+      ['Add Heading', 'Heading', 'Select a block that can hold it', true],
+      [
+        'Add Promo banner',
+        'Promo bannerA line that stands out',
+        'Select a block that can hold it',
+        true,
+      ],
+    ])
+    const titles = (model: Model) => items(draw(model)).map(item => prop(item, 'title'))
+    // A Section cannot follow the Banner inside the Section, so it goes last on the page.
+    expect(titles(page)).toEqual([
+      'Adds it to the end of the page',
+      'Adds it after the Promo banner',
+      'Adds it after the Promo banner',
+    ])
+    expect(titles(send(page, Message.Selected({ id: section })))).toEqual([
+      'Adds it to the end of the page',
+      'Adds it inside the Section',
+      'Adds it inside the Section',
+    ])
   })
 
   it('draws the layers as a tree, the tab stop on the selected row', () => {
@@ -85,12 +114,55 @@ describe('the drawn Builder', () => {
     const [tree] = byRole(root, 'tree')
     expect(attr(tree, 'aria-label')).toBe('Layers')
     const rows = byRole(root, 'treeitem')
-    expect(rows.map(text)).toEqual(['Section', 'Heading', 'Banner'])
+    // A toggle on the row that holds others, the Block's label, and its text in brief.
+    expect(
+      rows.map(row =>
+        all(row)
+          .filter(node => node.sel === 'span')
+          .map(text),
+      ),
+    ).toEqual([
+      ['', 'Section'],
+      ['Heading', 'New heading'],
+      ['Promo banner', 'Hello'],
+    ])
+    expect(rows.map(row => attr(row, 'data-block'))).toEqual(['Section', 'Heading', 'Banner'])
     expect(rows.map(row => attr(row, 'aria-level'))).toEqual(['1', '2', '2'])
     expect(rows.map(row => attr(row, 'aria-selected'))).toEqual(['false', 'false', 'true'])
     expect(attr(rows[0], 'aria-expanded')).toBe('true')
     expect(prop(rows[0], 'id')).toBe(layerId(PageBuilder, section))
     expect(rows.map(row => prop(row, 'tabIndex'))).toEqual([-1, -1, 0])
+  })
+
+  it('quotes a node’s first text in brief, on one line', () => {
+    const heading = required(
+      PageBuilder.document(page).nodes[section]?.regions['body']?.[0],
+      'the heading',
+    )
+    const long = send(
+      page,
+      Message.Applied({
+        op: Composition.Op.setProp(
+          heading,
+          'text',
+          'A heading\n  that runs on well past what a layer row has room to show',
+        ),
+      }),
+    )
+    const [, row] = byRole(draw(long), 'treeitem')
+    expect(
+      all(row)
+        .filter(node => node.sel === 'span')
+        .map(text),
+    ).toEqual(['Heading', 'A heading that runs on well past what a…'])
+    // A node whose text is empty says nothing beside its label.
+    const empty = send(page, Message.Applied({ op: Composition.Op.setProp(heading, 'text', ' ') }))
+    const [, bare] = byRole(draw(empty), 'treeitem')
+    expect(
+      all(bare)
+        .filter(node => node.sel === 'span')
+        .map(text),
+    ).toEqual(['Heading'])
   })
 
   it('draws the selected node’s props, each as the control its Schema calls for', () => {

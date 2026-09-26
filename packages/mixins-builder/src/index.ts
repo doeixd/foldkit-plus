@@ -40,14 +40,25 @@ import * as Submodel from 'foldkit/submodel'
 /** The Builder's public customization contract: every element the editor draws. */
 export const BuilderSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
-  /** The Blocks a page may gain, one button each. */
+  /** The Blocks a page may gain, in groups, one button each. */
   palette: Slot.make({ capability: Capability.Container }),
+  /** One group of the palette, and its heading, drawn when there is more than one. */
+  paletteGroup: Slot.make({ capability: Capability.Container }),
+  paletteHeading: Slot.make({ capability: Capability.Base }),
+  /** A Block to add: its label, and the line describing it. Carries `data-block`. */
   paletteItem: Slot.make({ capability: Capability.Interactive }),
+  paletteLabel: Slot.make({ capability: Capability.Base }),
+  paletteHint: Slot.make({ capability: Capability.Base }),
   /** The layers panel: it takes the editor's keyboard shortcuts. */
   layers: Slot.make({ capability: Capability.Interactive }),
-  /** The `role="tree"` element, and one `treeitem` row per node showing. */
+  /** The `role="tree"` element, and one `treeitem` row per node showing. Rows carry `data-block`. */
   tree: Slot.make({ capability: Capability.Container }),
   row: Slot.make({ capability: Capability.Focusable }),
+  /** On a row that holds others: opens or closes it, as Right and Left do. */
+  rowToggle: Slot.make({ capability: Capability.Interactive }),
+  /** A row's Block, and what its node says, in brief. */
+  rowLabel: Slot.make({ capability: Capability.Base }),
+  rowSummary: Slot.make({ capability: Capability.Base }),
   /** Move, duplicate and delete for the selected node. */
   actions: Slot.make({ capability: Capability.Container }),
   action: Slot.make({ capability: Capability.Interactive }),
@@ -244,6 +255,34 @@ const controlsKey = Metadata.key<Readonly<Record<string, Control>>>(
   },
 )
 
+/** What the editor calls a Block, given with `BuilderView.describe`. */
+export interface BlockWords {
+  /** Its name in the palette, the layers and the inspector. Default: its name, spaced (`PostList` is "Post list"). */
+  readonly label?: string
+  /** What it is for, under its name in the palette and the inspector. */
+  readonly description?: string
+  /** The palette group it is listed in. Blocks given none share one, "Blocks". */
+  readonly group?: string
+}
+
+const wordsKey = Metadata.key<BlockWords>('foldkit-mixins-builder/words', {
+  // A later annotation's word replaces an earlier one's.
+  merge: records => [Object.assign({}, ...records)],
+  summarize: words =>
+    Object.entries(words)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(', '),
+})
+
+/** A name in code as words: `PostList` is "Post list", `tone` is "Tone". */
+const spaced = (name: string): string => {
+  const words = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** The longest summary a layer row shows before it is cut short. */
+const SUMMARY_LENGTH = 40
+
 /** The control a Block asked for its prop, else the one its Schema resolves to. */
 const controlFor = (block: AnyBlock, key: string, schema: Schema.Top): Control | undefined =>
   controlsKey.get(block.metadata)[0]?.[key] ?? Input.resolve(Entity.unmapped, schema)
@@ -290,6 +329,12 @@ export const BuilderView = {
    */
   controls: (controls: Readonly<Record<string, Control>>): Metadata => controlsKey.of(controls),
 
+  /**
+   * Block metadata: what the editor calls a Block, as
+   * `Hero.pipe(Block.annotate(BuilderView.describe({ label: 'Hero', group: 'Layout' })))`.
+   */
+  describe: (words: BlockWords): Metadata => wordsKey.of(words),
+
   /** What the drawn Builder is drawn with, typed where a form's `controls` entry cannot be. */
   inputs: (inputs: BuilderViewInputs = {}): BuilderViewInputs => inputs,
 
@@ -319,6 +364,51 @@ export const BuilderView = {
    * (the layers' keyboard, the canvas's pointer, the shortcuts) are attached.
    */
   define: (builder: BuilderLike) => {
+    const described = new Map(
+      builder.catalog.blocks.map(block => {
+        const given = wordsKey.get(block.metadata)[0] ?? {}
+        // The props a layer row may quote: those drawn as text.
+        const texts = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
+          const control = controlFor(block, key, schema)
+          return control !== undefined && (Input.Text.is(control) || Input.Multiline.is(control))
+            ? [key]
+            : []
+        })
+        return [
+          block.name,
+          {
+            label: given.label ?? spaced(block.name),
+            description: Option.fromUndefinedOr(given.description),
+            group: given.group ?? 'Blocks',
+            texts,
+          },
+        ] as const
+      }),
+    )
+    /** A Block's label; one the Catalog lacks is marked unknown. */
+    const labelOf = (name: string): string => described.get(name)?.label ?? `? ${name}`
+    /** A node's first text prop that says something, cut short. */
+    const summaryOf = (node: Document['nodes'][NodeId]): Option.Option<string> => {
+      for (const key of described.get(node.block)?.texts ?? []) {
+        const value = node.props[key]
+        const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+        if (text !== '')
+          return Option.some(
+            text.length > SUMMARY_LENGTH ? `${text.slice(0, SUMMARY_LENGTH - 1).trimEnd()}…` : text,
+          )
+      }
+      return Option.none()
+    }
+    // The palette's groups, in the order their first Block is offered: a Map keeps insertion order.
+    const grouped = new Map<string, Array<string>>()
+    for (const name of builder.offered) {
+      const group = described.get(name)?.group ?? 'Blocks'
+      const names = grouped.get(group)
+      if (names === undefined) grouped.set(group, [name])
+      else names.push(name)
+    }
+    const groups = [...grouped]
+
     const draw = (
       model: BuilderInput,
       slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
@@ -347,16 +437,67 @@ export const BuilderView = {
           [label],
         )
 
+      const labelAt = (id: NodeId): string =>
+        Option.match(Option.fromUndefinedOr(document.nodes[id]), {
+          onNone: () => id,
+          onSome: node => labelOf(node.block),
+        })
+      // Where an insert lands, said on the Block's button, from the place itself.
+      const whereItGoes = (at: Option.Option<Position>): string =>
+        Option.match(at, {
+          onNone: () =>
+            Option.match(selected, {
+              onNone: () => 'Select a block that can hold it',
+              onSome: id => `It cannot go in or after the ${labelAt(id)}`,
+            }),
+          onSome: position => {
+            if (position._tag === 'Root') {
+              const before = document.roots[position.index - 1]
+              return position.index === document.roots.length
+                ? 'Adds it to the end of the page'
+                : before === undefined
+                  ? 'Adds it to the top of the page'
+                  : `Adds it after the ${labelAt(before)}`
+            }
+            const before =
+              document.nodes[position.parent]?.regions[position.region]?.[position.index - 1]
+            return Option.contains(selected, position.parent) || before === undefined
+              ? `Adds it inside the ${labelAt(position.parent)}`
+              : `Adds it after the ${labelAt(before)}`
+          },
+        })
       const palette = h.nav(
         slots.palette.attrs([h.AriaLabel('Add a block')]),
-        builder.offered.map(name =>
-          button(
-            slots.paletteItem,
-            `Add ${name}`,
-            Option.map(builder.placeFor(document, selected, name), at =>
-              Message.InsertAsked({ block: name, at }),
-            ),
-          ),
+        groups.map(([group, names]) =>
+          h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(group)]), [
+            ...(groups.length > 1 ? [h.h3(slots.paletteHeading.attrs(), [group])] : []),
+            ...names.map(name => {
+              const at = builder.placeFor(document, selected, name)
+              const label = labelOf(name)
+              return h.button(
+                slots.paletteItem.attrs([
+                  h.Type('button'),
+                  h.DataAttribute('block', name),
+                  h.AriaLabel(`Add ${label}`),
+                  h.Title(whereItGoes(at)),
+                  h.Disabled(Option.isNone(at)),
+                  ...Option.match(at, {
+                    onNone: () => [],
+                    onSome: position => [
+                      h.OnClick(Message.InsertAsked({ block: name, at: position })),
+                    ],
+                  }),
+                ]),
+                [
+                  h.span(slots.paletteLabel.attrs(), [label]),
+                  ...Option.match(described.get(name)?.description ?? Option.none(), {
+                    onNone: () => [],
+                    onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
+                  }),
+                ],
+              )
+            }),
+          ]),
         ),
       )
 
@@ -365,13 +506,13 @@ export const BuilderView = {
         slots.tree.attrs([h.Role('tree'), h.AriaLabel('Layers')]),
         shown.map((row, index) => {
           const node = document.nodes[NodeId.make(row.id)]
-          const known =
-            node !== undefined && Catalog.block(builder.catalog, node.block) !== undefined
+          const open = TreeNavigation.isOpen(model.layers, layersArgs, row.id)
           return h.li(
             slots.row.attrs(
               [
                 h.Key(row.id),
                 h.DataAttribute(ROW_ATTRIBUTE, row.id),
+                ...(node === undefined ? [] : [h.DataAttribute('block', node.block)]),
                 ...Option.match(
                   Option.filter(drop, over => over.id === row.id),
                   {
@@ -387,7 +528,31 @@ export const BuilderView = {
               ],
               { index, id: row.id },
             ),
-            [`${known ? '' : '? '}${node?.block ?? row.id}`],
+            [
+              ...(row.branch
+                ? [
+                    h.span(
+                      slots.rowToggle.attrs([
+                        // The row says whether it is open; this is the pointer's way to change it.
+                        h.AriaHidden(true),
+                        h.OnClick(
+                          Layers.wrapper.make(
+                            open
+                              ? TreeNavigation.Message.Closed({ id: row.id })
+                              : TreeNavigation.Message.Opened({ id: row.id }),
+                          ),
+                        ),
+                      ]),
+                      [],
+                    ),
+                  ]
+                : []),
+              h.span(slots.rowLabel.attrs(), [node === undefined ? row.id : labelOf(node.block)]),
+              ...Option.match(node === undefined ? Option.none() : summaryOf(node), {
+                onNone: () => [],
+                onSome: summary => [h.span(slots.rowSummary.attrs(), [summary])],
+              }),
+            ],
           )
         }),
       )
