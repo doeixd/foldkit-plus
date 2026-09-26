@@ -74,11 +74,13 @@ export const Measure = Mount.defineStream('Measure', {
             if (frame === undefined) frame = requestAnimationFrame(measure)
           }
 
+          // Both made before either observes: where one is missing (jsdom has no
+          // ResizeObserver), the Mount fails with nothing attached to call `measure`.
+          const changes = new MutationObserver(soon)
+          const sizes = new ResizeObserver(soon)
           // Its own properties change the container's style too, but writing the same
           // values again records nothing, so a measure that changed nothing rests.
-          const changes = new MutationObserver(soon)
           changes.observe(container, { subtree: true, childList: true, attributes: true })
-          const sizes = new ResizeObserver(soon)
           sizes.observe(container)
           container.addEventListener('scroll', soon, { passive: true })
           window.addEventListener('resize', soon)
