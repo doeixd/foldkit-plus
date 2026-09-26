@@ -86,6 +86,8 @@ check(
     typeof family.slashMenuView === 'function' &&
     typeof family.SlashMenuSlots === 'object' &&
     typeof family.linkEditor === 'function' &&
+    typeof family.blockStyles === 'function' &&
+    typeof family.BlockStyleSlots === 'object' &&
     typeof family.LinkEditorSlots === 'object',
 )
 

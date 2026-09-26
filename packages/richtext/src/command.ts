@@ -376,6 +376,25 @@ export const markExtent = (
   }
 }
 
+/**
+ * The text style of the block a selection starts in, in the shape `RetypeBlock` takes, so a
+ * style picker compares what it would send with what is there. Undefined for a node
+ * selection, one that resolves to nothing, or a block a retype does not reach, such as a code
+ * block.
+ */
+export const textBlockAt = (
+  document: Document,
+  selection: Selection | null,
+): TextBlock | undefined => {
+  if (selection?.type !== 'Range') return undefined
+  const start = ordered(document, selection)?.start
+  const found = start === undefined ? undefined : locateRun(document, start.node)
+  const block = found === undefined ? undefined : blockAtPath(document, found.path)
+  if (block?.type === 'Paragraph') return { type: 'Paragraph' }
+  if (block?.type === 'Heading') return { type: 'Heading', level: block.level }
+  return undefined
+}
+
 /** The last run in a block's subtree, or undefined when it holds none. */
 const lastRunOf = (block: Block): Run | undefined => {
   if (block.type === 'Node' && block.blocks !== undefined) {

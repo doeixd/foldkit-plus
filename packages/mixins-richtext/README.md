@@ -15,9 +15,10 @@ lit.
 ## Status
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
-versions. The mark toolbar, the slash menu, and the link editor are built; the rest of the
-design's editor chrome (floating toolbar, block handle, placeholder, status) arrives when a
-view needs it.
+versions. The mark toolbar, the block style picker, the slash menu, and the link editor are
+built; the rest of the design's editor chrome (floating toolbar, block handle, status)
+arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
+because it is drawn inside the editable subtree this package stays out of.
 
 ## The mark toolbar
 
@@ -53,6 +54,33 @@ can single one out.
 
 The view owns each button's click and its pressed state, so neither is in a slot's
 contract: a mixin cannot take them over.
+
+## The block style picker
+
+A button per text style the caret's block can take: Paragraph, Heading 1, 2, and 3, the
+slash menu's retype entries under the same labels.
+
+```ts
+import { blockStyles } from 'foldkit-mixins-richtext'
+
+blockStyles<Message>()(
+  { document: model.document, selection: model.editor.selection, wrap: edited },
+  h,
+)
+```
+
+The pressed button is a read of the document (`RichText.textBlockAt`), and a click sends that
+entry's `RetypedBlock` through `wrap`. At a heading level it does not list, none is pressed.
+In a code block, with a node selection, or with no selection, every button is disabled,
+because a retype there is refused. Lists, quotes, and code blocks are not styles here:
+leaving one is a lift or a replace, not a retype, so a button for one would send a Message
+that does not undo what it shows.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the picker's wrapper |
+| `toolbar` | Collection | the row, `role="toolbar"` |
+| `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
 
 ## The slash menu
 

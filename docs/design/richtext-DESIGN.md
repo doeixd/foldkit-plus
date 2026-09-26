@@ -7,7 +7,8 @@ Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules 
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
-mark toolbar, the slash menu, link editing, and the placeholder (§119, §123, §132, §133), with their views in
+mark toolbar, the block style picker, the slash menu, link editing, and the placeholder
+(§119, §123, §132, §133, §134), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Still to do: the rest of milestone 6's chrome, then source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
@@ -4698,9 +4699,11 @@ input rules               placed per host (`inputRulesFor`); the Markdown rules 
                           headings, quotes, lists, and fences (§128, §131)
 decorations               placed per host and drawn in the editable subtree (§129)
 placeholder               placed per host, drawn by the adapter (§133)
-block type picker, block
-handle, status, command
-palette, floating toolbar not started (§11, §120 slice 2)
+block type picker         `textBlockAt` in the core, `blockStyles` in the Mixins
+                          family (§134)
+block handle, status,
+command palette, floating
+toolbar                   not started (§11, §120 slice 2)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7411,3 +7414,31 @@ sit inside a bullet or a fence.
 
 The root became a `textbox` for this: `aria-placeholder` is not allowed on a generic element,
 and a `contenteditable` div is otherwise announced as one.
+
+---
+
+# 134. The block style picker
+
+§11 asks for a block type picker. It is built as a *style* picker: Paragraph and Heading 1–3,
+the slash menu's retype entries under the same labels, as a row of buttons in
+`foldkit-mixins-richtext` (`blockStyles`, `BlockStyleSlots`) shaped like the mark toolbar.
+
+```text
+RichText.textBlockAt(document, selection)   the start block's style, as RetypeBlock takes it
+pressed                                     the entry whose block equals it
+click                                       the entry's RetypedBlock, through `wrap`
+disabled                                    no such block: a code block, a node selection, none
+```
+
+Two things were decided rather than assumed:
+
+- **Lists, quotes, and code blocks are left out.** Choosing "Paragraph" from inside a list would
+  have to mean *leave the list*, which is a lift, and from a code block a replace back to text,
+  which no command does yet (`ConvertBlock` only goes from text to a node kind). A picker that
+  showed them would send a `RetypedBlock` that does not undo what it shows. They stay in the
+  slash menu, where an entry says what it does rather than what the block is.
+- **Buttons, not a `<select>`.** Foldkit's `OnChange` hands back a string and must return a
+  Message for any value, so a select would need a fallback for a value it does not know. A
+  button carries its own Message, and `aria-pressed` says which style the block has.
+
+A heading at a level the row does not list (4–6) presses nothing and can still be retyped.

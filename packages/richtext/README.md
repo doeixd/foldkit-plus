@@ -222,6 +222,10 @@ marks — an empty run can carry them, which is how a caret holds a format — a
 that straddles a marked run and a plain one reports neither, and a node selection
 reports what its whole subtree agrees on.
 
+`textBlockAt(document, selection)` is the style of the block a selection starts in — a
+paragraph, or a heading at its level — in the shape `RetypeBlock` takes, or undefined where a
+retype does not reach (a code block, a node selection), which is what a style picker presses.
+
 `isBlank(document)` says whether a reader would see nothing — no blocks, or a lone paragraph
 or heading with no text — which is when an editor shows its placeholder.
 

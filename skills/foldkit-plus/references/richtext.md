@@ -166,7 +166,10 @@ textBefore, index, key, modifiers)` — the keys a menu owns, using `foldkit-pri
 `RovingTabindex.move`, so ArrowUp/Down, Home/End, wrapping, and a modified key behave as in
 any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots` (`root`,
 `list`, `item`), one `data-entry` item per match with `role="menuitem"`, `aria-current` on
-the highlighted one, and the entry's own Message on click. `linkEditor<Message>()` is the link
+the highlighted one, and the entry's own Message on click. `blockStyles<Message>()` is the
+style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `toolbar`,
+`button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
+`RichText.textBlockAt`, all disabled where a retype is refused. `linkEditor<Message>()` is the link
 editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
