@@ -13,26 +13,10 @@ import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView, Quote, answer, isTimer } from './fixture.js'
+import { Inert } from 'foldkit-mixins/testing'
 
-type Node = Exclude<Html, null>
-const all = (node: Html | undefined): ReadonlyArray<Node> =>
-  node === null || node === undefined
-    ? []
-    : [
-        node,
-        ...(node.children ?? []).flatMap(child => (typeof child === 'string' ? [] : all(child))),
-      ]
-const text = (node: Html | undefined): string =>
-  all(node)
-    .map(each => each.text ?? '')
-    .join('')
-const attr = (node: Node | undefined, key: string): unknown => node?.data?.attrs?.[key]
-const classOf = (node: Node | undefined): ReadonlyArray<string> =>
-  Object.keys(node?.data?.class ?? {}).filter(name => node?.data?.class?.[name] === true)
-const prop = (node: Node | undefined, key: string): unknown => node?.data?.props?.[key]
-const byRole = (root: Html, role: string) => all(root).filter(node => attr(node, 'role') === role)
 const buttonNamed = (root: Html, name: string) =>
-  all(root).find(node => node.sel === 'button' && text(node) === name)
+  Inert.all(root).find(node => node.sel === 'button' && Inert.text(node) === name)
 
 const required = <A>(value: A | null | undefined, what: string): A => {
   if (value === undefined || value === null) throw new Error(`expected ${what}`)
@@ -70,21 +54,25 @@ const section = required(PageBuilder.document(page).roots[0], 'the section')
 describe('the drawn Builder', () => {
   it('offers each Block with starting props, in its group, saying where it would go', () => {
     const items = (root: Html) =>
-      all(root).filter(node => node.sel === 'button' && attr(node, 'data-block') !== undefined)
+      Inert.all(root).filter(
+        node => node.sel === 'button' && Inert.value(node, 'data-block') !== undefined,
+      )
     const root = draw(PageBuilder.initial)
-    const [palette] = all(root).filter(node => attr(node, 'aria-label') === 'Add a block')
+    const [palette] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Add a block',
+    )
     expect(
-      all(palette)
+      Inert.all(palette)
         .filter(node => node.sel === 'h3')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['Layout', 'Text'])
     // An empty page takes only a Section.
     expect(
       items(root).map(item => [
-        attr(item, 'aria-label'),
-        text(item),
-        prop(item, 'title'),
-        prop(item, 'disabled'),
+        Inert.value(item, 'aria-label'),
+        Inert.text(item),
+        Inert.value(item, 'title'),
+        Inert.value(item, 'disabled'),
       ]),
     ).toEqual([
       ['Add Section', 'SectionA band of the page', 'Adds it to the end of the page', false],
@@ -96,7 +84,7 @@ describe('the drawn Builder', () => {
         true,
       ],
     ])
-    const titles = (model: Model) => items(draw(model)).map(item => prop(item, 'title'))
+    const titles = (model: Model) => items(draw(model)).map(item => Inert.value(item, 'title'))
     // A Section cannot follow the Banner inside the Section, so it goes last on the page.
     expect(titles(page)).toEqual([
       'Adds it to the end of the page',
@@ -112,27 +100,31 @@ describe('the drawn Builder', () => {
 
   it('draws the layers as a tree, the tab stop on the selected row', () => {
     const root = draw(page)
-    const [tree] = byRole(root, 'tree')
-    expect(attr(tree, 'aria-label')).toBe('Layers')
-    const rows = byRole(root, 'treeitem')
+    const [tree] = Inert.byRole(root, 'tree')
+    expect(Inert.value(tree, 'aria-label')).toBe('Layers')
+    const rows = Inert.byRole(root, 'treeitem')
     // A toggle on the row that holds others, the Block's label, and its text in brief.
     expect(
       rows.map(row =>
-        all(row)
+        Inert.all(row)
           .filter(node => node.sel === 'span')
-          .map(text),
+          .map(Inert.text),
       ),
     ).toEqual([
       ['', 'Section'],
       ['Heading', 'New heading'],
       ['Promo banner', 'Hello'],
     ])
-    expect(rows.map(row => attr(row, 'data-block'))).toEqual(['Section', 'Heading', 'Banner'])
-    expect(rows.map(row => attr(row, 'aria-level'))).toEqual(['1', '2', '2'])
-    expect(rows.map(row => attr(row, 'aria-selected'))).toEqual(['false', 'false', 'true'])
-    expect(attr(rows[0], 'aria-expanded')).toBe('true')
-    expect(prop(rows[0], 'id')).toBe(layerId(PageBuilder, section))
-    expect(rows.map(row => prop(row, 'tabIndex'))).toEqual([-1, -1, 0])
+    expect(rows.map(row => Inert.value(row, 'data-block'))).toEqual([
+      'Section',
+      'Heading',
+      'Banner',
+    ])
+    expect(rows.map(row => Inert.value(row, 'aria-level'))).toEqual(['1', '2', '2'])
+    expect(rows.map(row => Inert.value(row, 'aria-selected'))).toEqual(['false', 'false', 'true'])
+    expect(Inert.value(rows[0], 'aria-expanded')).toBe('true')
+    expect(Inert.value(rows[0], 'id')).toBe(layerId(PageBuilder, section))
+    expect(rows.map(row => Inert.value(row, 'tabIndex'))).toEqual([-1, -1, 0])
   })
 
   it('quotes a node’s first text in brief, on one line', () => {
@@ -150,39 +142,43 @@ describe('the drawn Builder', () => {
         ),
       }),
     )
-    const [, row] = byRole(draw(long), 'treeitem')
+    const [, row] = Inert.byRole(draw(long), 'treeitem')
     expect(
-      all(row)
+      Inert.all(row)
         .filter(node => node.sel === 'span')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['Heading', 'A heading that runs on well past what a…'])
     // A node whose text is empty says nothing beside its label.
     const empty = send(page, Message.Applied({ op: Composition.Op.setProp(heading, 'text', ' ') }))
-    const [, bare] = byRole(draw(empty), 'treeitem')
+    const [, bare] = Inert.byRole(draw(empty), 'treeitem')
     expect(
-      all(bare)
+      Inert.all(bare)
         .filter(node => node.sel === 'span')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['Heading'])
   })
 
   it('draws the selected node’s settings under its Block, in parts, each as its Schema calls for', () => {
     const root = draw(page)
-    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    const [inspector] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Properties',
+    )
     // The head names the Block, says what it is for, and holds its actions.
     expect(
-      all(inspector)
+      Inert.all(inspector)
         .filter(node => node.sel === 'h2')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['Promo banner'])
-    expect(text(all(inspector).find(node => node.sel === 'p'))).toBe('A line that stands out')
-    const parts = all(inspector)
+    expect(Inert.text(Inert.all(inspector).find(node => node.sel === 'p'))).toBe(
+      'A line that stands out',
+    )
+    const parts = Inert.all(inspector)
       .filter(node => node.sel === 'h3')
-      .map(text)
+      .map(Inert.text)
     expect(parts).toEqual(['Content', 'Style', 'Visibility', 'Interactions'])
-    const fields = all(inspector)
+    const fields = Inert.all(inspector)
       .filter(node => node.sel === 'label')
-      .map(text)
+      .map(Inert.text)
     expect(fields).toEqual([
       'Text',
       'Size',
@@ -195,10 +191,12 @@ describe('the drawn Builder', () => {
       'Shown when beta is',
       'On press',
     ])
-    const controls = all(inspector).filter(node =>
+    const controls = Inert.all(inspector).filter(node =>
       ['input', 'select', 'code'].includes(node.sel ?? ''),
     )
-    expect(controls.map(node => [node.sel, attr(node, 'type') ?? prop(node, 'type')])).toEqual([
+    expect(
+      controls.map(node => [node.sel, Inert.value(node, 'type') ?? Inert.value(node, 'type')]),
+    ).toEqual([
       ['input', undefined],
       ['select', undefined],
       ['select', undefined],
@@ -211,44 +209,46 @@ describe('the drawn Builder', () => {
       ['select', undefined],
     ])
     // A look of a few values is buttons, the default pressed; a responsive one stays a select.
-    const tone = all(inspector).find(node => attr(node, 'aria-label') === 'Tone')
+    const tone = Inert.all(inspector).find(node => Inert.value(node, 'aria-label') === 'Tone')
     expect(
-      all(tone)
+      Inert.all(tone)
         .filter(node => node.sel === 'button')
-        .map(button => [text(button), attr(button, 'aria-pressed')]),
+        .map(button => [Inert.text(button), Inert.value(button, 'aria-pressed')]),
     ).toEqual([
       ['Default', 'true'],
       ['Plain', 'false'],
       ['Loud', 'false'],
     ])
-    const space = all(controls[5]).filter(node => node.sel === 'option')
-    expect(space.map(option => [prop(option, 'value'), text(option)])).toEqual([
+    const space = Inert.all(controls[5]).filter(node => node.sel === 'option')
+    expect(space.map(option => [Inert.value(option, 'value'), Inert.text(option)])).toEqual([
       ['', 'default'],
       ['s', 's'],
       ['m', 'm'],
     ])
-    expect(prop(controls[0], 'value')).toBe('Hello')
+    expect(Inert.value(controls[0], 'value')).toBe('Hello')
     // A number-literal prop is a select of its numbers, as text.
     expect(
-      all(controls[2])
+      Inert.all(controls[2])
         .filter(node => node.sel === 'option')
-        .map(option => [prop(option, 'value'), prop(option, 'selected')]),
+        .map(option => [Inert.value(option, 'value'), Inert.value(option, 'selected')]),
     ).toEqual([
       ['1', true],
       ['2', false],
     ])
-    expect(prop(controls[3], 'value')).toBe('1')
+    expect(Inert.value(controls[3], 'value')).toBe('1')
   })
 
   it('says how to begin with nothing selected, and lists the shortcuts', () => {
     const root = draw(send(page, Message.Deselected()))
-    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
-    expect(text(all(inspector).find(node => node.sel === 'p'))).toBe(
+    const [inspector] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Properties',
+    )
+    expect(Inert.text(Inert.all(inspector).find(node => node.sel === 'p'))).toBe(
       'Select a block on the page or in the layers to change it.',
     )
-    const keys = all(inspector)
+    const keys = Inert.all(inspector)
       .filter(node => node.sel === 'dt')
-      .map(text)
+      .map(Inert.text)
     expect(keys).toEqual([
       '↑ ↓',
       '← →',
@@ -262,7 +262,9 @@ describe('the drawn Builder', () => {
       'Ctrl+Shift+Z',
       'Escape',
     ])
-    expect(all(root).some(node => attr(node, 'aria-label') === 'Selected block')).toBe(false)
+    expect(Inert.all(root).some(node => Inert.value(node, 'aria-label') === 'Selected block')).toBe(
+      false,
+    )
   })
 
   it('draws the canvas with the data its inputs give each node, as a published page is', () => {
@@ -281,7 +283,8 @@ describe('the drawn Builder', () => {
         },
       }),
     )
-    const feed = (root: Html) => text(all(root).find(node => classOf(node).includes('feed')))
+    const feed = (root: Html) =>
+      Inert.text(Inert.all(root).find(node => Inert.classes(node).includes('feed')))
     expect(feed(draw(fed))).toBe('waiting for its rows')
     expect(feed(PageView({ ...fed, data: { f: 'three posts' } }, h))).toBe('three posts')
   })
@@ -298,22 +301,24 @@ describe('the drawn Builder', () => {
       }),
     )
     const root = draw(send(unknown, Message.Selected({ id: NodeId.make('c') })))
-    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    const [inspector] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Properties',
+    )
     expect(
-      all(inspector)
+      Inert.all(inspector)
         .filter(node => node.sel === 'h2')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['? Carousel'])
-    expect(text(all(inspector).find(node => node.sel === 'p'))).toBe(
+    expect(Inert.text(Inert.all(inspector).find(node => node.sel === 'p'))).toBe(
       'This block is not in this version of the application, so its settings cannot be edited here.',
     )
     expect(
-      all(inspector)
+      Inert.all(inspector)
         .filter(node => node.sel === 'code')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['5'])
     expect(
-      all(inspector).some(node => ['input', 'select', 'textarea'].includes(node.sel ?? '')),
+      Inert.all(inspector).some(node => ['input', 'select', 'textarea'].includes(node.sel ?? '')),
     ).toBe(false)
   })
 
@@ -344,14 +349,18 @@ describe('the drawn Builder', () => {
     )
     const root = draw(send(stray, Message.Selected({ id: banner })))
     const chosen = (suffix: string) =>
-      all(all(root).find(node => String(prop(node, 'id') ?? '').endsWith(suffix)))
-        .filter(node => node.sel === 'option' && prop(node, 'selected') === true)
-        .map(text)
-    const tone = all(root).find(node => String(prop(node, 'id') ?? '').endsWith('-appearance-tone'))
+      Inert.all(
+        Inert.all(root).find(node => String(Inert.value(node, 'id') ?? '').endsWith(suffix)),
+      )
+        .filter(node => node.sel === 'option' && Inert.value(node, 'selected') === true)
+        .map(Inert.text)
+    const tone = Inert.all(root).find(node =>
+      String(Inert.value(node, 'id') ?? '').endsWith('-appearance-tone'),
+    )
     expect(
-      all(tone)
-        .filter(node => node.sel === 'button' && attr(node, 'aria-pressed') === 'true')
-        .map(button => [text(button), prop(button, 'disabled')]),
+      Inert.all(tone)
+        .filter(node => node.sel === 'button' && Inert.value(node, 'aria-pressed') === 'true')
+        .map(button => [Inert.text(button), Inert.value(button, 'disabled')]),
     ).toEqual([['? shouty', true]])
     expect(chosen('-on-press')).toEqual(['? deleteAll'])
     expect(chosen('-when-audience')).toEqual(['member'])
@@ -378,16 +387,18 @@ describe('the drawn Builder', () => {
       }),
     )
     const root = draw(send(quoted, Message.Selected({ id: NodeId.make('q') })))
-    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
+    const [inspector] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Properties',
+    )
     expect(
-      all(inspector)
+      Inert.all(inspector)
         .filter(node => node.sel === 'label')
-        .map(text),
+        .map(Inert.text),
     ).toEqual(['Quotation', 'Source', 'Shown when audience is', 'Shown when beta is'])
     expect(
-      all(inspector)
+      Inert.all(inspector)
         .filter(node => node.sel === 'textarea' || node.sel === 'input')
-        .map(node => [node.sel, prop(node, 'value')]),
+        .map(node => [node.sel, Inert.value(node, 'value')]),
     ).toEqual([
       ['textarea', 'Less is more'],
       ['input', 'Mies'],
@@ -415,12 +426,14 @@ describe('the drawn Builder', () => {
       }),
     )
     const root = draw(members)
-    const [preview] = all(root).filter(node => attr(node, 'aria-label') === 'Preview as')
-    const selects = all(preview).filter(node => node.sel === 'select')
+    const [preview] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Preview as',
+    )
+    const selects = Inert.all(preview).filter(node => node.sel === 'select')
     const options = selects.map(select =>
-      all(select)
+      Inert.all(select)
         .filter(node => node.sel === 'option')
-        .map(option => [prop(option, 'value'), prop(option, 'selected')]),
+        .map(option => [Inert.value(option, 'value'), Inert.value(option, 'selected')]),
     )
     expect(options).toEqual([
       [
@@ -434,42 +447,50 @@ describe('the drawn Builder', () => {
         ['false', false],
       ],
     ])
-    const hidden = all(root).find(node => attr(node, 'data-composition-hidden') !== undefined)
-    expect(attr(hidden, 'data-composition-node')).toBe(banner)
+    const hidden = Inert.all(root).find(
+      node => Inert.value(node, 'data-composition-hidden') !== undefined,
+    )
+    expect(Inert.value(hidden, 'data-composition-node')).toBe(banner)
     // The inspector shows the condition it holds.
-    const [inspector] = all(root).filter(node => attr(node, 'aria-label') === 'Properties')
-    const when = all(inspector).find(
-      node => prop(node, 'id') === `PageBuilder-${banner}-when-audience`,
+    const [inspector] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Properties',
+    )
+    const when = Inert.all(inspector).find(
+      node => Inert.value(node, 'id') === `PageBuilder-${banner}-when-audience`,
     )
     expect(
-      all(when)
-        .filter(node => node.sel === 'option' && prop(node, 'selected') === true)
-        .map(text),
+      Inert.all(when)
+        .filter(node => node.sel === 'option' && Inert.value(node, 'selected') === true)
+        .map(Inert.text),
     ).toEqual(['member'])
     // As a member, it shows.
     const asMember = draw(
       send(members, Message.PreviewChosen({ key: 'audience', value: 'member' })),
     )
-    expect(all(asMember).some(node => attr(node, 'data-composition-hidden') !== undefined)).toBe(
-      false,
-    )
+    expect(
+      Inert.all(asMember).some(node => Inert.value(node, 'data-composition-hidden') !== undefined),
+    ).toBe(false)
   })
 
   it('draws the page in edit mode, in a frame as wide as the viewport, marking the selection', () => {
     const narrow = send(page, Message.ViewportChosen({ viewport: 'narrow' }))
     const root = draw(narrow)
-    const frame = all(root).find(
-      node => node.sel === 'div' && attr(node, 'data-viewport') !== undefined,
+    const frame = Inert.all(root).find(
+      node => node.sel === 'div' && Inert.value(node, 'data-viewport') !== undefined,
     )
-    expect(attr(frame, 'data-viewport')).toBe('narrow')
+    expect(Inert.value(frame, 'data-viewport')).toBe('narrow')
     // The width is a variable on the frame, read by the Builder's default rule.
     expect(frame?.data?.style).toMatchObject({ '--fk-frame-width': viewportWidths.narrow })
     const frameClasses = Object.keys(frame?.data?.class ?? {}).join(' ')
     expect(Style.usedIn(`class="${frameClasses}"`)).toContain('max-width:var(--fk-frame-width)')
-    const selected = all(frame).find(node => attr(node, 'data-composition-mark') === 'selected')
-    expect(attr(selected, 'data-composition-node')).toBe(some(narrow.selected, 'the selection'))
-    expect(attr(buttonNamed(root, 'Narrow'), 'aria-pressed')).toBe('true')
-    expect(text(frame)).toBe('New headingHello')
+    const selected = Inert.all(frame).find(
+      node => Inert.value(node, 'data-composition-mark') === 'selected',
+    )
+    expect(Inert.value(selected, 'data-composition-node')).toBe(
+      some(narrow.selected, 'the selection'),
+    )
+    expect(Inert.value(buttonNamed(root, 'Narrow'), 'aria-pressed')).toBe('true')
+    expect(Inert.text(frame)).toBe('New headingHello')
   })
 
   it('marks the row and the node a drag is over, only where the drop would land', () => {
@@ -481,17 +502,35 @@ describe('the drawn Builder', () => {
     const dragging = send(page, Message.DragStarted({ id: heading }))
     const over = send(dragging, Message.DraggedOver({ id: banner, zone: 'after' }))
     const root = draw(over)
-    const rows = byRole(root, 'treeitem')
-    expect(rows.map(row => attr(row, 'data-builder-row'))).toEqual([section, heading, banner])
-    expect(rows.map(row => attr(row, 'data-builder-drop'))).toEqual([undefined, undefined, 'after'])
-    expect(rows.map(row => attr(row, 'data-builder-dragging'))).toEqual([undefined, '', undefined])
-    const dropped = all(root).find(node => attr(node, 'data-composition-drop') !== undefined)
-    expect(attr(dropped, 'data-composition-node')).toBe(banner)
-    expect(attr(dropped, 'data-composition-drop')).toBe('after')
+    const rows = Inert.byRole(root, 'treeitem')
+    expect(rows.map(row => Inert.value(row, 'data-builder-row'))).toEqual([
+      section,
+      heading,
+      banner,
+    ])
+    expect(rows.map(row => Inert.value(row, 'data-builder-drop'))).toEqual([
+      undefined,
+      undefined,
+      'after',
+    ])
+    expect(rows.map(row => Inert.value(row, 'data-builder-dragging'))).toEqual([
+      undefined,
+      '',
+      undefined,
+    ])
+    const dropped = Inert.all(root).find(
+      node => Inert.value(node, 'data-composition-drop') !== undefined,
+    )
+    expect(Inert.value(dropped, 'data-composition-node')).toBe(banner)
+    expect(Inert.value(dropped, 'data-composition-drop')).toBe('after')
     // A Heading may not go before the Section, at the root: nothing is marked.
     const refused = draw(send(dragging, Message.DraggedOver({ id: section, zone: 'before' })))
-    expect(all(refused).some(node => attr(node, 'data-builder-drop') !== undefined)).toBe(false)
-    expect(all(refused).some(node => attr(node, 'data-composition-drop') !== undefined)).toBe(false)
+    expect(
+      Inert.all(refused).some(node => Inert.value(node, 'data-builder-drop') !== undefined),
+    ).toBe(false)
+    expect(
+      Inert.all(refused).some(node => Inert.value(node, 'data-composition-drop') !== undefined),
+    ).toBe(false)
   })
 
   it('shows a refusal, and the live region the Builder speaks through', () => {
@@ -502,17 +541,17 @@ describe('the drawn Builder', () => {
       }),
     )
     const root = draw(refused)
-    expect(text(byRole(root, 'alert')[0])).toBe(
+    expect(Inert.text(Inert.byRole(root, 'alert')[0])).toBe(
       'a root must be Section, and "' + some(page.selected, 'the banner') + '" is a Banner',
     )
-    expect(all(root).some(node => attr(node, 'aria-live') === 'assertive')).toBe(true)
+    expect(Inert.all(root).some(node => Inert.value(node, 'aria-live') === 'assertive')).toBe(true)
   })
 
   it('says how to begin on an empty page, and nothing of it once there is a block', () => {
     const hint = (model: Model) =>
-      all(draw(model))
-        .filter(node => text(node).startsWith('This page is empty.') && node.sel === 'p')
-        .map(text)
+      Inert.all(draw(model))
+        .filter(node => Inert.text(node).startsWith('This page is empty.') && node.sel === 'p')
+        .map(Inert.text)
     expect(hint(PageBuilder.initial)).toEqual([
       'This page is empty. Add a block to begin: the palette offers what can go here.',
     ])
@@ -521,12 +560,12 @@ describe('the drawn Builder', () => {
 
   it('says where the selection is, from the page down, the last one current', () => {
     const crumbs = (model: Model) => {
-      const [trail] = all(draw(model)).filter(
-        node => attr(node, 'aria-label') === 'Where the selection is',
+      const [trail] = Inert.all(draw(model)).filter(
+        node => Inert.value(node, 'aria-label') === 'Where the selection is',
       )
-      return all(trail)
+      return Inert.all(trail)
         .filter(node => node.sel === 'button')
-        .map(button => [text(button), attr(button, 'aria-current')])
+        .map(button => [Inert.text(button), Inert.value(button, 'aria-current')])
     }
     expect(crumbs(page)).toEqual([
       ['Page', undefined],
@@ -538,11 +577,11 @@ describe('the drawn Builder', () => {
 
   it('offers the selected node’s actions as the shortcuts would send them', () => {
     const root = draw(page)
-    expect(prop(buttonNamed(root, 'Move up'), 'disabled')).toBe(false)
-    expect(prop(buttonNamed(root, 'Duplicate'), 'title')).toBe('Duplicate (Ctrl+D)')
-    expect(prop(buttonNamed(root, 'Move down'), 'disabled')).toBe(true)
-    expect(prop(buttonNamed(root, 'Undo'), 'disabled')).toBe(false)
-    expect(prop(buttonNamed(root, 'Redo'), 'disabled')).toBe(true)
+    expect(Inert.value(buttonNamed(root, 'Move up'), 'disabled')).toBe(false)
+    expect(Inert.value(buttonNamed(root, 'Duplicate'), 'title')).toBe('Duplicate (Ctrl+D)')
+    expect(Inert.value(buttonNamed(root, 'Move down'), 'disabled')).toBe(true)
+    expect(Inert.value(buttonNamed(root, 'Undo'), 'disabled')).toBe(false)
+    expect(Inert.value(buttonNamed(root, 'Redo'), 'disabled')).toBe(true)
   })
 })
 

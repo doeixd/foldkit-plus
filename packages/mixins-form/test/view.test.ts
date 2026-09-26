@@ -8,38 +8,20 @@ import * as Submodel from 'foldkit/submodel'
 import { describe, expect, it } from 'vitest'
 import { FieldSlots, FormSlots, FormView, type FieldInput } from '../src/index.js'
 import { Edit, options } from './fixture.js'
+import { Inert, type Node } from 'foldkit-mixins/testing'
+import type { Html } from 'foldkit/html'
 
-interface Node {
-  readonly sel?: string
-  readonly text?: string
-  readonly data?: {
-    readonly props?: Readonly<Record<string, unknown>>
-    readonly attrs?: Readonly<Record<string, unknown>>
-    readonly class?: Readonly<Record<string, boolean>>
-  }
-  readonly children?: ReadonlyArray<Node>
-}
-
-const all = (node: Node): ReadonlyArray<Node> => [node, ...(node.children ?? []).flatMap(all)]
-const byId = (root: Node, id: string): Node | undefined =>
-  all(root).find(node => node.data?.props?.id === id)
-const text = (node: Node | undefined): string =>
-  node === undefined
-    ? ''
-    : all(node)
-        .map(child => child.text ?? '')
-        .join('')
-const classes = (node: Node | undefined): ReadonlyArray<string> =>
-  Object.keys(node?.data?.class ?? {})
+const byId = (root: Html, id: string): Node | undefined =>
+  Inert.all(root).find(node => node.data?.props?.id === id)
 
 const initial = Edit.bundle.init(undefined).model
 const send = (...messages: ReadonlyArray<typeof Edit.Message.Type>) =>
   messages.reduce((model, message) => Edit.bundle.update(model, message, undefined).model, initial)
-const render = (model = initial, view = FormView.define(Edit)): Node =>
+const render = (model = initial, view = FormView.define(Edit)): Html =>
   view(
     { model, errors: model.errors, canSubmit: Edit.canSubmit(model), options },
     SlotView.inertBuilder(),
-  ) as unknown as Node
+  )
 
 describe('FormView markup', () => {
   it('draws each control as the element its kind calls for, and leaves a hidden key out', () => {
@@ -49,7 +31,7 @@ describe('FormView markup', () => {
       return [node?.sel, node?.data?.props?.type]
     }
 
-    expect(root.sel).toBe('form')
+    expect(root?.sel).toBe('form')
     expect(byId(root, 'Edit-id')).toBeUndefined()
     expect(drawn('Edit-title')).toEqual(['input', 'text'])
     expect(drawn('Edit-body')).toEqual(['textarea', undefined])
@@ -63,7 +45,7 @@ describe('FormView markup', () => {
   it('offers a select its own literals, and a picker the options from the view inputs', () => {
     const root = render()
     const offered = (id: string) =>
-      (byId(root, id)?.children ?? []).map(option => [option.data?.props?.value, text(option)])
+      Inert.children(byId(root, id)).map(option => [option.data?.props?.value, Inert.text(option)])
 
     // Nothing is chosen yet, so even the required `status` offers a blank: without
     // one the browser would show "draft" as chosen while the draft is empty.
@@ -74,14 +56,14 @@ describe('FormView markup', () => {
     ])
     const chosen = render(send(Edit.Message.Changed({ key: 'status', value: 'live' })))
     expect(
-      (byId(chosen, 'Edit-status')?.children ?? []).map(option => option.data?.props?.value),
+      Inert.children(byId(chosen, 'Edit-status')).map(option => option.data?.props?.value),
     ).toEqual(['draft', 'live'])
     expect(offered('Edit-editorId')).toEqual([
       ['', ''],
       ['a1', 'Ada'],
       ['a2', 'Grace'],
     ])
-    expect(text(byId(root, 'Edit-tagIds'))).toBe('TypeScriptDatabases')
+    expect(Inert.text(byId(root, 'Edit-tagIds'))).toBe('TypeScriptDatabases')
   })
 
   it('shows the draft: a value, a checked box, a selected option, the chosen ids', () => {
@@ -93,10 +75,10 @@ describe('FormView markup', () => {
         Edit.Message.Changed({ key: 'tagIds', value: ['t2'] }),
       ),
     )
-    const selected = (byId(root, 'Edit-editorId')?.children ?? []).flatMap(option =>
+    const selected = Inert.children(byId(root, 'Edit-editorId')).flatMap(option =>
       option.data?.props?.selected === true ? [option.data.props.value] : [],
     )
-    const checked = all(byId(root, 'Edit-tagIds') ?? {}).flatMap(node =>
+    const checked = Inert.all(byId(root, 'Edit-tagIds')).flatMap(node =>
       node.sel === 'input' ? [node.data?.props?.checked] : [],
     )
 
@@ -108,9 +90,9 @@ describe('FormView markup', () => {
 
   it('labels each control, and ties its description and error to it for a screen reader', () => {
     const calm = render()
-    const label = all(calm).find(node => node.data?.props?.htmlFor === 'Edit-title')
-    expect(text(label)).toBe('Title')
-    expect(text(byId(calm, 'Edit-title-description'))).toBe('Shown in the feed')
+    const label = Inert.all(calm).find(node => node.data?.props?.htmlFor === 'Edit-title')
+    expect(Inert.text(label)).toBe('Title')
+    expect(Inert.text(byId(calm, 'Edit-title-description'))).toBe('Shown in the feed')
     expect(byId(calm, 'Edit-title')?.data?.attrs).toMatchObject({
       'aria-invalid': 'false',
       'aria-required': 'true',
@@ -127,7 +109,7 @@ describe('FormView markup', () => {
       'aria-invalid': 'true',
       'aria-describedby': 'Edit-title-description Edit-title-error',
     })
-    expect(text(byId(failed, 'Edit-title-error'))).toBe('Required')
+    expect(Inert.text(byId(failed, 'Edit-title-error'))).toBe('Required')
     expect(byId(failed, 'Edit-title-error')?.data?.attrs).toMatchObject({ role: 'alert' })
   })
 
@@ -141,9 +123,9 @@ describe('FormView markup', () => {
   })
 
   it('disables the submit until the form would submit, and takes its label', () => {
-    const button = (root: Node) => all(root).find(node => node.sel === 'button')
+    const button = (root: Html) => Inert.all(root).find(node => node.sel === 'button')
     expect(button(render())?.data?.props?.disabled).toBe(true)
-    expect(text(button(render()))).toBe('Submit')
+    expect(Inert.text(button(render()))).toBe('Submit')
 
     const ready = send(
       Edit.Message.Changed({ key: 'title', value: 'Hello' }),
@@ -152,17 +134,17 @@ describe('FormView markup', () => {
     const saved = FormView.define(Edit)(
       { model: ready, errors: [], canSubmit: Edit.canSubmit(ready), words: { submit: 'Save' } },
       SlotView.inertBuilder(),
-    ) as unknown as Node
+    )
     expect(button(saved)?.data?.props?.disabled).toBe(false)
-    expect(text(button(saved))).toBe('Save')
+    expect(Inert.text(button(saved))).toBe('Save')
   })
 
   it('draws no submit for someone who may not submit it', () => {
     const withheld = FormView.define(Edit)(
       { model: initial, errors: [], canSubmit: true, submits: false },
       SlotView.inertBuilder(),
-    ) as unknown as Node
-    expect(all(withheld).some(node => node.sel === 'button')).toBe(false)
+    )
+    expect(Inert.all(withheld).some(node => node.sel === 'button')).toBe(false)
     // The fields are drawn as ever.
     expect(byId(withheld, 'Edit-title')).toBeDefined()
   })
@@ -183,10 +165,10 @@ describe('FormView styling', () => {
     )
 
     const root = render(send(Edit.Message.Blurred({ key: 'title' })), View)
-    expect(classes(root)).toEqual(['form'])
-    expect(classes(byId(root, 'Edit-title'))).toEqual(['is-invalid'])
-    expect(classes(byId(root, 'Edit-rating'))).toEqual([])
-    expect(all(root).filter(node => classes(node).includes('field'))).toHaveLength(7)
+    expect(Inert.classes(root)).toEqual(['form'])
+    expect(Inert.classes(byId(root, 'Edit-title'))).toEqual(['is-invalid'])
+    expect(Inert.classes(byId(root, 'Edit-rating'))).toEqual([])
+    expect(Inert.all(root).filter(node => Inert.classes(node).includes('field'))).toHaveLength(7)
   })
 
   it('takes a Behavior that adds to a control, and refuses one that takes over its wiring', () => {
@@ -229,10 +211,7 @@ describe('renderers', () => {
     { inputs: { stars: Stars.of({ max: 5 }) } },
   )
   const draw = (view: ReturnType<typeof FormView.define<'stars' | 'title', any, any>>) =>
-    view(
-      { model: Rated.initial, errors: [], canSubmit: true },
-      SlotView.inertBuilder(),
-    ) as unknown as Node
+    view({ model: Rated.initial, errors: [], canSubmit: true }, SlotView.inertBuilder())
 
   it('draws a kind the application made, with the renderer it gives', () => {
     const root = draw(
@@ -245,7 +224,7 @@ describe('renderers', () => {
     )
     // The renderer puts the field's id and accessibility state where the value is.
     expect(byId(root, 'Rated-stars')?.sel).toBe('div')
-    expect(text(byId(root, 'Rated-stars'))).toBe('up to 5')
+    expect(Inert.text(byId(root, 'Rated-stars'))).toBe('up to 5')
     expect(byId(root, 'Rated-stars')?.data?.attrs?.['aria-invalid']).toBe('false')
     // The shipped renderers still draw the rest.
     expect(byId(root, 'Rated-title')?.sel).toBe('input')
@@ -279,9 +258,9 @@ describe('renderers', () => {
       },
     })
     const says = (model: typeof Addressed.initial) =>
-      text(
+      Inert.text(
         byId(
-          View({ model, errors: [], canSubmit: true }, SlotView.inertBuilder()) as unknown as Node,
+          View({ model, errors: [], canSubmit: true }, SlotView.inertBuilder()),
           'Addressed-slug',
         ),
       )
@@ -331,7 +310,7 @@ describe('a control backed by a Bundle', () => {
     },
   )
   const draw = (view: ReturnType<typeof FormView.define<never, any, any>>) =>
-    view({ model: Painted.initial, errors: [], canSubmit: true }, SlotView.inertBuilder()) as Node
+    view({ model: Painted.initial, errors: [], canSubmit: true }, SlotView.inertBuilder())
 
   it('gives a renderer the Bundle’s Model and the Message for one of its own', () => {
     const sent: Array<unknown> = []

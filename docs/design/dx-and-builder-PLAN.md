@@ -349,6 +349,14 @@ The seven copies of the tree walker and the sixteen local helpers are replaced
 in one commit per package. The migration itself shows the queries cover what
 the suites need.
 
+> **2a done, 2026-09-26.** `Inert` ships `all`, `children`, `byTag`,
+> `byRole`, `byLabel`, `text`, `value`, `classes`, `style` and `pressed` (an
+> `Option`). `handler` is left out: an inert handler is a closure over its
+> Message, which nothing can read back. `bySlot` and `item` wait for 2b and
+> 2c. The seven files are migrated, which also removed seven casts to
+> hand-written node types. The sixteen files with only a local `text`/`attr`
+> helper move over when next touched.
+
 ### 2b. Slot coverage (S)
 
 - The Slot builder's `attrs` marks what it returns with a non-enumerable

@@ -7,24 +7,8 @@ import { ListView } from 'foldkit-mixins-crud'
 import { FieldSlots, FormView } from 'foldkit-mixins-form'
 import { describe, expect, it } from 'vitest'
 import { Cms, type State } from '../src/index.js'
-
-interface Node {
-  readonly sel?: string
-  readonly text?: string
-  readonly data?: {
-    readonly props?: Readonly<Record<string, unknown>>
-    readonly attrs?: Readonly<Record<string, unknown>>
-    readonly class?: Readonly<Record<string, boolean>>
-  }
-  readonly children?: ReadonlyArray<Node>
-}
-const all = (node: Node): ReadonlyArray<Node> => [node, ...(node.children ?? []).flatMap(all)]
-const text = (node: Node | undefined): string =>
-  node === undefined
-    ? ''
-    : all(node)
-        .map(child => child.text ?? '')
-        .join('')
+import { Inert, type Node } from 'foldkit-mixins/testing'
+import type { Html } from 'foldkit/html'
 
 describe('Cms.slugify', () => {
   it.each([
@@ -170,14 +154,11 @@ describe('the renderers, beside the mixins’ own', () => {
   it('draw a slug after its address, and a moment as a datetime-local input', () => {
     const View = FormView.define(PostForm, { renderers: Cms.controlRenderers() })
     const model = send(change('title', 'Hello'), change('goesLiveAt', at))
-    const root = View(
-      { model, errors: model.errors, canSubmit: true },
-      SlotView.inertBuilder(),
-    ) as unknown as Node
-    const byId = (id: string) => all(root).find(node => node.data?.props?.id === id)
+    const root = View({ model, errors: model.errors, canSubmit: true }, SlotView.inertBuilder())
+    const byId = (id: string) => Inert.all(root).find(node => node.data?.props?.id === id)
 
     expect(byId('PostForm-slug')?.data?.props?.value).toBe('hello')
-    expect(all(root).some(node => text(node) === '/blog/')).toBe(true)
+    expect(Inert.all(root).some(node => Inert.text(node) === '/blog/')).toBe(true)
     const moment = byId('PostForm-goesLiveAt')
     expect(moment?.data?.props?.type).toBe('datetime-local')
     // An ISO moment is shown as the input writes one, in the viewer's zone.
@@ -195,16 +176,13 @@ describe('the renderers, beside the mixins’ own', () => {
     )
     const View = FormView.define(PostForm, { field: Field })
     const model = send(change('title', 'Hello'))
-    const root = View(
-      { model, errors: model.errors, canSubmit: true },
-      SlotView.inertBuilder(),
-    ) as unknown as Node
-    const group = all(root).find(node => node.data?.class?.['group'] === true)
-    expect(group?.children?.map(child => [child.sel, text(child)])).toEqual([
+    const root = View({ model, errors: model.errors, canSubmit: true }, SlotView.inertBuilder())
+    const group = Inert.all(root).find(node => node.data?.class?.['group'] === true)
+    expect(Inert.children(group).map(child => [child.sel, Inert.text(child)])).toEqual([
       ['span', '/blog/'],
       ['input', ''],
     ])
-    expect(group?.children?.[0]?.data?.class?.['affix']).toBe(true)
+    expect(Inert.children(group)[0]?.data?.class?.['affix']).toBe(true)
   })
 
   it('draw an entry’s state as a badge and its times as times, with nothing said in the list', () => {
@@ -232,16 +210,16 @@ describe('the renderers, beside the mixins’ own', () => {
         renderers: Cms.displayRenderers(),
       },
       SlotView.inertBuilder(),
-    ) as unknown as Node
+    )
 
-    const badge = all(root).find(node => node.data?.attrs?.['data-cms-state'] !== undefined)
+    const badge = Inert.all(root).find(node => node.data?.attrs?.['data-cms-state'] !== undefined)
     expect(badge?.data?.attrs).toEqual({
       'data-cms-state': 'Changed',
       'data-cms-schedule': 'overdue',
     })
-    expect(text(badge)).toBe('Changed, overdue')
-    const time = all(root).find(node => node.sel === 'time')
+    expect(Inert.text(badge)).toBe('Changed, overdue')
+    const time = Inert.all(root).find(node => node.sel === 'time')
     expect(time?.data?.attrs?.['datetime']).toBe(at)
-    expect(text(time)).toBe('Mar 2, 2026, 10:00 AM')
+    expect(Inert.text(time)).toBe('Mar 2, 2026, 10:00 AM')
   })
 })

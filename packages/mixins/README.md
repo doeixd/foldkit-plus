@@ -602,6 +602,19 @@ Attributes.find(input, 'Class')?.value // 'field-input'
 Attributes.find(input, 'AriaInvalid')?.value // true
 ```
 
+What a whole view draws is read with `Inert` from `foldkit-mixins/testing`: `Inert.all`,
+`children`, `byTag`, `byRole`, `byLabel` (by `aria-label`, a `<label for>`, or the innermost
+element with that text), `text`, `value` (an attribute or a property, whichever the builder
+wrote, so `title` and `value` need no special case), `classes`, `style` and `pressed` (an
+`Option`, none for a button that is not a toggle).
+
+```ts
+import { Inert } from 'foldkit-mixins/testing'
+
+const root = Probe({ value: 'Ada', invalid: false }, SlotView.inertBuilder<Message>())
+Inert.value(Inert.byTag(root, 'input')[0], 'value') // 'Ada'
+```
+
 ## `@foldkit/ui`
 
 `foldkit-mixins-ui` adapts `@foldkit/ui` components that expose attribute bundles or a consumer

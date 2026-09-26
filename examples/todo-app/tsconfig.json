@@ -19,6 +19,7 @@
       "foldkit-mixins/layers": ["../../packages/mixins/src/layers.ts"],
       "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
       "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
       "foldkit-sync": ["../../packages/sync/src/index.ts"]

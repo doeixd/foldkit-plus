@@ -11,27 +11,16 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as RichText from 'foldkit-richtext'
 import { describe, expect, it } from 'vitest'
 import { MarkToolbarSlots, markToolbar, type MarkToolbarInput } from '../src/index.js'
+import { Inert, type Node } from 'foldkit-mixins/testing'
+import type { Html } from 'foldkit/html'
 
 const Message = defineMessageUnion({ Toggled: { mark: Schema.String } })
 type Message = typeof Message.Type
 
-/** A rendered vnode, as much of it as these tests read. */
-interface Node {
-  readonly sel?: string
-  readonly text?: string
-  readonly data?: {
-    readonly attrs?: Readonly<Record<string, unknown>>
-    readonly class?: Readonly<Record<string, boolean>>
-  }
-  readonly children?: ReadonlyArray<Node>
-}
-
-const all = (node: Node): ReadonlyArray<Node> => [node, ...(node.children ?? []).flatMap(all)]
-const buttons = (root: Node): ReadonlyArray<Node> => all(root).filter(node => node.sel === 'button')
-const named = (root: Node, mark: string): Node | undefined =>
+const buttons = (root: Html): ReadonlyArray<Node> =>
+  Inert.all(root).filter(node => node.sel === 'button')
+const named = (root: Html, mark: string): Node | undefined =>
   buttons(root).find(node => node.data?.attrs?.['data-mark'] === mark)
-const classes = (node: Node | undefined): ReadonlyArray<string> =>
-  Object.keys(node?.data?.class ?? {})
 
 const id = RichText.NodeId.make
 
@@ -71,12 +60,12 @@ const input = (overrides: Partial<MarkToolbarInput<Message>> = {}): MarkToolbarI
 const render = (
   view = markToolbar<Message>(),
   overrides: Partial<MarkToolbarInput<Message>> = {},
-): Node => view(input(overrides), SlotView.inertBuilder()) as unknown as Node
+): Html => view(input(overrides), SlotView.inertBuilder())
 
 describe('the mark toolbar family', () => {
   it('draws a button per mark, the caret\u2019s mark pressed', () => {
     const root = render()
-    expect(root.sel).toBe('div')
+    expect(root?.sel).toBe('div')
     expect(buttons(root).map(node => node.data?.attrs?.['data-mark'])).toEqual([
       'Bold',
       'Italic',
@@ -101,7 +90,7 @@ describe('the mark toolbar family', () => {
     const styled = markToolbar<Message>().pipe(
       Style.attach(Style.forSlots(MarkToolbarSlots)({ button: Style.class('mark-button') })),
     )
-    expect(classes(named(render(styled), 'Bold'))).toEqual(['mark-button'])
+    expect(Inert.classes(named(render(styled), 'Bold'))).toEqual(['mark-button'])
   })
 
   it('hands a Behavior each button\u2019s mark as its slot item id', () => {

@@ -22,6 +22,7 @@
       "foldkit-mixins/layers": ["../mixins/src/layers.ts"],
       "foldkit-mixins/layout": ["../mixins/src/layout.ts"],
       "foldkit-mixins/prose": ["../mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
       "foldkit-react": ["../react/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],

@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
   **`foldkit-ssr`:** `SSR.page`, `SSR.generate` and `SSR.entry` take
   `head: rendered => string`, put before the template's `</head>` (a template
   without one is refused when there is something to add).
+- **`foldkit-mixins/testing`: `Inert`, queries over a view drawn with the
+  inert builder** (`all`, `children`, `byTag`, `byRole`, `byLabel`, `text`,
+  `value`, `classes`, `style`, `pressed`), replacing a tree walker seven test
+  files each defined, and the casts to hand-written node types that came with
+  them.
 - **Fixed declarations are rules, not inline styles**, so a later layer can
   override them: `Prose.style`'s measure and line height (with a new `leading`
   option), `Style.grid`'s template and areas, and `Style.stagger`'s delay (its

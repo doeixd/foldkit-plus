@@ -8,24 +8,7 @@ import { Block, Catalog, Composition, Content, NodeId, isSafeUrl } from 'foldkit
 import { Renderer } from 'foldkit-composition/foldkit'
 import { SlotView, Style } from 'foldkit-mixins'
 import { ArticleKit, Columns, ColumnsLook, Site, SiteRenderer, body, homePage } from './site.js'
-
-type Node = Exclude<Html, null>
-
-const all = (node: Html | undefined): ReadonlyArray<Node> =>
-  node === null || node === undefined
-    ? []
-    : [
-        node,
-        ...(node.children ?? []).flatMap(child => (typeof child === 'string' ? [] : all(child))),
-      ]
-const text = (node: Html | undefined): string =>
-  all(node)
-    .map(each => each.text ?? '')
-    .join('')
-const attr = (node: Node | undefined, key: string): unknown => node?.data?.attrs?.[key]
-const prop = (node: Node | undefined, key: string): unknown => node?.data?.props?.[key]
-const classes = (node: Html | undefined): ReadonlyArray<string> =>
-  node === null || node === undefined ? [] : Object.keys(node.data?.class ?? {})
+import { Inert } from 'foldkit-mixins/testing'
 
 const id = NodeId.make
 const page = (roots: ReadonlyArray<string>, nodes: Readonly<Record<string, unknown>>) =>
@@ -35,26 +18,31 @@ describe('drawing a Document', () => {
   it('draws each root with its Block’s view, and each Region’s children in order', () => {
     const [hero, about] = Renderer.render(SiteRenderer, homePage, inertHtml)
     expect(hero?.sel).toBe('header')
-    expect(classes(hero)).toEqual(['hero'])
-    expect(all(hero).map(node => node.sel)).toContain('h1')
-    expect(text(hero)).toBe('Build what comes nextA page as dataStart')
-    const link = all(hero).find(node => node.sel === 'a')
-    expect(prop(link, 'href')).toBe('/start')
+    expect(Inert.classes(hero)).toEqual(['hero'])
+    expect(Inert.all(hero).map(node => node.sel)).toContain('h1')
+    expect(Inert.text(hero)).toBe('Build what comes nextA page as dataStart')
+    const link = Inert.all(hero).find(node => node.sel === 'a')
+    expect(Inert.value(link, 'href')).toBe('/start')
 
     expect(about?.sel).toBe('section')
-    expect(attr(all(about)[0], 'data-tone')).toBe('plain')
-    expect(text(about)).toBe('Composition is a stored page.')
-    const image = all(about).find(node => node.sel === 'img')
-    expect(prop(image, 'src')).toBe('https://example.com/photo.jpg')
+    expect(Inert.value(Inert.all(about)[0], 'data-tone')).toBe('plain')
+    expect(Inert.text(about)).toBe('Composition is a stored page.')
+    const image = Inert.all(about).find(node => node.sel === 'img')
+    expect(Inert.value(image, 'src')).toBe('https://example.com/photo.jpg')
   })
 
   it('marks each node in edit mode, and changes nothing else', () => {
     const [hero] = Renderer.render(SiteRenderer, homePage, inertHtml, { mode: 'edit' })
-    const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
-    expect(marked.map(node => attr(node, 'data-composition-node'))).toEqual(['hero', 'start'])
+    const marked = Inert.all(hero).filter(
+      node => Inert.value(node, 'data-composition-node') !== undefined,
+    )
+    expect(marked.map(node => Inert.value(node, 'data-composition-node'))).toEqual([
+      'hero',
+      'start',
+    ])
     expect(marked[0]?.data?.style).toEqual({ display: 'contents' })
     const [inner] = marked[0]?.children ?? []
-    expect(typeof inner === 'string' ? inner : classes(inner)).toEqual(['hero'])
+    expect(typeof inner === 'string' ? inner : Inert.classes(inner)).toEqual(['hero'])
   })
 
   it('marks the selected, hovered and drop target nodes in edit mode, for a stylesheet', () => {
@@ -64,25 +52,35 @@ describe('drawing a Document', () => {
       hovered: id('hero'),
       drop: { id: id('start'), zone: 'before' },
     })
-    const marked = all(hero).filter(node => attr(node, 'data-composition-node') !== undefined)
-    expect(marked.map(node => attr(node, 'data-composition-mark'))).toEqual(['hovered', 'selected'])
-    expect(marked.map(node => attr(node, 'data-composition-drop'))).toEqual([undefined, 'before'])
+    const marked = Inert.all(hero).filter(
+      node => Inert.value(node, 'data-composition-node') !== undefined,
+    )
+    expect(marked.map(node => Inert.value(node, 'data-composition-mark'))).toEqual([
+      'hovered',
+      'selected',
+    ])
+    expect(marked.map(node => Inert.value(node, 'data-composition-drop'))).toEqual([
+      undefined,
+      'before',
+    ])
     // Hovered and selected at once, the node is marked selected.
     const [both] = Renderer.render(SiteRenderer, homePage, inertHtml, {
       mode: 'edit',
       selected: id('hero'),
       hovered: id('hero'),
     })
-    expect(all(both).flatMap(node => attr(node, 'data-composition-mark') ?? [])).toEqual([
-      'selected',
-    ])
+    expect(
+      Inert.all(both).flatMap(node => Inert.value(node, 'data-composition-mark') ?? []),
+    ).toEqual(['selected'])
     const [viewed] = Renderer.render(SiteRenderer, homePage, inertHtml, { selected: id('start') })
-    expect(all(viewed).some(node => attr(node, 'data-composition-mark') !== undefined)).toBe(false)
+    expect(
+      Inert.all(viewed).some(node => Inert.value(node, 'data-composition-mark') !== undefined),
+    ).toBe(false)
   })
 
   it('draws a layout Block with the look its node chose, and its stylesheet holds the layout', () => {
     const [, about] = Renderer.render(SiteRenderer, homePage, inertHtml)
-    const columns = all(about).find(node => node.data?.style?.['gap'] !== undefined)
+    const columns = Inert.all(about).find(node => node.data?.style?.['gap'] !== undefined)
     expect(columns?.data?.style).toEqual({
       gap: 'var(--fk-space-lg)',
       '--fk-l-threshold': '30rem',
@@ -91,7 +89,7 @@ describe('drawing a Document', () => {
     const flex = (node: typeof left) =>
       node === undefined || typeof node === 'string' ? undefined : node.data?.style?.['flex-grow']
     expect([flex(left), flex(right)]).toEqual(['2', '1'])
-    const [layout] = classes(columns)
+    const [layout] = Inert.classes(columns)
     expect(Style.stylesheet(...ColumnsLook.styles)).toContain(`.${layout}{display:flex`)
     expect(Columns.appearance['gap']?.kind).toBe('token')
   })
@@ -106,13 +104,15 @@ describe('drawing a Document', () => {
     })
     expect(Composition.validate(Site, deep)).toEqual([])
     const [section] = Renderer.render(SiteRenderer, deep, inertHtml)
-    expect(all(section).filter(node => node.sel === 'img')).toHaveLength(1)
+    expect(Inert.all(section).filter(node => node.sel === 'img')).toHaveLength(1)
     // Each level is a layout of its own, the image inside the third.
-    const [layout] = classes(
-      all(section).find(node => node.sel === 'div' && classes(node).length > 0),
+    const [layout] = Inert.classes(
+      Inert.all(section).find(node => node.sel === 'div' && Inert.classes(node).length > 0),
     )
     expect(
-      all(section).filter(node => node.sel === 'div' && classes(node).includes(layout ?? '')),
+      Inert.all(section).filter(
+        node => node.sel === 'div' && Inert.classes(node).includes(layout ?? ''),
+      ),
     ).toHaveLength(3)
     const moved = Composition.apply(
       Site,
@@ -157,12 +157,12 @@ describe('drawing a Document', () => {
       mode: 'edit',
       context: { audience: 'guest' },
     })
-    expect(attr(all(marked)[0], 'data-composition-hidden')).toBe('')
+    expect(Inert.value(Inert.all(marked)[0], 'data-composition-hidden')).toBe('')
     const [shown] = Renderer.render(Drawn, members, inertHtml, {
       mode: 'edit',
       context: { audience: 'member' },
     })
-    expect(attr(all(shown)[0], 'data-composition-hidden')).toBeUndefined()
+    expect(Inert.value(Inert.all(shown)[0], 'data-composition-hidden')).toBeUndefined()
   })
 
   it('hands a view the Message its node’s action makes, checked first', () => {
@@ -237,15 +237,15 @@ describe('drawing a Document', () => {
       b: { block: 'Button', props: { label: 'Go', href: '/go' }, regions: {} },
     })
     const [viewed] = Renderer.render(Fragile, drawn, inertHtml)
-    expect(all(viewed).flatMap(node => (node.sel === undefined ? [] : [node.sel]))).toEqual([
+    expect(Inert.all(viewed).flatMap(node => (node.sel === undefined ? [] : [node.sel]))).toEqual([
       'section',
       'a',
     ])
     const [edited] = Renderer.render(Fragile, drawn, inertHtml, { mode: 'edit' })
-    const placeholder = all(edited).find(
-      node => attr(node, 'data-composition-placeholder') === 'Image',
+    const placeholder = Inert.all(edited).find(
+      node => Inert.value(node, 'data-composition-placeholder') === 'Image',
     )
-    expect(text(placeholder)).toContain('it could not be drawn: Error: no image today')
+    expect(Inert.text(placeholder)).toContain('it could not be drawn: Error: no image today')
   })
 
   it('draws what it cannot as a placeholder: nothing for a visitor, a label for an author', () => {
@@ -256,13 +256,13 @@ describe('drawing a Document', () => {
     })
     const [viewed] = Renderer.render(SiteRenderer, broken, inertHtml)
     // Nothing is drawn for a visitor: the section is there, and empty.
-    expect(all(viewed).map(node => node.sel)).toEqual(['section'])
+    expect(Inert.all(viewed).map(node => node.sel)).toEqual(['section'])
 
     const [edited] = Renderer.render(SiteRenderer, broken, inertHtml, { mode: 'edit' })
-    const placeholders = all(edited).filter(
-      node => attr(node, 'data-composition-placeholder') !== undefined,
+    const placeholders = Inert.all(edited).filter(
+      node => Inert.value(node, 'data-composition-placeholder') !== undefined,
     )
-    expect(placeholders.map(node => text(node))).toEqual([
+    expect(placeholders.map(node => Inert.text(node))).toEqual([
       'Carousel: this Block is not in this version of the application',
       'Image: its settings are not valid',
       'Missing: this node is not in the page',
@@ -275,7 +275,7 @@ describe('drawing a Document', () => {
       b: { block: 'Columns', props: { ratio: '1:1' }, regions: { left: ['b'], right: [] } },
     })
     const [section] = Renderer.render(SiteRenderer, cyclic, inertHtml)
-    expect(all(section).filter(node => node.sel === 'div').length).toBe(3)
+    expect(Inert.all(section).filter(node => node.sel === 'div').length).toBe(3)
   })
 
   it('requires a view for every Block of the Catalog', () => {

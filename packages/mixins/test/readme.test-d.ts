@@ -5,6 +5,7 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Attr, Behavior, Capability, Event, Slot, Slots, SlotView, Style } from '../src/index.js'
+import { Inert } from '../src/testing.js'
 
 const Message = defineMessageUnion({ ChangedValue: { value: Schema.String } })
 type Message = typeof Message.Type
@@ -45,3 +46,14 @@ const Field = SlotView.forMessages<Message>()
   )
   .pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
 void Field
+
+// "Testing and static output": what a whole view draws, read with `Inert`.
+{
+  const Probe = SlotView.forMessages<Message>()
+    .define(FieldSlots, (field: FieldInput, slots, h) =>
+      h.input(slots.input.attrs([h.Value(field.value)])),
+    )
+    .pipe(Style.attach(FieldStyle), Behavior.attach(Validation))
+  const root = Probe({ value: 'Ada', invalid: false }, SlotView.inertBuilder<Message>())
+  void Inert.value(Inert.byTag(root, 'input')[0], 'value')
+}

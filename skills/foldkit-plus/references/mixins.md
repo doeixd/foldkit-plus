@@ -258,6 +258,8 @@ them by layer order alone.
 
 - `SlotView.inertBuilder<Message>()` is an `HtmlBuilder` with no runtime: call `View(input, h)`
   to build real attributes, then read them with `Attributes.find(bundle, 'Class')?.value`.
+- `Inert` (`foldkit-mixins/testing`) reads a whole inert tree: `all`, `children`, `byTag`,
+  `byRole`, `byLabel`, `text`, `value` (attribute or property), `classes`, `style`, `pressed`.
 
 ## 7. Gotchas (verified)
 
