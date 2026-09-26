@@ -716,6 +716,11 @@ function". Check the installed `.d.ts` before reaching for a remembered API.
   scripted insert landed in two functions and broke an unrelated one; a later one
   matched nothing and quietly did not apply, so a field was simply absent. Assert
   the anchor, then re-read the diff -- not just the check.
+- **Anchoring an insert on `export const X` lands it under X's doc comment.** Three
+  scripted inserts here (`holdsItem`, `isBlank`, `drawPlaceholder`) went in between a
+  declaration and its comment, leaving each comment documenting the wrong thing; the
+  typecheck and the tests cannot see it. Anchor on the comment's opening `/**`, or read the
+  lines above the insert before committing.
 - **A pipe hides the exit status of what it pipes.** `prettier --check $F | tail -1 &&
   git commit` committed a file prettier had just flagged, because `tail` succeeded.
   Redirect instead (`>/dev/null &&`) when a check gates the next command.
