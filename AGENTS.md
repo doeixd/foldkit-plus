@@ -453,6 +453,17 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   The Renderer tries the slot and draws uncached when it throws. A memoized
   drawing is also reused at one position only: key it, or a move patches it
   into its neighbour.
+- **`inertHtml` is every view's `h`.** It is Foldkit's one builder, inert only
+  when no runtime frame exists. A check `h === inertHtml` meant as "drawn
+  inert" was true in a running app too, so the inspector drew its form without
+  `h.submodel` and every form Message went unwrapped to the Builder, which
+  ignored it. Tell frameless from framed by what throws before drawing starts.
+- **A form checks a draft against its key's type side.** `planOf` decodes
+  with `Schema.toType(schema)`, so a key typed `Option` (`OptionFromNullOr`)
+  cannot be drawn: no picker makes an `Option`. Edit such a value on its
+  encoded side. And `Schema.toEncoded` keeps inner checks but drops one made
+  after a transformation: `NumberFromString.check(isGreaterThan(0))` accepted
+  `'-1'`. Re-check against the whole Schema.
 - **Give embedded Foldkit containers an id.** The runtime fails asynchronously
   before rendering when its container has no id; a DOM test otherwise sees only
   an empty element and hides the actual initialization failure.
