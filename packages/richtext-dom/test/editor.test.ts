@@ -7,7 +7,13 @@ import { Effect, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
 import { positionToRange } from '../src/index.js'
-import { attachmentIn, placeDecorations, placeRendering, releaseMount } from '../src/host.js'
+import {
+  attachmentIn,
+  placeDecorations,
+  placePlaceholder,
+  placeRendering,
+  releaseMount,
+} from '../src/host.js'
 import { describe, expect, it } from 'vitest'
 import { attachEditor, events, patchEditor, toMessage, Message } from '../src/editor.js'
 
@@ -271,6 +277,15 @@ describe('the mount reading a registry placed for its host id (§122)', () => {
     placeDecorations('decorated-editor', document => RichText.searchDecorations(document, 'o'))
     const { end } = await mounted(element)
     expect(element.querySelector('[data-decoration]')?.textContent).toBe('o')
+    await end()
+  })
+
+  it('hints with the placement’s placeholder', async () => {
+    const element = host()
+    element.id = 'hinted-editor'
+    placePlaceholder('hinted-editor', 'Say something')
+    const { attachment, end } = await mounted(element)
+    expect(attachment.current().root.getAttribute('aria-placeholder')).toBe('Say something')
     await end()
   })
 

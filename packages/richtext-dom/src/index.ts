@@ -140,6 +140,10 @@ export const mount = (
 ): EditorDom => {
   const root = owner.createElement('div')
   root.setAttribute('contenteditable', 'true')
+  // A contenteditable div is otherwise a generic element, which assistive technology does
+  // not announce as a field, and on which `aria-placeholder` is not allowed.
+  root.setAttribute('role', 'textbox')
+  root.setAttribute('aria-multiline', 'true')
   const elements = new Map<RichText.NodeId, HTMLElement>()
   const spans = RichText.decorationsIn(content, decorations)
   for (const block of content.children) {

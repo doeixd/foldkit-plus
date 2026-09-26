@@ -357,6 +357,21 @@ export const locateRun = (document: Document, node: NodeId): LocatedRun | undefi
  * run's end clamps to it, a negative one reads as none of it, and a position that
  * resolves to nothing gives an empty string.
  */
+/**
+ * Whether a reader would see nothing: no blocks, or a lone paragraph or heading whose runs
+ * hold no text. What an editor shows its placeholder for; a lone empty list or code block is
+ * content a writer made, so it is not blank.
+ */
+export const isBlank = (document: Document): boolean => {
+  const [first, ...rest] = document.children
+  if (first === undefined) return true
+  return (
+    rest.length === 0 &&
+    (first.type === 'Paragraph' || first.type === 'Heading') &&
+    first.children.every(run => run.text.length === 0)
+  )
+}
+
 export const textBefore = (document: Document, position: Position): string => {
   const found = locateRun(document, position.node)
   if (found === undefined) return ''

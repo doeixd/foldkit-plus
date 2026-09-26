@@ -47,6 +47,20 @@ export const placeDecorations = (hostId: string, decorate: Decorate): void => {
 /** What is drawn over a host's document, or nothing when none was placed. */
 export const decorationsFor = (hostId: string): Decorate => decorators.get(hostId) ?? (() => [])
 
+const placeholders = new Map<string, string>()
+
+/**
+ * Records what a placement's blank editor shows, by host id, beside the rest of how it
+ * draws, so the mount reads all of it from the id it renders.
+ */
+export const placePlaceholder = (hostId: string, placeholder: string | undefined): void => {
+  if (placeholder === undefined) placeholders.delete(hostId)
+  else placeholders.set(hostId, placeholder)
+}
+
+/** The placeholder placed for a host id, or none. */
+export const placeholderFor = (hostId: string): string | undefined => placeholders.get(hostId)
+
 const ruleSets = new Map<string, ReadonlyArray<RichText.InputRule>>()
 
 /**

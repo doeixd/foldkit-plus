@@ -18,6 +18,7 @@ import {
   inputRulesFor,
   placeDecorations,
   placeInputRules,
+  placePlaceholder,
   placeRendering,
   placeVocabulary,
   vocabularyFor,
@@ -370,6 +371,8 @@ export interface EditorPlacement {
    * highlighting, for one. Defaults to nothing.
    */
   readonly decorate?: Decorate | undefined
+  /** What the editor shows while its document is blank (`RichText.isBlank`). Defaults to none. */
+  readonly placeholder?: string | undefined
 }
 
 /**
@@ -382,6 +385,7 @@ export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
   placeVocabulary(hostId, placement.vocabulary ?? {})
   placeInputRules(hostId, placement.inputRules ?? [])
   placeDecorations(hostId, placement.decorate ?? (() => []))
+  placePlaceholder(hostId, placement.placeholder)
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.

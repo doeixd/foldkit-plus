@@ -182,7 +182,9 @@ browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it, as it exposes `wrapped(containers)`, `converted(to)`, and `lifted()`
 for the wrap, convert, and lift commands, and `applied(mark)` and `cleared(name)` for
 `SetMark` and `ClearMark`, which a link editor sends. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`,
+Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
+(`placeholder` marks a blank document's block with `data-placeholder` for a stylesheet's
+`::before`, and the textbox root with `aria-placeholder`),
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a

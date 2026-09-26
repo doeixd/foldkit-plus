@@ -7,7 +7,7 @@ Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules 
 actions, and the block commands they need: retype, wrap (joining the list above), convert,
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
-mark toolbar, the slash menu, and link editing (§119, §123, §132), with their views in
+mark toolbar, the slash menu, link editing, and the placeholder (§119, §123, §132, §133), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Still to do: the rest of milestone 6's chrome, then source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
@@ -4697,10 +4697,10 @@ link editing              `SetMark`/`ClearMark` and `linkAt` in the core, the
 input rules               placed per host (`inputRulesFor`); the Markdown rules for
                           headings, quotes, lists, and fences (§128, §131)
 decorations               placed per host and drawn in the editable subtree (§129)
-placeholder, block type
-picker, block handle,
-status, command palette,
-floating toolbar          not started (§11, §120 slice 2)
+placeholder               placed per host, drawn by the adapter (§133)
+block type picker, block
+handle, status, command
+palette, floating toolbar not started (§11, §120 slice 2)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -4777,7 +4777,7 @@ them richtext. Since then the DOM package and the Mixins family exist, the adapt
 gained a keymap table (§119) and a toolbar (§120), and `marksInRange` joined the
 core. At `377b59c`, a search of `packages/richtext-dom/src` and
 `packages/mixins-richtext/src` found no drag/drop handling and no editor placeholder
-(the one `placeholder` is the preserved-content diagnostic).
+(the one `placeholder` was the preserved-content diagnostic); §133 added the placeholder.
 
 ---
 
@@ -7386,3 +7386,28 @@ from storage, arriving through sync, or edited by `SetMark` never passes an impo
 too and leaves a refused URL out: an `<a>` with no `href`, an `<img>` with no `src`. The
 document still holds the value, since refusing it there would need every mark's props to
 carry a policy; what is drawn is what an attacker needs.
+
+---
+
+# 133. The placeholder
+
+§35 lists a placeholder among the editor's chrome slots, but §36 keeps Mixins out of the
+editable subtree, and the text belongs inside it: on the line the caret is on, while there is
+nothing to read. So the adapter draws it, from a string the placement names, and a
+stylesheet renders it.
+
+```text
+editorAt(hostId, { placeholder })      placed by host id, beside the other drawing
+RichText.isBlank(document)             no blocks, or a lone paragraph or heading with no text
+blank → the block's data-placeholder   drawn by `[data-placeholder]::before`
+root  → role="textbox", aria-placeholder
+```
+
+It is an attribute, not a text node, so it never enters what the adapter reads back or the
+caret mapping. It is redrawn wherever the subtree is replaced: on each patch, and after a
+composition repair, which renders a block fresh without the attribute the last one carried.
+A lone empty list or code block is not blank: a writer made it, and the placeholder would
+sit inside a bullet or a fence.
+
+The root became a `textbox` for this: `aria-placeholder` is not allowed on a generic element,
+and a `contenteditable` div is otherwise announced as one.

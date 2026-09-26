@@ -222,6 +222,9 @@ marks — an empty run can carry them, which is how a caret holds a format — a
 that straddles a marked run and a plain one reports neither, and a node selection
 reports what its whole subtree agrees on.
 
+`isBlank(document)` says whether a reader would see nothing — no blocks, or a lone paragraph
+or heading with no text — which is when an editor shows its placeholder.
+
 `textBefore(document, position)` is the read for a menu: the text of the block the
 position addresses, up to that position, across its runs. A query is typed into the
 block's text between its start and the caret, so it never spans blocks; an offset

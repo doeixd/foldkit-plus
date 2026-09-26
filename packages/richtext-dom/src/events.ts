@@ -206,6 +206,8 @@ export interface AttachOptions {
    * highlighting, say. A pure read: it sees the document and nothing else.
    */
   readonly decorate?: Decorate | undefined
+  /** What a blank document shows (`RichText.isBlank`): "Write something…". */
+  readonly placeholder?: string | undefined
 }
 
 /** What is drawn over a document, derived from it on every render (§129). */
@@ -240,8 +242,33 @@ const sameSelection = (
  * edit means: it translates events into commands, hands them to `onIntent`, and
  * patches whatever the application commits.
  */
+/**
+ * Marks the lone block of a blank document with `data-placeholder`, which a stylesheet draws
+ * with `::before { content: attr(data-placeholder) }`, and clears it from any block that no
+ * longer qualifies. It is an attribute rather than a text node, so it never enters the
+ * content the adapter reads back or the caret mapping. The block, not the root, carries it,
+ * so the text sits on the line the caret is on.
+ */
+const drawPlaceholder = (dom: EditorDom, placeholder: string): void => {
+  dom.root.setAttribute('aria-placeholder', placeholder)
+  const blank = RichText.isBlank(dom.content)
+  const first = dom.content.children[0]
+  const target = blank && first !== undefined ? dom.elements.get(first.id) : undefined
+  for (const element of Array.from(dom.root.querySelectorAll('[data-placeholder]'))) {
+    if (element !== target) element.removeAttribute('data-placeholder')
+  }
+  target?.setAttribute('data-placeholder', placeholder)
+}
+
 export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   let current = dom
+  // Every replacement of the subtree goes through here: a repair or a patch can render the
+  // blank block fresh, without the attribute the last one carried.
+  const redraw = (next: EditorDom): void => {
+    current = next
+    if (options.placeholder !== undefined) drawPlaceholder(current, options.placeholder)
+  }
+  redraw(dom)
   let composing = false
   /**
    * The selection the application last committed, or the adapter last reported.
@@ -283,7 +310,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     // committed or cancelled, so repair the subtree before anything else, then
     // put back the selection composition started from — not the caret the
     // browser moved into its own temporary text.
-    current = repair(current, current.content)
+    redraw(repair(current, current.content))
     restoreSelection(current, composingSelection)
     composingSelection = null
     if (data != null && data.length > 0) options.onIntent({ type: 'InsertText', text: data })
@@ -357,7 +384,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     current: () => current,
     composing: () => composing,
     sync: (state, changeSet) => {
-      current = patchInto(current, state.document, changeSet, options.decorate?.(state.document))
+      redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
       lastSelection = state.selection
       restoreSelection(current, state.selection)
     },

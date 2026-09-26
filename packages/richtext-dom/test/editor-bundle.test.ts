@@ -25,7 +25,7 @@ import {
   type Model,
   type ParentMessage,
 } from '../src/editor-bundle.js'
-import { decorationsFor, renderingFor } from '../src/host.js'
+import { decorationsFor, placeholderFor, renderingFor } from '../src/host.js'
 
 const id = RichText.NodeId.make
 const caret = (node: string, offset: number): RichText.Selection => ({
@@ -571,6 +571,15 @@ describe('decorations placed for the editor (§129)', () => {
     // Re-placing an id without one replaces what it had.
     editorAt('decorating-editor')
     expect(decorationsFor('decorating-editor')(document())).toEqual([])
+  })
+})
+
+describe('a placeholder placed for the editor', () => {
+  it('records the placeholder, and forgets it when the id is placed again without one', () => {
+    editorAt('hinting-editor', { placeholder: 'Write something…' })
+    expect(placeholderFor('hinting-editor')).toBe('Write something…')
+    editorAt('hinting-editor')
+    expect(placeholderFor('hinting-editor')).toBeUndefined()
   })
 })
 

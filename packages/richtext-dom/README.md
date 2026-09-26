@@ -163,7 +163,7 @@ sends it itself. `WrappedBlock` (`{ containers }`), `ConvertedBlock` (`{ to }`),
 `LiftedBlock` are the same for the core's `WrapBlock`, `ConvertBlock`, and `LiftBlock`, and
 `AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark`
 (`{ mark }`, a name) for `SetMark` and `ClearMark`: what a link editor sends, which at a
-caret changes or removes the whole link the caret is in. `attachEditor(host, content, emit, { rendering?, decorate? })` attaches the translation to a host
+caret changes or removes the whole link the caret is in. `attachEditor(host, content, emit, { rendering?, decorate?, placeholder? })` attaches the translation to a host
 element and reports each Message; `events({ content })` wraps the same thing in a
 `Mount.defineStream`, so a view renders a host element whose mount produces these
 Messages and releases the subtree when the element goes. `patchEditor(hostId,
@@ -261,7 +261,7 @@ editor and binds it to the host element its view renders. A `renderer` is placed
 that host id rather than passed as an arg, because a registry holds functions and the
 Bundle's args are schema-decoded (§122): `placeRendering` and `renderingFor` at
 `foldkit-richtext-dom/host` are the same record the editor's mount reads, and a
-placement without one renders with the default. `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`
+placement without one renders with the default. `editorAt(hostId, { rendering, vocabulary, inputRules, decorate, placeholder })`
 takes a vocabulary too — `{ marks, nodes }` — and `placeVocabulary`/`vocabularyFor` are
 its record: the child's `update` passes those registries to `RichText.runAction`, so an
 edit a declaration forbids is refused here, not only reported by `validate` (§125).
@@ -273,7 +273,24 @@ so the marker stays as text. `placeDecorations` /
 `decorationsFor` are the fourth: `decorate(document) => DecorationSet`, which the mount and
 every patch draw over the document (§129) — code highlighting from
 `RichText.codeDecorations`, say. It sees the document and nothing else, so a highlight
-derived from application state, such as a search query, is not placed this way. The Link's `read` projects the
+derived from application state, such as a search query, is not placed this way.
+`placePlaceholder` / `placeholderFor` are the fifth: the text a blank document shows
+(`RichText.isBlank`: no blocks, or a lone paragraph or heading with no text). The adapter
+puts it on that block as `data-placeholder`, updated on every patch and after a composition
+repair, and the root is a `role="textbox"` carrying it as `aria-placeholder`. Drawing it is
+the stylesheet's, so the text never enters the content or the caret mapping:
+
+```css
+[data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: GrayText;
+}
+```
+
+The Link's `read` projects the
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /

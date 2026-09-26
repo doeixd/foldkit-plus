@@ -16,6 +16,7 @@ export {
   locateBlock,
   locateRun,
   textBefore,
+  isBlank,
   textRangeBefore,
   positionInBlock,
   rangeStart,
