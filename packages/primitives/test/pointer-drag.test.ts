@@ -151,6 +151,24 @@ describe('PointerDrag', () => {
       expect(later?.defaultPrevented).toBe(false)
     }))
 
+  it('starts no drag from a press in text being edited', () =>
+    withList(async ({ list, a, b }) => {
+      const text = document.createElement('span')
+      text.setAttribute('contenteditable', 'plaintext-only')
+      const word = document.createElement('b')
+      text.append(word)
+      b.append(text)
+      const facts = await run(list, 1, () => {
+        // Selecting text inside the field, past the threshold.
+        fire(word, 'pointerdown', { button: 0, clientX: 10, clientY: 40 })
+        fire(word, 'pointermove', { clientX: 60, clientY: 40 })
+        fire(word, 'pointerup')
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(a, 'pointermove', { clientX: 10, clientY: 20 })
+      })
+      expect(facts).toEqual([DragStarted.make({ id: 'a' })])
+    }))
+
   it('ends with nothing dropped on Escape, not on another key, and ignores a secondary button', () =>
     withList(async ({ list, a, b, c }) => {
       const facts = await run(list, 6, () => {

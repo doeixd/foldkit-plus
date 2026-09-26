@@ -223,6 +223,12 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                 // A second pointer while one is down is not a new drag.
                 if (pressed !== null) return
                 if ((positioned.button ?? 0) !== 0) return
+                // A press in text being edited selects text: it is no drag.
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest('[contenteditable]:not([contenteditable="false"])') !== null
+                )
+                  return
                 const id = targetOf(element, event.target, attribute)
                 if (id === null) return
                 pressed = {

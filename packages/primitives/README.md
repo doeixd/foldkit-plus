@@ -782,7 +782,8 @@ It follows the pointer that pressed and ignores a second one; the element under
 it is found by position, so a touch or a pen, which the browser captures to
 where it went down, drags too, once the marked elements have `touch-action:
 none` so a finger drags rather than scrolls. The click a drop ends with is
-swallowed, so a `Targets` on the same container does not also press. It writes
+swallowed, so a `Targets` on the same container does not also press. A press
+in `contenteditable` text selects text and starts no drag. It writes
 no roles, `tabindex` or keys, so it sits beside a tree's or a listbox's own;
 the keyboard's way to do what a drag does is yours to give. Boxes are measured
 as the pointer moves and never kept; an element drawn as `display: contents`
