@@ -108,8 +108,8 @@ const body = editorAt('article-body', { inputRules: markdownInputRules })
 
 A fence is completed by a space, not by the line break Markdown reads it at, because Enter
 splits a block and a rule sees only what is typed. Converting gives the block's runs new
-identities, and a block carrying marks is refused under the standard vocabulary, whose
-`CodeBlock` forbids them. A list marker typed right after a list starts a new list beside it
+identities. Under the standard vocabulary, whose `CodeBlock` forbids marks, a fence typed into
+a block that carries marks is refused, and the editor keeps the fence as the text it typed. A list marker typed right after a list starts a new list beside it
 rather than adding an item to that one.
 
 ## Limits

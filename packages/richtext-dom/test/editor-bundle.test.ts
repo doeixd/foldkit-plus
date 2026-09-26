@@ -537,6 +537,31 @@ describe('an input rule placed for the editor (§124 §4)', () => {
     expect(over.document.children[0]?.children.map(run => run.text).join('')).toBe('a cd')
   })
 
+  it('keeps what was typed when the rule’s own commands are refused', () => {
+    // A wrap in nothing is always refused, so this rule can never act; the split before it
+    // mints an identity first, so a refused attempt has one to give back.
+    const refused: RichText.InputRule = {
+      name: 'refused',
+      match: textBefore =>
+        textBefore === '# '
+          ? {
+              remove: 2,
+              commands: [{ type: 'SplitBlock' }, { type: 'WrapBlock', containers: [] }],
+            }
+          : undefined,
+    }
+    editorAt('refusing-editor', { inputRules: [refused] })
+    const initial = start(caret('a', 0))
+    const placed: Model = { ...initial, editor: { ...initial.editor, hostId: 'refusing-editor' } }
+    const hash = step(placed, typed('#'))
+    const transition = update(hash, typed(' '))
+    expect(transition.model.document.children[0]?.children.map(run => run.text).join('')).toBe(
+      '# ab',
+    )
+    // The refused attempt minted identities it did not use; they are given back.
+    expect(transition.model.editor.nextId).toBe(update(hash, typed('x')).model.editor.nextId)
+  })
+
   it('leaves the text alone when the placement placed no rule', () => {
     const after = step(step(start(caret('a', 0)), typed('#')), typed(' '))
     expect(after.document.children[0]).toMatchObject({ type: 'Paragraph' })
