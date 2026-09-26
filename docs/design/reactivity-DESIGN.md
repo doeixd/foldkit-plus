@@ -35,6 +35,16 @@
 >
 > **This is the one item in the deferred-work plan that belongs to a different
 > repository**, and it should be tracked there rather than here.
+>
+> **Revised 2026-09-26: Phase 1 can start here.** The block above applies to
+> Phases 2 and later, which need core's primitives. Phase 1 (§14) needs none:
+> it is `createLazy` driven by Projection dependencies, which exist. Building
+> the page builder found the need concrete, since a hover or a keystroke redrew
+> every panel, row and node. [dx-and-builder-PLAN.md](./dx-and-builder-PLAN.md)
+> §3c adopts Phase 1 with one decision this document leaves open: a boundary's
+> view is given only its selection, so dependencies are explicit **and**
+> cannot drift. Proxy tracking is not built. A development check samples cache
+> hits instead, as a safety net.
 
 # 1. Purpose
 

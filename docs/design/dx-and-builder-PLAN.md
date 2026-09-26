@@ -44,7 +44,8 @@ them.
    the DOM (U1).
 2. **Derive; do not list.** Nothing an application must keep in step by hand:
    not a stylesheet list, not a shortcut table beside a key handler, not
-   aliases beside `paths` (D1, D2, B1).
+   aliases beside `paths` (D1, D2, B1). A declared list is fine where it is
+   also the only way in, as a view's selection is (3c): then it cannot drift.
 3. **One registry per concept.** One way to draw a control, one way to name a
    Block, one table of commands. A second package that needs a concept imports
    the first's registry (U4, X1, B1).
@@ -371,24 +372,102 @@ languages. Apply it to `foldkit-mixins-builder` first, then bring
 test per package renders with every word replaced by a marker and asserts no
 English literal is left in the view (a checked claim, not a hope).
 
-### 3c. Memoized views (M)
+### 3c. Views that redraw only when what they read changes (M)
 
-```ts
-SlotView.define(Slots, draw, {
-  name: 'Layers',
-  memo: input => [input.document, input.selected, input.layers],
-})
-```
+**Decision.** A view boundary declares what it reads, and **is given only
+that**. A selection that is also the view's input cannot drift from what the
+view reads: a read outside it is a type error, because the view never had the
+rest.
 
-- `memo` wraps the SlotView's drawing in Foldkit's `createLazy`, with the
-  dependencies compared by identity. A per-item Slot with an `id` is drawn
-  through `createKeyedLazy` when the view draws each item with
-  `slots.row.lazy(item, drawRow, deps)`.
-- Attached Mixins are part of the key: attaching a Style makes a new SlotView,
-  so a memo never serves another view's output.
-- **Measure before and after** in the browser tier: the 1,000-node page, a
-  keystroke in the inspector, a hover. Record the numbers in
-  `pagebuilder-DESIGN.md` §25, as it asks.
+This is [reactivity-DESIGN.md](./reactivity-DESIGN.md)'s Phase 1, which
+needs no change to core Foldkit and can start in this repository. Two other
+designs were weighed:
+
+- **A dependency list beside the code** (`memo: input => [input.document]`,
+  with `draw` still given the whole input). This is rejected, because the list
+  drifts: a later read the list omits is a screen that silently fails to
+  update. It is the same failure as `sheet.ts` and the shortcut table.
+- **Tracking reads with a Proxy.** Also rejected, as §2 of that design
+  prefers. A read that bypasses the proxy (module state, a clock) is still a
+  stale screen. It costs a proxy per render. And the dependencies are known
+  only at runtime, not in the code.
+
+**Two forms, by what a view is drawn from.**
+
+- **An application view over its root Model** selects with a Projection that
+  carries its dependency paths (`Projection.struct`, `Projection.pick`, a
+  `FieldRef`):
+
+  ```ts
+  const Sidebar = Reactive.view(
+    Projection.struct({ posts: App.fields.posts, filter: App.fields.filter }),
+    (value, h) => …,   // value: { posts, filter }, and nothing else
+  )
+  ```
+
+  A `Projection.fromReader`, whose dependencies are unknown, is refused at a
+  boundary (`reactive:unknown-dependencies`), since it could never hit.
+- **A package view over its input** (a Bundle's Model plus view inputs) selects
+  keys, typed as a `Pick`:
+
+  ```ts
+  Parts.part('Layers', { reads: ['page', 'selected', 'layers', 'drag'] }, (input, slots, h) => …)
+  // input: Pick<BuilderInput, 'page' | 'selected' | 'layers' | 'drag'>
+  ```
+
+**How a boundary decides** (schematic):
+
+1. Read each declared path's value from the new input.
+2. Compare them by identity with the values from the last draw. The Model is
+   updated immutably with structural sharing, so identity is enough.
+3. If all are identical, return the cached VNode through `createLazy`. The view
+   does not run, no VNodes are allocated, and Snabbdom does not diff the
+   subtree.
+4. Otherwise, build the selection (read the Projection, or pick the keys), draw
+   it, and cache it.
+
+Compare the declared paths, not the selection's output: a Projection may build
+a new object on every read (reactivity §7). `createLazy` already restores
+dispatchers, mount ownership and Submodel mapping on a hit (reactivity §4), so
+none of that is reimplemented.
+
+**Per-item boundaries.** A per-item Slot draws each item through
+`createKeyedLazy`, with the item's own selection:
+`slots.row.lazy(item, { node, open, selected: isSelected }, drawRow)`. A value
+the item derives from the whole (whether *this* row is selected) is passed as
+a plain boolean, so only the rows whose boolean changed miss.
+
+**Renderer nodes.** `Renderer.render` draws each node as a keyed boundary on:
+
+- the node's object, which `apply` shares when unchanged (§25 measured it);
+- its marks as booleans (`selected`, `drop` zone, `editing`);
+- its read data, when it is a Query Block.
+
+Children come from their own boundaries. Editing one Heading then redraws one
+node and its ancestors' shells, not the page.
+
+**Attached Mixins.** A Style or Behavior contribution that reads the input
+(`Style.whenInput`, a Behavior's `attributes`) runs inside the boundary. So
+its reads must be inside the selection too. `Style.whenInput` and
+`Behavior.slot` take their predicate over the part's selected input, not the
+whole, which types it. Attaching a Mixin makes a new SlotView, so a cache is
+never shared between differently styled views.
+
+**A development check, not a mechanism.** In development, a boundary samples
+its hits: it re-runs the view and compares the VNode with the cached one, and
+warns (`reactive:stale-hit`) when they differ. That can only happen through a
+read outside the selection, such as a closure over module state. The check
+costs nothing in production.
+
+**What the root still does.** The root view runs on every Model change, and
+most of its boundaries hit. Skipping the root entirely needs core Foldkit's
+persistent render region (reactivity §26), upstream. Pursue it only if the
+measurement below shows the root pass still matters.
+
+**Measure** before and after, in the browser tier: the 1,000-node page, a
+keystroke in the inspector, a hover, a selection change. Record the numbers in
+`pagebuilder-DESIGN.md` §25, and in `reactivity-DESIGN.md` as its Phase 1
+result.
 
 ### 3d. Parts and an assembly (L)
 
@@ -399,8 +478,9 @@ input, plus a default assembly.
 // foldkit-mixins
 const Parts = SlotView.parts(BuilderSlots)<BuilderInput, Message>()
 
-export const Palette = Parts.part('Palette', (input, slots, h) => …)
-export const Layers = Parts.part('Layers', …)
+// Each part declares what it reads, and is given only that (3c).
+export const Palette = Parts.part('Palette', { reads: ['page', 'selected'] }, (input, slots, h) => …)
+export const Layers = Parts.part('Layers', { reads: ['page', 'selected', 'layers', 'drag'] }, …)
 // … Inspector, Canvas, Toolbar, Crumbs, History, Viewports, Alert, Live
 
 // the default: what BuilderView.define returns today
@@ -417,8 +497,9 @@ const Editor = BuilderView.assemble(PageBuilder, p => [
 ])
 ```
 
-- A part is a function of the assembly's input, Slot builders and `h`. It is
-  not a separate SlotView, so Styles and Behaviors attach **once, to the
+- A part is a function of its selection of the assembly's input (3c), the
+  Slot builders and `h`, and is a boundary: it redraws only when what it
+  reads changes. It is not a separate SlotView, so Styles and Behaviors attach **once, to the
   assembly**, and reach every part through the shared Slots. Styling code
   written today keeps working.
 - A part's Behaviors (the tree's keyboard, the canvas's pointer) are declared

@@ -493,10 +493,10 @@ large page is that ask.
    small Behavior that looks the node up by `data-composition-node`.
    `Hovered`, `Unhovered` and `model.hovered` are removed. Nothing else reads
    them, and the change is breaking but allowed at 0.x.
-2. The expensive parts become lazy: the canvas as
-   `createLazy(drawPage, [document, selected, drop, viewport, preview, data])`,
-   and each layer row as `createKeyedLazy(id, drawRow, [node, selected, open, drop])`.
-   A keystroke in the inspector then redraws one row and the page, not the
+2. The expensive parts become boundaries that redraw only when what they read
+   changes (U2): the canvas, each Renderer node keyed by its node object and
+   its marks, and each layer row keyed by its node, open state and selection.
+   A keystroke in the inspector then redraws one row and one node, not the
    editor.
 
 Measure the 1,000-node page before and after, in a running application, and
@@ -696,12 +696,15 @@ and none has a place to say what its drawing depends on.
 **The cause.** Memoization is opt-in per call site, and the package views
 are one large function (U3), so there is no call site to opt in at.
 
-**The design.** Memoization belongs to the SlotView:
-`SlotView.define(Slots, draw, { memo: input => [input.document, input.selected] })`
-wraps the drawing in `createLazy` by those dependencies. `attrs(base, item)`
-for a per-item Slot takes an item key, which `createKeyedLazy` uses. The
-package views then say once what each part depends on, and an application's
-view gets the same for free.
+**The design.** A view boundary declares what it reads and is given only
+that: a Projection for an application view, a typed pick of keys for a
+package part. A cache hit through `createLazy` skips the view, its VNodes and
+their diff. Because the selection is the view's input, it cannot drift from
+what the view reads. A dependency list kept beside a view that still gets the
+whole input can drift, and proxy read-tracking was also weighed and rejected.
+Per-item Slots and Renderer nodes are keyed boundaries of the same kind. The
+details are [dx-and-builder-PLAN.md](./dx-and-builder-PLAN.md) §3c, which is
+[reactivity-DESIGN.md](./reactivity-DESIGN.md)'s Phase 1.
 
 **Dissolves** B6's second half, and the §25 row target the page builder
 design set and deferred.
