@@ -15,8 +15,8 @@ lit.
 ## Status
 
 Early: the `foldkit-richtext` family is 0.x, and its API may change between minor
-versions. The mark toolbar, the block style picker, the slash menu, and the link editor are
-built; the rest of the design's editor chrome (floating toolbar, block handle, status)
+versions. The mark toolbar, the block style picker, the slash menu, the link editor, and the
+Markdown source editor are built; the rest of the design's editor chrome (floating toolbar, block handle, status)
 arrives when a view needs it. The placeholder is the editor's own, placed with `editorAt`,
 because it is drawn inside the editable subtree this package stays out of.
 
@@ -82,6 +82,40 @@ undo what it shows.
 | `root` | Container | the picker's wrapper |
 | `toolbar` | Collection | the row, `role="toolbar"` |
 | `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
+
+## The Markdown source editor
+
+Source mode is `SourceSession | null` in the application's Model (`foldkit-richtext-markdown`'s
+`openSource` sets it, `closeSource` ends it). While it is set, draw this instead of the rich
+editor:
+
+```ts
+import { sourceEditor } from 'foldkit-mixins-richtext'
+
+sourceEditor<Message>()(
+  {
+    session: model.source,
+    document: model.document,
+    drafted: draft => DraftedSource({ draft }),
+    done: LeftSource(),
+  },
+  h,
+)
+```
+
+The text area holds the draft and sends `drafted` as it changes. Under it, one warning per
+thing switching back would lose or refuse, read from `closeSource` — so none until the draft is
+edited, since an unedited session gives the document back whole. `done` is the way back; the
+application's `update` decides whether to commit `closeSource(...).document` at once or to ask
+first when there are warnings. The warnings are computed once per session value.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the editor's wrapper |
+| `text` | TextInput | the Markdown, `data-source="text"` |
+| `warnings` | Collection | the list, `data-source="warnings"` |
+| `warning` | Base | one loss, with `data-code` and `data-detail` for a Style to key on |
+| `done` | Interactive | the way back, `data-source="done"` |
 
 ## The slash menu
 

@@ -12,7 +12,8 @@
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom": ["../richtext-dom/src/index.ts"],
       "foldkit-richtext-dom/editor": ["../richtext-dom/src/editor.ts"],
-      "foldkit-richtext-dom/toolbar": ["../richtext-dom/src/toolbar.ts"]
+      "foldkit-richtext-dom/toolbar": ["../richtext-dom/src/toolbar.ts"],
+      "foldkit-richtext-markdown": ["../richtext-markdown/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
@@ -28,6 +29,9 @@
     },
     {
       "path": "../richtext-dom/tsconfig.build.json"
+    },
+    {
+      "path": "../richtext-markdown/tsconfig.build.json"
     }
   ]
 }

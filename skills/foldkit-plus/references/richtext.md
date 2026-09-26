@@ -174,6 +174,9 @@ editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
 nor a link at the caret) and `ClearedMark` from inside a link, and keeps no state.
+`sourceEditor<Message>()` is source mode's view: `{ session, document, drafted, done }` in,
+`SourceEditorSlots` (`root`, `text`, `warnings`, `warning`, `done`) out; the application keeps
+`SourceSession | null` and commits `closeSource(...)` when `done` arrives.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,

@@ -10,7 +10,8 @@ and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki 
 mark toolbar, the block style picker, the slash menu, link editing, and the placeholder
 (§119, §123, §132, §133, §134), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
-and none is released yet. Milestone 7's source session is built (§136); its Bundle is not.
+and none is released yet. Milestone 7's source session and its view are built (§136, §137);
+split mode and §9's round-trip hints are not.
 Still to do: the rest of milestone 6's chrome, then the rest of source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
@@ -7506,6 +7507,32 @@ Decided here:
 - **`SourceSession` and `MarkdownDiagnostic` are schemas**, so the session goes in a Model as
   it is.
 
-Next: the `MarkdownEditor` Bundle §8 sketches, which holds the mode and the session beside the
-rich editor's Model and switches between them with Messages, then split mode and §9's
-round-trip hints.
+Next: the view, and the mode it lives in (§137), then split mode and §9's round-trip hints.
+
+---
+
+# 137. Source mode without a mode Bundle
+
+§8 sketched a `MarkdownEditor` Bundle holding `mode`, the draft, the diagnostics, and the rich
+editor's Model. Building it showed the Bundle has little to own:
+
+- **The mode is `SourceSession | null`.** A session exists exactly while source mode is on, and
+  its `draft` is the text being edited. A separate `mode` field could disagree with it.
+- **The diagnostics are a read.** `closeSource` is pure, so what switching back would report is
+  derived from the session whenever it is drawn, not stored.
+- **The editor Bundle's parent Model is its own.** Wrapping it would fix a second parent shape
+  on top of the first, for an application that already has a Model to put one field in.
+
+So the application keeps `source: SourceSession | null`, its `update` handles three Messages it
+names itself (open: `openSource`; type: replace `draft`; leave: `closeSource`, committing or
+confirming), and the view is `sourceEditor` in `foldkit-mixins-richtext`: a text area bound to
+the draft, one warning per loss (`data-code`, `data-detail`), and the way back. The rich editor
+is not drawn meanwhile, which is how §8's "one representation editable at a time" holds.
+
+The view computes the warnings once per session value (a `WeakMap`), because a render with an
+unchanged draft need not parse it again. That makes `foldkit-mixins-richtext` depend on
+`foldkit-richtext-markdown`; the Markdown package still depends only on the core.
+
+Wiring it exposed a latent build fault: `foldkit-richtext-markdown`'s `tsconfig.build.json` had
+no `references`, which `extends` does not inherit, so the first project to reference it failed
+with `TS6059`/`TS6307`. It references the core now.
