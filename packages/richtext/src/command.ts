@@ -656,6 +656,42 @@ const startingBlock = (
   }
 }
 
+/**
+ * Replaces a block with one that carries its runs under new identities, where it stood, and
+ * moves the selection onto them: how text crosses between a text block and a node kind that
+ * holds text. `apply` refuses an identity reused in one transaction, even one just deleted,
+ * so the runs cannot keep theirs (§131).
+ */
+const replaceCarryingText = (
+  state: EditorState,
+  { block, path, parent, selection }: StartingBlock,
+  ids: CommandIds,
+  make: (id: NodeId, children: ReadonlyArray<Run>) => Block,
+): TransactionResult => {
+  const runs = block.type === 'Unknown' ? [] : block.children
+  const renamed = new Map(runs.map(run => [run.id, NodeId.make(ids.mint())]))
+  const moved = (position: Position): Position => {
+    const node = renamed.get(position.node)
+    return node === undefined ? position : { ...position, node }
+  }
+  return apply(state, [
+    Edit.deleteBlock(block.id),
+    Edit.insertBlock(
+      make(
+        NodeId.make(ids.mint()),
+        runs.map(run => ({ ...run, id: renamed.get(run.id)! })),
+      ),
+      path[path.length - 1]!,
+      parent?.id,
+    ),
+    Edit.setSelection({
+      type: 'Range',
+      anchor: moved(selection.anchor),
+      focus: moved(selection.focus),
+    }),
+  ])
+}
+
 /** Retype, wrap, convert, and lift: each reshapes the starting block where it stands. */
 const runBlockCommand = (
   state: EditorState,
@@ -663,10 +699,11 @@ const runBlockCommand = (
     Command,
     { readonly type: 'RetypeBlock' | 'WrapBlock' | 'ConvertBlock' | 'LiftBlock' }
   >,
-  { block, path, parentPath, parent, selection }: StartingBlock,
+  starting: StartingBlock,
   ids: CommandIds,
   options: RunOptions,
 ): TransactionResult => {
+  const { block, path, parentPath, parent } = starting
   const index = path[path.length - 1]!
   if (command.type === 'LiftBlock') {
     const lifted = liftOperations(state.document, block.id, ids, options.nodes)
@@ -678,7 +715,22 @@ const runBlockCommand = (
     if (!acceptsChild(state.document, parentPath, command.to.type, options.nodes)) {
       return failure('UnexpectedChild')
     }
-    return apply(state, [Edit.retypeBlock(block.id, command.to)])
+    if (block.type === 'Paragraph' || block.type === 'Heading') {
+      return apply(state, [Edit.retypeBlock(block.id, command.to)])
+    }
+    // Leaving a node kind that holds text — a code block back to a paragraph — is a replace,
+    // as entering one is. Only a vocabulary says a kind holds text: without one, a node
+    // could be an image, whose content a retype would destroy.
+    const declared = block.type === 'Node' ? options.nodes?.definitionFor(block.kind) : undefined
+    if (declared?.kind !== 'node' || declared.children !== textContent) {
+      return failure('InvalidInput')
+    }
+    const to = command.to
+    return replaceCarryingText(state, starting, ids, (id, children) =>
+      to.type === 'Heading'
+        ? { type: 'Heading', id, level: to.level, children }
+        : { type: 'Paragraph', id, children },
+    )
   }
 
   if (command.type === 'WrapBlock') {
@@ -753,27 +805,14 @@ const runBlockCommand = (
   ) {
     return failure('ForbiddenMark')
   }
-  const renamed = new Map(block.children.map(run => [run.id, NodeId.make(ids.mint())]))
-  const converted: Block = {
+  const props = command.to.props ?? {}
+  return replaceCarryingText(state, starting, ids, (id, children) => ({
     type: 'Node',
     kind,
-    id: NodeId.make(ids.mint()),
-    props: command.to.props ?? {},
-    children: block.children.map(run => ({ ...run, id: renamed.get(run.id)! })),
-  }
-  const moved = (position: Position): Position => {
-    const node = renamed.get(position.node)
-    return node === undefined ? position : { ...position, node }
-  }
-  return apply(state, [
-    Edit.deleteBlock(block.id),
-    Edit.insertBlock(converted, index, parent?.id),
-    Edit.setSelection({
-      type: 'Range',
-      anchor: moved(selection.anchor),
-      focus: moved(selection.focus),
-    }),
-  ])
+    id,
+    props,
+    children,
+  }))
 }
 
 /**

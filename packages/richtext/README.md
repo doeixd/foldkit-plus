@@ -149,8 +149,10 @@ way the range was made — since that is where what is typed over it lands.
 
 `RetypeBlock` changes the type of the block the selection starts in — `Paragraph`, or
 a `Heading` at a level — and keeps that block's runs, so identities and the caret
-survive; a node block or preserved content is refused, because its content is not
-runs.
+survive. Given a vocabulary that declares a node kind as holding text, it also takes a block
+of that kind back out — a `CodeBlock` to a paragraph — by replacing it, as `ConvertBlock`
+does going in: the text moves under new identities and the selection moves onto them. Any
+other node block, or preserved content, is refused, because its content is not runs.
 
 `WrapBlock` puts that same block inside new containers, listed outermost first —
 `{ type: 'WrapBlock', containers: [{ kind: 'Quote' }] }`, or a `List` holding a `ListItem`
@@ -223,8 +225,8 @@ that straddles a marked run and a plain one reports neither, and a node selectio
 reports what its whole subtree agrees on.
 
 `textBlockAt(document, selection)` is the style of the block a selection starts in — a
-paragraph, or a heading at its level — in the shape `RetypeBlock` takes, or undefined where a
-retype does not reach (a code block, a node selection), which is what a style picker presses.
+paragraph, or a heading at its level — in the shape `RetypeBlock` takes, or undefined for any
+other block (a code block) or a node selection, which is what a style picker presses.
 
 `isBlank(document)` says whether a reader would see nothing — no blocks, or a lone paragraph
 or heading with no text — which is when an editor shows its placeholder.

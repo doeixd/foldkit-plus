@@ -90,10 +90,22 @@ describe('the block style picker', () => {
     )
   })
 
+  it('presses none in a code block, and offers the retype out of it', () => {
+    Scene.scene(
+      { update, view },
+      Scene.given<Model>({ selection: caret('c-t'), sent: '' }),
+      Scene.expect(button('paragraph')).toHaveAttr('aria-pressed', 'false'),
+      Scene.click('[data-style="paragraph"]'),
+      Scene.expect(Scene.selector('#sent')).toHaveText(
+        JSON.stringify({ _tag: 'RetypedBlock', block: { type: 'Paragraph' } }),
+      ),
+    )
+  })
+
   it.each<[string, RichText.Selection | null]>([
-    ['a code block', caret('c-t')],
+    ['a node selection', { type: 'Node', node: id('c') }],
     ['no selection', null],
-  ])('offers nothing in %s, where a retype is refused', (_, selection) => {
+  ])('offers nothing with %s, where a retype is refused', (_, selection) => {
     Scene.scene(
       { update, view },
       Scene.given<Model>({ selection, sent: '' }),

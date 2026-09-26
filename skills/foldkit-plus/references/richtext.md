@@ -169,7 +169,7 @@ any other list — and draws it with `slashMenuView<Message>()`: `SlashMenuSlots
 the highlighted one, and the entry's own Message on click. `blockStyles<Message>()` is the
 style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `toolbar`,
 `button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
-`RichText.textBlockAt`, all disabled where a retype is refused. `linkEditor<Message>()` is the link
+`RichText.textBlockAt`, all disabled without a text selection. `linkEditor<Message>()` is the link
 editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
@@ -236,7 +236,8 @@ delete, split block, toggle mark over a range, set selection, paste, retype bloc
 into a transaction and applies it; identity comes from the caller's `mint`, never a
 clock. `RetypeBlock` changes the type of the block the selection starts in — a
 paragraph, or a heading at a level — and keeps that block's runs, so identities and
-the caret survive; a node block is refused, because its content is its Kit's contract.
+the caret survive; given a vocabulary, it also replaces a text-holding node kind (a
+`CodeBlock`) with a paragraph or heading carrying its text, and refuses any other node block.
 `WrapBlock` moves that block into new containers listed outermost first (`[{ kind: 'List',
 props }, { kind: 'ListItem' }]`), keeping its identity and the caret; with a vocabulary, a list
 wrap right after a list of the same props adds an item to it. `ConvertBlock` replaces

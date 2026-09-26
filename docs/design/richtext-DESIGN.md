@@ -7427,16 +7427,23 @@ the slash menu's retype entries under the same labels, as a row of buttons in
 RichText.textBlockAt(document, selection)   the start block's style, as RetypeBlock takes it
 pressed                                     the entry whose block equals it
 click                                       the entry's RetypedBlock, through `wrap`
-disabled                                    no such block: a code block, a node selection, none
+disabled                                    no text selection: a node selection, or none
 ```
 
 Two things were decided rather than assumed:
 
 - **Lists, quotes, and code blocks are left out.** Choosing "Paragraph" from inside a list would
-  have to mean *leave the list*, which is a lift, and from a code block a replace back to text,
-  which no command does yet (`ConvertBlock` only goes from text to a node kind). A picker that
-  showed them would send a `RetypedBlock` that does not undo what it shows. They stay in the
-  slash menu, where an entry says what it does rather than what the block is.
+  have to mean *leave the list*, which is a lift, so a button for a list would send a
+  `RetypedBlock` that does not undo what it shows. They stay in the slash menu, where an entry
+  says what it does rather than what the block is.
+- **A code block can be retyped out of.** Building the picker showed that nothing turned a code
+  block back into text: the `RetypeBlock` operation refuses node kinds, and `ConvertBlock` only
+  goes in. The `RetypeBlock` *command* now does it, given a vocabulary that declares the kind
+  as holding text: the node is replaced by a paragraph or heading carrying its runs under new
+  identities, with the selection moved onto them, exactly as `ConvertBlock` does going in (the
+  two share the replace). Without a vocabulary a node is refused, because it could be an image
+  whose content a retype would destroy. So inside a code block the picker presses nothing and
+  its buttons stay live.
 - **Buttons, not a `<select>`.** Foldkit's `OnChange` hands back a string and must return a
   Message for any value, so a select would need a fallback for a value it does not know. A
   button carries its own Message, and `aria-pressed` says which style the block has.

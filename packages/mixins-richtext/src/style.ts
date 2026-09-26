@@ -4,9 +4,10 @@
  *
  * The styles are the slash menu's retype entries, so the two offer the same list under the
  * same labels. Which one is pressed is a read of the document (`RichText.textBlockAt`); what a
- * button sends is its entry's `RetypedBlock`, wrapped for the caller. Lists, quotes, and code
- * blocks are not styles here: leaving one is a lift or a replace, not a retype, so a picker
- * that listed them would send a Message that does not undo what it shows.
+ * button sends is its entry's `RetypedBlock`, wrapped for the caller. Lists and quotes are not
+ * styles here: leaving one is a lift, not a retype, so a picker that listed them would send a
+ * Message that does not undo what it shows. A code block is not a style either, but a retype
+ * leaves one (given a vocabulary that says it holds text), so the buttons stay live inside it.
  */
 import { Equal } from 'effect'
 import type { Html } from 'foldkit/html'
@@ -36,9 +37,9 @@ export interface BlockStyleInput<Message> {
 
 /**
  * The block style picker as a slot view. The button for the style the selection's block has
- * is pressed; none is at a heading level the list does not offer. Every button is disabled
- * where there is no such block — a code block, a node selection, no selection — because a
- * retype there is refused.
+ * is pressed; none is in a code block, or at a heading level the list does not offer. Every
+ * button is disabled without a text selection — a node selection, or none — because a retype
+ * there is refused.
  */
 export const blockStyles = <Message>(): SlotView.SlotView<
   typeof BlockStyleSlots,
@@ -47,6 +48,7 @@ export const blockStyles = <Message>(): SlotView.SlotView<
 > =>
   SlotView.forMessages<Message>().define(BlockStyleSlots, (input, slots, h): Html => {
     const current = RichText.textBlockAt(input.document, input.selection)
+    const live = input.selection?.type === 'Range'
     return h.div(slots.root.attrs(), [
       h.div(
         slots.toolbar.attrs([h.Role('toolbar'), h.AriaLabel('Text style')]),
@@ -61,8 +63,8 @@ export const blockStyles = <Message>(): SlotView.SlotView<
                     ? 'true'
                     : 'false',
                 ),
-                h.Disabled(current === undefined),
-                ...(current === undefined ? [] : [h.OnClick(input.wrap(style.message))]),
+                h.Disabled(!live),
+                ...(live ? [h.OnClick(input.wrap(style.message))] : []),
               ],
               { index, id: style.id, count: styles.length },
             ),

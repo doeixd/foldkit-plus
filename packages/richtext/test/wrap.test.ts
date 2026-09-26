@@ -384,3 +384,95 @@ describe('converting a text block to a node kind that holds text', () => {
     expect(convert(caret('q-p-t', 0), { kind: 'CodeBlock' }, { nodes: standard }).ok).toBe(true)
   })
 })
+
+describe('retyping a node kind that holds text back into a text block', () => {
+  const doc = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [{ type: 'Text', id: 'p-t', text: 'before', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'code',
+          props: { language: 'ts' },
+          children: [
+            { type: 'Text', id: 'c1', text: 'let ', marks: [] },
+            { type: 'Text', id: 'c2', text: 'x', marks: [] },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'Callout',
+          id: 'k',
+          props: {},
+          children: [{ type: 'Text', id: 'k1', text: 'note', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'qr',
+          props: {},
+          children: [{ type: 'Text', id: 'qr1', text: 'runs where blocks belong', marks: [] }],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'q-p',
+              children: [{ type: 'Text', id: 'q-p-t', text: 'quoted', marks: [] }],
+            },
+          ],
+        },
+      ],
+    })
+  const retype = (
+    selection: RichText.Selection,
+    to: RichText.TextBlock,
+    options: RichText.RunOptions = { nodes: standard },
+  ) => RichText.run({ document: doc(), selection }, { type: 'RetypeBlock', to }, ids(), options)
+
+  it('replaces a code block with a paragraph carrying its text, caret moved onto it', () => {
+    const result = retype(caret('c2', 1), { type: 'Paragraph' })
+    if (!result.ok) throw new Error(result.error)
+    const [, paragraph] = result.state.document.children
+    expect(paragraph).toMatchObject({ type: 'Paragraph', id: 'new-3' })
+    // Two runs with the same marks merge once they are a paragraph's, and the caret, one
+    // character into the second, follows into the merged run.
+    expect(paragraph?.children.map(run => [run.id, run.text])).toEqual([['new-1', 'let x']])
+    expect(result.state.selection).toEqual(caret('new-1', 5))
+    expect(result.state.document.children.map(block => block.id)).toEqual([
+      'p',
+      'new-3',
+      'k',
+      'qr',
+      'q',
+    ])
+  })
+
+  it('retypes it to a heading at the level asked for', () => {
+    const result = retype(caret('c1', 0), { type: 'Heading', level: 3 })
+    if (!result.ok) throw new Error(result.error)
+    expect(result.state.document.children[1]).toMatchObject({ type: 'Heading', level: 3 })
+  })
+
+  it.each<[string, string, RichText.RunOptions]>([
+    ['a code block, with no vocabulary to say it holds text', 'c1', {}],
+    ['a kind the vocabulary does not declare, though it carries runs', 'k1', { nodes: standard }],
+    ['a kind declared to hold blocks, though it carries runs', 'qr1', { nodes: standard }],
+  ])('refuses %s', (_, run, options) => {
+    expect(retype(caret(run, 0), { type: 'Paragraph' }, options)).toMatchObject({
+      ok: false,
+      error: 'InvalidInput',
+    })
+  })
+})

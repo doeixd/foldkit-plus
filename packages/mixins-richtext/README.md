@@ -71,10 +71,11 @@ blockStyles<Message>()(
 
 The pressed button is a read of the document (`RichText.textBlockAt`), and a click sends that
 entry's `RetypedBlock` through `wrap`. At a heading level it does not list, none is pressed.
-In a code block, with a node selection, or with no selection, every button is disabled,
-because a retype there is refused. Lists, quotes, and code blocks are not styles here:
-leaving one is a lift or a replace, not a retype, so a button for one would send a Message
-that does not undo what it shows.
+In a code block none is pressed, and a button retypes the block out of it, which the editor
+does given a vocabulary that says the kind holds text. With a node selection or none, every
+button is disabled, because a retype there is refused. Lists and quotes are not styles here:
+leaving one is a lift, not a retype, so a button for one would send a Message that does not
+undo what it shows.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
