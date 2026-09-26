@@ -46,7 +46,9 @@ check('/view', typeof view.renderDocument === 'function' && typeof view.renderBl
 const toolbar = await import('foldkit-richtext-dom/toolbar')
 check(
   '/toolbar',
-  typeof toolbar.marksToolbar === 'function' && typeof toolbar.markActive === 'function',
+  typeof toolbar.marksToolbar === 'function' &&
+    typeof toolbar.markActive === 'function' &&
+    typeof toolbar.selectionAnchor === 'function',
 )
 
 const editor = await import('foldkit-richtext-dom/editor')

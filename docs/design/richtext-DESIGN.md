@@ -8,8 +8,8 @@ actions, and the block commands they need: retype, wrap (joining the list above)
 and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
 (§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
 mark toolbar, the block style picker, the slash menu, link editing, the placeholder, the
-status line, and the command palette (§119, §123, §132, §133, §134, §141, §142), with their
-views in
+status line, the command palette, and the floating toolbar's anchor (§119, §123, §132, §133,
+§134, §141, §142, §143), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
@@ -4708,8 +4708,9 @@ status                    `count` in the core, `editorStatus` in the Mixins fami
                           showing the problems the caller passes (§141)
 command palette           `commandPalette` in the Mixins family, over the slash
                           catalogue (§142)
-block handle, floating
-toolbar                   not started (§11, §120 slice 2)
+floating toolbar          `coversText` in the core, `selectionAnchor` beside the
+                          marks toolbar (§143)
+block handle              not started (§11, §120 slice 2)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -7721,3 +7722,36 @@ would make the query uneditable from the keyboard. A modified arrow moves nothin
 Not done: entries a selection makes meaningless (a retype under a node selection) are listed
 anyway and refused by the editor when chosen; a palette that greys them out would need the
 picker's `live` rule per entry.
+
+---
+
+# 143. The floating toolbar
+
+A floating toolbar is two decisions, and they belong to different owners. Whether it shows is a
+read of the Model: the selection covers text. Where it goes is a read of the page: the selection's
+rectangle. The first is `RichText.coversText(selection)` in the core, which the link editor
+already needed privately; it now uses the shared one. The second is `selectionAnchor`, a Mount in
+`foldkit-richtext-dom/toolbar`. There is no floating-toolbar view. The toolbar is the marks
+toolbar (or the Mixins family's), drawn inside an element that carries the Mount.
+
+`foldkit-mixins-ui`'s Anchor was the first candidate and does not fit. `anchorSetup` positions
+against an element found by id, and a selection is not an element. `@floating-ui/dom` can take a
+virtual reference, but it is not a dependency of this package, and the placement needed is small
+enough to write: centred `gap` above the selection's rectangle, below it when that would leave the
+viewport's top, clamped to the viewport's width, `position: fixed` so no scroll offset enters the
+arithmetic. That is `placeOver`, a pure function, tested without layout.
+
+The Mount listens only while mounted, and it is mounted only while the view draws the toolbar,
+that is, while there is a range. It re-places on `selectionchange`, on scroll (captured on the
+window, because a scrolling container's scroll does not bubble), and on resize. It ignores a
+selection outside the host it names and a collapsed one, which can be briefly true of the page
+while the Model still holds the previous range.
+
+It writes `position`, `top`, `left`, and `data-placement` on the element, as Anchor does. A Style
+on that element must leave them alone.
+
+Not done:
+- **Real layout.** jsdom has none. The tests stub the rectangles and prove the arithmetic and the
+  wiring; that it looks right in Chromium, Firefox, and WebKit is milestone 9's browser gate.
+- **The Mount wrapper.** Only type-checked; a runtime test of it would need a real render.
+- **Flipping sideways and an arrow.** Neither is needed yet.

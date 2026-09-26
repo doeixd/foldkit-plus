@@ -36,7 +36,7 @@ foldkit-richtext-dom/host     mountInto, attachmentIn, releaseMount, placeRender
 foldkit-richtext-dom/events   attach, intentFor, selection read and restore
 foldkit-richtext-dom/html     parseHtml
 foldkit-richtext-dom/view     renderDocument, renderBlocks
-foldkit-richtext-dom/toolbar  marksToolbar
+foldkit-richtext-dom/toolbar  marksToolbar, markActive, selectionAnchor
 foldkit-richtext-dom/editor   Message, toMessage, attachEditor, events, patchEditor
 foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Messages
 ```
@@ -341,6 +341,28 @@ rendering it. `state` is what the editor projects (`document`, `selection`,
 active when the caret carries it, or — with no stored format — when every run the
 selection covers does. `markActive(state, mark)` is that rule on its own, for a
 renderer that draws its own buttons.
+
+A floating toolbar is the same buttons in an element that `selectionAnchor` places over the
+selection:
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { marksToolbar, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
+
+RichText.coversText(model.editor.selection)
+  ? h.div(
+      [h.OnMount(selectionAnchor({ hostId: 'body', gap: 8 }))],
+      [marksToolbar({ state: model.editor, toMessage: mark => edited(Message.ToggledMark({ mark })) })(h)],
+    )
+  : h.empty
+```
+
+Whether it is drawn is the view's, from the Model: `RichText.coversText` is a range that is not
+a caret. The Mount only moves it. While mounted, it places the element `gap` pixels above the
+page's selection, centred and kept inside the window's width, or below when there is no room
+above. It re-places on `selectionchange`, on any scroll, and on resize, and ignores a selection
+outside the host `hostId` names. It writes `position: fixed`, `top`, `left`, and
+`data-placement` (`top` or `bottom`) on the element, so a style there must leave those alone.
 
 ## What it does not do
 

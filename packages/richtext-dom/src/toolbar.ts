@@ -55,3 +55,6 @@ export const marksToolbar =
       ),
     )
   }
+
+/** What positions a floating toolbar over the selection (§143). */
+export { selectionAnchor } from './floating.js'
