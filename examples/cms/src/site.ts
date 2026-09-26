@@ -851,5 +851,7 @@ export const PageEditing = BuilderView.define(PageBuilder, {
   settings: {
     field: Style.attach(InspectorFieldStyle),
     form: Style.attach(InspectorFormStyle),
+    // The CMS's own control kinds, as its entry forms draw them.
+    renderers: Cms.controlRenderers,
   },
 }).pipe(Style.attach(BuilderStyle))

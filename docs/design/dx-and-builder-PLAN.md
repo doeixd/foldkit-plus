@@ -694,6 +694,16 @@ registry becomes the one:
 - An application registers its kinds once and passes the same `renderers` to
   every view that draws controls.
 
+> **Done, 2026-09-26, smaller than written.** Checked against the code, two
+> of the three bullets had no target: `foldkit-crud` draws no filter
+> controls and has no kind switch (its `ListView` renderers draw read-only
+> Displays, a different table), and the registry needs no subpath to be
+> shared. The gap was the inspector: a Block prop asking for a control kind
+> of the application's own threw "no renderer" there, since the settings
+> forms took no renderers. `BuilderView.define(builder, { settings: {
+> renderers } })` now takes the same function of the Message the form views
+> use (`Cms.controlRenderers`), and the CMS passes it.
+
 ### 4b. Words for Blocks and looks, in composition (M)
 
 ```ts

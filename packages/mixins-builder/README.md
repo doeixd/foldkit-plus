@@ -134,6 +134,13 @@ const PageEditing = BuilderView.define(PageBuilder, {
 })
 ```
 
+A control kind of the application's own (`Input.kind`) is drawn by the
+renderers the application gives, the same ones its form views take. Each
+Block's settings form has Messages of its own, so they are given as a
+function of the Message, as `Cms.controlRenderers` is:
+`BuilderView.define(PageBuilder, { settings: { renderers: Cms.controlRenderers } })`.
+Without one, the inspector says which renderer is missing.
+
 The page on the canvas is the site's own markup, so it is styled by the site's
 CSS. The editor's marks are data attributes on each node's wrapper:
 `data-composition-mark` (`selected`, or `hovered`; a node that is both is

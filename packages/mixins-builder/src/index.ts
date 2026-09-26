@@ -48,7 +48,7 @@ import {
   SlotView,
   Style,
 } from 'foldkit-mixins'
-import { FormView, type FormViewInputs } from 'foldkit-mixins-form'
+import { FormView, type FormViewInputs, type Renderers } from 'foldkit-mixins-form'
 import { KeepInView } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
@@ -361,11 +361,20 @@ export interface SettingsLook {
   readonly field?: SlotView.SlotViewTransform
   /** Attached to each settings form around its fields: `FormSlots`. */
   readonly form?: SlotView.SlotViewTransform
+  /**
+   * Renderers for control kinds of the application's own, beside the shipped
+   * ones, as a form view takes them. A function of the Message, since each
+   * Block's settings form has Messages of its own: `Cms.controlRenderers`.
+   */
+  readonly renderers?: <Message>() => Renderers<Message>
 }
 
 /** A Block's settings form, drawn with `look`. */
 const settingsViewOf = (settings: Settings, look: SettingsLook) => {
-  const field = FormView.field(settings.form)
+  const field = FormView.field(
+    settings.form,
+    look.renderers === undefined ? {} : { renderers: look.renderers() },
+  )
   const drawn = FormView.define(settings.form, {
     field: look.field === undefined ? field : field.pipe(look.field),
   })

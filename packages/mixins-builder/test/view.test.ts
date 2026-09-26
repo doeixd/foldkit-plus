@@ -3,8 +3,9 @@
  * the inspector's controls by prop kind, the canvas's frame and marks, and the
  * Behaviors attached to the layers, the tree and the canvas.
  */
-import { Option } from 'effect'
-import { Block, Composition, NodeId } from 'foldkit-composition'
+import { Option, Schema } from 'effect'
+import { Block, Catalog, Composition, Content, NodeId } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
 import { Input } from 'foldkit-form'
 import { Builder, Message, type Model } from 'foldkit-builder'
 import { Attributes, A11y, Capability, SlotView, Style } from 'foldkit-mixins'
@@ -13,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView, Quote, answer, isTimer } from './fixture.js'
 import { Inert } from 'foldkit-mixins/testing'
-import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
+import { FieldSlots, FormSlots, type Renderers } from 'foldkit-mixins-form'
 
 const buttonNamed = (root: Html, name: string) =>
   Inert.all(root).find(node => node.sel === 'button' && Inert.text(node) === name)
@@ -635,6 +636,63 @@ describe('the settings forms’ look', () => {
     expect(classed('settings')).toHaveLength(1)
     // One per prop the Banner's form draws.
     expect(classed('setting')).toHaveLength(5)
+  })
+})
+
+describe('a control kind of the application’s own', () => {
+  // An amount in cents, in a currency: a kind an application registers once.
+  const Cents = Input.kind<{ readonly currency: string }>('Cents', {
+    draft: 'text',
+    parse: text => (/^\d+$/.test(text) ? Number(text) : undefined),
+    unparsed: 'Enter a whole number of cents',
+  })
+  const renderers = <Message>(): Renderers<Message> => ({
+    [Cents.kind]: ({ control, state, draft, change, slots, h }) =>
+      h.input(
+        slots.text.attrs([
+          ...state,
+          h.Value(String(draft)),
+          h.OnInput(change),
+          h.DataAttribute('currency', Cents.is(control) ? control.data.currency : ''),
+        ]),
+      ),
+  })
+  const Price = Block.define('Price', {
+    Props: Schema.Struct({ cents: Schema.Number }),
+    provides: [Content.Section],
+  }).pipe(Block.annotate(Builder.controls({ cents: Cents.of({ currency: 'USD' }) })))
+  const Prices = Catalog.make({ blocks: [Price], roots: [Content.Section] })
+  const Priced = Builder.make('Priced', {
+    catalog: Prices,
+    renderer: Renderer.make(Prices, { Price: ({ props, h }) => h.p([], [String(props.cents)]) }),
+    starters: { Price: { cents: 100 } },
+  })
+  const price = NodeId.make('price')
+  const selected = Priced.bundle.update(
+    Priced.replace(
+      Priced.initial,
+      Composition.Document.make({
+        format: 1,
+        roots: [price],
+        nodes: { [price]: { block: 'Price', props: { cents: 250 }, regions: {} } },
+      }),
+    ),
+    Message.Selected({ id: price }),
+    undefined,
+  ).model
+
+  it('draws it in the inspector with the renderers the Builder is given', () => {
+    const View = BuilderView.define(Priced, { settings: { renderers } })
+    const [field] = Inert.all(Inert.draw(View, selected)).filter(
+      node => Inert.value(node, 'data-currency') === 'USD',
+    )
+    expect(Inert.value(field, 'value')).toBe('250')
+  })
+
+  it('says which renderer is missing when it is not given one', () => {
+    expect(() => Inert.draw(BuilderView.define(Priced), selected)).toThrow(
+      'no renderer for a "Cents" control ("cents")',
+    )
   })
 })
 

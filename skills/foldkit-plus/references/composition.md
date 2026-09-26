@@ -292,7 +292,8 @@ const PageForm = Form.make('PageForm', PageInput, {
   Builders on one page need different names. An `Input.bundle` control (a color picker) works
   in the inspector; one with Subscriptions or Resources is refused by `Builder.make`. Style those fields with
   `BuilderView.define(PageBuilder, { settings: { field: Style.attach(...FieldSlots...),
-  form: Style.attach(...FormSlots...) } })`.
+  form: Style.attach(...FormSlots...), renderers: Cms.controlRenderers } })` — `renderers` is
+  a function of the Message (`<M>() => Renderers<M>`) drawing the application's own control kinds.
   A prop holding an id takes `Input.relationOne(Category)` (a `select`) or
   `Input.relationMany(Tag)` (checkboxes over an id array); its choices come in
   `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,
