@@ -6143,7 +6143,8 @@ For async Shiki, let a Bundle Command compute the highlighting and commit the ep
 > **Designed (2026-09-25), as §130.** The seam and its homes are decided — `CodeTokenizer` and
 > `codeDecorations` in the core (format-agnostic, like `searchDecorations`), a JSON lexer in
 > `foldkit-richtext-code`, Shiki in `foldkit-richtext-code-shiki` — and §129 decides how the
-> editable adapter draws the result. Nothing is built yet.
+> editable adapter draws the result. The core half is built: `CodeTokenizer` and
+> `codeDecorations`, drawn by the read-only view. The grammars and the editable overlay are not.
 
 ---
 
@@ -7131,3 +7132,10 @@ seam — a tokenizer, its decoration kinds, and the read-only view drawing them 
 of a half-right JavaScript lexer. TypeScript and JavaScript should wait for Shiki rather than be
 hand-rolled.
 
+
+> **Built (2026-09-26): the core half.** `CodeToken`, `CodeTokenizer`, and
+> `codeDecorations(document, tokenizers)` are in `foldkit-richtext`. The registry is a `Map`
+> keyed by language, because the language is read from the document. A token outside its
+> block's text, covering nothing, or at a fractional offset throws with the language, rather
+> than becoming a highlight over the wrong text. The read-only view draws the result with no
+> change of its own. `foldkit-richtext-code`'s JSON lexer is the next slice.

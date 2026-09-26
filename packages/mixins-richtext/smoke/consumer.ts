@@ -51,6 +51,8 @@ export type Surface = [
   typeof RichText.renderingOver,
   typeof RichText.decorationsIn,
   typeof RichText.searchDecorations,
+  typeof RichText.codeDecorations,
+  RichText.CodeTokenizer,
   typeof RichText.positionInBlock,
   RichText.Decoration,
   RichText.DecorationSet,

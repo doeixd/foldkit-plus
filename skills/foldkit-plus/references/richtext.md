@@ -191,7 +191,9 @@ search match, a lint warning, a syntax token — and never document content:
 set onto runs (cut at each run's edge, unresolvable endpoints skipped, text order),
 `searchDecorations(document, query)` produces them for every occurrence of a query (one
 decoration per occurrence, across runs but never across blocks; `positionInBlock(block,
-offset)` is the offset-to-position read it shares), and
+offset)` is the offset-to-position read it shares), `codeDecorations(document, tokenizers)`
+runs the `CodeTokenizer` registered in a `Map` for each `CodeBlock`'s `language` and returns
+its tokens as decorations (a token outside the text throws), and
 `renderDocument(document, renderer?, decorations?)` overlays each covered piece as
 `span[data-decoration=<kind>]` with the run's marks inside. The editable adapter does not
 overlay decorations yet.

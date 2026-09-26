@@ -207,6 +207,25 @@ check(
     richtext.positionInBlock(document.children[0], 0)?.offset === 0,
 )
 
+// §130: the code seam, a tokenizer registered by language producing decorations.
+const code = richtext.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Node',
+      kind: 'CodeBlock',
+      id: 'c',
+      props: { language: 'json' },
+      children: [{ type: 'Text', id: 'ct', text: '[1]', marks: [] }],
+    },
+  ],
+})
+const token = () => [{ from: 1, to: 2, kind: 'syntax-number' }]
+check(
+  'code tokens produce decorations through the build',
+  richtext.codeDecorations(code, new Map([['json', token]]))[0]?.kind === 'syntax-number',
+)
+
 // §125: the standard vocabulary's rendering, which is what makes a declared kind an
 // element rather than a placeholder — and a void one stays open.
 const standard = richtext.decodeDocument({
