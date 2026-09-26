@@ -132,7 +132,7 @@ export interface Inspecting {
   readonly on: Readonly<Record<string, InspectedForm>>
 }
 
-export { controlOf, inputOf, settingsOf, spaced, type Settings } from './settings.js'
+export { controlOf, inputOf, settingsOf, type Settings } from './settings.js'
 
 /** An edit that creates nodes and waits for their new ids. */
 const Request = Schema.Union([

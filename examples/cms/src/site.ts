@@ -174,9 +174,7 @@ export const Hero = Block.define('Hero', {
   regions: { actions: Region.many({ accepts: [Content.Interactive], max: 2 }) },
   provides: [Content.Section],
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'Layout', description: 'The big opening of a page' }),
-  ),
+  Block.words({ group: 'Layout', description: 'The big opening of a page' }),
 
   Appearance.attach(HeroLook),
   Block.annotate(Builder.controls({ lead: Input.multiline() })),
@@ -222,9 +220,7 @@ export const Section = Block.define('Section', {
   regions: { body: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Section],
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'Layout', description: 'A band that holds other blocks' }),
-  ),
+  Block.words({ group: 'Layout', description: 'A band that holds other blocks' }),
   Appearance.attach(SectionLook),
 )
 
@@ -257,9 +253,7 @@ export const Columns = Block.define('Columns', {
   },
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'Layout', description: 'Two columns side by side' }),
-  ),
+  Block.words({ group: 'Layout', description: 'Two columns side by side' }),
   Appearance.attach(ColumnsLook),
 )
 
@@ -287,9 +281,7 @@ export const Heading = Block.define('Heading', {
   }),
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'Text', description: 'A title for a part of the page' }),
-  ),
+  Block.words({ group: 'Text', description: 'A title for a part of the page' }),
   Appearance.attach(HeadingLook),
 )
 
@@ -313,7 +305,7 @@ export const Text = Block.define('Text', {
   }),
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Paragraphs of writing' })),
+  Block.words({ group: 'Text', description: 'Paragraphs of writing' }),
 
   Appearance.attach(TextLook),
   Block.annotate(Builder.controls({ body: Input.multiline() })),
@@ -352,7 +344,7 @@ export const Image = Block.define('Image', {
   }),
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(BuilderView.describe({ group: 'Media', description: 'A picture with a caption' })),
+  Block.words({ group: 'Media', description: 'A picture with a caption' }),
   Appearance.attach(ImageLook),
 )
 
@@ -385,7 +377,7 @@ export const Quote = Block.define('Quote', {
   }),
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Words someone said' })),
+  Block.words({ group: 'Text', description: 'Words someone said' }),
 
   Appearance.attach(QuoteLook),
   Block.annotate(Builder.controls({ text: Input.multiline() })),
@@ -427,7 +419,7 @@ export const Callout = Block.define('Callout', {
   }),
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(BuilderView.describe({ group: 'Text', description: 'A note set apart in color' })),
+  Block.words({ group: 'Text', description: 'A note set apart in color' }),
 
   Appearance.attach(CalloutLook),
   Block.annotate(Builder.controls({ body: Input.multiline() })),
@@ -451,7 +443,7 @@ export const Divider = Block.define('Divider', {
   Props: Schema.Struct({}),
   provides: [Content.Flow],
 }).pipe(
-  Block.annotate(BuilderView.describe({ group: 'Layout', description: 'A line between parts' })),
+  Block.words({ group: 'Layout', description: 'A line between parts' }),
   Appearance.attach(DividerLook),
 )
 
@@ -465,9 +457,7 @@ export const Button = Block.define('Button', {
   }),
   provides: [Content.Flow, Content.Interactive],
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'Media', description: 'A link that looks like a button' }),
-  ),
+  Block.words({ group: 'Media', description: 'A link that looks like a button' }),
   Appearance.attach(ButtonLook),
 )
 
@@ -617,9 +607,7 @@ export const PostList = QueryBlock.define('PostList', {
   select: PostCard,
   first: props => props.count,
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'From the blog', description: 'The newest posts, as cards' }),
-  ),
+  Block.words({ group: 'From the blog', description: 'The newest posts, as cards' }),
   Appearance.attach(PostsLook),
 )
 
@@ -673,9 +661,7 @@ export const FeaturedPost = QueryBlock.define('FeaturedPost', {
   select: PostCard,
   first: () => 1,
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({ group: 'From the blog', description: 'One post, given pride of place' }),
-  ),
+  Block.words({ group: 'From the blog', description: 'One post, given pride of place' }),
 
   Appearance.attach(FeaturedLook),
   Block.annotate(Builder.controls({ post: Input.relationOne(Post) })),
@@ -699,13 +685,11 @@ export const LatestPages = QueryBlock.define('LatestPages', {
   // One more than shown when one is left out, so the list is still `count` long.
   first: props => props.count + (Option.isSome(props.except) ? 1 : 0),
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({
-      group: 'From the blog',
-      label: 'Latest pages',
-      description: 'The site’s newest pages',
-    }),
-  ),
+  Block.words({
+    group: 'From the blog',
+    label: 'Latest pages',
+    description: 'The site’s newest pages',
+  }),
   Block.annotate(Builder.controls({ except: Input.relationOne(Cms.Entities.Entry) })),
 )
 

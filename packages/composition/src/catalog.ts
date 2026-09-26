@@ -5,7 +5,7 @@
  * and forms do not go in it. A Block that needs data says so in its own code.
  * Like a rich-text Kit, it is a module-level value, never Model state.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 import type { CatalogAction } from './action.js'
 import { fieldsOf, type AnyBlock } from './block.js'
@@ -37,6 +37,10 @@ export type BlockName<C> = C extends Catalog<infer Blocks> ? Blocks['name'] : ne
 /** One Block as a person or a tool reads it. */
 export interface BlockDescription {
   readonly name: string
+  /** Its name for people, and, when given, its purpose and its group: `Block.words`. */
+  readonly label: string
+  readonly description?: string
+  readonly group?: string
   readonly provides: ReadonlyArray<string>
   /** The keys of its props, when they are a struct. */
   readonly props: ReadonlyArray<string>
@@ -89,6 +93,12 @@ export const Catalog = {
   describe: (catalog: Catalog): ReadonlyArray<BlockDescription> =>
     catalog.blocks.map(block => ({
       name: block.name,
+      label: block.words.label,
+      ...Option.match(block.words.description, {
+        onNone: () => ({}),
+        onSome: description => ({ description }),
+      }),
+      ...Option.match(block.words.group, { onNone: () => ({}), onSome: group => ({ group }) }),
       provides: block.provides.map(content => content.name),
       props: Object.keys(fieldsOf(block.Props)),
       regions: Object.fromEntries(

@@ -274,8 +274,10 @@ const PageForm = Form.make('PageForm', PageInput, {
 - Behaviors: `TreeNavigation` on `tree`/`row`; `keyCommand` shortcuts on
   `layers` and the focusable `canvas` (Escape deselects); a `crumbs` breadcrumb; `Targets` on `canvas` (hover marks, press selects, a link does not
   navigate). No state, no Messages of its own.
-- A Block's words: `Block.annotate(BuilderView.describe({ label, description, group }))`;
-  the label defaults to the name spaced. Palette items and rows carry `data-block`.
+- A Block's words: `Block.words({ label, description, group })` (from `foldkit-composition`, a
+  pipe step, so a Block from another package can be worded); the label defaults to the name
+  spaced. An agent's `operationSchema` carries each description. Look values are named with an
+  axis's `labels`. Palette items and rows carry `data-block`.
 - Inspector labels are the prop Schema's `title`, else the key spaced. A Block asks
   for a control with
   `Block.annotate(Builder.controls({ body: Input.multiline(), ref: Input.hidden() }))`

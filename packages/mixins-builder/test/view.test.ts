@@ -221,10 +221,11 @@ describe('the drawn Builder', () => {
       ['Loud', 'false'],
     ])
     const space = Inert.all(controls[5]).filter(node => node.sel === 'option')
+    // A value is named by the look's label for it, else spaced.
     expect(space.map(option => [Inert.value(option, 'value'), Inert.text(option)])).toEqual([
       ['', 'default'],
-      ['s', 's'],
-      ['m', 'm'],
+      ['s', 'Small'],
+      ['m', 'M'],
     ])
     expect(Inert.value(controls[0], 'value')).toBe('Hello')
     // A number-literal prop is a select of its numbers, as text.

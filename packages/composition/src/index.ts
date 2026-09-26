@@ -29,7 +29,9 @@ import { valid, validate } from './validate.js'
 export {
   Block,
   fieldsOf,
+  spaced,
   type AnyBlock,
+  type BlockWords,
   type AppearanceAxes,
   type AppearanceAxis,
   type AppearanceChoice,

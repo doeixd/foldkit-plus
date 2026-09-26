@@ -1,8 +1,10 @@
 /**
  * A Document as text, one node per line, indented by depth: for a person, a
- * test asserting a whole page at once, or an agent's context. Deterministic:
+ * test asserting a whole page at once, or an agent's context. A Block's label
+ * follows its name where it says more (`Banner "Promo banner"`). Deterministic:
  * props print with their keys sorted.
  */
+import { spaced } from './block.js'
 import { Catalog } from './catalog.js'
 import type { Document, NodeId } from './document.js'
 
@@ -26,10 +28,15 @@ export const describe = (catalog: Catalog, document: Document): string => {
     if (node === undefined) return void lines.push(`${pad}(missing ${id})`)
     if (seen.has(id)) return void lines.push(`${pad}(again ${id})`)
     seen.add(id)
-    const known = Catalog.block(catalog, node.block) !== undefined
+    const block = Catalog.block(catalog, node.block)
+    // A label is printed only where it says more than the name spaced.
+    const label =
+      block === undefined || block.words.label === spaced(block.name)
+        ? ''
+        : ` ${JSON.stringify(block.words.label)}`
     const props =
       Object.keys(node.props).length === 0 ? '' : ` ${JSON.stringify(sorted(node.props))}`
-    lines.push(`${pad}${known ? '' : '? '}${node.block} ${id}${props}`)
+    lines.push(`${pad}${block === undefined ? '? ' : ''}${node.block}${label} ${id}${props}`)
     for (const [region, children] of Object.entries(node.regions)) {
       if (children.length === 0) continue
       lines.push(`${pad}  ${region}:`)

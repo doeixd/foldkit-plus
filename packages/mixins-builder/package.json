@@ -48,7 +48,6 @@
     "foldkit-composition": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
-    "foldkit-metadata": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
     "foldkit-primitives": "workspace:*"

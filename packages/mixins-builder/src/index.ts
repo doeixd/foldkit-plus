@@ -18,7 +18,6 @@ import {
   Layers,
   controlOf,
   inputOf,
-  spaced,
   Message,
   layersArgs,
   type ContextValue,
@@ -33,13 +32,13 @@ import {
   Composition,
   NodeId,
   fieldsOf,
+  spaced,
   type Document,
   type Position,
 } from 'foldkit-composition'
 import { MARK_ATTRIBUTE, NODE_ATTRIBUTE, Renderer } from 'foldkit-composition/foldkit'
 import { Entity } from 'foldkit-entity'
 import { Input, type Control } from 'foldkit-form'
-import { Metadata } from 'foldkit-metadata'
 import {
   Behavior,
   Capability,
@@ -287,26 +286,6 @@ const contextChoices = (control: Control | undefined): ReadonlyArray<string> | u
         ? ['true', 'false']
         : undefined
 
-/** What the editor calls a Block, given with `BuilderView.describe`. */
-export interface BlockWords {
-  /** Its name in the palette, the layers and the inspector. Default: its name, spaced (`PostList` is "Post list"). */
-  readonly label?: string
-  /** What it is for, under its name in the palette and the inspector. */
-  readonly description?: string
-  /** The palette group it is listed in. Blocks given none share one, "Blocks". */
-  readonly group?: string
-}
-
-const wordsKey = Metadata.key<BlockWords>('foldkit-mixins-builder/words', {
-  // A later annotation's word replaces an earlier one's.
-  merge: records => [Object.assign({}, ...records)],
-  summarize: words =>
-    Object.entries(words)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(', '),
-})
-
-/** A name in code as words: `PostList` is "Post list", `tone` is "Tone". */
 /** The longest summary a layer row shows before it is cut short. */
 const SUMMARY_LENGTH = 40
 
@@ -428,12 +407,6 @@ export interface BuilderParts {
 }
 
 export const BuilderView = {
-  /**
-   * Block metadata: what the editor calls a Block, as
-   * `Hero.pipe(Block.annotate(BuilderView.describe({ label: 'Hero', group: 'Layout' })))`.
-   */
-  describe: (words: BlockWords): Metadata => wordsKey.of(words),
-
   /** What the drawn Builder is drawn with, typed where a form's `controls` entry cannot be. */
   inputs: (inputs: BuilderViewInputs = {}): BuilderViewInputs => inputs,
 
@@ -480,7 +453,6 @@ export const BuilderView = {
     }
     const described = new Map(
       builder.catalog.blocks.map(block => {
-        const given = wordsKey.get(block.metadata)[0] ?? {}
         // The props a layer row may quote: those drawn as text.
         const texts = Object.entries(fieldsOf(block.Props)).flatMap(([key, schema]) => {
           const control = controlOf(block, key, schema)
@@ -491,9 +463,10 @@ export const BuilderView = {
         return [
           block.name,
           {
-            label: given.label ?? spaced(block.name),
-            description: Option.fromUndefinedOr(given.description),
-            group: given.group ?? 'Blocks',
+            label: block.words.label,
+            description: block.words.description,
+            // Blocks given no group share one.
+            group: Option.getOrElse(block.words.group, () => 'Blocks'),
             texts,
           },
         ] as const
@@ -672,7 +645,10 @@ export const BuilderView = {
       // The node's look: one choice per axis its Block offers, blank for the default,
       // and on a responsive axis one more per breakpoint it may change at.
       const chosen = isChoices(node.appearance) ? node.appearance : {}
-      const looks = Object.entries(block.appearance).flatMap(([axis, { values, breakpoints }]) => {
+      const looks = Object.entries(block.appearance).flatMap(([axis, look]) => {
+        const { values, breakpoints } = look
+        /** A value's name: the look's label for it, else the value spaced. */
+        const named = (value: string): string => look.labels?.[value] ?? spaced(value)
         const stored = chosen[axis]
         // What is chosen at each point: `base`, then each breakpoint.
         const at: Readonly<Record<string, string>> =
@@ -723,7 +699,7 @@ export const BuilderView = {
                 [
                   ...[
                     ['', 'Default'] as const,
-                    ...values.map(value => [value, spaced(value)] as const),
+                    ...values.map(value => [value, named(value)] as const),
                   ].map(([value, text]) =>
                     h.button(
                       slots.choice.attrs([
@@ -766,7 +742,7 @@ export const BuilderView = {
               slots.control.attrs([h.Id(fieldId), h.OnChange(choose(point))]),
               optionsOf(h, slots.selectOption, {
                 blank: point === 'base' ? 'default' : 'unchanged',
-                choices: named(values),
+                choices: values.map(value => ({ value, label: named(value) })),
                 current: at[point],
               }),
             ),

@@ -712,6 +712,15 @@ Words.of(block) // { title, description, group }, as Words.of(schema) reads a ti
 - `BuilderView.describe` is removed. The example moves its words onto its
   Blocks.
 
+> **Done, 2026-09-26,** with one change: the words are a pipe step,
+> `Block.words({ label, description, group })`, not a `define` option, so an
+> application can word a Block another package defined (the rich-text `Text`)
+> and there is one way to do it. `block.words` holds them resolved, the label
+> defaulting to the name spaced. An appearance axis names its values with
+> `labels`, which the Builder's look buttons and selects both read.
+> `Catalog.describe` gains the words; `describe` prints a label that says more
+> than the name; `operationSchema` puts each description on its insert.
+
 ### 4c. The inspector is a form (L)
 
 **Design.** For each Block in the Catalog, the Builder derives, once and

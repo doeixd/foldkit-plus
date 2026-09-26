@@ -263,12 +263,11 @@ replaces an earlier one's.
 
 ### What the editor calls a Block
 
-A Block's `label`, `description` and palette `group` are metadata too:
+A Block's `label`, `description` and palette `group` are its words, from
+`foldkit-composition`, which an agent's tool reads too:
 
 ```ts
-const Described = Quote.pipe(
-  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Words someone said' })),
-)
+const Described = Quote.pipe(Block.words({ group: 'Text', description: 'Words someone said' }))
 ```
 
 The label defaults to the Block's name spaced (`PostList` is "Post list"), and

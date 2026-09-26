@@ -138,6 +138,9 @@ expectTypeOf<PropsOf<typeof Heading>['level']>().toEqualTypeOf<1 | 2 | 3>()
   const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [] })
   const Text = RichTextBlock.define('Text', { kit: ArticleKit, provides: [Content.Flow] })
   expectTypeOf<PropsOf<typeof Text>['body']>().toEqualTypeOf<RichText.Document>()
+  // "Reading a Document": a Block another package defined, worded by the application.
+  const Worded = Text.pipe(Block.words({ group: 'Text' }))
+  expectTypeOf(Worded).toEqualTypeOf<typeof Text>()
 }
 
 {

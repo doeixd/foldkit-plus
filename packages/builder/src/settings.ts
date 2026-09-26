@@ -6,16 +6,10 @@
  * that decodes becomes one Operation.
  */
 import { Option, Result, Schema } from 'effect'
-import { fieldsOf, type AnyBlock, type CatalogAction } from 'foldkit-composition'
+import { fieldsOf, spaced, type AnyBlock, type CatalogAction } from 'foldkit-composition'
 import { Entity, Words } from 'foldkit-entity'
 import { Form, Input, type Control } from 'foldkit-form'
 import { Metadata } from 'foldkit-metadata'
-
-/** A name as words: `PostList` is "Post list". */
-export const spaced = (name: string): string => {
-  const words = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
-  return words.charAt(0).toUpperCase() + words.slice(1)
-}
 
 const controlsKey = Metadata.key<Readonly<Record<string, Control>>>('foldkit-builder/controls', {
   // One record per Block: a later annotation's prop replaces an earlier one's.

@@ -14,13 +14,11 @@ export const Section = Block.define('Section', {
   Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
   regions: { body: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Section],
-}).pipe(
-  Block.annotate(BuilderView.describe({ group: 'Layout', description: 'A band of the page' })),
-)
+}).pipe(Block.words({ group: 'Layout', description: 'A band of the page' }))
 export const Heading = Block.define('Heading', {
   Props: Schema.Struct({ text: Schema.String }),
   provides: [Content.Flow],
-}).pipe(Block.annotate(BuilderView.describe({ group: 'Text' })))
+}).pipe(Block.words({ group: 'Text' }))
 /** A Block with a prop of each kind the inspector draws. */
 export const Banner = Block.define('Banner', {
   Props: Schema.Struct({
@@ -33,17 +31,15 @@ export const Banner = Block.define('Banner', {
   provides: [Content.Flow],
   appearance: {
     tone: { kind: 'variant', values: ['plain', 'loud'] },
-    space: { kind: 'token', values: ['s', 'm'], breakpoints: ['md'] },
+    space: { kind: 'token', values: ['s', 'm'], labels: { s: 'Small' }, breakpoints: ['md'] },
   },
   events: ['press'],
 }).pipe(
-  Block.annotate(
-    BuilderView.describe({
-      label: 'Promo banner',
-      group: 'Text',
-      description: 'A line that stands out',
-    }),
-  ),
+  Block.words({
+    label: 'Promo banner',
+    group: 'Text',
+    description: 'A line that stands out',
+  }),
 )
 /** What a Banner's press may run: subscribe to a list, with a note. */
 export const Subscribe = {

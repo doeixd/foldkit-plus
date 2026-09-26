@@ -54,12 +54,10 @@ const Quote = Block.define('Quote', {
 }).pipe(Block.annotate(Builder.controls({ text: Input.multiline(), ref: Input.hidden() })))
 expectTypeOf(Quote.name).toEqualTypeOf<'Quote'>()
 
-const Described = Quote.pipe(
-  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Words someone said' })),
-)
+const Described = Quote.pipe(Block.words({ group: 'Text', description: 'Words someone said' }))
 expectTypeOf(Described.name).toEqualTypeOf<'Quote'>()
 // @ts-expect-error: a Block's words are only its label, description and group.
-BuilderView.describe({ icon: 'quote' })
+Block.words({ icon: 'quote' })
 
 // What the page's parent gives the drawn Builder: each node's read, and a
 // relation prop's choices.

@@ -248,6 +248,8 @@ Agent.expose(Message, {
 - An insert names one of the Catalog's Blocks, as a literal, with that Block's
   props as they are stored, so a Block outside the Catalog is refused by the
   tool's own input schema before `apply` sees it. `apply` checks the rest.
+- Each insert carries its Block's description, when it has one
+  (`Block.words`), so the tool's schema says what each Block is for.
 - The agent mints the ids of what it adds (`composition:id-taken` for one in
   use), and reads the page as `Composition.describe(Site, document)`, ids and
   props included.
@@ -259,14 +261,22 @@ Agent.expose(Message, {
   Region and index. It is derived, never stored, and computed once per Document
   value.
 - `Composition.describe(catalog, document)` writes the Document as indented
-  text, one node per line, with a Block the Catalog does not know marked `?`.
-- `Catalog.describe(catalog)` lists each Block's props, Regions, Content and
-  metadata, for a person, a tool or an agent.
+  text, one node per line, with a Block the Catalog does not know marked `?`
+  and a label that says more than the name after it (`Banner "Promo banner"`).
+- `Catalog.describe(catalog)` lists each Block's words, props, Regions, Content
+  and metadata, for a person, a tool or an agent.
+- `Block.words({ label, description, group })` says what a Block is called and
+  what it is for, each word in place of the one before; the label defaults to
+  the name spaced (`PostList` is "Post list"). It is a pipe step, so an
+  application words a Block another package defined:
+  `Text.pipe(Block.words({ group: 'Text' }))`. An editor's palette and an
+  agent's tool both read it. An appearance axis names its values the same
+  way, with `labels: { lg: 'Large' }`.
 - `Block.decode(block, props)` decodes stored props to the Block's typed props,
   and `PropsOf<typeof Heading>` is their type.
 - `Block.annotate(metadata)` attaches an interpreter's
-  [`foldkit-metadata`](../metadata/README.md), such as a palette category. The
-  Block knows no annotation's meaning.
+  [`foldkit-metadata`](../metadata/README.md), such as the control an editor
+  draws a prop with. The Block knows no annotation's meaning.
 
 ## Editing: Operations
 

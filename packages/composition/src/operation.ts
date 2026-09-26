@@ -11,7 +11,7 @@
  * refuse an edit because of something already wrong elsewhere in the Document,
  * so an author keeps working around content the deployment no longer knows.
  */
-import { Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
 import { ActionRef, checkActions } from './action.js'
 import { Block } from './block.js'
 import { Catalog } from './catalog.js'
@@ -112,14 +112,19 @@ export const Operation: Schema.Codec<Operation, unknown> = Schema.Union([
  * misspelled prop is dropped rather than refused.
  */
 export const operationSchema = (catalog: Catalog): Schema.Codec<Operation, unknown> => {
-  const inserts = catalog.blocks.map(block =>
-    Schema.TaggedStruct('Insert', {
+  const inserts = catalog.blocks.map(block => {
+    const insert = Schema.TaggedStruct('Insert', {
       id: NodeId,
       block: Schema.Literal(block.name),
       props: Schema.toEncoded(block.Props),
       at: Position,
-    }),
-  )
+    })
+    // Said in the tool's input schema, so an agent knows what each Block is for.
+    return Option.match(block.words.description, {
+      onNone: () => insert,
+      onSome: description => insert.annotate({ description }),
+    })
+  })
   const Edit: Schema.Codec<Operation, unknown> = Schema.Union([
     ...inserts,
     Remove,
