@@ -16,6 +16,7 @@ import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
+import { iconUrl, type IconName } from './icons.js'
 
 export const theme = Theme.compose(
   Theme.tokens,
@@ -727,86 +728,166 @@ export const ListStyle = Style.forSlots(ListSlots)(
   { name: 'ListStyle', layer: app },
 )
 
-/** A panel of the Builder's: a white card on the editor's grey, with its name above it. */
-const builderPanel = (name: string) =>
+/** A panel of the Builder's: a white card on the editor's grey, scrolling on its own. */
+const builderPanel = Style.self({
+  background: t.surface.base,
+  border: `1px solid ${t.outline.subtle}`,
+  borderRadius: t.radius.lg,
+  boxSizing: 'border-box',
+  minHeight: '0',
+  overflow: 'auto',
+  padding: t.space.sm,
+})
+
+/** A panel's name above it: its `aria-label` says the same to assistive technology. */
+const panelName = (name: string) =>
+  Style.nest('&::before', {
+    color: t.text.muted,
+    content: `"${name}"`,
+    display: 'block',
+    fontSize: t.size.xs,
+    fontWeight: t.weight.semibold,
+    gridColumn: '1 / -1',
+    letterSpacing: '0.05em',
+    marginBlockEnd: t.space.xs,
+    textTransform: 'uppercase',
+  })
+
+/** A small heading inside a panel. */
+const smallCaps = Style.self({
+  color: t.text.muted,
+  fontSize: '0.68rem',
+  fontWeight: t.weight.semibold,
+  letterSpacing: '0.06em',
+  margin: '0',
+  textTransform: 'uppercase',
+})
+
+/** Draws the icon in `--icon` before the element's words, in their color. */
+const glyph = (size: string) =>
+  Style.nest('&::before', {
+    WebkitMask: 'var(--icon) center / contain no-repeat',
+    background: 'currentColor',
+    content: '""',
+    flexShrink: '0',
+    height: size,
+    mask: 'var(--icon) center / contain no-repeat',
+    width: size,
+  })
+
+/** Sets `--icon` by an attribute's value: each Block, action or viewport its own. */
+const iconsBy = (attribute: string, names: Readonly<Record<string, IconName>>) =>
   Style.compose(
-    Style.self({
-      background: t.surface.base,
-      border: `1px solid ${t.outline.subtle}`,
-      borderRadius: t.radius.lg,
-      padding: t.space.sm,
-    }),
-    // The panel's name: its `aria-label` says the same to assistive technology.
-    Style.nest('&::before', {
-      color: t.text.muted,
-      content: `"${name}"`,
-      display: 'block',
-      fontSize: t.size.xs,
-      fontWeight: t.weight.semibold,
-      letterSpacing: '0.05em',
-      marginBlockEnd: t.space.xs,
-      textTransform: 'uppercase',
-    }),
+    ...Object.entries(names).map(([value, name]) =>
+      Style.nest(`&[${attribute}="${value}"]`, { '--icon': iconUrl(name) }),
+    ),
   )
 
+const blockIcons = iconsBy('data-block', {
+  Hero: 'hero',
+  Section: 'section',
+  Columns: 'columns',
+  Divider: 'divider',
+  Heading: 'heading',
+  Text: 'text',
+  Quote: 'quote',
+  Callout: 'callout',
+  Image: 'image',
+  Button: 'button',
+  PostList: 'list',
+  FeaturedPost: 'star',
+  LatestPages: 'files',
+})
+
+/** A square button showing only its icon; its words stay its accessible name. */
+const iconButton = Style.compose(
+  Style.self({
+    alignItems: 'center',
+    background: 'transparent',
+    border: '0',
+    borderRadius: t.radius.md,
+    color: t.text.muted,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    // The words are there to be read, not seen: the icon is drawn at its own size.
+    fontSize: '0',
+    height: '2rem',
+    justifyContent: 'center',
+    padding: '0',
+    width: '2rem',
+  }),
+  glyph('1rem'),
+  Style.pseudo(':hover:not(:disabled)', { background: t.surface.muted, color: t.text.overt }),
+  Style.pseudo(':disabled', { cursor: 'default', opacity: '0.35' }),
+  Style.pseudo(':focus-visible', {
+    outline: `2px solid ${t.accent.default}`,
+    outlineOffset: '1px',
+  }),
+)
+
+/** Where the selection is marked on the page: a blue that shows on the site's colors. */
+const selection = 'oklch(62% 0.19 255)'
+
 /**
- * The Builder, as a page builder's three columns: the blocks to add and the
- * page's layers on the left; the page itself in the middle, with undo and the
- * viewport above it; the selected block's settings on the right. The Builder
- * draws its parts in one order, so each is placed on the grid by its Slot. The
- * canvas marks the selection, the hovered node and where a drop would land on
- * the element inside each node's wrapper, since a wrapper is `display:
- * contents` and draws nothing.
+ * The Builder, as a page builder's three columns filling the screen: the
+ * blocks to add over the page's layers on the left; the page in the middle,
+ * under a bar with undo, where the selection is, and the viewport; the
+ * selected block's settings on the right. Each column scrolls on its own. The
+ * Builder draws its parts in one order, so each is placed on the grid by its
+ * Slot. The canvas marks the selection, the hovered node and where a drop
+ * would land on the element inside each node's wrapper, since a wrapper is
+ * `display: contents` and draws nothing.
  */
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
   {
     root: Style.compose(
       Style.self({
-        alignItems: 'start',
+        columnGap: t.space.md,
         display: 'grid',
-        gap: t.space.md,
-        gridTemplateColumns: '15rem minmax(0, 1fr) 18rem',
-        // A thin first row for undo and the viewport, then the panels beside the page.
-        gridTemplateRows: 'auto auto auto auto 1fr',
+        gridTemplateColumns: '15.5rem auto minmax(0, 1fr) auto 19rem',
+        // The bar, the rest of the palette's height, then what is left for the layers.
+        gridTemplateRows: 'auto auto minmax(0, 1fr)',
+        height: 'calc(100vh - 12.75rem)',
+        minHeight: '34rem',
+        position: 'relative',
       }),
-      // With nothing selected there are no settings to show: say how to get some.
-      Style.nest('&::after', {
-        color: t.text.muted,
-        content: '"Select a block on the page or in the layers to edit it."',
-        fontSize: t.size.sm,
-        gridColumn: '3',
-        gridRow: '2',
-        padding: t.space.sm,
+      Style.media('(max-width: 64rem)', {
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        gridTemplateRows: 'none',
+        height: 'auto',
+        rowGap: t.space.sm,
       }),
-      Style.nest('&:has(> [aria-label="Properties"])::after', { display: 'none' }),
-      Style.media('(max-width: 72rem)', { gridTemplateColumns: '14rem minmax(0, 1fr)' }),
-      Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
     palette: Style.compose(
-      builderPanel('Add a block'),
-      Style.self({
-        display: 'grid',
-        gap: t.space['3xs'],
-        gridColumn: '1',
-        gridRow: '2',
-        gridTemplateColumns: '1fr 1fr',
-      }),
-      Style.nest('&::before', { gridColumn: '1 / -1' }),
-      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+      builderPanel,
+      panelName('Add a block'),
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      Style.self({ gridColumn: '1', gridRow: '1 / 3', maxHeight: '26rem' }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
+    paletteGroup: Style.self({
+      display: 'grid',
+      gap: '0.3rem',
+      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    }),
+    paletteHeading: Style.compose(smallCaps, Style.self({ gridColumn: '1 / -1' })),
     paletteItem: Style.compose(
+      blockIcons,
       Style.self({
+        alignItems: 'center',
         background: t.surface.subtle,
         border: `1px solid ${t.outline.subtle}`,
         borderRadius: t.radius.md,
         color: t.text.default,
         cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
         font: 'inherit',
-        fontSize: t.size.xs,
-        fontWeight: t.weight.medium,
-        padding: '0.5rem 0.4rem',
-        textAlign: 'center',
+        gap: '0.35rem',
+        padding: '0.6rem 0.2rem 0.5rem',
+        transition: 'background 120ms ease, border-color 120ms ease',
       }),
+      glyph('1.15rem'),
       Style.pseudo(':hover:not(:disabled)', {
         background: t.accent.subtle,
         borderColor: t.accent.default,
@@ -814,72 +895,205 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       }),
       Style.pseudo(':disabled', { cursor: 'not-allowed', opacity: '0.4' }),
     ),
+    paletteLabel: Style.self({
+      fontSize: '0.7rem',
+      fontWeight: t.weight.medium,
+      lineHeight: '1.2',
+      textAlign: 'center',
+    }),
+    // The tile has room for a name; what it is for is its title's to say, and is read.
+    paletteHint: visuallyHidden,
     layers: Style.compose(
-      builderPanel('Layers'),
-      Style.self({ gridColumn: '1', gridRow: '3', maxHeight: '22rem', overflow: 'auto' }),
-      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+      builderPanel,
+      panelName('Layers'),
+      Style.self({ gridColumn: '1', gridRow: '3', marginBlockStart: t.space.sm }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
     tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
     row: Style.compose(
+      blockIcons,
       Style.self({
+        alignItems: 'center',
         borderRadius: t.radius.sm,
         cursor: 'pointer',
+        display: 'flex',
         fontSize: t.size.sm,
-        padding: '0.3rem 0.5rem',
+        gap: '0.35rem',
+        padding: '0.3rem 0.4rem',
         // TreeNavigation writes each row's depth, 1 at the top.
-        paddingInlineStart: 'calc(0.5rem + (var(--fk-tree-level) - 1) * 1rem)',
+        paddingInlineStart: 'calc(0.4rem + (var(--fk-tree-level) - 1) * 1rem)',
+      }),
+      // A row with nothing to open is set in by the width of the toggle it lacks.
+      Style.nest('&:not([aria-expanded])', {
+        paddingInlineStart: 'calc(1.5rem + (var(--fk-tree-level) - 1) * 1rem)',
       }),
       Style.pseudo(':hover', { background: t.surface.muted }),
-      Style.nest('&[aria-selected="true"]', {
-        background: t.accent.subtle,
-        color: t.accent.ink,
-        fontWeight: t.weight.semibold,
-      }),
+      Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
+      Style.nest('&[aria-selected="true"]', { background: t.accent.subtle, color: t.accent.ink }),
       Style.nest('&[data-builder-dragging]', { opacity: '0.5' }),
-      Style.nest('&[data-builder-drop]', { boxShadow: `inset 0 0 0 2px ${t.accent.default}` }),
-    ),
-    actions: Style.compose(
-      L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
-      Style.self({ gridColumn: '1', gridRow: '4' }),
-      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
-    ),
-    action: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-    inspector: Style.compose(
-      builderPanel('Block settings'),
-      L.in('layouts', Layout.stack({ gap: t.space.sm })),
-      Style.self({ gridColumn: '3', gridRow: '2 / span 3' }),
-      Style.media('(max-width: 72rem)', { gridColumn: '1', gridRow: 'auto' }),
-    ),
-    field: Style.compose(
-      L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
-      Style.nest('> label, > span', {
-        color: t.text.muted,
-        fontSize: t.size.xs,
-        fontWeight: t.weight.semibold,
+      Style.nest('&[data-builder-drop="inside"]', {
+        boxShadow: `inset 0 0 0 2px ${t.accent.default}`,
+      }),
+      Style.nest('&[data-builder-drop="before"]', {
+        boxShadow: `inset 0 2px 0 ${t.accent.default}`,
+      }),
+      Style.nest('&[data-builder-drop="after"]', {
+        boxShadow: `inset 0 -2px 0 ${t.accent.default}`,
       }),
     ),
-    control: Style.compose(field, Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.55rem' })),
-    history: Style.compose(
-      L.in('layouts', Layout.cluster({ gap: t.space['3xs'] })),
-      Style.self({ gridColumn: '2', gridRow: '1', justifySelf: 'start' }),
-      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
-    ),
-    undo: button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-    redo: button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-    viewports: Style.compose(
+    rowToggle: Style.compose(
       Style.self({
-        background: t.surface.muted,
-        borderRadius: t.radius.md,
+        '--icon': iconUrl('chevron'),
+        alignItems: 'center',
+        color: t.text.muted,
+        display: 'inline-flex',
+        height: '1rem',
+        justifyContent: 'center',
+        width: '1rem',
+      }),
+      glyph('0.8rem'),
+      Style.nest('&::before', { transition: 'transform 120ms ease' }),
+      Style.nest('[aria-expanded="true"] > &::before', { transform: 'rotate(90deg)' }),
+    ),
+    rowLabel: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        display: 'inline-flex',
+        flexShrink: '0',
+        fontWeight: t.weight.medium,
+        gap: '0.4rem',
+      }),
+      glyph('0.9rem'),
+    ),
+    rowSummary: Style.self({
+      color: t.text.muted,
+      fontSize: t.size.xs,
+      minWidth: '0',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    }),
+    inspector: Style.compose(
+      builderPanel,
+      L.in('layouts', Layout.stack({ gap: t.space.md })),
+      Style.self({ gridColumn: '5', gridRow: '1 / -1', padding: t.space.md }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    inspectorHead: L.in('layouts', Layout.stack({ gap: '0.3rem' })),
+    inspectorTitle: Style.self({
+      color: t.text.overt,
+      fontSize: t.size.md,
+      fontWeight: t.weight.semibold,
+      margin: '0',
+    }),
+    inspectorHint: Style.self({ color: t.text.muted, fontSize: t.size.sm, margin: '0' }),
+    actions: Style.compose(
+      Style.self({
+        borderBlock: `1px solid ${t.outline.subtle}`,
         display: 'flex',
         gap: '2px',
-        gridColumn: '2',
-        gridRow: '1',
-        justifySelf: 'end',
-        padding: '2px',
+        justifyContent: 'space-between',
+        marginBlockStart: t.space.xs,
+        paddingBlock: '0.25rem',
       }),
-      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
-    viewport: Style.compose(
+    action: Style.compose(
+      iconButton,
+      iconsBy('data-action', {
+        'move-up': 'up',
+        'move-down': 'down',
+        'move-out': 'outdent',
+        'move-in': 'indent',
+        duplicate: 'copy',
+        delete: 'trash',
+      }),
+      Style.nest('&[data-action="delete"]:hover:not(:disabled)', {
+        background: t.error.subtle,
+        color: t.error.ink,
+      }),
+    ),
+    inspectorSection: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      Style.nest('& + &', {
+        borderBlockStart: `1px solid ${t.outline.subtle}`,
+        paddingBlockStart: t.space.md,
+      }),
+    ),
+    inspectorSectionTitle: smallCaps,
+    field: L.in('layouts', Layout.stack({ gap: '0.3rem' })),
+    label: Style.self({ color: t.text.default, fontSize: t.size.xs, fontWeight: t.weight.medium }),
+    control: Style.compose(field, Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.55rem' })),
+    option: Style.self({
+      alignItems: 'center',
+      display: 'flex',
+      fontSize: t.size.sm,
+      gap: t.space['2xs'],
+    }),
+    choices: Style.self({
+      background: t.surface.muted,
+      borderRadius: t.radius.md,
+      display: 'flex',
+      gap: '2px',
+      padding: '2px',
+    }),
+    choice: Style.compose(
+      Style.self({
+        background: 'transparent',
+        border: '0',
+        borderRadius: t.radius.sm,
+        color: t.text.muted,
+        cursor: 'pointer',
+        flex: '1',
+        font: 'inherit',
+        fontSize: t.size.xs,
+        fontWeight: t.weight.medium,
+        padding: '0.35rem 0.4rem',
+      }),
+      Style.pseudo(':hover:not(:disabled)', { color: t.text.overt }),
+      Style.nest('&[aria-pressed="true"]', {
+        background: t.surface.base,
+        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
+        color: t.text.overt,
+      }),
+    ),
+    shortcuts: Style.self({
+      alignItems: 'baseline',
+      columnGap: t.space.sm,
+      display: 'grid',
+      gridTemplateColumns: 'auto 1fr',
+      margin: '0',
+      rowGap: '0.45rem',
+    }),
+    shortcutKeys: Style.self({
+      background: t.surface.subtle,
+      border: `1px solid ${t.outline.default}`,
+      borderBottomWidth: '2px',
+      borderRadius: t.radius.sm,
+      fontFamily: t.font.mono,
+      fontSize: '0.68rem',
+      justifySelf: 'start',
+      padding: '0.05rem 0.35rem',
+      whiteSpace: 'nowrap',
+    }),
+    shortcutWhat: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
+    history: Style.compose(
+      Style.self({ display: 'flex', gap: '2px', gridColumn: '2', gridRow: '1' }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    undo: Style.compose(iconButton, Style.self({ '--icon': iconUrl('undo') })),
+    redo: Style.compose(iconButton, Style.self({ '--icon': iconUrl('redo') })),
+    crumbs: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        display: 'flex',
+        gridColumn: '3',
+        gridRow: '1',
+        minWidth: '0',
+        overflow: 'hidden',
+      }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    crumb: Style.compose(
       Style.self({
         background: 'transparent',
         border: '0',
@@ -887,62 +1101,88 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         color: t.text.muted,
         cursor: 'pointer',
         font: 'inherit',
-        fontSize: t.size.xs,
-        fontWeight: t.weight.medium,
-        padding: '0.3rem 0.65rem',
-        textTransform: 'capitalize',
+        fontSize: t.size.sm,
+        padding: '0.25rem 0.4rem',
+        whiteSpace: 'nowrap',
       }),
+      Style.pseudo(':hover', { background: t.surface.muted, color: t.text.overt }),
+      Style.nest('& + &::before', {
+        color: t.text.subtle,
+        content: '"/"',
+        marginInlineEnd: '0.5rem',
+      }),
+      Style.nest('&[aria-current]', { color: t.text.overt, fontWeight: t.weight.semibold }),
+    ),
+    viewports: Style.compose(
+      Style.self({
+        background: t.surface.muted,
+        borderRadius: t.radius.md,
+        display: 'flex',
+        gap: '2px',
+        gridColumn: '4',
+        gridRow: '1',
+        padding: '2px',
+      }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
+    ),
+    viewport: Style.compose(
+      iconButton,
+      iconsBy('data-viewport', { wide: 'monitor', medium: 'tablet', narrow: 'phone' }),
+      Style.self({ height: '1.75rem', width: '2.25rem' }),
       Style.nest('&[aria-pressed="true"]', {
         background: t.surface.base,
-        boxShadow: '0 1px 2px rgb(0 0 0 / 8%)',
+        boxShadow: '0 1px 2px rgb(0 0 0 / 10%)',
         color: t.text.overt,
       }),
     ),
-    preview: Style.compose(
-      builderPanel('Preview as'),
-      L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
-      Style.self({ gridColumn: '3', gridRow: '5' }),
-      Style.media('(max-width: 72rem)', { gridColumn: '1', gridRow: 'auto' }),
+    alert: Style.compose(
+      Style.self({
+        background: t.error.subtle,
+        borderRadius: t.radius.md,
+        color: t.error.ink,
+        fontSize: t.size.sm,
+        // Over the top of the page, as a notice: it comes and goes without moving the page.
+        alignSelf: 'start',
+        boxShadow: '0 4px 12px rgb(0 0 0 / 12%)',
+        gridColumn: '2 / 5',
+        gridRow: '2',
+        margin: `${t.space.md} ${t.space.lg} 0`,
+        padding: `${t.space.xs} ${t.space.sm}`,
+        zIndex: '1',
+      }),
+      Style.media('(max-width: 64rem)', { gridColumn: 'auto', gridRow: 'auto' }),
     ),
-    alert: Style.self({
-      background: t.error.subtle,
-      borderRadius: t.radius.md,
-      color: t.error.ink,
-      fontSize: t.size.sm,
-      gridColumn: '2',
-      gridRow: '1',
-      justifySelf: 'center',
-      margin: '0',
-      padding: t.space.xs,
-    }),
     canvas: Style.compose(
       Style.self({
-        background: `repeating-linear-gradient(45deg, ${t.surface.muted} 0 1px, transparent 1px 12px), ${t.surface.subtle}`,
+        background: `radial-gradient(${t.outline.default} 1px, transparent 1px) 0 0 / 16px 16px, ${t.surface.subtle}`,
         border: `1px solid ${t.outline.subtle}`,
         borderRadius: t.radius.lg,
-        gridColumn: '2',
-        gridRow: '2 / -1',
-        minHeight: '36rem',
+        boxSizing: 'border-box',
+        gridColumn: '2 / 5',
+        gridRow: '2 / 4',
+        marginBlockStart: t.space.sm,
+        minHeight: '0',
+        overflow: 'auto',
         padding: t.space.lg,
       }),
-      Style.media('(max-width: 52rem)', { gridColumn: 'auto', gridRow: 'auto' }),
-      // Warm, so it shows on the accent a Hero or a Button is drawn in.
+      Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
+      Style.media('(max-width: 64rem)', {
+        gridColumn: 'auto',
+        gridRow: 'auto',
+        minHeight: '30rem',
+      }),
       Style.nest('[data-composition-mark="hovered"] > *', {
-        outline: `1px dashed ${t.warning.default}`,
+        outline: `1px dashed ${selection}`,
         outlineOffset: '3px',
       }),
       Style.nest('[data-composition-mark="selected"] > *', {
-        outline: `2px solid ${t.warning.default}`,
+        outline: `2px solid ${selection}`,
         outlineOffset: '3px',
       }),
-      Style.nest('[data-composition-drop="before"] > *', {
-        boxShadow: `0 -3px 0 ${t.accent.default}`,
-      }),
-      Style.nest('[data-composition-drop="after"] > *', {
-        boxShadow: `0 3px 0 ${t.accent.default}`,
-      }),
+      Style.nest('[data-composition-drop="before"] > *', { boxShadow: `0 -3px 0 ${selection}` }),
+      Style.nest('[data-composition-drop="after"] > *', { boxShadow: `0 3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="inside"] > *', {
-        outline: `2px dashed ${t.accent.default}`,
+        outline: `2px dashed ${selection}`,
       }),
     ),
     frame: Style.compose(
@@ -952,10 +1192,13 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         borderRadius: t.radius.md,
         boxShadow: '0 1px 2px rgb(0 0 0 / 6%), 0 12px 32px rgb(0 0 0 / 8%)',
         margin: '0 auto',
+        minHeight: '100%',
         padding: t.space.md,
         transition: 'max-width 200ms ease',
       }),
     ),
+    // The live region is read, not seen; hidden absolutely, it takes no cell of the grid.
+    live: visuallyHidden,
   },
   { name: 'BuilderStyle', layer: app },
 )

@@ -174,6 +174,10 @@ export const Hero = Block.define('Hero', {
   regions: { actions: Region.many({ accepts: [Content.Interactive], max: 2 }) },
   provides: [Content.Section],
 }).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'Layout', description: 'The big opening of a page' }),
+  ),
+
   Appearance.attach(HeroLook),
   Block.annotate(BuilderView.controls({ lead: Input.multiline() })),
 )
@@ -217,7 +221,12 @@ export const Section = Block.define('Section', {
   }),
   regions: { body: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Section],
-}).pipe(Appearance.attach(SectionLook))
+}).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'Layout', description: 'A band that holds other blocks' }),
+  ),
+  Appearance.attach(SectionLook),
+)
 
 // --- Columns: two columns that stack on a narrow screen ---------------------------
 
@@ -247,7 +256,12 @@ export const Columns = Block.define('Columns', {
     right: Region.many({ accepts: [Content.Flow] }),
   },
   provides: [Content.Flow],
-}).pipe(Appearance.attach(ColumnsLook))
+}).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'Layout', description: 'Two columns side by side' }),
+  ),
+  Appearance.attach(ColumnsLook),
+)
 
 // --- Heading and Text -------------------------------------------------------------
 
@@ -272,7 +286,12 @@ export const Heading = Block.define('Heading', {
     text: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Text' }),
   }),
   provides: [Content.Flow],
-}).pipe(Appearance.attach(HeadingLook))
+}).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'Text', description: 'A title for a part of the page' }),
+  ),
+  Appearance.attach(HeadingLook),
+)
 
 const TextSlots = Slots.define({ root: part })
 const TextLook = Appearance.make(TextSlots, {
@@ -294,6 +313,8 @@ export const Text = Block.define('Text', {
   }),
   provides: [Content.Flow],
 }).pipe(
+  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Paragraphs of writing' })),
+
   Appearance.attach(TextLook),
   Block.annotate(BuilderView.controls({ body: Input.multiline() })),
 )
@@ -330,7 +351,10 @@ export const Image = Block.define('Image', {
     caption: Schema.String.annotate({ title: 'Caption' }),
   }),
   provides: [Content.Flow],
-}).pipe(Appearance.attach(ImageLook))
+}).pipe(
+  Block.annotate(BuilderView.describe({ group: 'Media', description: 'A picture with a caption' })),
+  Appearance.attach(ImageLook),
+)
 
 const QuoteSlots = Slots.define({ root: part, text: part, cite: part })
 const QuoteLook = Appearance.make(QuoteSlots, {
@@ -361,6 +385,8 @@ export const Quote = Block.define('Quote', {
   }),
   provides: [Content.Flow],
 }).pipe(
+  Block.annotate(BuilderView.describe({ group: 'Text', description: 'Words someone said' })),
+
   Appearance.attach(QuoteLook),
   Block.annotate(BuilderView.controls({ text: Input.multiline() })),
 )
@@ -401,6 +427,8 @@ export const Callout = Block.define('Callout', {
   }),
   provides: [Content.Flow],
 }).pipe(
+  Block.annotate(BuilderView.describe({ group: 'Text', description: 'A note set apart in color' })),
+
   Appearance.attach(CalloutLook),
   Block.annotate(BuilderView.controls({ body: Input.multiline() })),
 )
@@ -422,7 +450,10 @@ const DividerLook = Appearance.make(DividerSlots, {
 export const Divider = Block.define('Divider', {
   Props: Schema.Struct({}),
   provides: [Content.Flow],
-}).pipe(Appearance.attach(DividerLook))
+}).pipe(
+  Block.annotate(BuilderView.describe({ group: 'Layout', description: 'A line between parts' })),
+  Appearance.attach(DividerLook),
+)
 
 // --- Button: the mixins-ui button recipe, its choices the Block's axes ------------
 
@@ -433,7 +464,12 @@ export const Button = Block.define('Button', {
     href: Url.annotate({ title: 'Link' }),
   }),
   provides: [Content.Flow, Content.Interactive],
-}).pipe(Appearance.attach(ButtonLook))
+}).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'Media', description: 'A link that looks like a button' }),
+  ),
+  Appearance.attach(ButtonLook),
+)
 
 // --- Blocks that read: the blog, one post, the site's pages -----------------------
 
@@ -580,7 +616,12 @@ export const PostList = QueryBlock.define('PostList', {
   input: () => ({}),
   select: PostCard,
   first: props => props.count,
-}).pipe(Appearance.attach(PostsLook))
+}).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'From the blog', description: 'The newest posts, as cards' }),
+  ),
+  Appearance.attach(PostsLook),
+)
 
 /** One post, chosen from the blog, drawn large. */
 const FeaturedSlots = Slots.define({
@@ -632,6 +673,10 @@ export const FeaturedPost = QueryBlock.define('FeaturedPost', {
   select: PostCard,
   first: () => 1,
 }).pipe(
+  Block.annotate(
+    BuilderView.describe({ group: 'From the blog', description: 'One post, given pride of place' }),
+  ),
+
   Appearance.attach(FeaturedLook),
   Block.annotate(BuilderView.controls({ post: Input.relationOne(Post) })),
 )
@@ -653,7 +698,16 @@ export const LatestPages = QueryBlock.define('LatestPages', {
   select: Entity.select(Cms.Entities.Entry, { id: true, label: true }),
   // One more than shown when one is left out, so the list is still `count` long.
   first: props => props.count + (Option.isSome(props.except) ? 1 : 0),
-}).pipe(Block.annotate(BuilderView.controls({ except: Input.relationOne(Cms.Entities.Entry) })))
+}).pipe(
+  Block.annotate(
+    BuilderView.describe({
+      group: 'From the blog',
+      label: 'Latest pages',
+      description: 'The site’s newest pages',
+    }),
+  ),
+  Block.annotate(BuilderView.controls({ except: Input.relationOne(Cms.Entities.Entry) })),
+)
 
 export const Site = Catalog.make({
   blocks: [
