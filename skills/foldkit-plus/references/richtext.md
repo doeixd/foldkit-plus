@@ -244,7 +244,8 @@ wrap right after a list of the same props adds an item to it. `ConvertBlock` rep
 a paragraph or heading with a text-holding kind such as `CodeBlock`, carrying its text under
 new identities and moving the selection onto them. `LiftBlock` is the inverse of a wrap, and
 with a vocabulary Backspace at the start of a container's first block lifts it out (never out
-of a kind declared `isolating`, such as `TableCell`); Enter in a list item starts a new item
+of a kind declared `isolating`, such as `TableCell`), and at the start of a `CodeBlock` retypes
+it to a paragraph; Enter in a list item starts a new item
 with the old one's props under the kind's `splitProps` (a `TaskItem` starts unchecked), and
 Enter in an empty one leaves the list.
 `InsertText` takes an optional `marks`: with it the inserted span carries

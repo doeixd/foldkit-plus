@@ -165,6 +165,12 @@ const refusesProps = (nodes: NodeRegistry | undefined, container: Container): bo
   )
 }
 
+/** Whether the vocabulary declares `kind` as a node that holds runs, as `CodeBlock` is. */
+const declaresText = (nodes: NodeRegistry | undefined, kind: string): boolean => {
+  const declared = nodes?.definitionFor(kind)
+  return declared?.kind === 'node' && declared.children === textContent
+}
+
 /** Whether the vocabulary names `itemKind` among the kinds `listKind` holds, as `List` names `ListItem`. */
 const holdsItem = (nodes: NodeRegistry, listKind: string, itemKind: string): boolean => {
   const declared = nodes.definitionFor(listKind)
@@ -723,8 +729,7 @@ const runBlockCommand = (
     // Leaving a node kind that holds text — a code block back to a paragraph — is a replace,
     // as entering one is. Only a vocabulary says a kind holds text: without one, a node
     // could be an image, whose content a retype would destroy.
-    const declared = block.type === 'Node' ? options.nodes?.definitionFor(block.kind) : undefined
-    if (declared?.kind !== 'node' || declared.children !== textContent) {
+    if (block.type !== 'Node' || !declaresText(options.nodes, block.kind)) {
       return failure('InvalidInput')
     }
     const to = command.to
@@ -794,9 +799,7 @@ const runBlockCommand = (
   if (block.type !== 'Paragraph' && block.type !== 'Heading') return failure('InvalidInput')
   const kind = command.to.kind
   if (refusesProps(options.nodes, command.to)) return failure('InvalidInput')
-  const declared = options.nodes?.definitionFor(kind)
-  const holdsText =
-    options.nodes === undefined || (declared?.kind === 'node' && declared.children === textContent)
+  const holdsText = options.nodes === undefined || declaresText(options.nodes, kind)
   if (!holdsText || !acceptsChild(state.document, parentPath, kind, options.nodes)) {
     return failure('UnexpectedChild')
   }
@@ -938,6 +941,12 @@ export const run = (
     const deletion = graphemeDeletion(block, caret, at.runIndex, backward)
     if (deletion !== undefined) {
       return apply(state, [...deletion.operations, Edit.setSelection(caretAt(deletion.caret))])
+    }
+    // Backspace at the start of a node kind that holds text, such as a code block, turns it
+    // back into a paragraph, undoing the fence, rather than joining text across two kinds
+    // whose marks and content rules differ. Only a vocabulary says the kind holds text.
+    if (backward && block.type === 'Node' && declaresText(options.nodes, block.kind)) {
+      return run(state, { type: 'RetypeBlock', to: { type: 'Paragraph' } }, ids, options)
     }
     // A block edge joins the sibling in the same container, wherever it sits.
     const containerPath = at.path.slice(0, -1)

@@ -7281,6 +7281,11 @@ node block's content stays its Kit's.
 The rule completes a fence — three or more backticks or tildes, then an optional language —
 with a space, since Enter splits a block and a rule sees only what is typed.
 
+Undoing a fence arrived with §134: the `RetypeBlock` command replaces a text-holding kind with
+a paragraph, and Backspace at the start of one uses it, given a vocabulary. Before that,
+Backspace there tried to join the code block's text into the block above, which a join across
+two kinds refuses (`InvalidRange`), so the key did nothing. Without a vocabulary it still does.
+
 ## The lift
 
 `LiftBlock` moves the block the selection starts in out of its container, one step at a time:

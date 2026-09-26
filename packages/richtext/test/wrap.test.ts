@@ -476,3 +476,69 @@ describe('retyping a node kind that holds text back into a text block', () => {
     })
   })
 })
+
+describe('Backspace at the start of a code block', () => {
+  const backspace = (
+    selection: RichText.Selection,
+    options: RichText.RunOptions,
+    command: RichText.Command = { type: 'DeleteBackward' },
+  ) =>
+    RichText.run(
+      {
+        document: RichText.decodeDocument({
+          version: 1,
+          children: [
+            {
+              type: 'Paragraph',
+              id: 'p',
+              children: [{ type: 'Text', id: 'p-t', text: 'before', marks: [] }],
+            },
+            {
+              type: 'Node',
+              kind: 'CodeBlock',
+              id: 'code',
+              props: {},
+              children: [{ type: 'Text', id: 'c1', text: 'let x', marks: [] }],
+            },
+          ],
+        }),
+        selection,
+      },
+      command,
+      ids(),
+      options,
+    )
+
+  it('turns the code block back into a paragraph, caret at its start', () => {
+    const result = backspace(caret('c1', 0), { nodes: standard })
+    if (!result.ok) throw new Error(result.error)
+    expect(
+      result.state.document.children.map(block => [
+        block.type,
+        block.children.map(run => run.text).join(''),
+      ]),
+    ).toEqual([
+      ['Paragraph', 'before'],
+      ['Paragraph', 'let x'],
+    ])
+    expect(result.state.selection).toEqual(caret('new-1', 0))
+  })
+
+  it('leaves Delete at the code block’s end alone: only Backspace undoes the fence', () => {
+    const result = backspace(caret('c1', 5), { nodes: standard }, { type: 'DeleteForward' })
+    if (!result.ok) throw new Error(result.error)
+    expect(result.state.document.children[1]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
+  })
+
+  it('deletes a character inside the code block, as before', () => {
+    const result = backspace(caret('c1', 3), { nodes: standard })
+    if (!result.ok) throw new Error(result.error)
+    expect(result.state.document.children[1]).toMatchObject({ type: 'Node', kind: 'CodeBlock' })
+    expect(result.state.document.children[1]?.children.map(run => run.text).join('')).toBe('le x')
+  })
+
+  it('joins as before with no vocabulary to say the kind holds text, which refuses', () => {
+    // A join across a paragraph and a node kind is refused, so nothing changes.
+    expect(backspace(caret('c1', 0), {})).toMatchObject({ ok: false, error: 'InvalidRange' })
+  })
+})

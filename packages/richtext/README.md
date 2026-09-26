@@ -188,7 +188,9 @@ caret with it.
 `DeleteBackward` at the start of a container's first block used to do nothing, having no
 sibling to join. With a vocabulary it now lifts the block, which is how Backspace undoes a
 `> ` or `- ` typed at a block's start. Without a vocabulary, in a table cell, and forwards, the
-edge still does nothing.
+edge still does nothing. At the start of a kind the vocabulary declares as holding text, such
+as a `CodeBlock`, Backspace retypes it to a paragraph instead of joining it to the block
+above, which undoes a fence the way a lift undoes a list marker.
 
 `SplitBlock` inside a list item works on the item, with a vocabulary to say what an item is: a
 container its parent declares it holds (a `List` holds `ListItem`s), and not isolating. Enter
