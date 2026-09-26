@@ -159,7 +159,7 @@ insertion carrying marks and a mark value with props come back `undefined` — t
 vocabulary has no shape for them yet, and silently losing the marks would be
 worse. `RetypedBlock` is the same kind of Message and never arrives from
 `toMessage`: no browser event means "make this block a heading", so an application
-sends it itself. `attachEditor(host, content, emit, renderer?)` attaches the translation to a host
+sends it itself. `attachEditor(host, content, emit, { rendering?, decorate? })` attaches the translation to a host
 element and reports each Message; `events({ content })` wraps the same thing in a
 `Mount.defineStream`, so a view renders a host element whose mount produces these
 Messages and releases the subtree when the element goes. `patchEditor(hostId,
@@ -230,8 +230,10 @@ piece becomes a `span` with `data-decoration=<kind>`, with the run's marks insid
 stylesheet reaches both — and a run no decoration covers renders exactly as before.
 `renderBlocks` takes no set: a slice's positions cannot be resolved without the document
 they came from. The editable adapter draws the same elements (`mount`/`patch` above), so a
-stylesheet serves both interpreters. `attachment.sync` and the editor Bundle do not carry a
-set yet, so an editor drawn through them shows none.
+stylesheet serves both interpreters. Through an attachment, the set comes from `attach`'s
+`decorate(document)` option: the mount draws `decorate(content)` and every
+`attachment.sync` draws `decorate` of the synced document, so a derived highlight follows
+each edit.
 
 Foldkit types one builder per tag name and publishes no builder for an arbitrary tag,
 so a renderer tag outside the tags Foldkit can build — a custom element's, say — is
@@ -252,13 +254,17 @@ editor and binds it to the host element its view renders. A `renderer` is placed
 that host id rather than passed as an arg, because a registry holds functions and the
 Bundle's args are schema-decoded (§122): `placeRendering` and `renderingFor` at
 `foldkit-richtext-dom/host` are the same record the editor's mount reads, and a
-placement without one renders with the default. `editorAt(hostId, { rendering, vocabulary, inputRules })`
+placement without one renders with the default. `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`
 takes a vocabulary too — `{ marks, nodes }` — and `placeVocabulary`/`vocabularyFor` are
 its record: the child's `update` passes those registries to `RichText.runAction`, so an
 edit a declaration forbids is refused here, not only reported by `validate` (§125).
 `placeInputRules` / `inputRulesFor` are a third record of the same kind: the rules the
 editor applies to what is typed, so a marker can turn into a block change as it is completed
-(§128) while the editor carries no syntax of any format. The Link's `read` projects the
+(§128) while the editor carries no syntax of any format. `placeDecorations` /
+`decorationsFor` are the fourth: `decorate(document) => DecorationSet`, which the mount and
+every patch draw over the document (§129) — code highlighting from
+`RichText.codeDecorations`, say. It sees the document and nothing else, so a highlight
+derived from application state, such as a search query, is not placed this way. The Link's `read` projects the
 parent's document in, and `write` keeps only the editor fields, so the child never
 stores a document copy; `onOut` commits the returned state in the same parent
 transition. `application` and `update` are the assembled parent, and `edited` /

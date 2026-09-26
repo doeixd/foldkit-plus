@@ -7109,8 +7109,15 @@ the rendered window.
 > `ChangeSet`. A new search query changes the decorations with no edit at all. So `patch`
 > compares each run's share of the new set with what it drew and redraws the runs that
 > differ; the same set again redraws nothing. `repair` compares a run with a fresh render of
-> it, which covers decorations as well as marks. Not yet wired: `attachment.sync` and the
-> editor Bundle do not pass a set, so an editor drawn through them shows no decorations.
+> it, which covers decorations as well as marks.
+>
+> **Wired (2026-09-26).** A placement names `decorate(document) => DecorationSet`
+> (`editorAt(hostId, { decorate })`, recorded by host id like the rendering, the vocabulary,
+> and the input rules). The mount draws `decorate(content)`, and every `attachment.sync`
+> draws `decorate` of the synced document. It reads the document and nothing else, which
+> covers highlighting derived from the document (code, lint). A decoration derived from
+> application state, such as a search query held in the Model, is not covered: it would need
+> the set held in editor state and passed with the patch, which is undecided.
 
 ---
 

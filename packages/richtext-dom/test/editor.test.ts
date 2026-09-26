@@ -7,7 +7,7 @@ import { Effect, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import * as RichText from 'foldkit-richtext'
 import { positionToRange } from '../src/index.js'
-import { attachmentIn, placeRendering, releaseMount } from '../src/host.js'
+import { attachmentIn, placeDecorations, placeRendering, releaseMount } from '../src/host.js'
 import { describe, expect, it } from 'vitest'
 import { attachEditor, events, patchEditor, toMessage, Message } from '../src/editor.js'
 
@@ -196,11 +196,8 @@ describe('attaching an editor with a rendering registry', () => {
         },
       ],
     })
-    attachEditor(
-      element,
-      linked,
-      () => {},
-      RichText.rendering({
+    attachEditor(element, linked, () => {}, {
+      rendering: RichText.rendering({
         marks: {
           Link: mark => ({
             tag: 'a',
@@ -208,7 +205,7 @@ describe('attaching an editor with a rendering registry', () => {
           }),
         },
       }),
-    )
+    })
     const run = element.querySelector('[data-run]') as HTMLElement
     expect(run.firstChild).toBeInstanceOf(HTMLAnchorElement)
     expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
@@ -266,6 +263,15 @@ describe('the mount reading a registry placed for its host id (§122)', () => {
     expect((run.firstChild as HTMLAnchorElement).getAttribute('href')).toBe('/x')
     expect(run.hasAttribute('data-marks')).toBe(false)
     expect(Array.from(await end())).toEqual([Message.Typed({ text: 'X' })])
+  })
+
+  it('draws what the placement decorates the document with', async () => {
+    const element = host()
+    element.id = 'decorated-editor'
+    placeDecorations('decorated-editor', document => RichText.searchDecorations(document, 'o'))
+    const { end } = await mounted(element)
+    expect(element.querySelector('[data-decoration]')?.textContent).toBe('o')
+    await end()
   })
 
   it('keeps the default registry when no placement named the id', async () => {

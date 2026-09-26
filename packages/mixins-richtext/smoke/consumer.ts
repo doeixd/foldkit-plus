@@ -14,6 +14,8 @@ import {
   releaseMount,
   renderingFor,
   vocabularyFor,
+  placeDecorations,
+  decorationsFor,
 } from 'foldkit-richtext-dom/host'
 import { attach, intentFor, type KeyBinding } from 'foldkit-richtext-dom/events'
 import { parseHtml } from 'foldkit-richtext-dom/html'
@@ -72,6 +74,8 @@ export type Surface = [
   typeof renderingFor,
   typeof placeVocabulary,
   typeof vocabularyFor,
+  typeof placeDecorations,
+  typeof decorationsFor,
   typeof attach,
   typeof intentFor,
   KeyBinding,

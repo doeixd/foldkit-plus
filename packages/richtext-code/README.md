@@ -57,6 +57,25 @@ The kinds are `syntax-property` (an object key), `syntax-string`, `syntax-number
 `syntax-keyword` (`true`, `false`, `null`), and `syntax-punctuation`, which a stylesheet
 reaches as `[data-decoration="syntax-number"]` and so on.
 
+## In the editor
+
+`foldkit-richtext-dom`'s editor draws decorations its placement derives from the document:
+
+```ts
+import * as RichText from 'foldkit-richtext'
+import { editorAt } from 'foldkit-richtext-dom/editor-bundle'
+import { jsonTokenizer } from 'foldkit-richtext-code'
+
+const tokenizers = new Map([['json', jsonTokenizer]])
+
+const body = editorAt('article-body', {
+  decorate: document => RichText.codeDecorations(document, tokenizers),
+})
+```
+
+The editor calls `decorate` at its mount and on every patch, and draws the result as the
+read-only view does, so one stylesheet serves both.
+
 ## Invalid text
 
 A code block being typed is rarely valid JSON, so the tokenizer is total: it never throws,
@@ -69,5 +88,6 @@ the tokens form a JSON value.
 
 - **JSON only.** TypeScript, JavaScript, and the rest wait for the Shiki adapter rather than
   a hand-written lexer that would be half right.
-- **The editor Bundle does not carry decorations yet.** The read-only view and the editable
-  adapter's `mount`/`patch` draw them; `attachment.sync` and the Bundle do not pass a set.
+- **Highlighting runs on every patch.** An editor placed with a `decorate` (below)
+  retokenizes every code block each time it patches. That is cheap for JSON; caching by block
+  is the Shiki adapter's job.

@@ -172,7 +172,7 @@ host element's `OnMount`, and `patchEditor`, the work a patch Command runs again
 element that host names. `RetypedBlock` is a Message an application sends itself — no
 browser event means "make this block a heading" — and `editor-bundle` exposes
 `retyped(block)` for it. `foldkit-richtext-dom/editor-bundle` is the editor as a
-Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules })`,
+Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, decorate })`,
 `application`/`update`, and the Messages a host dispatches; every accepted edit returns
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
@@ -199,8 +199,9 @@ its tokens as decorations (a token outside the text throws; `foldkit-richtext-co
 `span[data-decoration=<kind>]` with the run's marks inside. The editable adapter draws the
 same elements: `mount(…, decorations)` and `patch(dom, content, changeSet, decorations)`
 take the render's set, a run whose decorations changed is redrawn with no edit, and the
-position mapping reads across the pieces. `attachment.sync` and the editor Bundle do not
-pass a set yet.
+position mapping reads across the pieces. An editor placed with
+`editorAt(hostId, { decorate })` draws `decorate(document)` at its mount and on every patch
+(a pure read of the document, so code highlighting rather than a search held in the Model).
 
 The harness also carries a page (`examples/richtext/harness.html`, served from
 source with `pnpm exec vite examples/richtext`) for exercising the editable
