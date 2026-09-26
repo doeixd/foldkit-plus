@@ -133,3 +133,120 @@ describe('wrapping a block in new containers', () => {
     expect(wrap(caret('p-t', 0), [])).toMatchObject({ ok: false, error: 'InvalidInput' })
   })
 })
+
+describe('converting a text block to a node kind that holds text', () => {
+  const twoRuns = () =>
+    RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'p',
+          children: [
+            { type: 'Text', id: 'a', text: 'const ', marks: [] },
+            { type: 'Text', id: 'b', text: 'x', marks: ['Bold'] },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'Quote',
+          id: 'q',
+          props: {},
+          children: [],
+          blocks: [
+            {
+              type: 'Paragraph',
+              id: 'q-p',
+              children: [{ type: 'Text', id: 'q-p-t', text: 'quoted', marks: [] }],
+            },
+          ],
+        },
+        {
+          type: 'Node',
+          kind: 'CodeBlock',
+          id: 'code',
+          props: {},
+          children: [{ type: 'Text', id: 'code-t', text: '1', marks: [] }],
+        },
+      ],
+    })
+  const convert = (
+    selection: RichText.Selection,
+    to: RichText.Container,
+    options: RichText.RunOptions = {},
+  ) =>
+    RichText.run({ document: twoRuns(), selection }, { type: 'ConvertBlock', to }, ids(), options)
+
+  it('carries the text into the new kind, with new identities and the caret moved onto them', () => {
+    const result = convert(caret('b', 1), { kind: 'CodeBlock', props: { language: 'ts' } })
+    if (!result.ok) throw new Error(result.error)
+    const [code] = result.state.document.children
+    expect(code).toMatchObject({ type: 'Node', kind: 'CodeBlock', id: 'new-3' })
+    expect(code?.type === 'Node' && code.props).toEqual({ language: 'ts' })
+    expect(code?.children.map(run => [run.id, run.text, run.marks])).toEqual([
+      ['new-1', 'const ', []],
+      ['new-2', 'x', ['Bold']],
+    ])
+    // The caret was one character into the second run, and still is.
+    expect(result.state.selection).toEqual(caret('new-2', 1))
+  })
+
+  it('converts a block where it stands among its siblings', () => {
+    const result = RichText.run(
+      { document: document(), selection: caret('p-t', 1) },
+      { type: 'ConvertBlock', to: { kind: 'CodeBlock' } },
+      ids(),
+    )
+    if (!result.ok) throw new Error(result.error)
+    expect(shape(result.state.document.children)).toEqual([
+      'Paragraph(first)',
+      'CodeBlock(new-2)',
+      'Quote(q)[Paragraph(q-p)]',
+    ])
+  })
+
+  it('converts a nested block where it stands', () => {
+    const result = convert(caret('q-p-t', 2), { kind: 'CodeBlock' })
+    if (!result.ok) throw new Error(result.error)
+    expect(shape(result.state.document.children)[1]).toBe('Quote(q)[CodeBlock(new-2)]')
+  })
+
+  it('converts only a paragraph or a heading', () => {
+    expect(convert(caret('code-t', 0), { kind: 'CodeBlock' })).toMatchObject({
+      ok: false,
+      error: 'InvalidInput',
+    })
+  })
+
+  it.each<[string, RichText.Container]>([
+    ['a kind that holds blocks, not text', { kind: 'Quote' }],
+    ['a kind the vocabulary does not declare', { kind: 'Callout' }],
+  ])('refuses %s where the vocabulary says so', (_, to) => {
+    expect(convert(caret('q-p-t', 0), to, { nodes: standard })).toMatchObject({
+      ok: false,
+      error: 'UnexpectedChild',
+    })
+    expect(convert(caret('q-p-t', 0), to).ok).toBe(true)
+  })
+
+  it('refuses a kind the parent does not accept', () => {
+    const narrow = RichText.nodeRegistry([
+      RichText.block('Paragraph'),
+      RichText.node('Quote', { children: RichText.blocksOf('Paragraph') }),
+      RichText.node('CodeBlock', { children: RichText.textContent, marks: 'none' }),
+    ])
+    expect(convert(caret('q-p-t', 0), { kind: 'CodeBlock' }, { nodes: narrow })).toMatchObject({
+      ok: false,
+      error: 'UnexpectedChild',
+    })
+  })
+
+  it('refuses to carry marks into a kind that forbids them', () => {
+    // `p` has a bold run and `q-p` has none, so only the first is refused.
+    expect(convert(caret('a', 0), { kind: 'CodeBlock' }, { nodes: standard })).toMatchObject({
+      ok: false,
+      error: 'ForbiddenMark',
+    })
+    expect(convert(caret('q-p-t', 0), { kind: 'CodeBlock' }, { nodes: standard }).ok).toBe(true)
+  })
+})

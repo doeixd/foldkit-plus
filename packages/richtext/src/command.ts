@@ -64,6 +64,12 @@ export type Command =
    * so the caret stays where it was.
    */
   | { readonly type: 'WrapBlock'; readonly containers: ReadonlyArray<Container> }
+  /**
+   * Replaces the text block the selection starts in with a node kind that holds text, such
+   * as a `CodeBlock`, carrying its text and marks. Identities are never reused, so the block
+   * and its runs get new ones and the selection moves onto them at the same offsets.
+   */
+  | { readonly type: 'ConvertBlock'; readonly to: Container }
 
 /** A container a block is wrapped in: a node kind, and the props it starts with. */
 export interface Container {
@@ -97,7 +103,11 @@ const forbidsMarks = (
   if (nodes === undefined) return false
   const block = blockAtPath(document, path)
   if (block === undefined || block.type === 'Unknown') return false
-  const declared = nodes.definitionFor(blockKind(block))
+  return kindForbidsMarks(nodes, blockKind(block))
+}
+
+const kindForbidsMarks = (nodes: NodeRegistry, kind: string): boolean => {
+  const declared = nodes.definitionFor(kind)
   return declared?.kind === 'node' && declared.marks === 'none'
 }
 
@@ -546,6 +556,56 @@ export const run = (
     return apply(state, [
       Edit.insertBlock(chain, at.path[at.path.length - 1]!, parent?.id),
       Edit.moveBlock(block.id, 0, containerIds[containerIds.length - 1]!),
+    ])
+  }
+
+  if (command.type === 'ConvertBlock') {
+    const start = isCollapsed(selection)
+      ? selection.anchor
+      : ordered(state.document, selection)?.start
+    if (start === undefined) return failure('InvalidSelection')
+    const at = locate(state.document, start.node)
+    if (at === undefined) return failure('MissingText')
+    const block = blockAtPath(state.document, at.path)
+    // A node kind's content is its Kit's contract, so only a paragraph or heading converts.
+    if (block?.type !== 'Paragraph' && block?.type !== 'Heading') return failure('InvalidInput')
+    const parentPath = at.path.slice(0, -1)
+    const kind = command.to.kind
+    const declared = options.nodes?.definitionFor(kind)
+    const holdsText =
+      options.nodes === undefined ||
+      (declared?.kind === 'node' && declared.children === textContent)
+    if (!holdsText || !acceptsChild(state.document, parentPath, kind, options.nodes)) {
+      return failure('UnexpectedChild')
+    }
+    if (
+      options.nodes !== undefined &&
+      kindForbidsMarks(options.nodes, kind) &&
+      block.children.some(run => run.marks.length > 0)
+    ) {
+      return failure('ForbiddenMark')
+    }
+    const renamed = new Map(block.children.map(run => [run.id, NodeId.make(ids.mint())]))
+    const converted: Block = {
+      type: 'Node',
+      kind,
+      id: NodeId.make(ids.mint()),
+      props: command.to.props ?? {},
+      children: block.children.map(run => ({ ...run, id: renamed.get(run.id)! })),
+    }
+    const moved = (position: Position): Position => {
+      const node = renamed.get(position.node)
+      return node === undefined ? position : { ...position, node }
+    }
+    const parent = parentPath.length === 0 ? undefined : blockAtPath(state.document, parentPath)
+    return apply(state, [
+      Edit.deleteBlock(block.id),
+      Edit.insertBlock(converted, at.path[at.path.length - 1]!, parent?.id),
+      Edit.setSelection({
+        type: 'Range',
+        anchor: moved(selection.anchor),
+        focus: moved(selection.focus),
+      }),
     ])
   }
 
