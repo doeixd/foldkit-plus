@@ -23,7 +23,7 @@ import { Prose } from 'foldkit-mixins/prose'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Post, PostById, PostId, PostPreview, RecentPosts } from './domain.js'
-import { BuilderStyle, SiteSlots, t } from './style.js'
+import { BuilderStyle, InspectorFieldStyle, InspectorFormStyle, SiteSlots, t } from './style.js'
 
 /** The looks' base rules sit in `components`, below the application's own. */
 const components = Layers.standard.layer('components')
@@ -863,4 +863,9 @@ export const PageBuilder = Builder.make('PageBuilder', {
 })
 
 /** The Builder drawn: palette, layers, inspector, and the page in edit mode. */
-export const PageEditing = BuilderView.define(PageBuilder).pipe(Style.attach(BuilderStyle))
+export const PageEditing = BuilderView.define(PageBuilder, {
+  settings: {
+    field: Style.attach(InspectorFieldStyle),
+    form: Style.attach(InspectorFormStyle),
+  },
+}).pipe(Style.attach(BuilderStyle))

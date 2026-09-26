@@ -393,9 +393,27 @@ let settingsDrawn = 0
 type SettingsModel = Settings['form']['initial']
 type SettingsMessage = Settings['form']['Message']['Type']
 
-// Each Block's settings form, drawn: made once per form, as the form is once per Block.
-const settingsViewOf = (settings: Settings) => {
-  const view = FormView.submodel(settings.form, FormView.define(settings.form))
+/**
+ * How the inspector's settings forms look: Styles attached to every Block's
+ * settings form, as to any form's `FormView.field(form)` and `FormView.define`.
+ */
+export interface SettingsLook {
+  /** Attached to each settings form's fields: `FieldSlots`. */
+  readonly field?: SlotView.SlotViewTransform
+  /** Attached to each settings form around its fields: `FormSlots`. */
+  readonly form?: SlotView.SlotViewTransform
+}
+
+/** A Block's settings form, drawn with `look`: plain, and counting each drawing it starts. */
+const settingsViewOf = (settings: Settings, look: SettingsLook) => {
+  const field = FormView.field(settings.form)
+  const drawn = FormView.define(settings.form, {
+    field: look.field === undefined ? field : field.pipe(look.field),
+  })
+  const view = FormView.submodel(
+    settings.form,
+    look.form === undefined ? drawn : drawn.pipe(look.form),
+  )
   return {
     view,
     counted: Submodel.defineView<SettingsModel, SettingsMessage, FormViewInputs>(
@@ -405,14 +423,6 @@ const settingsViewOf = (settings: Settings) => {
       },
     ),
   }
-}
-const settingsViews = new WeakMap<Settings, ReturnType<typeof settingsViewOf>>()
-const settingsView = (settings: Settings) => {
-  const known = settingsViews.get(settings)
-  if (known !== undefined) return known
-  const made = settingsViewOf(settings)
-  settingsViews.set(settings, made)
-  return made
 }
 
 /** The drawn Builder: what `BuilderView.define` returns. */
@@ -480,7 +490,22 @@ export const BuilderView = {
    * with its Behaviors (the layers' keyboard, the canvas's pointer, the
    * shortcuts) declared with it. Place them with `assemble`.
    */
-  parts: (builder: BuilderLike): BuilderParts => {
+  parts: (
+    builder: BuilderLike,
+    options: {
+      /** How the inspector's settings forms look. */
+      readonly settings?: SettingsLook
+    } = {},
+  ): BuilderParts => {
+    // Each Block's settings form, drawn: made once per form, as the form is once per Block.
+    const settingsViews = new WeakMap<Settings, ReturnType<typeof settingsViewOf>>()
+    const settingsView = (settings: Settings) => {
+      const known = settingsViews.get(settings)
+      if (known !== undefined) return known
+      const made = settingsViewOf(settings, options.settings ?? {})
+      settingsViews.set(settings, made)
+      return made
+    }
     const described = new Map(
       builder.catalog.blocks.map(block => {
         const given = wordsKey.get(block.metadata)[0] ?? {}
@@ -1483,8 +1508,14 @@ export const BuilderView = {
     Parts.assemble(render, { name: 'Builder' }).pipe(Style.attach(FrameDefaults)),
 
   /** The Builder drawn with every part, in the default layout. */
-  define: (builder: BuilderLike): BuilderSlotView => {
-    const parts = BuilderView.parts(builder)
+  define: (
+    builder: BuilderLike,
+    options: {
+      /** How the inspector's settings forms look. */
+      readonly settings?: SettingsLook
+    } = {},
+  ): BuilderSlotView => {
+    const parts = BuilderView.parts(builder, options)
     return BuilderView.assemble((_input, slots, h, draw) =>
       h.div(slots.root.attrs(), [
         draw(parts.Palette),

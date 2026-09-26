@@ -283,7 +283,9 @@ const PageForm = Form.make('PageForm', PageInput, {
   stored side (`PageBuilder.inspecting(model)`), drawn by `FormView` (style it with
   `FieldSlots`/`FormSlots`): a change that decodes is one `setProp`; text that does not
   (`"abc"` for a number) stays in its field with the error and edits nothing, held in the
-  Model's `inspector` as JSON. Field ids are `<Block>Settings-<prop>`.
+  Model's `inspector` as JSON. Field ids are `<Block>Settings-<prop>`. Style those fields with
+  `BuilderView.define(PageBuilder, { settings: { field: Style.attach(...FieldSlots...),
+  form: Style.attach(...FormSlots...) } })`.
   A prop holding an id takes `Input.relationOne(Category)` (a `select`) or
   `Input.relationMany(Tag)` (checkboxes over an id array); its choices come in
   `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,

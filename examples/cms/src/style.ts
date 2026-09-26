@@ -838,6 +838,40 @@ const selection = 'oklch(62% 0.19 255)'
  * would land on the element inside each node's wrapper, since a wrapper is
  * `display: contents` and draws nothing.
  */
+// The inspector's fields, whether the Builder draws them (a look, a condition) or a
+// Block's settings form does (a prop): a label over its control, both small.
+const inspectorField = L.in('layouts', Layout.stack({ gap: '0.3rem' }))
+const inspectorLabel = Style.self({
+  color: t.text.default,
+  fontSize: t.size.xs,
+  fontWeight: t.weight.medium,
+})
+const inspectorControl = Style.compose(
+  field,
+  Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.55rem' }),
+)
+
+/** A Block's props in the inspector, drawn by its settings form: as the inspector's own fields. */
+export const InspectorFieldStyle = Style.forSlots(FieldSlots)(
+  {
+    root: inspectorField,
+    label: inspectorLabel,
+    description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
+    error: Style.self({ color: t.error.ink, fontSize: t.size.xs, margin: '0' }),
+    text: inspectorControl,
+    multiline: inspectorControl,
+    number: inspectorControl,
+    select: inspectorControl,
+  },
+  { name: 'InspectorFieldStyle', layer: app },
+)
+
+/** The settings form around those fields: spaced as the inspector's sections are. */
+export const InspectorFormStyle = Style.forSlots(FormSlots)(
+  { root: L.in('layouts', Layout.stack({ gap: t.space.sm })) },
+  { name: 'InspectorFormStyle', layer: app },
+)
+
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
   {
     root: Style.compose(
@@ -1020,9 +1054,9 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       }),
     ),
     inspectorSectionTitle: smallCaps,
-    field: L.in('layouts', Layout.stack({ gap: '0.3rem' })),
-    label: Style.self({ color: t.text.default, fontSize: t.size.xs, fontWeight: t.weight.medium }),
-    control: Style.compose(field, Style.self({ fontSize: t.size.sm, padding: '0.4rem 0.55rem' })),
+    field: inspectorField,
+    label: inspectorLabel,
+    control: inspectorControl,
     option: Style.self({
       alignItems: 'center',
       display: 'flex',

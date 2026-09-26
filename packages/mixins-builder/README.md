@@ -119,6 +119,21 @@ const PageEditing = BuilderView.define(PageBuilder).pipe(
 )
 ```
 
+A node's props are drawn by its Block's settings form, a `foldkit-mixins-form`
+view the Builder makes. Give its Styles to `define` (or `parts`), and they are
+attached to every Block's settings form:
+
+```ts
+import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
+
+const PageEditing = BuilderView.define(PageBuilder, {
+  settings: {
+    field: Style.attach(Style.forSlots(FieldSlots)({ label: Style.class('setting-label') })),
+    form: Style.attach(Style.forSlots(FormSlots)({ root: Style.class('settings') })),
+  },
+})
+```
+
 The page on the canvas is the site's own markup, so it is styled by the site's
 CSS. The editor's marks are data attributes on each node's wrapper:
 `data-composition-mark` (`selected`, or `hovered`; a node that is both is

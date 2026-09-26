@@ -6,6 +6,7 @@ import { Block, Composition, Content } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Style } from 'foldkit-mixins'
+import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 import type * as Submodel from 'foldkit/submodel'
 import { expectTypeOf } from 'vitest'
 import { BuilderSlots, BuilderView, type BuilderViewInputs } from '../src/index.js'
@@ -94,4 +95,15 @@ BuilderView.describe({ icon: 'quote' })
     ]),
   )
   expectTypeOf(Compact).toEqualTypeOf<ReturnType<typeof BuilderView.define>>()
+}
+
+// "Styling": the settings forms' look.
+{
+  const PageEditing = BuilderView.define(PageBuilder, {
+    settings: {
+      field: Style.attach(Style.forSlots(FieldSlots)({ label: Style.class('setting-label') })),
+      form: Style.attach(Style.forSlots(FormSlots)({ root: Style.class('settings') })),
+    },
+  })
+  expectTypeOf(PageEditing).toEqualTypeOf<ReturnType<typeof BuilderView.define>>()
 }

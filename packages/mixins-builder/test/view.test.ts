@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
 import { PageBuilder, PageView, Quote, answer, isTimer } from './fixture.js'
 import { Inert } from 'foldkit-mixins/testing'
+import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 
 const buttonNamed = (root: Html, name: string) =>
   Inert.all(root).find(node => node.sel === 'button' && Inert.text(node) === name)
@@ -614,6 +615,25 @@ describe('its customization contract', () => {
     const inside = ['frame', 'live']
     expect(Inert.unslotted(root, { inside })).toEqual([])
     expect(Inert.fixedInline(root, { inside })).toEqual([])
+  })
+})
+
+describe('the settings forms’ look', () => {
+  it('attaches the Styles it is given to every Block’s settings form', () => {
+    const Looked = BuilderView.define(PageBuilder, {
+      settings: {
+        field: Style.attach(Style.forSlots(FieldSlots)({ root: Style.class('setting') })),
+        form: Style.attach(Style.forSlots(FormSlots)({ root: Style.class('settings') })),
+      },
+    })
+    const [inspector] = Inert.all(Inert.draw(Looked, page)).filter(
+      node => Inert.value(node, 'aria-label') === 'Properties',
+    )
+    const classed = (name: string) =>
+      Inert.all(inspector).filter(node => Inert.classes(node).includes(name))
+    expect(classed('settings')).toHaveLength(1)
+    // One per prop the Banner's form draws.
+    expect(classed('setting')).toHaveLength(5)
   })
 })
 
