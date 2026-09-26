@@ -51,8 +51,8 @@ const renderRun = (
   run: RichText.Text,
   spans: ReadonlyArray<RichText.DecorationSpan>,
 ): ReadonlyArray<Child> => {
+  const { nest, unrendered } = RichText.runRendering(renderer, run)
   const piece = (text: string, decorations: ReadonlyArray<RichText.Decoration>): Child => {
-    const { nest, unrendered } = RichText.runRendering(renderer, run)
     let node: Child = text
     for (const element of nest) node = renderElement(element, [node])
     if (unrendered.length > 0) {
@@ -65,27 +65,9 @@ const renderRun = (
     }
     return node
   }
-  if (spans.length === 0) return [piece(run.text, [])]
-  // Cut the run at every decoration edge and give each piece the decorations covering
-  // it. Every piece keeps the run's marks, a piece no decoration covers included.
-  const edges = new Set<number>([0, run.text.length])
-  for (const span of spans) {
-    edges.add(Math.max(0, Math.min(run.text.length, span.from)))
-    edges.add(Math.max(0, Math.min(run.text.length, span.to)))
-  }
-  const cuts = [...edges].sort((left, right) => left - right)
-  const pieces: Array<Child> = []
-  for (let index = 0; index < cuts.length - 1; index += 1) {
-    const from = cuts[index]!
-    const to = cuts[index + 1]!
-    if (from === to) continue
-    const covering = spans
-      .filter(span => span.from <= from && to <= span.to)
-      .map(span => span.decoration)
-    const text = run.text.slice(from, to)
-    pieces.push(piece(text, covering))
-  }
-  return pieces
+  return RichText.runPieces(run.text, spans).map(({ text, decorations }) =>
+    piece(text, decorations),
+  )
 }
 
 const renderBlock = (

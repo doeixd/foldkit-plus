@@ -94,7 +94,9 @@ export {
   type Decoration,
   type DecorationSet,
   type DecorationSpan,
+  type RunPiece,
   decorationsIn,
+  runPieces,
 } from './decoration.js'
 export { SEARCH_DECORATION, searchDecorations } from './search.js'
 export { type CodeToken, type CodeTokenizer, codeDecorations } from './code.js'

@@ -136,3 +136,35 @@ describe('projecting decorations over a document', () => {
     expect(projected.get(id('z'))?.map(span => [span.from, span.to])).toEqual([[0, 1]])
   })
 })
+
+describe('the pieces a run is drawn as', () => {
+  const span = (from: number, to: number, kind: string): RichText.DecorationSpan => ({
+    from,
+    to,
+    decoration: {
+      from: { node: RichText.NodeId.make('r'), offset: from, affinity: 'before' },
+      to: { node: RichText.NodeId.make('r'), offset: to, affinity: 'before' },
+      kind,
+    },
+  })
+  const drawn = (text: string, spans: ReadonlyArray<RichText.DecorationSpan>) =>
+    RichText.runPieces(text, spans).map(piece => [
+      piece.text,
+      piece.decorations.map(decoration => decoration.kind),
+    ])
+
+  it('is the whole run, empty or not, when nothing covers it', () => {
+    expect(drawn('abc', [])).toEqual([['abc', []]])
+    expect(drawn('', [])).toEqual([['', []]])
+  })
+
+  it('cuts at every edge and gives each piece what covers all of it', () => {
+    expect(drawn('abcdef', [span(1, 4, 'x'), span(3, 5, 'y')])).toEqual([
+      ['a', []],
+      ['bc', ['x']],
+      ['d', ['x', 'y']],
+      ['e', ['y']],
+      ['f', []],
+    ])
+  })
+})
