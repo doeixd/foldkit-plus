@@ -115,6 +115,30 @@ than kept by hand.
 - The three configuration traps in `AGENTS.md` (package tests from the root,
   the stale Vite cache, `paths` coverage) are deleted or rewritten.
 
+> **Done, 2026-09-26** (`82fafdb`, `62ca215`), with one change of plan.
+>
+> - **The spike's answers.** (1) Yes: `tsc -b` resolves through the
+>   condition to a referenced project's source, as through `paths`. (2) Yes:
+>   tsdown's output is byte-identical. (3) Yes: Vite 5 serves and hot-reloads
+>   package source. Also: Vitest reads a config only in its own folder, so
+>   each package and example with tests has a one-line `vitest.config.ts`
+>   over `vitest.shared.ts`; and Vitest's conditions must stay its own
+>   (`module` and `browser` left out) or `@opentelemetry/api` and `ws`
+>   resolve to builds Node cannot run.
+> - **TypeScript keeps `paths`.** Resolved through exports, declaration emit
+>   cannot name a type a package reaches only through a namespace re-export
+>   (`export * as Capability`), which failed with TS2742 in about thirty
+>   places. Renaming those types is a public API change, left for Phase 3.
+>   Instead `pnpm paths` derives every tsconfig's `paths` from the exports of
+>   the packages it references, and `pnpm paths:check` (in `check` and CI)
+>   refuses a hand edit or an import of an unreferenced package. It found three
+>   projects compiling against another package's last build.
+> - **The aliases hid missing dependencies:** remote-server's tests used
+>   foldkit-surface, and examples/form had no package.json.
+> - **Added:** `scripts/published-types.mjs`, in `pack:check`, which fails
+>   when built declarations import a workspace subpath that is not exported.
+>   A stale local build had such an import, which current builds do not.
+
 ### 0c. The browser tier (M)
 
 - Vitest browser mode with the Playwright provider, headless Chromium, as a

@@ -43,6 +43,9 @@ several of them happen. The order this file recommends is at the end.
 
 ### D1. Examples and tests read package source
 
+**Status: done** (`82fafdb`, `62ca215`), with TypeScript keeping derived
+`paths`; see [the plan](./dx-and-builder-PLAN.md), 0a and 0b.
+
 **What happened.** Each package exports only its build (`"import":
 "./dist/index.mjs"`). Three things follow:
 
