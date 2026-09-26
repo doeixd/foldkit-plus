@@ -597,6 +597,14 @@ property that is wrong:
 | `init` not returning `placements.initial(rest)`, when a wiring runs startup Commands | `init` |
 | `url` not built with `placements.url(onUrlChange)`, when a wiring reads the URL | `url` |
 
+**Annotate the parameters of callbacks written inline in the config.**
+`makeApplication`'s `init: (url: Url) => …` and `routing.onUrlChange: (url: Url)
+=> …` need their types written. TypeScript does not infer from an object literal
+holding an unannotated callback until it has typed that callback, and the
+runtime's config is overloaded, so nothing types it through `complete`: the
+config falls back to what `complete` requires of any config, and every check
+fails, beginning with `update`'s. The `update` error says so.
+
 Pass the parent's own records through the same call:
 `placements.subscriptions(ownSubscriptions)`. A duplicate key throws at startup,
 as `Subscription.aggregate` does. A placement whose wrapper variant is missing from

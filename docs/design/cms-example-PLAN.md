@@ -216,6 +216,10 @@ no code of the example's; no `?? {}` owner remains; `server.ts` has no cast.
   a user must know (F5).
 - Find why `placements.complete` loses inference with `makeApplication`'s
   routing callbacks, and fix it or name the cause in its error (F8).
+- *As built:* F3 needed no API change (see the findings); F5 as planned; F8
+  cannot be fixed in a type (an unannotated inline callback stops TypeScript
+  inferring the literal, and the runtime's config is overloaded), so its error
+  names the cause and the example keeps its annotations.
 
 **Done when:** no package reads a title with `resolveAnnotations`; the example
 has no explicit type argument on `query`, no `data === undefined ? {} : { data }`,

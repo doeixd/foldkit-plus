@@ -168,7 +168,10 @@ type CompletenessChecks<Config, Message, Ps extends ReadonlyArray<unknown>> = (C
   ? [Message] extends [Accepted]
     ? unknown
     : {
-        readonly update: Invalid<"update does not accept every placement's Messages; spread each Link.wrapper(...).cases into the parent Message">
+        // A callback with an unannotated parameter written inline in the config keeps
+        // TypeScript from inferring the config at all, so it falls back to the
+        // constraint and this check fails first, whatever `update` accepts.
+        readonly update: Invalid<"update does not accept every placement's Messages; spread each Link.wrapper(...).cases into the parent Message. If it does, annotate the parameters of the callbacks written inline in this config (init's and routing's url): unannotated, they keep TypeScript from inferring it">
       }
   : unknown) &
   (Config extends { readonly subscriptions: { readonly [Wired]: true } }

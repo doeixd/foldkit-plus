@@ -273,6 +273,9 @@ version changed; `pnpm` skips versions already in the registry.
   `Data.fetch` and the fold's `fetch` are removed. `Remote.query` and
   `Remote.queryMessage` still run one page by hand. The store gains `grown`
   and the `WindowGrown` Message.
+- **`foldkit-bundle`: `complete`'s `update` error names a common cause:** an
+  unannotated parameter on a callback written inline in the config, which keeps
+  TypeScript from inferring the config at all.
 - **`foldkit-composition`: `Renderer.render` of a Renderer that sends nothing
   takes any application's builder,** so a view passes its own `h` instead of
   `inertHtml`.

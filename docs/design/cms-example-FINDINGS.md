@@ -70,6 +70,12 @@ Status: **fixed** (with the commit), **proposed** (not yet done), or
    need `(url: Url)` written out, or `complete`'s checks report a misleading
    "update does not accept every placement's Messages". Status: worked around;
    *proposed:* check whether `complete` can infer the config before it checks.
+   **Explained** (plan area 4b): TypeScript does not infer from an object literal
+   that holds an unannotated callback before typing that callback, and
+   `makeApplication` is overloaded, so nothing types it through `complete`; the
+   config falls back to `complete`'s constraint and every check fails. A type
+   cannot see this, so the `update` error now names the cause and the bundle
+   README says to annotate. The annotations in the example stay.
 
 9. **Seeding content means writing the CMS's tables by hand.** There is no
    server-side way to create a published entry (row, entry, revision) without a
