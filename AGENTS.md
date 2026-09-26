@@ -457,7 +457,8 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   when no runtime frame exists. A check `h === inertHtml` meant as "drawn
   inert" was true in a running app too, so the inspector drew its form without
   `h.submodel` and every form Message went unwrapped to the Builder, which
-  ignored it. Tell frameless from framed by what throws before drawing starts.
+  ignored it. Ask a lazy slot, which throws only for a missing frame: a catch
+  around `h.submodel` also caught its duplicate-slot error and drew a dead form.
 - **A form checks a draft against its key's type side.** `planOf` decodes
   with `Schema.toType(schema)`, so a key typed `Option` (`OptionFromNullOr`)
   cannot be drawn: no picker makes an `Option`. Edit such a value on its
