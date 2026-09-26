@@ -12,9 +12,8 @@ mark toolbar, the block style picker, the slash menu, link editing, and the plac
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
-Milestone 8's form control is built (§139); the CMS example is not.
-Still to do: the rest of milestone 6's chrome, then the rest of source mode,
-CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
+Milestone 8's form control and its CMS example are built (§139, §140).
+Still to do: the rest of milestone 6's chrome, then the rest of source mode, SSR and real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
 rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
 the stateful-Form control is spiked, and the collaboration proof is unstarted.
@@ -4729,9 +4728,10 @@ authored-content result.
 
 ## Phase 6 — CMS example
 
-Not started: a rich-text article in `examples/cms` covering type, autosave,
-reload, resume, preview, publish, visitor rendering, restore revision, and
-scheduled publication.
+Done (§140): an article in `examples/cms` whose body is a document, covering typing through
+input rules, autosave, reload with the caret, preview, publish, visitor rendering, a second
+revision, restore, and scheduled publication. Not done: the article in the browser client,
+and the `TS7056` limit that keeps its content type unexported.
 
 ## Phase 7 — richer Nodes
 
@@ -7348,6 +7348,12 @@ splits the paragraph, as it does without a vocabulary and in a table cell.
 The new item copies the old one's props, which made Enter in a checked `TaskItem` start another
 checked one. The core does not know what `checked` means; the Kit now says it, in §135.
 
+Enter at the end of a heading kept the heading's type too, so a title followed by Enter made a
+second title; the CMS article story (§140) typed straight into it. Now the new block is a
+paragraph when no text follows the caret in the heading, and both halves stay headings when
+Enter splits one in the middle. A range's start is its caret, so a selection from a heading's
+end into the next block also gets a paragraph, holding that block's remaining text.
+
 
 ---
 
@@ -7620,5 +7626,34 @@ compiler will serialize), because the editor's Model type is large. Declaring th
 exporting it, or in a project that does not emit declarations, is fine; a named Model type for
 the editor would fix it at the source.
 
-Not yet: the CMS example §12 lists (autosave, resume, preview, publish, revisions, scheduled
-publication), which is next, and versioning resume state apart from the published document.
+Not yet: versioning resume state apart from the published document.
+
+---
+
+# 140. An article in the CMS
+
+§12's CMS story, with a document as the body: `examples/cms/src/articleDemo.ts`, pinned by
+`test/articleDemo.test.ts`. An Article is declared like the Post: an Entity with
+`body: RichText.Document`, a form whose `body` control is `richTextInput`, two publish
+mutations, and `Cms.content`. The CMS gains nothing for it. Its drafts, revisions, publish,
+restore and schedule already treat a form key's value as opaque, and a document is a value.
+
+What the story shows:
+
+```text
+typing     "# Tending", Enter, "Water ", Bold, "early": 22 SaveDraft calls, the title and each body edit
+resume     a fresh Model opens the entry: same document, caret at 5
+preview    the form's document through documentToHtml with standardRendering; no mutation
+visitor    the published row's JSON decoded and drawn the same way
+revision   a second publish, then restore of revision 1 as a draft; the live page unchanged
+schedule   ScheduleAsked, then cms.due at that time publishes it
+```
+
+The story caught a core bug: Enter at the end of a heading made a second heading (§131, Enter
+in a list item, last paragraph).
+
+Two things here are the story's, not the package's. The editor's `RichText.patch` Command is
+skipped, because the script has no DOM to draw into; the resume assertion reads the Model,
+which is what a browser would redraw from. And the content type stays inside one module and
+reaches the server through `openServer`'s `MoreContent` argument, because exporting a form
+that holds the editor hits §139's `TS7056` limit.

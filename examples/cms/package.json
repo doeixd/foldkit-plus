@@ -26,6 +26,9 @@
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
+    "foldkit-richtext": "workspace:*",
+    "foldkit-richtext-dom": "workspace:*",
+    "foldkit-richtext-markdown": "workspace:*",
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {

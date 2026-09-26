@@ -22,6 +22,10 @@
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
       "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
+      "foldkit-richtext-dom/editor": ["../../packages/richtext-dom/src/editor.ts"],
+      "foldkit-richtext-dom/input": ["../../packages/richtext-dom/src/input.ts"],
+      "foldkit-richtext-markdown": ["../../packages/richtext-markdown/src/index.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"],
       "foldkit-agent": ["../../packages/agent/src/index.ts"],
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
@@ -41,6 +45,15 @@
     },
     {
       "path": "../../packages/cms/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/richtext/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/richtext-dom/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/richtext-markdown/tsconfig.build.json"
     },
     {
       "path": "../../packages/cms-drizzle/tsconfig.build.json"

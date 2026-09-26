@@ -132,6 +132,15 @@ importers:
       foldkit-remote-server:
         specifier: workspace:*
         version: link:../../packages/remote-server
+      foldkit-richtext:
+        specifier: workspace:*
+        version: link:../../packages/richtext
+      foldkit-richtext-dom:
+        specifier: workspace:*
+        version: link:../../packages/richtext-dom
+      foldkit-richtext-markdown:
+        specifier: workspace:*
+        version: link:../../packages/richtext-markdown
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface

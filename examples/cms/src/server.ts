@@ -8,7 +8,14 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
-import { CmsServer, Transaction, published, sqliteSchema, sqliteTables } from 'foldkit-cms-drizzle'
+import {
+  CmsServer,
+  Transaction,
+  published,
+  sqliteSchema,
+  sqliteTables,
+  type ServedContent,
+} from 'foldkit-cms-drizzle'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Post, PostInput, Posts, type PostId } from './domain.js'
@@ -16,7 +23,7 @@ import { Page, PageId, PageInput, Pages } from './pageDomain.js'
 
 /** Who is asking. A visitor is nobody. */
 export type Principal = { readonly name: string; readonly role: 'author' | 'editor' } | null
-const isAuthor = (principal: Principal): boolean => principal !== null
+export const isAuthor = (principal: Principal): boolean => principal !== null
 
 const posts = sqliteTable('posts', {
   id: text('id').primaryKey(),
@@ -52,13 +59,23 @@ type Writes = {
   insert: (table: unknown) => { values: (values: object) => unknown }
   update: (table: unknown) => { set: (values: object) => { where: (where: unknown) => unknown } }
 }
-const write = (run: (database: Writes) => unknown) =>
+export const write = (run: (database: Writes) => unknown) =>
   Effect.gen(function* () {
     const database = (yield* DrizzleDatabase) as unknown as Writes
     yield* Effect.promise(() => Promise.resolve(run(database)))
   })
 
-export const openServer = (clock: () => Date) => {
+/**
+ * More content for the same server: its tables' SQL and how it is served. The article story
+ * keeps its content type in its own module and hands it over here, so nothing exported has to
+ * spell out its form's type.
+ */
+export interface MoreContent {
+  readonly schema: string
+  readonly content: ReadonlyArray<ServedContent<Principal>>
+}
+
+export const openServer = (clock: () => Date, more: MoreContent = { schema: '', content: [] }) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     ${sqliteSchema}
@@ -70,6 +87,7 @@ export const openServer = (clock: () => Date) => {
       id text primary key, title text not null, slug text not null unique,
       document text not null, published_at text
     );
+    ${more.schema}
   `)
   let made = 0
   let madePages = 0
@@ -134,6 +152,7 @@ export const openServer = (clock: () => Date) => {
           ),
         ),
       },
+      ...more.content,
     ],
     // One connection, so begin and commit as statements. Postgres: Transaction.drizzle.
     transaction: Transaction.statements,
