@@ -287,7 +287,8 @@ const PageForm = Form.make('PageForm', PageInput, {
   one `setAction` per change). A view sends `Inspected({ id, form: form.key, message })` (the
   message from `form.settings.encodeMessage`); one for a node or form no longer drawn is
   ignored. Field ids are `<Block>Settings-<prop>` and `<Block>-<event>-<action>-<key>`; two
-  Builders on one page need different names. Style those fields with
+  Builders on one page need different names. An `Input.bundle` control (a color picker) works
+  in the inspector; one with Subscriptions or Resources is refused by `Builder.make`. Style those fields with
   `BuilderView.define(PageBuilder, { settings: { field: Style.attach(...FieldSlots...),
   form: Style.attach(...FormSlots...) } })`.
   A prop holding an id takes `Input.relationOne(Category)` (a `select`) or

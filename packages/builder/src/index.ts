@@ -493,6 +493,9 @@ export const Builder = {
   ) => {
     const { catalog, renderer } = config
     const starters = config.starters as Readonly<Record<string, unknown>>
+    // Each Block's props form, made now, so a control the inspector cannot run
+    // is refused where the Builder is made, not at the first selection.
+    for (const block of catalog.blocks) settingsOf(block)
     type Commands = ReadonlyArray<CommandOf<Message>>
 
     const capacity = config.capacity ?? 200

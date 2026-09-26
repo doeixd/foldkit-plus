@@ -779,10 +779,13 @@ const SettingsForm = Form.make(`${block.name}Settings`, Settings, {
 > **Decided against:** looks and conditions as form groups. Each is a choice
 > from a fixed list that the Builder's controls already draw through its
 > Slots; a form would add a mapping to `setAppearance` and `setWhen` and
-> draw nothing better. **Not yet:** a control with Subscriptions
-> (`Input.bundle`'s color picker), which a form run as functions cannot
-> start. Acceptance: "abc" in a number and an undo while focused are tested;
-> the color picker is not.
+> draw nothing better.
+>
+> **Acceptance met.** A color picker given with `Input.bundle` is drawn in
+> the inspector and edits its prop, with no Builder code (a runtime test); "abc"
+> in a number and an undo while focused are tested. A control with
+> Subscriptions or Resources cannot run in a form the Builder runs as
+> functions, so `Builder.make` refuses one, naming its Block.
 
 **Spike first (S).** A Form over one Block's `Settings`, filled from a node,
 with one change mapped to `setProp`. It decides:

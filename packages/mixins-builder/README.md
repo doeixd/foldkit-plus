@@ -231,10 +231,12 @@ are styled through `FieldSlots` and `FormSlots`, as any form's are:
 | `Schema.String`, and a brand of it such as `Url` | `input type="text"` |
 | anything else | its JSON, shown and not edited |
 
-A field is labelled with its Schema's `title`, else its prop key, spaced. A
-change that decodes is one `setProp`, and typing a word is one undo step. One
-that does not (`abc` for a number, an address its brand refuses) shows its
-error at its field and changes nothing.
+A control of the application's own, such as a color picker given with
+`Builder.controls({ tint: Input.bundle(...) })`, is drawn with its Bundle's
+view, as any form draws it. A field is labelled with its Schema's `title`,
+else its prop key, spaced. A change that decodes is one `setProp`, and typing
+a word is one undo step. One that does not (`abc` for a number, an address its
+brand refuses) shows its error at its field and changes nothing.
 
 Where the Schema alone does not say, the Block asks for a control through
 metadata. `Input.multiline()` draws a `textarea`, and `Input.hidden()` leaves

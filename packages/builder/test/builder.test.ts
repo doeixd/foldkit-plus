@@ -1,5 +1,9 @@
-import { Option, Result, Schema } from 'effect'
-import { Block, Composition, NodeId, type Document } from 'foldkit-composition'
+import { Effect, Option, Result, Schema, Stream } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Renderer } from 'foldkit-composition/foldkit'
+import * as ManagedResource from 'foldkit/managedResource'
+import * as Subscription from 'foldkit/subscription'
+import { Block, Catalog, Composition, Content, NodeId, type Document } from 'foldkit-composition'
 import { History } from 'foldkit-primitives/state'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
@@ -7,7 +11,7 @@ import { Metadata } from 'foldkit-metadata'
 import { describe, expect, it } from 'vitest'
 import { Builder, Layers, Message, Model } from 'foldkit-builder'
 import { TreeNavigation } from 'foldkit-primitives/interaction'
-import { PageBuilder, Site, SiteRenderer, Stat, answer, isTimer } from './fixture.js'
+import { ColorMessage, PageBuilder, Site, SiteRenderer, Stat, answer, isTimer } from './fixture.js'
 
 const { update } = PageBuilder.bundle
 const step = (model: Model, message: Message) => update(model, message, undefined)
@@ -514,6 +518,107 @@ describe('previewing the page', () => {
       beta: true,
     })
   })
+})
+
+describe('a control of the application’s own in the inspector', () => {
+  it('edits a prop through the Bundle behind it, with no Builder code', () => {
+    const swatch = NodeId.make('swatch')
+    const s = NodeId.make('s')
+    const page = send(
+      PageBuilder.replace(
+        PageBuilder.initial,
+        Composition.Document.make({
+          format: 1,
+          roots: [s],
+          nodes: {
+            [s]: { block: 'Section', props: {}, regions: { body: [swatch] } },
+            [swatch]: { block: 'Swatch', props: { tint: '#000000' }, regions: {} },
+          },
+        }),
+      ),
+      Message.Selected({ id: swatch }),
+    )
+    const { props } = some(PageBuilder.inspecting(page), 'the swatch inspected')
+    const chose = props.settings.control('tint', ColorMessage.Chose({ hex: '#ff0000' }))
+    const picked = send(
+      page,
+      Message.Inspected({
+        id: swatch,
+        form: props.key,
+        message: props.settings.encodeMessage(chose),
+      }),
+    )
+    expect(picked.page.present.nodes[swatch]?.props).toEqual({ tint: '#ff0000' })
+  })
+
+  // A color picker's Model and Messages, and what else it may run.
+  const HexModel = Schema.Struct({ hex: Schema.String })
+  type HexModel = typeof HexModel.Type
+  const Hexes = ManagedResource.tag<string>()('hexes')
+  const running = {
+    Subscriptions: {
+      subscriptions: () =>
+        Subscription.make<HexModel, typeof ColorMessage.Type>()(entry => ({
+          tick: entry(
+            { hex: Schema.String },
+            {
+              modelToDependencies: model => ({ hex: model.hex }),
+              dependenciesToStream: () => Stream.empty,
+            },
+          ),
+        })),
+    },
+    Resources: {
+      resources: () =>
+        ManagedResource.make<HexModel, typeof ColorMessage.Type>()(entry => ({
+          hexes: entry(Schema.Option(Schema.String), {
+            resource: Hexes,
+            modelToMaybeRequirements: model => Option.some(model.hex),
+            acquire: hex => Effect.succeed(hex),
+            release: () => Effect.void,
+            onAcquired: () => ColorMessage.Opened(),
+            onReleased: () => ColorMessage.Opened(),
+            onAcquireError: () => ColorMessage.Opened(),
+          }),
+        })),
+    },
+  }
+
+  it.each(Object.entries(running))(
+    'refuses one with %s where the Builder is made, as the inspector cannot run them',
+    (_, runs) => {
+      const Picker = Bundle.make({
+        name: 'Picker',
+        Model: HexModel,
+        Message: ColorMessage,
+        init: () => ({ model: { hex: '#000000' } }),
+        update: (model: HexModel) => ({ model }),
+        ...runs,
+      })
+      const Tinted = Block.define('Tinted', {
+        Props: Schema.Struct({ tint: Schema.String }),
+        provides: [Content.Section],
+      }).pipe(
+        Block.annotate(
+          Builder.controls({
+            tint: Input.bundle('Picker', {
+              bundle: Picker,
+              value: model => model.hex,
+              fill: (model, hex) => ({ ...model, hex }),
+            }),
+          }),
+        ),
+      )
+      const Tints = Catalog.make({ blocks: [Tinted], roots: [Content.Section] })
+      expect(() =>
+        Builder.make('Tints', {
+          catalog: Tints,
+          renderer: Renderer.make(Tints, { Tinted: ({ props, h }) => h.p([], [props.tint]) }),
+          starters: {},
+        }),
+      ).toThrow('"TintedSettings" has a control with Subscriptions or Resources')
+    },
+  )
 })
 
 describe('the inspector, a form over each action an event runs', () => {

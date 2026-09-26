@@ -1,6 +1,9 @@
 /** A small site: Sections of Headings and Banners, and a Builder over it. */
 import { Effect, Option, Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
+import { Bundle } from 'foldkit-bundle'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Submodel from 'foldkit/submodel'
 import { Input } from 'foldkit-form'
 import { Block, Catalog, Content, Region } from 'foldkit-composition'
 import { Entity } from 'foldkit-entity'
@@ -89,8 +92,44 @@ export const Featured = Block.define('Featured', {
     }),
   ),
 )
+/** A control of the application's own, backed by a Bundle with a view: a color picker. */
+const ColorModel = Schema.Struct({ hex: Schema.String })
+const ColorMessage = defineMessageUnion({ Chose: { hex: Schema.String } })
+const ColorPicker = Bundle.make({
+  name: 'ColorPicker',
+  Model: ColorModel,
+  Message: ColorMessage,
+  init: () => ({ model: { hex: '#000000' } }),
+  update: (_: typeof ColorModel.Type, message: typeof ColorMessage.Type) => ({
+    model: { hex: message.hex },
+  }),
+  view: Submodel.defineView<typeof ColorModel.Type, typeof ColorMessage.Type>((model, h) =>
+    h.div(
+      [h.Class('picker')],
+      [
+        h.span([h.Class('hex')], [model.hex]),
+        h.button([h.Type('button'), h.OnClick(ColorMessage.Chose({ hex: '#ff0000' }))], ['Red']),
+      ],
+    ),
+  ),
+})
+/** A tint chosen with the color picker. Not offered. */
+export const Swatch = Block.define('Swatch', {
+  Props: Schema.Struct({ tint: Schema.String }),
+  provides: [Content.Flow],
+}).pipe(
+  Block.annotate(
+    Builder.controls({
+      tint: Input.bundle('ColorPicker', {
+        bundle: ColorPicker,
+        value: model => model.hex,
+        fill: (model, hex) => ({ ...model, hex }),
+      }),
+    }),
+  ),
+)
 export const Site = Catalog.make({
-  blocks: [Section, Heading, Banner, Quote, Feed, Featured],
+  blocks: [Section, Heading, Banner, Quote, Feed, Featured, Swatch],
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']), beta: Schema.Boolean }),
   actions: [Subscribe],
@@ -110,6 +149,7 @@ export const SiteRenderer = Renderer.make(Site, {
   Quote: ({ props, h }) => h.blockquote([], [props.text]),
   Feed: ({ data, h }) =>
     h.p([h.Class('feed')], [typeof data === 'string' ? data : 'waiting for its rows']),
+  Swatch: ({ props, h }) => h.span([h.Class('swatch')], [props.tint]),
   Featured: ({ props, h }) =>
     h.p(
       [h.Class('featured')],

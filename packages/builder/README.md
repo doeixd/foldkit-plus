@@ -125,6 +125,11 @@ node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the 
   (`maxItems` is "Max items"). A Block asks for a control where the Schema
   does not say, with `Block.annotate(Builder.controls({ body: Input.multiline() }))`;
   `Input.hidden()` leaves a prop out.
+- A control of the application's own, backed by a Bundle (`Input.bundle`, a
+  color picker), works as it does in any form, with no Builder code; send its
+  Messages with `settings.control(key, message)`. The Builder runs its forms as
+  functions and starts nothing, so one with Subscriptions or Resources is
+  refused where the Builder is made: every Block's form is made there.
 
 ## The keyboard, the layers, and what the editor says
 

@@ -1,5 +1,7 @@
 /** A small site and a Builder over it: Sections of Headings and Buttons. */
 import { Effect, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { defineMessageUnion } from 'foldkit/message'
 import { Block, Catalog, Content, Region } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
 import { Builder } from 'foldkit-builder'
@@ -36,6 +38,31 @@ export const Stat = Block.define('Stat', {
   provides: [Content.Flow],
   events: ['press', 'hold'],
 }).pipe(Block.annotate(Builder.controls({ caption: Input.multiline() })))
+/** A control of the application's own, backed by a Bundle: a color picker. */
+const ColorModel = Schema.Struct({ open: Schema.Boolean, hex: Schema.String })
+export const ColorMessage = defineMessageUnion({ Opened: {}, Chose: { hex: Schema.String } })
+export const ColorPicker = Bundle.make({
+  name: 'ColorPicker',
+  Model: ColorModel,
+  Message: ColorMessage,
+  init: () => ({ model: { open: false, hex: '#000000' } }),
+  update: (model: typeof ColorModel.Type, message: typeof ColorMessage.Type) =>
+    message._tag === 'Opened'
+      ? { model: { ...model, open: true } }
+      : { model: { open: false, hex: message.hex } },
+})
+export const ColorInput = Input.bundle('ColorPicker', {
+  bundle: ColorPicker,
+  value: model => model.hex,
+  fill: (model, hex) => ({ ...model, hex }),
+  settled: model => ({ ...model, open: false }),
+})
+/** A tint chosen with the color picker. Not offered. */
+export const Swatch = Block.define('Swatch', {
+  Props: Schema.Struct({ tint: Schema.String }),
+  provides: [Content.Flow],
+}).pipe(Block.annotate(Builder.controls({ tint: ColorInput })))
+
 /** What an event may run: subscribe to a list, some times over, with a note. */
 export const Subscribe = {
   name: 'subscribe',
@@ -60,7 +87,7 @@ export const Section = Block.define('Section', {
   provides: [Content.Section],
 })
 export const Site = Catalog.make({
-  blocks: [Heading, Button, Group, Section, Stat],
+  blocks: [Heading, Button, Group, Section, Stat, Swatch],
   actions: [Subscribe],
   roots: [Content.Section],
 })
@@ -70,6 +97,7 @@ export const SiteRenderer = Renderer.make(Site, {
   Button: ({ props, h }) => h.span([h.Class('button')], [props.label]),
   Group: ({ regions, h }) => h.div([], [...regions.items]),
   Section: ({ regions, h }) => h.section([], [...regions.body]),
+  Swatch: ({ props, h }) => h.span([], [props.tint]),
   Stat: ({ props, h }) => h.p([], [`${props.value} ${props.caption}`]),
 })
 

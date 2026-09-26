@@ -335,3 +335,53 @@ it('says so when one Builder is drawn twice, rather than drawing a dead inspecto
     spy.mockRestore()
   }
 })
+
+// A control of the application's own, backed by a Bundle, works in the inspector
+// with no Builder code: its view is drawn there, and what it sends is an edit.
+it('draws a color picker a prop asks for, and takes what it chooses', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'picker'
+  document.body.appendChild(container)
+  const section = NodeId.make('s')
+  const swatch = NodeId.make('w')
+  const page = PageBuilder.replace(
+    PageBuilder.initial,
+    Composition.Document.make({
+      format: 1,
+      roots: [section],
+      nodes: {
+        [section]: { block: 'Section', props: { tone: 'plain' }, regions: { body: [swatch] } },
+        [swatch]: { block: 'Swatch', props: { tint: '#000000' }, regions: {} },
+      },
+    }),
+  )
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: BuilderModel,
+      container,
+      init: () => ({
+        model: PageBuilder.bundle.update(page, BuilderMessage.Selected({ id: swatch }), undefined)
+          .model,
+      }),
+      update: (model: BuilderModel, message: BuilderMessage) =>
+        PageBuilder.bundle.update(model, message, undefined),
+      view: (model: BuilderModel, h: HtmlBuilder<BuilderMessage>) => PageView(model, h),
+    }),
+  )
+  const inInspector = (selector: string) =>
+    document.querySelector(`[aria-label="Properties"] ${selector}`)
+  try {
+    await vi.waitFor(() => expect(inInspector('.picker .hex')?.textContent).toBe('#000000'))
+    buttonNamed('Red')?.click()
+    await vi.waitFor(() =>
+      expect(document.querySelector('[aria-label="Page"] .swatch')?.textContent).toBe('#ff0000'),
+    )
+    expect(inInspector('.picker .hex')?.textContent).toBe('#ff0000')
+  } finally {
+    handle.dispose()
+  }
+})

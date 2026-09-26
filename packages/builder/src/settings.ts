@@ -88,6 +88,12 @@ const make = (
   )
   const entity = Entity.define(name, Props).pipe(Entity.annotateMembers(labels))
   const form = Form.make(name, Entity.input(entity, Props), { inputs: hints })
+  // The Builder runs a form as functions, so nothing would start these: fail here,
+  // not with a picker whose popover never closes.
+  if (form.bundle.subscriptions !== undefined || form.bundle.resources !== undefined)
+    throw new Error(
+      `Builder: "${name}" has a control with Subscriptions or Resources (an Input.bundle), which the inspector cannot run; give it a control that needs neither`,
+    )
   const encodeModel = Schema.encodeSync(form.bundle.Model)
   const decodeModel = Schema.decodeUnknownResult(form.bundle.Model)
   const encodeMessage = Schema.encodeSync(form.bundle.Message)
@@ -129,6 +135,15 @@ const make = (
       encodeMessage(message) as Schema.Json,
     decodeMessage: (held: Schema.Json): Option.Option<typeof form.Message.Type> =>
       Result.getSuccess(decodeMessage(held)),
+    /**
+     * A Message of the Bundle behind `key`'s control (an `Input.bundle`), as the
+     * form's own. Built from runtime fields, the form's type names no such key,
+     * so it is checked here: a key not edited by one throws.
+     */
+    control: (key: string, message: unknown): typeof form.Message.Type =>
+      // `never`: the form's type knows no Bundle-backed key; `control` refuses a key
+      // that is not one, and the Bundle drops a Message it does not take.
+      form.control(key as never).send(message as never),
     /** A value from the form, as the Document stores it; none for a prop the form does not edit. */
     stored: (key: string, value: unknown): Option.Option<Schema.Json> =>
       Object.hasOwn(decoders, key) ? Option.some(value as Schema.Json) : Option.none(),
