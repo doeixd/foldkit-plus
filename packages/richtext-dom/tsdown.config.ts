@@ -10,6 +10,7 @@ export default defineConfig({
     'src/view.ts',
     'src/editor.ts',
     'src/editor-bundle.ts',
+    'src/input.ts',
   ],
   format: ['esm'],
   dts: true,

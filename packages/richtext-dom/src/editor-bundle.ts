@@ -163,6 +163,11 @@ const textBeforeOf = (model: EditorView): string => {
   return start === undefined ? '' : RichText.textBefore(model.document, start)
 }
 
+/** The host element the editor mounts into, and whose id the patch Command finds (§118). */
+export const editorView = Submodel.defineView<EditorView, Message>((model, h) =>
+  h.div([h.Id(model.hostId), h.OnMount(events({ content: model.document }))], []),
+)
+
 export const Editor = Bundle.make({
   name: 'RichTextEditor',
   Model: EditorView,
@@ -312,9 +317,7 @@ export const Editor = Bundle.make({
   },
   // The host element belongs to the view; everything below it belongs to the
   // interpreter the mount attaches there.
-  view: Submodel.defineView<EditorView, Message>((model, h) =>
-    h.div([h.Id(model.hostId), h.OnMount(events({ content: model.document }))], []),
-  ),
+  view: editorView,
 })
 
 const GotEditor = Link.wrapper('GotEditorMessage', Message)
@@ -376,16 +379,24 @@ export interface EditorPlacement {
 }
 
 /**
- * Places one editor, bound to the host element the view renders and the patch Command
- * finds. Each placement picks its own id and names what it places; one call records all
- * of it, so a placement cannot half-apply.
+ * Records everything a placement names for its host id, replacing what the id had: one call,
+ * so a placement cannot half-apply. `editorAt` and the form control both place through it.
  */
-export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
+export const placeEditor = (hostId: string, placement: EditorPlacement): void => {
   placeRendering(hostId, placement.rendering ?? RichText.noRendering)
   placeVocabulary(hostId, placement.vocabulary ?? {})
   placeInputRules(hostId, placement.inputRules ?? [])
   placeDecorations(hostId, placement.decorate ?? (() => []))
   placePlaceholder(hostId, placement.placeholder)
+}
+
+/**
+ * Places one editor, bound to the host element the view renders and the patch Command
+ * finds. Each placement picks its own id and names what it places; one call records all
+ * of it, so a placement cannot half-apply.
+ */
+export const editorAt = (hostId: string, placement: EditorPlacement = {}) => {
+  placeEditor(hostId, placement)
   return Editor.at(editorLink, {
     args: { hostId },
     // Runs with the child already written back, in the same parent transition.

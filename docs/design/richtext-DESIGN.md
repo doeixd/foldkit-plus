@@ -12,6 +12,7 @@ mark toolbar, the block style picker, the slash menu, link editing, and the plac
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
 and none is released yet. Milestone 7's source session, its view, and split mode are built
 (§136, §137), and so is §9's first round-trip slice, one spelling per construct (§138).
+Milestone 8's form control is built (§139); the CMS example is not.
 Still to do: the rest of milestone 6's chrome, then the rest of source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
@@ -4721,9 +4722,10 @@ Commands, a Subscription, and a Resource, and §44 records what the Form API can
 carry yet. Content-change reporting is implemented (`authoredChanged`), and
 `packages/cms/src/editor.ts` consumes it.
 
-Not done: the public Form API for stateful controls, renderer integration,
-lifecycle, persistence and resume coverage, the RichText integration, and the CMS
-autosave switch to the Form transition's authored-content result.
+`Input.bundle` is the public API for a stateful control, and the RichText integration is
+built on it (§139). Not done: renderer integration, lifecycle, persistence and resume coverage
+beyond what `settled` decides, and the CMS autosave switch to the Form transition's
+authored-content result.
 
 ## Phase 6 — CMS example
 
@@ -7580,3 +7582,43 @@ unedited session hands back the one it opened with. The application keeps it bes
 document.
 
 Not yet: per-node spellings.
+
+---
+
+# 139. The editor as a form control
+
+§12 asks for `RichText.input(ArticleEditor)` over `Input.bundle`. It is
+`richTextInput(hostId, placement)` in `foldkit-richtext-dom/input`.
+
+The editor Bundle could not be the control as it is: it leaves the document to its parent and
+reports each edit as an OutMessage, and `Input.bundle` refuses an OutMessage, because a form key
+has no parent to hand one to. So `EditorInput` is the same Bundle with the document in its own
+Model — `update` is `Editor.update` with each `Edited` and `Replaced` folded back in, and the
+view is the editor's — and the form owns that Model as the key's draft. No second editor is
+written; the two differ only in who holds the document, which is what §27 said standalone and
+controlled would differ in.
+
+§12's resume table, decided:
+
+```text
+document       yes   the key's value
+selection      yes   kept by settled; cleared by fill, whose document lacks its runs
+stored marks   yes   kept by settled
+history        yes   kept by settled (already bounded); a fill starts a fresh one
+slash menu     no    settled clears the highlight
+composition    no    never in the Model
+focus, DOM     no    never in the Model
+```
+
+A new record starts on one empty paragraph, since a caret needs a block, and a blank document
+is no value, so a required body refuses it. `placeEditor` was extracted from `editorAt` so both
+place the same five things under one host id.
+
+A limit found while checking the README snippet: a form holding this control, `export`ed from
+a project that emits declarations, fails with `TS7056` (the inferred type exceeds what the
+compiler will serialize), because the editor's Model type is large. Declaring the form without
+exporting it, or in a project that does not emit declarations, is fine; a named Model type for
+the editor would fix it at the source.
+
+Not yet: the CMS example §12 lists (autosave, resume, preview, publish, revisions, scheduled
+publication), which is next, and versioning resume state apart from the published document.

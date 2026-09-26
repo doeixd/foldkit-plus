@@ -197,6 +197,10 @@ Bundle (§27): `Editor`, `editorAt(hostId, { rendering, vocabulary, inputRules, 
 that patch Command. `editorAt` places its vocabulary (`{ marks, nodes }`) by host id the
 way it places its renderer, and the child's `update` passes it to `runAction`, so a
 constraint is enforced at the intent rather than only reported by `validate` (§125).
+`foldkit-richtext-dom/input`'s `richTextInput(hostId, placement)` is the editor as a
+`foldkit-form` control (`Input.bundle`): `EditorInput` holds the document in its own Model,
+a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
+marks, and history for a resumed draft.
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM

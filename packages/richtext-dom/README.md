@@ -299,6 +299,37 @@ transition. `application` and `update` are the assembled parent, and `edited` /
 Command carrying the `ChangeSet`, which is how rendering follows the commit instead
 of sharing it.
 
+## As a form control
+
+`foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
+`RichText.Document`.
+
+```ts
+import { Form } from 'foldkit-form'
+import { richTextInput } from 'foldkit-richtext-dom/input'
+
+const PostForm = Form.make('PostForm', PostInput, {
+  inputs: { body: richTextInput('post-body', { placeholder: 'Write the post…' }) },
+})
+```
+
+The editor Bundle above leaves the document to its parent and reports each edit as an
+OutMessage. A form key has no parent to report to, and `Input.bundle` refuses a Bundle with an
+OutMessage, so `EditorInput` is the same editor holding its document in its own Model: its
+`update` is `Editor.update`, with each committed edit and undo folded back in. The form owns
+that Model as the key's draft; the document is the key's value, validated, submitted, and
+reported by `authoredChanged` like any other.
+
+- **Placement:** `richTextInput(hostId, placement)` places what `editorAt` places (rendering,
+  vocabulary, input rules, decorations, placeholder) under the same host id.
+- **Nothing entered:** a new record starts on one empty paragraph, which is where a caret can
+  go. A blank document (`RichText.isBlank`) reads as no value, so a required key refuses it.
+- **Filling:** `fill` shows a given document with a history of its own and no selection, since
+  the caret was in runs the given document does not have.
+- **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
+  and the history, and clears only the slash menu's highlight, which belongs to the moment it
+  was typed in.
+
 ## The marks toolbar
 
 `marksToolbar({ state, toMessage, marks? })` returns a view — `(h) => Html` — of one

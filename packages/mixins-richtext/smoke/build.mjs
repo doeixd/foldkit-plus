@@ -76,6 +76,12 @@ check(
     typeof bundle.edited === 'function',
 )
 
+const input = await import('foldkit-richtext-dom/input')
+check(
+  '/input',
+  typeof input.richTextInput === 'function' && typeof input.EditorInput === 'object',
+)
+
 const family = await import('foldkit-mixins-richtext')
 check(
   'mixins-richtext',

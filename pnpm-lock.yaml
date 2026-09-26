@@ -1534,6 +1534,12 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../bundle
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
+      foldkit-form:
+        specifier: workspace:*
+        version: link:../form
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

@@ -48,6 +48,10 @@
       "types": "./dist/host.d.mts",
       "import": "./dist/host.mjs"
     },
+    "./input": {
+      "types": "./dist/input.d.mts",
+      "import": "./dist/input.mjs"
+    },
     "./html": {
       "types": "./dist/html.d.mts",
       "import": "./dist/html.mjs"
@@ -76,12 +80,15 @@
   "peerDependencies": {
     "effect": "^4.0.0-rc.116",
     "foldkit": "^0.163.0",
-    "foldkit-bundle": "workspace:^"
+    "foldkit-bundle": "workspace:^",
+    "foldkit-form": "workspace:^"
   },
   "devDependencies": {
     "effect": "4.0.0-rc.116",
     "foldkit": "0.163.0",
     "foldkit-bundle": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-form": "workspace:*",
     "jsdom": "26.1.0",
     "tsdown": "^0.23.0",
     "typescript": "5.9.3"
