@@ -15,12 +15,10 @@
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import * as prettier from 'prettier'
 
-const root = resolve(
-  dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')),
-  '..',
-)
+const root = fileURLToPath(new URL('..', import.meta.url))
 const check = process.argv.includes('--check')
 const posix = path => path.split(sep).join('/')
 const dirs = folder =>

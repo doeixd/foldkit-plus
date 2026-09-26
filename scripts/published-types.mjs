@@ -6,12 +6,10 @@
  *   node scripts/published-types.mjs
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, resolve, dirname } from 'node:path'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = resolve(
-  dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')),
-  '..',
-)
+const root = fileURLToPath(new URL('..', import.meta.url))
 const packagesDir = join(root, 'packages')
 
 const exported = new Map()

@@ -1148,6 +1148,8 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
 ): EntryModule => {
   // Checked once, when the entry is made, rather than failing every request.
   withEnvelope(options.template, '')
+  if (options.head !== undefined) withHead(options.template, '<!-- head -->')
+  const headOf = options.head
   return {
     renderPage: async request => {
       const method = request.method.toUpperCase()
@@ -1167,13 +1169,16 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
               ? undefined
               : yield* Effect.tryPromise(async () => flagsOf(request))
           const flagged = flagsOf === undefined ? {} : { flags }
-          return posting
+          const result = posting
             ? yield* handle(request, config, plan, { buildId: options.buildId, ...flagged })
             : yield* render(config, plan, {
                 buildId: options.buildId,
                 url: request.url,
                 ...flagged,
               })
+          // In the Effect, so a `head` that throws is a defect, answered as a failed render is.
+          const head = headOf === undefined ? '' : headOf(result.rendered)
+          return { ...result, head }
         }),
       )
       if (Exit.isFailure(exit)) {
@@ -1198,7 +1203,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields>(
       }
       const template = withHead(
         withEnvelope(options.template, exit.value.envelope),
-        options.head?.(exit.value.rendered) ?? '',
+        exit.value.head,
       )
       return Responded(
         toResponse(

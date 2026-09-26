@@ -168,7 +168,9 @@ const html = SSR.page(template, result, {
 })
 ```
 
-`SSR.entry` and `SSR.generate` take the same `head`.
+`SSR.entry` and `SSR.generate` take the same `head`. `SSR.entry` refuses a
+template with no `</head>` when it is made, and answers a `head` that throws
+`500`, as it does a render that fails.
 
 ### The head is part of the view
 

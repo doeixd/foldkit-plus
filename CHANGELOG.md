@@ -20,7 +20,8 @@ version changed; `pnpm` skips versions already in the registry.
   page's markup uses, after the layer order: what a server puts in the head.
   **`foldkit-ssr`:** `SSR.page`, `SSR.generate` and `SSR.entry` take
   `head: rendered => string`, put before the template's `</head>` (a template
-  without one is refused when there is something to add).
+  without one is refused when there is something to add; `SSR.entry` refuses it
+  when it is made, and answers a `head` that throws `500`).
 - **`foldkit-mixins/testing`: `Inert`, queries over a view drawn with the
   inert builder** (`all`, `children`, `byTag`, `byRole`, `byLabel`, `text`,
   `value`, `classes`, `style`, `pressed`), replacing a tree walker seven test

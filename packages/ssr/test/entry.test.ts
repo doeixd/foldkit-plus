@@ -41,6 +41,29 @@ describe('SSR.entry through handleRequest', () => {
     expect(body).toMatch(/<style id="used"><\/style><\/head>/)
   })
 
+  it('answers a head that throws 500, as a failed render', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const entry = SSR.entry(config, plan, {
+      buildId: 'b',
+      template,
+      head: () => {
+        throw new Error('no styles today')
+      },
+    })
+    const response = await serve(new Request('https://example.test/', { headers: html }), entry)
+    expect(response.status).toBe(500)
+  })
+
+  it('refuses, when it is made, a template with no </head> for its head', () => {
+    expect(() =>
+      SSR.entry(config, plan, {
+        buildId: 'b',
+        template: template.replace('</head>', ''),
+        head: () => '',
+      }),
+    ).toThrow('the template has no </head> to put the head in')
+  })
+
   it('answers HEAD with the same status and no body', async () => {
     const response = await serve(
       new Request('https://example.test/', { method: 'HEAD', headers: html }),
