@@ -128,6 +128,18 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     key(document.querySelector('[aria-label="Page"]') ?? undefined, 'Escape')
     await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
 
+    // Pointing at a row marks its node on the page; leaving it lets go.
+    const hovered = () =>
+      document
+        .querySelector('[data-composition-mark="hovered"]')
+        ?.getAttribute('data-composition-node')
+    rowNamed('Section')?.dispatchEvent(new MouseEvent('mouseenter'))
+    await vi.waitFor(() =>
+      expect(hovered()).toBe(rowNamed('Section')?.getAttribute('data-builder-row')),
+    )
+    rowNamed('Section')?.dispatchEvent(new MouseEvent('mouseleave'))
+    await vi.waitFor(() => expect(hovered()).toBeUndefined())
+
     // A click on a row selects it.
     rowNamed('Section')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(selectedRow()?.getAttribute('data-block')).toBe('Section'))

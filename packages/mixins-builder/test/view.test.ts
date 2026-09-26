@@ -505,6 +505,17 @@ describe('the drawn Builder', () => {
     expect(all(root).some(node => attr(node, 'aria-live') === 'assertive')).toBe(true)
   })
 
+  it('says how to begin on an empty page, and nothing of it once there is a block', () => {
+    const hint = (model: Model) =>
+      all(draw(model))
+        .filter(node => text(node).startsWith('This page is empty.') && node.sel === 'p')
+        .map(text)
+    expect(hint(PageBuilder.initial)).toEqual([
+      'This page is empty. Add a block to begin: the palette offers what can go here.',
+    ])
+    expect(hint(page)).toEqual([])
+  })
+
   it('says where the selection is, from the page down, the last one current', () => {
     const crumbs = (model: Model) => {
       const [trail] = all(draw(model)).filter(

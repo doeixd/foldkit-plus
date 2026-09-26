@@ -65,7 +65,8 @@ Place `Drawn` as you would any Bundle. Its view draws:
 - the **layers**: a `role="tree"` of the page's nodes, one `treeitem` row each,
   with a roving tab stop on the selected row; a row shows its Block's label and
   the node's first text in brief, and one that holds others has a toggle that
-  opens and closes it;
+  opens and closes it; pointing at a row marks its node on the page, as
+  pointing at the page does;
 - an **inspector**: the selected node's Block, what it is for, and its
   **actions** (move up, down, out and in; duplicate; delete; each titled with
   its shortcut), then its settings under Content, Style, Visibility and
@@ -73,7 +74,8 @@ Place `Drawn` as you would any Bundle. Its view draws:
 - **undo** and **redo**, a **breadcrumb** of where the selection is (the
   page, then each node holding it; a press selects that one), a **viewport**
   picker, and the reason the last edit was refused, as a `role="alert"`;
-- the **canvas**: the page in edit mode, in a frame as wide as the viewport;
+- the **canvas**: the page in edit mode, in a frame as wide as the viewport,
+  saying how to begin (the `empty` Slot) while the page holds nothing;
 - a **live region** the Builder's announcements are read from.
 
 ## The keyboard and the pointer

@@ -99,6 +99,8 @@ export const BuilderSlots = Slots.define({
   /** The page in edit mode, and the frame that sets its width. It takes the shortcuts when focused. */
   canvas: Slot.make({ capability: Capability.Container }),
   frame: Slot.make({ capability: Capability.Container }),
+  /** In the frame while the page holds nothing: how to begin. */
+  empty: Slot.make({ capability: Capability.Base }),
   /** The live region the Builder's announcements are read from. */
   live: Slot.make({ capability: Capability.Base }),
 })
@@ -569,6 +571,9 @@ export const BuilderView = {
                   : []),
                 h.AriaSelected(Option.contains(selected, NodeId.make(row.id))),
                 h.OnClick(Message.Selected({ id: NodeId.make(row.id) })),
+                // Pointing at a row marks its node on the page, as pointing at the page does.
+                h.OnMouseEnter(Message.Hovered({ id: NodeId.make(row.id) })),
+                h.OnMouseLeave(Message.Unhovered()),
               ],
               { index, id: row.id },
             ),
@@ -732,6 +737,13 @@ export const BuilderView = {
               h.Style({ maxWidth: viewportWidths[model.viewport], margin: '0 auto' }),
             ]),
             [
+              ...(document.roots.length === 0
+                ? [
+                    h.p(slots.empty.attrs(), [
+                      'This page is empty. Add a block to begin: the palette offers what can go here.',
+                    ]),
+                  ]
+                : []),
               ...Renderer.render(builder.renderer, document, inertHtml, {
                 mode: 'edit',
                 selected: Option.getOrUndefined(selected),

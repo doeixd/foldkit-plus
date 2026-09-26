@@ -36,6 +36,9 @@ version changed; `pnpm` skips versions already in the registry.
   layers (the canvas is now focusable), and draws a breadcrumb of where the
   selection is (`crumbs`, one `crumb` button per node holding it, the page
   first, the current one `aria-current="location"`).
+- **`foldkit-mixins-builder`: pointing at a layer row marks its node** on the
+  page (the Builder's `Hovered` and `Unhovered`), and an empty page says how to
+  begin, in the new `empty` Slot.
 - **`foldkit-surface`: `Action`, a named capability that ends in a Message.**
   `Action.define({ name, description, input, toMessage })` declares one, and
   `Action.run(action, data)` decodes the data as its input before making the
