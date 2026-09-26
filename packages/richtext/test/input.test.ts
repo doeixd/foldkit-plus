@@ -63,4 +63,13 @@ describe('turning what was typed into an action', () => {
       { type: 'DeleteBackward' },
     ])
   })
+
+  it.each([3, -1, 1.5])('refuses a rule that consumes %d of the two characters it saw', remove => {
+    // Deleting past what the rule saw would join the block to the one before it.
+    expect(() => action([rule('greedy', '# ', remove)], '#', ' ')).toThrow(/greedy/)
+  })
+
+  it('lets a rule consume all of what it saw', () => {
+    expect(action([rule('whole', '# ', 2)], '#', ' ')).toHaveLength(3)
+  })
 })
