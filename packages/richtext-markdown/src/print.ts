@@ -14,21 +14,23 @@ export interface PrintedMarkdown {
 
 /**
  * How deep each mark nests, innermost first, so a link ends up outside the marks it
- * contains and an unknown mark lands outermost without disturbing the rest.
+ * contains. Code is not here: it is the run's own text, a code span, inside every other mark.
  */
 const MARK_RANK: Readonly<Record<string, number>> = {
-  Code: 0,
   Italic: 1,
   Bold: 2,
   Strikethrough: 3,
   Link: 4,
 }
 
-/** A backslash before one of these is CommonMark's own escape, so the character survives. */
-const ESCAPED_INLINE = /[\\`*_[\]~]/g
+/**
+ * A backslash before one of these is CommonMark's own escape, so the character survives. `&`
+ * would begin a character reference and `<` an autolink or inline HTML.
+ */
+const ESCAPED_INLINE = /[\\`*_[\]~&<]/g
 
-/** What Markdown reads as a block marker when it begins a paragraph's line. */
-const BLOCK_START = /^([#>+-]|\d+[.)])/
+/** What Markdown reads as a block marker, or a setext underline, when it begins a line. */
+const BLOCK_START = /^([#>+=-])|^(\d+)([.)])/
 
 const escapeInline = (text: string): string => text.replace(ESCAPED_INLINE, '\\$&')
 
@@ -41,55 +43,129 @@ const longestRun = (text: string, character: string): number => {
 }
 
 /**
- * A paragraph's first line cannot begin with what Markdown reads as a block marker, so a
- * leading one is escaped; a leading space would open an indented code block, and a
- * character entity is the only way to keep it as text.
+ * A paragraph line keeps what Markdown would otherwise take from it. A leading block marker
+ * is escaped — for an ordered marker the escape goes before its `.` or `)`, since `\1` is no
+ * escape. Leading whitespace would indent the line into code, or be stripped, and trailing
+ * whitespace would be stripped or read as a hard break, so each end's outermost whitespace
+ * character becomes an entity, the only way to keep it as text.
  */
-const protectParagraph = (line: string): string =>
-  line.startsWith(' ') ? `&#32;${line.slice(1)}` : line.replace(BLOCK_START, '\\$1')
-
-/** A code span fenced long enough to hold the longest backtick run in the text. */
-const codeSpan = (text: string): string => {
-  const fence = '`'.repeat(longestRun(text, '`') + 1)
-  const pad = text.startsWith('`') || text.endsWith('`') ? ' ' : ''
-  return `${fence}${pad}${text}${pad}${fence}`
+const protectLine = (line: string): string => {
+  const entity = (character: string): string => `&#${character.charCodeAt(0)};`
+  let protectedLine = /^[ \t]/.test(line)
+    ? `${entity(line)}${line.slice(1)}`
+    : line.replace(BLOCK_START, (_, marker, digits, delimiter) =>
+        marker !== undefined ? `\\${marker}` : `${digits}\\${delimiter}`,
+      )
+  if (/[ \t]$/.test(protectedLine)) {
+    protectedLine = `${protectedLine.slice(0, -1)}${entity(protectedLine.slice(-1))}`
+  }
+  return protectedLine
 }
 
 /**
- * One run as Markdown: its text, with each mark's delimiters around it. A code span holds
- * its text literally, so the escape step is skipped inside one; a mark with no syntax
- * here — or a link with no `href` — is reported and its text kept.
+ * A code span fenced long enough to hold the longest backtick run in the text. CommonMark
+ * strips one space from each end of a span that has one at both, and a backtick at an end
+ * would join the fence, so either case is padded with a space the parser takes back.
  */
-const renderRun = (run: RichText.Text, diagnostics: Array<MarkdownDiagnostic>): string => {
-  const ordered = [...run.marks].sort(
-    (left, right) =>
-      (MARK_RANK[RichText.markName(left)] ?? Number.MAX_SAFE_INTEGER) -
-      (MARK_RANK[RichText.markName(right)] ?? Number.MAX_SAFE_INTEGER),
-  )
-  const holdsCode = ordered.some(mark => RichText.markName(mark) === 'Code')
-  let text = holdsCode ? codeSpan(run.text) : escapeInline(run.text)
-  for (const mark of ordered) {
-    const name = RichText.markName(mark)
-    if (name === 'Code') continue
-    if (name === 'Bold') text = `**${text}**`
-    else if (name === 'Italic') text = `*${text}*`
-    else if (name === 'Strikethrough') text = `~~${text}~~`
-    else if (name === 'Link') {
-      const href = RichText.markProps(mark)?.href
-      if (typeof href === 'string' && href.length > 0) text = `[${text}](${href})`
-      else {
-        diagnostics.push({ code: 'UnsupportedMark', detail: 'Link', node: run.id })
-      }
-    } else {
-      diagnostics.push({ code: 'UnsupportedMark', detail: name, node: run.id })
-    }
-  }
-  return text
+const codeSpan = (text: string): string => {
+  const fence = '`'.repeat(longestRun(text, '`') + 1)
+  const spaced = text.startsWith(' ') && text.endsWith(' ') && text.trim().length > 0
+  const pad = text.startsWith('`') || text.endsWith('`') || spaced ? ' ' : ''
+  return `${fence}${pad}${text}${pad}${fence}`
 }
 
-/** A block's inline content, with no line structure of its own. */
-const renderInline = (block: RichText.Block, diagnostics: Array<MarkdownDiagnostic>): string =>
-  block.children.map(run => renderRun(run, diagnostics)).join('')
+/** A link destination, in angle brackets when a space, a parenthesis, or a bracket would end it. */
+const destination = (url: string): string =>
+  /[\s()<>]/.test(url) ? `<${url.replace(/[<>\\]/g, '\\$&')}>` : url
+
+/** A mark's opening and closing syntax, or `undefined` when Markdown has none for it. */
+const delimiters = (mark: RichText.RunMark): readonly [string, string] | undefined => {
+  const name = RichText.markName(mark)
+  if (name === 'Bold') return ['**', '**']
+  if (name === 'Italic') return ['*', '*']
+  if (name === 'Strikethrough') return ['~~', '~~']
+  if (name === 'Link') {
+    const href = RichText.markProps(mark)?.href
+    return typeof href === 'string' && href.length > 0
+      ? ['[', `](${destination(href)})`]
+      : undefined
+  }
+  return undefined
+}
+
+interface OpenMark {
+  readonly mark: RichText.RunMark
+  readonly close: string
+}
+
+/**
+ * A block's inline content. Marks are opened and closed across runs rather than per run, so a
+ * mark two runs share stays one span — `*a`b`*`, not `*a**`b`*`, which a parser reads as
+ * neither. A run's own whitespace at either edge is moved outside the delimiters it would
+ * otherwise sit against, because `** a**` is not emphasis in CommonMark. A code span holds
+ * its text literally, so the escape step is skipped inside one; a mark with no syntax here —
+ * or a link with no `href` — is reported and its text kept.
+ */
+const renderInline = (block: RichText.Block, diagnostics: Array<MarkdownDiagnostic>): string => {
+  let out = ''
+  const open: Array<OpenMark> = []
+  // Whitespace that ended the last run, owed until the marks closing after it are closed.
+  let pending = ''
+  const closeTo = (depth: number): void => {
+    while (open.length > depth) out += open.pop()!.close
+  }
+  for (const run of block.children) {
+    if (run.text.length === 0) continue
+    const wanted: Array<readonly [RichText.RunMark, readonly [string, string]]> = []
+    let code = false
+    for (const mark of run.marks) {
+      const name = RichText.markName(mark)
+      if (name === 'Code') {
+        code = true
+        continue
+      }
+      const syntax = delimiters(mark)
+      if (syntax === undefined)
+        diagnostics.push({ code: 'UnsupportedMark', detail: name, node: run.id })
+      else wanted.push([mark, syntax])
+    }
+    const [, lead = '', core = '', trail = ''] = code
+      ? ['', '', run.text, '']
+      : (/^(\s*)(.*?)(\s*)$/s.exec(run.text) ?? [])
+    if (core.length === 0) {
+      // Whitespace alone carries no visible mark, so it waits for whatever comes next.
+      pending += lead
+      continue
+    }
+    let kept = 0
+    while (
+      kept < open.length &&
+      wanted.some(([mark]) => RichText.sameMark(mark, open[kept]!.mark))
+    ) {
+      kept += 1
+    }
+    closeTo(kept)
+    out += pending + lead
+    pending = trail
+    const opening = wanted
+      .filter(([mark]) => !open.some(entry => RichText.sameMark(entry.mark, mark)))
+      .sort(
+        ([left], [right]) =>
+          (MARK_RANK[RichText.markName(right)] ?? 0) - (MARK_RANK[RichText.markName(left)] ?? 0),
+      )
+    for (const [mark, [start, close]] of opening) {
+      out += start
+      open.push({ mark, close })
+    }
+    out += code ? codeSpan(core) : escapeInline(core)
+  }
+  closeTo(0)
+  return out + pending
+}
+
+/** A block's inline content on one line, for the places Markdown gives no second one. */
+const inlineLine = (block: RichText.Block, diagnostics: Array<MarkdownDiagnostic>): string =>
+  renderInline(block, diagnostics).replace(/\n/g, ' ')
 
 /** Every line of a quote is marked; a blank line in one is the marker alone. */
 const quote = (lines: ReadonlyArray<string>): ReadonlyArray<string> =>
@@ -133,15 +209,14 @@ const code = (block: RichText.NodeBlock): ReadonlyArray<string> => {
   return [`${fence}${language}`, ...text.split('\n'), fence]
 }
 
-/** A block `Image` prints as its own line; a `)` or a space in the source needs angles. */
+/** A block `Image` prints as its own line. */
 const image = (block: RichText.NodeBlock, diagnostics: Array<MarkdownDiagnostic>): string => {
   const src = typeof block.props.src === 'string' ? block.props.src : ''
   const alt = typeof block.props.alt === 'string' ? block.props.alt : ''
   if (src.length === 0) {
     diagnostics.push({ code: 'UnsupportedNode', detail: 'Image', node: block.id })
   }
-  const target = /[\s()]/.test(src) ? `<${src}>` : src
-  return `![${escapeInline(alt)}](${target})`
+  return `![${escapeInline(alt)}](${destination(src)})`
 }
 
 /**
@@ -163,7 +238,7 @@ const table = (
     if (cell.type === 'Unknown') return ''
     const blocks = cell.type === 'Node' ? (cell.blocks ?? []) : [cell]
     return blocks
-      .map(inner => renderInline(inner, diagnostics))
+      .map(inner => inlineLine(inner, diagnostics))
       .join(' ')
       .replace(/\|/g, '\\|')
   }
@@ -174,7 +249,7 @@ const table = (
   const lines = rows.map(cells => row((cells.blocks ?? []).map(cellText)))
   const separator = `| ${Array(columns).fill('---').join(' | ')} |`
   // GFM puts the header first, so a row marked as one anywhere else cannot be said.
-  if (rows.findIndex(candidate => candidate.props.header === true) > 0) {
+  if (rows.some((candidate, index) => index > 0 && candidate.props.header === true)) {
     diagnostics.push({ code: 'UnsupportedNode', detail: 'Table', node: block.id })
   }
   return [lines[0]!, separator, ...lines.slice(1)]
@@ -189,9 +264,12 @@ const renderBlock = (
     diagnostics.push({ code: 'UnsupportedNode', detail: block.originalType, node: block.id })
     return []
   }
-  if (block.type === 'Paragraph') return [protectParagraph(renderInline(block, diagnostics))]
+  if (block.type === 'Paragraph') {
+    return renderInline(block, diagnostics).split('\n').map(protectLine)
+  }
   if (block.type === 'Heading') {
-    return [`${'#'.repeat(block.level)} ${renderInline(block, diagnostics)}`]
+    // A trailing `#` would be read as the heading's optional closing sequence.
+    return [`${'#'.repeat(block.level)} ${inlineLine(block, diagnostics).replace(/#$/, '\\#')}`]
   }
   if (block.kind === 'Quote') return quote(renderBlocks(block.blocks ?? [], diagnostics))
   if (block.kind === 'List') return list(block, diagnostics)

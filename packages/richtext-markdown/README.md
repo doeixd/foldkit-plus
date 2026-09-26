@@ -115,6 +115,11 @@ command. Until it does, those markers stay text.
 - **Inline atoms.** The model has no inline image or break, so an `Image` is a block and
   prints as its own line — which a parser reads back as a paragraph holding an image.
 - **A link with no `href`** prints as its label, with an `UnsupportedMark` diagnostic.
+- **A mark on whitespace at a run's edge.** `**bold **` is not emphasis in CommonMark, so a
+  marked run's leading and trailing whitespace is printed outside its delimiters: the text
+  survives, and the space reads back unmarked.
+- **A bare URL in text.** GFM links `https://…`, `www.…`, and email addresses written as
+  plain text, and no escape stops it, so such text reads back as a link.
 - **A hard line break** has no shape inside a block, so it ends the paragraph and the rest
   starts a new one, with a diagnostic. Raw HTML, link definitions, and footnotes are
   reported and skipped: a document holds none of them.
