@@ -381,10 +381,17 @@ const codeBlockFrom = (element: Element, mint: () => string): RichText.Block => 
   }
 }
 
-/** A table row is a header when a cell says so, or when our own rendering said so. */
-const isHeaderRow = (row: Element): boolean =>
-  row.getAttribute('data-header') !== null ||
-  Array.from(row.children).some(child => child.tagName.toLowerCase() === 'th')
+/**
+ * A table row is a header when our own rendering said so, when it sits in a `thead`, or when
+ * every cell is a `th`. One `th` is not enough: a body row often leads with a row header
+ * (`<th scope="row">`), and reading that as a header row would mark every row of the table.
+ */
+const isHeaderRow = (row: Element): boolean => {
+  if (row.getAttribute('data-header') !== null) return true
+  if (row.parentElement?.tagName.toLowerCase() === 'thead') return true
+  const cells = Array.from(row.children)
+  return cells.length > 0 && cells.every(cell => cell.tagName.toLowerCase() === 'th')
+}
 
 /** The same row, carrying the header prop the table vocabulary has for it. */
 const asHeaderRow = (block: RichText.Block): RichText.Block =>

@@ -397,6 +397,22 @@ describe('importing the standard vocabulary (§70, §125)', () => {
     expect(parsed.diagnostics).toEqual([])
   })
 
+  it('marks a header row by a thead or an all-th row, not by a leading row header', () => {
+    const rows = (html: string) =>
+      (nodeBlock(parse(html, standard).blocks[0]).blocks ?? []).map(row => nodeBlock(row).props)
+    expect(
+      rows(
+        '<table><tr><th>a</th><th>b</th></tr>' +
+          '<tr><th scope="row">x</th><td>1</td></tr><tr><th scope="row">y</th><td>2</td></tr></table>',
+      ),
+    ).toEqual([{ header: true }, {}, {}])
+    expect(
+      rows('<table><thead><tr><td>a</td></tr></thead><tbody><tr><td>1</td></tr></tbody></table>'),
+    ).toEqual([{ header: true }, {}])
+    // A row with no cells has no `th` to be all of.
+    expect(rows('<table><tr><td>a</td></tr><tr></tr></table>')).toEqual([{}, {}])
+  })
+
   it('maps a table to a table of blocks, header cell included', () => {
     const parsed = parse(
       '<table><tr><th><p>head</p></th></tr><tr><td>cell</td></tr></table>',

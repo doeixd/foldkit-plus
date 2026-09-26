@@ -105,7 +105,7 @@ Read the calls literally:
   fallback: a whitelist walk over a `DOMParser` tree that mints fresh identities. It maps
   the standard vocabulary's elements — `blockquote`, `pre` (language from `data-language`
   or a `language-…` class, text verbatim with no marks), `hr`, `img` (`src`/`alt`),
-  `table`/`tr`/`td`/`th` (a `th` marks its row as the header), `s`/`del`, `a` — and reads only a fixed few attributes, each
+  `table`/`tr`/`td`/`th` (a row of `th`s, or one in a `thead`, is the header), `s`/`del`, `a` — and reads only a fixed few attributes, each
   through `safeUrl` (from `foldkit-richtext`, so Markdown import applies the same policy),
   which refuses a scheme outside http/https/mailto/tel *after* removing control characters (so
   `java\tscript:` cannot walk past it) and leaves a relative URL alone. A `style`,
