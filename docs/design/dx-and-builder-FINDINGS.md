@@ -864,6 +864,10 @@ with its result in hand.
 
 ## Order of work
 
+The detailed plan, with designs, spikes and acceptance per phase, is
+[dx-and-builder-PLAN.md](./dx-and-builder-PLAN.md).
+
+
 1. **D1**, the source condition, starting with the two-package spike. It
    removes most of the day-to-day friction and three traps.
 2. **D3, D4 and D5** together: one helper renders views inert, and the tests
