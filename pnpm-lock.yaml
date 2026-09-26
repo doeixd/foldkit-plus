@@ -216,6 +216,28 @@ importers:
         specifier: 5.4.21
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)
 
+  examples/form:
+    dependencies:
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../../packages/bundle
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../../packages/entity
+      foldkit-form:
+        specifier: workspace:*
+        version: link:../../packages/form
+    devDependencies:
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+      foldkit:
+        specifier: 0.163.0
+        version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   examples/kitchen-sink:
     dependencies:
       drizzle-orm:
@@ -1465,6 +1487,9 @@ importers:
       foldkit:
         specifier: 0.163.0
         version: 0.163.0(@effect/platform-browser@4.0.0-rc.116(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(tsx@4.23.13)(typescript@5.9.3)(unrun@0.3.1)

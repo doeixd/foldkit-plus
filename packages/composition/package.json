@@ -26,26 +26,32 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
     "./foldkit": {
+      "foldkit-plus:source": "./src/foldkit/index.ts",
       "types": "./dist/foldkit.d.mts",
       "import": "./dist/foldkit.mjs"
     },
     "./richtext": {
+      "foldkit-plus:source": "./src/richtext/index.ts",
       "types": "./dist/richtext.d.mts",
       "import": "./dist/richtext.mjs"
     },
     "./appearance": {
+      "foldkit-plus:source": "./src/appearance/index.ts",
       "types": "./dist/appearance.d.mts",
       "import": "./dist/appearance.mjs"
     },
     "./remote": {
+      "foldkit-plus:source": "./src/remote/index.ts",
       "types": "./dist/remote.d.mts",
       "import": "./dist/remote.mjs"
     },
     "./surface": {
+      "foldkit-plus:source": "./src/surface/index.ts",
       "types": "./dist/surface.d.mts",
       "import": "./dist/surface.mjs"
     }
