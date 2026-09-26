@@ -7138,4 +7138,9 @@ hand-rolled.
 > keyed by language, because the language is read from the document. A token outside its
 > block's text, covering nothing, or at a fractional offset throws with the language, rather
 > than becoming a highlight over the wrong text. The read-only view draws the result with no
-> change of its own. `foldkit-richtext-code`'s JSON lexer is the next slice.
+> change of its own.
+>
+> **Built (2026-09-26): the JSON grammar.** `foldkit-richtext-code` exports `jsonTokenizer`,
+> exact on JSON and total on anything else: it never throws, and an unterminated string ends
+> at the line break. A key is `syntax-property`, told from a string value by the colon after
+> it. The Shiki adapter and the editable overlay (§129) remain.
