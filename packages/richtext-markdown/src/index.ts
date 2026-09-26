@@ -10,6 +10,7 @@
  */
 export { MarkdownDiagnostic } from './diagnostic.js'
 export { markdownInputRules } from './input.js'
-export { print, type PrintedMarkdown } from './print.js'
+export { print, type PrintedMarkdown, type PrintOptions } from './print.js'
+export { MarkdownStyle } from './style.js'
 export { parse, type ParseOptions, type ParsedMarkdown } from './parse.js'
 export { closeSource, openSource, SourceSession, type ClosedSource } from './source.js'

@@ -89,6 +89,20 @@ each is reported as `UnsafeUrl`.
 `print(parse(markdown))` returns the same Markdown and `parse(print(document))` a document
 that prints the same, which is how the two directions are tested against each other.
 
+The same Markdown means the canonical spellings: `*` for emphasis, `-` for a bullet, backtick
+fences. Text written as `_hello_` or `* item` is kept that way by the `style` `parse` also
+returns — which spelling each construct took, first occurrence each, and never part of the
+document — handed back to `print`:
+
+```ts
+const parsed = parse('_hello_\n\n* item\n', { mint: () => `id-${++n}` })
+print(parsed.document, { style: parsed.style }).markdown // '_hello_\n\n* item\n'
+```
+
+A spelling that would change what the text means somewhere — `_` does not open emphasis inside
+a word — is not used: `print` reads its styled text back, and when that reads as a different
+document than the canonical text, the canonical text is what it returns.
+
 ## Input rules
 
 `markdownInputRules` reshapes a block when a marker is completed at its start: `# ` through

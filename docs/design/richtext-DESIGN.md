@@ -7542,3 +7542,35 @@ Split mode followed as a second view over the same session: `sourcePreview` rend
 one parse per session value. Only an edited session's result is kept: an unedited one gives
 back the document the application holds now, which can change under an open session (a
 collaborator's edit), so caching it would preview a document that is no longer there.
+
+---
+
+# 138. Keeping the writer's Markdown spelling
+
+§9 asks that toggling modes not turn `_hello_` into `*hello*`. The first slice keeps the
+spelling per construct rather than per node:
+
+```text
+parse(markdown)            → { document, diagnostics, style }
+style                      emphasis * | _, strong ** | __, bullet - | * | +,
+                           delimiter . | ), fence ` | ~, rule - | * | _
+print(document, { style }) the style's spellings, canonical for anything it leaves out
+```
+
+Decided here:
+
+- **First occurrence, per construct.** A text rarely mixes `*` and `_` for one construct, and
+  a per-node map would need identities a re-parse does not keep. §9's source ranges can refine
+  it later; a style is what survives an edit.
+- **Read from the source at each node's start.** mdast keeps positions, so the spelling is the
+  character there. A list item's source begins at its marker, so one test tells a bullet from
+  an ordered delimiter; the list's `ordered` flag was redundant with it, and mutation showed so.
+- **Verified by reading back, not by rules.** `_` does not open emphasis inside a word, and
+  more such cases exist than are worth encoding. `print` parses its styled output and the
+  canonical output, compares the two documents without their identities, and returns the
+  canonical text when they differ. A styled print costs two parses; an unstyled one costs none.
+- **Never document content.** `MarkdownStyle` is a schema of its own, kept by the caller beside
+  the document, as §9 says: interpreter state, not semantics.
+
+Not yet: headings (ATX or setext), per-node spellings, and the source session keeping the
+style across visits, which is next.

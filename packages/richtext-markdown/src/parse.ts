@@ -11,6 +11,7 @@ import { gfm } from 'micromark-extension-gfm'
 import * as RichText from 'foldkit-richtext'
 import type { MarkdownDiagnostic } from './diagnostic.js'
 import { HEADING_LEVELS } from './levels.js'
+import { styleOf, type MarkdownStyle } from './style.js'
 
 export interface ParseOptions {
   /** Identity for every block and run this mints; the codec refuses a repeat. */
@@ -20,6 +21,8 @@ export interface ParseOptions {
 export interface ParsedMarkdown {
   readonly document: RichText.Document
   readonly diagnostics: ReadonlyArray<MarkdownDiagnostic>
+  /** How the text spelled what it used, for `print` to spell it the same way (§138). */
+  readonly style: MarkdownStyle
 }
 
 /** Props are what a `JsonObject` holds, so this is narrower than the codec's type. */
@@ -279,5 +282,6 @@ export const parse = (markdown: string, options: ParseOptions): ParsedMarkdown =
       children: blocksFrom(tree.children, diagnostics, options.mint),
     }),
     diagnostics,
+    style: styleOf(markdown, tree),
   }
 }
