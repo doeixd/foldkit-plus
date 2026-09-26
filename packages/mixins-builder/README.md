@@ -142,16 +142,29 @@ function of the Message, as `Cms.controlRenderers` is:
 Without one, the inspector says which renderer is missing.
 
 The page on the canvas is the site's own markup, so it is styled by the site's
-CSS. The editor's marks are data attributes on each node's wrapper:
-`data-composition-mark` (`selected`, or `hovered`; a node that is both is
-`selected`), and `data-composition-drop` (`before`, `inside` or `after`) on the node a drop
-would land at. A wrapper is `display: contents` and draws nothing, so style
-the element inside it. The layer rows carry `data-builder-drop` and
-`data-builder-dragging` the same way.
+CSS, and the editor marks it by drawing over it: the `selectionBox` Slot sits
+over the selected node, with its Block's label in `selectionLabel`, and the
+`hoverBox` Slot over the node under the pointer. They are placed from where
+the nodes are measured to be (`Measure`, from `foldkit-primitives/dom`),
+scroll with the page, and take no pointer; the Builder places them, and a
+Style says how they look:
+
+```ts
+Style.forSlots(BuilderSlots)({
+  selectionBox: Style.self({ outline: '2px solid Highlight', outlineOffset: '3px' }),
+  selectionLabel: Style.self({ background: 'Highlight', color: 'HighlightText', fontSize: '0.75rem' }),
+  hoverBox: Style.self({ outline: '1px dashed GrayText', outlineOffset: '3px' }),
+})
+```
+
+A node's wrapper still carries `data-composition-mark` (`selected`, or
+`hovered`; a node that is both is `selected`), which is what the boxes are
+measured from, and `data-composition-drop` (`before`, `inside` or `after`) on
+the node a drop would land at. A wrapper is `display: contents` and draws
+nothing, so style the element inside it. The layer rows carry
+`data-builder-drop` and `data-builder-dragging` the same way.
 
 ```css
-[data-composition-mark='selected'] > * { outline: 2px solid Highlight; }
-[data-composition-mark='hovered'] > * { outline: 1px dashed GrayText; }
 [data-composition-drop='before'] > * { box-shadow: 0 -3px 0 Highlight; }
 [data-composition-drop='after'] > * { box-shadow: 0 3px 0 Highlight; }
 [data-composition-drop='inside'] > * { outline: 2px dashed Highlight; }

@@ -49,7 +49,7 @@ import {
   Style,
 } from 'foldkit-mixins'
 import { FormView, type FormViewInputs, type Renderers } from 'foldkit-mixins-form'
-import { KeepInView } from 'foldkit-primitives/dom'
+import { KeepInView, Measure, measured } from 'foldkit-primitives/dom'
 import { LiveAnnounce, PointerDrag, Targets, TreeNavigation } from 'foldkit-primitives/interaction'
 import { History } from 'foldkit-primitives/state'
 import type { KeyboardModifiers } from 'foldkit/html'
@@ -122,6 +122,15 @@ export const BuilderSlots = Slots.define({
   frame: Slot.make({ capability: Capability.Container }),
   /** In the frame while the page holds nothing: how to begin. */
   empty: Slot.make({ capability: Capability.Base }),
+  /**
+   * Over the selected node on the canvas, placed from where it is measured to
+   * be, with its Block's label; drawn over the page, so the page's own
+   * markup needs no mark to show it.
+   */
+  selectionBox: Slot.make({ capability: Capability.Container }),
+  selectionLabel: Slot.make({ capability: Capability.Base }),
+  /** Over the node under the pointer, as the selection's box is placed. */
+  hoverBox: Slot.make({ capability: Capability.Base }),
   /** The live region the Builder's announcements are read from. */
   live: Slot.make({ capability: Capability.Base }),
 })
@@ -130,8 +139,36 @@ export const BuilderSlots = Slots.define({
  * What the drawn Builder needs to work unstyled: the frame as wide as the
  * viewport, centred. In `components`, so an application's style overrides it.
  */
+/** A box over a measured node: where `Measure` found it, and nothing to the pointer. */
+const boxOver = (name: string) => {
+  const at = measured(name)
+  return Style.self({
+    position: 'absolute',
+    insetInlineStart: `var(${at.x})`,
+    insetBlockStart: `var(${at.y})`,
+    width: `var(${at.w})`,
+    height: `var(${at.h})`,
+    display: `var(${at.display}, none)`,
+    boxSizing: 'border-box',
+    pointerEvents: 'none',
+  })
+}
+
+// What makes the Builder work, not how it looks: the frame's width, and the boxes
+// placed over the page. Any application style overrides them.
 const FrameDefaults = Style.forSlots(BuilderSlots)(
-  { frame: Style.self({ maxWidth: 'var(--fk-frame-width)', marginInline: 'auto' }) },
+  {
+    frame: Style.self({ maxWidth: 'var(--fk-frame-width)', marginInline: 'auto' }),
+    // What the boxes are placed in: the canvas, measured from its scroll box.
+    canvas: Style.self({ position: 'relative' }),
+    selectionBox: boxOver('selected'),
+    selectionLabel: Style.self({
+      position: 'absolute',
+      insetBlockEnd: '100%',
+      insetInlineStart: '0',
+    }),
+    hoverBox: boxOver('hovered'),
+  },
   { name: 'BuilderDefaults', layer: StyleLayers.standard.layer('components') },
 )
 
@@ -1046,6 +1083,23 @@ export const BuilderView = {
         ],
       )
 
+    // Where the selected and the hovered node are, for the boxes drawn over them.
+    const MeasureMarks = Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
+      {
+        canvas: Behavior.slot({
+          mount: () =>
+            Measure({
+              targets: {
+                // The mark is on a `display: contents` wrapper, which has no box: its Block's element does.
+                selected: `[data-${MARK_ATTRIBUTE}="selected"] > *`,
+                hovered: `[data-${MARK_ATTRIBUTE}="hovered"] > *`,
+              },
+            }),
+        }),
+      },
+      { name: 'MeasureMarks' },
+    )
+
     const LayersPart = Parts.part(
       'Layers',
       {
@@ -1285,10 +1339,15 @@ export const BuilderView = {
           }),
           Shortcuts,
           KeepSelectionInView,
+          MeasureMarks,
         ],
       },
       (input, slots, h) => {
         const document = builder.document(input)
+        // The selected node's Block, named on its box.
+        const selectedBlock = Option.flatMap(input.selected, id =>
+          Option.fromUndefinedOr(document.nodes[id]?.block),
+        )
         return h.div(slots.canvas.attrs([h.Role('region'), h.AriaLabel('Page'), h.Tabindex(0)]), [
           h.div(
             slots.frame.attrs([
@@ -1313,6 +1372,16 @@ export const BuilderView = {
                 data: input.data,
               }),
             ],
+          ),
+          // Drawn over the page, placed from where the marked nodes are measured to be;
+          // hidden while none is. They only show: they take no pointer.
+          h.div(slots.hoverBox.attrs([h.AriaHidden(true)]), []),
+          h.div(
+            slots.selectionBox.attrs([h.AriaHidden(true)]),
+            Option.match(selectedBlock, {
+              onNone: () => [],
+              onSome: name => [h.span(slots.selectionLabel.attrs(), [labelOf(name)])],
+            }),
           ),
         ])
       },

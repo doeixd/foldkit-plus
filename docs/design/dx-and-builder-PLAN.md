@@ -869,6 +869,17 @@ builder.keyCommand      // derived: the first command whose keys match and whose
 **Tests.** Unit: no Message on hover. Browser: the overlay follows the
 selection through a scroll, and the hover box follows the pointer.
 
+> **Overlay done, 2026-09-26; hover as a Message kept for now.** `Measure`
+> (3e) measures the Renderer's `selected` and `hovered` marks on the canvas,
+> and the Canvas part draws `selectionBox` (with the Block's label) and
+> `hoverBox` over them; the example's outline CSS became their Styles. A
+> browser test pins that the selection's box covers its node through a
+> scroll and the hover box follows the pointer. `Hovered`/`Unhovered` stay:
+> since the editor became parts (3d), a hover redraws only the canvas and
+> lands in the next frame, and a hover a layer row causes has no other path
+> to the canvas's mark. Revisit if a measurement shows it matters. The
+> node's commands in the box wait for 5a.
+
 ### 5c. Drag a new Block from the palette (M)
 
 - `Drag` becomes `{ source: Existing(id) | New(block), over, at }`, and

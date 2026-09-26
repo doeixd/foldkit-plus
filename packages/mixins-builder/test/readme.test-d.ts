@@ -105,3 +105,17 @@ Block.words({ icon: 'quote' })
   })
   expectTypeOf(PageEditing).toEqualTypeOf<ReturnType<typeof BuilderView.define>>()
 }
+
+// "Styling": how the boxes over the page look.
+{
+  const Boxes = Style.forSlots(BuilderSlots)({
+    selectionBox: Style.self({ outline: '2px solid Highlight', outlineOffset: '3px' }),
+    selectionLabel: Style.self({
+      background: 'Highlight',
+      color: 'HighlightText',
+      fontSize: '0.75rem',
+    }),
+    hoverBox: Style.self({ outline: '1px dashed GrayText', outlineOffset: '3px' }),
+  })
+  void BuilderView.define(PageBuilder).pipe(Style.attach(Boxes))
+}

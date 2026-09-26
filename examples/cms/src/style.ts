@@ -1205,20 +1205,31 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         gridRow: 'auto',
         minHeight: '30rem',
       }),
-      Style.nest('[data-composition-mark="hovered"] > *', {
-        outline: `1px dashed ${selection}`,
-        outlineOffset: '3px',
-      }),
-      Style.nest('[data-composition-mark="selected"] > *', {
-        outline: `2px solid ${selection}`,
-        outlineOffset: '3px',
-      }),
       Style.nest('[data-composition-drop="before"] > *', { boxShadow: `0 -3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="after"] > *', { boxShadow: `0 3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="inside"] > *', {
         outline: `2px dashed ${selection}`,
       }),
     ),
+    // Drawn over the page by the Builder, where the selected and hovered nodes are.
+    selectionBox: Style.self({
+      outline: `2px solid ${selection}`,
+      outlineOffset: '3px',
+      borderRadius: t.radius.sm,
+    }),
+    selectionLabel: Style.self({
+      background: selection,
+      borderRadius: `${t.radius.sm} ${t.radius.sm} 0 0`,
+      color: 'white',
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      lineHeight: '1.6',
+      marginBlockEnd: '3px',
+      marginInlineStart: '-3px',
+      paddingInline: '0.45rem',
+      whiteSpace: 'nowrap',
+    }),
+    hoverBox: Style.self({ outline: `1px dashed ${selection}`, outlineOffset: '3px' }),
     frame: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.lg })),
       Style.self({

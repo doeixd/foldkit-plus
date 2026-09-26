@@ -150,6 +150,52 @@ it('moves the selection and the tab stop with the keyboard, over reused rows', a
   }
 })
 
+// The boxes are drawn over the page from where the marked nodes are measured to be
+// (dx-and-builder-PLAN.md, 5b): each must sit on its node, wherever the canvas scrolls.
+it('draws the selection’s box over the selected node, and keeps it there through a scroll', async () => {
+  unmount = mount(stylesheet)
+  await vi.waitFor(() => expect(canvas()).not.toBeNull())
+  const page = canvas()
+  if (page === null) throw new Error('no canvas')
+  const headings = Array.from(page.querySelectorAll<HTMLElement>('h2'))
+  const box = (label: string) => {
+    const found = Array.from(page.children).find(
+      child => child.getAttribute('aria-hidden') === 'true' && child.textContent === label,
+    )
+    if (!(found instanceof HTMLElement)) throw new Error(`no box labelled ${label}`)
+    return found
+  }
+  /** Whether `over` covers `target`, within a pixel. */
+  const covers = (over: HTMLElement, target: HTMLElement) => {
+    const [a, b] = [over.getBoundingClientRect(), target.getBoundingClientRect()]
+    return [a.left - b.left, a.top - b.top, a.width - b.width, a.height - b.height].every(
+      difference => Math.abs(difference) <= 1,
+    )
+  }
+  const target = headings[20]
+  if (target === undefined) throw new Error('no heading 20')
+  target.click()
+  await vi.waitFor(() => expect(covers(box('Heading'), target)).toBe(true))
+  page.scrollTop += 120
+  await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)))
+  expect(covers(box('Heading'), target)).toBe(true)
+  // Pointing at another node marks it, and a box of its own follows.
+  const other = headings[22]
+  if (other === undefined) throw new Error('no heading 22')
+  other.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
+  const hover = () =>
+    Array.from(page.children).find(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement &&
+        child.getAttribute('aria-hidden') === 'true' &&
+        child.textContent === '',
+    )
+  await vi.waitFor(() => {
+    const found = hover()
+    expect(found !== undefined && covers(found, other)).toBe(true)
+  })
+})
+
 /** The middle of some timings, rounded to a millisecond. */
 const median = (times: ReadonlyArray<number>): number =>
   Math.round([...times].sort((left, right) => left - right)[Math.floor(times.length / 2)] ?? NaN)

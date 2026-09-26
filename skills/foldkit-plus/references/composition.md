@@ -299,6 +299,9 @@ const PageForm = Form.make('PageForm', PageInput, {
   `BuilderView.inputs({ options: { 'Featured.category': [{ value, label }] } })`,
   loaded by the application.
 - `PointerDrag` on `tree` (rows carry `data-builder-row`) and `canvas`.
+- Canvas overlay: `selectionBox` (with `selectionLabel`, the Block's label) and `hoverBox` Slots
+  are drawn over the selected and hovered nodes, placed from `Measure` (`foldkit-primitives/dom`);
+  style how they look, the Builder places them.
 - Your own layout: `const parts = BuilderView.parts(PageBuilder)`, then
   `BuilderView.assemble((model, slots, h, draw) => h.div(slots.root.attrs(), [draw(parts.Palette),
   draw(parts.Canvas)]))`. Parts: `Palette`, `Layers`, `Inspector`, `History`, `Crumbs`,
