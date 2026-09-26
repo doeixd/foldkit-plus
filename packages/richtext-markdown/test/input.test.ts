@@ -1,7 +1,6 @@
 /**
  * The Markdown block input rules (§124 §4): completing a heading marker at a block's start
- * retypes the block, and a quote or list marker wraps it. A fence, which would need an atom,
- * is not claimed yet.
+ * retypes the block, a quote or list marker wraps it, and a fence converts it to code.
  */
 import { describe, expect, it } from 'vitest'
 import * as RichText from 'foldkit-richtext'
@@ -76,6 +75,23 @@ describe('the Markdown block input rules', () => {
     })
   })
 
+  it('converts a block to code when a fence is completed, with the language after it', () => {
+    const code = (props: Record<string, unknown>) => [
+      { type: 'ConvertBlock', to: { kind: 'CodeBlock', props } },
+    ]
+    expect(match('``` ')).toEqual({ name: 'code-block', remove: 4, commands: code({}) })
+    expect(match('~~~c++ ')?.commands).toEqual(code({ language: 'c++' }))
+    expect(match('```ts ')).toEqual({
+      name: 'code-block',
+      remove: 6,
+      commands: code({ language: 'ts' }),
+    })
+    expect(match('```` ')?.commands).toEqual(code({}))
+    for (const text of ['`` ', '```ts', 'a ``` ', '```t s ', '``~ ', '```a`b ']) {
+      expect(match(text)).toBeUndefined()
+    }
+  })
+
   it('claims no list or quote marker that is not the block’s whole start', () => {
     for (const text of ['a - ', '>', '-', '1.', '1234567890. ', ' - ', '-  ', '1 . ']) {
       expect(match(text)).toBeUndefined()
@@ -129,6 +145,14 @@ describe('the rules applied to a document, as the editor applies them', () => {
     expect(paragraph).toMatchObject({ type: 'Paragraph', id: 'p' })
     expect(paragraph?.children.map(run => run.text).join('')).toBe('milk')
     expect(after.selection).toMatchObject({ anchor: { node: 't', offset: 0 } })
+  })
+
+  it('turns ```` ```ts ```` into a code block holding the rest of the text', () => {
+    const after = typed('```ts', 'const x')
+    const [code] = after.document.children
+    expect(code).toMatchObject({ type: 'Node', kind: 'CodeBlock', props: { language: 'ts' } })
+    expect(code?.children.map(run => run.text).join('')).toBe('const x')
+    expect(after.selection).toMatchObject({ anchor: { offset: 0 } })
   })
 
   it('turns `> ` into a quote, and `3. ` into a list numbered from three', () => {

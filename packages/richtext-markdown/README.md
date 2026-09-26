@@ -94,7 +94,8 @@ that prints the same, which is how the two directions are tested against each ot
 `markdownInputRules` reshapes a block when a marker is completed at its start: `# ` through
 `###### ` retype it as a heading (`RetypeBlock`), and `> `, `- `/`* `/`+ `, and an ordered
 marker such as `1. ` or `3) ` wrap it in a quote or a list (`WrapBlock`), an ordered list
-numbered from the number typed. An editor
+numbered from the number typed; and a fence with an optional language, such as
+`` ```ts `` then a space, converts it to a `CodeBlock` (`ConvertBlock`). An editor
 placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
 editor state and the editor holds no Markdown:
 
@@ -105,9 +106,11 @@ import { markdownInputRules } from 'foldkit-richtext-markdown'
 const body = editorAt('article-body', { inputRules: markdownInputRules })
 ```
 
-A fence is not a rule yet: it needs the block *replaced* by a `CodeBlock`, and no command
-does that, so it stays text. A list marker typed right after a list starts a new list beside
-it rather than adding an item to that one.
+A fence is completed by a space, not by the line break Markdown reads it at, because Enter
+splits a block and a rule sees only what is typed. Converting gives the block's runs new
+identities, and a block carrying marks is refused under the standard vocabulary, whose
+`CodeBlock` forbids them. A list marker typed right after a list starts a new list beside it
+rather than adding an item to that one.
 
 ## Limits
 

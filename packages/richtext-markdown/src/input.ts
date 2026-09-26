@@ -2,9 +2,8 @@
  * Markdown input rules (§124 §4): the block markers that reshape a block as they are typed.
  *
  * `# ` through `###### ` retype the block (`RetypeBlock`); `> `, `- `, `* `, `+ `, and an
- * ordered marker such as `1. ` wrap it in a quote or a list (`WrapBlock`). A fence would
- * need the block replaced by a `CodeBlock`, which no command expresses yet, so it stays text
- * and no rule claims it.
+ * ordered marker such as `1. ` wrap it in a quote or a list (`WrapBlock`); a fence with an
+ * optional language, such as `` ```ts ``, converts it to a `CodeBlock` (`ConvertBlock`).
  *
  * Every marker, and the space that completes it, must be the whole text before the caret,
  * which is what puts it at the block's start — the same place Markdown reads a block marker
@@ -73,10 +72,35 @@ const orderedRule: InputRule = {
   },
 }
 
+/**
+ * A fence and its language, completed by a space rather than the line break Markdown reads
+ * it at: Enter splits a block, and a rule sees only what is typed. A fence is three or more
+ * backticks or tildes, as Markdown's is. The language is the word after it, as an info string
+ * starts, and a backtick cannot be part of it; none leaves the prop out.
+ */
+const fenceRule: InputRule = {
+  name: 'code-block',
+  match: textBefore => {
+    const fence = /^(?:`{3,}|~{3,})([\w+#.-]*) $/.exec(textBefore)
+    if (fence === null) return undefined
+    const language = fence[1]!
+    return {
+      remove: textBefore.length,
+      commands: [
+        {
+          type: 'ConvertBlock',
+          to: { kind: 'CodeBlock', props: language.length === 0 ? {} : { language } },
+        },
+      ],
+    }
+  },
+}
+
 /** The block markers the standard vocabulary can carry out. */
 export const markdownInputRules: ReadonlyArray<InputRule> = [
   ...HEADING_LEVELS.map(level => headingRule(level)),
   quoteRule,
   bulletRule,
   orderedRule,
+  fenceRule,
 ]

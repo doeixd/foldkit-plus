@@ -5918,8 +5918,9 @@ without turning normalization into a bag of UX behavior.
 > syntax. The markers that need a block wrapped or replaced — `> `, `- `, `1. `, a fence —
 > wait on a command §21 does not have; §128 records both.
 >
-> **Built (2026-09-26), as §131:** `WrapBlock`, and the `> `, `- `, and `1. ` rules on it. The
-> fence still waits on a replace.
+> **Built (2026-09-26), as §131:** `WrapBlock`, with the `> `, `- `, and `1. ` rules on it,
+> and `ConvertBlock`, with the fence rule on it. Every block marker this list names is now a
+> rule.
 
 ---
 
@@ -7054,7 +7055,8 @@ and no rule claims them. The inline shortcuts (`**foo**` as the closing run is t
 same story from the other side: they need the text *after* the caret too, which the contract
 deliberately does not read.
 
-> **Since built (§131):** the wrap. `> `, `- `, and `1. ` are rules now; the fence is not.
+> **Since built (§131):** the wrap and the replace. `> `, `- `, `1. `, and the fence are
+> rules now.
 
 ---
 
@@ -7201,9 +7203,38 @@ Not decided here, and not needed until they are:
 - **Joining a neighbour.** A list marker typed right after a list starts a second list beside
   it. The printer writes two lists, and a Markdown parser reads them back as one. Markdown's own reading would add an item to
   the list above; that is a merge of containers, which is its own command.
-- **The fence.** A `CodeBlock` holds text under a different marks policy, so turning a
-  paragraph into one is a *replace*, not a wrap or a retype. It waits for that command.
+- **The fence** turned out to need a *replace*, not a wrap or a retype: see below.
 - **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
   block back out. That is the inverse move and the same two operations, but it changes what
   `DeleteBackward` does, so it is a decision about Backspace rather than about this command.
+
+## The replace, for the fence
+
+A `CodeBlock` holds text under its own marks policy, and the `RetypeBlock` *operation*
+deliberately refuses node kinds: a node's content is its Kit's contract. So turning a paragraph
+into a code block is a replace, composed like the wrap from operations that exist:
+
+```text
+ConvertBlock { to: { kind, props } }
+  = DeleteNode(block)
+  + InsertNode(node of that kind, carrying the block's text and marks, where the block stood)
+  + SetSelection(the old selection, moved onto the new runs at the same offsets)
+```
+
+One thing is different from the wrap. Carrying the runs over under their old identities was
+the first attempt, and `apply` refused it (`InvalidInput`): an identity is never reused, even
+one deleted earlier in the same transaction. So the block and its runs get new identities from
+`mint`. The caret survives because the command moves it, not because the identities did, and
+anything else holding the old run identities (a decoration, a remote cursor) has to find the
+new ones. Widening the `RetypeBlock` operation to node kinds would have kept them, at the cost
+of the rule that an operation never rewrites a node's content; a fence is rare enough, and
+typed at the start of an empty block often enough, that the replace is the smaller price.
+
+Given a vocabulary, the kind must be declared to hold text and its parent must accept it
+(`UnexpectedChild`), and a kind whose marks policy is `none` refuses a block that carries marks
+(`ForbiddenMark`) rather than dropping them silently. Only a paragraph or heading converts; a
+node block's content stays its Kit's.
+
+The rule completes a fence — three or more backticks or tildes, then an optional language —
+with a space, since Enter splits a block and a rule sees only what is typed.
 
