@@ -112,7 +112,8 @@ describe('the position a block’s text offset addresses', () => {
     })
   })
 
-  it('is nothing past the block’s end', () => {
+  it('is nothing past the block’s end, or before its start', () => {
     expect(RichText.positionInBlock(block(), 5)).toBeUndefined()
+    expect(RichText.positionInBlock(block(), -1)).toBeUndefined()
   })
 })

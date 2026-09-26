@@ -76,6 +76,18 @@ describe('the range before a caret', () => {
     ).toBeUndefined()
   })
 
+  it('clamps an offset past its run, as `textBefore` does, rather than reading into the next', () => {
+    // Offset 5 in `ab` reads as its end: the one character before it is `b`, not the `c` a
+    // block offset of 5 - 1 would land on in the next run.
+    expect(
+      RichText.textRangeBefore(document(), { node: id('a'), offset: 5, affinity: 'after' }, 1),
+    ).toEqual({
+      type: 'Range',
+      anchor: { node: id('a'), offset: 1, affinity: 'before' },
+      focus: { node: id('a'), offset: 2, affinity: 'after' },
+    })
+  })
+
   it('is nothing for a length that reads nothing, or a node this document lacks', () => {
     expect(
       RichText.textRangeBefore(document(), { node: id('a'), offset: 2, affinity: 'after' }, 0),

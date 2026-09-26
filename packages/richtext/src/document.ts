@@ -361,11 +361,12 @@ export const textBefore = (document: Document, position: Position): string => {
 }
 
 /**
- * The position a block's text offset addresses, or `undefined` when it is past the end. The
- * inverse of `textBefore` for one block: a rule, a search match, or any producer working in
- * a block's own text needs it to say where what it found is.
+ * The position a block's text offset addresses, or `undefined` when it is negative or past
+ * the end. The inverse of `textBefore` for one block: a rule, a search match, or any producer
+ * working in a block's own text needs it to say where what it found is.
  */
 export const positionInBlock = (block: Block, offset: number): Position | undefined => {
+  if (offset < 0) return undefined
   let consumed = 0
   for (const run of block.children) {
     const next = consumed + run.text.length
@@ -402,7 +403,8 @@ export const textRangeBefore = (
   const lead = block.children
     .slice(0, found.index)
     .reduce((total, run) => total + run.text.length, 0)
-  const end = lead + Math.max(0, position.offset)
+  // Clamped to the run as `textBefore` clamps, so an overlong offset never reads into the next run.
+  const end = lead + Math.min(found.run.text.length, Math.max(0, position.offset))
   const start = end - length
   if (start < 0) return undefined
   const anchor = positionInBlock(block, start)
