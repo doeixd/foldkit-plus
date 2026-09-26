@@ -785,22 +785,19 @@ of its own named a form field "fits the Catalog". Read words with
   subscription retries" in three places. Before writing that something
   happens again, find the condition that makes it happen and check the
   failure path meets it.
-- **Map every workspace dep in a composite example's `paths`.** A package's
-  `tsconfig.build.json` emits to `.tsbuild/build`, not `dist`, so resolving an
-  import through `exports` fails on a clean checkout; a stale local `dist` hides
-  it and only CI's `typecheck:force` goes red. `examples/kitchen-sink` omitted
-  `foldkit-remote-drizzle` and failed with `Cannot find module` plus cascading
-  `unknown` types. Diff the example's `paths` against the specifiers its
-  sources import, not against its `workspace:` deps: a subpath like
-  `foldkit-primitives/time` needs its own entry (and a vitest alias), and
-  `examples/entity` failed CI this way with the dependency declared. To
-  reproduce locally, move the package's `dist` aside and run
-  `npx tsc -b --force <example>`.
-- **Run a package's tests from the root, where the aliases are.** The
-  workspace aliases live in the root `vitest.config.ts`. Run inside
-  `packages/mixins-builder`, vitest resolved `foldkit-mixins-builder` to its
-  stale `dist`, and 21 tests passed against markup the source no longer drew.
-  Run `pnpm exec vitest run packages/<name>` from the root.
+- **Workspace packages resolve to source; `paths` are generated.** Every
+  export has a `foldkit-plus:source` condition, which Vite, Vitest and the
+  examples resolve through, so nothing reads a stale `dist`. TypeScript keeps
+  `paths`, derived by `pnpm paths` from the packages a project references;
+  never edit them by hand. `pnpm paths:check` refuses an import of a package
+  the project does not reference, which otherwise compiles against that
+  package's last build (`mixins-richtext` did, for `foldkit-primitives`). A
+  `tsconfig.build.json` does not inherit `references` from the config it
+  extends: `richtext-code` and `richtext-markdown` had none.
+- **Vitest's resolve conditions are its own, not Vite's.** Adding the source
+  condition to Vite's defaults brought in `module`, which loaded
+  `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave
+  `ws` its stub. `vitest.shared.ts` starts from Vitest's server defaults.
 - **A tab left open across a dev-server restart hangs.** The page waits on the
   old server, and every browser tool times out against it ("page is busy").
   Close it and open a fresh tab rather than retrying.
@@ -809,12 +806,6 @@ of its own named a form field "fits the Catalog". Read words with
   the browser tools sat on "Loading…" while its Model had long filled, and an
   hour went to a bug that was not there. Before calling a screen stuck, check
   `document.visibilityState` and read the Model, not the DOM.
-- **Vite serves a pre-bundled copy of a workspace package.** After a
-  package's `pnpm build`, a running example kept the old code from
-  `node_modules/.vite`, and a stale `dist` from before an API change left the
-  site on "Loading…" with no error, which looked like a regression. Rebuild
-  every package the change touched, then restart the dev server with
-  `node_modules/.vite` deleted, before judging the browser.
 
 ## Repository
 
