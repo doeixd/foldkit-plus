@@ -1,20 +1,19 @@
 /**
- * Markdown input rules (§124 §4): the block markers that retype a block as they are typed.
+ * Markdown input rules (§124 §4): the block markers that reshape a block as they are typed.
  *
- * `# ` through `###### ` are here because the command vocabulary can carry them out —
- * `RetypeBlock` changes a text block's type and keeps its runs. `> `, `- `, `1. `, and a
- * fence would each need the block wrapped in a container, or replaced by an atom, and that
- * is a vocabulary decision rather than a rule: until a command expresses it, those markers
- * stay text and no rule claims them.
+ * `# ` through `###### ` retype the block (`RetypeBlock`); `> `, `- `, `* `, `+ `, and an
+ * ordered marker such as `1. ` wrap it in a quote or a list (`WrapBlock`). A fence would
+ * need the block replaced by a `CodeBlock`, which no command expresses yet, so it stays text
+ * and no rule claims it.
+ *
+ * Every marker, and the space that completes it, must be the whole text before the caret,
+ * which is what puts it at the block's start — the same place Markdown reads a block marker
+ * — and what keeps `see # ` or `a - b` mid-sentence as text.
  */
 import type { InputRule } from 'foldkit-richtext'
 import { HEADING_LEVELS } from './levels.js'
 
-/**
- * The rule for one level. The hashes and the space that completes them must be the whole
- * text before the caret, which is what puts them at the block's start — the same place
- * Markdown reads a heading marker — and what keeps `see # ` mid-sentence as text.
- */
+/** The rule for one heading level. */
 const headingRule = (level: (typeof HEADING_LEVELS)[number]): InputRule => {
   const marker = `${'#'.repeat(level)} `
   return {
@@ -29,7 +28,55 @@ const headingRule = (level: (typeof HEADING_LEVELS)[number]): InputRule => {
   }
 }
 
-/** The block markers the standard vocabulary can carry out, one rule per heading level. */
-export const markdownInputRules: ReadonlyArray<InputRule> = HEADING_LEVELS.map(level =>
-  headingRule(level),
-)
+const quoteRule: InputRule = {
+  name: 'quote',
+  match: textBefore =>
+    textBefore === '> '
+      ? { remove: 2, commands: [{ type: 'WrapBlock', containers: [{ kind: 'Quote' }] }] }
+      : undefined,
+}
+
+const bulletRule: InputRule = {
+  name: 'bullet-list',
+  match: textBefore =>
+    /^[-*+] $/.test(textBefore)
+      ? {
+          remove: 2,
+          commands: [{ type: 'WrapBlock', containers: [{ kind: 'List' }, { kind: 'ListItem' }] }],
+        }
+      : undefined,
+}
+
+/**
+ * An ordered marker starts the list at its number, as Markdown's does; `start` is left out
+ * at 1, which is how the parser writes a list that starts there. Markdown allows at most
+ * nine digits.
+ */
+const orderedRule: InputRule = {
+  name: 'ordered-list',
+  match: textBefore => {
+    const marker = /^(\d{1,9})[.)] $/.exec(textBefore)
+    if (marker === null) return undefined
+    const start = Number(marker[1])
+    return {
+      remove: textBefore.length,
+      commands: [
+        {
+          type: 'WrapBlock',
+          containers: [
+            { kind: 'List', props: start === 1 ? { ordered: true } : { ordered: true, start } },
+            { kind: 'ListItem' },
+          ],
+        },
+      ],
+    }
+  },
+}
+
+/** The block markers the standard vocabulary can carry out. */
+export const markdownInputRules: ReadonlyArray<InputRule> = [
+  ...HEADING_LEVELS.map(level => headingRule(level)),
+  quoteRule,
+  bulletRule,
+  orderedRule,
+]

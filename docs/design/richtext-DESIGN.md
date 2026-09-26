@@ -5917,6 +5917,9 @@ without turning normalization into a bag of UX behavior.
 > `RetypeBlock`); and the editor applies the rules placed for its host, so it carries no
 > syntax. The markers that need a block wrapped or replaced — `> `, `- `, `1. `, a fence —
 > wait on a command §21 does not have; §128 records both.
+>
+> **Built (2026-09-26), as §131:** `WrapBlock`, and the `> `, `- `, and `1. ` rules on it. The
+> fence still waits on a replace.
 
 ---
 
@@ -7051,6 +7054,8 @@ and no rule claims them. The inline shortcuts (`**foo**` as the closing run is t
 same story from the other side: they need the text *after* the caret too, which the contract
 deliberately does not read.
 
+> **Since built (§131):** the wrap. `> `, `- `, and `1. ` are rules now; the fence is not.
+
 ---
 
 # 129. The editable adapter's decoration overlay
@@ -7161,3 +7166,44 @@ hand-rolled.
 > exact on JSON and total on anything else: it never throws, and an unterminated string ends
 > at the line break. A key is `syntax-property`, told from a string value by the colon after
 > it. The Shiki adapter remains; the editable overlay is built (§129).
+
+---
+
+# 131. Wrapping a block
+
+§128 left `> `, `- `, and `1. ` as text because no command put a block inside a new container.
+The question it named — what a caret inside a block does when the block becomes a child of a
+new one — has a simple answer once the wrap is a *move*: nothing. The block keeps its identity
+and its runs, so a position on one of its runs is still a position.
+
+```text
+WrapBlock { containers: [outermost, …, innermost] }
+  = InsertNode(chain of empty containers, at the block's index, in the block's parent)
+  + MoveNode(block, into the innermost container, at 0)
+```
+
+Both operations already existed (§21), so history, replay, and the change set needed nothing
+new. The block acted on is `RetypeBlock`'s: the caret's, or the first a range covers.
+
+Constraints are checked before anything is built, against the vocabulary when one is given:
+the parent must accept the outermost container, each container the next, and the innermost
+the block. A container is held to more than an existing parent is: it must be *declared* as
+holding nested blocks. An existing parent the vocabulary does not know is left alone, because
+refusing to edit inside it would strand its content; a new container in an undeclared kind, or
+in a text kind such as `CodeBlock`, would be content the vocabulary itself refuses.
+
+The Markdown rules on it: `> ` wraps in a `Quote`; `- `, `* `, and `+ ` in a `List` holding a
+`ListItem`; `1. ` or `1) ` in an ordered list, whose `start` is the number typed and is left out
+at 1, as the parser writes it.
+
+Not decided here, and not needed until they are:
+
+- **Joining a neighbour.** A list marker typed right after a list starts a second list beside
+  it. The printer writes two lists, and a Markdown parser reads them back as one. Markdown's own reading would add an item to
+  the list above; that is a merge of containers, which is its own command.
+- **The fence.** A `CodeBlock` holds text under a different marks policy, so turning a
+  paragraph into one is a *replace*, not a wrap or a retype. It waits for that command.
+- **Unwrapping.** Backspace at the start of a list item or a quote conventionally lifts the
+  block back out. That is the inverse move and the same two operations, but it changes what
+  `DeleteBackward` does, so it is a decision about Backspace rather than about this command.
+

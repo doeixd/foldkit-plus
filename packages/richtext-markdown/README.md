@@ -91,8 +91,10 @@ that prints the same, which is how the two directions are tested against each ot
 
 ## Input rules
 
-`markdownInputRules` retypes a block when a heading marker is completed at its start — `# `
-through `###### ` — which is the set the command vocabulary can carry out. An editor
+`markdownInputRules` reshapes a block when a marker is completed at its start: `# ` through
+`###### ` retype it as a heading (`RetypeBlock`), and `> `, `- `/`* `/`+ `, and an ordered
+marker such as `1. ` or `3) ` wrap it in a quote or a list (`WrapBlock`), an ordered list
+numbered from the number typed. An editor
 placement in `foldkit-richtext-dom` names the rules it applies, so this package holds no
 editor state and the editor holds no Markdown:
 
@@ -103,9 +105,9 @@ import { markdownInputRules } from 'foldkit-richtext-markdown'
 const body = editorAt('article-body', { inputRules: markdownInputRules })
 ```
 
-The markers that need a block *wrapped* in a container or *replaced* by an atom — `> `,
-`- `, `1. `, and a fence — are not rules yet, because the command vocabulary has no such
-command. Until it does, those markers stay text.
+A fence is not a rule yet: it needs the block *replaced* by a `CodeBlock`, and no command
+does that, so it stays text. A list marker typed right after a list starts a new list beside
+it rather than adding an item to that one.
 
 ## Limits
 

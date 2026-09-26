@@ -250,10 +250,10 @@ the same `safeUrl` policy HTML import uses (refused ones are reported as `Unsafe
 The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
-`###### ` retype a block as the space is typed — where the editor applies the rules its
-placement names (`editorAt(hostId, { inputRules })`), so it carries no Markdown itself.
-A marker needing the block wrapped or replaced is not a rule yet, because no command does
-that.
+`###### ` retype a block as the space is typed, and `> `, `- `, and `1. ` wrap it in a quote
+or a list (`WrapBlock`) — where the editor applies the rules its placement names
+(`editorAt(hostId, { inputRules })`), so it carries no Markdown itself. A fence is not a rule
+yet: it needs the block replaced, and no command does that.
 
 Form integration (Phase 5), the rest of Phase 4 (drag/drop, mobile keyboards, and
 real-browser verification; the toolbar and the slash menu are done), the editable
