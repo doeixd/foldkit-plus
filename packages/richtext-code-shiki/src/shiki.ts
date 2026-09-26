@@ -14,16 +14,17 @@ import type { HighlighterCore } from 'shiki/core'
 /**
  * Which kind a scope stack reads as, first match wins. The order is the point: a JSON key sits
  * inside `string` and carries `support.type.property-name`, so property must be tried before
- * string and before `support.type` makes it a type; and a string's quote
- * (`punctuation.definition.string`, inside `string`) belongs to the string, not punctuation.
+ * string and before `support.type` makes it a type; a string's quote
+ * (`punctuation.definition.string`, inside `string`) belongs to the string, not punctuation;
+ * and `keyword.operator` is an operator before every other `keyword.*` is a keyword.
  */
 const KINDS: ReadonlyArray<readonly [kind: string, prefixes: ReadonlyArray<string>]> = [
   ['syntax-comment', ['comment']],
   ['syntax-property', ['support.type.property-name', 'meta.object-literal.key']],
   ['syntax-string', ['string']],
   ['syntax-number', ['constant.numeric']],
-  ['syntax-keyword', ['keyword.control', 'storage', 'constant.language', 'keyword.other']],
   ['syntax-operator', ['keyword.operator']],
+  ['syntax-keyword', ['keyword', 'storage', 'constant.language']],
   ['syntax-function', ['entity.name.function', 'support.function']],
   ['syntax-type', ['entity.name.type', 'entity.name.class', 'support.type', 'support.class']],
   ['syntax-punctuation', ['punctuation']],
@@ -41,7 +42,11 @@ const kindForScopes = (scopes: ReadonlyArray<string>): string | undefined => {
   return undefined
 }
 
-/** How many distinct texts one tokenizer remembers; an editor retokenizes on every patch. */
+/**
+ * How many texts one tokenizer remembers, least recently read forgotten first. An editor
+ * retokenizes every block on every patch, and typing in one block makes a new text each
+ * keystroke, so a block that did not change stays remembered while it keeps being read.
+ */
 const CACHED_TEXTS = 64
 
 /**
@@ -60,7 +65,12 @@ export const shikiTokenizer = (highlighter: HighlighterCore, language: string): 
   const cache = new Map<string, ReadonlyArray<CodeToken>>()
   return text => {
     const cached = cache.get(text)
-    if (cached !== undefined) return cached
+    if (cached !== undefined) {
+      // A Map keeps insertion order, so re-inserting marks this text as the latest read.
+      cache.delete(text)
+      cache.set(text, cached)
+      return cached
+    }
     const tokens: Array<CodeToken> = []
     const { tokens: lines } = highlighter.codeToTokens(text, {
       lang: language,
