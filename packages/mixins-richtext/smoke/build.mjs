@@ -32,12 +32,12 @@ const events = await import('foldkit-richtext-dom/events')
 check('/events', typeof events.attach === 'function' && typeof events.intentFor === 'function')
 
 const html = await import('foldkit-richtext-dom/html')
-check('/html', typeof html.parseHtml === 'function' && typeof html.safeUrl === 'function')
+check('/html', typeof html.parseHtml === 'function')
 
-// §124 §10: the import reads only allowlisted attributes, and a URL whose scheme the
+// §124 §10: an import reads only allowlisted attributes, and a URL whose scheme the
 // policy refuses is reported rather than carried into props.
 const refused =
-  html.safeUrl('javascript:alert(1)') === undefined && html.safeUrl('/x?a=1') === '/x?a=1'
+  richtext.safeUrl('javascript:alert(1)') === undefined && richtext.safeUrl('/x?a=1') === '/x?a=1'
 check('a URL policy through the build', refused)
 
 const view = await import('foldkit-richtext-dom/view')

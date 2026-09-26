@@ -6,7 +6,8 @@
 import type { NodeId } from 'foldkit-richtext'
 
 export interface MarkdownDiagnostic {
-  readonly code: 'UnsupportedNode' | 'UnsupportedMark'
+  /** `UnsafeUrl` is a link or image whose URL the import policy (`safeUrl`) refused. */
+  readonly code: 'UnsupportedNode' | 'UnsupportedMark' | 'UnsafeUrl'
   /** The kind, mark, or node type the mapping has no syntax or no shape for. */
   readonly detail: string
   /** The block or run it sits on, when the mapping got that far. */

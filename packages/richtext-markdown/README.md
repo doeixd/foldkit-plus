@@ -81,7 +81,10 @@ editor.
 It reads CommonMark, plus GFM's task lists, strikethrough, and tables. It reports instead
 of guessing: raw HTML, a link definition, a footnote, a hard line break (which becomes its
 own paragraph, because a block holds no line break), and an image inside a paragraph
-(`Image` is a block, so a paragraph holding only one is hoisted to it).
+(`Image` is a block, so a paragraph holding only one is hoisted to it). Markdown is as
+untrusted as pasted HTML, so a link's or an image's URL passes the same `safeUrl` policy
+HTML import uses: a refused link keeps its text unlinked, a refused image is dropped, and
+each is reported as `UnsafeUrl`.
 
 `print(parse(markdown))` returns the same Markdown and `parse(print(document))` a document
 that prints the same, which is how the two directions are tested against each other.

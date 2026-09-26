@@ -113,7 +113,7 @@ vocabulary's `blockquote`, `pre`, `hr`, `img`, `table`/`tr`/`td`/`th`, `s`/`del`
 `data-unknown` round-trip, other elements are unwrapped or dropped with a diagnostic,
 and `script`/`style`/`iframe` are dropped with their content. Only a fixed few
 attributes are read — a link's `href`, an image's `src`/`alt`, a fence's language — and
-each passes `safeUrl`, which refuses a scheme outside http/https/mailto/tel after
+each passes `safeUrl` (exported from `foldkit-richtext`, so every importer shares it), which refuses a scheme outside http/https/mailto/tel after
 removing control characters and leaves a relative URL alone; `style` and `onclick` are
 never read. The adapter's `mount(ownerDocument, content, renderer?)` builds an owned
 `contenteditable` subtree and takes the same `rendering(...)` registry — as do
@@ -233,7 +233,8 @@ become markup, and a table's first row is printed as its header, which is where 
 `TableRow` carries a `header` prop that HTML round-trips as `data-header`, and a header row
 anywhere but first is reported. `parse(markdown, { mint })` returns `{ document, diagnostics }` through
 micromark and `mdast`, reading the same set back; raw HTML, a link definition, a footnote,
-and a hard line break are reported rather than guessed at. The two directions are tested
+and a hard line break are reported rather than guessed at, and a link or image URL passes
+the same `safeUrl` policy HTML import uses (refused ones are reported as `UnsafeUrl`). The two directions are tested
 against each other: `print(parse(markdown))` returns the Markdown it started from.
 `markdownInputRules` are the block markers the vocabulary can carry out — `# ` through
 `###### ` retype a block as the space is typed — where the editor applies the rules its

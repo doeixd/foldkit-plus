@@ -106,8 +106,8 @@ Read the calls literally:
   the standard vocabulary's elements — `blockquote`, `pre` (language from `data-language`
   or a `language-…` class, text verbatim with no marks), `hr`, `img` (`src`/`alt`),
   `table`/`tr`/`td`/`th` (a `th` marks its row as the header), `s`/`del`, `a` — and reads only a fixed few attributes, each
-  through `safeUrl`, which
-  refuses a scheme outside http/https/mailto/tel *after* removing control characters (so
+  through `safeUrl` (from `foldkit-richtext`, so Markdown import applies the same policy),
+  which refuses a scheme outside http/https/mailto/tel *after* removing control characters (so
   `java\tscript:` cannot walk past it) and leaves a relative URL alone. A `style`,
   `onclick`, or `javascript:` URL therefore still cannot survive as anything executable,
   and an element it cannot map keeps its text and reports a diagnostic.
