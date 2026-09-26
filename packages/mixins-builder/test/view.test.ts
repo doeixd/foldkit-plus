@@ -12,7 +12,16 @@ import { Attributes, A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { BuilderSlots, BuilderView, layerId, rowsOf, viewportWidths } from 'foldkit-mixins-builder'
-import { PageBuilder, PageView, Quote, Site, SiteRenderer, answer, isTimer } from './fixture.js'
+import {
+  Heading,
+  PageBuilder,
+  PageView,
+  Quote,
+  Site,
+  SiteRenderer,
+  answer,
+  isTimer,
+} from './fixture.js'
 import { Inert } from 'foldkit-mixins/testing'
 import { FieldSlots, FormSlots, type Renderers } from 'foldkit-mixins-form'
 
@@ -66,7 +75,7 @@ describe('the drawn Builder', () => {
       Inert.all(palette)
         .filter(node => node.sel === 'h3')
         .map(Inert.text),
-    ).toEqual(['Layout', 'Text'])
+    ).toEqual(['Layout', 'Text', 'Patterns'])
     // An empty page takes only a Section.
     expect(
       items(root).map(item => [
@@ -85,6 +94,18 @@ describe('the drawn Builder', () => {
         true,
       ],
     ])
+    // A pattern is offered by its words, where its root's Block would go.
+    const patternTiles = (model: Model) =>
+      Inert.all(draw(model))
+        .filter(node => node.sel === 'button' && Inert.value(node, 'data-pattern') !== undefined)
+        .map(item => [
+          Inert.value(item, 'aria-label'),
+          Inert.text(item),
+          Inert.value(item, 'title'),
+        ])
+    expect(patternTiles(PageBuilder.initial)).toEqual([
+      ['Add Intro', 'IntroA section that opens with a heading', 'Adds it to the end of the page'],
+    ])
     const titles = (model: Model) => items(draw(model)).map(item => Inert.value(item, 'title'))
     // A Section cannot follow the Banner inside the Section, so it goes last on the page.
     expect(titles(page)).toEqual([
@@ -97,6 +118,36 @@ describe('the drawn Builder', () => {
       'Adds it inside the Section',
       'Adds it inside the Section',
     ])
+  })
+
+  it('heads the palette’s groups when the patterns are the second', () => {
+    const OneGroup = Catalog.make({
+      blocks: [Heading],
+      roots: [Content.Flow],
+      patterns: [
+        {
+          name: 'Greeting',
+          tree: {
+            root: 'g',
+            nodes: { g: { block: 'Heading', props: { text: 'Hi' }, regions: {} } },
+          },
+        },
+      ],
+    })
+    const Small = Builder.make('Small', {
+      catalog: OneGroup,
+      renderer: Renderer.make(OneGroup, { Heading: ({ props, h }) => h.h2([], [props.text]) }),
+      starters: { Heading: { text: 'New' } },
+    })
+    const root = Inert.draw(BuilderView.define(Small), Small.initial)
+    const [palette] = Inert.all(root).filter(
+      node => Inert.value(node, 'aria-label') === 'Add a block',
+    )
+    expect(
+      Inert.all(palette)
+        .filter(node => node.sel === 'h3')
+        .map(Inert.text),
+    ).toEqual(['Text', 'Patterns'])
   })
 
   it('draws the layers as a tree, the tab stop on the selected row', () => {

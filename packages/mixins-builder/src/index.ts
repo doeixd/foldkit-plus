@@ -191,6 +191,12 @@ export interface BuilderLike {
     selected: Option.Option<NodeId>,
     block: string,
   ): Option.Option<Position>
+  /** Where a pattern goes, as `placeFor` places its root's Block. */
+  readonly patternAt: (
+    document: Document,
+    selected: Option.Option<NodeId>,
+    pattern: string,
+  ) => Option.Option<Position>
   /** What a key, a node's action and the toolbar run. */
   readonly commands: ReadonlyArray<BuilderCommand>
   readonly inspecting: (
@@ -572,6 +578,9 @@ export const BuilderView = {
       else names.push(name)
     }
     const groups = [...grouped]
+    const patterns = builder.catalog.patterns
+    // A heading names each group when there is more than one, the patterns' included.
+    const headed = groups.length + (patterns.length > 0 ? 1 : 0) > 1
 
     // One field per context key: a choice, or typed in; blank is unset.
     const contextField = (
@@ -1041,40 +1050,71 @@ export const BuilderView = {
       },
       (input, slots, h) => {
         const document = builder.document(input)
-        return h.nav(
-          slots.palette.attrs([h.AriaLabel('Add a block')]),
-          groups.map(([group, names]) =>
-            h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(group)]), [
-              ...(groups.length > 1 ? [h.h3(slots.paletteHeading.attrs(), [group])] : []),
-              ...names.map(name => {
-                const at = builder.placeFor(document, input.selected, name)
-                const label = labelOf(name)
-                return h.button(
-                  slots.paletteItem.attrs([
-                    h.Type('button'),
-                    h.DataAttribute('block', name),
-                    h.AriaLabel(`Add ${label}`),
-                    h.Title(whereItGoes(document, input.selected, at)),
-                    h.Disabled(Option.isNone(at)),
-                    ...Option.match(at, {
-                      onNone: () => [],
-                      onSome: position => [
-                        h.OnClick(Message.InsertAsked({ block: name, at: position })),
-                      ],
-                    }),
-                  ]),
-                  [
-                    h.span(slots.paletteLabel.attrs(), [label]),
-                    ...Option.match(described.get(name)?.description ?? Option.none(), {
-                      onNone: () => [],
-                      onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
-                    }),
-                  ],
-                )
+        /** A tile: what it adds, said, where a press adds it, and the Message that asks. */
+        const tile = (item: {
+          readonly data: readonly [name: 'block' | 'pattern', value: string]
+          readonly label: string
+          readonly hint: Option.Option<string>
+          readonly at: Option.Option<Position>
+          readonly asked: (at: Position) => Message
+        }) =>
+          h.button(
+            slots.paletteItem.attrs([
+              h.Type('button'),
+              h.DataAttribute(...item.data),
+              h.AriaLabel(`Add ${item.label}`),
+              h.Title(whereItGoes(document, input.selected, item.at)),
+              h.Disabled(Option.isNone(item.at)),
+              ...Option.match(item.at, {
+                onNone: () => [],
+                onSome: position => [h.OnClick(item.asked(position))],
               }),
             ]),
+            [
+              h.span(slots.paletteLabel.attrs(), [item.label]),
+              ...Option.match(item.hint, {
+                onNone: () => [],
+                onSome: hint => [h.span(slots.paletteHint.attrs(), [hint])],
+              }),
+            ],
+          )
+        const group = (name: string, tiles: ReadonlyArray<Html>) =>
+          h.div(slots.paletteGroup.attrs([h.Role('group'), h.AriaLabel(name)]), [
+            ...(headed ? [h.h3(slots.paletteHeading.attrs(), [name])] : []),
+            ...tiles,
+          ])
+        return h.nav(slots.palette.attrs([h.AriaLabel('Add a block')]), [
+          ...groups.map(([name, blocks]) =>
+            group(
+              name,
+              blocks.map(block =>
+                tile({
+                  data: ['block', block],
+                  label: labelOf(block),
+                  hint: described.get(block)?.description ?? Option.none(),
+                  at: builder.placeFor(document, input.selected, block),
+                  asked: at => Message.InsertAsked({ block, at }),
+                }),
+              ),
+            ),
           ),
-        )
+          ...(patterns.length === 0
+            ? []
+            : [
+                group(
+                  'Patterns',
+                  patterns.map(pattern =>
+                    tile({
+                      data: ['pattern', pattern.name],
+                      label: pattern.words.label,
+                      hint: pattern.words.description,
+                      at: builder.patternAt(document, input.selected, pattern.name),
+                      asked: at => Message.PatternAsked({ pattern: pattern.name, at }),
+                    }),
+                  ),
+                ),
+              ]),
+        ])
       },
     )
 

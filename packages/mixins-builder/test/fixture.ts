@@ -129,6 +129,19 @@ export const Site = Catalog.make({
   roots: [Content.Section],
   context: Schema.Struct({ audience: Schema.Literals(['guest', 'member']), beta: Schema.Boolean }),
   actions: [Subscribe],
+  patterns: [
+    {
+      name: 'Intro',
+      description: 'A section that opens with a heading',
+      tree: {
+        root: 'intro',
+        nodes: {
+          intro: { block: 'Section', props: { tone: 'plain' }, regions: { body: ['title'] } },
+          title: { block: 'Heading', props: { text: 'Welcome' }, regions: {} },
+        },
+      },
+    },
+  ],
 })
 
 export const SiteRenderer = Renderer.make(Site, {

@@ -273,7 +273,8 @@ const PageForm = Form.make('PageForm', PageInput, {
   props are shown read-only. `fieldsOf(schema)` (from `foldkit-composition`)
   is a struct Schema's fields.
 - Draws: palette (grouped buttons named `Add <label>`, titled with where they
-  go, disabled with no place), layers as `role="tree"` rows (label, the node's
+  go, disabled with no place; the Catalog's patterns last, a "Patterns" group
+  with `data-pattern`), layers as `role="tree"` rows (label, the node's
   first text in brief, a toggle on a branch; tab stop on the selected row),
   inspector (the Block's label and actions, then Content, Style, Visibility,
   Interactions; a look of up to four values is a row of pressed-state buttons;

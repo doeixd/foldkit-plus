@@ -61,7 +61,8 @@ Place `Drawn` as you would any Bundle. Its view draws:
 - a **palette**: one button per Block with starting props, named
   "Add <label>" and grouped, each titled with where it would go ("Adds it
   inside the Section") or disabled, saying why, where the selection leaves no
-  place for it;
+  place for it; the Catalog's patterns follow in a group of their own,
+  "Patterns", each placed where its root's Block would go;
 - the **layers**: a `role="tree"` of the page's nodes, one `treeitem` row each,
   with a roving tab stop on the selected row; a row shows its Block's label and
   the node's first text in brief, and one that holds others has a toggle that
@@ -89,7 +90,7 @@ Five Behaviors are attached, each from `foldkit-primitives`:
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
 | `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
 | `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
-| `palette` | `PointerDrag`, onto the canvas | A Block's tile dragged onto the page lands the same way and adds a new node of it there; a press without a drag adds it where its title says. |
+| `palette` | `PointerDrag`, onto the canvas | A Block's tile dragged onto the page lands the same way and adds a new node of it there; a press without a drag adds it where its title says. A pattern's tile is pressed, not dragged. |
 
 The shortcuts are on the layers panel and the canvas, not the whole editor,
 so Delete in a text box edits the text. The canvas is focusable, so a press on
@@ -300,7 +301,7 @@ Blocks given no group share one, "Blocks"; a group is headed only when there is
 more than one. The palette shows the label and the description, and a layer row
 the label and the node's first text prop, cut to forty characters. Palette
 buttons and layer rows carry `data-block` with the Block's name, so a Style can
-give each an icon.
+give each an icon; a pattern's button carries `data-pattern` with its name.
 
 ### A prop that points at the application's things
 

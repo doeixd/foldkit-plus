@@ -130,6 +130,13 @@ it('adds, navigates, moves, selects and removes, from the keyboard and the point
     key(document.querySelector('[aria-label="Page"]') ?? undefined, 'Escape')
     await vi.waitFor(() => expect(selectedRow()).toBeUndefined())
 
+    // A pattern's tile adds its Section and the Heading it opens with, last on the page.
+    buttonNamed('Add Intro')?.click()
+    await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading', 'Welcome']))
+    expect(selectedRow()?.getAttribute('data-block')).toBe('Section')
+    key(document.querySelector('[aria-label="Page"]') ?? undefined, 'z', { ctrlKey: true })
+    await vi.waitFor(() => expect(canvasText()).toEqual(['Hello', 'New heading']))
+
     // Pointing at a row marks its node on the page; leaving it lets go.
     const hovered = () =>
       document
