@@ -176,7 +176,9 @@ editor: `{ document, selection, draft, drafted, wrap }` in, `LinkEditorSlots` (`
 nor a link at the caret) and `ClearedMark` from inside a link, and keeps no state.
 `sourceEditor<Message>()` is source mode's view: `{ session, document, drafted, done }` in,
 `SourceEditorSlots` (`root`, `text`, `warnings`, `warning`, `done`) out; the application keeps
-`SourceSession | null` and commits `closeSource(...)` when `done` arrives.
+`SourceSession | null` and commits `closeSource(...)` when `done` arrives. `sourcePreview<Message>()`
+beside it is split mode: `{ session, document, rendering? }`, the draft rendered read-only as
+the document it would become.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,

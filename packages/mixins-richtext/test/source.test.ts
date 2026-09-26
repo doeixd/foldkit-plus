@@ -8,10 +8,11 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
+import { SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { closeSource, openSource, print, type SourceSession } from 'foldkit-richtext-markdown'
-import { describe, it } from 'vitest'
-import { sourceEditor } from '../src/index.js'
+import { describe, expect, it } from 'vitest'
+import { sourceEditor, sourcePreview } from '../src/index.js'
 
 const Message = defineMessageUnion({
   Drafted: { draft: Schema.String },
@@ -54,14 +55,21 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
             [h.Id('rich')],
             [model.document === original ? 'untouched' : print(model.document).markdown],
           )
-        : sourceEditor<Message>()(
-            {
-              session: model.source,
-              document: model.document,
-              drafted: draft => Message.Drafted({ draft }),
-              done: Message.LeftSource(),
-            },
-            h,
+        : // Split mode: the source beside what it would become.
+          h.div(
+            [],
+            [
+              sourceEditor<Message>()(
+                {
+                  session: model.source,
+                  document: model.document,
+                  drafted: draft => Message.Drafted({ draft }),
+                  done: Message.LeftSource(),
+                },
+                h,
+              ),
+              sourcePreview<Message>()({ session: model.source, document: model.document }, h),
+            ],
           ),
     ],
   )
@@ -92,5 +100,44 @@ describe('the Markdown source editor', () => {
       Scene.click('[data-source="done"]'),
       Scene.expect(Scene.selector('#rich')).toHaveText('marked, and *more*\n'),
     )
+  })
+
+  it('previews the draft as the document it would become, before and after an edit', () => {
+    Scene.scene(
+      { update, view },
+      Scene.given(opened()),
+      Scene.expect(Scene.selector('[data-source="preview"] p')).toHaveText('marked'),
+      Scene.type(text, '# Heading\n\nbody\n'),
+      Scene.expect(Scene.selector('[data-source="preview"] h1')).toHaveText('Heading'),
+      Scene.expect(Scene.selector('[data-source="preview"] p')).toHaveText('body'),
+    )
+  })
+
+  it('previews the document the caller holds now while the draft is unedited', () => {
+    // A document can change under an open, unedited session — a collaborator's edit, say —
+    // and closing would give back the current one, so the preview must show it too.
+    interface Node {
+      readonly text?: string
+      readonly children?: ReadonlyArray<Node>
+    }
+    const textOf = (node: Node): string =>
+      (node.text ?? '') + (node.children ?? []).map(textOf).join('')
+    const session = openSource(original)
+    const preview = (document: RichText.Document) =>
+      textOf(
+        sourcePreview<Message>()({ session, document }, SlotView.inertBuilder()) as unknown as Node,
+      )
+    const changed = RichText.decodeDocument({
+      version: 1,
+      children: [
+        {
+          type: 'Paragraph',
+          id: 'q',
+          children: [{ type: 'Text', id: 'q-t', text: 'changed elsewhere', marks: [] }],
+        },
+      ],
+    })
+    expect(preview(original)).toBe('marked')
+    expect(preview(changed)).toBe('changed elsewhere')
   })
 })

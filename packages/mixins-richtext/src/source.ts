@@ -10,8 +10,14 @@
  */
 import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
-import type * as RichText from 'foldkit-richtext'
-import { closeSource, type MarkdownDiagnostic, type SourceSession } from 'foldkit-richtext-markdown'
+import * as RichText from 'foldkit-richtext'
+import { renderDocument } from 'foldkit-richtext-dom/view'
+import {
+  closeSource,
+  type ClosedSource,
+  type MarkdownDiagnostic,
+  type SourceSession,
+} from 'foldkit-richtext-markdown'
 
 /** The elements the editor publishes: its wrapper, the text, the warnings, and the way back. */
 export const SourceEditorSlots = Slots.define({
@@ -47,21 +53,19 @@ const previewIds = () => {
 }
 
 /**
- * The warnings closing would report, kept per session, so a render that did not change the
- * draft does not parse it again. They depend on the session alone: an unedited draft reports
- * nothing, and an edited one is parsed without the document. A session is replaced on each
- * keystroke, and a dropped one is collected with its entry.
+ * What closing the session now would give: the editor's warnings and the preview's document,
+ * from one parse. An edited session's result is kept per session value, so a render that did
+ * not change the draft does not parse it again; a session is replaced on each keystroke, and
+ * a dropped one is collected with its entry. An unedited one is not kept: closing it is
+ * cheap, and it must give back the document the caller holds now.
  */
-const warned = new WeakMap<SourceSession, ReadonlyArray<MarkdownDiagnostic>>()
-const warningsFor = (
-  session: SourceSession,
-  document: RichText.Document,
-): ReadonlyArray<MarkdownDiagnostic> => {
-  const kept = warned.get(session)
+const parsed = new WeakMap<SourceSession, ClosedSource>()
+const closedFor = (session: SourceSession, document: RichText.Document): ClosedSource => {
+  const kept = parsed.get(session)
   if (kept !== undefined) return kept
-  const warnings = closeSource(session, document, previewIds()).diagnostics
-  warned.set(session, warnings)
-  return warnings
+  const closed = closeSource(session, document, previewIds())
+  if (closed.changed) parsed.set(session, closed)
+  return closed
 }
 
 /**
@@ -74,7 +78,7 @@ export const sourceEditor = <Message>(): SlotView.SlotView<
   Message
 > =>
   SlotView.forMessages<Message>().define(SourceEditorSlots, (input, slots, h): Html => {
-    const warnings = warningsFor(input.session, input.document)
+    const warnings = closedFor(input.session, input.document).diagnostics
     return h.div(slots.root.attrs(), [
       h.textarea(
         // A slot's attributes are typed for every element, and Foldkit's textarea excludes
@@ -108,3 +112,34 @@ export const sourceEditor = <Message>(): SlotView.SlotView<
       ),
     ])
   })
+
+/** The preview publishes one element: the rendered draft. */
+export const SourcePreviewSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+})
+
+export interface SourcePreviewInput {
+  readonly session: SourceSession
+  readonly document: RichText.Document
+  /** How declared kinds and marks render, as in the rich editor. Defaults to `noRendering`. */
+  readonly rendering?: RichText.Rendering | undefined
+}
+
+/**
+ * The draft as the document it would become, for split mode: drawn beside `sourceEditor`, it
+ * shows what switching back would commit. It is the read-only renderer's output, so it
+ * dispatches nothing, and it shares the editor's parse of the draft.
+ */
+export const sourcePreview = <Message>(): SlotView.SlotView<
+  typeof SourcePreviewSlots,
+  SourcePreviewInput,
+  Message
+> =>
+  SlotView.forMessages<Message>().define(SourcePreviewSlots, (input, slots, h): Html =>
+    h.div(slots.root.attrs([h.DataAttribute('source', 'preview'), h.AriaLabel('Preview')]), [
+      renderDocument(
+        closedFor(input.session, input.document).document,
+        input.rendering ?? RichText.noRendering,
+      ),
+    ]),
+  )

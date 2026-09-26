@@ -10,8 +10,8 @@ and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki 
 mark toolbar, the block style picker, the slash menu, link editing, and the placeholder
 (§119, §123, §132, §133, §134), with their views in
 `foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
-and none is released yet. Milestone 7's source session and its view are built (§136, §137);
-split mode and §9's round-trip hints are not.
+and none is released yet. Milestone 7's source session, its view, and split mode are built
+(§136, §137); §9's round-trip hints are not.
 Still to do: the rest of milestone 6's chrome, then the rest of source mode,
 CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
 §124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
@@ -7536,3 +7536,9 @@ unchanged draft need not parse it again. That makes `foldkit-mixins-richtext` de
 Wiring it exposed a latent build fault: `foldkit-richtext-markdown`'s `tsconfig.build.json` had
 no `references`, which `extends` does not inherit, so the first project to reference it failed
 with `TS6059`/`TS6307`. It references the core now.
+
+Split mode followed as a second view over the same session: `sourcePreview` renders what
+`closeSource` would give through the read-only renderer, beside `sourceEditor`. The two share
+one parse per session value. Only an edited session's result is kept: an unedited one gives
+back the document the application holds now, which can change under an open session (a
+collaborator's edit), so caching it would preview a document that is no longer there.

@@ -70,7 +70,14 @@ export const markToolbar = <Message>(): SlotView.SlotView<
 export { BlockStyleSlots, blockStyles, type BlockStyleInput } from './style.js'
 
 /** The Markdown source editor's view and its slots (§137). */
-export { SourceEditorSlots, sourceEditor, type SourceEditorInput } from './source.js'
+export {
+  SourceEditorSlots,
+  SourcePreviewSlots,
+  sourceEditor,
+  sourcePreview,
+  type SourceEditorInput,
+  type SourcePreviewInput,
+} from './source.js'
 
 /** The link editor's view and its slots (§132). */
 export { LinkEditorSlots, linkEditor, type LinkEditorInput } from './link.js'

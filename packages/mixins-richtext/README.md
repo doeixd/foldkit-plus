@@ -109,6 +109,11 @@ edited, since an unedited session gives the document back whole. `done` is the w
 application's `update` decides whether to commit `closeSource(...).document` at once or to ask
 first when there are warnings. The warnings are computed once per session value.
 
+Split mode is the same session drawn twice: `sourcePreview<Message>()({ session, document,
+rendering? })` beside the editor renders the document switching back would commit, through the
+read-only renderer, so it dispatches nothing. It shares the editor's parse of the draft, and
+while the draft is unedited it shows the document the application holds now.
+
 | Slot | Capability | Renders |
 | --- | --- | --- |
 | `root` | Container | the editor's wrapper |

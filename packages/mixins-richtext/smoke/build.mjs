@@ -88,6 +88,7 @@ check(
     typeof family.linkEditor === 'function' &&
     typeof family.blockStyles === 'function' &&
     typeof family.sourceEditor === 'function' &&
+    typeof family.sourcePreview === 'function' &&
     typeof family.SourceEditorSlots === 'object' &&
     typeof family.BlockStyleSlots === 'object' &&
     typeof family.LinkEditorSlots === 'object',
