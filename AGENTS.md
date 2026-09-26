@@ -796,6 +796,14 @@ of its own named a form field "fits the Catalog". Read words with
   `examples/entity` failed CI this way with the dependency declared. To
   reproduce locally, move the package's `dist` aside and run
   `npx tsc -b --force <example>`.
+- **Run a package's tests from the root, where the aliases are.** The
+  workspace aliases live in the root `vitest.config.ts`. Run inside
+  `packages/mixins-builder`, vitest resolved `foldkit-mixins-builder` to its
+  stale `dist`, and 21 tests passed against markup the source no longer drew.
+  Run `pnpm exec vitest run packages/<name>` from the root.
+- **A tab left open across a dev-server restart hangs.** The page waits on the
+  old server, and every browser tool times out against it ("page is busy").
+  Close it and open a fresh tab rather than retrying.
 - **A hidden browser tab shows its first frame for good.** Foldkit renders on
   `requestAnimationFrame`, which a hidden tab never runs, so a page driven by
   the browser tools sat on "Loading…" while its Model had long filled, and an
