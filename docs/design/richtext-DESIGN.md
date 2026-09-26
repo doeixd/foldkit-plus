@@ -1,7 +1,19 @@
 # Foldkit Plus Rich Text
 
-**Status:** Phase 1 is implemented except for mark overlap rules and metadata, metadata keys, and collaboration. §121's rendering registry reaches the serializer, the read-only view, the adapter, and — via §122 — the editor Bundle. Nested children beyond runs (§116) are done. Phases 2 and 3 exist as private spikes, not supported API: the read-only renderer, HTML import/export, and the DOM editing loop, including stored marks. Phase 4 is in progress: the interpreter, event translation, HTML import, the read-only view, and the editor Bundle are in `packages/richtext-dom` (private); the mark toolbar is in `foldkit-richtext-dom` and as a Mixins family in `foldkit-mixins-richtext`; and §118's slices 1–3, §119's 1–2 (slice 3 dropped per §123), §120's slice 1, and the slash menu (§123) have landed. No phase is published. The three integration proofs stand as recorded in §101: the controlled-Bundle proof passed, the stateful-Form control is spiked, and the collaboration proof is unstarted. §115 is the full remaining inventory; §124 proposes a
-Markdown-first reordering of what to build next, and is a plan rather than a status report.
+**Status:** §124's Markdown-first order is the one being followed; its milestones 1–5 are
+built and 6 is under way. Built: the standard vocabulary and content rules (§125); the
+decoration substrate, drawn by the read-only view and the editable adapter (§126, §129);
+Markdown printing and parsing (§127, `foldkit-richtext-markdown`); input rules with atomic
+actions, and the block commands they need: retype, wrap (joining the list above), convert,
+and lift (§128, §131); code highlighting through a JSON tokenizer and a Shiki adapter
+(§130, `foldkit-richtext-code`, `foldkit-richtext-code-shiki`); and, of milestone 6, the
+mark toolbar, the slash menu, and link editing (§119, §123, §132), with their views in
+`foldkit-mixins-richtext`. The six richtext packages are public workspace packages at 0.1.0
+and none is released yet. Still to do: the rest of milestone 6's chrome, then source mode,
+CMS integration, SSR and real-browser hardening, collaboration, presence, and agents, in
+§124's order; §115 is the inventory of what is not done. Phase 1 still lacks mark overlap
+rules and metadata keys. Of §101's integration proofs, the controlled-Bundle proof passed,
+the stateful-Form control is spiked, and the collaboration proof is unstarted.
 **Target:** `doeixd/foldkit-plus`
 **Primary new packages:** `foldkit-richtext`, `foldkit-richtext-dom`
 **Likely integration packages:** `foldkit-mixins-richtext`, `foldkit-richtext-loro` / `foldkit-richtext-sync`
@@ -4559,15 +4571,16 @@ A verified inventory of what is not done, by phase. §124 proposes a different o
 for the work than these phases do; this inventory stays the record of what exists. In
 this section:
 
-- **package** means the core `packages/richtext` (private, unpublished); the DOM
-  package `packages/richtext-dom` and the Mixins family `packages/mixins-richtext`
-  are named where they matter;
+- **package** means the core `packages/richtext`; the DOM package
+  `packages/richtext-dom`, the Mixins family `packages/mixins-richtext`, and the
+  Markdown and code packages are named where they matter. All are public workspace
+  packages at 0.1.0, none released;
 - **harness** means the private `examples/richtext` spike, which has no
   `package.json` and is not supported API;
 - **published** means usable by another workspace package.
 
-Verified against source and tests at commit `0f2c7cc`; see the verification note
-at the end. Re-check this list when a phase lands, because a stale inventory
+Verified against source and tests at commit `0f2c7cc`, and Phase 4 again at `377b59c`;
+see the verification note at the end. Re-check this list when a phase lands, because a stale inventory
 reads as current.
 
 ## Phase 1 — semantic core
@@ -4651,8 +4664,8 @@ tests, build, and README. §118 decided how a view owns that subtree and its fir
 three slices landed: the editor's view renders the host element, the patch Command
 its `update` returns is what moves the DOM, paste and the undo/redo chords travel
 the same path, and the editor Bundle and read-only renderer moved in beside the
-interpreter. The harness is now only the browser page. The toolbar, slash, and
-keymap layers remain.
+interpreter. The harness is now only the browser page. The keymap table, the toolbar,
+the slash menu, and link editing have landed since; the rest of §35's chrome remains.
 
 Per item:
 
@@ -4676,7 +4689,18 @@ slash commands            the editor's catalogue and menu
                           `slashEntries`, `matchingEntries`, `slashMenu`), the family's
                           re-export, `slashMove`, and `slashMenuView`, and the Bundle's
                           `menuIndex` with `Entered` resolved against a live query
-                          (§123)
+                          (§123); entries for the quote, the lists, and the code block
+                          (§131)
+link editing              `SetMark`/`ClearMark` and `linkAt` in the core, the
+                          `AppliedMark`/`ClearedMark` Messages, and `linkEditor` in the
+                          Mixins family (§132)
+input rules               placed per host (`inputRulesFor`); the Markdown rules for
+                          headings, quotes, lists, and fences (§128, §131)
+decorations               placed per host and drawn in the editable subtree (§129)
+placeholder, block type
+picker, block handle,
+status, command palette,
+floating toolbar          not started (§11, §120 slice 2)
 ```
 
 Also not done: promoting the rest into packages with a supported API, and the editor's own
@@ -4751,7 +4775,9 @@ keymap, toolbar, slash, or drag/drop handling; listing
 renderer package); and `foldkit-metadata` appeared in six package manifests, none of
 them richtext. Since then the DOM package and the Mixins family exist, the adapter
 gained a keymap table (§119) and a toolbar (§120), and `marksInRange` joined the
-core.
+core. At `377b59c`, a search of `packages/richtext-dom/src` and
+`packages/mixins-richtext/src` found no drag/drop handling and no editor placeholder
+(the one `placeholder` is the preserved-content diagnostic).
 
 ---
 
